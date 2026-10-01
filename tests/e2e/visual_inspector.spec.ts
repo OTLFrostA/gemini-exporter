@@ -146,7 +146,10 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const badge = page.locator('.tour-step-badge');
     await expect(badge).toBeVisible();
     const badgeText = await badge.innerText();
-    expect(badgeText).toContain('1.5.0');
+    expect(badgeText).toContain('1.7.0');
+
+    await expect(popover).toContainText('PDF');
+    await expect(popover).toContainText('HTML');
 
     // 5. Verify action buttons exist
     const dismissBtn = page.locator('#tourSpotlightDismissBtn');
@@ -155,15 +158,16 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     await expect(actionBtn).toBeVisible();
 
     // 6. Dismiss spotlight
-    await dismissBtn.click();
+    await actionBtn.click();
     await expect(popover).toBeHidden();
+    await expect(page.locator('#format')).toBeFocused();
 
-    // 7. Verify storage updated to 1.5.0
+    // 7. Verify storage updated to 1.7.0
     const storedVer = await page.evaluate(async () => {
       const data = await chrome.storage.local.get(['last_seen_feature_version']);
       return data.last_seen_feature_version;
     });
-    expect(storedVer).toBe('1.5.0');
+    expect(storedVer).toBe('1.7.0');
 
     // 8. Reload page - spotlight should NOT appear again
     await page.reload();

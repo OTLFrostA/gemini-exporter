@@ -73,6 +73,11 @@ export const STEPS: any[] = [
     },
     {
         id: 'export',
+        spotlightTarget: () => document.getElementById('format') || null,
+        spotlightTitleKey: 'tourExportFormatsTitle',
+        spotlightDescKey: 'tourExportFormatsDesc',
+        spotlightHintKey: 'tourExportFormatsHint',
+        spotlightActionLabelKey: 'tourExportFormatsAction',
         getTarget: () => document.getElementById('btnExport') || null,
         placement: 'right',
         titleKey: 'tourStep4Title',
