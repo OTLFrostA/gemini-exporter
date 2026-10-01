@@ -129,8 +129,18 @@ test('全部附件成功 -> ok:true 且记录不带 partial', async () => {
 
         assert.strictEqual(res.ok, true, '附件全成功时 ok 应为 true');
         assert.ok(savedRecord, '应写导出记录');
-        assert.strictEqual(savedRecord.rec.status, undefined, '成功记录不应带 partial');
-        assert.strictEqual(savedRecord.rec.hasFailedAssets, undefined);
+        assert.strictEqual(savedRecord.rec.status, 'ok', '成功记录应清除旧 partial 状态');
+        assert.strictEqual(savedRecord.rec.hasFailedAssets, false);
+
+        const partial = await handleLiveSaveViaHandle({
+            chat: { title: 'Good Chat', messages: [{ role: 'user', content: 'hi' }] },
+            safeTitle: 'Good Chat', nid: 'c_abcdef1234567890', assets: [],
+            failedAssets: [{ file: 'missing.png', error: 'image download returned no bytes' }]
+        }, 'u0');
+        assert.strictEqual(partial.ok, false, '后台必须保留内容脚本下载失败');
+        assert.strictEqual(savedRecord.rec.status, 'partial');
+        assert.strictEqual(savedRecord.rec.hasFailedAssets, true);
+
     } finally {
         idbStore.getStoredDirHandle = origGetHandle;
         storageMod.StorageService.saveExportRecord = origSave;

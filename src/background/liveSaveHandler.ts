@@ -65,7 +65,7 @@ export function withLiveSaveLock<T>(key: string, op: () => Promise<T>): Promise<
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
         if (!await isLiveSaveFormatSupported()) return { ok: false, error: 'live_save_requires_markdown' };
-        const { chat, safeTitle, nid, fileName, assets } = payload || {};
+        const { chat, safeTitle, nid, fileName, assets, failedAssets: upstreamFailures } = payload || {};
         const handle = await getStoredDirHandle();
         if (!handle) {
             return { ok: false, error: 'no_dir_handle' };
@@ -118,7 +118,9 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                 { fileName }
             );
 
-            const failures: Array<{ file: string; error: string }> = [];
+            const failures: Array<{ file: string; error: string }> = Array.isArray(upstreamFailures)
+                ? upstreamFailures.filter(f => typeof f?.file === 'string' && typeof f?.error === 'string').map(f => ({ file: f.file, error: f.error }))
+                : [];
             if (Array.isArray(assets) && assets.length > 0) {
                 for (const asset of assets) {
                     if (asset && asset.fileName) {
@@ -182,8 +184,10 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     exportedAt: new Date(now).toISOString(),
                     title: safeTitle,
                     format: 'markdown',
+                    messageCount: Array.isArray(chat?.messages) ? chat.messages.length : 0,
+                    status: failedAssets.length > 0 ? 'partial' : 'ok',
+                    hasFailedAssets: failedAssets.length > 0,
                     ...(chatTs > 0 ? { chatTime: chatTs } : {}),
-                    ...(failedAssets.length > 0 ? { status: 'partial', hasFailedAssets: true } : {})
                 });
             }
         } catch (e) {
