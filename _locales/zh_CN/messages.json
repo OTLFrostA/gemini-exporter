@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Gemini Exporter - 批量导出对话备份",
+    "message": "Gemini Exporter - 保存所有对话",
     "description": "扩展程序名称。"
   },
   "extDesc": {
-    "message": "100% 免费开源 • 实时自动保存 • 一键批量导出为 Markdown • 导入 Takeout 补全遗失历史",
+    "message": "100% 免费开源 • 100% 本地处理，无追踪 • 一键导出所有对话 • PDF、HTML 与 Markdown • 自动后台导出，无需手动操作",
     "description": "扩展程序描述。"
   }
 }

@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "Gemini Exporter - Bulk Export All Chats",
+    "message": "Gemini Exporter - Save All Your Chats",
     "description": "The name of the extension."
   },
   "extDesc": {
-    "message": "100% Free & open-source • Real-time auto-save • One-click batch export to Markdown • Reclaim full Gemini history via Takeout",
+    "message": "100% Free & open-source • 100% local, no tracking • One-click export all chats • PDF, HTML & Markdown • Hands-off background export",
     "description": "The description of the extension."
   }
 }
