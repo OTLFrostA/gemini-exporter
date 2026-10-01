@@ -150,6 +150,9 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
 
     await expect(popover).toContainText('PDF');
     await expect(popover).toContainText('HTML');
+    await expect(popover).toContainText(/Local fonts for PDF|PDF 本地字体权限/);
+    await expect(popover).toContainText(/English-only PDFs still export|仍可导出纯英文 PDF/);
+    await expect(popover).not.toContainText(/Gemini-style|保留 Gemini 风格/);
 
     // 5. Verify action buttons exist
     const dismissBtn = page.locator('#tourSpotlightDismissBtn');

@@ -251,7 +251,7 @@ const __enFactory = (): LocaleDictionary => {
             tourBtnDone: "🎉 Get Started",
             tourBtnSkip: "Skip Tour",
             tourExportFormatsTitle: "New PDF / HTML export",
-            tourExportFormatsDesc: "Save Gemini conversations in formats made for reading and sharing:<br><br><strong>PDF</strong>: Generated on your device, ready for printing and archiving.<br><strong>HTML</strong>: Gemini-style pages with offline browsing, dark/light themes, and code copying.",
+            tourExportFormatsDesc: "Save Gemini conversations in formats made for reading and sharing:<br><br><strong>PDF</strong>: Generated on your device, ready for printing and archiving.<br><strong>HTML</strong>: Standalone reading pages with offline browsing, dark/light themes, and code copying.<br><br><strong>Local fonts for PDF</strong>: Allow access to local fonts when your browser asks so characters such as Chinese and Japanese render correctly. English-only PDFs still export if you decline, but non-English characters may be missing. HTML export does not need this permission.",
             tourExportFormatsHint: "Select conversations, choose PDF or HTML under Export Settings → Format, then export.",
             tourExportFormatsAction: "Choose export format",
             tourFeatureBadge: "What's New",
