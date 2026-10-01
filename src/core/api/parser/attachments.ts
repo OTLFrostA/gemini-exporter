@@ -1,6 +1,7 @@
 import { isInternalChipUrl as canonicalIsInternalChipUrl } from "../../utils/chipUtils.js";
 
 export interface ImageAttachment {
+    sourceEvidence?: { detectorKind: string; node: unknown };
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
@@ -151,6 +152,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     }
 
     interface RawImageCandidate {
+        evidenceNode?: unknown;
         sourceUrl: string;
         width?: number;
         height?: number;
@@ -329,6 +331,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
         return {
             sourceUrl: raw.sourceUrl,
+            sourceEvidence: { detectorKind: raw.detectorKind, node: raw.evidenceNode ?? null },
             width: raw.width,
             height: raw.height,
             size: raw.size,
@@ -361,6 +364,12 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     return;
                 }
 
+                // Keep the matched media tuple (not the conversation body) for failed
+                // attachment diagnostics, so false detections can be reproduced.
+                const evidenceJson = JSON.stringify(node);
+                raw.evidenceNode = evidenceJson.length <= 12000
+                    ? JSON.parse(evidenceJson)
+                    : { truncated: true, preview: evidenceJson.slice(0, 12000) };
                 const img = normalizeRawImage(raw, counter);
                 if (img.token) {
                     const existingIdx = images.findIndex(existing => existing.token === img.token);

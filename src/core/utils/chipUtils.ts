@@ -1,6 +1,6 @@
 
 export const INTERNAL_CHIP_TOKEN_PATTERN =
-    '(?:immersive_entry_chip|deep_research(?:_confirmation_content)?|map_(?:content|location(?:_reference)?)|grounding_content|web_search(?:_content)?|youtube_content|flights_content|hotels_content|workspace_content|image_?generation_?content|generated_image)';
+    '(?:immersive_entry_chip|deep_research(?:_confirmation_content)?|map_(?:content|location(?:_reference)?)|grounding_content|web_search(?:_content)?|youtube_content|flights_content|hotels_content|workspace_content|shopping_content|lmdx_image|image_?generation_?content|generated_image)';
 
 export const INTERNAL_CHIP_URL_RE = new RegExp(
     `https?:\\/\\/googleusercontent\\.com\\/${INTERNAL_CHIP_TOKEN_PATTERN}`,
