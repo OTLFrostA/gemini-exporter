@@ -9,7 +9,9 @@ const {
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
     resolveExportRecordStatus,
-    applyAssetFailureToExportRecord
+    applyAssetFailureToExportRecord,
+    normalizeReliableTitleSource,
+    resolveReliableTitleSource
 } = require('../src/core/engine/export/exportCompletion.js');
 const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
 
@@ -648,3 +650,298 @@ test('14. Parity G: Concurrency claim and callback guarantees in sessionRecovery
         (global as any).chrome = origChrome;
     }
 });
+
+// 15. Targeted Provenance A: default chat source falls back to RPC list source
+test('15. Targeted Provenance A: default chat source falls back to RPC list source', async () => {
+    const { mockStorage, chrome } = createMockChromeStorage({
+        gemini_conversations: [
+            { id: 'c_prov_rpc', title: '未命名对话', titleSource: 'default', messageCount: 1 }
+        ]
+    });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        const chat: any = {
+            id: 'c_prov_rpc',
+            title: 'Real RPC Title',
+            titleSource: 'default'
+        };
+        const listC = {
+            id: 'c_prov_rpc',
+            titleSource: 'rpc',
+            titles: {
+                rpc: 'Real RPC Title'
+            }
+        };
+
+        const titleProvenance = resolveReliableTitleSource(chat.titleSource, listC.titleSource);
+        assert.strictEqual(titleProvenance, 'rpc');
+
+        const completion = buildExportCompletion({
+            conversation: chat,
+            conversationId: 'c_prov_rpc',
+            titleCandidate: chat.title,
+            titleProvenance,
+            titles: { ...(listC?.titles || {}), ...(chat.titles || {}) }
+        });
+
+        assert.strictEqual(completion.exportRecord.title, 'Real RPC Title');
+        assert.strictEqual(completion.conversationUpdate.titleSource, 'rpc');
+
+        await StorageService.finalizeConversationExport(
+            'u0',
+            completion.targetId,
+            completion.exportRecord,
+            { conversationUpdate: completion.conversationUpdate }
+        );
+
+        const convs = mockStorage.gemini_conversations;
+        const saved = convs.find((c: any) => normId(c.id) === 'prov_rpc');
+        assert.ok(saved);
+        assert.strictEqual(saved.title, 'Real RPC Title');
+        assert.strictEqual(saved.titleSource, 'rpc');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// 16. Targeted Provenance B: default chat source falls back to api-detail
+test('16. Targeted Provenance B: default chat source falls back to api-detail', async () => {
+    const { mockStorage, chrome } = createMockChromeStorage({
+        gemini_conversations: [
+            { id: 'c_prov_api', title: '未命名对话', titleSource: 'default', messageCount: 1 }
+        ]
+    });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        const chat: any = {
+            id: 'c_prov_api',
+            title: 'Real API Detail Title',
+            titleSource: 'default'
+        };
+        const listC = {
+            id: 'c_prov_api',
+            titleSource: 'api-detail',
+            titles: {
+                'api-detail': 'Real API Detail Title'
+            }
+        };
+
+        const titleProvenance = resolveReliableTitleSource(chat.titleSource, listC.titleSource);
+        assert.strictEqual(titleProvenance, 'api-detail');
+
+        const completion = buildExportCompletion({
+            conversation: chat,
+            conversationId: 'c_prov_api',
+            titleCandidate: chat.title,
+            titleProvenance,
+            titles: { ...(listC?.titles || {}), ...(chat.titles || {}) }
+        });
+
+        assert.strictEqual(completion.exportRecord.title, 'Real API Detail Title');
+        assert.strictEqual(completion.conversationUpdate.titleSource, 'api-detail');
+
+        await StorageService.finalizeConversationExport(
+            'u0',
+            completion.targetId,
+            completion.exportRecord,
+            { conversationUpdate: completion.conversationUpdate }
+        );
+
+        const convs = mockStorage.gemini_conversations;
+        const saved = convs.find((c: any) => normId(c.id) === 'prov_api');
+        assert.ok(saved);
+        assert.strictEqual(saved.title, 'Real API Detail Title');
+        assert.strictEqual(saved.titleSource, 'api-detail');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// 17. Targeted Provenance C: default chat source falls back to takeout
+test('17. Targeted Provenance C: default chat source falls back to takeout', async () => {
+    const { mockStorage, chrome } = createMockChromeStorage({
+        gemini_conversations: [
+            { id: 'c_prov_takeout', title: '未命名对话', titleSource: 'default', messageCount: 1 }
+        ]
+    });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        const chat: any = {
+            id: 'c_prov_takeout',
+            title: 'Real Takeout Title',
+            titleSource: 'default'
+        };
+        const listC = {
+            id: 'c_prov_takeout',
+            titleSource: 'takeout',
+            titles: {
+                takeout: 'Real Takeout Title'
+            }
+        };
+
+        const titleProvenance = resolveReliableTitleSource(chat.titleSource, listC.titleSource);
+        assert.strictEqual(titleProvenance, 'takeout');
+
+        const completion = buildExportCompletion({
+            conversation: chat,
+            conversationId: 'c_prov_takeout',
+            titleCandidate: chat.title,
+            titleProvenance,
+            titles: { ...(listC?.titles || {}), ...(chat.titles || {}) }
+        });
+
+        assert.strictEqual(completion.exportRecord.title, 'Real Takeout Title');
+        assert.strictEqual(completion.conversationUpdate.titleSource, 'takeout');
+
+        await StorageService.finalizeConversationExport(
+            'u0',
+            completion.targetId,
+            completion.exportRecord,
+            { conversationUpdate: completion.conversationUpdate }
+        );
+
+        const convs = mockStorage.gemini_conversations;
+        const saved = convs.find((c: any) => normId(c.id) === 'prov_takeout');
+        assert.ok(saved);
+        assert.strictEqual(saved.title, 'Real Takeout Title');
+        assert.strictEqual(saved.titleSource, 'takeout');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// 18. Targeted Provenance D: unreliable sources do not fabricate provenance
+test('18. Targeted Provenance D: unreliable sources do not fabricate provenance', async () => {
+    const { mockStorage, chrome } = createMockChromeStorage({
+        gemini_conversations: [
+            { id: 'c_prov_unreliable', title: '未命名对话', titleSource: 'default', messageCount: 1 }
+        ]
+    });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        const chat: any = {
+            id: 'c_prov_unreliable',
+            title: 'Unprovenanced Real Title',
+            titleSource: 'default'
+        };
+        const listC = {
+            id: 'c_prov_unreliable',
+            titleSource: 'legacy',
+            titles: {
+                legacy: 'Unprovenanced Real Title'
+            }
+        };
+
+        const titleProvenance = resolveReliableTitleSource(chat.titleSource, listC.titleSource);
+        assert.strictEqual(titleProvenance, undefined, 'Neither default nor legacy can be treated as reliable provenance');
+
+        const completion = buildExportCompletion({
+            conversation: chat,
+            conversationId: 'c_prov_unreliable',
+            titleCandidate: chat.title,
+            titleProvenance,
+            titles: { ...(listC?.titles || {}), ...(chat.titles || {}) }
+        });
+
+        assert.strictEqual(completion.exportRecord.title, 'Unprovenanced Real Title');
+        assert.strictEqual(completion.conversationUpdate.titleSource, undefined, 'Must not fabricate rpc/api-detail provenance');
+
+        await StorageService.finalizeConversationExport(
+            'u0',
+            completion.targetId,
+            completion.exportRecord,
+            { conversationUpdate: completion.conversationUpdate }
+        );
+
+        const convs = mockStorage.gemini_conversations;
+        const saved = convs.find((c: any) => normId(c.id) === 'prov_unreliable');
+        assert.ok(saved);
+        assert.strictEqual(saved.title, 'Unprovenanced Real Title');
+        // Promoted to legacy via candidate rule, never fabricating rpc or api-detail
+        assert.strictEqual(saved.titleSource, 'legacy');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// 19. Adapter Contract E: adapter with only finalizeConversationExport
+test('19. Adapter Contract E: adapter with only finalizeConversationExport is accepted by sessionRecovery', async () => {
+    let finalizeCalls = 0;
+    let finalizeArgs: any = null;
+    let callbackCalls = 0;
+
+    const mockAdapter = {
+        finalizeConversationExport: async (slot: string, id: string, rec: any, options: any) => {
+            finalizeCalls++;
+            finalizeArgs = { slot, id, rec, options };
+            if (options?.onItemExported) {
+                options.onItemExported(id, rec);
+            }
+        }
+    };
+
+    const finalizedChatsSet = new Set<string>();
+    const chatRecordsMap = new Map<string, any>([
+        ['c_fin_only', {
+            exportRecord: {
+                title: 'Finalize Only Chat',
+                status: 'ok',
+                messageCount: 3,
+                exportedAt: new Date().toISOString()
+            },
+            conversationUpdate: {
+                title: 'Finalize Only Chat',
+                titleSource: 'rpc',
+                messageCount: 3
+            },
+            targetId: 'fin_only'
+        }]
+    ]);
+
+    const context = {
+        finalizedChatsSet,
+        chatRecordsMap,
+        storageAdapter: mockAdapter,
+        slot: 'u1',
+        onItemExported: (id: string, rec: any) => {
+            callbackCalls++;
+        }
+    };
+
+    const res = await finalizeChatExport('c_fin_only', context);
+    assert.strictEqual(res, true);
+    assert.strictEqual(finalizeCalls, 1);
+    assert.strictEqual(callbackCalls, 1);
+    assert.strictEqual(finalizeArgs.id, 'c_fin_only');
+    assert.strictEqual(finalizeArgs.slot, 'u1');
+    assert.strictEqual(finalizeArgs.options.conversationUpdate.titleSource, 'rpc');
+    assert.ok(finalizedChatsSet.has('fin_only'));
+});
+
+// 20. Adapter Contract F: adapter with neither finalizeConversationExport nor saveExportRecord is rejected
+test('20. Adapter Contract F: adapter with neither finalizeConversationExport nor saveExportRecord is rejected', async () => {
+    const brokenAdapter = {
+        someOtherMethod: () => {}
+    };
+
+    const context = {
+        chatRecordsMap: new Map<string, any>([
+            ['c_broken', { title: 'Broken Chat', status: 'ok' }]
+        ]),
+        storageAdapter: brokenAdapter,
+        slot: 'u0'
+    };
+
+    await assert.rejects(async () => {
+        await finalizeChatExport('c_broken', context);
+    }, /adapter must implement finalizeConversationExport or saveExportRecord/);
+});
+

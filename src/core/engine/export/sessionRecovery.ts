@@ -220,7 +220,7 @@ export { EXT_VERSION, getExtensionVersion };
 
         const targetNid = normId(targetId);
         if (finalizedChatsSet && finalizedChatsSet.has(targetNid)) return false;
-        const rawEntry = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
+        const rawEntry = chatRecordsMap ? (chatRecordsMap.get(targetNid) || chatRecordsMap.get(targetId)) : null;
         if (!rawEntry) return false;
 
         const rec = rawEntry.exportRecord ? rawEntry.exportRecord : rawEntry;
@@ -230,11 +230,15 @@ export { EXT_VERSION, getExtensionVersion };
             applyAssetFailureToExportRecord(rec);
         }
 
-        // Phase A (P1-4): 只保留 saveExportRecord 一条正式路径 —— mock adapter 必须实现它。
-        // 缺失即抛错，不再静默降级到 storageAdapter.set/get 或 chrome.storage 直写。
-        if (!storageAdapter || typeof storageAdapter.saveExportRecord !== 'function') {
+        if (
+            !storageAdapter ||
+            (
+                typeof storageAdapter.finalizeConversationExport !== 'function' &&
+                typeof storageAdapter.saveExportRecord !== 'function'
+            )
+        ) {
             throw new Error(
-                `[GemExporter:sessionRecovery.ts] storageAdapter.saveExportRecord is required to finalize export for ${targetId} (slot ${slot})`
+                `[GemExporter:sessionRecovery.ts] adapter must implement finalizeConversationExport or saveExportRecord to finalize export for ${targetId} (slot ${slot})`
             );
         }
         // Claim before the first await so concurrent asset completions cannot
