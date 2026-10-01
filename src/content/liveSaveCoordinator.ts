@@ -13,11 +13,13 @@ import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
+import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
 import type { LiveSaveConfig } from '../types/liveSave.js';
 
 export interface LiveSaveCoordinatorDeps {
     storageManager?: typeof LiveStorageManager;
     exportRecordStore?: Pick<typeof StorageService, 'saveExportRecord'> & Partial<Pick<typeof StorageService, 'finalizeConversationExport'>>;
+    completeExport?: typeof completeConversationExport;
     scraper?: typeof DomScraper;
     formatter?: typeof ChatFormatter;
     fsWriterClass?: typeof FsWriter;
@@ -269,36 +271,26 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             // 3. Update configuration metadata if direct disk write occurred (background updates its own)
             if (dirHandle) {
                 const now = Date.now();
-                const chatTime = getEffectiveTimestamp(chat);
                 const records = _deps.exportRecordStore || StorageService;
                 const slot = detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
-                const msgCount = (chat as any)?.messageCount || (Array.isArray(chat?.messages) ? chat.messages.length : 0);
-                const exportRecord = {
-                    exportedAt: new Date(now).toISOString(),
-                    title: safeTitle,
-                    format: 'markdown',
-                    status: failedAssets.length ? 'partial' : 'ok',
-                    hasFailedAssets: failedAssets.length > 0,
-                    messageCount: msgCount,
-                    ...(chatTime > 0 ? { chatTime } : {})
-                };
+                const doComplete = _deps.completeExport || completeConversationExport;
                 try {
-                    if (records && typeof records.finalizeConversationExport === 'function') {
-                        await records.finalizeConversationExport(slot, nid, exportRecord, {
-                            conversationUpdate: {
-                                title: safeTitle,
-                                titleSource: (chat as any)?.titleSource || 'api-detail',
-                                titles: (chat as any)?.titles,
-                                messageCount: msgCount,
-                                chatTime,
-                                lastActiveAt: (chat as any)?.lastActiveAt || now
-                            }
-                        });
-                    } else if (records && typeof records.saveExportRecord === 'function') {
-                        await records.saveExportRecord(slot, nid, exportRecord);
-                    }
+                    await doComplete(
+                        records,
+                        slot,
+                        {
+                            conversation: chat,
+                            conversationId: nid,
+                            format: 'markdown',
+                            exportedAt: now,
+                            failedAssets,
+                            titleCandidate: safeTitle,
+                            titleProvenance: (chat as any)?.titleSource,
+                            titles: (chat as any)?.titles
+                        }
+                    );
                 } catch (err) {
-                    console.warn('[LiveSaveCoordinator] Failed to mark conversation as exported:', err);
+                    console.warn('[LiveSaveCoordinator] Failed to complete conversation export:', err);
                 }
                 if (failedAssets.length) notifyLiveSaveWarning('assets_partial');
                 await Storage.setLiveConfig({

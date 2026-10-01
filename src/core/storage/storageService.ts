@@ -452,17 +452,17 @@ export interface ConversationTransaction {
         const doSaveRecord = self?.saveExportRecord || saveExportRecord;
         const doUpdateConv = self?.updateConversation || updateConversation;
 
-        // 1. Atomic write to exportedIds SSoT
+        // 1. Serialized record write to exportedIds SSoT
         await doSaveRecord(slot, targetId, record);
 
-        // 2. Atomic write-back to gemini_conversations if not skipped
+        // 2. Best-effort metadata and title promotion write-back to gemini_conversations if not skipped
         if (!options?.skipConversationUpdate) {
             try {
                 const convUpdate = options?.conversationUpdate || {};
                 const candidateTitle = convUpdate.title || record?.title;
                 const updated = await doUpdateConv(slot, targetId, (existing: any) => {
                     const incomingTitles = convUpdate.titles && typeof convUpdate.titles === 'object' ? { ...convUpdate.titles } : {};
-                    const candidateSource = convUpdate.titleSource || (convUpdate.titles ? undefined : 'export');
+                    const candidateSource = convUpdate.titleSource || undefined;
 
                     const incoming: any = {
                         titles: incomingTitles,
@@ -501,11 +501,22 @@ export interface ConversationTransaction {
                     await withConversationLock(async () => {
                         const list = await getConversations(slot);
                         if (!list.some(c => c && normId(c.id) === targetId)) {
+                            const cleanedTitle = cleanTitle(candidateTitle);
+                            const initialSource = (convUpdate.titleSource && convUpdate.titleSource !== 'default' && convUpdate.titleSource !== 'export')
+                                ? convUpdate.titleSource
+                                : 'legacy';
+                            const initialTitles: Record<string, string> = (convUpdate.titles && typeof convUpdate.titles === 'object')
+                                ? { ...convUpdate.titles }
+                                : {};
+                            if (initialSource && initialSource !== 'legacy') {
+                                initialTitles[initialSource] = cleanedTitle;
+                            }
+
                             const newConv: any = {
                                 id: targetId,
-                                title: cleanTitle(candidateTitle),
-                                titleSource: convUpdate.titleSource || 'export',
-                                titles: convUpdate.titles || { export: cleanTitle(candidateTitle) },
+                                title: cleanedTitle,
+                                titleSource: initialSource,
+                                titles: initialTitles,
                                 messageCount: convUpdate.messageCount ?? record?.messageCount ?? 1,
                                 updatedAt: toTimestampMs(convUpdate.updatedAt || convUpdate.timestamp || record?.chatTime) || Date.now(),
                                 lastActiveAt: toTimestampMs(convUpdate.lastActiveAt) || Date.now()
