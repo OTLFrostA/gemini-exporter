@@ -103,7 +103,9 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
             const Storage = getStorage();
             const existing = Storage ? await Storage.getConversations(slot) : [];
             const found = existing.find((c: any) => normId(c.id) === activeId);
-            if (found && (found.updatedAt || found.timestamp)) {
+            const hasResolvedTitle = found && isRealTitle(found.title, activeId)
+                && found.titleSource !== 'sniff' && found.titleSource !== 'default';
+            if (hasResolvedTitle && (found.updatedAt || found.timestamp)) {
                 return;
             }
 

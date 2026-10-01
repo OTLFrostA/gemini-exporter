@@ -1,3 +1,6 @@
+import { StorageService } from '../core/storage/storageService.js';
+import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
+import { getEffectiveTimestamp } from '../core/utils/titleUtils.js';
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
@@ -14,6 +17,7 @@ import type { LiveSaveConfig } from '../types/liveSave.js';
 
 export interface LiveSaveCoordinatorDeps {
     storageManager?: typeof LiveStorageManager;
+    exportRecordStore?: Pick<typeof StorageService, 'saveExportRecord'>;
     scraper?: typeof DomScraper;
     formatter?: typeof ChatFormatter;
     fsWriterClass?: typeof FsWriter;
@@ -161,14 +165,14 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             const Utils = getUtils();
             const rawTitle = chat.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
             const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
-            const now = Date.now();
+            let failedAssets: Array<{ file: string; error: string }> = [];
 
             let writeSucceeded = false;
             const dirHandle = await Storage.getLiveDirHandle();
 
             if (dirHandle) {
                 try {
-                    await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
+                    failedAssets = await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
                     writeSucceeded = true;
                 } catch (err: any) {
                     const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('not found') || err?.message?.includes('could not be found');
@@ -189,7 +193,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                     try {
                         let collectedAssets: any[] = [];
                         if (config.includeAssets !== false) {
-                            collectedAssets = await processAndSaveImages(chat, nid, null);
+                            collectedAssets = await processAndSaveImages(chat, nid, null, failedAssets);
                         }
                         const assetsPayload = collectedAssets.map(a => ({
                             fileName: a.fileName,
@@ -221,7 +225,8 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                                     safeTitle,
                                     nid,
                                     config,
-                                    assets: assetsPayload
+                                    assets: assetsPayload,
+                                    failedAssets
                                 }
                             }, (r) => {
                                 if (chrome.runtime.lastError) {
@@ -263,6 +268,23 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
 
             // 3. Update configuration metadata if direct disk write occurred (background updates its own)
             if (dirHandle) {
+                const now = Date.now();
+                const chatTime = getEffectiveTimestamp(chat);
+                const records = _deps.exportRecordStore || StorageService;
+                try {
+                    await records.saveExportRecord(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), nid, {
+                        exportedAt: new Date(now).toISOString(),
+                        title: safeTitle,
+                        format: 'markdown',
+                        status: failedAssets.length ? 'partial' : 'ok',
+                        hasFailedAssets: failedAssets.length > 0,
+                        messageCount: chat.messages.length,
+                        ...(chatTime > 0 ? { chatTime } : {})
+                    });
+                } catch (err) {
+                    console.warn('[LiveSaveCoordinator] Failed to mark conversation as exported:', err);
+                }
+                if (failedAssets.length) notifyLiveSaveWarning('assets_partial');
                 await Storage.setLiveConfig({
                     lastSavedAt: now,
                     lastSavedTitle: safeTitle
@@ -338,7 +360,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | any): str
  * Sniff, download, and persist all multimodal images to assets/ subfolder,
  * and rewrite references in chat to local relative paths.
  */
-export async function processAndSaveImages(chat: any, nid: string, writer?: any): Promise<Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }>> {
+export async function processAndSaveImages(chat: any, nid: string, writer?: any, failures: Array<{ file: string; error: string }> = []): Promise<Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }>> {
     if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return [];
 
     const Utils = getUtils();
@@ -460,10 +482,12 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any)
                 if (isDev()) {
                     console.log(`[LiveSaveCoordinator] Saved image asset ${target.fileName} (${res.buffer.byteLength || (res.buffer as any).length} bytes)`);
                 }
-            } else if (isDev()) {
-                console.warn('[LiveSaveCoordinator] Failed to fetch image asset, skipping relative rewrite:', target.url);
+            } else {
+                failures.push({ file: target.fileName, error: 'image download returned no bytes' });
+                console.warn('[LiveSaveCoordinator] Failed to fetch image asset, skipping relative rewrite:', target.fileName);
             }
         } catch (err) {
+            failures.push({ file: target.fileName, error: err instanceof Error ? err.message : String(err) });
             if (isDev()) {
                 console.warn('[LiveSaveCoordinator] Error saving image asset:', target.url, err);
             }
@@ -539,13 +563,14 @@ async function writeConversationToDisk(
     nid: string,
     dirHandle: any,
     config: LiveSaveConfig
-): Promise<void> {
+): Promise<Array<{ file: string; error: string }>> {
     const Utils = getUtils();
+    const failures: Array<{ file: string; error: string }> = [];
 
     const writer = await createLiveSaveWriter(dirHandle, { fsWriterClass: getFsWriterClass() });
 
     if (config.includeAssets !== false) {
-        await processAndSaveImages(chat, nid, writer);
+        await processAndSaveImages(chat, nid, writer, failures);
     }
 
     await writeLiveSaveMarkdown(
@@ -553,6 +578,7 @@ async function writeConversationToDisk(
         { chat, safeTitle, nid },
         { formatter: getFormatter(), buildFileName: Utils?.buildExportFileName || buildExportFileName }
     );
+    return failures;
 }
 
 export function isCurrentlySaving(): boolean {
