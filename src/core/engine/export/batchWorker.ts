@@ -73,7 +73,8 @@ import {
     resolveTitle as utilsResolveTitle,
     cleanZeroWidth as utilsCleanZeroWidth,
     isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle,
-    sanitizeFileName as utilsSanitizeFileName
+    sanitizeFileName as utilsSanitizeFileName,
+    normalizeReliableTitleSource as utilsNormalizeReliableTitleSource
 } from "../../utils/utils.js";
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
@@ -556,12 +557,15 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
             }
             if (chat.titles && typeof chat.titles === 'object') {
                 for (const [k, v] of Object.entries(chat.titles)) {
-                    if (isBrandPlaceholderTitle(v)) delete chat.titles[k];
+                    const reliableK = utilsNormalizeReliableTitleSource(k);
+                    if (reliableK && typeof v === 'string' && !isBrandPlaceholderTitle(v)) {
+                        listConversation.titles[reliableK] = v;
+                    }
                 }
-                Object.assign(listConversation.titles, chat.titles);
             }
-            if (chat.titleSource && isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
-                listConversation.titles[chat.titleSource] = cleanTitle(chat.title);
+            const reliableChatSource = utilsNormalizeReliableTitleSource(chat.titleSource);
+            if (reliableChatSource && isRealTitle(chat.title, chat.id) && chat.title !== chat.id) {
+                listConversation.titles[reliableChatSource] = cleanTitle(chat.title);
             }
             const resolved = resolveTitle(listConversation);
             const cleanResolved = cleanZeroWidth(resolved.title);

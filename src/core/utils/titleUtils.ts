@@ -197,10 +197,11 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
     if (!chat) return { title: '未命名对话', source: 'default' };
     chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
     const cleaned = cleanTitle(rawTitle);
+    const reliableSource = normalizeReliableTitleSource(source);
     if (cleaned && isRealTitle(cleaned, chat.id)) {
-        if (source) chat.titles[source as string] = cleaned;
-    } else if (source === 'takeout' && cleaned) {
-        if (source) chat.titles[source as string] = cleaned;
+        if (reliableSource) chat.titles[reliableSource] = cleaned;
+    } else if (reliableSource === 'takeout' && cleaned) {
+        chat.titles.takeout = cleaned;
     }
     const resolved = resolveTitle(chat);
     chat.title = resolved.title;
@@ -231,15 +232,19 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
         (!existing.titles || typeof existing.titles !== 'object' || !existing.titles[existing.titleSource])) {
         const cleanedSeed = cleanTitle(existing.title);
         if (cleanedSeed && (isRealTitle(cleanedSeed, existing.id) || existing.titleSource === 'takeout')) {
-            setTitleBySource(existing, existing.titleSource, existing.title);
+            const reliableExistingSource = normalizeReliableTitleSource(existing.titleSource);
+            if (reliableExistingSource) {
+                setTitleBySource(existing, reliableExistingSource, existing.title);
+            }
         }
     }
 
     // 2. Adopt explicit source tiers if provided by incoming
     if (incoming.titles && typeof incoming.titles === 'object') {
         for (const [slot, slotTitle] of Object.entries(incoming.titles)) {
-            if (typeof slotTitle === 'string' && slotTitle && slot !== 'default' && slot !== 'legacy') {
-                setTitleBySource(existing, slot, slotTitle);
+            const reliableSlot = normalizeReliableTitleSource(slot);
+            if (reliableSlot && typeof slotTitle === 'string' && slotTitle) {
+                setTitleBySource(existing, reliableSlot, slotTitle);
             }
         }
     }
@@ -276,9 +281,7 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
         if (candidate) {
             existing.titles = (existing.titles && typeof existing.titles === 'object') ? existing.titles : {};
             existing.title = candidate;
-            existing.titleSource = isReliableSource
-                ? (reliableIncomingSource as string)
-                : (incomingSource && incomingSource !== 'default' ? incomingSource : 'legacy');
+            existing.titleSource = reliableIncomingSource || 'legacy';
             if (existing.titleSource && existing.titleSource !== 'default') {
                 existing.titles[existing.titleSource] = candidate;
             }

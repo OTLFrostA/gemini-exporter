@@ -503,9 +503,15 @@ export interface ConversationTransaction {
                         if (!list.some(c => c && normId(c.id) === targetId)) {
                             const cleanedTitle = cleanTitle(candidateTitle);
                             const initialSource = normalizeReliableTitleSource(convUpdate.titleSource) || 'legacy';
-                            const initialTitles: Record<string, string> = (convUpdate.titles && typeof convUpdate.titles === 'object')
-                                ? { ...convUpdate.titles }
-                                : {};
+                            const initialTitles: Record<string, string> = {};
+                            if (convUpdate.titles && typeof convUpdate.titles === 'object') {
+                                for (const [k, v] of Object.entries(convUpdate.titles)) {
+                                    const reliableK = normalizeReliableTitleSource(k);
+                                    if (reliableK && typeof v === 'string' && v) {
+                                        initialTitles[reliableK] = v;
+                                    }
+                                }
+                            }
                             if (initialSource && initialSource !== 'legacy') {
                                 initialTitles[initialSource] = cleanedTitle;
                             }
