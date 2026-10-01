@@ -50,6 +50,7 @@ export interface GeminiParserAttachmentsModule {
     getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
     extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
+    extractResponseImages: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
     extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
     extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
     findDocContentById: (root: unknown, docId: string) => unknown;
@@ -396,6 +397,20 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return images;
     }
 
+    function extractResponseImages(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }): ImageAttachment[] {
+        const visibleKeys = new Set(extractImages(visibleMedia).map(getImageDedupKey));
+        const inlineUrls = new Set<string>();
+        for (const match of text.matchAll(/!\[[^\]]*\]\(<?(https?:\/\/[^\s)>]+)>?(?:\s+[^)]*)?\)|<img\b[^>]*\bsrc=["'](https?:\/\/[^"']+)["']/gi)) {
+            inlineUrls.add(match[1] || match[2]);
+        }
+        return extractImages([candidate, visibleMedia], seqRef).filter(image => {
+            if (image.sourceEvidence?.detectorKind !== 'extractImages attachmentType:36') return true;
+            // Search results in candidate metadata are not automatically answer images.
+            // Require an attachment in the answer document/body or a real inline image URL.
+            return visibleKeys.has(getImageDedupKey(image)) || inlineUrls.has(image.sourceUrl);
+        });
+    }
+
     function itemMatchesFilename(name?: string | null): boolean {
         if (typeof name !== "string") return false;
         const trimmed = name.trim();
@@ -715,6 +730,7 @@ export {
     getImageDedupKey,
     filterNewImages,
     extractImages,
+    extractResponseImages,
     extractUserFiles,
     extractDocumentsMeta,
     findDocContentById,
@@ -732,6 +748,7 @@ export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
     getImageDedupKey,
     filterNewImages,
     extractImages,
+    extractResponseImages,
     extractUserFiles,
     extractDocumentsMeta,
     findDocContentById,
