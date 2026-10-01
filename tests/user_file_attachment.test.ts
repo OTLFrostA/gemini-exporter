@@ -171,3 +171,14 @@ test('prompt URLs and Google Docs editor links are not downloadable attachments'
         ['https://drive.google.com/file/d/example/view 请帮我读一下']
     ]), []);
 });
+
+
+test('shopping and lmdx widget references are not downloadable image files', () => {
+    const shopping = 'http://googleusercontent.com/shopping_content/11889587029331890754';
+    const widget = 'http://googleusercontent.com/lmdx_image/894535722';
+    assert.deepStrictEqual(attachments.extractImages([[shopping, 640, 480], [widget, 700, 280]]), []);
+    assert.deepStrictEqual(attachments.extractUserFiles([[shopping], [widget]]), []);
+    const images = attachments.extractImages([['https://encrypted-tbn0.gstatic.com/images?q=real', 700, 280]]);
+    assert.equal(images.length, 1);
+    assert.equal(images[0].sourceEvidence.detectorKind, 'extractImages [url,w,h]');
+});

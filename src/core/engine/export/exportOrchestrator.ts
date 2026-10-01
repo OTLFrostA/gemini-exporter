@@ -809,7 +809,7 @@ export function applyExportTitleWriteback(existing: any, listC: any): any {
                                     // decrement pendingAssetsPerChat，否则 finalize 永远等不到 left===0。
                                     const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                     pendingAssetsPerChat.set(nid, left);
-                                    failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired' });
+                                    failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired', sourceUrl: item.sourceUrl || item.src || item.url, sourceEvidence: item.sourceEvidence });
                                     const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
                                     const fallbackMsg = isImage
                                         ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
