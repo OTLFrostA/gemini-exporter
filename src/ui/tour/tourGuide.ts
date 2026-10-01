@@ -151,7 +151,10 @@ function handleResize(): void {
 }
 
 function positionElements(step: any): void {
-    return positionTourElements(spotlightEl, popoverEl, step);
+    const targetStep = spotlightMode && step.spotlightTarget
+        ? { ...step, getTarget: step.spotlightTarget }
+        : step;
+    return positionTourElements(spotlightEl, popoverEl, targetStep);
 }
 
 async function checkCurrentTabStatus(): Promise<{ status: string; error?: string }> {
@@ -205,14 +208,15 @@ async function updateStepContent(step: any): Promise<void> {
 
     if (spotlightMode) {
         const badgeLabel = t('tourFeatureBadge') || 'NEW FEATURE';
-        const rawTitle = t(step.titleKey);
+        const rawTitle = t(step.spotlightTitleKey || step.titleKey);
         const titleHtml = rawTitle.replace(/^(步骤|Step)\s*\d+\/\d+:\s*/i, '');
-        const bodyHtml = `<div class="tour-content">${t(step.descKey)}</div>`;
-        const hintHtml = step.hintKey ? `<div class="tour-action-hint">${t(step.hintKey)}</div>` : '';
+        const bodyHtml = `<div class="tour-content">${t(step.spotlightDescKey || step.descKey)}</div>`;
+        const hintKey = step.spotlightHintKey || step.hintKey;
+        const hintHtml = hintKey ? `<div class="tour-action-hint">${t(hintKey)}</div>` : '';
 
         const actionBtnLabel = activeSpotlightOptions?.actionLabelKey
             ? t(activeSpotlightOptions.actionLabelKey)
-            : t('tourBtnEnableNow');
+            : t(step.spotlightActionLabelKey || 'tourBtnEnableNow');
 
         popoverEl.innerHTML = `
             <div class="tour-header">
@@ -241,6 +245,12 @@ async function updateStepContent(step: any): Promise<void> {
                 } catch (e) {
                     console.warn('[TourGuide] spotlight onAction error:', e);
                 }
+            } else if (step.id === 'export') {
+                await dismissFeatureSpotlight();
+                const format = document.getElementById('format');
+                format?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                format?.focus();
+                return;
             } else if (step.id === 'live_save') {
                 const diskToggle = document.getElementById('liveSaveDiskToggle') as HTMLInputElement | null;
                 if (diskToggle && !diskToggle.checked) {
@@ -436,8 +446,9 @@ export async function startFeatureSpotlight(
     const step = STEPS[currentStep];
 
     stopPolling();
+    clearActionListeners();
     await updateStepContent(step);
-    bindStepAction(step);
+    if (step.id !== 'export') bindStepAction(step);
 }
 
 export async function dismissFeatureSpotlight(): Promise<void> {

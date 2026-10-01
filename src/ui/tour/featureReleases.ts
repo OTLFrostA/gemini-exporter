@@ -10,6 +10,12 @@ export interface FeatureReleaseConfig {
 // Feature releases eligible for one-time spotlight announcement on extension upgrade
 export const FEATURE_RELEASES: FeatureReleaseConfig[] = [
     {
+        version: '1.7.0',
+        featureId: 'pdf_html_export',
+        stepId: 'export',
+        badgeKey: 'tourFeatureBadge'
+    },
+    {
         version: '1.5.0',
         featureId: 'live_save',
         stepId: 'live_save',
