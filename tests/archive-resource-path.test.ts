@@ -30,3 +30,18 @@ test('canonical attachment uses files namespace through HTML output', async () =
     const result = renderCanonicalHtml(bundle);
     assert.match(typeof result === 'string' ? result : result.html, /href="files\/cb8bd7_test_config.json"/);
 });
+
+test('archive resource names allow legitimate literal percent characters in filenames', () => {
+    for (const [input, expected] of [
+        ['75%酒精.jpg', 'assets/75%酒精.jpg'],
+        ['5%阿昔洛韦.png', 'assets/5%阿昔洛韦.png'],
+        ['files/report_50%.md', 'files/report_50%.md'],
+        ['files/cold%sore.png', 'files/cold%sore.png'],
+        ['files/test%2.pdf', 'files/test%2.pdf'],
+        ['files/test%.pdf', 'files/test%.pdf'],
+        ['assets/100%_pure.webp', 'assets/100%_pure.webp'],
+        ['files/report_%E7%96.md', 'files/report_%E7%96.md'],
+    ]) {
+        assert.equal(normalizeLocalName(input), expected);
+    }
+});

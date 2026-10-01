@@ -1,10 +1,23 @@
 /** Resource namespaces written relative to the exported archive root. */
 export const ARCHIVE_RESOURCE_NAMESPACES = ['assets', 'files'] as const;
 
+export function safeDecodeURIComponent(str: string): string {
+    const escaped = str.replace(/%(?![0-9a-fA-F]{2})/g, '%25');
+    try {
+        return decodeURIComponent(escaped);
+    } catch {
+        return escaped.replace(/%([0-9a-fA-F]{2})/g, (match, hex) => {
+            const code = parseInt(hex, 16);
+            if (code < 128) return String.fromCharCode(code);
+            return match;
+        });
+    }
+}
+
 export function normalizeArchivePath(path: string): string {
     const normalized = path.replace(/\\/g, '/');
     let decoded: string;
-    try { decoded = decodeURIComponent(normalized); }
+    try { decoded = safeDecodeURIComponent(normalized); }
     catch { throw new Error('Invalid archive resource path encoding'); }
     if (/^(?:\/|[a-z][a-z\d+.-]*:)/i.test(decoded)
         || /[\u0000-\u001f\u007f]/.test(decoded)
