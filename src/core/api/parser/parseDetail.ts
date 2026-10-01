@@ -59,6 +59,7 @@ import {
 } from "./extractors.js";
 import {
     extractImages,
+    extractResponseImages,
     extractUserFiles,
     extractDocumentsMeta,
     findDocContentById,
@@ -386,7 +387,11 @@ function parseCandidateResponse(
     }
 
     const structuredContent = extractStructuredContent(turn, cand, candidateIndex);
-    const candImages = extractImages(structuredContent ? [cand, structuredContent] : cand, imageSeq);
+    const rawAnswerDocument = candidateIndex === 0 && Array.isArray(turn?.[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD])
+        ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD][GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12]
+        : undefined;
+    const answerBody = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
+    const candImages = extractResponseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
