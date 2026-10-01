@@ -80,6 +80,8 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
             return;
         }
 
+        if (list.dataset?.selectionDisabled === 'true') return;
+
         if (target.matches('input[type=checkbox]')) {
             return;
         }
@@ -87,7 +89,7 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
         const item = target.closest('.item') as HTMLElement | null;
         if (item) {
             const cb = item.querySelector('input[type=checkbox]') as HTMLInputElement | null;
-            if (cb) {
+            if (cb && !cb.disabled) {
                 cb.checked = !cb.checked;
                 cb.dispatchEvent(new Event('change', { bubbles: true }));
             }
@@ -95,6 +97,7 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
     });
 
     list.addEventListener('change', (e: Event) => {
+        if (list.dataset?.selectionDisabled === 'true') return;
         const target = e.target as HTMLElement;
         if (target.matches('input[type=checkbox]')) {
             const item = (typeof (target as any).closest === 'function' ? (target as any).closest('.item') : null) as HTMLElement | null;
@@ -251,7 +254,7 @@ export function render(
 
         htmlArr.push(`
             <div class="item" data-chat-id="${escapeHtml(c.id)}" style="display:flex; align-items:center; padding:8px 12px; border-bottom:1px solid var(--border); font-size:13px; cursor:pointer; user-select:none;">
-                <input type="checkbox" data-idx="${origIdx}" ${isChecked ? 'checked' : ''} style="margin-right:10px; cursor:pointer;" />
+                <input type="checkbox" data-idx="${origIdx}" ${isChecked ? 'checked' : ''} ${list.dataset?.selectionDisabled === 'true' ? 'disabled' : ''} style="margin-right:10px; cursor:pointer;" />
                 <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                     <span class="chat-title" style="${titleStyle}">${displayTitle}</span>
                     ${badgeHtml}

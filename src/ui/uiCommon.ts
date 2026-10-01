@@ -50,7 +50,10 @@ export function setWorkbenchControlsDisabled(disabled: boolean): void {
     }
     const listEl = document.getElementById('list');
     if (listEl) {
-        listEl.style.pointerEvents = disabled ? 'none' : '';
+        listEl.dataset.selectionDisabled = String(disabled);
+        listEl.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach(cb => {
+            cb.disabled = disabled;
+        });
         listEl.style.opacity = disabled ? '0.7' : '';
     }
 }
