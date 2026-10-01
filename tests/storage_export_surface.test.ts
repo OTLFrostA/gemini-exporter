@@ -79,8 +79,8 @@ test('finalizeChatExport: storageAdapter 缺 saveExportRecord 即抛错', async 
             },
             slot: 'u0'
         } as any),
-        /saveExportRecord is required/,
-        '缺少 saveExportRecord 的 adapter 必须抛错，不得静默降级'
+        /adapter must implement finalizeConversationExport or saveExportRecord/,
+        '缺少必要接口的 adapter 必须抛错，不得静默降级'
     );
 });
 

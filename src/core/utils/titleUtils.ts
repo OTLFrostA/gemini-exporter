@@ -22,6 +22,33 @@ export const TITLE_TIER_RANK: Record<TitleSource, number> = {
     default: 0
 };
 
+/**
+ * Normalizes a raw source string into a canonical, reliable TitleSource.
+ * Returns undefined if source is falsy, unknown, or an unreliable fallback
+ * tier ('default', 'legacy', 'export').
+ */
+export function normalizeReliableTitleSource(source?: string | null): TitleSource | undefined {
+    if (typeof source !== 'string') return undefined;
+    const s = source.trim();
+    if (!s || s === 'default' || s === 'legacy' || s === 'export') {
+        return undefined;
+    }
+    return TITLE_SOURCE_PRIORITY.includes(s as TitleSource) ? (s as TitleSource) : undefined;
+}
+
+/**
+ * Resolves the first reliable TitleSource from candidate sources in priority order.
+ * Returns undefined if no candidate provides a reliable source.
+ */
+export function resolveReliableTitleSource(...sources: (string | null | undefined)[]): TitleSource | undefined {
+    for (const src of sources) {
+        const normalized = normalizeReliableTitleSource(src);
+        if (normalized) return normalized;
+    }
+    return undefined;
+}
+
+
 export function isTakeoutConversation(c: any): boolean {
     if (!c) return false;
     return (
@@ -219,13 +246,11 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
 
     // 3. Adopt incoming title with reliable provenance
     const incomingSource = incoming.titleSource;
-    const isReliableSource = typeof incomingSource === 'string' &&
-        incomingSource !== 'default' &&
-        incomingSource !== 'legacy' &&
-        TITLE_SOURCE_PRIORITY.includes(incomingSource as TitleSource);
+    const reliableIncomingSource = normalizeReliableTitleSource(incomingSource);
+    const isReliableSource = !!reliableIncomingSource;
 
-    if (incoming.title && isReliableSource) {
-        setTitleBySource(existing, incomingSource, incoming.title);
+    if (incoming.title && reliableIncomingSource) {
+        setTitleBySource(existing, reliableIncomingSource, incoming.title);
     }
 
     // 4. Candidate promotion rule for unprovenanced or weak-source export titles:
@@ -252,7 +277,7 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
             existing.titles = (existing.titles && typeof existing.titles === 'object') ? existing.titles : {};
             existing.title = candidate;
             existing.titleSource = isReliableSource
-                ? incomingSource
+                ? (reliableIncomingSource as string)
                 : (incomingSource && incomingSource !== 'default' ? incomingSource : 'legacy');
             if (existing.titleSource && existing.titleSource !== 'default') {
                 existing.titles[existing.titleSource] = candidate;

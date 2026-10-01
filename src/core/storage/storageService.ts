@@ -1,6 +1,6 @@
 import type { Conversation } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
-import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, toTimestampMs, getEffectiveTimestamp } from "../utils/titleUtils.js";
+import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, toTimestampMs, getEffectiveTimestamp, normalizeReliableTitleSource } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
 
 export interface FinalizeExportOptions {
@@ -502,9 +502,7 @@ export interface ConversationTransaction {
                         const list = await getConversations(slot);
                         if (!list.some(c => c && normId(c.id) === targetId)) {
                             const cleanedTitle = cleanTitle(candidateTitle);
-                            const initialSource = (convUpdate.titleSource && convUpdate.titleSource !== 'default' && convUpdate.titleSource !== 'export')
-                                ? convUpdate.titleSource
-                                : 'legacy';
+                            const initialSource = normalizeReliableTitleSource(convUpdate.titleSource) || 'legacy';
                             const initialTitles: Record<string, string> = (convUpdate.titles && typeof convUpdate.titles === 'object')
                                 ? { ...convUpdate.titles }
                                 : {};

@@ -6,8 +6,13 @@ import {
     getEffectiveTimestamp,
     resolveTitle,
     TITLE_SOURCE_PRIORITY,
-    type TitleSource
+    type TitleSource,
+    normalizeReliableTitleSource,
+    resolveReliableTitleSource
 } from '../../utils/titleUtils.js';
+
+export { normalizeReliableTitleSource, resolveReliableTitleSource };
+
 
 export interface BuildExportCompletionInput {
     /** The conversation object with messages/turns/timestamps */
@@ -176,19 +181,6 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         }
     }
 
-    // Resolve provenance: only adopt if reliable (in TITLE_SOURCE_PRIORITY and not default/legacy)
-    let candidateProvenance: string | undefined = undefined;
-    const rawProvenance = input.titleProvenance || chat.titleSource;
-    if (
-        typeof rawProvenance === 'string' &&
-        rawProvenance !== 'default' &&
-        rawProvenance !== 'legacy' &&
-        rawProvenance !== 'export' &&
-        TITLE_SOURCE_PRIORITY.includes(rawProvenance as TitleSource)
-    ) {
-        candidateProvenance = rawProvenance;
-    }
-
     // Merge titles map
     const mergedTitles: Record<string, string> = {};
     if (chat.titles && typeof chat.titles === 'object') {
@@ -196,6 +188,23 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
     }
     if (input.titles && typeof input.titles === 'object') {
         Object.assign(mergedTitles, input.titles);
+    }
+
+    // Resolve provenance: only adopt if reliable (in TITLE_SOURCE_PRIORITY and not default/legacy/export)
+    let candidateProvenance: TitleSource | undefined = resolveReliableTitleSource(
+        input.titleProvenance,
+        chat.titleSource
+    );
+
+    // If still unresolved, check if candidateTitle matches a reliable tier in mergedTitles
+    if (!candidateProvenance && mergedTitles && typeof mergedTitles === 'object') {
+        for (const source of TITLE_SOURCE_PRIORITY) {
+            const reliableSource = normalizeReliableTitleSource(source);
+            if (reliableSource && mergedTitles[reliableSource] && cleanTitle(mergedTitles[reliableSource]) === candidateTitle) {
+                candidateProvenance = reliableSource;
+                break;
+            }
+        }
     }
 
     // 2. Resolve timestamps
@@ -293,5 +302,7 @@ export default {
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
     resolveExportRecordStatus,
-    applyAssetFailureToExportRecord
+    applyAssetFailureToExportRecord,
+    normalizeReliableTitleSource,
+    resolveReliableTitleSource
 };

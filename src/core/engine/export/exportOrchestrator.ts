@@ -71,7 +71,8 @@ import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
 import {
     buildExportCompletion,
     computeExportMessageCount,
-    computeAuthoritativeTimestamp
+    computeAuthoritativeTimestamp,
+    resolveReliableTitleSource
 } from "./exportCompletion.js";
 
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
@@ -903,7 +904,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     format: options.format || 'markdown',
                                     exportedAt: new Date().toISOString(),
                                     titleCandidate: listTitle,
-                                    titleProvenance: chat.titleSource || listC?.titleSource,
+                                    titleProvenance: resolveReliableTitleSource(chat.titleSource, listC?.titleSource),
                                     titles: { ...(listC?.titles || {}), ...(chat.titles || {}) },
                                     messageCount: actualMsgCount,
                                     chatTime: authoritativeChatTime,
