@@ -48,6 +48,7 @@ import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { SessionStore } from "../../storage/sessionStore.js";
+import { applyAssetFailureToExportRecord } from "./exportCompletion.js";
 
 const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
 
@@ -219,12 +220,14 @@ export { EXT_VERSION, getExtensionVersion };
 
         const targetNid = normId(targetId);
         if (finalizedChatsSet && finalizedChatsSet.has(targetNid)) return false;
-        const rec = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
-        if (!rec) return false;
+        const rawEntry = chatRecordsMap ? chatRecordsMap.get(targetNid) : null;
+        if (!rawEntry) return false;
+
+        const rec = rawEntry.exportRecord ? rawEntry.exportRecord : rawEntry;
+        const conversationUpdate = rawEntry.conversationUpdate;
 
         if (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid)) {
-            rec.status = (rec.status === 'empty') ? 'empty' : 'partial';
-            rec.hasFailedAssets = true;
+            applyAssetFailureToExportRecord(rec);
         }
 
         // Phase A (P1-4): 只保留 saveExportRecord 一条正式路径 —— mock adapter 必须实现它。
@@ -240,6 +243,7 @@ export { EXT_VERSION, getExtensionVersion };
         try {
             if (typeof storageAdapter.finalizeConversationExport === 'function') {
                 await storageAdapter.finalizeConversationExport(slot, targetId, rec, {
+                    conversationUpdate,
                     onItemExported
                 });
             } else {

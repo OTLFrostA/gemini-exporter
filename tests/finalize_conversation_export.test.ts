@@ -8,8 +8,10 @@ const {
     completeConversationExport,
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
-    resolveExportRecordStatus
+    resolveExportRecordStatus,
+    applyAssetFailureToExportRecord
 } = require('../src/core/engine/export/exportCompletion.js');
+const { finalizeChatExport } = require('../src/core/engine/export/sessionRecovery.js');
 
 function createMockChromeStorage(initialData: Record<string, any> = {}) {
     const mockStorage: Record<string, any> = { ...initialData };
@@ -357,6 +359,291 @@ test('7. Callback semantics: invoked after persistence, error does not abort, no
         }, /Disk IO failure/);
 
         assert.strictEqual(failureCallbackCalled, false, 'Callback must NOT be invoked if record persistence fails');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// 8. Parity A: Batch / Live canonical record parity given same facts
+test('8. Parity A: Batch / Live canonical record parity given identical input facts', () => {
+    const chatFacts = {
+        id: 'c_parity_123',
+        title: '量子引力理论探究',
+        titleSource: 'rpc',
+        titles: { rpc: '量子引力理论探究' },
+        messages: [{ role: 'user', content: 'q1' }, { role: 'model', content: 'a1' }],
+        updatedAt: 1727777777000,
+        lastActiveAt: 1727777778000,
+        truncated: false
+    };
+    const exportedAt = 1727788888000;
+
+    // Live path simulation
+    const liveCompletion = buildExportCompletion({
+        conversation: chatFacts,
+        conversationId: chatFacts.id,
+        format: 'markdown',
+        exportedAt,
+        titleCandidate: chatFacts.title,
+        titleProvenance: chatFacts.titleSource,
+        titles: chatFacts.titles
+    });
+
+    // Batch path simulation (with explicit messageCount and chatTime from list snapshot)
+    const batchCompletion = buildExportCompletion({
+        conversation: chatFacts,
+        conversationId: normId(chatFacts.id),
+        format: 'markdown',
+        exportedAt,
+        titleCandidate: chatFacts.title,
+        titleProvenance: chatFacts.titleSource,
+        titles: chatFacts.titles,
+        messageCount: 2,
+        chatTime: computeAuthoritativeTimestamp(chatFacts)
+    });
+
+    // Assert parity across all canonical fields
+    assert.strictEqual(batchCompletion.targetId, liveCompletion.targetId);
+    assert.strictEqual(batchCompletion.exportRecord.title, liveCompletion.exportRecord.title);
+    assert.strictEqual(batchCompletion.exportRecord.messageCount, liveCompletion.exportRecord.messageCount);
+    assert.strictEqual(batchCompletion.exportRecord.chatTime, liveCompletion.exportRecord.chatTime);
+    assert.strictEqual(batchCompletion.exportRecord.format, liveCompletion.exportRecord.format);
+    assert.strictEqual(batchCompletion.exportRecord.status, liveCompletion.exportRecord.status);
+    assert.strictEqual(batchCompletion.exportRecord.hasFailedAssets, liveCompletion.exportRecord.hasFailedAssets);
+    assert.strictEqual(batchCompletion.exportRecord.isTruncated, liveCompletion.exportRecord.isTruncated);
+    assert.strictEqual(batchCompletion.exportRecord.exportedAt, liveCompletion.exportRecord.exportedAt);
+    assert.deepStrictEqual(batchCompletion.exportRecord, liveCompletion.exportRecord);
+    assert.deepStrictEqual(batchCompletion.conversationUpdate, liveCompletion.conversationUpdate);
+});
+
+// 9. Parity B: Batch production path via sessionRecovery uses shared builder
+test('9. Parity B: Batch production-shape execution through sessionRecovery uses shared builder output', async () => {
+    const { mockStorage, chrome } = createMockChromeStorage({
+        gemini_conversations: [
+            { id: 'c_batch_pipe', title: '未命名对话', titleSource: 'default', messageCount: 1 }
+        ]
+    });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        const chat = {
+            id: 'c_batch_pipe',
+            title: '高维拓扑流形研究报告',
+            titleSource: 'rpc',
+            titles: { rpc: '高维拓扑流形研究报告' },
+            messages: [{ role: 'user', content: 'hello' }, { role: 'model', content: 'world' }],
+            updatedAt: 1727777000000
+        };
+
+        const completion = buildExportCompletion({
+            conversation: chat,
+            conversationId: 'batch_pipe',
+            format: 'markdown',
+            exportedAt: '2026-10-01T12:00:00.000Z',
+            titleCandidate: chat.title,
+            titleProvenance: chat.titleSource,
+            titles: chat.titles,
+            messageCount: 2,
+            chatTime: chat.updatedAt
+        });
+
+        const chatRecordsMap = new Map<string, any>([
+            ['batch_pipe', {
+                ...completion.exportRecord,
+                exportRecord: completion.exportRecord,
+                conversationUpdate: completion.conversationUpdate,
+                targetId: completion.targetId
+            }]
+        ]);
+
+        const finalizedChatsSet = new Set<string>();
+        const chatFailedAssetsSet = new Set<string>();
+        let itemExportedCalled = false;
+
+        const finalized = await finalizeChatExport('c_batch_pipe', {
+            finalizedChatsSet,
+            chatRecordsMap,
+            chatFailedAssetsSet,
+            Storage: StorageService,
+            storageAdapter: StorageService,
+            slot: 'u0',
+            onItemExported: (id: string, rec: any) => {
+                itemExportedCalled = true;
+                assert.strictEqual(normId(id), 'batch_pipe');
+                assert.strictEqual(rec.title, '高维拓扑流形研究报告');
+            }
+        });
+
+        assert.strictEqual(finalized, true);
+        assert.strictEqual(itemExportedCalled, true);
+        assert.ok(finalizedChatsSet.has('batch_pipe'));
+
+        // Verify exportedIds SSoT matches canonical completion record
+        const exportedMap = await StorageService.getExportedIds('u0');
+        assert.ok(exportedMap['batch_pipe']);
+        assert.strictEqual(exportedMap['batch_pipe'].title, '高维拓扑流形研究报告');
+        assert.strictEqual(exportedMap['batch_pipe'].messageCount, 2);
+        assert.strictEqual(exportedMap['batch_pipe'].status, 'ok');
+
+        // Verify gemini_conversations was updated with authoritative metadata
+        const convs = await StorageService.getConversations('u0');
+        assert.strictEqual(convs[0].title, '高维拓扑流形研究报告');
+        assert.strictEqual(convs[0].titleSource, 'rpc');
+    } finally {
+        (global as any).chrome = origChrome;
+    }
+});
+
+// 10. Parity C: Partial export with asset failure matches across batch and live
+test('10. Parity C: Partial export with asset failure matches across batch and live', () => {
+    const chat = { id: 'c_part', messages: [1, 2], title: 'Partial Parity Chat' };
+
+    // Live path: asset failure passed into builder
+    const livePartial = buildExportCompletion({
+        conversationId: 'c_part',
+        conversation: chat,
+        titleCandidate: 'Partial Parity Chat',
+        failedAssets: [{ file: 'failed.png', error: '404' }]
+    });
+
+    // Batch path: initially built with ok status, then patched via applyAssetFailureToExportRecord
+    const batchInitial = buildExportCompletion({
+        conversationId: 'c_part',
+        conversation: chat,
+        titleCandidate: 'Partial Parity Chat'
+    });
+    assert.strictEqual(batchInitial.exportRecord.status, 'ok');
+    assert.strictEqual(batchInitial.exportRecord.hasFailedAssets, false);
+
+    applyAssetFailureToExportRecord(batchInitial.exportRecord);
+
+    assert.strictEqual(batchInitial.exportRecord.status, 'partial');
+    assert.strictEqual(batchInitial.exportRecord.hasFailedAssets, true);
+    assert.strictEqual(livePartial.exportRecord.status, batchInitial.exportRecord.status);
+    assert.strictEqual(livePartial.exportRecord.hasFailedAssets, batchInitial.exportRecord.hasFailedAssets);
+});
+
+// 11. Parity D: Empty conversation matches across batch and live
+test('11. Parity D: Empty conversation matches across batch and live', () => {
+    const emptyChat = { id: 'c_empty', messages: [], title: 'Empty Chat' };
+
+    const liveEmpty = buildExportCompletion({
+        conversationId: 'c_empty',
+        conversation: emptyChat,
+        titleCandidate: 'Empty Chat'
+    });
+
+    const batchEmpty = buildExportCompletion({
+        conversationId: 'c_empty',
+        conversation: emptyChat,
+        titleCandidate: 'Empty Chat',
+        messageCount: 0
+    });
+
+    assert.strictEqual(liveEmpty.exportRecord.status, 'empty');
+    assert.strictEqual(batchEmpty.exportRecord.status, 'empty');
+    assert.strictEqual(liveEmpty.exportRecord.messageCount, 0);
+    assert.strictEqual(batchEmpty.exportRecord.messageCount, 0);
+});
+
+// 12. Parity E: Failed override priority prevents asset failure downgrade
+test('12. Parity E: Failed override priority prevents asset failure downgrade', () => {
+    // 1. In resolveExportRecordStatus directly
+    const failedWithAssets = resolveExportRecordStatus({
+        statusOverride: 'failed',
+        failedAssetsCount: 3,
+        messageCount: 5
+    });
+    assert.strictEqual(failedWithAssets.status, 'failed', 'Hard failure must not be downgraded to partial by failed assets');
+    assert.strictEqual(failedWithAssets.hasFailedAssets, true);
+
+    const failedNoAssets = resolveExportRecordStatus({
+        statusOverride: 'failed',
+        failedAssetsCount: 0,
+        messageCount: 5
+    });
+    assert.strictEqual(failedNoAssets.status, 'failed');
+    assert.strictEqual(failedNoAssets.hasFailedAssets, false);
+
+    // 2. Via applyAssetFailureToExportRecord
+    const record = { status: 'failed', hasFailedAssets: false };
+    applyAssetFailureToExportRecord(record);
+    assert.strictEqual(record.status, 'failed', 'applyAssetFailureToExportRecord must preserve failed status');
+    assert.strictEqual(record.hasFailedAssets, true);
+});
+
+// 13. Parity F: Adapter contract rejection when persistence methods are missing
+test('13. Parity F: Adapter contract rejects when adapter lacks persistence methods', async () => {
+    const invalidAdapter = {
+        someOtherMethod: () => {}
+    };
+
+    await assert.rejects(async () => {
+        await completeConversationExport(
+            invalidAdapter,
+            'u0',
+            { conversationId: 'c_invalid_adapter', titleCandidate: 'Invalid Adapter Chat' }
+        );
+    }, /storageAdapter must implement finalizeConversationExport or saveExportRecord/);
+});
+
+// 14. Parity G: Concurrency and callback guarantees in sessionRecovery
+test('14. Parity G: Concurrency claim and callback guarantees in sessionRecovery', async () => {
+    const { mockStorage, chrome } = createMockChromeStorage({ gemini_conversations: [] });
+    const origChrome = (global as any).chrome;
+    (global as any).chrome = chrome;
+
+    try {
+        const finalizedChatsSet = new Set<string>();
+        const chatRecordsMap = new Map<string, any>([
+            ['conc_test', {
+                title: 'Concurrency Test',
+                status: 'ok',
+                messageCount: 1,
+                exportedAt: new Date().toISOString()
+            }]
+        ]);
+
+        let callbackCalls = 0;
+        const context = {
+            finalizedChatsSet,
+            chatRecordsMap,
+            Storage: StorageService,
+            storageAdapter: StorageService,
+            slot: 'u0',
+            onItemExported: () => {
+                callbackCalls++;
+            }
+        };
+
+        // First call succeeds
+        const res1 = await finalizeChatExport('c_conc_test', context);
+        assert.strictEqual(res1, true);
+        assert.strictEqual(callbackCalls, 1);
+        assert.ok(finalizedChatsSet.has('conc_test'));
+
+        // Second duplicate call is deduped and returns false without invoking callback
+        const res2 = await finalizeChatExport('c_conc_test', context);
+        assert.strictEqual(res2, false);
+        assert.strictEqual(callbackCalls, 1, 'Callback must not be invoked on duplicate finalize');
+
+        // Claim release on persistence failure
+        const brokenSet = new Set<string>();
+        const brokenContext = {
+            finalizedChatsSet: brokenSet,
+            chatRecordsMap: new Map<string, any>([['broken_id', { title: 'Broken', status: 'ok' }]]),
+            storageAdapter: {
+                saveExportRecord: async () => { throw new Error('Persist error'); }
+            },
+            slot: 'u0'
+        };
+
+        await assert.rejects(async () => {
+            await finalizeChatExport('broken_id', brokenContext);
+        }, /Persist error/);
+
+        assert.strictEqual(brokenSet.has('broken_id'), false, 'Claim must be released on persistence failure');
     } finally {
         (global as any).chrome = origChrome;
     }

@@ -28,6 +28,10 @@ export interface BuildExportCompletionInput {
     titleProvenance?: string | null;
     /** Explicit titles map if available */
     titles?: Record<string, string> | null;
+    /** Explicit message count if already calculated */
+    messageCount?: number;
+    /** Explicit authoritative timestamp if available */
+    chatTime?: number | string | Date | null;
     /** Truncation flag */
     isTruncated?: boolean;
     truncateReason?: string;
@@ -110,6 +114,12 @@ export function computeAuthoritativeTimestamp(conversation: any, explicitTime?: 
 
 /**
  * Resolves standard export record status and failed assets indicator.
+ * Strict priority order:
+ * 1. 'failed'  -> always 'failed'
+ * 2. 'empty'   -> stays 'empty'
+ * 3. 'partial' -> 'partial'
+ * 4. 'ok' + failedAssets -> 'partial'
+ * 5. 'ok' + no failedAssets -> 'ok'
  */
 export function resolveExportRecordStatus(options: {
     failedAssetsCount: number;
@@ -118,17 +128,28 @@ export function resolveExportRecordStatus(options: {
     isEmpty?: boolean;
 }): { status: 'ok' | 'partial' | 'empty' | 'failed'; hasFailedAssets: boolean } {
     const hasFailed = options.failedAssetsCount > 0;
-    if (options.statusOverride) {
-        const st = (hasFailed && options.statusOverride !== 'empty') ? 'partial' : options.statusOverride;
-        return { status: st, hasFailedAssets: hasFailed };
+    if (options.statusOverride === 'failed') {
+        return { status: 'failed', hasFailedAssets: hasFailed };
     }
-    if (options.messageCount === 0 || options.isEmpty) {
+    if (options.statusOverride === 'empty' || options.messageCount === 0 || options.isEmpty) {
         return { status: 'empty', hasFailedAssets: hasFailed };
     }
-    if (hasFailed) {
-        return { status: 'partial', hasFailedAssets: true };
+    if (options.statusOverride === 'partial' || hasFailed) {
+        return { status: 'partial', hasFailedAssets: hasFailed };
     }
     return { status: 'ok', hasFailedAssets: false };
+}
+
+/**
+ * Applies runtime asset failure outcome to an existing canonical export record.
+ * Preserves 'empty' or 'failed' status, upgrading successful 'ok' to 'partial'.
+ */
+export function applyAssetFailureToExportRecord(record: any): void {
+    if (!record || typeof record !== 'object') return;
+    if (record.status !== 'empty' && record.status !== 'failed') {
+        record.status = 'partial';
+    }
+    record.hasFailedAssets = true;
 }
 
 /**
@@ -180,10 +201,10 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
     // 2. Resolve timestamps
     const nowMs = toTimestampMs(input.exportedAt) || Date.now();
     const exportedAtIso = new Date(nowMs).toISOString();
-    const chatTime = computeAuthoritativeTimestamp(chat);
+    const chatTime = computeAuthoritativeTimestamp(chat, input.chatTime);
 
     // 3. Resolve message count
-    const messageCount = computeExportMessageCount(chat);
+    const messageCount = computeExportMessageCount(chat, input.messageCount);
 
     // 4. Resolve status & failed assets
     const failedAssetsCount = Array.isArray(input.failedAssets)
@@ -210,13 +231,14 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         ...(isTruncated ? { isTruncated: true, truncateReason: input.truncateReason || chat.truncateReason || 'truncated' } : {})
     };
 
+    const activeMs = toTimestampMs(chat.lastActiveAt);
     const conversationUpdate: StandardConversationUpdate = {
         title: candidateTitle,
         ...(candidateProvenance ? { titleSource: candidateProvenance } : {}),
         ...(Object.keys(mergedTitles).length > 0 ? { titles: mergedTitles } : {}),
         messageCount,
         ...(chatTime ? { chatTime, updatedAt: chatTime } : {}),
-        lastActiveAt: toTimestampMs(chat.lastActiveAt) || nowMs
+        ...(typeof activeMs === 'number' && activeMs > 0 ? { lastActiveAt: activeMs } : {})
     };
 
     return {
@@ -256,6 +278,10 @@ export async function completeConversationExport(
         try {
             options?.onItemExported?.(completion.targetId, completion.exportRecord);
         } catch { /* callback errors must not abort export completion */ }
+    } else {
+        throw new Error(
+            `[completeConversationExport] storageAdapter must implement finalizeConversationExport or saveExportRecord for conversation ${completion.targetId} (slot ${slot || 'u0'})`
+        );
     }
 
     return completion;
@@ -266,5 +292,6 @@ export default {
     completeConversationExport,
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
-    resolveExportRecordStatus
+    resolveExportRecordStatus,
+    applyAssetFailureToExportRecord
 };

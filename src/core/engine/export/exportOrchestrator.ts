@@ -68,6 +68,11 @@ import { extractChatParseDrift, chatRecordStatusWithDrift } from "./parseDrift.j
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
+import {
+    buildExportCompletion,
+    computeExportMessageCount,
+    computeAuthoritativeTimestamp
+} from "./exportCompletion.js";
 
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
@@ -690,7 +695,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const listTitle = resolvedRes.listTitle;
                         chat.title = listTitle;
 
-                        const actualMsgCount = Array.isArray(chat.messages) ? chat.messages.length : (chat.messageCount || 0);
+                        const actualMsgCount = computeExportMessageCount(chat);
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
                         if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
                             listC.messageCount = actualMsgCount;
@@ -877,30 +882,42 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         hasHeuristicDocs: chatDrift.hasHeuristicDocs
                                     });
                                 }
-                                const listTs = getEffectiveTimestamp(listC);
-                                const chatTs = getEffectiveTimestamp(chat);
-                                const exportTs = Math.max(listTs, chatTs) || null;
                                 const isChatTruncated = !!(chat.truncated || chat.isTruncated);
                                 if (isChatTruncated) {
                                     onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                                 }
-                                const recordStatus = isChatTruncated
+                                const baseStatus = (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok';
+                                const driftStatus = chatRecordStatusWithDrift(baseStatus, chatDrift);
+                                const statusOverride = isChatTruncated
                                     ? 'partial'
-                                    : chatRecordStatusWithDrift(
-                                        (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok',
-                                        chatDrift
-                                    );
-                                const record = {
-                                    title: listTitle,
-                                    exportedAt: new Date().toISOString(),
+                                    : (driftStatus === 'partial' ? 'partial' : undefined);
+
+                                const authoritativeChatTime = Math.max(
+                                    computeAuthoritativeTimestamp(listC) || 0,
+                                    computeAuthoritativeTimestamp(chat) || 0
+                                ) || undefined;
+
+                                const completion = buildExportCompletion({
+                                    conversation: chat,
+                                    conversationId: nid,
                                     format: options.format || 'markdown',
-                                    messageCount: actualMsgCount || chat.messageCount || chat.messages?.length || 0,
-                                    chatTime: exportTs,
-                                    isTruncated: isChatTruncated || undefined,
-                                    truncateReason: isChatTruncated ? (chat.truncateReason || 'truncated') : undefined,
-                                    status: recordStatus
-                                };
-                                chatRecordsMap.set(nid, record);
+                                    exportedAt: new Date().toISOString(),
+                                    titleCandidate: listTitle,
+                                    titleProvenance: chat.titleSource || listC?.titleSource,
+                                    titles: { ...(listC?.titles || {}), ...(chat.titles || {}) },
+                                    messageCount: actualMsgCount,
+                                    chatTime: authoritativeChatTime,
+                                    statusOverride,
+                                    isTruncated: isChatTruncated,
+                                    truncateReason: isChatTruncated ? (chat.truncateReason || 'truncated') : undefined
+                                });
+
+                                chatRecordsMap.set(nid, {
+                                    ...completion.exportRecord,
+                                    exportRecord: completion.exportRecord,
+                                    conversationUpdate: completion.conversationUpdate,
+                                    targetId: completion.targetId
+                                });
                                 if (queuedAssetsForThisChat === 0) {
                                     await finalizeChatExport(chat.id);
                                 } else {
@@ -956,7 +973,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             url: chat.url || `https://gemini.google.com/app/${chat.id}`,
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
-                            messageCount: chat.messages ? chat.messages.length : (chat.messageCount || 0),
+                            messageCount: computeExportMessageCount(chat),
                             attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
                             exportFile: fileName,
                             status: mainWriteError ? 'failed' : 'success',
