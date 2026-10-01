@@ -13,7 +13,8 @@
     "https://*.googleusercontent.com/*",
     "https://*.usercontent.google.com/*",
     "https://drive.google.com/*",
-    "https://lh3.google.com/*"
+    "https://lh3.google.com/*",
+    "https://*.gstatic.com/*"
   ],
   "icons": {
     "16": "icons/icon16.png",

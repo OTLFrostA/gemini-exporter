@@ -316,21 +316,21 @@ export function init({
         }
 
         if (msg.action === 'getFileBlob') {
-            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')'  }); return true; }
             if (Assets) void Assets.handleGetFileBlob(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'getImageBlob') {
-            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')'  }); return true; }
             if (Assets) void Assets.handleGetImageBlob(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
         }
 
         if (msg.action === 'downloadAssetDirect') {
-            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted' }); return true; }
+            if (!isAllowedAssetUrl(msg.url)) { respond({ success: false, error: 'blocked: asset url not allowlisted (' + String(msg.url).split('?')[0].slice(0, 160) + ')'  }); return true; }
             if (Assets) void Assets.downloadAssetDirect(msg, respond);
             else respond({ success: false, error: 'AssetFetcher not loaded' });
             return true;
