@@ -1,7 +1,26 @@
 import type { Conversation } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
-import { isTakeoutConversation } from "../utils/titleUtils.js";
+import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, toTimestampMs, getEffectiveTimestamp } from "../utils/titleUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
+
+export interface FinalizeExportOptions {
+    /** Whether to skip updating conversation in gemini_conversations (defaults to false) */
+    skipConversationUpdate?: boolean;
+    /** Conversation fields to update/merge into gemini_conversations */
+    conversationUpdate?: {
+        title?: string;
+        titleSource?: string;
+        titles?: Record<string, string>;
+        messageCount?: number;
+        updatedAt?: number | string;
+        timestamp?: number | string;
+        chatTime?: number | string;
+        lastActiveAt?: number | string;
+        [key: string]: any;
+    };
+    /** Callback invoked after successful write */
+    onItemExported?: (id: string, record: any) => void;
+}
 import {
     saveConversationDetailsBatch,
     removeConversationDetails,
@@ -418,6 +437,99 @@ export interface ConversationTransaction {
         return saveExportRecordsBatch(slot, { [ck]: record });
     }
 
+    async function finalizeConversationExport(
+        slot: string | null | undefined,
+        id: string | number,
+        record: any,
+        options?: FinalizeExportOptions
+    ): Promise<{ ok: boolean; record: any }> {
+        const targetId = normId(id);
+        if (!targetId) {
+            throw new Error('[StorageService] finalizeConversationExport: empty conversation id');
+        }
+
+        const self = (typeof StorageService !== 'undefined' ? StorageService : null) as any;
+        const doSaveRecord = self?.saveExportRecord || saveExportRecord;
+        const doUpdateConv = self?.updateConversation || updateConversation;
+
+        // 1. Atomic write to exportedIds SSoT
+        await doSaveRecord(slot, targetId, record);
+
+        // 2. Atomic write-back to gemini_conversations if not skipped
+        if (!options?.skipConversationUpdate) {
+            try {
+                const convUpdate = options?.conversationUpdate || {};
+                const candidateTitle = convUpdate.title || record?.title;
+                const updated = await doUpdateConv(slot, targetId, (existing: any) => {
+                    const incomingTitles = convUpdate.titles && typeof convUpdate.titles === 'object' ? { ...convUpdate.titles } : {};
+                    const candidateSource = convUpdate.titleSource || (convUpdate.titles ? undefined : 'export');
+
+                    const incoming: any = {
+                        titles: incomingTitles,
+                        title: candidateTitle,
+                        titleSource: candidateSource
+                    };
+
+                    applyExportTitleWriteback(existing, incoming);
+
+                    const newMsgCount = convUpdate.messageCount ?? record?.messageCount;
+                    if (typeof newMsgCount === 'number' && newMsgCount > 0) {
+                        existing.messageCount = Math.max(existing.messageCount || 0, newMsgCount);
+                    }
+
+                    const rawTime = convUpdate.updatedAt || convUpdate.timestamp || convUpdate.chatTime || record?.chatTime;
+                    const timeMs = toTimestampMs(rawTime);
+                    if (timeMs && timeMs > 0) {
+                        const existingTs = getEffectiveTimestamp(existing);
+                        if (timeMs > existingTs) {
+                            existing.updatedAt = timeMs;
+                            if (existing.timestamp) existing.timestamp = timeMs;
+                        }
+                    }
+                    if (convUpdate.lastActiveAt) {
+                        const actMs = toTimestampMs(convUpdate.lastActiveAt);
+                        if (actMs && actMs > (toTimestampMs(existing.lastActiveAt) || 0)) {
+                            existing.lastActiveAt = actMs;
+                        }
+                    }
+
+                    return existing;
+                });
+
+                // If not found in current conversation list, register it fresh with resolved export metadata
+                if (!updated && candidateTitle) {
+                    await withConversationLock(async () => {
+                        const list = await getConversations(slot);
+                        if (!list.some(c => c && normId(c.id) === targetId)) {
+                            const newConv: any = {
+                                id: targetId,
+                                title: cleanTitle(candidateTitle),
+                                titleSource: convUpdate.titleSource || 'export',
+                                titles: convUpdate.titles || { export: cleanTitle(candidateTitle) },
+                                messageCount: convUpdate.messageCount ?? record?.messageCount ?? 1,
+                                updatedAt: toTimestampMs(convUpdate.updatedAt || convUpdate.timestamp || record?.chatTime) || Date.now(),
+                                lastActiveAt: toTimestampMs(convUpdate.lastActiveAt) || Date.now()
+                            };
+                            const nextList = [newConv, ...list];
+                            await _setConversationsRaw(slot, nextList);
+                        }
+                    });
+                }
+            } catch (convUpdateErr) {
+                console.warn('[StorageService] finalizeConversationExport updateConversation failed for', targetId, convUpdateErr);
+            }
+        }
+
+        // 3. Trigger callback if provided
+        try {
+            options?.onItemExported?.(targetId, record);
+        } catch (e) {
+            console.debug?.('[StorageService] onItemExported callback error', e);
+        }
+
+        return { ok: true, record };
+    }
+
     async function saveExportRecordsBatch(slot: string | null | undefined, records: Record<string, any>): Promise<Record<string, any>> {
         return enqueueSaveRecordChain(async () => {
             const { expKey, slot: s } = getStorageKeys(slot);
@@ -617,6 +729,7 @@ export {
     // （interface + 默认对象都不再声明）。函数本体仍保留在模块闭包内供
     // saveExportRecordsBatch（锁内回写）与内部 slot 更新使用，不得再对外暴露。
     saveExportRecord,
+    finalizeConversationExport,
     saveExportRecordsBatch,
     removeExportRecords,
     migrateExportAliases,
@@ -664,6 +777,7 @@ export const StorageService = {
     getConversationWithDetail,
     getExportedIds,
     saveExportRecord,
+    finalizeConversationExport,
     saveExportRecordsBatch,
     removeExportRecords,
     migrateExportAliases,

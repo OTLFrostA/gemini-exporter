@@ -184,7 +184,11 @@ export function render(
 
         if (!matchesType) return false;
         if (!q) return true;
-        return (resolveTitle(c).title || '').toLowerCase().includes(q) || String(c.id || '').toLowerCase().includes(q);
+        let effectiveTitle = resolveTitle(c).title || '';
+        if (!isRealTitle(effectiveTitle, c.id) && rec?.title && isRealTitle(rec.title, c.id)) {
+            effectiveTitle = cleanTitle(rec.title);
+        }
+        return effectiveTitle.toLowerCase().includes(q) || String(c.id || '').toLowerCase().includes(q);
     });
 
     if (!filtered.length) {
@@ -213,8 +217,12 @@ export function render(
         }
 
         const resolved = resolveTitle(c);
-        const displayTitle = escapeHtml(resolved.title);
-        const isBad = !isRealTitle(resolved.title, c.id);
+        let finalTitle = resolved.title;
+        if (!isRealTitle(finalTitle, c.id) && rec?.title && isRealTitle(rec.title, c.id)) {
+            finalTitle = cleanTitle(rec.title);
+        }
+        const displayTitle = escapeHtml(finalTitle);
+        const isBad = !isRealTitle(finalTitle, c.id);
         const titleStyle = isBad ? 'color:var(--warn); opacity:0.85;' : '';
 
         let dateStr = '';
