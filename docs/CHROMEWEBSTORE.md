@@ -6,8 +6,10 @@ This document tracks and maintains all required metadata, permissions justificat
 
 ## 📋 General Information
 
-- **Extension Name**: Gemini Exporter
-- **Summary / Short Description**: Open-source & private: bulk export Google Gemini chats & Takeout archives to Markdown, JSON or ZIP with images. 100% client-side.
+- **Extension Name**: Gemini Exporter - Save All Your Chats
+- **Chinese Extension Name**: Gemini Exporter - 保存所有对话
+- **Summary / Short Description**: 100% Free & open-source • 100% local, no tracking • One-click export all chats • PDF, HTML & Markdown • Hands-off background export
+- **Chinese Short Description**: 100% 免费开源 • 100% 本地处理，无追踪 • 一键导出所有对话 • PDF、HTML 与 Markdown • 自动后台导出，无需手动操作
 - **Category**: Productivity / Tools
 - **Default Language**: English (Supported: English, 简体中文)
 - **Manifest Version**: 3

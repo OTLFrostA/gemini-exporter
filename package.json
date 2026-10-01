@@ -1,7 +1,7 @@
 {
   "name": "gemini-exporter",
   "version": "1.7.0",
-  "description": "100% Free & open-source • Real-time auto-save • One-click batch export to Markdown • Reclaim full Gemini history via Takeout",
+  "description": "100% Free & open-source • 100% local, no tracking • One-click export all chats • PDF, HTML & Markdown • Hands-off background export",
   "main": "background.js",
   "scripts": {
     "type-check": "tsc --noEmit",
