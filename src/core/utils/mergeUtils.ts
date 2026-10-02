@@ -1,3 +1,14 @@
+import type { Conversation, TitleSource, TitleSources } from '../../types/conversation.js';
+
+/** List/detail ingestion can omit fields; merge returns normalized required metadata. */
+export type ConversationMergeInput = Partial<Conversation>;
+export type MergedConversation = Conversation & {
+    titles: TitleSources;
+    titleSource: TitleSource;
+    updatedAt: number | null;
+    createdAt: number | null;
+};
+
 import { normId, isReservedRoute } from './pathUtils.js';
 import { cleanTitle, isRealTitle, resolveTitle, compareConversations, toTimestampMs, isBrandPlaceholderTitle as isBadTitle, normalizeReliableTitleSource } from './titleUtils.js';
 
@@ -7,13 +18,13 @@ export interface MergeConversationOptions {
 }
 
 export interface MergeConversationResult {
-    merged: any;
+    merged: MergedConversation;
     isChanged: boolean;
     hasDirtyTitles: boolean;
 }
 
 export interface DeduplicateResult {
-    processed: any[];
+    processed: Conversation[];
     changedCount: number;
     hasDirtyTitles: boolean;
 }
@@ -25,7 +36,7 @@ export interface DeduplicateResult {
  * title. `legacy` itself is excluded (the guard checks it separately) and
  * rank-0 `default` is intentionally not authoritative.
  */
-function hasAuthoritativeTitleSlot(titles: Record<string, string | undefined>): boolean {
+function hasAuthoritativeTitleSlot(titles: TitleSources): boolean {
     return Boolean(
         titles.rpc ||
         titles['api-detail'] ||
@@ -36,12 +47,12 @@ function hasAuthoritativeTitleSlot(titles: Record<string, string | undefined>): 
 }
 
 export function mergeConversation(
-    old: any,
-    incoming: any,
+    old: ConversationMergeInput | null | undefined,
+    incoming: ConversationMergeInput | null | undefined,
     options?: MergeConversationOptions
 ): MergeConversationResult {
     const id = normId(incoming?.id || old?.id || '');
-    const mergedTitles: Record<string, string> = {};
+    const mergedTitles: TitleSources = {};
     if (old?.titles && typeof old.titles === 'object') {
         for (const [k, v] of Object.entries(old.titles)) {
             const relK = normalizeReliableTitleSource(k);
@@ -54,7 +65,7 @@ export function mergeConversation(
     }
 
     const reliableOldSource = normalizeReliableTitleSource(old?.titleSource);
-    if (reliableOldSource && old.title && !mergedTitles[reliableOldSource]) {
+    if (reliableOldSource && old?.title && !mergedTitles[reliableOldSource]) {
         const cleanOldT = cleanTitle(old.title);
         if (cleanOldT && (isRealTitle(cleanOldT, id) || reliableOldSource === 'takeout')) {
             mergedTitles[reliableOldSource] = cleanOldT;
@@ -126,10 +137,10 @@ export function mergeConversation(
         }
     }
 
-    let cUpdated: any = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
+    let cUpdated = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
     if (cUpdated !== null && cUpdated <= 0) cUpdated = null;
 
-    let oldUpdated: any = toTimestampMs(old?.updatedAt ?? old?.timestamp);
+    let oldUpdated = toTimestampMs(old?.updatedAt ?? old?.timestamp);
     if (oldUpdated !== null && oldUpdated <= 0) oldUpdated = null;
 
     let bestUpdatedAt: number | null = null;
@@ -139,10 +150,10 @@ export function mergeConversation(
         bestUpdatedAt = cUpdated || oldUpdated || null;
     }
 
-    let cCreated: any = toTimestampMs(incoming?.createdAt);
+    let cCreated = toTimestampMs(incoming?.createdAt);
     if (cCreated !== null && cCreated <= 0) cCreated = null;
 
-    let oldCreated: any = toTimestampMs(old?.createdAt);
+    let oldCreated = toTimestampMs(old?.createdAt);
     if (oldCreated !== null && oldCreated <= 0) oldCreated = null;
 
     // createdAt must never advance into the future; take the earliest timestamp.
@@ -156,7 +167,7 @@ export function mergeConversation(
     // Route raw .timestamp fallbacks through toTimestampMs to prevent legacy invalid strings from persisting
     const bestTimestamp = bestUpdatedAt || toTimestampMs(old?.timestamp) || toTimestampMs(incoming?.timestamp) || null;
 
-    const effectiveMessageCount = (c: any): number => {
+    const effectiveMessageCount = (c: ConversationMergeInput | null | undefined): number => {
         if (!c || typeof c !== 'object') return 0;
         const n = Number(c.messageCount);
         const m = Array.isArray(c.messages) ? c.messages.length : 0;
@@ -168,26 +179,26 @@ export function mergeConversation(
     const bestMsgLen = Math.max(oldMsgLen, inMsgLen);
     const incomingShrinksMessages = !!old && oldMsgLen > inMsgLen;
 
-    const toMs = (v: any): number | null => {
+    const toMs = (v: unknown): number | null => {
         if (v === null || v === undefined || v === '') return null;
         const ms = typeof v === 'string' ? new Date(v).getTime() : Number(v);
         return Number.isFinite(ms) && ms > 0 ? ms : null;
     };
     const oldSeenMs = toMs(old?.lastSeen);
     const inSeenMs = toMs(incoming?.lastSeen);
-    let bestLastSeen: any = null;
+    let bestLastSeen: Conversation['lastSeen'] | null = null;
     if (oldSeenMs !== null && inSeenMs !== null) {
-        bestLastSeen = oldSeenMs >= inSeenMs ? old.lastSeen : incoming.lastSeen;
+        bestLastSeen = oldSeenMs >= inSeenMs ? old?.lastSeen : incoming?.lastSeen;
     } else {
-        bestLastSeen = oldSeenMs !== null ? old.lastSeen : (inSeenMs !== null ? incoming.lastSeen : null);
+        bestLastSeen = oldSeenMs !== null ? old?.lastSeen : (inSeenMs !== null ? incoming?.lastSeen : null);
     }
 
     const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
     const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
-    const oldBodyLen = Array.isArray(old?.messages) ? old.messages.length : null;
-    const inBodyLen = Array.isArray(incoming?.messages) ? incoming.messages.length : null;
-    const oldAttCount = typeof (old as any)?.attachmentCount === 'number' ? (old as any).attachmentCount : null;
-    const inAttCount = typeof (incoming as any)?.attachmentCount === 'number' ? (incoming as any).attachmentCount : null;
+    const oldBodyLen = Array.isArray(old?.messages) ? old?.messages.length : null;
+    const inBodyLen = Array.isArray(incoming?.messages) ? incoming?.messages.length : null;
+    const oldAttCount = typeof old?.attachmentCount === 'number' ? old.attachmentCount : null;
+    const inAttCount = typeof incoming?.attachmentCount === 'number' ? incoming.attachmentCount : null;
     let isChanged = false;
     if (!old) {
         isChanged = true;
@@ -203,7 +214,7 @@ export function mergeConversation(
         isChanged = true;
     }
 
-    const merged: any = {
+    const merged: MergedConversation = {
         ...(old || {}),
         ...(incoming || {}),
         id,
@@ -218,15 +229,15 @@ export function mergeConversation(
             : old?.sidebarIndex
     };
 
-    const oldBodyLen2 = Array.isArray(old?.messages) ? old.messages.length : 0;
-    const inBodyLen2 = Array.isArray(incoming?.messages) ? incoming.messages.length : 0;
+    const oldBodyLen2 = Array.isArray(old?.messages) ? old?.messages.length : 0;
+    const inBodyLen2 = Array.isArray(incoming?.messages) ? incoming?.messages.length : 0;
     if (oldBodyLen2 > 0 && inBodyLen2 < oldBodyLen2) {
-        merged.messages = old.messages;
+        merged.messages = old?.messages;
     }
-    const oldTurnsLen2 = Array.isArray(old?.turns) ? old.turns.length : 0;
-    const inTurnsLen2 = Array.isArray(incoming?.turns) ? incoming.turns.length : 0;
+    const oldTurnsLen2 = Array.isArray(old?.turns) ? old?.turns.length : 0;
+    const inTurnsLen2 = Array.isArray(incoming?.turns) ? incoming?.turns.length : 0;
     if (oldTurnsLen2 > 0 && inTurnsLen2 < oldTurnsLen2) {
-        merged.turns = old.turns;
+        merged.turns = old?.turns;
     }
     if (oldMsgCount !== null && inMsgCount !== null) {
         merged.messageCount = Math.max(oldMsgCount, inMsgCount);
@@ -236,8 +247,8 @@ export function mergeConversation(
         merged.lastSeen = bestLastSeen;
     }
     if (incomingShrinksMessages) {
-        if (Array.isArray(old.messages)) {
-            merged.messages = old.messages;
+        if (Array.isArray(old?.messages)) {
+            merged.messages = old?.messages;
         } else {
             // CRITICAL: old was slimmed (messages stored in IndexedDB).
             // incoming has fewer messages than old's recorded messageCount/turns.
@@ -246,12 +257,12 @@ export function mergeConversation(
             // overwrite IndexedDB's fuller detail with incoming's truncated body!
             delete merged.messages;
         }
-        if (Array.isArray(old.turns)) {
-            merged.turns = old.turns;
+        if (Array.isArray(old?.turns)) {
+            merged.turns = old?.turns;
         } else {
             delete merged.turns;
         }
-        if (typeof old.messageCount === 'number') merged.messageCount = old.messageCount;
+        if (typeof old?.messageCount === 'number') merged.messageCount = old.messageCount;
         else if (bestMsgLen > 0) merged.messageCount = bestMsgLen;
     }
     if (options?.source) {
@@ -265,17 +276,17 @@ export function mergeConversation(
 }
 
 export function deduplicateConversations(
-    list: any[],
+    list: (ConversationMergeInput | null | undefined)[],
     options?: MergeConversationOptions
 ): DeduplicateResult {
     if (!Array.isArray(list)) return { processed: [], changedCount: 0, hasDirtyTitles: false };
-    const dedupMap = new Map<string, any>();
+    const dedupMap = new Map<string, Conversation>();
     let changedCount = 0;
     let hasDirtyTitles = false;
 
     for (const item of list) {
         if (!item || !item.id) continue;
-        const u = ((item as any).url || (item as any).href || '').toString();
+        const u = (item.url || item.href || '').toString();
         if (/accounts\.google\.com|SignOutOptions/i.test(u)) continue;
 
         const nid = normId(item.id);
@@ -300,20 +311,20 @@ export function deduplicateConversations(
 }
 
 export interface TakeoutMergePlan {
-    processed: any[];
+    processed: Conversation[];
     addedCount: number;
     changed: number;
 }
 
 export function planTakeoutMerge(
-    existing: any[],
-    incoming: any[],
-    dedupeFn: (list: any[]) => DeduplicateResult = deduplicateConversations
+    existing: (ConversationMergeInput | null | undefined)[],
+    incoming: (ConversationMergeInput | null | undefined)[],
+    dedupeFn: (list: (ConversationMergeInput | null | undefined)[]) => DeduplicateResult = deduplicateConversations
 ): TakeoutMergePlan | null {
     const existingList = existing || [];
     const incomingList = incoming || [];
-    const existingIds = new Set(existingList.map((c: any) => normId(c?.id)));
-    const addedCount = incomingList.filter((tc: any) => tc?.id && !existingIds.has(normId(tc.id))).length;
+    const existingIds = new Set(existingList.map((c) => normId(c?.id)));
+    const addedCount = incomingList.filter((tc) => tc?.id && !existingIds.has(normId(tc.id))).length;
     const { processed, changedCount } = dedupeFn([...existingList, ...incomingList]);
 
     const trivialFirstSeen = processed.length;

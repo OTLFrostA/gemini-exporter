@@ -1,10 +1,22 @@
 import type { Conversation, TitleSource } from '../../types/index.js';
 export type { TitleSource };
+import type { ExportRecord } from '../../types/ui.js';
 import { normId } from './pathUtils.js';
+
+/** Only the fields title arbitration reads or mutates. */
+export type TitleResolutionInput = Partial<Pick<Conversation, 'id' | 'title' | 'titleSource' | 'titles'>>;
+
+/** Export freshness also recognizes historical truncation flags. */
+export type ExportActivityRecord = Partial<Pick<ExportRecord,
+    'exportedAt' | 'chatTime' | 'messageCount' | 'status' | 'hasFailedAssets'
+>> & {
+    isTruncated?: boolean;
+    truncated?: boolean;
+};
 
 export interface TitleResolution {
     title: string;
-    source: string;
+    source: TitleSource;
 }
 
 export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
@@ -33,7 +45,7 @@ export function normalizeReliableTitleSource(source?: string | null): TitleSourc
     if (!s || s === 'default' || s === 'legacy' || s === 'export') {
         return undefined;
     }
-    return TITLE_SOURCE_PRIORITY.includes(s as TitleSource) ? (s as TitleSource) : undefined;
+    return TITLE_SOURCE_PRIORITY.find(candidate => candidate === s);
 }
 
 /**
@@ -49,21 +61,21 @@ export function resolveReliableTitleSource(...sources: (string | null | undefine
 }
 
 
-export function isTakeoutConversation(c: any): boolean {
+export function isTakeoutConversation(c?: Partial<Conversation> | null): boolean {
     if (!c) return false;
     return (
-        (c as any).source === 'takeout' ||
+        c.source === 'takeout' ||
         c.titleSource === 'takeout' ||
-        (c as any).isTakeoutOnly ||
-        !!(c.titles && (c.titles as any).takeout)
+        c.isTakeoutOnly ||
+        !!(c.titles && c.titles.takeout)
     );
 }
 
-export function cleanZeroWidth(t: any): string {
+export function cleanZeroWidth(t: unknown): string {
     return String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();
 }
 
-export function isBrandPlaceholderTitle(t: any): boolean {
+export function isBrandPlaceholderTitle(t: unknown): boolean {
     if (!t) return true;
     return /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanZeroWidth(t));
 }
@@ -162,7 +174,7 @@ export function cleanTitle(rawTitle?: string | null): string {
 /**
  * Resolve the most authoritative valid title from a chat object with multi-tier source slots.
  */
-export function resolveTitle(chat?: Partial<Conversation> | null): TitleResolution {
+export function resolveTitle(chat?: TitleResolutionInput | null): TitleResolution {
     if (!chat) return { title: '未命名对话', source: 'default' };
     const id = chat.id || '';
 
@@ -200,7 +212,7 @@ export function resolveTitle(chat?: Partial<Conversation> | null): TitleResoluti
     return { title: '未命名对话', source: 'default' };
 }
 
-export function setTitleBySource(chat: any, source?: string, rawTitle?: string): TitleResolution {
+export function setTitleBySource(chat: TitleResolutionInput | null | undefined, source?: string, rawTitle?: string): TitleResolution {
     if (!chat) return { title: '未命名对话', source: 'default' };
     const reliableSource = normalizeReliableTitleSource(source);
     if (!reliableSource) {
@@ -228,12 +240,12 @@ export function setTitleBySource(chat: any, source?: string, rawTitle?: string):
  * 'default' is only permitted as a placeholder titleSource, never as a titles key.
  * 'export' or any unrecognized strings are strictly forbidden.
  */
-export function assertCanonicalTitleProvenance(chat: any): void {
+export function assertCanonicalTitleProvenance(chat: { titleSource?: unknown; titles?: unknown } | null | undefined): void {
     const validSources = new Set(['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default']);
     const validTitleKeys = new Set(['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy']);
 
     if (chat && chat.titleSource !== undefined) {
-        if (!validSources.has(chat.titleSource)) {
+        if (typeof chat.titleSource !== 'string' || !validSources.has(chat.titleSource)) {
             throw new Error(`titleSource '${chat.titleSource}' is not in canonical domain (${Array.from(validSources).join(', ')})`);
         }
     }
@@ -270,7 +282,7 @@ export function assertCanonicalTitleProvenance(chat: any): void {
  *    Sources that fail normalizeReliableTitleSource() cannot be saved into titles,
  *    and their values cannot be scanned or used to promote titles.
  */
-export function applyExportTitleWriteback(existing: any, incoming: any): any {
+export function applyExportTitleWriteback<T extends TitleResolutionInput | null | undefined>(existing: T, incoming: TitleResolutionInput | null | undefined): T {
     if (!existing || !incoming) return existing;
 
     // 1. Seed the stored record's own resolved title into its tier slot first
@@ -328,7 +340,7 @@ export function applyExportTitleWriteback(existing: any, incoming: any): any {
     return existing;
 }
 
-export function toTimestampMs(raw: any): number | null {
+export function toTimestampMs(raw: unknown): number | null {
     if (raw === null || raw === undefined) return null;
     if (typeof raw === 'number') {
         return Number.isFinite(raw) && raw > 0 ? raw : null;
@@ -356,7 +368,7 @@ export function toTimestampMs(raw: any): number | null {
 // lastSeen is client-observed and intentionally excluded so missing timestamps return 0 rather than a guess.
 export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): number {
     if (!chat || typeof chat !== 'object') return 0;
-    const candidates = [chat.updatedAt, chat.timestamp, (chat as any).chatTime, chat.createdAt];
+    const candidates = [chat.updatedAt, chat.timestamp, chat.chatTime, chat.createdAt];
     for (const raw of candidates) {
         const ms = toTimestampMs(raw);
         if (ms !== null) {
@@ -366,7 +378,7 @@ export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): numb
     return 0;
 }
 
-type SortableConversation = Partial<Conversation> & { sidebarIndex?: number };
+type SortableConversation = Partial<Conversation>;
 export function compareConversations(a?: SortableConversation | null, b?: SortableConversation | null): number {
     if (!a && !b) return 0;
     if (!a) return 1;
@@ -427,7 +439,7 @@ export interface ConversationExportState {
 
 export interface ResolveConversationExportStateOptions {
     isFailedInSession?: boolean;
-    customHasNewerActivity?: (c: any, rec: any) => boolean;
+    customHasNewerActivity?: (c: Partial<Conversation> | null | undefined, rec: ExportActivityRecord | null | undefined) => boolean;
 }
 
 const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], ConversationBadgeDescriptor> = {
@@ -487,14 +499,14 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
     }
 };
 
-function computeHasNewerActivity(c: any, rec: any): boolean {
+function computeHasNewerActivity(c: Partial<Conversation> | null | undefined, rec: ExportActivityRecord | null | undefined): boolean {
     if (!c || !rec) return false;
     try {
         const cTs = getEffectiveTimestamp(c);
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;
-        const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
+        const rChatTime = toTimestampMs(rec.chatTime) ?? 0;
         const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
-        const recMsgCount = (rec as any).messageCount || 0;
+        const recMsgCount = rec.messageCount || 0;
 
         // 1. Authoritative same-clock check:
         // If export record captured the exported conversation's server chatTime:
@@ -502,7 +514,7 @@ function computeHasNewerActivity(c: any, rec: any): boolean {
         // it cannot be updated by timestamp (immune to local clock skew).
         if (rChatTime > 0 && cTs > 0 && cTs <= rChatTime) {
             if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
-                if (rTs > 0 && rTs >= cTs + 2000 && (rec.isTruncated || (rec as any).truncated || c.id?.includes('truncated'))) {
+                if (rTs > 0 && rTs >= cTs + 2000 && (rec.isTruncated || rec.truncated || c.id?.includes('truncated'))) {
                     return false;
                 }
                 return true;
@@ -537,14 +549,14 @@ function computeHasNewerActivity(c: any, rec: any): boolean {
 }
 
 export function resolveConversationExportState(
-    c: any,
-    rec?: any,
+    c: Partial<Conversation> | null | undefined,
+    rec?: ExportActivityRecord | null,
     options?: ResolveConversationExportStateOptions
 ): ConversationExportState {
     const hasRecord = !!rec;
-    const recStatus = rec ? (rec as any).status : undefined;
+    const recStatus = rec ? rec.status : undefined;
     const isPendingAssets = !!(rec && recStatus === 'pending_assets');
-    const isPartial = !isPendingAssets && !!(rec && (recStatus === 'partial' || !!(rec as any).hasFailedAssets));
+    const isPartial = !isPendingAssets && !!(rec && (recStatus === 'partial' || !!rec.hasFailedAssets));
     const isRecordFailed = !!(rec && recStatus === 'failed');
     const isFailedInSession = !!options?.isFailedInSession;
 
@@ -591,7 +603,7 @@ export function resolveConversationExportState(
     };
 }
 
-export function checkIsUpdated(c: any, rec?: any): boolean {
+export function checkIsUpdated(c: Partial<Conversation> | null | undefined, rec?: ExportActivityRecord | null): boolean {
     if (!c || !rec) return false;
     // Partial export records are never considered up-to-date so failed attachments can be retried on subsequent syncs
     const st = resolveConversationExportState(c, rec);
@@ -599,7 +611,7 @@ export function checkIsUpdated(c: any, rec?: any): boolean {
 }
 
 export function resolveDetailTitle(
-    messages: any[] | null | undefined,
+    messages: ({ role?: unknown; content?: unknown } | null | undefined)[] | null | undefined,
     convId?: string | number
 ): { title: string; source: 'sniff' } | null {
     if (!Array.isArray(messages)) return null;

@@ -370,7 +370,7 @@ test('Stale Takeout snapshot must not shrink messages/messageCount/lastSeen (CON
         title: 'Online Title',
         titleSource: 'rpc',
         titles: { rpc: 'Online Title' },
-        messages: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'],
+        messages: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'].map(content => ({ role: 'user' as const, content })),
         messageCount: 8,
         updatedAt: 5000,
         timestamp: 5000,
