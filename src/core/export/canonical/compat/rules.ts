@@ -147,11 +147,24 @@ export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Objec
     GM_MD_001_FENCE_NORMALIZATION,
 ]);
 
+export const GM_TEX_001_SCR_NORMALIZATION: TexCompatRule = Object.freeze({
+    id: 'GM-TEX-001',
+    domain: 'tex',
+    evidence: 'tests/fixtures/canonical/math/gm_tex_001_evidence.tex',
+    observedAt: '2026-10-01T18:00:00Z',
+    description:
+        'Normalizes \\mathscr to \\mathcal since Gemini frequently outputs standard physics ' +
+        'script symbols (e.g. Bondi-Sachs Scri \\mathscr{I}) which MiTeX does not recognize in its base dictionary.',
+    transform: (source: string) => source.replace(/\\mathscr(?![a-zA-Z])/g, '\\mathcal'),
+});
+
 /**
  * Active LaTeX compatibility rules.
- * Initial state MUST remain empty per Section 2.4 / Section 31.
+ * Admitted per Section 4 & 31 admission policy with physical evidence fixture.
  */
-export const GEMINI_TEX_COMPAT_RULES: readonly TexCompatRule[] = Object.freeze([]);
+export const GEMINI_TEX_COMPAT_RULES: readonly TexCompatRule[] = Object.freeze([
+    GM_TEX_001_SCR_NORMALIZATION,
+]);
 
 /**
  * Preprocesses raw Gemini Markdown through registered compatibility rules.

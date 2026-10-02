@@ -4,10 +4,10 @@ const assert = require('node:assert');
 const SyncEngine = require('../src/content/syncEngine.js');
 const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
-// SSOT timestamp authority: timestamp/updatedAt are server-authoritative.
-// touchActiveConversation (stream start/complete, live turn) must NOT stamp the
-// client clock: merge is Math.max-monotonic, so a client-ahead clock would
-// permanently poison the record and no later server timestamp could repair it.
+// Timestamp authority:
+// On stream-start, touchActiveConversation preserves server timestamps (does not prematurely advance them).
+// On stream-complete / live-turn-complete, updatedAt/timestamp advance to current interaction time
+// to reflect the new completed turn, enabling real-time bump-to-top and incremental update detection.
 
 function mockStorageContext() {
     let savedList: any[] = [];
@@ -48,17 +48,34 @@ function serverItem(id: string, ts: number) {
     };
 }
 
-test('touch preserves server timestamp on existing record', async () => {
+test('touch on stream-start preserves server timestamp on existing record', async () => {
     const ctx = mockStorageContext();
     const SERVER_TS = 1700000000000;
     ctx.seed([serverItem('srv_chat_1', SERVER_TS)]);
 
-    await SyncEngine.touchActiveConversation('srv_chat_1', 'u0', { source: 'stream-complete' });
+    await SyncEngine.touchActiveConversation('srv_chat_1', 'u0', { source: 'stream-start' });
 
     const rec = ctx.find('srv_chat_1');
     assert.ok(rec, 'record still exists');
-    assert.strictEqual(rec.timestamp, SERVER_TS, 'server timestamp must not be overwritten by client clock');
-    assert.strictEqual(rec.updatedAt, SERVER_TS, 'server updatedAt must not be overwritten by client clock');
+    assert.strictEqual(rec.timestamp, SERVER_TS, 'stream-start must not overwrite server timestamp');
+    assert.strictEqual(rec.updatedAt, SERVER_TS, 'stream-start must not overwrite server updatedAt');
+    assert.strictEqual(rec.sidebarIndex, 0, 'touch still pins sidebarIndex');
+    assert.ok(rec.lastSeen, 'touch still refreshes lastSeen');
+});
+
+test('touch on stream-complete advances updatedAt and timestamp to promote conversation', async () => {
+    const ctx = mockStorageContext();
+    const SERVER_TS = 1700000000000;
+    ctx.seed([serverItem('srv_chat_2', SERVER_TS)]);
+
+    const before = Date.now();
+    await SyncEngine.touchActiveConversation('srv_chat_2', 'u0', { source: 'stream-complete' });
+    const after = Date.now();
+
+    const rec = ctx.find('srv_chat_2');
+    assert.ok(rec, 'record still exists');
+    assert.ok(typeof rec.timestamp === 'number' && rec.timestamp >= before && rec.timestamp <= after, 'stream-complete advances timestamp');
+    assert.ok(typeof rec.updatedAt === 'number' && rec.updatedAt >= before && rec.updatedAt <= after, 'stream-complete advances updatedAt');
     assert.strictEqual(rec.sidebarIndex, 0, 'touch still pins sidebarIndex');
     assert.ok(rec.lastSeen, 'touch still refreshes lastSeen');
 });
@@ -79,10 +96,10 @@ test('touch on unknown record creates entry without client timestamp', async () 
 test('touch never moves the scan checkpoint', async () => {
     const ctx = mockStorageContext();
     const CP = 1700000050000;
-    ctx.seed([serverItem('srv_chat_2', 1700000000000)]);
+    ctx.seed([serverItem('srv_chat_3', 1700000000000)]);
     ctx.setCheckpoint(CP);
 
-    await SyncEngine.touchActiveConversation('srv_chat_2', 'u0', { source: 'stream-complete' });
+    await SyncEngine.touchActiveConversation('srv_chat_3', 'u0', { source: 'stream-complete' });
 
     assert.strictEqual(ctx.getCheckpoint(), CP, 'checkpoint untouched by touch path');
 });

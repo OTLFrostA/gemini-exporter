@@ -99,7 +99,10 @@ export function shortScope(id?: string | number | null): string {
 }
 
 export function buildExportFileName(title?: string | null, id?: string | null, ext: string = 'md'): string {
-    const safeTitle = sanitizeFileName(title || 'untitled');
+    let safeTitle = sanitizeFileName(title || 'untitled');
+    if ([...safeTitle].length > 62) {
+        safeTitle = [...safeTitle].slice(0, 62).join('').trim().replace(/[\.\s_]+$/g, '') || 'untitled';
+    }
     const cid6 = shortId(id);
     let cleanExt = String(ext || '').replace(/^\.+/, '');
     cleanExt = cleanExt.split(/[\\/]/).pop() || '';

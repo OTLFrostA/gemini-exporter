@@ -1,26 +1,5 @@
 [
   {
-    "id": "gravitational_physics_black_hole_ringdown_qnm",
-    "domain": "gravitational_physics_black_hole_ringdown_qnm",
-    "title": "广义相对论与黑洞摄动理论：克尔黑洞准正规模与极端引力波铃落推导",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 Teukolsky 主方程变量分离推导、QNM 复共轭本征频率谱边界条件、Leaver 连分数数值求解器与引力波并合源横向对比",
-    "turns": [
-      "在 Kerr 黑洞时空几何背景下，基于 Newman-Penrose 零四标架投影推导 Teukolsky 主方程（Teukolsky Master Equation），并严格展示辐射规范下拉普拉斯-贝尔特拉米算子沿角向与径向变量分离为自旋权重球谐函数 S_{s\\ell m}(\\theta; a\\omega) 与径向 Teukolsky 方程的过程。",
-      "详细阐述黑洞准正规模（Quasi-Normal Modes, QNM）的物理边界条件：在视界 r -> r_+ 处为纯内向吸积透射波，在空间无穷远 r -> \\infty 处为纯向外辐射耗散波，推导由此构成的复共轭本征频率谱 \\omega_{n\\ell m} = \\omega_R - i \\omega_I，并解释虚部 \\omega_I > 0 决定的特征阻尼时标 \\tau = 1/\\omega_I。",
-      "编写 Python 程序使用连分数法（Leaver's Continued Fraction Method）数值求解无自旋 Schwarzschild 黑洞基本四极引力辐射模（\\ell=2, m=2, n=0）的复特征频率初值，并计算其品质因数 Q = \\omega_R / (2\\omega_I)。",
-      "使用 Markdown 表格对比极端质量比旋近 (EMRI)、双中子星并合千新星 (BNS Kilonova)、中等质量黑洞双星 (IMBHB) 以及超大质量黑洞双星并合 (SMBHB) 在特征引力波辐射频段 (Hz)、有效自旋进动效应、视界无毛定理（No-Hair Theorem）铃落多极模检验能力以及对应观测探测器（LIGO-Virgo-KAGRA, LISA, 太极/天琴, PTA 脉冲星测时阵列）的科学技术特征。",
-      "深入推导双黑洞并合后期超辐射（Superradiance）与克尔黑洞测地极光圈（Light Ring / Photon Sphere）李雅普诺夫指数 \\lambda 之间的对应关系：证明大 \\ell 极限下准正规模频率与衰减率满足 \\omega_R \\to m \\Omega_c 和 \\omega_I \\to (n + 1/2) \\lambda，阐明其微观几何光学（Geometric Optics）测地线不稳定性的几何本质。"
-    ]
-  },
-  {
     "id": "fluid_dynamics_lattice_boltzmann_turbulent_channel",
     "domain": "fluid_dynamics_lattice_boltzmann_mrt",
     "title": "介观流体力学：多松弛时间格子玻尔兹曼方法 (MRT-LBM) 与槽道湍流推导",
@@ -206,28 +185,6 @@
       "用 Python 编写可运行示例，为三个假想产地生成测量数据，并计算一件未知样品的产地后验概率与可信区间。",
       "用 Markdown 表格比较同位素比值、微量元素指纹、考古地层和器型风格四类证据的辨识能力、常见偏差与交叉验证方法。",
       "讨论当两处产地的化学分布高度重叠时，如何做灵敏度分析和报告不确定性，避免给出过度确定的单一产地结论。"
-    ]
-  },
-  {
-    "id": "materials_science_photonic_crystal_defect_cavity",
-    "domain": "materials_science_photonic_crystal_defect_cavity",
-    "title": "光子晶体缺陷腔：带隙设计与近场模式成像",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "覆盖光学模式推导、科学示意生图、数值模拟和器件对比",
-    "turns": [
-      "从一维周期介质的 Maxwell 本征方程出发，用 LaTeX 推导 Bloch 模与光子带隙形成条件，并说明折射率对比度的作用。",
-      "生成一张科研示意图：二维光子晶体薄膜中的点缺陷腔、局域电场强度分布、入射波导及出射方向，要求结构边界和颜色图例清晰。",
-      "使用 Python 编写简化的传输矩阵数值脚本，计算介质层数和缺陷层厚度改变时的透射谱与共振峰位置。",
-      "用 Markdown 表格比较光子晶体缺陷腔、微环谐振器、法布里珀罗腔与等离激元纳米腔的品质因数、模式体积、制造误差敏感度和适用场景。",
-      "设计一个近场光学表征实验，解释如何从空间扫描图像估计缺陷腔模式体积，并列出误差来源与校准步骤。"
     ]
   },
   {
@@ -422,6 +379,50 @@
       "使用 Python 编写基于一维层状介质反射率法 (Kennett Reflectivity Method) 或频散波慢度求和法的小型数值仿真脚本，合成高频震相 SPdKS 在经过具有 15 km 厚度、-10% P波降速与 -30% S波降速的核幔边界 ULVZ 介质时的合成三分量地震位移记录图。",
       "设计结构化 Markdown 表格，系统对比下地幔底部 D\" 层四大核心构造：大剪切波低速省 (LLVP)、超低速带 (ULVZ)、俯冲板块残余巨型石板 (Subducted Slab Graveyard) 以及全地幔柱根 (Mantle Plume Root) 在横波波速异常 \\delta V_s、纵横波波速比 \\delta \\ln V_s / \\delta \\ln V_p、密度异常 \\delta \\rho、空间分布尺度与富铁硅酸盐部分熔融热力学状态。",
       "从高压凝聚态物理矿物相变角度，推导后钙钛矿 (Post-Perovskite, pPv, (Mg,Fe)SiO3) 相变与富铁方镁铁矿 ((Mg,Fe)O) 在 CMB 强剪切流动下的晶格择优取向 (LPO)，分析晶体声学各向异性导致横波沿不同偏振方向产生剪切波分裂 (SKS/SKKS Splitting) 的相变微观动力学机制。"
+    ]
+  },
+  {
+    "id": "synthetic_biology_riboswitch_rna_origami_nanostructure",
+    "domain": "synthetic_biology_riboswitch_rna_origami_nanostructure",
+    "title": "合成生物学：RNA 折纸纳米结构与核糖开关变构动力学推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试人工合成 RNA 折纸纳米结构生成、四态变构 Monod-Wyman-Changeux 热力学模型、Nussinov-Zuker 动态规划二次结构 Python 求解器与核酸纳米技术横向对比",
+    "turns": [
+      "生成一张完全虚构的高分辨率科学示意图：展示一个人工设计的四面体 RNA 折纸（RNA Origami）纳米笼结构，其四个顶点集成对腺苷变构敏感的 RNA 核糖开关（Riboswitch），包含发卡环识别位点、荧光报告基团与碱基互补杂交双螺旋束的精细分子构象与图例标注。",
+      "使用 LaTeX 建立该核糖开关配体结合与变构诱导的四态变构模型（Monod-Wyman-Changeux 模型拓展），推导配体结合分数 \\theta(L) 与吉布斯自由能能景 \\Delta G_{fold}，分析协同性 Hill 系数 n_H 与解离常数 K_d 的热力学关系。",
+      "编写 Python 代码块，基于 Nussinov-Zuker 动态规划二次结构预测算法的简化自由能邻近规则，计算一段短 RNA 序列的碱基配对最优自由能矩阵，并输出变构前后最小自由能 (MFE) 构象的括号表示法 (Dot-Bracket Notation)。",
+      "使用 Markdown 表格，对比 RNA 折纸技术、DNA 折纸技术（DNA Origami）、蛋白质从头设计（De Novo Protein Design, 如 RFdiffusion）以及超分子共价有机框架（COF）在折叠热稳定性、活细胞内转录自组装能力、载药空间封装效率与体内生物降解半衰期维度的核心技术特征。",
+      "推导该 RNA 纳米笼在活细胞微流控递送环境下的扩散输运方程与酶切降解动力学，建立含胞吞吸收、溶酶体逃逸速率常数与靶向释放产率的常微分方程组 (ODE)，给出解析稳态浓度分布解。"
+    ]
+  },
+  {
+    "id": "quantum_error_correction_surface_code_mwpm_decoder",
+    "domain": "quantum_error_correction_surface_code_mwpm_decoder",
+    "title": "量子纠错与容错量子计算：表面码伴随式测量与最小权重完美匹配译码推导",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试二维旋转表面码稳定子测量与伴随式代数推导、时空三维译码图构建、MWPM 最小权重匹配译码器 Python 实现与纠错阈值 Ising 映射严格证明",
+    "turns": [
+      "针对二维旋转表面码（Rotated Surface Code, 码距 d），从泡利稳定子群 \\mathcal{S} 与逻辑算符 \\bar{X}, \\bar{Z} 的代数定义出发，推导数据比特与测量辅助比特构成的 X 稳定子与 Z 稳定子伴随式（Syndrome）测量本征方程，严格说明独立相位翻转噪声与比特翻转噪声如何退化为对偶晶格上的点激发缺陷对。",
+      "推导随测量轮次 T 进行的伴随式提取过程中的时空三维译码图（Spatiotemporal Decoding Graph \\mathcal{G} = (V, E)）：详细定义顶点集合 V（测量差分激发点）与边集合 E 的权重计算法则 w_e = \\ln((1 - p)/p)，说明测量误差与数据比特物理错误如何在时空图中形成类空（Spacelike）与类时（Timelike）边。",
+      "使用 Python 编写一个最小权重完美匹配（Minimum-Weight Perfect Matching, MWPM）译码器的核心算法实现，基于无向图的 Dijkstra 或 Floyd-Warshall 算法计算激发缺陷点之间的最短曼哈顿/测地距离矩阵，并调用网络匹配启发式算法寻找最佳配对并返回纠错恢复算符序列。",
+      "使用 Markdown 表格，横向对比最小权重完美匹配译码器 (MWPM, 如 PyMatching)、并查集快速译码器 (Union-Find Decoder)、神经网络置信度译码器 (NN/Transformer Decoder) 以及张量网络最大似然译码器 (Tensor Network MLD) 在时间复杂度渐进阶、逻辑错误率下界阈值、GPU/FPGA 流水线实时延迟 (ns) 以及长距离表面码扩展性四个维度的关键工程指标。",
+      "严格推导表面码阈值定理（Threshold Theorem）：使用统计物理二维 Ising/自旋玻璃无序随机键模型映射（Random-Bond Ising Model, RBIM），证明 Nishimori 线上相变临界温度对应的物理纠错理论容错阈值 p_{th} \\approx 10.9\\%（唯象无损测量下），并推导逻辑错误率随码距 d 增长的指数压制标度律 P_L \\propto C (p/p_{th})^{(d+1)/2}。"
     ]
   }
 ]

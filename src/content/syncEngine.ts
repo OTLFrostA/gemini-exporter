@@ -203,6 +203,15 @@ export async function touchActiveConversation(
     }
 
     const source = options?.source || 'stream-complete';
+    if (source === 'stream-complete' || source === 'live-turn-complete') {
+        item.updatedAt = now;
+        item.timestamp = now;
+        if (typeof document !== 'undefined') {
+            const count = document.querySelectorAll('user-query, model-response').length;
+            if (count > 0) item.messageCount = count;
+        }
+    }
+
     return await upsertConversations([item], source, options?.forceWrite ?? true, targetSlot);
 }
 

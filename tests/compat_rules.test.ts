@@ -40,8 +40,17 @@ test('Compatibility Rules: GM-MD-001 is admitted with full provenance metadata',
     assert.ok(fs.existsSync(evidencePath), `Evidence file must exist at ${rule.evidence}`);
 
     assert.strictEqual(Array.isArray(GEMINI_TEX_COMPAT_RULES), true);
-    assert.strictEqual(GEMINI_TEX_COMPAT_RULES.length, 0, 'TeX compat rules must remain empty until evidence arrives');
+    assert.strictEqual(GEMINI_TEX_COMPAT_RULES.length, 1, 'TeX compat rules contain admitted GM-TEX-001');
     assert.strictEqual(Object.isFrozen(GEMINI_TEX_COMPAT_RULES), true, 'TeX compat rules array must be frozen');
+
+    const texRule = GEMINI_TEX_COMPAT_RULES[0];
+    assert.strictEqual(texRule.id, 'GM-TEX-001');
+    assert.strictEqual(texRule.domain, 'tex');
+    assert.strictEqual(typeof texRule.observedAt, 'string');
+    assert.ok(texRule.description.length > 20, 'Rule must have descriptive explanation');
+
+    const texEvidencePath = path.resolve(__dirname, '..', texRule.evidence);
+    assert.ok(fs.existsSync(texEvidencePath), `Evidence file must exist at ${texRule.evidence}`);
 });
 
 test('Compatibility Rules: preprocessGeminiMarkdown preserves standard Markdown structures', () => {
@@ -71,8 +80,8 @@ test('Compatibility Rules: GM-MD-001 normalizes attached display math fences', (
     assert.strictEqual(preprocessGeminiMarkdown(bqInput), bqExpected);
 });
 
-test('Compatibility Rules: preprocessGeminiLatex is strict identity no-op', () => {
-    const testCases = [
+test('Compatibility Rules: preprocessGeminiLatex preserves standard LaTeX and normalizes mathscr', () => {
+    const standardCases = [
         '',
         '\\frac{a}{b}',
         '\\sum_{i=1}^n x_i',
@@ -80,8 +89,12 @@ test('Compatibility Rules: preprocessGeminiLatex is strict identity no-op', () =
         '\\arg\\left(\\gamma\'(z_c)\\right) \\pmod\\pi',
         '\\Box \\psi = \\nabla^2 \\psi',
     ];
-    for (const input of testCases) {
-        assert.strictEqual(preprocessGeminiLatex(input), input, 'preprocessGeminiLatex must be identity function');
+    for (const input of standardCases) {
+        assert.strictEqual(preprocessGeminiLatex(input), input, 'Standard LaTeX must be preserved exactly');
     }
+
+    const scrInput = '\\mathcal{F}_{\\mathscr{I}^+}';
+    const scrExpected = '\\mathcal{F}_{\\mathcal{I}^+}';
+    assert.strictEqual(preprocessGeminiLatex(scrInput), scrExpected, 'GM-TEX-001 must normalize mathscr to mathcal');
 });
 
