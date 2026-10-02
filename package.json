@@ -11,7 +11,7 @@
     "test:unit": "python3 tests/run_tests.py",
     "test:release-gates": "node scripts/release-gate-checks/check-no-cjk-fonts.js",
     "test:e2e": "node build.js && playwright test",
-    "test": "npm run type-check && python3 tests/run_tests.py && node build.js && playwright test",
+    "test": "npm run lint:zero-any && npm run type-check && python3 tests/run_tests.py && node build.js && playwright test",
     "test:changed": "python3 scripts/run_changed_tests.py",
     "test:impact": "python3 scripts/test_impact_analyzer.py --summary",
     "test:manual": "./scripts/open_test_chrome.sh",
@@ -27,6 +27,7 @@
     "test:corpus": "node -r ./tests/ts_register.js ./scripts/parser_migration/run_corpus.ts",
     "provenance:summary": "python3 ./scripts/parser_migration/test_provenance.py --summary",
     "release": "gh workflow run release.yml --ref main",
+    "lint:zero-any": "oxlint -A all -D typescript/no-explicit-any --no-ignore --disable-nested-config src/core/utils/titleUtils.ts src/core/utils/mergeUtils.ts",
     "lint": "oxlint -A all -D typescript/no-floating-promises --type-aware src/"
   },
   "keywords": [

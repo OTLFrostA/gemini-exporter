@@ -216,3 +216,18 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
    When Service Worker executes in headless background and directory handle permissions drop to `prompt` upon browser restart (where Chromium forbids headless permission prompting), the system safely returns `permission_prompt_needed` and records `dirError` in live config, allowing 1-click reauthorization via user gesture (`reauthorizeDirHandle()`).
 9. **Multi-Account Strict Isolation & Zero Token Stealing**:
    The multi-account subsystem is anchored to real Google Profiles (email, name, Gaia ID) sniffed via `accountSniffer.ts`. Each account slot maintains an isolated credential and conversation namespace with zero cross-slot token borrowing. Cross-tab dispatching strictly matches the active account slot, rejecting dispatch if no matching tab is found.
+
+
+## Scoped Zero-Any Gate
+
+Run `npm run lint:zero-any` locally. `npm test` and the CI `Unit Tests & Syntax`
+job enforce the same Oxlint `typescript/no-explicit-any` rule. The initial
+protected scope is exactly `src/core/utils/titleUtils.ts` and
+`src/core/utils/mergeUtils.ts`; legacy core files and tests remain outside it.
+To expand coverage, clean a production file first, then add its path to the
+`lint:zero-any` package script. No dependency upgrade is needed.
+
+In protected production core code, `as any`, explicit `any`, `any[]`, and
+`Record<string, any>` are forbidden. `unknown` is allowed; type narrowing is
+preferred. Double-cast bypasses such as `as unknown as SomeType` and lint
+suppression comments are forbidden by review.
