@@ -99,6 +99,14 @@ export function computeExportMessageCount(conversation: any, explicitCount?: num
  */
 export function computeAuthoritativeTimestamp(conversation: any, explicitTime?: number | string | Date | null): number | undefined {
     const tsFromExplicit = toTimestampMs(explicitTime);
+    let tsFromMessages = 0;
+    if (Array.isArray(conversation?.messages)) {
+        for (const m of conversation.messages) {
+            const mt = toTimestampMs(m?.timestamp);
+            if (mt && mt > tsFromMessages) tsFromMessages = mt;
+        }
+    }
+    const tsFromChatTime = toTimestampMs(conversation?.chatTime);
     const tsFromEffective = getEffectiveTimestamp(conversation);
     const tsFromUpdated = toTimestampMs(conversation?.updatedAt);
     const tsFromTimestamp = toTimestampMs(conversation?.timestamp);
@@ -106,6 +114,8 @@ export function computeAuthoritativeTimestamp(conversation: any, explicitTime?: 
 
     const max = Math.max(
         tsFromExplicit ?? 0,
+        tsFromMessages,
+        tsFromChatTime ?? 0,
         tsFromEffective ?? 0,
         tsFromUpdated ?? 0,
         tsFromTimestamp ?? 0,

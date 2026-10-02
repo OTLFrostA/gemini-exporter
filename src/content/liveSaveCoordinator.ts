@@ -1,6 +1,6 @@
 import { StorageService } from '../core/storage/storageService.js';
 import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
-import { getEffectiveTimestamp } from '../core/utils/titleUtils.js';
+import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/titleUtils.js';
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
@@ -105,6 +105,17 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
                 ? await new InjectedClass().getConversationDetail(nid)
                 : await provider!.fetchConversationDetail(nid);
             if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+                if (!detail.chatTime || !Number.isFinite(Number(detail.chatTime))) {
+                    const times = detail.messages
+                        .map((m: any) => toTimestampMs(m?.timestamp))
+                        .filter((t: any): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0);
+                    if (times.length > 0) {
+                        const maxTs = Math.max(...times);
+                        detail.chatTime = maxTs;
+                        detail.updatedAt = detail.updatedAt || maxTs;
+                        detail.timestamp = detail.timestamp || maxTs;
+                    }
+                }
                 return detail;
             }
         } catch (e) {

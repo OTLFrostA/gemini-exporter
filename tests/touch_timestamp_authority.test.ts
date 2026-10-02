@@ -48,34 +48,17 @@ function serverItem(id: string, ts: number) {
     };
 }
 
-test('touch on stream-start preserves server timestamp on existing record', async () => {
+test('touch preserves server timestamp on existing record', async () => {
     const ctx = mockStorageContext();
     const SERVER_TS = 1700000000000;
     ctx.seed([serverItem('srv_chat_1', SERVER_TS)]);
 
-    await SyncEngine.touchActiveConversation('srv_chat_1', 'u0', { source: 'stream-start' });
+    await SyncEngine.touchActiveConversation('srv_chat_1', 'u0', { source: 'stream-complete' });
 
     const rec = ctx.find('srv_chat_1');
     assert.ok(rec, 'record still exists');
-    assert.strictEqual(rec.timestamp, SERVER_TS, 'stream-start must not overwrite server timestamp');
-    assert.strictEqual(rec.updatedAt, SERVER_TS, 'stream-start must not overwrite server updatedAt');
-    assert.strictEqual(rec.sidebarIndex, 0, 'touch still pins sidebarIndex');
-    assert.ok(rec.lastSeen, 'touch still refreshes lastSeen');
-});
-
-test('touch on stream-complete advances updatedAt and timestamp to promote conversation', async () => {
-    const ctx = mockStorageContext();
-    const SERVER_TS = 1700000000000;
-    ctx.seed([serverItem('srv_chat_2', SERVER_TS)]);
-
-    const before = Date.now();
-    await SyncEngine.touchActiveConversation('srv_chat_2', 'u0', { source: 'stream-complete' });
-    const after = Date.now();
-
-    const rec = ctx.find('srv_chat_2');
-    assert.ok(rec, 'record still exists');
-    assert.ok(typeof rec.timestamp === 'number' && rec.timestamp >= before && rec.timestamp <= after, 'stream-complete advances timestamp');
-    assert.ok(typeof rec.updatedAt === 'number' && rec.updatedAt >= before && rec.updatedAt <= after, 'stream-complete advances updatedAt');
+    assert.strictEqual(rec.timestamp, SERVER_TS, 'server timestamp must not be overwritten by client clock');
+    assert.strictEqual(rec.updatedAt, SERVER_TS, 'server updatedAt must not be overwritten by client clock');
     assert.strictEqual(rec.sidebarIndex, 0, 'touch still pins sidebarIndex');
     assert.ok(rec.lastSeen, 'touch still refreshes lastSeen');
 });

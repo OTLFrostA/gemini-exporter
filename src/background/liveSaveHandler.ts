@@ -184,9 +184,15 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                 convInStore = list.find((c: any) => normId(c.id) === nid);
             } catch {}
 
-            const effectiveChatTime = (chat as any)?.chatTime || (chat as any)?.updatedAt || (chat as any)?.timestamp || convInStore?.updatedAt || convInStore?.timestamp || now;
+            let turnTsFromMsgs = 0;
+            if (Array.isArray(chat?.messages)) {
+                for (const m of chat.messages) {
+                    const mt = toTimestampMs(m?.timestamp);
+                    if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
+                }
+            }
+            const effectiveChatTime = (chat as any)?.chatTime || turnTsFromMsgs || (chat as any)?.updatedAt || (chat as any)?.timestamp || convInStore?.updatedAt || convInStore?.timestamp || null;
             const effectiveMsgCount = (Array.isArray(chat?.messages) ? chat.messages.length : 0) || convInStore?.messageCount || (chat as any)?.messageCount || 0;
-            const effectiveExportedAt = Math.max(now, (convInStore?.updatedAt || 0) + 1000);
 
             await completeConversationExport(
                 StorageService,
@@ -196,13 +202,15 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                         ...convInStore,
                         ...chat,
                         messageCount: effectiveMsgCount,
-                        chatTime: effectiveChatTime,
-                        updatedAt: effectiveChatTime,
-                        timestamp: effectiveChatTime
+                        ...(effectiveChatTime ? {
+                            chatTime: effectiveChatTime,
+                            updatedAt: effectiveChatTime,
+                            timestamp: effectiveChatTime
+                        } : {})
                     },
                     conversationId: nid,
                     format: 'markdown',
-                    exportedAt: effectiveExportedAt,
+                    exportedAt: now,
                     failedAssets,
                     titleCandidate: safeTitle,
                     titleProvenance: (chat as any)?.titleSource || convInStore?.titleSource,
