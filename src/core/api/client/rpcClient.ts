@@ -1,3 +1,4 @@
+import type { GeminiResponseParserFacade } from "../geminiParser.js";
 import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 
 const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
@@ -16,7 +17,7 @@ export interface GeminiClientRpcClientModule {
     GEMINI_API_URL: string;
     getProtocol: () => GeminiProtocolModule;
     getUtils: () => any;
-    getParser: () => any;
+    getParser: () => GeminiResponseParserFacade;
     getApiUrl: (slot?: string | null) => string;
     nextReqid: () => string;
     generateFallbackSid: () => string;
@@ -39,7 +40,7 @@ function getUtils(): any {
     return GeminiUtils;
 }
 
-function getParser(): any {
+function getParser(): GeminiResponseParserFacade {
     return GeminiResponseParserClass;
 }
 

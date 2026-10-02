@@ -21,7 +21,7 @@ export interface GeminiClientCredentialManagerModule {
     getCredStorage: () => any;
     loadCredMap: () => Promise<GeminiCredentialsMap>;
     migrateCredentials: () => Promise<boolean>;
-    resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string; accountSlot?: string } | null) => Promise<GeminiCredentials>;
+    resolveCred: (targetSidOrSlot?: string | null, overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null) => Promise<GeminiCredentials>;
     generateFallbackSid: () => string;
 }
 
@@ -139,14 +139,14 @@ function getProtocol(): GeminiProtocolModule {
 
     async function resolveCred(
         targetSidOrSlot?: string | null,
-        overrides?: { at?: string; bl?: string; accountSlot?: string } | null
+        overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
     ): Promise<GeminiCredentials> {
         return runSerializedResolve(() => withCredMapLock(() => resolveCredInner(targetSidOrSlot, overrides)));
     }
 
     async function resolveCredInner(
         targetSidOrSlot?: string | null,
-        overrides?: { at?: string; bl?: string; accountSlot?: string } | null
+        overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
     ): Promise<GeminiCredentials> {
         let map = await loadCredMap();
         let vals = Object.values(map);

@@ -1,7 +1,7 @@
 import { isDevMode } from "../../utils/utils.js";
 import { isRateLimited } from "../../engine/export/rateLimiter.js";
-import type { ConversationListItem } from "../parser/parseList.js";
-import type { DetailParseResult } from "../parser/parseDetail.js";
+import type { ConversationListItem, ListParseResult, ListParseDiagnostics } from "../parser/parseList.js";
+import type { DetailParseResult, ParserMessage } from "../parser/parseDetail.js";
 
 export interface PaginationProgressInfo {
     page: number;
@@ -13,14 +13,29 @@ export interface PaginationProgressInfo {
     reason?: string;
 }
 
+export interface PaginationPageBatchInfo {
+    page: number;
+    hasMore: boolean;
+}
+
+export interface PaginationStopDecision {
+    shouldStop?: boolean;
+    reason?: string;
+}
+
+export type PaginationProgressCallback = (info: PaginationProgressInfo) => void;
+export type PaginationPageBatchCallback = (
+    batch: ConversationListItem[], info: PaginationPageBatchInfo
+) => Promise<PaginationStopDecision | void>;
+
+/** Options for the existing Gemini list scan; targetSid is Gemini-specific. */
 export interface PaginationOptions {
     maxPages?: number;
-    onProgress?: ((info: PaginationProgressInfo) => void) | null;
-    onPageBatch?: ((batch: ConversationListItem[], info: { page: number; hasMore: boolean }) => Promise<{ shouldStop?: boolean; reason?: string } | void>) | null;
+    onProgress?: PaginationProgressCallback | null;
+    onPageBatch?: PaginationPageBatchCallback | null;
     targetSid?: string | null;
     incremental?: boolean;
     signal?: AbortSignal | null;
-    [key: string]: any;
 }
 
 export type PaginationCompletionReason =
@@ -32,23 +47,101 @@ export type PaginationCompletionReason =
     | 'aborted'
     | 'error';
 
+export interface PaginationTokenPreview {
+    len: number;
+    preview: string;
+}
+
+export interface PaginationPageDiagnostic {
+    page: number;
+    requestedToken: PaginationTokenPreview | null;
+    count: number;
+    hasNextPageToken: boolean;
+    nextTokenPreview: PaginationTokenPreview | null;
+    debugInfo: ListParseDiagnostics | null;
+}
+
+/** Gemini-specific diagnostics persisted by sync and read by Takeout UI. */
+export interface GeminiPaginationDiagnostics {
+    startTime: string;
+    endTime?: string;
+    maxPages: number;
+    incremental: boolean;
+    totalPagesFetched: number;
+    totalConversations: number;
+    stopReason: string;
+    hitGoogleLimit: boolean;
+    pageHistory: PaginationPageDiagnostic[];
+}
+
+/** Actual aggregate producer result, not a resumable Provider page. */
 export interface PaginationResult {
     conversations: ConversationListItem[];
     total: number;
-    stoppedEarly?: boolean;
-    exhaustive?: boolean;
-    completionReason?: PaginationCompletionReason;
-    diagnostics: any;
+    stoppedEarly?: true;
+    exhaustive: boolean;
+    completionReason: PaginationCompletionReason;
+    diagnostics: GeminiPaginationDiagnostics;
     hitGoogleLimit: boolean;
 }
 
-export interface GeminiClientPaginationModule {
-    getAllConversations: (client: any, maxPages?: number | PaginationOptions, onProgress?: ((info: PaginationProgressInfo) => void) | null, targetSid?: string | null, opts?: PaginationOptions) => Promise<PaginationResult>;
-    getConversationDetail: (client: any, conversationId: string, targetSid?: string | null) => Promise<DetailParseResult>;
-    isPaginationExhaustive: (res: PaginationResult | null | undefined) => boolean;
+/** Compatibility guard input: absence of legacy flags still means complete. */
+export interface PaginationCompletenessEvidence {
+    stoppedEarly?: boolean;
+    exhaustive?: boolean;
+    completionReason?: string;
+    hitGoogleLimit?: boolean;
+    diagnostics?: { hitGoogleLimit?: boolean } | null;
 }
 
-export function isPaginationExhaustive(res: PaginationResult | null | undefined): boolean {
+/** Request flags actually read by GeminiAPIClient; no provider/session abstraction. */
+export interface GeminiListRequestOptions {
+    signal?: AbortSignal | null;
+    maxRetries?: number;
+    _retried?: boolean;
+    _retryCount?: number;
+    _overrideAt?: string;
+    _overrideBl?: string | null;
+}
+
+export interface GeminiDetailRequestOptions extends Omit<GeminiListRequestOptions, "_retried"> {
+    _retriedXsrf?: boolean;
+    detailOnly?: boolean;
+    altParams?: boolean;
+}
+
+export interface GeminiPaginationListClient {
+    aborted?: boolean;
+    isAborted?: (signal?: AbortSignal | null) => boolean;
+    getConversationList: (pageToken?: string | null, targetSid?: string | null,
+        customFilter?: unknown, opts?: GeminiListRequestOptions) => Promise<ListParseResult>;
+}
+
+export interface GeminiPaginationDetailClient {
+    fetchConversationPage: (conversationId: string, pageToken?: string | null,
+        targetSid?: string | null, opts?: GeminiDetailRequestOptions) => Promise<DetailParseResult>;
+}
+
+export interface PaginatedDetailResult extends DetailParseResult {
+    messageCount: number;
+    truncateReason?: 'token_loop' | 'max_turns_page_limit_20';
+}
+
+export interface GeminiClientPaginationModule {
+    getAllConversations: (client: GeminiPaginationListClient, maxPages?: number | PaginationOptions,
+        onProgress?: PaginationProgressCallback | null, targetSid?: string | null,
+        opts?: PaginationOptions) => Promise<PaginationResult>;
+    getConversationDetail: (client: GeminiPaginationDetailClient, conversationId: string,
+        targetSid?: string | null) => Promise<PaginatedDetailResult>;
+    isPaginationExhaustive: (res: PaginationCompletenessEvidence | null | undefined) => boolean;
+}
+
+/** Runtime global abort evidence is observed by truthiness, without validation. */
+interface PaginationAbortFlags {
+    __gemExporterAborted?: unknown;
+}
+
+export function isPaginationExhaustive(res: PaginationCompletenessEvidence | null | undefined): boolean {
     if (!res) return false;
     if (res.stoppedEarly) return false;
     if (res.hitGoogleLimit || res.diagnostics?.hitGoogleLimit) return false;
@@ -57,7 +150,7 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
     return true;
 }
 
-    async function getAllConversations(client: any, maxPages: number | PaginationOptions = 2000, onProgress?: ((info: PaginationProgressInfo) => void) | null, targetSid?: string | null, opts?: PaginationOptions): Promise<PaginationResult> {
+    async function getAllConversations(client: GeminiPaginationListClient, maxPages: number | PaginationOptions = 2000, onProgress?: PaginationProgressCallback | null, targetSid?: string | null, opts?: PaginationOptions): Promise<PaginationResult> {
         if (typeof maxPages === "object" && maxPages !== null) {
             opts = maxPages;
             maxPages = opts.maxPages !== undefined ? opts.maxPages : 2000;
@@ -71,7 +164,7 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
             seen = new Set<string>(),
             seenTokens = new Set<string>(),
             token: string | null = null;
-        const diagLog: any = {
+        const diagLog: GeminiPaginationDiagnostics = {
             startTime: new Date().toISOString(),
             maxPages,
             incremental,
@@ -102,8 +195,8 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
             if (typeof client.isAborted === "function") return client.isAborted(opts?.signal);
             return !!(
                 client.aborted ||
-                (typeof window !== "undefined" && (window as any).__gemExporterAborted) ||
-                (typeof globalThis !== "undefined" && (globalThis as any).__gemExporterAborted)
+                (typeof window !== "undefined" && (window as Window & PaginationAbortFlags).__gemExporterAborted) ||
+                (typeof globalThis !== "undefined" && (globalThis as typeof globalThis & PaginationAbortFlags).__gemExporterAborted)
             );
         };
 
@@ -120,16 +213,16 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
                 completionReason = 'aborted';
                 break;
             }
-            let res: any;
+            let res: ListParseResult;
             try {
                 res = await client.getConversationList(token, targetSid, undefined, { signal: opts?.signal });
-            } catch (err: any) {
-                console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, err.message || err);
+            } catch (err: unknown) {
+                console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, (err as { message?: unknown }).message || err);
                 const isLimit = isRateLimited(err);
                 if (isLimit) {
                     diagLog.hitGoogleLimit = true;
                 }
-                diagLog.stopReason = `网络或服务异常: ${err.message || err}`;
+                diagLog.stopReason = `网络或服务异常: ${(err as { message?: unknown }).message || err}`;
                 reachedMax = false;
                 if (all.length > 0) {
                     interruptedByError = true;
@@ -251,17 +344,17 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
         return finalResult;
     }
 
-    async function getConversationDetail(client: any, conversationId: string, targetSid?: string | null): Promise<DetailParseResult> {
-        let msgs: any[] = [];
+    async function getConversationDetail(client: GeminiPaginationDetailClient, conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult> {
+        let msgs: ParserMessage[] = [];
         let token: string | null = null;
-        let first: any = null;
+        let first: DetailParseResult | null = null;
         let attempts = 0;
         const seenTokens = new Set<string>();
         const seenMsgIds = new Set<string>();
         // P1-8: parser 诊断跨页合并（去重），不能只保留第一页
         let mergedTurnsRejected = 0;
         const mergedSchemaDrift: string[] = [];
-        const accPageDrift = (page: any) => {
+        const accPageDrift = (page: DetailParseResult) => {
             if (typeof page?.turnsRejected === "number" && page.turnsRejected > 0) {
                 mergedTurnsRejected += Math.floor(page.turnsRejected);
             }
@@ -272,12 +365,12 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
             }
         };
         let detailTruncated = false;
-        let truncateReason: string | undefined = undefined;
+        let truncateReason: PaginatedDetailResult["truncateReason"] = undefined;
         do {
-            let page: any = await client.fetchConversationPage(conversationId, token, targetSid);
+            let page: DetailParseResult = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
             accPageDrift(page);
-            const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: any) => {
+            const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: ParserMessage) => {
                 const mid = m ? m.id : null;
                 if (mid === null || mid === undefined || mid === '') return true;
                 const midStr = String(mid);
@@ -337,18 +430,18 @@ export function isPaginationExhaustive(res: PaginationResult | null | undefined)
                             first.titleSource = "rpc";
                         }
                     }
-                } catch (retryErr: any) {
+                } catch (retryErr: unknown) {
                     if (isDevMode()) {
-                        console.warn("[Gemini Exporter Client] metadata-only retry also failed:", retryErr.message);
+                        console.warn("[Gemini Exporter Client] metadata-only retry also failed:", (retryErr as { message?: unknown }).message);
                     }
                 }
             }
         }
 
-        let allTimestamps = msgs.map(m => m.timestamp).filter((x: any): x is number => typeof x === "number" && Number.isFinite(x) && x > 0);
+        let allTimestamps = msgs.map(m => m.timestamp).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0);
         let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || null);
         let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : (first.updatedAt || minTs || null);
-        let attachmentCount = msgs.reduce((a: number, m: any) => a + (m.attachmentCount || 0), 0);
+        let attachmentCount = msgs.reduce((a: number, m: ParserMessage) => a + (m.attachmentCount || 0), 0);
         let cleanId = String(conversationId).replace(/^c_/, "").trim();
         return {
             ...first,
