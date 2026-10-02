@@ -108,7 +108,7 @@ src/
 
     utils/                     Single Source of Truth (SSoT) & Utilities
       utils.ts                 SSoT facade: title arbitration, deduplication, path cleaning
-      titleUtils.ts            Multi-tier title arbitration (RPC > Detail > Prompt > Takeout)
+      titleUtils.ts            Title arbitration (rpc > api-detail > dom > takeout > openai > sniff > legacy > default)
       mergeUtils.ts            SSoT merge & deduplication (preserves highest-rank title & timestamps)
       pathUtils.ts             Strict relative path sanitization & filename builders
       chipUtils.ts             Internal chip URL filtering & code chip extraction
@@ -203,7 +203,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
    - `controllers/`: Business workflow orchestration and asynchronous execution;
    - `options.ts` / `popup.ts`: Pure entrypoint mount and sub-module coordinators.
 3. **Single Source of Truth (SSoT) & Title Anti-Degradation**:
-   Path sanitization (`pathUtils.ts`), title arbitration (`titleUtils.ts`), and list merging (`mergeUtils.ts`) reside exclusively in `src/core/utils/`. No module may roll its own regexes for title cleaning or sorting. Strict priority: `RPC 权威标题 > 详情提取标题 > 提问前缀临时标题 > Takeout 离线导入标题`.
+   Path sanitization (`pathUtils.ts`), title arbitration (`titleUtils.ts`), and list merging (`mergeUtils.ts`) reside exclusively in `src/core/utils/`. No module may roll its own regexes for title cleaning or sorting. Source selection order: `rpc > api-detail > dom > takeout > openai > sniff > legacy > default`. Rank ties remain `rpc = api-detail` and `takeout = openai`; source selection uses the listed order.
 4. **Sandboxed Interceptors Guard**:
    Code injected into `MAIN` world (`hookCredentials.ts`) runs in a fail-safe sandbox: any unexpected exception is swallowed silently to guarantee zero degradation of native Google Gemini functionality.
 5. **Event-Driven AsyncQueue & Controlled Polling Boundary**:

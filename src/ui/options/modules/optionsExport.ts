@@ -616,7 +616,7 @@ export async function init({ loadStore, log: logFn, getSearchFilter }: OptionsEx
         if (fmtSelect?.value === 'pdf') {
             await warmLocalFontCache();
         }
-        exportSelected();
+        await exportSelected();
     });
     $('btnExportJson')?.addEventListener('click', () => exportSelected('json'));
     $('btnCancel')?.addEventListener('click', () => {
