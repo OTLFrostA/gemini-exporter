@@ -12,6 +12,7 @@ export interface TitleSources {
     rpc?: string;
     dom?: string;
     takeout?: string;
+    openai?: string;
     sniff?: string;
     'api-detail'?: string;
     legacy?: string;

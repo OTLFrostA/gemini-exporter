@@ -8,7 +8,7 @@ function makeGeminiClient() {
     return {
         getAllConversations: async (_opts: any) => ({
             conversations: [{
-                id: 'c1', title: 'T1', titleSource: 'api-list', titles: { rpc: 'T1' },
+                id: 'c1', title: 'T1', titleSource: 'rpc', titles: { rpc: 'T1' },
                 createdAt: 1, updatedAt: 2, chatTime: 2, timestamp: 2, messageCount: 3, url: 'u'
             }],
             total: 1, stoppedEarly: true, diagnostics: { d: 1 }, hitGoogleLimit: false

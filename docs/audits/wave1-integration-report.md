@@ -1,6 +1,9 @@
 # Wave 1 integration verification (W1-05)
 
 Date: 2026-10-02. Verification baseline: `a35158c` on main.
+Historical snapshot: see the [closeout report](wave1-closeout.md) for the
+subsequent lint fix and final acceptance checks; the failure below refers to
+this baseline only.
 **All four components are integrated; overall Wave 1 acceptance is NOT complete
 because the required repository-wide lint command fails.** This report adds no
 architecture or production changes.
