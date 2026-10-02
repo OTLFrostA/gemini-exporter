@@ -32,7 +32,7 @@ export interface DeduplicateResult {
 /**
  * SSoT: "any authoritative title slot already holds a title" guard.
  * The legacy fallback below must not fabricate a zombie `legacy` slot when a
- * real source slot (rpc / api-detail / dom / takeout / sniff) already has a
+ * real source slot (rpc / api-detail / dom / takeout / openai / sniff) already has a
  * title. `legacy` itself is excluded (the guard checks it separately) and
  * rank-0 `default` is intentionally not authoritative.
  */
@@ -42,6 +42,7 @@ function hasAuthoritativeTitleSlot(titles: TitleSources): boolean {
         titles['api-detail'] ||
         titles.dom ||
         titles.takeout ||
+        titles.openai ||
         titles.sniff
     );
 }

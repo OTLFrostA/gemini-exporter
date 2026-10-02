@@ -8,7 +8,7 @@
  * #413 合入后又多了一个真实槽 `api-detail`（rank 50，与 rpc 同级），同样必须进守卫。
  *
  * 修复：两处枚举收拢为 SSoT helper `hasAuthoritativeTitleSlot`，
- * 覆盖 rpc / api-detail / dom / takeout / sniff（`legacy` 自查、`default` 非权威，故意不进）。
+ * 覆盖 rpc / api-detail / dom / takeout / openai / sniff（`legacy` 自查、`default` 非权威，故意不进）。
  *
  * 运行：python3 tests/run_tests.py --filter title_slot_guard
  */
@@ -19,6 +19,21 @@ const assert = require('node:assert');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 
 const ID = 'c_9f2ab41c0d3e4f56';
+
+test('OpenAI 权威槽阻止旧标题和 incoming 标题制造 legacy 僵尸槽', () => {
+    const authoritativeTitle = 'OpenAI 导入权威标题';
+    for (const [old, incoming] of [
+        [{ id: ID, title: '旧会话普通标题内容', titles: { openai: authoritativeTitle } }, { id: ID }],
+        [{ id: ID }, { id: ID, title: '新会话普通标题内容', titles: { openai: authoritativeTitle } }],
+        [{ id: ID, title: authoritativeTitle, titleSource: 'openai', titles: { openai: authoritativeTitle } }, { id: ID, title: '无来源回退标题内容' }],
+    ]) {
+        const { merged } = mergeConversation(old, incoming);
+        assert.strictEqual(merged.title, authoritativeTitle);
+        assert.strictEqual(merged.titleSource, 'openai');
+        assert.strictEqual(merged.titles.openai, authoritativeTitle);
+        assert.ok(!('legacy' in merged.titles), `OpenAI 槽存在时不应制造 legacy: ${JSON.stringify(merged.titles)}`);
+    }
+});
 
 test('sniff 槽有标题时：旧标题分支不再造 legacy 僵尸槽', () => {
     const old = {

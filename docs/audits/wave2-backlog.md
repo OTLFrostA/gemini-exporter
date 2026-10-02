@@ -58,4 +58,5 @@ its lint failure describes the pre-closeout baseline, not a newly introduced
 regression. Closeout PR A handles that floating Promise and command/count/title
 documentation. Closeout PR B handles the explicit OpenAI title slot, authoritative
 guard regression and stale provider fixture. W1 final acceptance is recorded
-after both changes and all final checks pass.
+in the [closeout report](wave1-closeout.md), following both changes and the final
+checks. Provider and parser implementation remains deferred.
