@@ -1,9 +1,11 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeLocalName } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
+const { normalizeLocalName, extractAttachmentInlineBytes } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
 const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
+
+
 
 test('archive namespaces preserve writer paths and bare names default to assets', () => {
     for (const [input, expected] of [
@@ -45,3 +47,14 @@ test('archive resource names allow legitimate literal percent characters in file
         assert.equal(normalizeLocalName(input), expected);
     }
 });
+
+test('extractAttachmentInlineBytes decodes contentMarkdown as UTF-8 bytes', () => {
+    const attWithMd = { contentMarkdown: '# Hello World\nSome content' };
+    const bytes = extractAttachmentInlineBytes(attWithMd);
+    assert.ok(bytes instanceof Uint8Array);
+    assert.equal(new TextDecoder().decode(bytes), '# Hello World\nSome content');
+
+    const attEmpty = { contentMarkdown: '   ' };
+    assert.equal(extractAttachmentInlineBytes(attEmpty), null);
+});
+

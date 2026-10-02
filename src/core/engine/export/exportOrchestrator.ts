@@ -52,6 +52,7 @@ import GeminiUtils, {
     applyExportTitleWriteback
 } from "../../utils/utils.js";
 export { applyExportTitleWriteback };
+import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
@@ -806,12 +807,13 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         if (att.type !== 'file') continue;
                                         if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
                                         if (att.contentMarkdown) {
-                                            if (att.contentMarkdown.includes('immersive_entry_chip') || att.contentMarkdown.includes('googleusercontent.com/immersive')) {
+                                            const cleanDocMd = stripInternalChipMarkdown(att.contentMarkdown).trim();
+                                            if (!cleanDocMd) {
                                                 continue;
                                             }
                                             if (useZip) {
                                                 try {
-                                                    await writeFileDirect(att.localName, att.contentMarkdown);
+                                                    await writeFileDirect(att.localName, cleanDocMd);
                                                     totalAssets++;
                                                     downloadedAssets++;
                                                     updateProgress();
@@ -828,7 +830,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                 const mdTask = async () => {
                                                     const docFileName = att.localName || `${safeBase}_${shortId(chat.id)}.md`;
                                                     try {
-                                                        await writeFileDirect(docFileName, att.contentMarkdown);
+                                                        await writeFileDirect(docFileName, cleanDocMd);
                                                         downloadedAssets++;
                                                     } catch (e) {
                                                         // 取消不记为资产失败，直接向上传播

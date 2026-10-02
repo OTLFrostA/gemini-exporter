@@ -417,21 +417,20 @@ function parseCandidateResponse(
                 const parsedPrimary = parseDocSections(primary);
                 const parsedAlt = alt ? parseDocSections(alt) : { sections: [], links: [], contentMarkdown: void 0 };
                 const md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
+                const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
+                if (!cleanMd) continue;
 
                 let docTitle = metaItem.title || "";
                 if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle) || docTitle === "Document") {
-                    if (md) {
-                        const hMatch = md.match(DOC_TITLE_FALLBACK_RE);
-                        if (hMatch && hMatch[1].trim()) {
-                            docTitle = hMatch[1].trim();
-                        }
+                    const hMatch = cleanMd.match(DOC_TITLE_FALLBACK_RE);
+                    if (hMatch && hMatch[1].trim()) {
+                        docTitle = hMatch[1].trim();
                     }
                 }
                 if (!docTitle || RESEARCH_PROMPT_PREFIX_RE.test(docTitle)) {
                     docTitle = `深度研究报告_${shortId(metaItem.id || "doc")}`;
                 }
 
-                if (!md) continue;
                 // P1-9: 上游链任一 heuristic 标记 → 外层写 hasFabricatedText + 日志，
                 // 不得静默把拼凑结果转成正常可信结果
                 const heuristicChain = metaItem.source === "heuristic-flat"
@@ -447,7 +446,7 @@ function parseCandidateResponse(
                     chipUrl: "",
                     sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                     links: [...parsedPrimary.links, ...parsedAlt.links],
-                    contentMarkdown: md,
+                    contentMarkdown: cleanMd,
                     url: "",
                     localName: getUniqueLocalName(`files/${shortScope}${sanitizeFileName(docTitle, "doc").slice(0, 60)}.md`),
                     type: "file",
