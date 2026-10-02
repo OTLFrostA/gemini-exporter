@@ -69,3 +69,26 @@ test('chipUtils - stripInternalChipMarkdown removes standalone chips and unwraps
     assert.ok(cleaned.includes('Main content line 2.'));
 });
 
+test('chipUtils - stripInternalChipMarkdown strips immersive_entry_chip and preserves document content', () => {
+    // 1. Doc starting with standalone immersive_entry_chip URL
+    const docWithChip = [
+        'http://googleusercontent.com/immersive_entry_chip/0',
+        '# 城市供水管网水力建模与参数辨识',
+        '',
+        '## 1. 理论模型',
+        '根据连续性方程与 Hazen-Williams 经验公式：',
+        'h_f = 10.67 L Q^{1.852} d^{-4.87} C^{-1.852}'
+    ].join('\n');
+
+    const cleaned = stripInternalChipMarkdown(docWithChip).trim();
+    assert.strictEqual(cleaned.includes('immersive_entry_chip'), false, 'Should strip immersive_entry_chip');
+    assert.strictEqual(cleaned.includes('http://googleusercontent.com'), false, 'Should strip internal googleusercontent URL');
+    assert.ok(cleaned.startsWith('# 城市供水管网水力建模与参数辨识'), 'Cleaned text must preserve document title');
+    assert.ok(cleaned.includes('Hazen-Williams'), 'Cleaned text must preserve body content');
+
+
+    // 2. Doc containing only immersive_entry_chip
+    const onlyChip = 'http://googleusercontent.com/immersive_entry_chip/0\n';
+    assert.strictEqual(stripInternalChipMarkdown(onlyChip).trim(), '', 'Doc with only chip URL should result in empty text');
+});
+

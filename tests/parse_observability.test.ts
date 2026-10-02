@@ -172,3 +172,30 @@ test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
     const doc = model.documents[0];
     assert.strictEqual(doc.hasFabricatedText, true, 'heuristic 链文档必须标 hasFabricatedText');
 });
+
+test('parseDetail: strips immersive_entry_chip from document contentMarkdown and extracts heading title', () => {
+    const docId = UUID;
+    const flatItem = ["https://y/immersive_entry_chip/0", docId, "Document"];
+    const rawDocText = "http://googleusercontent.com/immersive_entry_chip/0\n# 虚构城市水力建模分析\n\n" + "正文详细内容".repeat(20);
+    const docContent = [docId, [[rawDocText]]];
+    const turn = makeTurn({ extraCand: [[flatItem], docContent] });
+    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const model = modelMessageOf(res);
+    assert.ok(model && model.documents && model.documents.length > 0, '应产出 documents');
+    const doc = model.documents[0];
+    assert.strictEqual(doc.contentMarkdown.includes('immersive_entry_chip'), false, 'contentMarkdown 不应残留 internal chip url');
+    assert.strictEqual(doc.title, '虚构城市水力建模分析', 'title 应提取 markdown 首行标题，而非 Document');
+});
+
+test('parseDetail: ignores document when contentMarkdown contains only chip URL', () => {
+    const docId = UUID;
+    const flatItem = ["https://y/immersive_entry_chip/0", docId, "Document"];
+    const rawDocText = "http://googleusercontent.com/immersive_entry_chip/0\n";
+    const docContent = [docId, [[rawDocText]]];
+    const turn = makeTurn({ extraCand: [[flatItem], docContent] });
+    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const model = modelMessageOf(res);
+    assert.ok(!model || !model.documents || model.documents.length === 0, '仅包含 chip 的空文档不应产出');
+});
+
+

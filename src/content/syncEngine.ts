@@ -95,8 +95,9 @@ export function extractActiveChatTitle(activeId: string): { title: string; sourc
 }
 
 const __fetchingDetailMap = new Map<string, number>();
-export function scheduleActiveChatDetailFetch(activeId: string): void {
-    if (!activeId || __fetchingDetailMap.has(activeId)) return;
+export function scheduleActiveChatDetailFetch(activeId: string, options?: { force?: boolean }): void {
+    if (!activeId) return;
+    if (!options?.force && __fetchingDetailMap.has(activeId)) return;
     __fetchingDetailMap.set(activeId, Date.now());
     setTimeout(async () => {
         try {
@@ -106,7 +107,7 @@ export function scheduleActiveChatDetailFetch(activeId: string): void {
             const found = existing.find((c: any) => normId(c.id) === activeId);
             const hasResolvedTitle = found && isRealTitle(found.title, activeId)
                 && found.titleSource !== 'sniff' && found.titleSource !== 'default';
-            if (hasResolvedTitle && (found.updatedAt || found.timestamp)) {
+            if (!options?.force && hasResolvedTitle && (found.updatedAt || found.timestamp)) {
                 return;
             }
 
@@ -202,8 +203,19 @@ export async function touchActiveConversation(
         item.titles = { [sourceTier]: cleanT };
     }
 
+    if (typeof document !== 'undefined') {
+        const count = document.querySelectorAll('user-query, model-response').length;
+        if (count > 0) item.messageCount = count;
+    }
+
     const source = options?.source || 'stream-complete';
-    return await upsertConversations([item], source, options?.forceWrite ?? true, targetSlot);
+    const res = await upsertConversations([item], source, options?.forceWrite ?? true, targetSlot);
+
+    if (source === 'stream-complete' || source === 'live-turn-complete') {
+        scheduleActiveChatDetailFetch(nid, { force: true });
+    }
+
+    return res;
 }
 
 let __storageWriteQueue = Promise.resolve<any>(0);

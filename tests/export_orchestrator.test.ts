@@ -84,9 +84,13 @@ test('RateLimitManager - detect rate limit and exponential backoff', async () =>
 // ExportOrchestrator: Mock JSZip
 // ---------------------------------------------------------------------------
 function setupMockJSZip() {
+    const instances: any[] = [];
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
-        constructor() { this.files = {}; }
+        constructor() {
+            this.files = {};
+            instances.push(this);
+        }
         folder(_name: string) {
             return {
                 file: (path: string, content: any) => { this.files[path] = content; }
@@ -97,7 +101,9 @@ function setupMockJSZip() {
             return new Blob(['mock-zip'], { type: 'application/zip' });
         }
     });
+    return instances;
 }
+
 
 // ---------------------------------------------------------------------------
 // ExportOrchestrator: Mock StorageService
@@ -622,3 +628,78 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
         __setModuleOverride('AssetPipeline', origPipeline);
     }
 });
+
+test('ExportOrchestrator - exports document attachments containing immersive_entry_chip by writing cleaned markdown without dropping file', async () => {
+    const mockZips = setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+
+    const conversations = [
+        { id: 'chat_doc_1', title: 'Doc Analysis', timestamp: 1700000000000 }
+    ];
+
+    const mockWorker = {
+        fetchChatDetail: async () => ({
+            success: true,
+            chat: {
+                id: 'chat_doc_1',
+                title: 'Doc Analysis',
+                timestamp: 1700000000000,
+                messages: [
+                    {
+                        role: 'user',
+                        content: 'Please analyze this system.'
+                    },
+                    {
+                        role: 'model',
+                        content: 'Analysis generated: [供水管网报告](files/chat_doc_1_pipe_analysis.md)',
+                        attachments: [
+                            {
+                                type: 'file',
+                                title: '供水管网报告',
+                                localName: 'files/chat_doc_1_pipe_analysis.md',
+                                contentMarkdown: 'http://googleusercontent.com/immersive_entry_chip/0\n# 城市供水管网水力建模分析\n\n## 1. 建模方程\n连续性方程与水头损失计算。'
+                            },
+                            {
+                                type: 'file',
+                                title: '仅包含Chip的无用文档',
+                                localName: 'files/chat_doc_1_empty_chip.md',
+                                contentMarkdown: 'http://googleusercontent.com/immersive_entry_chip/0\n'
+                            }
+                        ]
+                    }
+                ]
+            }
+        }),
+        resolveChat: BatchWorker.resolveChat
+    };
+
+    const result = await orchestrator.run({
+        selected: conversations,
+        format: 'markdown',
+        useZip: true,
+        skip: false,
+        conversations,
+        exportedIds: {},
+        includeAssets: true,
+        worker: mockWorker
+    });
+
+    assert.strictEqual(result.landedChats, 1);
+    assert.strictEqual(result.failedChats.length, 0);
+
+    // Verify mock zip files
+    const zipInstance = mockZips[0];
+    assert.ok(zipInstance, 'Mock JSZip instance must be created');
+
+    // 1. Cleaned document must be written
+    assert.ok(zipInstance.files['files/chat_doc_1_pipe_analysis.md'], 'Document file must be written to archive');
+    const writtenContent = zipInstance.files['files/chat_doc_1_pipe_analysis.md'];
+    assert.strictEqual(writtenContent.includes('immersive_entry_chip'), false, 'Written document must not contain telemetry chip URL');
+    assert.ok(writtenContent.includes('# 城市供水管网水力建模分析'), 'Written document must contain document title and content');
+    assert.ok(writtenContent.includes('连续性方程与水头损失计算'), 'Written document must contain document body');
+
+    // 2. Pure chip telemetry document (empty after cleaning) must NOT be written
+    assert.strictEqual(zipInstance.files['files/chat_doc_1_empty_chip.md'], undefined, 'Empty-after-cleaning chip document must not be written');
+});
+

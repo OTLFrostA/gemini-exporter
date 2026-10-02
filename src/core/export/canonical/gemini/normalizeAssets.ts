@@ -361,6 +361,12 @@ export function extractAttachmentInlineBytes(a: RepoAttachment): Uint8Array | nu
     if (rawB64) {
         return decodeBase64Payload(rawB64);
     }
+    if (typeof (a as any).contentMarkdown === 'string') {
+        const mdText = ((a as any).contentMarkdown as string).trim();
+        if (mdText.length > 0) {
+            return new TextEncoder().encode(mdText);
+        }
+    }
     return null;
 }
 

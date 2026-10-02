@@ -42,6 +42,14 @@ test('p1_h2 - P1-105: buildExportFileName strips path traversal from extension',
     assert.ok(out.length > 0);
 });
 
+test('p1_h2 - P1-105b: buildExportFileName preserves _cid6 under downstream sanitizeRelativePath even with long titles', () => {
+    const longTitle = '在 Kerr 黑洞时空几何背景下，基于 Newman-Penrose 零四标架投影推导 Teukolsky 主方程（Teukolsky Master Equation），并严格展示辐射规范下拉普拉斯-';
+    const out = pathUtils.buildExportFileName(longTitle, '2f088360411acd53', 'md');
+    assert.ok(out.endsWith('_1acd53.md'), `filename must end with _1acd53.md, got ${out}`);
+    const cleaned = pathUtils.sanitizeRelativePath(out, 'file');
+    assert.strictEqual(cleaned, out, 'downstream sanitizeRelativePath must not truncate _cid6');
+});
+
 // ---------- P1-106: toTimestampMs ----------
 test('p1_h2 - P1-106: toTimestampMs normalizes timestamp shapes', () => {
     const f = titleUtils.toTimestampMs;

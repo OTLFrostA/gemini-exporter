@@ -124,9 +124,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
             debounceMs: 300,
             onTurnComplete: (cid, reason) => {
                 void LiveSaveCoordinator.executeLiveSave(cid, reason);
-                if (Sync && Sync.touchActiveConversation) {
-                    Sync.touchActiveConversation(cid, undefined, { source: 'live-turn-complete' }).catch(() => {});
-                }
             }
         });
     }

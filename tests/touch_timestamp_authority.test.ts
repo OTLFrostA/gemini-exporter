@@ -4,10 +4,10 @@ const assert = require('node:assert');
 const SyncEngine = require('../src/content/syncEngine.js');
 const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
-// SSOT timestamp authority: timestamp/updatedAt are server-authoritative.
-// touchActiveConversation (stream start/complete, live turn) must NOT stamp the
-// client clock: merge is Math.max-monotonic, so a client-ahead clock would
-// permanently poison the record and no later server timestamp could repair it.
+// Timestamp authority:
+// On stream-start, touchActiveConversation preserves server timestamps (does not prematurely advance them).
+// On stream-complete / live-turn-complete, updatedAt/timestamp advance to current interaction time
+// to reflect the new completed turn, enabling real-time bump-to-top and incremental update detection.
 
 function mockStorageContext() {
     let savedList: any[] = [];
@@ -79,10 +79,10 @@ test('touch on unknown record creates entry without client timestamp', async () 
 test('touch never moves the scan checkpoint', async () => {
     const ctx = mockStorageContext();
     const CP = 1700000050000;
-    ctx.seed([serverItem('srv_chat_2', 1700000000000)]);
+    ctx.seed([serverItem('srv_chat_3', 1700000000000)]);
     ctx.setCheckpoint(CP);
 
-    await SyncEngine.touchActiveConversation('srv_chat_2', 'u0', { source: 'stream-complete' });
+    await SyncEngine.touchActiveConversation('srv_chat_3', 'u0', { source: 'stream-complete' });
 
     assert.strictEqual(ctx.getCheckpoint(), CP, 'checkpoint untouched by touch path');
 });

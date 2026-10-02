@@ -1,68 +1,5 @@
 [
   {
-    "id": "gravitational_physics_black_hole_ringdown_qnm",
-    "domain": "gravitational_physics_black_hole_ringdown_qnm",
-    "title": "广义相对论与黑洞摄动理论：克尔黑洞准正规模与极端引力波铃落推导",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 Teukolsky 主方程变量分离推导、QNM 复共轭本征频率谱边界条件、Leaver 连分数数值求解器与引力波并合源横向对比",
-    "turns": [
-      "在 Kerr 黑洞时空几何背景下，基于 Newman-Penrose 零四标架投影推导 Teukolsky 主方程（Teukolsky Master Equation），并严格展示辐射规范下拉普拉斯-贝尔特拉米算子沿角向与径向变量分离为自旋权重球谐函数 S_{s\\ell m}(\\theta; a\\omega) 与径向 Teukolsky 方程的过程。",
-      "详细阐述黑洞准正规模（Quasi-Normal Modes, QNM）的物理边界条件：在视界 r -> r_+ 处为纯内向吸积透射波，在空间无穷远 r -> \\infty 处为纯向外辐射耗散波，推导由此构成的复共轭本征频率谱 \\omega_{n\\ell m} = \\omega_R - i \\omega_I，并解释虚部 \\omega_I > 0 决定的特征阻尼时标 \\tau = 1/\\omega_I。",
-      "编写 Python 程序使用连分数法（Leaver's Continued Fraction Method）数值求解无自旋 Schwarzschild 黑洞基本四极引力辐射模（\\ell=2, m=2, n=0）的复特征频率初值，并计算其品质因数 Q = \\omega_R / (2\\omega_I)。",
-      "使用 Markdown 表格对比极端质量比旋近 (EMRI)、双中子星并合千新星 (BNS Kilonova)、中等质量黑洞双星 (IMBHB) 以及超大质量黑洞双星并合 (SMBHB) 在特征引力波辐射频段 (Hz)、有效自旋进动效应、视界无毛定理（No-Hair Theorem）铃落多极模检验能力以及对应观测探测器（LIGO-Virgo-KAGRA, LISA, 太极/天琴, PTA 脉冲星测时阵列）的科学技术特征。",
-      "深入推导双黑洞并合后期超辐射（Superradiance）与克尔黑洞测地极光圈（Light Ring / Photon Sphere）李雅普诺夫指数 \\lambda 之间的对应关系：证明大 \\ell 极限下准正规模频率与衰减率满足 \\omega_R \\to m \\Omega_c 和 \\omega_I \\to (n + 1/2) \\lambda，阐明其微观几何光学（Geometric Optics）测地线不稳定性的几何本质。"
-    ]
-  },
-  {
-    "id": "fluid_dynamics_lattice_boltzmann_turbulent_channel",
-    "domain": "fluid_dynamics_lattice_boltzmann_mrt",
-    "title": "介观流体力学：多松弛时间格子玻尔兹曼方法 (MRT-LBM) 与槽道湍流推导",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 D3Q19 格子模型 Chapman-Enskog 多尺度渐近展开推导 Navier-Stokes 方程、矩空间非对角碰撞松弛矩阵构建、槽道流壁面反弹反贴边界 Python 求解器与网格流体算法横向对比",
-    "turns": [
-      "从介观离散玻尔兹曼 Bhatnagar-Gross-Krook (BGK) 方程出发，推导标准三维十九速 (D3Q19) 格子速度模型在平衡态离散分布函数 f_i^{(0)} 下的声速 c_s = c/\\sqrt{3}，并运用 Chapman-Enskog 多尺度渐进展开 (Knudsen 数 \\epsilon \\ll 1) 严格推导出宏观不可压缩 Navier-Stokes 动量连续性方程与等效运动粘性系数 \\nu = c_s^2 (\\tau - 1/2) \\Delta t 的代数映射关系。",
-      "针对标准单松弛时间 (SRT/LBGK) 模型在雷诺数 Re \\gg 10^3 强剪切流动中容易发生的数值非物理伪振荡与数值发散失稳问题，推导多松弛时间 (Multiple-Relaxation-Time, MRT) 碰撞模型。给出将速度空间分布函数映射至矩空间的正交变换矩阵 M (19x19)，并阐明不同物理本征模式（剪切粘性应力模式 vs 鬼模式/高阶非物理矩）独立松弛时间设定的线性稳定性机理。",
-      "使用 Python 编写一个紧凑高效的二维九速 (D2Q9) MRT-LBM 模拟程序，实现顶盖驱动方腔流 (Lid-Driven Cavity Flow, Re = 1000) 或周期性压力驱动槽道泊肃叶流动，包含矩空间正反投影变换、平衡态力项源注入以及壁面半步反弹格式 (Half-Way Bounce-Back) 无滑移边界条件实现。",
-      "推导近壁湍流边界层中的大涡模拟 (LES) 亚格子尺度模型（如 Smagorinsky 模型与壁面自适应局域涡粘 WALE 模型）在格子玻尔兹曼局部非平衡应力张量 Q_{\\alpha\\beta} 下的直接闭合代数形式，证明为何 LBM 无需在物理空间对速度场求导即可局部确定应变率张量 S_{\\alpha\\beta}。",
-      "使用 Markdown 表格，对比格子玻尔兹曼方法 (LBM)、有限体积法 (FVM, 如 OpenFOAM)、直接数值模拟谱方法 (Spectral DNS) 以及光滑粒子流体动力学 (SPH) 在非结构网格几何适应性、大规模 GPU 并行扩展效率、不可压缩压力泊松方程解耦优势、多相多组分界面捕捉精度以及超音速可压缩激波捕捉能力等维度的核心性能特征。"
-    ]
-  },
-  {
-    "id": "condensed_matter_superconducting_qubit_fluxonium_coherence",
-    "domain": "superconducting_circuits_fluxonium_qubit",
-    "title": "超导量子计算：超电感 Fluxonium 比特偏置能谱与相干保护推导",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试超电感 Josephson 结阵列 Fluxonium 比特哈密顿量推导、半磁通量子半周期偏置奇偶保护态能级跃迁、QuTiP 能谱色散数值求解器与超导比特平台横向对比",
-    "turns": [
-      "针对由超电感（Superinductor, L \\approx 100-500 nH）、小约瑟夫森结（Josephson Junction, E_J）与分流电容（Charging Energy, E_C）并联构成的 Fluxonium 量子比特电路，严格推导其无量纲正则量子哈密顿量 \\hat{H} = 4 E_C \\hat{n}^2 + \\frac{1}{2} E_L \\hat{\\varphi}^2 - E_J \\cos(\\hat{\\varphi} + 2\\pi \\Phi_{ext}/\\Phi_0)，并从阻抗比与特征相位涨落说明为什么超电感能抑制电荷噪声。",
-      "分析在外部磁通偏置于半整数磁通量子处（\\Phi_{ext} = 0.5 \\Phi_0 甜点 Sweet Spot）时，势能双阱关于 \\varphi = 0 呈现宇称反演对称性。推导基态 |0\\rangle 与第一激发态 |1\\rangle 局域于不同阱底所形成的波函数宇称杂化，并从对偶空间证明为什么跃迁偶极矩 \\langle 0 | \\hat{n} | 1 \\rangle 出现指数级抑制（从而极大延长弛豫时间 T_1 \\gg 1 ms）。",
-      "使用 Python 编写数值程序，在谐振子激发态基底（Harmonic Oscillator Basis, N=30）下截断并对角化 Fluxonium 比特哈密顿量矩阵，计算从 \\Phi_{ext} = 0 到 \\Phi_0 的前 4 个本征能级演化谱线 E_k(\\Phi_{ext})，并输出在半磁通点处的计算跃迁频率 \\omega_{01} 与 \\omega_{12}。",
-      "推导由准粒子遂穿（Quasiparticle Tunneling）与磁通噪声（1/f Flux Noise）主导的去相干速率 \\Gamma_2^* 和 Purcell 滤波效应微扰表达式，给出由 \\partial^2 \\omega_{01} / \\partial \\Phi_{ext}^2 决定的二阶磁通噪声纯退相干时标 T_\\phi 的标度律。",
-      "使用 Markdown 表格，对比 Transmon 比特、Fluxonium 比特、0-\\pi 拓扑保护超导比特以及超导谐振腔玻色猫态比特在非简谐性 (\\alpha / 2\\pi)、相干时间 T_1 与 T_2、单/双量子比特门保真度阈值以及微波读出与操控复杂度四个维度的技术优劣。"
-    ]
-  },
-  {
     "id": "condensed_matter_majorana_zero_modes_topological_braiding",
     "domain": "topological_superconductivity_majorana_zero_modes",
     "title": "拓扑超导与量子计算：半导体-超导纳米线马约拉纳零能模与非阿贝尔编织推导",
@@ -209,28 +146,6 @@
     ]
   },
   {
-    "id": "materials_science_photonic_crystal_defect_cavity",
-    "domain": "materials_science_photonic_crystal_defect_cavity",
-    "title": "光子晶体缺陷腔：带隙设计与近场模式成像",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "覆盖光学模式推导、科学示意生图、数值模拟和器件对比",
-    "turns": [
-      "从一维周期介质的 Maxwell 本征方程出发，用 LaTeX 推导 Bloch 模与光子带隙形成条件，并说明折射率对比度的作用。",
-      "生成一张科研示意图：二维光子晶体薄膜中的点缺陷腔、局域电场强度分布、入射波导及出射方向，要求结构边界和颜色图例清晰。",
-      "使用 Python 编写简化的传输矩阵数值脚本，计算介质层数和缺陷层厚度改变时的透射谱与共振峰位置。",
-      "用 Markdown 表格比较光子晶体缺陷腔、微环谐振器、法布里珀罗腔与等离激元纳米腔的品质因数、模式体积、制造误差敏感度和适用场景。",
-      "设计一个近场光学表征实验，解释如何从空间扫描图像估计缺陷腔模式体积，并列出误差来源与校准步骤。"
-    ]
-  },
-  {
     "id": "ecology_forest_carbon_flux_data_assimilation",
     "domain": "ecology_forest_carbon_flux_data_assimilation",
     "title": "森林生态系统碳通量：涡度协方差与数据同化",
@@ -251,29 +166,6 @@
     ]
   },
   {
-    "id": "urban_hydrology_sensor_leak_localization",
-    "domain": "urban_hydrology_inverse_sensor_networks",
-    "title": "城市水力学：虚构管网漏损定位、传感器布置与贝叶斯反演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖虚构工程示意图、管网守恒与逆问题公式、Python模拟、传感器方案比较；仅使用教学数据。",
-    "turns": [
-      "生成一个完全虚构的城市供水管网教学示意图，包含六个节点、两处水源、一条环路和四个压力传感器，以图例区分管径、流向与潜在漏损位置，不使用真实城市数据。",
-      "使用 LaTeX 建立该虚构管网的节点质量守恒与管段压降模型，说明未知漏损参数如何进入观测方程，并分析参数可辨识性。",
-      "给出 Python 代码块，模拟小规模管网压力观测中的高斯噪声，并使用有限差分雅可比和最小二乘估计一个虚构漏损位置与流量。",
-      "使用 Markdown 表格比较均匀传感器布置、按节点度数布置、贪心互信息布置和随机布置，列出观测成本、可辨识性与失败情景。",
-      "为这个教学逆问题写出贝叶斯后验与不确定性区间的公式，设计可复现实验并说明模型误差、边界条件变化与多漏点条件的局限。"
-    ]
-  },
-  {
     "id": "causal_inference_cluster_randomized_interference",
     "domain": "causal_inference_experimental_design",
     "title": "因果推断：集群随机实验、干扰效应与随机化推断",
@@ -291,29 +183,6 @@
       "使用 Python 代码块模拟一个含组内相关性与网络溢出的虚构实验，生成处理与对照数据并计算一个随机化检验的双侧 p 值。",
       "使用 Markdown 表格比较个体随机、集群随机、两阶段饱和度随机与匹配观察设计，列出识别假设、统计功效、成本和主要偏差来源。",
       "构建含公式、参数表和伪代码的实验审计方案，分析网络跨群边、差异失访和测量误差对估计的影响，并给出教学模拟的敏感性分析步骤。"
-    ]
-  },
-  {
-    "id": "nanophotonics_chiral_plasmonic_metasurface",
-    "domain": "nanophotonics_chiral_plasmonic_metasurface",
-    "title": "纳米光子学：手性等离子体超表面近场超手性场与生物分子对映异构体传感",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试手性等离子体近场光学手性密度推导、微纳手性格形超表面 3D 渲染生图、圆二色性 (CD) 光谱 Python 仿真与对映异构传感平台对比",
-    "turns": [
-      "基于麦克斯韦电动力学与 Lipkin 守恒量（Zilch）理论，推导真空中电磁场局部光学手性密度（Optical Chirality Density）物理公式 C = \\frac{\\varepsilon_0}{2} \\vec{E} \\cdot (\\nabla \\times \\vec{E}) + \\frac{1}{2\\mu_0} \\vec{B} \\cdot (\\nabla \\times \\vec{B})，并推导在平面圆偏振波激发下手性等离子体微纳结构热点（Hotspot）区域相比自由空间产生超手性场增强因子 \\hat{C} = C / C_{\\text{CPL}} \\gg 10^2 的电磁耦合条件。",
-      "请生成一张极高精度的纳米光子学三维示意图，展示在石英衬底上微纳加工的金（Au）手性十字交叉旋涡超表面阵列（Chiral Gammadion Metasurface），在左旋圆偏振光（LCP）照射下，纳米级微隙中激发强烈的局部超手性电磁近场热点（呈现高对比度蓝紫色电磁能流辉光），并与吸附的手性氨基酸生物大分子（双螺旋与四面体立体化学结构）发生特异性共振相互作用，学术论文级专业光影渲染。",
-      "推导手性分子与等离子体超表面手性近场共振耦合时的库恩不对称因子（Kuhn's Dissymmetry Factor）g = \\frac{2(A_L - A_R)}{A_L + A_R} 与玻恩-库恩双偶极振子模型微观解析式，阐明为何超手性场能将纳摩尔（nM）级痕量手性药物对映异构体的圆二色性测量信噪比提高三个数量级。",
-      "请使用 Python 编写基于双洛伦兹振子色散模型的数值计算脚本，仿真手性超表面在 600 nm 至 1000 nm 波段对左旋圆偏振光（LCP）与右旋圆偏振光（RCP）的透射率曲线 T_{LCP}(\\lambda) 与 T_{RCP}(\\lambda)，并计算差分透射圆二色性光谱 \\Delta T(\\lambda) = T_{LCP} - T_{RCP} 与对应的共振偏振旋转角度谱（Optical Rotatory Dispersion, ORD）。",
-      "使用 Markdown 表格，系统对比平面二维手性超表面（Planar 2D Metasurfaces）、立体三维螺旋等离子体纳米天线（3D Helical Plasmonics）、介质全介电高折射率硅超表面（All-Dielectric Silicon Resonators）以及石墨烯等离激元手性微腔在近场手性增强倍数、欧姆热损耗、制造工艺难度、工作波段及对映异构体检测极限（LOD）上的核心性能表现。"
     ]
   },
   {
@@ -422,6 +291,138 @@
       "使用 Python 编写基于一维层状介质反射率法 (Kennett Reflectivity Method) 或频散波慢度求和法的小型数值仿真脚本，合成高频震相 SPdKS 在经过具有 15 km 厚度、-10% P波降速与 -30% S波降速的核幔边界 ULVZ 介质时的合成三分量地震位移记录图。",
       "设计结构化 Markdown 表格，系统对比下地幔底部 D\" 层四大核心构造：大剪切波低速省 (LLVP)、超低速带 (ULVZ)、俯冲板块残余巨型石板 (Subducted Slab Graveyard) 以及全地幔柱根 (Mantle Plume Root) 在横波波速异常 \\delta V_s、纵横波波速比 \\delta \\ln V_s / \\delta \\ln V_p、密度异常 \\delta \\rho、空间分布尺度与富铁硅酸盐部分熔融热力学状态。",
       "从高压凝聚态物理矿物相变角度，推导后钙钛矿 (Post-Perovskite, pPv, (Mg,Fe)SiO3) 相变与富铁方镁铁矿 ((Mg,Fe)O) 在 CMB 强剪切流动下的晶格择优取向 (LPO)，分析晶体声学各向异性导致横波沿不同偏振方向产生剪切波分裂 (SKS/SKKS Splitting) 的相变微观动力学机制。"
+    ]
+  },
+  {
+    "id": "synthetic_biology_riboswitch_rna_origami_nanostructure",
+    "domain": "synthetic_biology_riboswitch_rna_origami_nanostructure",
+    "title": "合成生物学：RNA 折纸纳米结构与核糖开关变构动力学推导",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试人工合成 RNA 折纸纳米结构生成、四态变构 Monod-Wyman-Changeux 热力学模型、Nussinov-Zuker 动态规划二次结构 Python 求解器与核酸纳米技术横向对比",
+    "turns": [
+      "生成一张完全虚构的高分辨率科学示意图：展示一个人工设计的四面体 RNA 折纸（RNA Origami）纳米笼结构，其四个顶点集成对腺苷变构敏感的 RNA 核糖开关（Riboswitch），包含发卡环识别位点、荧光报告基团与碱基互补杂交双螺旋束的精细分子构象与图例标注。",
+      "使用 LaTeX 建立该核糖开关配体结合与变构诱导的四态变构模型（Monod-Wyman-Changeux 模型拓展），推导配体结合分数 \\theta(L) 与吉布斯自由能能景 \\Delta G_{fold}，分析协同性 Hill 系数 n_H 与解离常数 K_d 的热力学关系。",
+      "编写 Python 代码块，基于 Nussinov-Zuker 动态规划二次结构预测算法的简化自由能邻近规则，计算一段短 RNA 序列的碱基配对最优自由能矩阵，并输出变构前后最小自由能 (MFE) 构象的括号表示法 (Dot-Bracket Notation)。",
+      "使用 Markdown 表格，对比 RNA 折纸技术、DNA 折纸技术（DNA Origami）、蛋白质从头设计（De Novo Protein Design, 如 RFdiffusion）以及超分子共价有机框架（COF）在折叠热稳定性、活细胞内转录自组装能力、载药空间封装效率与体内生物降解半衰期维度的核心技术特征。",
+      "推导该 RNA 纳米笼在活细胞微流控递送环境下的扩散输运方程与酶切降解动力学，建立含胞吞吸收、溶酶体逃逸速率常数与靶向释放产率的常微分方程组 (ODE)，给出解析稳态浓度分布解。"
+    ]
+  },
+  {
+    "id": "quantum_error_correction_surface_code_mwpm_decoder",
+    "domain": "quantum_error_correction_surface_code_mwpm_decoder",
+    "title": "量子纠错与容错量子计算：表面码伴随式测量与最小权重完美匹配译码推导",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试二维旋转表面码稳定子测量与伴随式代数推导、时空三维译码图构建、MWPM 最小权重匹配译码器 Python 实现与纠错阈值 Ising 映射严格证明",
+    "turns": [
+      "针对二维旋转表面码（Rotated Surface Code, 码距 d），从泡利稳定子群 \\mathcal{S} 与逻辑算符 \\bar{X}, \\bar{Z} 的代数定义出发，推导数据比特与测量辅助比特构成的 X 稳定子与 Z 稳定子伴随式（Syndrome）测量本征方程，严格说明独立相位翻转噪声与比特翻转噪声如何退化为对偶晶格上的点激发缺陷对。",
+      "推导随测量轮次 T 进行的伴随式提取过程中的时空三维译码图（Spatiotemporal Decoding Graph \\mathcal{G} = (V, E)）：详细定义顶点集合 V（测量差分激发点）与边集合 E 的权重计算法则 w_e = \\ln((1 - p)/p)，说明测量误差与数据比特物理错误如何在时空图中形成类空（Spacelike）与类时（Timelike）边。",
+      "使用 Python 编写一个最小权重完美匹配（Minimum-Weight Perfect Matching, MWPM）译码器的核心算法实现，基于无向图的 Dijkstra 或 Floyd-Warshall 算法计算激发缺陷点之间的最短曼哈顿/测地距离矩阵，并调用网络匹配启发式算法寻找最佳配对并返回纠错恢复算符序列。",
+      "使用 Markdown 表格，横向对比最小权重完美匹配译码器 (MWPM, 如 PyMatching)、并查集快速译码器 (Union-Find Decoder)、神经网络置信度译码器 (NN/Transformer Decoder) 以及张量网络最大似然译码器 (Tensor Network MLD) 在时间复杂度渐进阶、逻辑错误率下界阈值、GPU/FPGA 流水线实时延迟 (ns) 以及长距离表面码扩展性四个维度的关键工程指标。",
+      "严格推导表面码阈值定理（Threshold Theorem）：使用统计物理二维 Ising/自旋玻璃无序随机键模型映射（Random-Bond Ising Model, RBIM），证明 Nishimori 线上相变临界温度对应的物理纠错理论容错阈值 p_{th} \\approx 10.9\\%（唯象无损测量下），并推导逻辑错误率随码距 d 增长的指数压制标度律 P_L \\propto C (p/p_{th})^{(d+1)/2}。"
+    ]
+  },
+  {
+    "id": "metamaterials_acoustic_cloaking_transformation_acoustics",
+    "domain": "metamaterials_acoustic_cloaking",
+    "title": "声学超构材料与声隐身：空间坐标变换声学方程推导与迷宫超表面仿真",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试变换声学质量密度张量推导、迷宫超表面声波负折射相位调制、FDTD二维声场Python求解器与超构结构对比表格",
+    "turns": [
+      "生成一个用于教学演示的二维声学隐身斗篷（Acoustic Cloaking Carpet Metasurface）微纳结构截面示意图，展示平面声波入射后沿圆弧形梯度迷宫超构单元平滑绕射、在缺陷后方无声影区复原波前的声压场云图，标注阻抗匹配层与相位调制梯度，不使用真实商业图纸。",
+      "从无源非粘性各向同性声波波动方程出发，利用微分几何坐标变换 x^i \to x^{i\\prime}(x)，严格推导出变换声学方程（Transformation Acoustics）。证明变换后介质的等效质量密度张量 \boldsymbol{\rho}^\\prime 与体积模量 \\kappa^\\prime 满足 \boldsymbol{\rho}^\\prime = \rho_0 \\det(A) (A A^T)^{-1} 与 \\kappa^\\prime = \\kappa_0 \\det(A)，并解释为什么物理实现该隐身斗篷必须引入强各向异性质量密度与非均匀惯性特征。",
+      "使用 Python 编写一个基于有限差分时域法 (FDTD) 的紧凑声学波动求解脚本，建立具有阶梯折射率分布的二维梯度迷宫超构表面，模拟单频平面声波穿过非均匀介质层的声压场时域演化，并计算透射侧相位分布以验证广义斯涅尔定律 (Generalized Snell's Law) 的反常折射与全透射无反射条件。",
+      "推导各向异性声学超构材料的等效介质散射消除理论，分析由亚波长亥姆霍兹共振腔与曲折迷宫通道耦合产生的动态等效负有效质量密度 (\rho_{eff} < 0) 与负体积模量 (\\kappa_{eff} < 0) 双负特性，给出由 Kramers-Kronig 因果律关系限定的被动无源超构材料因果性与本构带宽物理极限。",
+      "使用 Markdown 表格，对比五模式超构材料 (Pentamode)、空间卷绕迷宫单元 (Space-Coiling)、局域薄膜共振结构与穿孔板亥姆霍兹共振腔在工作相对带宽、亚波长单元尺寸比 (\\lambda / d)、模态转换损耗 (剪切波耦合)、各向异性比率调节范围以及三维微纳打印制造成熟度等核心工程维度的综合特性。"
+    ]
+  },
+  {
+    "id": "gravitational_waves_post_newtonian_inspiral_matched_filtering",
+    "domain": "gravitational_waves_post_newtonian",
+    "title": "引力波天文学：后牛顿展开致密双星旋近波形推导与匹配滤波搜索",
+    "features": [
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试 3.5PN 致密双星旋近相位演化推导、稳相近似频域 TaylorF2 波形、频域维纳匹配滤波 Python 算法与波形模板族横向对比",
+    "turns": [
+      "在广义相对论爱因斯坦微扰弱场四极辐射理论框架下，针对致密双星（质量 m_1, m_2，总质量 M，啁啾质量 \\mathcal{M} = (m_1 m_2)^{3/5} / M^{1/5}）的准圆轨道旋近过程，推导引力波能量辐射率 dE/dt 与角动量损失率 dJ/dt。证明引力波轨道频率漂移满足 \\dot{f}_{GW} = \frac{96}{5} \\pi^{8/3} (\frac{G \\mathcal{M}}{c^3})^{5/3} f_{GW}^{11/3}，并阐明为什么通过观测频率与频率一阶导数即可独立测定双星系统的绝对啁啾质量。",
+      "采用后牛顿 (Post-Newtonian, PN) 逐阶展开方法，推导引力波频域波形在稳相近似 (Stationary Phase Approximation, SPA) 下的 TaylorF2 闭合解析形式 \tilde{h}(f) = \\mathcal{A} f^{-7/6} e^{i \\Psi(f)}。写出包含 1PN、1.5PN 尾项 (Tail Effect)、2PN、2.5PN 以及 3.5PN 高阶修正的频域相位 \\Psi(f) 级数展开式，并推导自旋-轨道耦合 (Spin-Orbit Coupling) 对双星进动与相位累积演化的特征修正项。",
+      "使用 Python 编写致密双星引力波频域匹配滤波 (Matched Filtering) 核心检测脚本：构建模拟 Advanced LIGO 探测器噪声功率谱密度 (PSD) S_n(f)，在频域对注入高斯白噪声的引力波时域应变信号进行反卷积加权求和，计算最优化匹配信噪比 (Optimal SNR) 与时间序列最大化检验统计量 \rho(t)，并输出检测峰值到达时间与有效距离估计。",
+      "分析地基引力波探测器在低频端 (f < 10 Hz) 由地球重力梯度噪声 (Newtonian Noise) 与悬丝热噪声构成的物理敏感度墙，推导由基准质量局部质量密度波动引发的引力扰动谱密度；进而对比天基引力波探测器（如 LISA），推导基于光不等臂迈克尔逊干涉仪的时延干涉测量技术 (Time-Delay Interferometry, TDI) 如何通过代数消除精确抵消超前 8 个数量级的激光相位波动噪声。",
+      "使用 Markdown 表格，对比后牛顿 TaylorF2 频域波形、时域 TaylorT4 积分波形、有效单体数值相对论波形 (SEOBNR) 以及唯象拟合波形 (IMRPhenomXPH) 在旋近-合并-准简正振荡全时程物理完备性、高阶多极辐射矩 (h_{lm}) 覆盖能力、双星自旋进动动力学支持、计算吞吐速度以及 MCMC 贝叶斯后验参数推断兼容性等关键性能维度的差异。"
+    ]
+  },
+  {
+    "id": "oceanography_internal_solitary_waves_kdv",
+    "domain": "oceanography_internal_solitary_waves",
+    "title": "物理海洋学：深海内孤立波动力学、KdV 方程孤子解与遥感特征反演",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "description": "测试两层流体浅水内孤立波 Korteweg-de Vries (KdV) 方程推导、非线性与频散平衡孤立波波形解、SAR 空间合成孔径雷达海面粗糙度特征图 Imagen 生图、Python 伪谱法数值模拟及海洋内波观测技术对比",
+    "turns": [
+      "针对两层密度跃层流体系统（上层密度 \\rho_1、厚度 h_1；下层密度 \\rho_2、厚度 h_2，相对密度跃变 \\Delta \\rho / \\rho \\ll 1），从连续性方程和不可压缩欧拉方程出发，运用多重尺度摄动展开法推导界面位移 \\eta(x,t) 满足的经典 Korteweg-de Vries (KdV) 方程：\\frac{\\partial \\eta}{\\partial t} + c_0 \\frac{\\partial \\eta}{\\partial x} + \\alpha \\eta \\frac{\\partial \\eta}{\\partial x} + \\beta \\frac{\\partial^3 \\eta}{\\partial x^3} = 0，并推导线性长波相速度 c_0、非线性系数 \\alpha 与频散系数 \\beta 的解析表达式。",
+      "请生成一张概念图：空间合成孔径雷达（SAR）从近地轨道俯瞰南海或安达曼海海面内孤立波包（Internal Solitary Wave Packets）的微波后向散射灰度图像。画面需清晰展现两组向陆架传播的弧形内波波前（Wavefronts），表现出前沿明亮带（毛细重力波聚集粗糙区）与后缘暗带（水流发散平滑区）交替的周期性条纹明暗对比特征，展现深海内孤立波在海面的独特微波成像印记。",
+      "求解 KdV 方程的稳态单孤子解 \\eta(x, t) = -\\eta_0 \\mathrm{sech}^2\\left(\\frac{x - V t}{\\Delta}\\right)（在 h_1 < h_2 的下凹波情形下），证明其相速度 V 与波幅 \\eta_0 满足非线性正相关 V = c_0 - \\frac{1}{3} \\alpha \\eta_0，并严格证明有效波宽 \\Delta = \\sqrt{\\frac{-12 \\beta}{\\alpha \\eta_0}}，分析为何大振幅内孤立波往往演化为由多个波幅递减孤子组成的裂变孤子包（Soliton Packet Fission）。",
+      "使用 Python 编写数值程序，采用傅里叶伪谱法（Fourier Pseudospectral Method）结合四阶 Runge-Kutta 积分器求解 KdV 方程在周期边界条件下的时间演化。初始化一个高斯扰动波包 \\eta(x, 0) = -A e^{-(x - x_0)^2 / \\sigma^2}，展示波包在非线性与频散共同作用下分裂为排序孤立波列的过程，并输出各出射孤子的波幅与理论预测比值。",
+      "使用 Markdown 表格，对比锚碇潜标海流剖面仪（ADCP）、卫星空间合成孔径雷达（SAR）、地震海洋学（Seismic Oceanography）反射同相轴成像以及水下自主航行器（Glider/AUV）在空间分辨率、全水深垂直结构覆盖能力、时间连续监测能力与深海极端大振幅内波耐受性四个维度的优缺点。"
+    ]
+  },
+  {
+    "id": "quantum_chemistry_dmrg_active_space",
+    "domain": "quantum_chemistry_dmrg_active_space",
+    "title": "量子化学：多参考态强关联体系矩阵乘积态 (MPS) 与 DMRG 算法推导",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试强关联多电子体系电子积分张量重整化、矩阵乘积态 (MPS) 规范形式与截断误差标度律、单点/双点 DMRG 块哈密顿量对角化 Python 紧凑求解器及多参考电子结构方法纵向对比",
+    "turns": [
+      "在二次量子化表象下，写出包含单电子动能/核吸引积分 h_{pq} 与双电子排斥积分 g_{pqrs} 的全分子电子哈密顿量 \\hat{H} = \\sum_{pq} h_{pq} a_p^\\dagger a_q + \\frac{1}{2} \\sum_{pqrs} g_{pqrs} a_p^\\dagger a_q^\\dagger a_s a_r。解释为什么对于过渡金属二聚体（如 Cr_2）或铁硫簇（Fe_4S_4）等多中心强关联体系，单参考态耦合簇理论（CCSD(T)）会出现对称性破缺与发散，必须采用多参考态方法。",
+      "将全组态相互作用（FCI）波函数系数张量 C_{\\sigma_1 \\dots \\sigma_k} 展开为矩阵乘积态（Matrix Product State, MPS）形式 |\\Psi\\rangle = \\sum_{\\sigma_1 \\dots \\sigma_k} A^{\\sigma_1} A^{\\sigma_2} \\dots A^{\\sigma_k} |\\sigma_1 \\dots \\sigma_k\\rangle。通过奇异值分解（SVD）推导左正则（Left-Canonical）与右正则（Right-Canonical）规范条件，证明一维量子链纠缠熵 S_E = -\\sum_i s_i^2 \\ln s_i^2 对 MPS 键维（Bond Dimension M）截断误差 \\epsilon_{tr} 的严格标度关系。",
+      "推导单中心与双中心密度矩阵重整化群（DMRG）的扫场更新（Sweep Optimization）算法。从变分能量极小化 \\min \\langle \\Psi | \\hat{H} | \\Psi \\rangle / \\langle \\Psi | \\Psi \\rangle 出发，推导有效哈密顿量矩阵 \\mathcal{H}_{eff} 的投影构造形式，并说明利用 Davidson 迭代算法求解局部张量基态能级的收敛加速机制。",
+      "使用 Python 编写一个教学版 DMRG 变分优化程序框架，针对简化的 1D 强关联 Hubbard/Heisenberg 自旋链模型（L=8），在固定键维 M=16 下执行左右各 2 次扫场，输出每次扫场后计算基态能量的单调收敛演化过程，并验证截断概率和总纠缠熵。",
+      "使用 Markdown 表格，对比完全活性空间自洽场（CASSCF）、完全活性空间二级微扰论（CASPT2）、密度矩阵重整化群（DMRG-CASSCF）以及辅助场量子蒙特卡洛（AFQMC）在最大活性空间轨道容量（Active Space Orbitals）、动态/静态电子关联处理能力、计算标度律与侵入态（Intruder State）敏感度四个核心维度的对比。"
     ]
   }
 ]

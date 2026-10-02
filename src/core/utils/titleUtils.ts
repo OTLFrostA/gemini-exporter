@@ -493,11 +493,21 @@ function computeHasNewerActivity(c: any, rec: any): boolean {
         const cTs = getEffectiveTimestamp(c);
         const rTs = toTimestampMs(rec.exportedAt) ?? 0;
         const rChatTime = toTimestampMs((rec as any).chatTime) ?? 0;
+        const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
+        const recMsgCount = (rec as any).messageCount || 0;
 
-        // 1. Timestamp check with a 2000ms grace buffer for clock skew / write latency:
-        // If chat timestamp advanced in Gemini past the export time, it is updated.
-        if (cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
-            return true;
+        // 1. Authoritative same-clock check:
+        // If export record captured the exported conversation's server chatTime:
+        // When conversation server timestamp has NOT advanced past exported turn timestamp,
+        // it cannot be updated by timestamp (immune to local clock skew).
+        if (rChatTime > 0 && cTs > 0 && cTs <= rChatTime) {
+            if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
+                if (rTs > 0 && rTs >= cTs + 2000 && (rec.isTruncated || (rec as any).truncated || c.id?.includes('truncated'))) {
+                    return false;
+                }
+                return true;
+            }
+            return false;
         }
 
         // 2. Export freshness lock: if the export finished strictly AFTER the conversation's last activity,
@@ -507,12 +517,18 @@ function computeHasNewerActivity(c: any, rec: any): boolean {
             return false;
         }
 
+        // 3. Timestamp check:
+        // If rChatTime is present, check if cTs advanced past rChatTime
         if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
             return true;
         }
 
-        const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
-        const recMsgCount = (rec as any).messageCount || 0;
+        // Legacy fallback when rChatTime is not present: check if cTs advanced past exportedAt
+        if (!rChatTime && cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
+            return true;
+        }
+
+        // 4. Message count check:
         if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
             return true;
         }

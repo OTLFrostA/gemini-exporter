@@ -4,7 +4,7 @@ import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } f
 import { StorageService } from '../core/storage/storageService.js';
 import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
 import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/utils.js';
-import { sanitizeFileName, sanitizeRelativePath } from '../core/utils/pathUtils.js';
+import { sanitizeFileName, sanitizeRelativePath, normId } from '../core/utils/pathUtils.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
     try {
@@ -178,18 +178,45 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         // Phase A (P1-2): 主 md 成功即写记录；附件有失败则标 partial（与导出管线
         // sessionRecovery 的 partial 惯例对齐），保证下次增量不跳过、可重试。
         try {
+            let convInStore: any = null;
+            try {
+                const list = await StorageService.getConversations(accountSlot || 'u0');
+                convInStore = list.find((c: any) => normId(c.id) === nid);
+            } catch {}
+
+            let turnTsFromMsgs = 0;
+            if (Array.isArray(chat?.messages)) {
+                for (const m of chat.messages) {
+                    const mt = toTimestampMs(m?.timestamp);
+                    if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
+                }
+            }
+            const effectiveChatTime = (chat as any)?.chatTime || turnTsFromMsgs || (chat as any)?.updatedAt || (chat as any)?.timestamp || convInStore?.updatedAt || convInStore?.timestamp || null;
+            const effectiveMsgCount = (Array.isArray(chat?.messages) ? chat.messages.length : 0) || convInStore?.messageCount || (chat as any)?.messageCount || 0;
+
             await completeConversationExport(
                 StorageService,
                 accountSlot || 'u0',
                 {
-                    conversation: chat,
+                    conversation: {
+                        ...convInStore,
+                        ...chat,
+                        messageCount: effectiveMsgCount,
+                        ...(effectiveChatTime ? {
+                            chatTime: effectiveChatTime,
+                            updatedAt: effectiveChatTime,
+                            timestamp: effectiveChatTime
+                        } : {})
+                    },
                     conversationId: nid,
                     format: 'markdown',
                     exportedAt: now,
                     failedAssets,
                     titleCandidate: safeTitle,
-                    titleProvenance: (chat as any)?.titleSource,
-                    titles: (chat as any)?.titles
+                    titleProvenance: (chat as any)?.titleSource || convInStore?.titleSource,
+                    titles: (chat as any)?.titles || convInStore?.titles,
+                    messageCount: effectiveMsgCount,
+                    chatTime: effectiveChatTime
                 }
             );
         } catch (e) {
