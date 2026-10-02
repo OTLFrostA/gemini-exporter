@@ -27,13 +27,13 @@ Verdict 定义：
 
 | Symbol | Verdict | 备注 |
 |---|---|---|
-| `AIProvider`（interface） | KEEP-contract | 中性生命周期：`checkReadiness` / `listConversations` / `fetchConversationDetail` / `matchesUrl` / `fetchAsset?`。被 `resolveProvider` 及 3 个 content 模块使用。 |
-| `ProviderConversationItem` / `ProviderConversationDetail` / `ProviderPageResult<T>` / `ProviderReadiness` | KEEP-contract | 中性形状，index signature 允许平台扩展字段。 |
+| `AIProvider`（interface） | KEEP-contract | 中性生命周期：`checkReadiness` / `listConversations` / `fetchConversationDetail` / `matchesUrl` / `fetchAsset?`。Gemini companion 兼容此契约；`resolveProvider` 及 3 个 content 模块暂用具名应用边界。 |
+| `ProviderConversationItem` / `ProviderConversationDetail` / `ProviderPageResult<T>` / `ProviderReadiness` | KEEP-contract | 中性核心无开放 index signature；Gemini companion 明确承接生产证据，见 W2-03 报告。 |
 | `ProviderRegistry`（`register`/`unregister`/`get`/`getAll`/`findByUrl`/`getDefault`） | KEEP-contract | 通用注册表契约。`getAll()`/`unregister()` 是注册表应有 surface，不是死代码。 |
 | `resolveProvider()` | KEEP-contract | `syncEngine` / `liveSaveCoordinator` / `messageRouter` 共用。 |
-| `GeminiProvider` | KEEP（production 实现） | 命名诚实。`fetchConversationDetail` 把完整 Gemini detail spread 进中性返回——这是生产适配器的本职，声明返回类型保持中性。 |
+| `GeminiProvider` | KEEP（production 实现） | 命名诚实。`GeminiProviderContract` 承接完整 Gemini detail/list 证据，并兼容中性 `AIProvider`。注册表与 resolver 暂用具名 `ApplicationProvider` 类型，待 content 消费者迁移。 |
 | ChatGPT / Claude / Grok adapters | planned | Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. |
-| `export type { Conversation, ChatMessage, Attachment, TitleSources }`（`aiProvider.ts` 重导出） | GEMINI-SPECIFIC-misnamed | 模块头注释自称 "Universal AI Provider specification"，实际重导出 Gemini pipeline 类型（`TitleSources` 含 `rpc`/`dom`/`takeout`/`sniff`；`Conversation` 含 `hitGoogleLimit`/`isTakeoutOnly`/`accountSlot`）。已核实：仓内 0 外部引用。本 PR 不动，仅标出。 |
+| `GeminiProviderContract` / `ApplicationProvider`（`geminiContracts.ts`） | GEMINI-SPECIFIC | W2-03 已移除仓内无外部引用的 Gemini pipeline 重导出；生产证据复用 W2-01/02 类型，迁移条件见 [W2-03 报告](docs/audits/wave2-provider-contract.md)。 |
 | `getAITab` / `sendToAITab`（`tabService.ts`） | KEEP-contract | provider→tab 路由契约。当前无 production caller（仅测试）——这是 planned architecture 的预期状态，不是死代码。 |
 
 ### `scripts/framework/`（Python Tier-2/3 测试框架——与上独立的另一套概念）
@@ -46,7 +46,7 @@ Verdict 定义：
 
 ### 已知非 verdict 的跟进点（不属本 PR scope）
 
-- `syncEngine.ts` 注释承认 "the provider-neutral declared type is still stabilizing"，有一处 `as any` 绕过——待 provider 层稳定后收敛，不在本 PR 处理。
+- `syncEngine.ts` 注释承认 "the provider-neutral declared type is still stabilizing"，有一处 `const all: any` 声明——W2-03 已稳定契约，待后续 content 迁移收敛。
 - Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified.
 
 ## `scripts/framework/` 平台层级 audit（PR12，2026-09-27）
