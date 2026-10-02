@@ -52,7 +52,8 @@ Gemini application input/evidence:
 - `GeminiProviderContract extends AIProvider` verifies compatibility of the exact
   companion returns with the neutral core. No extension bag/double assertion is used.
 
-The adapter still spreads producer fields at runtime. The mechanism for exposing
+Historical W2-03 adapter behavior used producer spreads. W2-04 replaces them
+with [explicit field mapping](wave2-gemini-provider-adapter.md). The mechanism for exposing
 extensions is now its declared, upstream-linked companion return contract;
 spreads do not substitute for a missing type contract. Tests check evidence and
 reference identity, including list aliases, media, provenance and diagnostics.
@@ -103,12 +104,12 @@ new contract tests use typed producer fixtures.
 
 There is no explicit any, broad index signature or double assertion in
 `src/core/provider/**`. Neutral unknown contexts/options and Gemini unknown raw
-wire evidence are intentional trust boundaries. Readiness catch retains one
+wire evidence are intentional trust boundaries. At the W2-03 baseline, the readiness catch retained one
 erased `{message?: string} | null | undefined` projection of credential-error
 messages, preserving the old optional property read and fallback. This is an
 unvalidated diagnostic projection; arbitrary JavaScript throws are not certified
 as string errors. The existing readiness result's declared string error surface
-is unchanged.
+is unchanged; W2-04 now removes this unchecked projection through real narrowing.
 
 Four temporary single assertions now reside at the content resolver call sites;
 their current Gemini-only application assumption is explicit, not a neutral
