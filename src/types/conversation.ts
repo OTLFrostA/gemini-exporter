@@ -102,8 +102,8 @@ export interface Conversation {
     id: string;
     title: string;
     timestamp: number | null;
-    updatedAt?: number | string;
-    createdAt?: number | string;
+    updatedAt?: number | string | null;
+    createdAt?: number | string | null;
     chatTime?: number | string;
     lastSeen?: number | string;
     source?: string;
@@ -118,5 +118,6 @@ export interface Conversation {
     attachmentCount?: number;
     messageCount?: number;
     href?: string;
+    sidebarIndex?: number;
     hasExplicitPrompt?: boolean;
 }
