@@ -1,7 +1,7 @@
 import type { GeminiParserExtractorsModule, GeminiJspbSchema, TurnDriftReport } from "./parser/extractors.js";
-import type { GeminiParserAttachmentsModule, DeepResearchDocMeta } from "./parser/attachments.js";
+import type { GeminiParserAttachmentsModule } from "./parser/attachments.js";
 import type { GeminiParserParseListModule, ListParseResult } from "./parser/parseList.js";
-import type { GeminiParserParseDetailModule, DetailParseResult } from "./parser/parseDetail.js";
+import type { GeminiParserParseDetailModule } from "./parser/parseDetail.js";
 
 export interface GeminiResponseParserFacade {
     GEMINI_JSPB_SCHEMA: GeminiJspbSchema;
@@ -11,27 +11,27 @@ export interface GeminiResponseParserFacade {
     robustFirstPayload: (t?: string | null) => unknown[] | null;
     extractTurnTimestamp: (turnData: unknown) => number | null;
     extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
-    getImageDedupKey: (img: any) => string;
-    filterNewImages: (imgs: any[], seenSet: Set<string>) => any[];
-    highResVariant: (u?: string | null) => string;
-    extractImages: (obj: unknown, seqRef?: { value: number }) => any[];
-    extractUserFiles: (turnUserArr: unknown) => any[];
-    extractDocumentsMeta: (root: unknown) => DeepResearchDocMeta[];
-    findDocContentById: (root: unknown, docId: string) => unknown;
-    parseDocSections: (docContentArr: unknown) => any;
-    findDocMarkdownByClues: (root: unknown, metaItem?: any) => string;
+    getImageDedupKey: GeminiParserAttachmentsModule["getImageDedupKey"];
+    filterNewImages: GeminiParserAttachmentsModule["filterNewImages"];
+    highResVariant: GeminiParserAttachmentsModule["highResVariant"];
+    extractImages: GeminiParserAttachmentsModule["extractImages"];
+    extractUserFiles: GeminiParserAttachmentsModule["extractUserFiles"];
+    extractDocumentsMeta: GeminiParserAttachmentsModule["extractDocumentsMeta"];
+    findDocContentById: GeminiParserAttachmentsModule["findDocContentById"];
+    parseDocSections: GeminiParserAttachmentsModule["parseDocSections"];
+    findDocMarkdownByClues: GeminiParserAttachmentsModule["findDocMarkdownByClues"];
     extractThoughts: (candidateBlock: unknown) => string | null;
-    extractCitations: (candidateBlock: unknown) => any[];
+    extractCitations: GeminiParserExtractorsModule["extractCitations"];
     extractConversationId: (inner: unknown, turns?: unknown[]) => string;
-    extractConversationTitle: (inner: unknown, turns?: unknown[]) => any;
+    extractConversationTitle: GeminiParserExtractorsModule["extractConversationTitle"];
     isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
     cleanTitle: (t?: string | null) => string;
     normId: (id?: string | number | null) => string;
     extractListItemTimestamp: (item: unknown) => number | null;
     parseList: (text: string) => ListParseResult;
-    parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
+    parseDetail: GeminiParserParseDetailModule["parseDetail"];
     safeStructureClean: (s?: string | null) => string;
-    deepWalk: (r: unknown, v: any, m?: number) => void;
+    deepWalk: GeminiParserExtractorsModule["deepWalk"];
     smartSummarizePrompt: (t?: string | null) => string;
     extractMetaTitleFromTop: (top: unknown[], targetConvId?: string) => string | null;
     isInternalChipUrl: (u?: string | null) => boolean;
@@ -169,3 +169,5 @@ if (typeof module === 'object' && module.exports) module.exports = GeminiParser;
 
 export default GeminiParser;
 
+export type { ListParseResult, ConversationListItem, ListParseDiagnostics } from "./parser/parseList.js";
+export type { DetailParseResult, DetailParseDiagnostics, ParserMessage, ParserDocument } from "./parser/parseDetail.js";
