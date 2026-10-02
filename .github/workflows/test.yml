@@ -75,6 +75,10 @@ jobs:
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm ci || npm install
 
+      - name: Scoped zero-any gate
+        if: steps.filter.outputs.only_scenarios != 'true'
+        run: npm run lint:zero-any
+
       - name: Type check (TypeScript)
         if: steps.filter.outputs.only_scenarios != 'true'
         run: npm run type-check
