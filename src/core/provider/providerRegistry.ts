@@ -1,10 +1,10 @@
-import type { ApplicationProvider } from "./gemini/geminiContracts.js";
+import type { AIProvider } from "./aiProvider.js";
 
-export class ProviderRegistryClass {
-    private providers: Map<string, ApplicationProvider> = new Map();
+export class ProviderRegistryClass<TProvider extends AIProvider = AIProvider> {
+    private providers: Map<string, TProvider> = new Map();
     private defaultProviderId: string = 'gemini';
 
-    register(provider: ApplicationProvider): void {
+    register(provider: TProvider): void {
         if (!provider || !provider.id) {
             throw new Error('Invalid provider: id is required');
         }
@@ -22,11 +22,11 @@ export class ProviderRegistryClass {
         return this.providers.delete(id);
     }
 
-    get(id: string): ApplicationProvider | undefined {
+    get(id: string): TProvider | undefined {
         return this.providers.get(id);
     }
 
-    getAll(): ApplicationProvider[] {
+    getAll(): TProvider[] {
         return Array.from(this.providers.values());
     }
 
@@ -37,11 +37,11 @@ export class ProviderRegistryClass {
         this.defaultProviderId = id;
     }
 
-    getDefault(): ApplicationProvider | undefined {
+    getDefault(): TProvider | undefined {
         return this.providers.get(this.defaultProviderId);
     }
 
-    findByUrl(url: string): ApplicationProvider | undefined {
+    findByUrl(url: string): TProvider | undefined {
         if (!url) return undefined;
         for (const provider of this.providers.values()) {
             if (typeof provider.matchesUrl === 'function' && provider.matchesUrl(url)) {

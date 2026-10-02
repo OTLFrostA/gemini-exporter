@@ -1,7 +1,8 @@
+import type { ApplicationProvider } from "../src/content/providerCompatibility.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AIProvider, ProviderConversationDetail, ProviderConversationItem, ProviderMessage, ProviderPageResult, ProviderListOptions } from '../src/core/provider/aiProvider.js';
-import type { ApplicationProvider, GeminiProviderClient, GeminiProviderListOptions, GeminiProviderConversationDetail, GeminiProviderPageResult } from '../src/core/provider/gemini/geminiContracts.js';
+import type { GeminiProviderClient, GeminiProviderListOptions, GeminiProviderConversationDetail, GeminiProviderPageResult } from '../src/core/provider/gemini/geminiContracts.js';
 import credentials from '../src/core/api/client/credentialManager.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';
@@ -160,4 +161,36 @@ test('provider contract: readiness retains default/account slot and existing err
     } finally {
         credentials.resolveCred = original;
     }
+});
+
+test('provider contract: a neutral non-Gemini AIProvider registers without companion data', async () => {
+    const registry = new ProviderRegistryClass();
+    const neutralProvider: AIProvider = {
+        id: 'neutral-fixture', name: 'Neutral fixture', hostPatterns: ['https://neutral.example/*'],
+        matchesUrl: url => url.startsWith('https://neutral.example/'),
+        async checkReadiness() { return { ready: true }; },
+        async listConversations() { return { items: [], exhaustive: true, completionReason: 'fixture_complete' }; },
+        async fetchConversationDetail(id) { return { id, title: 'Neutral', messages: [{ role: 'assistant', content: 'text' }] }; }
+    };
+    registry.register(neutralProvider);
+    registry.setDefaultProviderId(neutralProvider.id);
+    const byId: AIProvider | undefined = registry.get(neutralProvider.id);
+    const all: AIProvider[] = registry.getAll();
+    const byDefault: AIProvider | undefined = registry.getDefault();
+    const byUrl: AIProvider | undefined = registry.findByUrl('https://neutral.example/chat');
+    assert.strictEqual(byId, neutralProvider);
+    assert.deepEqual(all, [neutralProvider]);
+    assert.strictEqual(byDefault, neutralProvider);
+    assert.strictEqual(byUrl, neutralProvider);
+    assert.equal((await byId!.listConversations()).completionReason, 'fixture_complete');
+    assert.equal((await byUrl!.fetchConversationDetail('neutral')).messages[0].role, 'assistant');
+});
+
+test('provider contract: an explicitly specialized registry preserves Gemini evidence', async () => {
+    const registry = new ProviderRegistryClass<ApplicationProvider>();
+    const provider = new GeminiProvider(client(result('hit_google_limit')));
+    registry.register(provider);
+    const page = await registry.get('gemini')!.listConversations();
+    assert.equal(page.diagnostics.hitGoogleLimit, true);
+    assert.equal(page.completionReason, 'hit_google_limit');
 });

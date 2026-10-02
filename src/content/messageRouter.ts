@@ -1,3 +1,4 @@
+import type { ApplicationProvider } from "./providerCompatibility.js";
 import { SyncEngine } from './syncEngine.js';
 import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
@@ -176,7 +177,7 @@ export function init({
 
                 let batchexecuteEmptyDebug: any = null;
                 try {
-                    const provider = resolveProvider();
+                    const provider = resolveProvider() as ApplicationProvider | undefined;
                     if (provider) {
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
                         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {

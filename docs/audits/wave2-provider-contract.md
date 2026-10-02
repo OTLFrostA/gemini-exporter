@@ -59,21 +59,27 @@ reference identity, including list aliases, media, provenance and diagnostics.
 
 ## Explicit transition for existing consumers
 
-`ApplicationProvider = GeminiProviderContract` is a temporary named compatibility
-alias. Registry storage and resolver return annotations use it so existing
-syncEngine/messageRouter/liveSaveCoordinator readers retain their actual Gemini
-fields. Their runtime acquisition, callbacks, DI, global cancellation, sorting,
-merge and export paths are untouched. This application boundary deliberately
-still requires the Gemini companion; it is not a claim that future providers
-produce Google diagnostics or parser evidence.
+`ApplicationProvider = GeminiProviderContract` now lives in the type-only
+`src/content/providerCompatibility.ts` module. The three current content readers
+use explicit single assertions at their four resolver call sites. These preserve
+the existing Gemini-only application assumption without claiming runtime
+capability validation. W2-04/05/06/07 must remove them when neutral data and
+explicit evidence mapping are implemented.
 
-W2-04/05/06/07 must move those readers to neutral fields and explicit evidence
-mapping before registry/resolver can advertise unrestricted AIProvider returns.
-Keep legacy conversations/time aliases until their real readers move. This alias
-has a removal condition, rather than hiding compatibility in the neutral types.
-Registry registration/default routing/host fallback and resolver import side
-effects/URL-first-default-second behavior are unchanged. The only registry and
-resolver changes are erased type imports/annotations.
+PR #766 incorrectly made generic registry storage and resolver returns depend
+on that alias. The follow-up neutrality correction restores
+`ProviderRegistryClass<TProvider extends AIProvider = AIProvider>` and
+`resolveProvider(): AIProvider | undefined`. Generic infrastructure imports no
+Gemini-specific contract. The resolver retains the existing Gemini side-effect
+registration import; it does not constrain the neutral type boundary.
+The global registry uses the neutral default. Only an explicitly specialized
+registry instance promises a companion subtype.
+
+No content acquisition, callback, DI, cancellation, sorting, merge or export logic
+is migrated. Registration/default routing/host fallback and resolver import
+side effects/URL-first-default-second behavior are unchanged. The assertions
+and generic annotations are erased in emitted JavaScript. See
+[neutrality correction](provider-registry-neutrality-fix.md) for final validation.
 
 ## Completeness and preserved public behavior
 
@@ -104,7 +110,9 @@ unvalidated diagnostic projection; arbitrary JavaScript throws are not certified
 as string errors. The existing readiness result's declared string error surface
 is unchanged.
 
-Outside this task, syncEngine's `const all: any`/callbacks, ActiveClientContract,
+Four temporary single assertions now reside at the content resolver call sites;
+their current Gemini-only application assumption is explicit, not a neutral
+registry requirement. Outside this task, syncEngine's `const all: any`/callbacks, ActiveClientContract,
 live-save/router runtime envelopes and export escapes remain for W2-04/05/06/07.
 Shared ChatMessage still has documents/citations any arrays; the provider's Gemini
 companion uses W2-01 ParserMessage's explicitly typed replacements. Parser wire
@@ -140,5 +148,5 @@ static import fixed the fixture; focused, incrementally impacted and final full
 checks then all passed. No production behavior changed for this correction.
 
 **Contract frozen for W2-04/05/06/07.** Use the neutral `AIProvider` data/options
-and the explicit Gemini/application companion above; remove the application
-compatibility alias only after its consumers have migrated.
+and the explicit Gemini/application companion above; remove the content
+compatibility alias and call-site assertions only after its consumers have migrated.

@@ -1,3 +1,4 @@
+import type { ApplicationProvider } from "./providerCompatibility.js";
 import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
@@ -111,7 +112,7 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
                 return;
             }
 
-            const provider = resolveProvider();
+            const provider = resolveProvider() as ApplicationProvider | undefined;
             if (!provider) return;
             const d = await provider.fetchConversationDetail(activeId);
             if (d && d.id) {
@@ -576,7 +577,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
 
     try {
         document.getElementById('geminiExportBadge')?.classList.add('syncing');
-        const provider = resolveProvider();
+        const provider = resolveProvider() as ApplicationProvider | undefined;
         if (!provider) return null;
         // The provider owns the request lifecycle now; ActiveClientContract is
         // all-optional so this stays type-safe. Cancel still terminates the
