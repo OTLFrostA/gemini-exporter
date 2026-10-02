@@ -42,10 +42,3 @@ export interface GeminiProviderContract extends AIProvider {
     listConversations(options?: GeminiProviderListOptions): Promise<GeminiProviderPageResult>;
     fetchConversationDetail(conversationId: string, options?: GeminiProviderDetailOptions): Promise<GeminiProviderConversationDetail>;
 }
-
-/**
- * Temporary application boundary for existing Gemini-dependent content readers.
- * W2-04/05/06/07 must migrate these readers before registry/resolver use AIProvider.
- * This alias does not promise Gemini evidence from future neutral providers.
- */
-export type ApplicationProvider = GeminiProviderContract;

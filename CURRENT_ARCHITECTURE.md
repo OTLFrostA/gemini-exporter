@@ -31,9 +31,9 @@ Verdict 定义：
 | `ProviderConversationItem` / `ProviderConversationDetail` / `ProviderPageResult<T>` / `ProviderReadiness` | KEEP-contract | 中性核心无开放 index signature；Gemini companion 明确承接生产证据，见 W2-03 报告。 |
 | `ProviderRegistry`（`register`/`unregister`/`get`/`getAll`/`findByUrl`/`getDefault`） | KEEP-contract | 通用注册表契约。`getAll()`/`unregister()` 是注册表应有 surface，不是死代码。 |
 | `resolveProvider()` | KEEP-contract | `syncEngine` / `liveSaveCoordinator` / `messageRouter` 共用。 |
-| `GeminiProvider` | KEEP（production 实现） | 命名诚实。`GeminiProviderContract` 承接完整 Gemini detail/list 证据，并兼容中性 `AIProvider`。注册表与 resolver 暂用具名 `ApplicationProvider` 类型，待 content 消费者迁移。 |
+| `GeminiProvider` | KEEP（production 实现） | 命名诚实。`GeminiProviderContract` 承接完整 Gemini detail/list 证据，并兼容中性 `AIProvider`。注册表与 resolver 保持中性；content 层暂用具名 `ApplicationProvider` 兼容边界，待消费者迁移。 |
 | ChatGPT / Claude / Grok adapters | planned | Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. |
-| `GeminiProviderContract` / `ApplicationProvider`（`geminiContracts.ts`） | GEMINI-SPECIFIC | W2-03 已移除仓内无外部引用的 Gemini pipeline 重导出；生产证据复用 W2-01/02 类型，迁移条件见 [W2-03 报告](docs/audits/wave2-provider-contract.md)。 |
+| `GeminiProviderContract` / `ApplicationProvider`（`geminiContracts.ts` / `content/providerCompatibility.ts`） | GEMINI-SPECIFIC | W2-03 已移除仓内无外部引用的 Gemini pipeline 重导出；生产证据复用 W2-01/02 类型，迁移条件见 [W2-03 报告](docs/audits/wave2-provider-contract.md)。 |
 | `getAITab` / `sendToAITab`（`tabService.ts`） | KEEP-contract | provider→tab 路由契约。当前无 production caller（仅测试）——这是 planned architecture 的预期状态，不是死代码。 |
 
 ### `scripts/framework/`（Python Tier-2/3 测试框架——与上独立的另一套概念）

@@ -1,3 +1,4 @@
+import type { ApplicationProvider } from "./providerCompatibility.js";
 import { StorageService } from '../core/storage/storageService.js';
 import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
 import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/titleUtils.js';
@@ -97,7 +98,7 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
     // DI seam kept: an explicitly injected client class still uses the legacy
     // construction path. Default now resolves through the provider registry.
     const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
-    const provider = InjectedClass ? null : resolveProvider();
+    const provider = InjectedClass ? null : resolveProvider() as ApplicationProvider | undefined;
 
     if (InjectedClass || provider) {
         try {
