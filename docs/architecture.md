@@ -234,7 +234,7 @@ graph TD
 | `src/core/storage/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/core/storage/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
 | `src/core/utils/utils.ts` | Core: Utils | `GeminiUtils` (单点真理 SSoT 集合) | 汇聚全局路径清理、标题仲裁与列表合并去重逻辑的统一门面。 | 全系统所有模块 | 格式规范与仲裁结果 | `UT_SSoT` |
-| `src/core/utils/titleUtils.ts` | Core: Utils | `resolveTitle`, `resolveDetailTitle`, `cleanTitle` | 权威标题仲裁中心，实现多源标题优先级排序（RPC > 网络详情 > 前缀提问 > Takeout）。 | `utils.ts`, `geminiParser`, `syncEngine` | 统一规范标题字符串 | `UT_SSoT` |
+| `src/core/utils/titleUtils.ts` | Core: Utils | `resolveTitle`, `resolveDetailTitle`, `cleanTitle` | 权威标题仲裁中心，实现多源标题优先级排序（rpc > api-detail > dom > takeout > openai > sniff > legacy > default）。 | `utils.ts`, `geminiParser`, `syncEngine` | 统一规范标题字符串 | `UT_SSoT` |
 | `src/core/utils/mergeUtils.ts` | Core: Utils | `mergeConversation`, `deduplicateConversations` | 负责多源会话合并与去重，保证高权标题与最新更新时间戳永不倒退。 | `utils.ts`, `syncEngine`, `takeoutEngine` | 合并后的稳定会话数组 | `UT_SSoT` |
 | `src/core/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId`, `AccountProfile` | 严格清洗相对路径与文件名，定义多账号用户画像契约，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator`, `bootstrap` | 安全合法的文件名与路径 | `UT_Path` |
 | `src/core/utils/progressUtils.ts` | Core: Utils | `formatETA`, `formatByteSize`, `calculateRate` | 计算传输速率、剩余时间人类可读格式化。 | `progressReporter.ts` | 格式化文本输出 | `UT_Path` |
@@ -645,7 +645,7 @@ sequenceDiagram
    - `controllers/`：业务工作流驱动、异步操作编排与异常提示；
    - `options.ts` / `popup.ts`：纯粹的入口挂载器与各子模块协调器。
 3. **权威单点真理与标题防退化 (Single Source of Truth - SSoT)**：
-   所有的路径清洗规范（`sanitizeRelativePath`）、文件名生成规则（`buildExportFileName`）、多源标题仲裁（`resolveTitle`）与列表合并去重（`mergeConversation`）统一集中在 `src/core/utils/`。任何模块严禁自行手写正则或修改标题优先级，严格保证：`RPC 权威标题 > 详情提取标题 > 提问前缀临时标题 > Takeout 离线导入标题`。
+   所有的路径清洗规范（`sanitizeRelativePath`）、文件名生成规则（`buildExportFileName`）、多源标题仲裁（`resolveTitle`）与列表合并去重（`mergeConversation`）统一集中在 `src/core/utils/`。任何模块严禁自行手写正则或修改标题优先级，来源选择顺序为：`rpc > api-detail > dom > takeout > openai > sniff > legacy > default`。等级分数保持 `rpc = api-detail`、`takeout = openai`；同等级来源按上述顺序选择。
 4. **沙箱式网络拦截安全隔离 (Sandboxed Interceptor Guard)**：
    `hookCredentials.ts` 必须保证在主世界中的运行处于绝对安全的只读沙箱。拦截器内所有参数嗅探与字符串正则均包裹于 `try...catch` 中，遇到畸形参数时静默降级，严禁因插件逻辑异常影响 Google 原生网页的正常功能。
 5. **事件驱动的并发工作池 (`AsyncQueue`) 与可中断轮询边界**：
@@ -669,9 +669,9 @@ sequenceDiagram
 flowchart TD
     subgraph Tier1 ["第一层：CI 自动化极速门禁 (Tier 1: Fast & Headless Gate)"]
         T1_Type["TypeScript 严格类型检查 (tsc --noEmit)"]
-        T1_Unit["Python 驱动 103 个核心单元与系统测试套件 (tests/run_tests.py)"]
+        T1_Unit["Python 驱动当前全量核心单元与系统测试套件 (tests/run_tests.py)"]
         T1_Build["esbuild 5 大 Bundle 纯打包校验 (node build.js)"]
-        T1_E2E["Playwright 16 个 Spec / 38 个无头集成测试 (playwright test)"]
+        T1_E2E["Playwright 当前全量无头集成测试 (playwright test)"]
         T1_Type --> T1_Unit --> T1_Build --> T1_E2E --> T1_PASS["CI 门禁通过 (~20-40秒)"]
     end
 
