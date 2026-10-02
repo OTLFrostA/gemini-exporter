@@ -17,7 +17,11 @@ import GeminiClientRpcClient, {
 } from "./client/rpcClient.js";
 import GeminiClientPagination, {
     type PaginationOptions,
-    type PaginationResult
+    type PaginationResult,
+    type PaginationProgressCallback,
+    type GeminiListRequestOptions,
+    type GeminiDetailRequestOptions,
+    type PaginatedDetailResult
 } from "./client/pagination.js";
 import type { ListParseResult } from "./parser/parseList.js";
 import type { DetailParseResult } from "./parser/parseDetail.js";
@@ -77,7 +81,7 @@ const pagination = GeminiClientPagination;
             return getApiUrl(s);
         }
 
-        async getConversationList(pageToken?: string | null, targetSid?: string | null, customFilter?: any, opts?: any): Promise<ListParseResult> {
+        async getConversationList(pageToken?: string | null, targetSid?: string | null, customFilter?: unknown, opts?: GeminiListRequestOptions): Promise<ListParseResult> {
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
             const filter = customFilter || [0, null, 1];
@@ -135,7 +139,7 @@ const pagination = GeminiClientPagination;
                 }
 
                 const retryCount = (opts && opts._retryCount) || 0;
-                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
+                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts!.maxRetries : 3;
                 const retry429 = retryPolicy.handleHttp429 ? await retryPolicy.handleHttp429({
                     resp,
                     retryCount,
@@ -160,14 +164,14 @@ const pagination = GeminiClientPagination;
 
         // Note: If all.length >= 500 or pagination flags hitGoogleLimit / 429 errors,
         // UI layer provides browsing window limit guidance to recommend Takeout.
-        async getAllConversations(maxPages: number | PaginationOptions = 2000, onProgress?: any, targetSid?: string | null, opts?: any): Promise<PaginationResult> {
+        async getAllConversations(maxPages: number | PaginationOptions = 2000, onProgress?: PaginationProgressCallback | null, targetSid?: string | null, opts?: PaginationOptions): Promise<PaginationResult> {
             if (pagination.getAllConversations) {
                 return pagination.getAllConversations(this, maxPages, onProgress, targetSid, opts);
             }
             throw new Error("pagination module not found");
         }
 
-        async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: any): Promise<DetailParseResult> {
+        async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: GeminiDetailRequestOptions): Promise<DetailParseResult> {
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
@@ -236,7 +240,7 @@ const pagination = GeminiClientPagination;
                 }
 
                 const retryCount = (opts && opts._retryCount) || 0;
-                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts.maxRetries : 3;
+                const maxRetries = (opts && opts.maxRetries) !== undefined ? opts!.maxRetries : 3;
                 const retry429 = retryPolicy.handleHttp429 ? await retryPolicy.handleHttp429({
                     resp,
                     retryCount,
@@ -282,7 +286,7 @@ const pagination = GeminiClientPagination;
             }
         }
 
-        async getConversationDetail(conversationId: string, targetSid?: string | null): Promise<DetailParseResult> {
+        async getConversationDetail(conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult> {
             if (pagination.getConversationDetail) {
                 return pagination.getConversationDetail(this, conversationId, targetSid);
             }
@@ -332,3 +336,5 @@ if (typeof module === "object" && module.exports) {
 }
 
 export default GeminiClientExports;
+
+export type { PaginationOptions, PaginationResult, GeminiPaginationDiagnostics, PaginationCompletionReason, PaginationCompletenessEvidence, PaginationProgressInfo, PaginationProgressCallback, PaginationPageBatchInfo, PaginationStopDecision, PaginationPageBatchCallback, GeminiListRequestOptions, GeminiDetailRequestOptions, PaginatedDetailResult } from "./client/pagination.js";
