@@ -1,16 +1,59 @@
-import type { Message, TitleSources } from "../../../types/index.js";
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+import type { GeminiProtocolModule } from "../../protocol/protocol.js";
+import type { Message, TitleSources, Attachment } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { sanitizeFileName } from "../../utils/pathUtils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
-import type { TurnDriftReport } from "./extractors.js";
-import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta } from "./attachments.js";
+import type { TurnDriftReport, TitleResult, Citation } from "./extractors.js";
+import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocLink, DocSectionsResult } from "./attachments.js";
+
+/** Parser diagnostics describe observations, not validated wire records. */
+export interface DetailParseDiagnostics {
+    turnsLen?: number;
+    innerKeys?: string[] | null;
+    innerPreview?: string;
+    topPreview?: string | null;
+    schemaDriftWarnings?: string[];
+}
+
+export interface ParserDocument {
+    id: string;
+    title: string;
+    createdAt?: number | null;
+    chipUrl: string;
+    sections: string[];
+    links: DocLink[];
+    contentMarkdown?: string;
+    url: string;
+    candidates?: string[];
+    localName: string;
+    type: string;
+    hasFabricatedText?: boolean;
+}
+
+export interface ParserAttachment extends Attachment {
+    alt?: string;
+    isBlob?: boolean;
+    originalUrl?: string;
+    token?: string;
+    contentMarkdown?: string;
+}
+
+/** Known parser assembly outputs; raw evidence remains unknown on media nodes. */
+export interface ParserMessage extends Omit<Message, "documents" | "citations" | "images" | "attachments" | "structuredContent"> {
+    documents?: ParserDocument[];
+    citations?: Citation[];
+    images?: (ImageAttachment & Attachment)[];
+    attachments?: ParserAttachment[];
+    structuredContent?: import("./structuredContent.js").GeminiStructuredDocument;
+}
 
 export interface DetailParseResult {
     id: string;
     title: string;
-    titleSource: string;
+    titleSource: TitleResult["source"];
     titles: TitleSources;
-    messages: Message[];
+    messages: ParserMessage[];
     createdAt: number | null;
     chatTime: number | null;
     timestamp: number | null;
@@ -23,16 +66,17 @@ export interface DetailParseResult {
     truncated?: boolean;
     isTruncated?: boolean;
     truncateReason?: string;
-    _raw?: any;
-    _debug?: any;
+    /** Decoded wire evidence; no wire-schema validation is implied. */
+    _raw?: unknown;
+    _debug?: DetailParseDiagnostics | null;
 }
 
 export interface GeminiParserParseDetailModule {
     isTurn: (turn: unknown) => boolean;
     isTurnsArray: (arr: unknown) => boolean;
     findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
-    parseDetail: (text: string, targetConvId?: string, overrides?: any) => DetailParseResult;
-    extractTurnRequestId?: (turn: any) => string | undefined;
+    parseDetail: (text: string, targetConvId?: string, overrides?: unknown) => DetailParseResult;
+    extractTurnRequestId?: (turn: unknown) => string | undefined;
     DOC_TITLE_FALLBACK_RE?: RegExp;
 }
 
@@ -78,15 +122,15 @@ import { extractStructuredContent } from "./structuredContent.js";
 
 const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
 
-function getUtils(): any {
+function getUtils(): Pick<GeminiUtilsModule, "isDevMode"> {
     return __resolveModule('GeminiUtils', GeminiUtils);
 }
 
-function getProtocol(): any {
+function getProtocol(): GeminiProtocolModule {
     return __resolveModule('GeminiProtocol', GeminiProtocol);
 }
 
-function getSchema(): any {
+function getSchema(): typeof GEMINI_JSPB_SCHEMA {
     return GEMINI_JSPB_SCHEMA;
 }
 
@@ -112,8 +156,9 @@ function extractUserTextFromPayload(userPayload: unknown): string {
  * - Never search in turn[1] (which is TIMESTAMP: [seconds, nanos]).
  * - Strict contract: no heuristic .find() scanning; unconfirmed slots return undefined to prevent accidental dedupe.
  */
-function extractTurnRequestId(turn: any): string | undefined {
-    const idMeta = turn?.[GEMINI_JSPB_SCHEMA.TURN.ID_META];
+function extractTurnRequestId(turn: unknown): string | undefined {
+    // Indexable raw evidence only; this assertion does not validate a turn.
+    const idMeta = (turn as { [slot: number]: unknown } | null | undefined)?.[GEMINI_JSPB_SCHEMA.TURN.ID_META];
     let raw: string | undefined;
 
     if (Array.isArray(idMeta)) {
@@ -264,7 +309,7 @@ function buildUserMessage(
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number }
-): Message | null {
+): ParserMessage | null {
     const userPayload = turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
     const uText = extractUserTextFromPayload(userPayload);
     const uImgs = filterNewImages(extractImages(userPayload, imageSeq), dedupSet);
@@ -311,7 +356,7 @@ function buildUserMessage(
         };
     }) : void 0;
 
-    const attachments: any[] = [];
+    const attachments: ParserAttachment[] = [];
     if (formattedImages) {
         for (const im of formattedImages) {
             attachments.push({
@@ -367,14 +412,14 @@ function parseCandidateResponse(
     imageSeq: { value: number },
     candidateIndex = 0,
     convId?: string
-): Message | null {
+): ParserMessage | null {
     const candidateId = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] || "";
     const candidateBlock = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
     let responseText = extractCandidateText(cand);
 
     if (!responseText) {
         const textArr: string[] = [];
-        deepWalk(cand, (node: any) => {
+        deepWalk(cand, (node: unknown) => {
             if (Array.isArray(node)) {
                 if (node.length >= 1 && typeof node[0] === "string" && node[0].length > 0 && !node[0].startsWith("http") && !node[0].startsWith("rc_") && !node[0].startsWith("c_")) {
                     if (node[0].trim().length > 2 && !textArr.includes(node[0])) {
@@ -408,14 +453,14 @@ function parseCandidateResponse(
         return true;
     });
 
-    const docDetails: any[] = [];
+    const docDetails: ParserDocument[] = [];
     if (docs.length) {
         try {
             for (const metaItem of docs) {
                 const primary = findDocContentById(inner, metaItem.id);
                 const alt = metaItem.contentId ? findDocContentById(inner, metaItem.contentId) : null;
                 const parsedPrimary = parseDocSections(primary);
-                const parsedAlt = alt ? parseDocSections(alt) : { sections: [], links: [], contentMarkdown: void 0 };
+                const parsedAlt: Partial<DocSectionsResult> & Pick<DocSectionsResult, "sections" | "links"> = alt ? parseDocSections(alt) : { sections: [], links: [], contentMarkdown: void 0 };
                 const md = parsedPrimary.contentMarkdown || parsedAlt.contentMarkdown || findDocMarkdownByClues(inner, metaItem);
                 const cleanMd = md ? stripInternalChipMarkdown(md).trim() : "";
                 if (!cleanMd) continue;
@@ -434,8 +479,8 @@ function parseCandidateResponse(
                 // P1-9: 上游链任一 heuristic 标记 → 外层写 hasFabricatedText + 日志，
                 // 不得静默把拼凑结果转成正常可信结果
                 const heuristicChain = metaItem.source === "heuristic-flat"
-                    || (parsedPrimary as any)?.contentMatch === "substring"
-                    || (parsedAlt as any)?.contentMatch === "substring";
+                    || parsedPrimary?.contentMatch === "substring"
+                    || parsedAlt?.contentMatch === "substring";
                 if (heuristicChain && typeof console !== "undefined" && console.warn) {
                     console.warn(`[GemExporter:parseDetail.ts] heuristic doc content for "${docTitle}" (id=${metaItem.id}); marked hasFabricatedText`);
                 }
@@ -469,7 +514,7 @@ function parseCandidateResponse(
 
     const providerRequestId = extractTurnRequestId(turn);
     let genOrdinal = 0;
-    const formattedImages = filteredImages.length ? filteredImages.map((img: any) => {
+    const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
         const isGen = !!img.isGenerated;
         const ordinal = isGen ? genOrdinal++ : undefined;
         return {
@@ -490,7 +535,7 @@ function parseCandidateResponse(
         };
     }) : void 0;
 
-    const attachments: any[] = [];
+    const attachments: ParserAttachment[] = [];
     if (formattedImages) {
         for (const img of formattedImages) {
             attachments.push({
@@ -549,7 +594,7 @@ function parseCandidateResponse(
     };
 }
 
-function parseDetail(text: string, targetConvId?: string, _overrides: any = {}): DetailParseResult {
+function parseDetail(text: string, targetConvId?: string, _overrides: unknown = {}): DetailParseResult {
     try {
         const top = robustFirstPayload(text);
         const utils = getUtils();
@@ -581,7 +626,7 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
         const shortScope = getShortScope(convId);
 
-        const allMsgs: Message[] = [];
+        const allMsgs: ParserMessage[] = [];
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
         const usedLocalNames = new Set<string>();
@@ -645,13 +690,13 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
         const titleObj = extractConversationTitle(inner, turns);
         const nextToken = extractNextPageToken(inner, GEMINI_JSPB_SCHEMA.INNER.NEXT_TOKEN_CANDIDATES);
         const url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, "")}`;
-        const times = turns.map(t => extractTurnTimestamp(t)).filter((x: any): x is number => Number.isFinite(x));
+        const times = turns.map(t => extractTurnTimestamp(t)).filter((x): x is number => Number.isFinite(x));
         const minTs = times.length ? Math.min(...times) : null;
         const maxTs = times.length ? Math.max(...times) : null;
 
         let cleanT = metaTitle || cleanTitle(titleObj.title || convId);
         const isReal = isRealTitle(cleanT, convId);
-        let finalSource = metaTitle ? "rpc" : (isReal ? titleObj.source : "default");
+        let finalSource: TitleResult["source"] = metaTitle ? "rpc" : (isReal ? titleObj.source : "default");
         if (!isReal && !metaTitle) {
             const sniffed = resolveDetailTitle(allMsgs, convId);
             if (sniffed) {
@@ -661,10 +706,10 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
         }
         const titlesMap: TitleSources = {};
         if (finalSource !== "default" && cleanT) {
-            titlesMap[finalSource as keyof TitleSources] = cleanT;
+            titlesMap[finalSource] = cleanT;
         }
 
-        let _debug: any = null;
+        let _debug: DetailParseDiagnostics | null = null;
         if (!allMsgs.length) {
             try {
                 _debug = {
@@ -700,8 +745,11 @@ function parseDetail(text: string, targetConvId?: string, _overrides: any = {}):
             _raw: inner,
             _debug
         };
-    } catch (e: any) {
-        throw new Error("detail parse fail: " + e.message);
+    } catch (e: unknown) {
+        // Non-Error throws remain unvalidated diagnostic evidence. Keep the legacy
+        // property read (including its behavior for null/undefined), not String(e).
+        const message = e instanceof Error ? e.message : (e as { message?: unknown }).message;
+        throw new Error("detail parse fail: " + message);
     }
 }
 

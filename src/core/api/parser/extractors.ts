@@ -1,3 +1,5 @@
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 export interface JspbTurnSchema {
     ID_META: number;
     TIMESTAMP: number;
@@ -107,6 +109,12 @@ export interface GeminiJspbSchema {
     ERROR_INFO: JspbErrorInfoSchema;
 }
 
+/** Optional runtime flags; their truthiness is observed without validation. */
+interface ParserDebugFlags {
+    __gemExporterDevMode?: unknown;
+    __gemExporterVerboseLog?: unknown;
+}
+
 export interface TurnDriftReport {
     isDrifted: boolean;
     warnings: string[];
@@ -143,8 +151,8 @@ export interface GeminiParserExtractorsModule {
     normId: (id?: string | number | null) => string;
     cleanTitle: (rawTitle?: string | null) => string;
     isRealTitle: (t?: string | null, fallbackId?: string | number) => boolean;
-    getUtils: () => any;
-    getProtocol: () => any;
+    getUtils: () => GeminiUtilsModule;
+    getProtocol: () => GeminiProtocolModule;
 }
 
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../utils/utils.js";
@@ -223,12 +231,12 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
         }
     });
 
-    function getUtils(): any {
+    function getUtils(): GeminiUtilsModule {
         return GeminiUtils;
     }
 
     // Protocol anti-corruption layer (see core/protocol/protocol.ts).
-    function getProtocol(): any {
+    function getProtocol(): GeminiProtocolModule {
         return GeminiProtocol;
     }
 
@@ -328,8 +336,8 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
         }
 
         if (warnings.length > 0) {
-            const isDev = (typeof globalThis !== "undefined" && ((globalThis as any).__gemExporterDevMode || (globalThis as any).__gemExporterVerboseLog))
-                || (typeof window !== "undefined" && ((window as any).__gemExporterDevMode || (window as any).__gemExporterVerboseLog));
+            const isDev = (typeof globalThis !== "undefined" && ((globalThis as typeof globalThis & ParserDebugFlags).__gemExporterDevMode || (globalThis as typeof globalThis & ParserDebugFlags).__gemExporterVerboseLog))
+                || (typeof window !== "undefined" && ((window as Window & ParserDebugFlags).__gemExporterDevMode || (window as Window & ParserDebugFlags).__gemExporterVerboseLog));
             if (isDev) {
                 console.warn("[Gemini Exporter][Schema Drift Warning] Detected %d schema drift(s) in conv %s:", warnings.length, convId || "unknown", warnings);
             }

@@ -1,7 +1,8 @@
+import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 export interface ConversationListItem {
     id: string;
     title: string;
-    titleSource: string;
+    titleSource: "rpc" | "default";
     titles: { rpc: string };
     createdAt: number | null;
     updatedAt: number | null;
@@ -14,8 +15,9 @@ export interface ConversationListItem {
 export interface ListParseResult {
     conversations: ConversationListItem[];
     nextPageToken: string | null;
-    _raw?: any;
-    _debug?: any;
+    /** Decoded wire evidence; not a validated conversation model. */
+    _raw?: unknown;
+    _debug?: ListParseDiagnostics;
 }
 
 export interface GeminiParserParseListModule {
@@ -27,13 +29,21 @@ import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId
 import { GeminiProtocol } from "../../protocol/protocol.js";
 import { payloadToMs, extractInnerPayload, extractNextPageToken, extractWithScan } from "./payload.js";
 
+export interface ListParseDiagnostics {
+    error: "BARD_ERROR_INFO" | "NO_INNER_STR";
+    bardError: string | null;
+    textLen: number;
+    rawPreview: string;
+    topParsed: string | null;
+}
+
 const FALLBACK_SCHEMA = GEMINI_JSPB_SCHEMA;
 
-function getSchema(): any {
+function getSchema(): typeof GEMINI_JSPB_SCHEMA {
     return GEMINI_JSPB_SCHEMA;
 }
 
-function getProtocol(): any {
+function getProtocol(): GeminiProtocolModule {
     return GeminiProtocol;
 }
 
@@ -150,9 +160,12 @@ function getProtocol(): any {
                 nextPageToken: nextToken,
                 _raw: inner
             };
-        } catch (e: any) {
-            console.error("[Gemini Exporter] parseList exception:", e.message, "raw text snippet:", text ? text.slice(0, 300) : "empty");
-            throw new Error("列表解析失败: " + e.message);
+        } catch (e: unknown) {
+            // Non-Error throws remain unvalidated diagnostic evidence. Keep the legacy
+            // property read (including its behavior for null/undefined), not String(e).
+            const message = e instanceof Error ? e.message : (e as { message?: unknown }).message;
+            console.error("[Gemini Exporter] parseList exception:", message, "raw text snippet:", text ? text.slice(0, 300) : "empty");
+            throw new Error("列表解析失败: " + message);
         }
     }
 

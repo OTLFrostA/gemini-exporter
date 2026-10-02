@@ -1,47 +1,5 @@
 [
   {
-    "id": "condensed_matter_majorana_zero_modes_topological_braiding",
-    "domain": "topological_superconductivity_majorana_zero_modes",
-    "title": "拓扑超导与量子计算：半导体-超导纳米线马约拉纳零能模与非阿贝尔编织推导",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 Kitaev 一维 p 波超导链连续极限与 Oreg-Lutchyn 模型推导、马约拉纳零模波函数空间局域指数衰减、四端 T 型结非阿贝尔编织酉矩阵演化 Python 脚本与拓扑量子比特横向对比",
-    "turns": [
-      "在 Oreg-Lutchyn 理论模型下，针对强 Rashba 自旋-轨道耦合（\\alpha_R）半导体纳米线（如 InAs 或 InSb）外延临近接触 s 波超导体（配对能隙 \\Delta）并在平行线轴施加塞曼磁场 V_Z 的一维复合系统，严格推导其 Bogoliubov-de Gennes (BdG) 哈密顿量 \\mathcal{H}_{BdG} = (\\frac{p_x^2}{2m^*} - \\mu)\\tau_z + \\alpha_R p_x \\sigma_y \\tau_z + V_Z \\sigma_x + \\Delta \\tau_x，证明出现拓扑非平庸超导相与端点马约拉纳零模（MZM）的拓扑相变临界充要条件 V_Z > \\sqrt{\\Delta^2 + \\mu^2}。",
-      "从连续介质极限出发，求解准一维有限长纳米线（长 L \\gg \\xi）两端马约拉纳实费米算符 \\gamma_1, \\gamma_2 的零能空间波函数 \\psi_0(x)，证明其局域态密度在端点呈指数衰减 \\psi(x) \\sim e^{-x/\\xi} \\cos(k_F x)，并推导由于两端波函数重叠引起的有限尺寸杂化能隙能级分裂 \\Delta E \\propto e^{-L/\\xi} \\cos(k_F L) 对拓扑简并保护度的物理限制。",
-      "使用 Python 编写脚本，基于紧束缚近似（Tight-Binding Model）离散化一维 N 节点超导纳米线晶格系统，构建 BdG 矩阵并使用 NumPy/SciPy 稀疏对角化求解随塞曼磁场 V_Z 连续调节下的本征能谱流演化曲线，精准再现体能隙闭合、重新打开以及零偏压电导峰（Zero-Bias Conductance Peak, ZBCP, 量子化高度 2e^2/h）对应的孤立零能平带出现。",
-      "推导在四端 T 型纳米线结（T-junction）网络中，通过绝热门电压调节各臂的拓扑/平庸相变边界，实现两个马约拉纳零能模 \\gamma_i 与 \\gamma_j 空间逆时针交换（Braiding）的过程。严格写出非阿贝尔几何贝里相位矩阵（Non-Abelian Berry Phase），证明交换操作对应的拓扑演化算符为单演群酉变换 U_{ij} = \\exp(\\frac{\\pi}{4} \\gamma_i \\gamma_j) = \\frac{1}{\\sqrt{2}}(1 + \\gamma_i \\gamma_j)，论述其为何能天然免疫局域退相干噪声构建拓扑量子编织门。",
-      "使用 Markdown 表格，对比基于马约拉纳零模的拓扑超导量子比特、超导 Transmon 量子比特、半导体量子点自旋量子比特（Loss-DiVincenzo 比特）以及离子阱量子比特在逻辑相干时间保护机制（非局域拓扑存储 vs 动力学解耦/主动纠错）、基本单/双比特量子门操作时标、硬件制造容差鲁棒性以及当前实验物理证据确定性维度的核心指标对比。"
-    ]
-  },
-  {
-    "id": "quantum_thermodynamics_information_engine_jarzynski",
-    "domain": "quantum_thermodynamics_information_engine_jarzynski",
-    "title": "量子热力学与信息引擎：麦克斯韦妖极限、Jarzynski 恒等式与非平衡态推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试量子开放系统非平衡功分布、Jarzynski 恒等式与 Crooks 涨落定理、Landauer 原理耗散界限及 Python 随机热力学仿真",
-    "turns": [
-      "考虑受任意时间依赖外场驱动且处于有限温度 T 热库中的微观系统，从两时间测量方案 (Two-Point Measurement Scheme) 出发，推导微观做功概率分布 P(W) 严格满足的 Jarzynski 非平衡等式 <exp(-beta * W)> = exp(-beta * Delta F) 并证明热力学第二定律不等式 <W> >= Delta F。",
-      "针对麦克斯韦妖 (Maxwell's Demon) 进行测量反馈的信息发动机，推导引入香农互信息 I(X; Y) 修正后的广义热力学第二定律界限 W_ext <= -Delta F + k_B * T * I，并证明兰道尔擦除原理 (Landauer's Principle) 在信息重置过程中产生的最小热耗散 Q_erase = k_B * T * ln(2)。",
-      "推导由微观可逆性与时间反演对称性决定的 Crooks 涨落定理 P_F(W) / P_R(-W) = exp(beta * (W - Delta F))，并分析在远离热力学平衡的极端非准静态拉伸过程中自由能变化 Delta F 的极大似然估计解析形式。",
-      "使用 Python 编写 Langevin 随机动力学模拟脚本，数值求解布朗粒子在一维谐振子双势阱驱动移动过程中的随机轨迹，统计提取 5000 次独立非平衡实验路径上的做功做功积分，并绘制功分布直方图与 Jarzynski 平均收敛曲线。",
-      "使用 Markdown 表格横向对比经典信息引擎 (Szilard Engine)、量子相干性驱动热机、超导腔量子电动力学热机与单自旋非平衡热机在工作工质尺度、量子相干能增益、最大功输出功率与卡诺效率比值 (Efficiency at Maximum Power)。"
-    ]
-  },
-  {
     "id": "condensed_matter_quantum_spin_liquid_kitaev_honeycomb",
     "domain": "condensed_matter_quantum_spin_liquid_kitaev_honeycomb",
     "title": "量子自旋液体与Kitaev蜂窝模型：马约拉纳费米子分数化与非阿贝尔任意子拓扑推导",
@@ -207,28 +165,6 @@
     ]
   },
   {
-    "id": "astrochemistry_ice_mantle_photolysis_spectroscopy",
-    "domain": "astrochemistry_ice_mantle_photolysis_spectroscopy",
-    "title": "天体化学：星际冰颗粒幔光解反应与红外特征光谱反演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试星际尘埃表面吸附动力学、宇宙线引发冰幔光化学反应、红外吸收光谱多高斯反卷积 Python 代码与 Imagen 冰幔粒子微观结构生成",
-    "turns": [
-      "基于天体物理分子云冷核（T ~ 10 K, n_H ~ 10^4 cm^-3）环境，根据 Langmuir-Hinshelwood 与 Eley-Rideal 表面反应动力学机制，推导气相 CO 与 H 原子在非晶态水冰表面吸附、热扩散与逐级加氢生成甲醛 (H2CO) 及甲醇 (CH3OH) 的速率方程组，写出反应活化能垒与特征时间尺度的解析关系。",
-      "针对韦伯空间望远镜 (JWST) NIRSpec 与 MIRI 观测原恒星盘吸收光谱，推导包含非晶态实水冰 (3.05 μm OH伸缩振动)、CO (4.67 μm) 与 CO2 (15.2 μm 弯曲振动) 的朗伯-比尔吸光度光深度 \\tau(\\lambda) 积分反演分子柱密度 N 的理论公式，解释晶体水冰 3.1 μm 伴峰与 44 μm 晶格振动特征的退火相变判据。",
-      "请生成一张展现星际分子云深处微米级无定形硅酸盐颗粒表面包覆水冰、一氧化碳与甲醇多层复杂冰幔，在极低温度下受宇宙射线诱发次级紫外光子照射并在表面产生自由基重组产生复杂有机分子 (COMs) 的高精度微观三维剖面示意图，高对比度科学插画风格。",
-      "请使用 Python 编写一个处理红外冰特征吸收光谱的局部连续谱拟合与非线性高斯反卷积程序，输入一组波长-通量拟合数据，扣除多项式基线后将 3.0 μm 水冰宽吸收峰分解为主带和短波端游离-OH键小吸收峰，输出各组分的柱密度比例和拟合残差。",
-      "设计一个结构化 Markdown 表格，对比空间红外望远镜 (JWST)、地面亚毫米波干涉阵列 (ALMA)、实验室超高真空表面反应模拟装置 (UHV Setup) 与实验室傅里叶红外光谱仪 (FTIR) 在探测星际冰幔及气相复杂有机分子时的波段覆盖、谱分辨本领 (R = \\lambda/\\Delta\\lambda)、空间分辨率、探测相态（固相冰 vs 气相分子）及各自关键观测局限。"
-    ]
-  },
-  {
     "id": "cryo_em_single_particle_ab_initio_reconstruction",
     "domain": "cryo_em_single_particle_ab_initio_reconstruction",
     "title": "冷冻电镜单颗粒技术：从头三维重构投影切片定理与贝叶斯优化",
@@ -247,29 +183,6 @@
       "请使用 Python 编写计算并绘制 300 kV 冷冻透镜 (波长 \\lambda \\approx 0.01968 \\text{ Å}, C_s = 2.7 \\text{ mm}) 在指定欠焦量 \\Delta z = 1.5 \\,\\mu\\text{m} 和 \\text{B-factor} = 80 \\text{ Å}^2 条件下，径向空间频率 k 从 0 到 0.5 \\text{ Å}^{-1} (即对应 2 \\text{ Å} 分辨率) 的一维理论 CTF 响应曲线函数，并打印前三个零点对应的实空间分辨率。",
       "设计一个结构化 Markdown 表格，横向系统对比单颗粒冷冻电镜 (SPA Cryo-EM)、冷冻电子断层扫描与亚断层平均 (Cryo-ET / STA)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在样品制备要求、辐射损伤容限、最高理论空间分辨率、适用的生物大分子质量范围 (kDa) 及动态构象异质性解析能力。",
       "推导基于经验贝叶斯最大后验概率估计（Empirical Bayes MAP / Expectation-Maximization）的冷冻电镜三维分类迭代算法目标函数，详细阐述 RELION 算法如何在未知单颗粒颗粒取向分布函数 P(\\phi, \\theta, \\psi, \\mathbf{t}) 存在强高斯白噪声与局部对比度掩蔽条件下，结合正则化先验平滑滤波实现抗过拟合的金标准黄金傅里叶壳层相关 (Gold-Standard FSC = 0.143) 独立半数据集真实分辨率评估。"
-    ]
-  },
-  {
-    "id": "computational_neuroscience_retinal_connectome_bipolar_cell",
-    "domain": "computational_neuroscience_retinal_connectome_bipolar_cell",
-    "title": "计算神经科学：视网膜双极细胞突触连接组重构与感受野动力学推导",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试视网膜突触带三联体微观结构生图、时空感受野差分滤波核推导、神经电生理发放序列数值模拟与视网膜中间神经元突触动力学横向对比",
-    "turns": [
-      "请生成一幅超高分辨率的视网膜外丛状层 (Outer Plexiform Layer, OPL) 纳米尺度突触连接组结构示意图：画面必须清晰呈现视杆/视锥细胞终球 (Spherule/Pedicle) 内的突触带 (Synaptic Ribbon)、系留突触囊泡以及内陷突触三联体 (Invaginating Triad) 中水平细胞突起与 ON/OFF 双极细胞树突末梢的接触空间拓扑，标注谷氨酸受体分布。",
-      "基于线性-非线性-泊松 (LNP, Linear-Nonlinear-Poisson) 神经编码模型与空间高斯差分 (DoG, Difference-of-Gaussians) 核，严格推导视网膜双极细胞时空感受野中心-周边拮抗 (Center-Surround Antagonism) 冲激响应函数 W(x, y, t) = A_c G_c(x, y) F_c(t) - A_s G_s(x, y) F_s(t) 的时频域傅里叶变换解析式，分析空间对比度调谐特性。",
-      "使用 Python 编写一个视网膜局部神经回路仿真脚本，实现给定正弦漂移光栅刺激 (Sinusoidal Drifting Grating) 下，光感受器膜电位响应、水平细胞侧向抑制电流网络以及 ON 视网膜神经节细胞 (RGC) 的动作电位发放时间列 (Spike Trains) 泊松抽样生成与光栅调谐曲线计算。",
-      "构建结构化 Markdown 对比表格，横向分析感光细胞 (Photoreceptor)、水平细胞 (Horizontal Cell)、ON型双极细胞 (mGluR6受体)、OFF型双极细胞 (AMPA/Kainate受体) 与无长突细胞 (Amacrine Cell) 在神经递质释放类型、受体门控离子通道、感受野极性、突触后电位潜伏期与明暗适应动态范围上的电生理差异。",
-      "深入推导视网膜神经节细胞群体的最大熵原理 (Maximum Entropy Model) 与高阶突触相关性：从伊辛自旋玻璃 (Ising Spin Glass) 哈密顿量出发，推导配分函数 Z 以及观测相关矩阵 \\langle \\sigma_i \\sigma_j \\rangle 与有效突触耦合强度 J_{ij} 之间的平均场反演方程，阐明视网膜为何以群体同步发放编码自然场景高阶统计特征。"
     ]
   },
   {
@@ -423,6 +336,94 @@
       "推导单中心与双中心密度矩阵重整化群（DMRG）的扫场更新（Sweep Optimization）算法。从变分能量极小化 \\min \\langle \\Psi | \\hat{H} | \\Psi \\rangle / \\langle \\Psi | \\Psi \\rangle 出发，推导有效哈密顿量矩阵 \\mathcal{H}_{eff} 的投影构造形式，并说明利用 Davidson 迭代算法求解局部张量基态能级的收敛加速机制。",
       "使用 Python 编写一个教学版 DMRG 变分优化程序框架，针对简化的 1D 强关联 Hubbard/Heisenberg 自旋链模型（L=8），在固定键维 M=16 下执行左右各 2 次扫场，输出每次扫场后计算基态能量的单调收敛演化过程，并验证截断概率和总纠缠熵。",
       "使用 Markdown 表格，对比完全活性空间自洽场（CASSCF）、完全活性空间二级微扰论（CASPT2）、密度矩阵重整化群（DMRG-CASSCF）以及辅助场量子蒙特卡洛（AFQMC）在最大活性空间轨道容量（Active Space Orbitals）、动态/静态电子关联处理能力、计算标度律与侵入态（Intruder State）敏感度四个核心维度的对比。"
+    ]
+  },
+  {
+    "id": "hydrology_urban_sponge_city_stormwater",
+    "title": "城市水文与海绵城市：暴雨径流、绿色基础设施和韧性设计",
+    "domain": "hydrology_urban_stormwater_green_infrastructure",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖城市雨洪水量平衡、设施设计、Python 径流模拟、工程对比表及真实 AI 示意图附件。",
+    "turns": [
+      "针对一个面积 2 平方公里、不透水率 65% 的城市街区，建立设计暴雨下的降雨-入渗-径流-蓄滞水量平衡。用 LaTeX 推导 Horton 入渗模型 f(t)=f_c+(f_0-f_c)e^{-kt} 与线性水库 dS/dt=I-Q 的耦合，明确所有变量单位和适用边界。",
+      "用 Python 编写可运行的逐分钟雨洪模拟，比较现状街区与加入透水铺装、雨水花园、地下调蓄池后的峰值流量。给出质量守恒误差、参数表和对两种雨型的敏感性分析。",
+      "请实际调用 AI 图像生成，制作一幅海绵城市街区的等距剖面示意图：展示屋顶集水、透水铺装、植草沟、雨水花园、调蓄池和溢流路径，用不同颜色区分地表径流与地下渗流，并在文字中解释每条水流路径。",
+      "用 Markdown 表格比较雨水花园、透水铺装、绿色屋顶和地下调蓄池的容量、维护要求、地质约束、污染物去除机制与不确定性。不要把所有成本当成真实报价，区分示例假设和工程资料。",
+      "基于前面的模型与示意图，撰写包含中英术语、设计公式、伪代码、风险清单和监测计划的工程方案，讨论连续暴雨、入渗衰减与极端事件下的安全溢流设计。"
+    ]
+  },
+  {
+    "id": "linguistics_low_resource_morphology_bayesian",
+    "title": "计算语言学：低资源语言形态分析与贝叶斯词法归纳",
+    "domain": "linguistics_low_resource_morphology_bayesian_inference",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "multimodal"
+    ],
+    "description": "覆盖语言学领域、Unicode 多语言混排、概率公式、Python 形态切分、实验表格及流程图，补充非物理领域。",
+    "turns": [
+      "构造一份明确标注为合成数据的小型土耳其语与芬兰语形态学示例集，同时加入中文解释和 IPA 音标。区分词根、派生和屈折，说明 Unicode 规范化如何影响切分，避免把构造例子当成真实语言证据。",
+      "用 LaTeX 推导低资源形态切分的贝叶斯目标 p(M|D) proportional to p(D|M)p(M)，比较最小描述长度和 Dirichlet 词素先验，分析短词素偏置、未知词与复合词的处理。",
+      "用 Python 给出可复现的 Unicode 安全形态切分原型，包含 NFC 规范化、动态规划、训练/开发/测试隔离、固定随机种子与逐词输出示例。解释算法复杂度与无法解决的语言学歧义。",
+      "用 Markdown 表格比较规则式有限状态形态分析、无监督贝叶斯切分、字符序列模型和子词分词，包含边界 F1、词形泛化、标注成本与解释性。给出一幅 Mermaid 数据流图及中英文图注。",
+      "撰写低资源语言实验计划，包含 LaTeX 指标定义、bootstrap 置信区间、跨说话人划分、数据授权与方言偏差分析。汇总代码和表格的结论，明确合成数据与真实语料验证的差别。"
+    ]
+  },
+  {
+    "id": "paleobiology_pterosaur_wing_biomechanics",
+    "title": "古生物学与生物力学：翼龙翼膜结构、滑翔稳定性和化石证据",
+    "domain": "paleobiology_pterosaur_wing_membrane_biomechanics",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "测试古生物学证据与示意推断的区分、空气动力学公式、Python 滑翔模拟、Markdown 比较表和真实生成图。",
+    "turns": [
+      "以明确标注为假设的翼龙几何参数为例，推导翼载荷 W/S、升力 L=0.5 rho v^2 S C_L 和稳态滑翔角 tan(theta)=D/L 的关系，用 LaTeX 展示量纲检查；严格区分化石观测、组织推断和模拟假设。",
+      "实际调用 AI 图像生成一幅翼龙翼膜附着与翼骨支撑的科学示意图：展示第四指、前缘、翼膜张力方向及相邻身体轮廓。图像仅作为假设结构可视化，不作为真实化石照片，并解释图中无法从证据确定的部分。",
+      "用 Python 编写可复现的二维滑翔动力学模拟，给出翼面积、体重和阻力极曲线参数表，模拟迎角扰动，说明积分方法与能量误差，并输出敏感性分析。",
+      "使用 Markdown 表格比较翼龙、鸟类和蝙蝠在骨骼支撑、翼面材料、翼载荷、形态变化和化石证据可见性方面的差异，不把现代动物数值直接当作翼龙实测数据。",
+      "整合公式、代码和示意图，撰写一份中英术语并列的研究提案，包含参数可识别性、化石缺失偏差、风洞验证流程和误差传播，给出可检验而非循环论证的预测。"
+    ]
+  },
+  {
+    "id": "numerical_linear_algebra_randomized_svd_streaming",
+    "title": "随机数值线性代数：流式低秩近似、误差界与可复现实验",
+    "domain": "numerical_linear_algebra_randomized_low_rank_streaming",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "multimodal"
+    ],
+    "description": "测试概率误差界、长 Python 数值代码、内存复杂度表格、算法图及中英文解释。",
+    "turns": [
+      "从 A in R^(m x n) 的随机范围寻找 Y=A Omega 出发，用 LaTeX 推导投影误差 ||A-QQ^T A||_F 与奇异值尾部的关系，明确 Gaussian 随机矩阵、oversampling 和 power iteration 的假设，不混淆期望界与高概率界。",
+      "使用 Python/NumPy 实现 randomized SVD，包含固定随机种子、QR 稳定化、奇异谱可控的合成矩阵和相对 Frobenius/谱范数误差。给出完整可运行代码与精确 SVD 基线。",
+      "推导单遍流式 sketch 的内存和计算成本，用 Mermaid 绘制输入块、sketch、压缩矩阵与重构的算法流程，并指出两遍范围寻找不能未经修改当作单遍算法。",
+      "用 Markdown 表格比较精确 SVD、randomized SVD、Frequent Directions 与增量 PCA 的遍历次数、内存、误差保证、确定性和适用矩阵谱。所有示例性能数字必须标注为实验假设或实测。",
+      "设计涵盖缓慢奇异值衰减、近重根、稀疏矩阵和概念漂移的实验方案，用 LaTeX 给出置信区间和误差指标，讨论有限精度失效模式，并附带中英文术语表和自动验证伪代码。"
     ]
   }
 ]

@@ -73,7 +73,7 @@ test('missing or malformed envelopes distinguish list diagnostics from detail fa
         const list = parseList(text);
         assert.deepEqual(list.conversations, []);
         assert.equal(list.nextPageToken, null);
-        assert.equal(list._debug.error, 'NO_INNER_STR');
+        assert.equal(list._debug!.error, 'NO_INNER_STR');
     }
     for (const text of ['', '[]', rpc(null), rpc(false)]) assert.throws(() => parseDetail(text), /detail parse fail: invalid/);
     const empty = parseDetail(rpc([]), ID);
@@ -82,7 +82,7 @@ test('missing or malformed envelopes distinguish list diagnostics from detail fa
     assert.equal(empty.titleSource, 'default');
     assert.equal(empty.timestamp, null);
     assert.equal(empty.schemaDrift, undefined);
-    assert.equal(empty._debug.turnsLen, 0);
+    assert.equal(empty._debug!.turnsLen, 0);
     const emptyList = parseList(rpc([null, [], 'tC_empty_page'], 'MaZiqc'));
     assert.deepEqual(emptyList.conversations, []);
     assert.equal(emptyList.nextPageToken, 'tC_empty_page');
@@ -127,7 +127,7 @@ test('detail: extra wrapping and renamed envelope use the existing fallback and 
     const parsed = parseDetail(rpc(wrapped, 'renamedRpc', 'renamedEnvelope'));
     assert.deepEqual(parsed.messages.map(m => m.content), ['Boundary user prompt', 'Boundary model answer']);
     assert.ok(parsed.schemaDrift?.some(w => w.startsWith('Envelope drift:')));
-    assert.deepEqual(parsed._debug.schemaDriftWarnings, parsed.schemaDrift);
+    assert.deepEqual(parsed._debug!.schemaDriftWarnings, parsed.schemaDrift);
     let atLimit: unknown = [wireTurn];
     for (let depth = 0; depth < 6; depth++) atLimit = [atLimit];
     assert.deepEqual(findTurnsDeep(atLimit), [wireTurn]);
@@ -159,7 +159,7 @@ test('detail: metadata-only and undiscoverable-turn payloads retain distinct dri
     const metadata = parseDetail(rpc([null, null, [[ID, 'Metadata title']]]));
     assert.deepEqual(metadata.messages, []);
     assert.ok(metadata.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
-    assert.deepEqual(metadata._debug.schemaDriftWarnings, metadata.schemaDrift);
+    assert.deepEqual(metadata._debug!.schemaDriftWarnings, metadata.schemaDrift);
     const missingTurns = parseDetail(rpc([null, { extra: true }]));
     assert.deepEqual(missingTurns.messages, []);
     assert.ok(missingTurns.schemaDrift?.some(w => w.startsWith('Payload drift:')));
