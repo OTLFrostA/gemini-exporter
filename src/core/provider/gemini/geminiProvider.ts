@@ -7,6 +7,16 @@ import { ProviderRegistry } from "../providerRegistry.js";
 import { GeminiAPIClient } from "../../api/geminiClient.js";
 import GeminiClientCredentialManager from "../../api/client/credentialManager.js";
 
+/** Credential failures are diagnostics; only a nonempty string is a readiness error. */
+function readinessErrorMessage(error: unknown): string {
+    const message = error instanceof Error
+        ? error.message
+        : error !== null && (typeof error === 'object' || typeof error === 'function') && 'message' in error
+            ? error.message
+            : undefined;
+    return typeof message === 'string' && message ? message : 'Gemini 凭据解析失败';
+}
+
 export class GeminiProvider implements GeminiProviderContract {
     readonly id = 'gemini';
     readonly name = 'Google Gemini';
@@ -55,8 +65,7 @@ export class GeminiProvider implements GeminiProviderContract {
         } catch (e: unknown) {
             return {
                 ready: false,
-                // Preserve the existing credential-error message projection without coercion.
-                error: (e as { message?: string } | null | undefined)?.message || 'Gemini 凭据解析失败'
+                error: readinessErrorMessage(e)
             };
         }
     }
@@ -64,27 +73,52 @@ export class GeminiProvider implements GeminiProviderContract {
     async listConversations(options?: GeminiProviderListOptions): Promise<GeminiProviderPageResult> {
         const client = this.getClient();
         const result = await client.getAllConversations(options);
-        // Retain the explicit Gemini companion plus the neutral items alias.
-        // stoppedEarly=true means pagination gave up before exhausting, so more may exist.
-        return {
-            ...result,
+        // The companion retains Gemini control evidence; hasMore remains the legacy hint.
+        const page: GeminiProviderPageResult = {
             items: result.conversations,
+            conversations: result.conversations,
+            total: result.total,
+            exhaustive: result.exhaustive,
+            completionReason: result.completionReason,
+            diagnostics: result.diagnostics,
+            hitGoogleLimit: result.hitGoogleLimit,
             hasMore: !!result.stoppedEarly,
             nextCursor: null,
         };
+        // Preserve absence versus an explicitly present undefined value.
+        if (Object.prototype.propertyIsEnumerable.call(result, 'stoppedEarly')) page.stoppedEarly = result.stoppedEarly;
+        return page;
     }
 
     async fetchConversationDetail(conversationId: string, options?: GeminiProviderDetailOptions): Promise<GeminiProviderConversationDetail> {
         const client = this.getClient();
         const targetSid = options?.targetSid || options?.slot || null;
         const detail = await client.getConversationDetail(conversationId, targetSid);
-        // The companion contract declares the complete pagination detail evidence.
-        return {
-            ...detail,
+        // Keep the full typed Gemini evidence beside the neutral core without cloning messages.
+        const mapped: GeminiProviderConversationDetail = {
             id: detail.id,
             title: detail.title,
             messages: detail.messages,
+            url: detail.url,
+            createdAt: detail.createdAt,
+            updatedAt: detail.updatedAt,
+            messageCount: detail.messageCount,
+            titleSource: detail.titleSource,
+            titles: detail.titles,
+            timestamp: detail.timestamp,
+            chatTime: detail.chatTime,
+            nextPageToken: detail.nextPageToken,
+            attachmentCount: detail.attachmentCount,
         };
+        // Optional evidence keeps the producer's own enumerable property presence.
+        if (Object.prototype.propertyIsEnumerable.call(detail, 'schemaDrift')) mapped.schemaDrift = detail.schemaDrift;
+        if (Object.prototype.propertyIsEnumerable.call(detail, 'turnsRejected')) mapped.turnsRejected = detail.turnsRejected;
+        if (Object.prototype.propertyIsEnumerable.call(detail, 'truncated')) mapped.truncated = detail.truncated;
+        if (Object.prototype.propertyIsEnumerable.call(detail, 'isTruncated')) mapped.isTruncated = detail.isTruncated;
+        if (Object.prototype.propertyIsEnumerable.call(detail, 'truncateReason')) mapped.truncateReason = detail.truncateReason;
+        if (Object.prototype.propertyIsEnumerable.call(detail, '_raw')) mapped._raw = detail._raw;
+        if (Object.prototype.propertyIsEnumerable.call(detail, '_debug')) mapped._debug = detail._debug;
+        return mapped;
     }
 }
 

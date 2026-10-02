@@ -47,7 +47,7 @@ test('provider-neutral - GeminiProvider.fetchConversationDetail guarantees id/ti
     assert.strictEqual(det.id, 'c9');
     assert.strictEqual(det.title, 'DT');
     assert.strictEqual(det.messages.length, 1);
-    assert.strictEqual(det.nextPageToken, null); // extra Gemini fields preserved via spread
+    assert.strictEqual(det.nextPageToken, null); // declared Gemini companion fields are preserved
 });
 
 test('provider-neutral - listing preserves sync completeness evidence and callback control', async () => {
@@ -88,6 +88,8 @@ test('provider-neutral - detail keeps export evidence and targetSid precedence',
     const raw = [null, ['wire evidence']];
     const detail = {
         id: 'audit-chat', title: 'Audit', messages, timestamp: null,
+        createdAt: null, updatedAt: null, chatTime: null, messageCount: 1,
+        url: 'https://gemini.google.com/app/audit-chat', nextPageToken: null, attachmentCount: 0,
         titleSource: 'rpc', titles: { rpc: 'Audit' }, _raw: raw,
         schemaDrift: ['unknown turn'], turnsRejected: 1,
         truncated: true, isTruncated: true, truncateReason: 'token_loop'
