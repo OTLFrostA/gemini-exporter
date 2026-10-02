@@ -49,3 +49,62 @@ test('provider-neutral - GeminiProvider.fetchConversationDetail guarantees id/ti
     assert.strictEqual(det.messages.length, 1);
     assert.strictEqual(det.nextPageToken, null); // extra Gemini fields preserved via spread
 });
+
+test('provider-neutral - listing preserves sync completeness evidence and callback control', async () => {
+    const batch = [{ id: 'audit-chat', title: 'Audit', timestamp: null }];
+    const diagnostics = { hitGoogleLimit: true, stopReason: 'window limit' };
+    const options = {
+        maxPages: 3,
+        onPageBatch: async (items: unknown[], info: { page: number; hasMore: boolean }) => {
+            assert.strictEqual(items, batch);
+            assert.deepStrictEqual(info, { page: 1, hasMore: true });
+            return { shouldStop: true, reason: 'watermark' };
+        }
+    };
+    let observedDecision: unknown;
+    const gp = new GeminiProvider({
+        getAllConversations: async (received: typeof options) => {
+            assert.strictEqual(received, options);
+            observedDecision = await received.onPageBatch(batch, { page: 1, hasMore: true });
+            return {
+                conversations: batch, total: 1, stoppedEarly: true,
+                exhaustive: false, completionReason: 'hit_google_limit',
+                hitGoogleLimit: true, diagnostics
+            };
+        }
+    } as any);
+    const page = await gp.listConversations(options);
+    assert.deepStrictEqual(observedDecision, { shouldStop: true, reason: 'watermark' });
+    assert.strictEqual(page.items, batch);
+    assert.strictEqual(page.conversations, batch);
+    assert.strictEqual(page.exhaustive, false);
+    assert.strictEqual(page.completionReason, 'hit_google_limit');
+    assert.strictEqual(page.hitGoogleLimit, true);
+    assert.strictEqual(page.diagnostics, diagnostics);
+});
+
+test('provider-neutral - detail keeps export evidence and targetSid precedence', async () => {
+    const messages = [{ role: 'model', content: 'Report', documents: [{ contentMarkdown: '# Report' }] }];
+    const raw = [null, ['wire evidence']];
+    const detail = {
+        id: 'audit-chat', title: 'Audit', messages, timestamp: null,
+        titleSource: 'rpc', titles: { rpc: 'Audit' }, _raw: raw,
+        schemaDrift: ['unknown turn'], turnsRejected: 1,
+        truncated: true, isTruncated: true, truncateReason: 'token_loop'
+    };
+    const slots: Array<string | null> = [];
+    const gp = new GeminiProvider({
+        getConversationDetail: async (id: string, sid: string | null) => {
+            assert.strictEqual(id, detail.id);
+            slots.push(sid);
+            return detail;
+        }
+    } as any);
+    const result = await gp.fetchConversationDetail(detail.id, { targetSid: 'u2', slot: 'u1' });
+    await gp.fetchConversationDetail(detail.id, { slot: 'u1' });
+    await gp.fetchConversationDetail(detail.id);
+    assert.deepStrictEqual(slots, ['u2', 'u1', null]);
+    assert.deepStrictEqual(result, detail);
+    assert.strictEqual(result.messages, messages);
+    assert.strictEqual(result._raw, raw);
+});
