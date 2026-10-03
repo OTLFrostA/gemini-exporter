@@ -59,7 +59,7 @@ function onLanguageChange(fn: (lang: string) => void): void {
     if (typeof fn === 'function') langChangeListeners.add(fn);
 }
 
-function t(key: string, ...args: any[]): string {
+function t(key: string, ...args: unknown[]): string {
     ensureLocales();
     let str: any = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
     if (typeof str !== 'string') return String(str);

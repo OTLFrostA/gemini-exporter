@@ -56,7 +56,7 @@ export async function isTakeoutPromptCompleted(): Promise<boolean> {
     return OptionsTakeout ? await OptionsTakeout.isTakeoutPromptCompleted() : false;
 }
 
-export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<any> {
+export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<void> {
     await ensureStorageReady();
     if (OptionsInit && OptionsInit.loadStore) {
         return await OptionsInit.loadStore(force, customSelected);

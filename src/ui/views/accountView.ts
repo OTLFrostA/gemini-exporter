@@ -1,7 +1,7 @@
-import type { IAccountView } from '../../types/ui.js';
+import type { AccountSlots, IAccountView } from '../../types/ui.js';
 import { $, t } from '../uiCommon.js';
 
-export function render(accountSlots: Record<string, any>, currentSlot: string): void {
+export function render(accountSlots: AccountSlots, currentSlot: string): void {
     const sel = $('accountSlotSelect') as HTMLSelectElement | null;
     if (!sel) return;
     const slots = Object.keys(accountSlots || {});

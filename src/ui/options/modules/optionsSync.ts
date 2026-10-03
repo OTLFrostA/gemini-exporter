@@ -43,13 +43,13 @@ function bindSyncButtons(): void {
                 onStart: () => {
                     ProgressView.show(5, typeof t === 'function' ? t('syncingLatest') : '正在同步最新会话...');
                 },
-                onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
+                onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onFinished: ({ message }: any) => {
                     ProgressView.complete(message);
                     ProgressView.hide(2500);
                     if (__loadStore) void __loadStore();
                 },
-                onError: (err: any, errMsg: string) => {
+                onError: (err: any, errMsg?: string) => {
                     ProgressView.update(0, errMsg);
                 }
             });
@@ -65,7 +65,7 @@ function bindSyncButtons(): void {
                 onStart: () => {
                     ProgressView.show(5, typeof t === 'function' ? t('deepSyncing') : '正在全量扫描历史...');
                 },
-                onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
+                onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onFinished: async ({ message, res, count, hitGoogleLimit }: any) => {
                     ProgressView.complete(message);
                     ProgressView.hide(2500);
@@ -73,7 +73,7 @@ function bindSyncButtons(): void {
                     const currentCount = count || res?.count || (Store && typeof (Store as any).getConversations === 'function' ? (Store as any).getConversations().length : 0);
                     await checkAndPromptTakeoutLimit(currentCount, hitGoogleLimit);
                 },
-                onError: async (err: any, errMsg: string, details: any) => {
+                onError: async (err: any, errMsg?: string, details?: any) => {
                     ProgressView.update(0, errMsg);
                     const currentCount = (Store && typeof (Store as any).getConversations === 'function') ? (Store as any).getConversations().length : 0;
                     await checkAndPromptTakeoutLimit(currentCount || details?.count, details?.hitGoogleLimit);
@@ -86,7 +86,7 @@ function bindSyncButtons(): void {
         const slot = Store ? Store.getCurrentSlot() : 'u0';
         if (SyncCtrl) {
             SyncCtrl.stopScan(slot, {
-                onLog: (txt: string, lvl: 'info' | 'warn' | 'error') => log(txt, lvl),
+                onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onStopped: ({ message }: any) => {
                     ProgressView.complete(message);
                 }

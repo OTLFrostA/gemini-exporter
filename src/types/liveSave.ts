@@ -1,3 +1,5 @@
+import type { ChatMessage } from './conversation.js';
+
 export interface LiveSaveConfig {
     enabledDisk: boolean;
     format: 'markdown' | 'json';
@@ -11,7 +13,7 @@ export interface LiveSaveConfig {
 export interface LiveConversationRecord {
     id: string;
     title: string;
-    messages: any[];
+    messages: ChatMessage[];
     timestamp: number;
     updatedAt?: number;
     savedAt: number;

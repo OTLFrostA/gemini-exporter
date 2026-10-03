@@ -1,4 +1,4 @@
-import type { ExportControllerContract } from '../../types/ui.js';
+import type { ExportControllerContract, UIExportOptions, UIExportCallbacks, UIExportResult, ActiveExportEngine } from '../../types/ui.js';
 import ExportEngine from '../../core/engine/exportEngine.js';
 import { PdfExporter } from "../../core/export/pdf/pdfExporter.js";
 import { ProgressView } from '../views/progressView.js';
@@ -40,7 +40,7 @@ export function isRunning(): boolean {
     return exportRunning;
 }
 
-export function getActiveEngine(): any {
+export function getActiveEngine(): ActiveExportEngine | null {
     return activeEngine;
 }
 
@@ -65,9 +65,9 @@ export function abort(): void {
 
 
 export async function runExport(
-    options: any,
-    callbacks: any
-): Promise<any> {
+    options: UIExportOptions,
+    callbacks: UIExportCallbacks
+): Promise<UIExportResult> {
     setRunning(true);
     try {
         activeEngine = new ExportEngine();

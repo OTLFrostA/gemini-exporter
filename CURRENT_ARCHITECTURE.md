@@ -92,6 +92,17 @@ The permanent explicit-any gate covers 14 whole production files listed in
 explicitly outside this gate. See [W2-08 closeout](docs/audits/wave2-integration-closeout.md)
 for the final chain, debt disposition and validation evidence.
 
+## Wave 3 shared type foundations (W3-01)
+
+The shared conversation, live-save, UI and utility contracts now name normalized
+message collections, account metadata and UI operation/callback shapes. Generic
+browser transport remains opaque (`unknown`), and nullable directory state is
+explicit. Direct producer/view signatures adopt the contracts; downstream raw
+transport, storage decoding and export internals remain separate boundary work.
+The scoped gate now covers 18 whole production files, including these four shared
+files. See [W3-01 audit](docs/audits/wave3-shared-type-foundations.md) for the narrow
+runtime adaptation, exact compile-time regression and deferred categories.
+
 ## Maintenance Convergence Status
 
 Status: COMPLETE

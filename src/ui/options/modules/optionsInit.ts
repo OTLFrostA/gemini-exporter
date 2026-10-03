@@ -111,7 +111,7 @@ export async function checkExportSession(): Promise<void> {
     }
 }
 
-export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<any> {
+export async function loadStore(force: boolean = false, customSelected?: Set<string>): Promise<void> {
     try {
         const Store = getStore();
         const List = getList();
