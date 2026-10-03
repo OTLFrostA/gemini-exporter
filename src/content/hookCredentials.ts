@@ -1,4 +1,5 @@
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
+import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
 import type {
     GeminiCredentialsPayload,
     GeminiConversationDeletedPayload,
@@ -7,33 +8,61 @@ import type {
     GeminiNetworkBatchexecutePayload
 } from '../core/protocol/events.js';
 
+declare global {
+    interface Window {
+        GeminiProtocol?: GeminiProtocolModule;
+        __geminiIsStreaming?: boolean;
+        __geminiLastStreamStart?: number;
+        __geminiActiveStreamConvId?: string;
+        __geminiLastStreamComplete?: number;
+        __geminiExporterSyncOnce?: () => void;
+    }
+    interface XMLHttpRequest {
+        __hookUrl?: string | URL;
+    }
+}
+
 (() => {
     if (typeof window === 'undefined') return;
 
-    const Proto: any = GeminiProtocol;
-    if (!Proto) {
+    const rawProto: GeminiProtocolModule | undefined =
+        (typeof GeminiProtocol !== 'undefined' ? GeminiProtocol : undefined) ||
+        (typeof window !== 'undefined' ? window.GeminiProtocol : undefined);
+    if (!rawProto) {
         console.error('[HookCred] GeminiProtocol missing — check manifest content_scripts load order');
         return;
     }
-    const Events = (Proto && (Proto.EVENTS || Proto.CrossWorldEvents)) || CrossWorldEvents;
+    const Proto: GeminiProtocolModule = rawProto;
+    const Events = Proto.EVENTS || CrossWorldEvents;
 
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
     const origSend = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.send : null;
 
     function isDev(): boolean {
-        return typeof window !== 'undefined' && !!(window as any).__gemExporterDevMode;
+        return typeof window !== 'undefined' && Boolean(window.__gemExporterDevMode);
     }
 
-    function captureFromUrl(url: any, body: any): void {
+    function toUrlString(url: string | URL | Request | null | undefined): string {
+        if (!url) return '';
+        if (typeof url === 'string') return url;
+        if (url instanceof URL) return url.toString();
+        if (typeof Request !== 'undefined' && url instanceof Request) return url.url;
+        return String(url);
+    }
+
+    function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
         try {
             if (!url) return;
-            const u = url.toString();
+            const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
-            let atMatch = u.match(/[?&]at=([^&]+)/) || (body && typeof body === 'string' && body.match(/at=([^&]+)/));
+            let atMatch: RegExpMatchArray | [unknown, string] | null = u.match(/[?&]at=([^&]+)/);
+            if (!atMatch && typeof body === 'string') {
+                atMatch = body.match(/at=([^&]+)/);
+            }
             const sidMatch = u.match(/[?&]f\.sid=([^&]+)/) || u.match(/f\.sid=([^&]+)/);
             const blMatch = u.match(/[?&]bl=([^&]+)/);
-            if (body && typeof body === 'string') {
+            if (typeof body === 'string') {
                 try {
                     const params = new URLSearchParams(body);
                     if (!atMatch) {
@@ -65,16 +94,23 @@ import type {
         }
     }
 
-    function detectDeletedConversation(url: any, body: any, responseText: any): void {
+    function detectDeletedConversation(
+        url: string | URL | Request | null | undefined,
+        body: unknown,
+        responseText: unknown
+    ): void {
         try {
-            const hasGz = (body && typeof body === 'string' && body.includes(Proto.RPCS.DELETE)) ||
-                          (responseText && typeof responseText === 'string' && responseText.includes(Proto.RPCS.DELETE)) ||
-                          ((url || '').toString().includes(Proto.RPCS.DELETE));
+            const u = toUrlString(url);
+            const hasGz = (typeof body === 'string' && body.includes(Proto.RPCS.DELETE)) ||
+                          (typeof responseText === 'string' && responseText.includes(Proto.RPCS.DELETE)) ||
+                          u.includes(Proto.RPCS.DELETE);
             if (!hasGz) return;
 
             const slot = getSlotFromUrl(url);
 
-            let targetText = (body || '') + ' ' + (responseText || '');
+            const bodyStr = typeof body === 'string' ? body : '';
+            const respStr = typeof responseText === 'string' ? responseText : '';
+            let targetText = bodyStr + ' ' + respStr;
             try {
                 if (targetText.includes('%')) {
                     targetText = decodeURIComponent(targetText);
@@ -84,13 +120,16 @@ import type {
             }
 
             // Anchor specifically to the delete-RPC payload parameter context to prevent false positives
-            const idMatch = targetText.match(Proto.DELETION_ANCHORS[0]) ||
-                            targetText.match(Proto.DELETION_ANCHORS[1]);
+            const anchor0 = Proto.DELETION_ANCHORS[0];
+            const anchor1 = Proto.DELETION_ANCHORS[1];
+            const idMatch = (anchor0 ? targetText.match(anchor0) : null) ||
+                            (anchor1 ? targetText.match(anchor1) : null);
             if (idMatch && idMatch[1]) {
                 const deletedId = idMatch[1];
+                const payload: GeminiConversationDeletedPayload = { id: deletedId, slot };
                 window.postMessage({
                     type: Events.CONVERSATION_DELETED,
-                    payload: { id: deletedId, slot } as GeminiConversationDeletedPayload
+                    payload
                 }, location.origin);
             }
         } catch (e) {
@@ -98,32 +137,36 @@ import type {
         }
     }
 
-    function getSlotFromUrl(url: any): string {
+    function getSlotFromUrl(url: string | URL | Request | null | undefined): string {
         let slot = 'default';
-        const uStr = (url || '').toString();
+        const uStr = toUrlString(url);
         const m = uStr.match(/\/u\/(\d+)\//);
-        if (m) slot = 'u' + m[1];
+        if (m && m[1]) slot = 'u' + m[1];
         else if (typeof location !== 'undefined') {
             const m2 = location.pathname.match(/\/u\/(\d+)(?:\/|$)/);
-            if (m2) slot = 'u' + m2[1];
+            if (m2 && m2[1]) slot = 'u' + m2[1];
         }
         return slot;
     }
 
-    function isStreamUrl(url: any): boolean {
-        const u = (url || '').toString();
+    function isStreamUrl(url: string | URL | Request | null | undefined): boolean {
+        const u = toUrlString(url);
         return u.includes('StreamGenerate') || u.includes('BardFrontendService');
     }
 
-    function extractConversationId(url: any, body: any, responseText?: any): string | null {
+    function extractConversationId(
+        _url: string | URL | Request | null | undefined,
+        body?: unknown,
+        responseText?: unknown
+    ): string | null {
         try {
             // 1. Check response text first (most authoritative for newly assigned conversation IDs in streaming chunk 1)
-            if (responseText && typeof responseText === 'string') {
+            if (typeof responseText === 'string') {
                 const m = responseText.match(/["']c_([a-f0-9]{8,64})["']/i) || responseText.match(/c_([a-f0-9]{8,64})/i);
                 if (m && m[1]) return m[1];
             }
             // 2. Check request body
-            if (body && typeof body === 'string') {
+            if (typeof body === 'string') {
                 let decoded = body;
                 try { decoded = decodeURIComponent(body); } catch {}
                 const m = decoded.match(/["']c_([a-f0-9]{8,64})["']/i) || decoded.match(/c_([a-f0-9]{8,64})/i);
@@ -140,57 +183,68 @@ import type {
         return null;
     }
 
-    function broadcastStreamStart(url: any, body: any): void {
+    function broadcastStreamStart(url: string | URL | Request | null | undefined, body?: unknown): void {
         try {
             const convId = extractConversationId(url, body);
             const slot = getSlotFromUrl(url);
             try {
-                (window as any).__geminiIsStreaming = true;
-                (window as any).__geminiLastStreamStart = Date.now();
-                if (convId) (window as any).__geminiActiveStreamConvId = convId;
+                window.__geminiIsStreaming = true;
+                window.__geminiLastStreamStart = Date.now();
+                if (convId) window.__geminiActiveStreamConvId = convId;
             } catch {}
+            const payload: GeminiStreamStartPayload = { id: convId, slot };
             window.postMessage({
                 type: Events.STREAM_START,
-                payload: { id: convId, slot } as GeminiStreamStartPayload
+                payload
             }, location.origin);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
         }
     }
 
-    function broadcastStreamComplete(url: any, body: any, responseText?: any): void {
+    function broadcastStreamComplete(
+        url: string | URL | Request | null | undefined,
+        body?: unknown,
+        responseText?: unknown
+    ): void {
         try {
             const convId = extractConversationId(url, body, responseText);
             const slot = getSlotFromUrl(url);
             try {
-                (window as any).__geminiIsStreaming = false;
-                (window as any).__geminiLastStreamComplete = Date.now();
-                if (convId) (window as any).__geminiActiveStreamConvId = convId;
+                window.__geminiIsStreaming = false;
+                window.__geminiLastStreamComplete = Date.now();
+                if (convId) window.__geminiActiveStreamConvId = convId;
             } catch {}
+            const payload: GeminiStreamCompletePayload = {
+                id: convId,
+                slot,
+                url: toUrlString(url)
+            };
             window.postMessage({
                 type: Events.STREAM_COMPLETE,
-                payload: { id: convId, slot, url: (url || '').toString() } as GeminiStreamCompletePayload
+                payload
             }, location.origin);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
         }
     }
 
-    function broadcastBatchexecute(url: any, text: any): void {
+    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown): void {
         try {
             // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
             // not take part in this test — including it makes the filter always pass
             // and relays every response body (up to 3MB) across worlds. Only the
             // payloads the ISOLATED side actually parses (list / detail) are relayed.
-            if (!text || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
+            if (typeof text !== 'string' || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
             const slot = getSlotFromUrl(url);
+            const payload: GeminiNetworkBatchexecutePayload = {
+                text: text.slice(0, 3000000), // Protect against memory spikes
+                slot,
+                url: toUrlString(url)
+            };
             window.postMessage({
                 type: Events.NETWORK_BATCHEXECUTE,
-                payload: {
-                    text: text.slice(0, 3000000), // Protect against memory spikes
-                    slot,
-                    url: (url || '').toString()
-                } as GeminiNetworkBatchexecutePayload
+                payload
             }, location.origin);
         } catch (e) {
             if (isDev()) console.debug('[GemExporter:hook]', e);
@@ -201,7 +255,7 @@ import type {
 
     async function readCappedText(response: Response, cap: number = BATCHEXECUTE_SNIFF_CAP): Promise<{ text: string; truncated: boolean }> {
         try {
-            const body: any = (response as any).body;
+            const body = response.body;
             if (body && typeof body.getReader === 'function') {
                 const reader = body.getReader();
                 const chunks: Uint8Array[] = [];
@@ -227,15 +281,15 @@ import type {
                 } finally {
                     try {
                         if (truncated && typeof reader.cancel === 'function') await reader.cancel();
-                    } catch (_) { /* best effort */ }
-                    try { reader.releaseLock(); } catch (_) { /* best effort */ }
+                    } catch { /* best effort */ }
+                    try { reader.releaseLock(); } catch { /* best effort */ }
                 }
                 const merged = new Uint8Array(received);
                 let off = 0;
                 for (const c of chunks) { merged.set(c, off); off += c.length; }
                 const decoded = (typeof TextDecoder !== 'undefined')
                     ? new TextDecoder().decode(merged)
-                    : String.fromCharCode.apply(null, Array.from(merged.slice(0, 65536)) as number[]);
+                    : String.fromCharCode.apply(null, Array.from(merged.slice(0, 65536)));
                 return { text: decoded, truncated };
             }
         } catch (e) {
@@ -246,50 +300,59 @@ import type {
     }
 
     if (origFetch) {
-        window.fetch = async function(...args: any[]) {
-            const url = args[0];
-            const init = args[1] || {};
-            const body = init.body || (args[0] && args[0].body);
+        const nativeFetch = origFetch;
+        window.fetch = async function(
+            this: unknown,
+            input: RequestInfo | URL,
+            init?: RequestInit
+        ): Promise<Response> {
+            let requestBody: unknown;
+            if (typeof Request !== 'undefined' && input instanceof Request) {
+                requestBody = input.body;
+            } else if (typeof input === 'object' && input !== null && 'body' in input) {
+                requestBody = input.body;
+            }
+            const body: unknown = init?.body ?? requestBody;
 
             try {
-                captureFromUrl(url, body);
-                if (isStreamUrl(url)) {
-                    broadcastStreamStart(url, body);
+                captureFromUrl(input, body);
+                if (isStreamUrl(input)) {
+                    broadcastStreamStart(input, body);
                 }
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
 
-            const response = await origFetch.apply(this, args as any);
+            const response = await nativeFetch.call(this, input, init);
 
             try {
-                const u = (url || '').toString();
+                const u = toUrlString(input);
                 if (u.includes('batchexecute')) {
                     const cloned = response.clone();
                     readCappedText(cloned).then(({ text: txt }) => {
                         try {
-                            detectDeletedConversation(url, body, txt);
-                            broadcastBatchexecute(url, txt);
+                            detectDeletedConversation(input, body, txt);
+                            broadcastBatchexecute(input, txt);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }
-                    }).catch((e: any) => {
+                    }).catch((e: unknown) => {
                         if (isDev()) console.debug('[GemExporter:hook]', e);
                     });
-                } else if (isStreamUrl(url)) {
+                } else if (isStreamUrl(input)) {
                     try {
                         const cloned = response.clone();
                         readCappedText(cloned).then(({ text: txt }) => {
                             try {
-                                broadcastStreamComplete(url, body, txt);
+                                broadcastStreamComplete(input, body, txt);
                             } catch (e) {
                                 if (isDev()) console.debug('[GemExporter:hook]', e);
                             }
                         }).catch(() => {
-                            broadcastStreamComplete(url, body);
+                            broadcastStreamComplete(input, body);
                         });
                     } catch {
-                        broadcastStreamComplete(url, body);
+                        broadcastStreamComplete(input, body);
                     }
                 }
             } catch (e) {
@@ -301,22 +364,38 @@ import type {
     }
 
     if (origOpen && origSend) {
-        XMLHttpRequest.prototype.open = function(...args: any[]) {
+        const nativeOpen = origOpen;
+        const nativeSend = origSend;
+
+        XMLHttpRequest.prototype.open = function(
+            this: XMLHttpRequest,
+            method: string,
+            url: string | URL,
+            async?: boolean,
+            username?: string | null,
+            password?: string | null
+        ): void {
             try {
-                (this as any).__hookUrl = args[1];
+                this.__hookUrl = url;
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
-            return origOpen.apply(this, args as any);
+            if (username !== undefined || password !== undefined) {
+                nativeOpen.call(this, method, url, async ?? true, username, password);
+            } else {
+                nativeOpen.call(this, method, url, async ?? true);
+            }
         };
 
-        XMLHttpRequest.prototype.send = function(...args: any[]) {
+        XMLHttpRequest.prototype.send = function(
+            this: XMLHttpRequest,
+            body?: Document | XMLHttpRequestBodyInit | null
+        ): void {
             try {
-                const url = (this as any).__hookUrl;
-                const body = args[0];
+                const url = this.__hookUrl;
                 captureFromUrl(url, body);
 
-                const u = (url || '').toString();
+                const u = toUrlString(url);
                 if (u.includes('batchexecute')) {
                     this.addEventListener('load', () => {
                         try {
@@ -345,7 +424,7 @@ import type {
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
-            return origSend.apply(this, args as any);
+            nativeSend.call(this, body);
         };
     }
 
@@ -360,7 +439,7 @@ import type {
     // window.SyncController in options.ts (documented Playwright/live-harness
     // hooks, kept by user decision).
     try {
-        (window as any).__geminiExporterSyncOnce = () => {
+        window.__geminiExporterSyncOnce = () => {
             document.dispatchEvent(new CustomEvent('gemini-exporter:test-sync-once'));
         };
     } catch (e) {
