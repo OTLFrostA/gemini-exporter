@@ -29,8 +29,8 @@ export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
     scraper?: typeof DomScraper;
     assets?: typeof AssetFetcher;
-    storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>>;
-    utils?: Partial<Pick<typeof GeminiUtils, 'cleanTitle' | 'isRealTitle' | 'setTitleBySource' | 'resolveDetailTitle'>> & { normalizeReliableTitleSource?: typeof normalizeReliableTitleSource };
+    storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
+    utils?: (Partial<Pick<typeof GeminiUtils, 'cleanTitle' | 'isRealTitle' | 'setTitleBySource' | 'resolveDetailTitle'>> & { normalizeReliableTitleSource?: typeof normalizeReliableTitleSource }) | null;
 }
 
 export function init({
