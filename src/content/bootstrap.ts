@@ -24,16 +24,16 @@ const Proto: GeminiProtocolModule = GeminiProtocol as any;
 
 function isDev(): boolean {
     if (typeof window !== 'undefined') {
-        const ctx = (window as any).__gemExporterContentContext;
+        const ctx = window.__gemExporterContentContext;
         if (ctx && typeof ctx.isDevMode === 'function') return ctx.isDevMode();
-        return !!(window as any).__gemExporterDevMode;
+        return !!window.__gemExporterDevMode;
     }
     return false;
 }
 
 function updateContextCreds(creds: Record<string, any>): void {
     if (typeof window !== 'undefined') {
-        const ctx = (window as any).__gemExporterContentContext;
+        const ctx = window.__gemExporterContentContext;
         if (ctx && typeof ctx.setCredentials === 'function') {
             ctx.setCredentials(creds);
         }
@@ -45,12 +45,11 @@ export function extractAtFromPage(): string {
     try {
         try {
             if (typeof window !== 'undefined') {
-                const w = window as any;
-                if (w.__gemExporterExtractedAt && typeof w.__gemExporterExtractedAt === 'string' && w.__gemExporterExtractedAt.length > 15) {
-                    return w.__gemExporterExtractedAt;
+                if (window.__gemExporterExtractedAt && typeof window.__gemExporterExtractedAt === 'string' && window.__gemExporterExtractedAt.length > 15) {
+                    return window.__gemExporterExtractedAt;
                 }
-                if (w.__geminiAt && typeof w.__geminiAt === 'string' && w.__geminiAt.length > 15) {
-                    return w.__geminiAt;
+                if (window.__geminiAt && typeof window.__geminiAt === 'string' && window.__geminiAt.length > 15) {
+                    return window.__geminiAt;
                 }
             }
         } catch (e) {
@@ -58,7 +57,7 @@ export function extractAtFromPage(): string {
         }
 
         try {
-            const w = (typeof window !== 'undefined' ? window : globalThis) as any;
+            const w = typeof window !== 'undefined' ? window : globalThis;
             if (w._WIZ_global_data?.[Proto.TOKENS.AT]) return w._WIZ_global_data[Proto.TOKENS.AT];
             if (w.WIZ_global_data?.[Proto.TOKENS.AT]) return w.WIZ_global_data[Proto.TOKENS.AT];
             if (w.__WIZ_global_data?.[Proto.TOKENS.AT]) return w.__WIZ_global_data[Proto.TOKENS.AT];
@@ -267,10 +266,9 @@ export function ensureCreds(): Promise<any> {
 }
 
 if (typeof window !== 'undefined') {
-    const w = window as any;
-    w.__gemExporterExtractAt = extractAtFromPage;
-    w.__gemExporterExtractBl = extractBlFromPage;
-    w.__gemExporterEnsureCreds = ensureCreds;
+    window.__gemExporterExtractAt = extractAtFromPage;
+    window.__gemExporterExtractBl = extractBlFromPage;
+    window.__gemExporterEnsureCreds = ensureCreds;
 
     void ensureCreds();
     document.addEventListener('DOMContentLoaded', () => ensureCreds(), { once: true });

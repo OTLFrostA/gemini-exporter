@@ -20,17 +20,37 @@ declare var TourGuide: import('./ui.js').TourGuideContract;
 
 declare var TabService: import('./utils.js').TabServiceModule;
 
+declare var _WIZ_global_data: Record<string, string> | undefined;
+declare var WIZ_global_data: Record<string, string> | undefined;
+declare var __WIZ_global_data: Record<string, string> | undefined;
+
 interface Window {
     __gemExporterAborted?: boolean;
-    __gemExporterActiveClient?: any;
-    __gemExporterContentContext?: any;
-    __gemExporterDeepScanPromise?: any;
+    __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
+    __gemExporterContentContext?: import('../content/contentContext.js').ContentContext;
+    __gemExporterDeepScanPromise?: Promise<unknown> | null;
     __gemExporterInjected?: boolean;
     __gemExporterDevMode?: boolean;
-    __gemExporterScrollAll?: any;
-    __gemExporterExtractAt?: any;
-    __gemExporterExtractBl?: any;
-    __gemExporterEnsureCreds?: any;
+    __gemExporterVerboseLog?: boolean;
+    __gemExporterLogAll?: boolean;
+    __gemExporterScrollAll?: (() => void) | null;
+    __gemExporterExtractAt?: () => string;
+    __gemExporterExtractBl?: () => string;
+    __gemExporterEnsureCreds?: () => Promise<unknown>;
+    __gemExporterExtractedAt?: string;
+    __gemExporterExtractedBl?: string;
+    __gemExporterCleanups?: Array<() => void>;
+    __gemExporterHistoryHooked?: boolean;
+    __gemExporterBridgeListening?: boolean;
+    __gemExporterSyncInterval?: unknown;
+    __gemExporterTitleObserver?: unknown;
+    __gemExporterDebounceTimer?: unknown;
+    __gemExporterUrlWatcher?: unknown;
+    __gemExporterBl?: string | null;
+    __geminiAt?: string;
+    _WIZ_global_data?: Record<string, string>;
+    WIZ_global_data?: Record<string, string>;
+    __WIZ_global_data?: Record<string, string>;
 }
 
 
