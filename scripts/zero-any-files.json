@@ -3,6 +3,8 @@
   "src/core/utils/mergeUtils.ts",
   "src/core/api/geminiParser.ts",
   "src/core/api/parser/payload.ts",
+  "src/core/api/parser/attachments.ts",
+  "src/core/api/parser/extractors.ts",
   "src/core/api/parser/parseList.ts",
   "src/core/api/parser/structuredContent.ts",
   "src/core/api/client/pagination.ts",

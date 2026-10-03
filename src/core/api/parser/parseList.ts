@@ -107,6 +107,13 @@ function getProtocol(): GeminiProtocolModule {
                     }
                 };
             }
+            if (!Array.isArray(inner)) {
+                return {
+                    conversations: [],
+                    nextPageToken: null,
+                    _raw: inner
+                };
+            }
             const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
             let list = Array.isArray(inner[innerSchema.LIST_SECONDARY]) ? inner[innerSchema.LIST_SECONDARY] : (Array.isArray(inner[innerSchema.METADATA_ONLY_LIST]) ? inner[innerSchema.METADATA_ONLY_LIST] : []);
             let convs: ConversationListItem[] = [];
