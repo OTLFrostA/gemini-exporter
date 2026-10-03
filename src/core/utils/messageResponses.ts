@@ -20,8 +20,14 @@ export function isScanResponse(value: unknown): value is ScanResponse {
         !optionalNumber(value.count) || !optionalNumber(value.total) ||
         !optionalString(value.error) || !optionalBoolean(value.hitGoogleLimit)) return false;
     const diagnostics = value.diagnostics;
-    return diagnostics === undefined || (isObjectRecord(diagnostics) &&
-        optionalBoolean(diagnostics.hitGoogleLimit) && optionalString(diagnostics.stopReason));
+    if (diagnostics !== undefined && (!isObjectRecord(diagnostics) ||
+        !optionalBoolean(diagnostics.hitGoogleLimit) || !optionalString(diagnostics.stopReason))) return false;
+    if (value.success) {
+        const hasFiniteCount = typeof value.count === 'number' && Number.isFinite(value.count);
+        const hasFiniteTotal = typeof value.total === 'number' && Number.isFinite(value.total);
+        if (!hasFiniteCount && !hasFiniteTotal) return false;
+    }
+    return true;
 }
 
 /** Only the top-level fields used by popup are checked; rich detail remains formatter input. */

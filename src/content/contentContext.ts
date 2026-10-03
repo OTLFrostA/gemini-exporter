@@ -78,7 +78,7 @@ export class ContentContext {
     public setActiveClient(client: ActiveClientContract | null): void {
         this._activeClient = client;
         if (this._devMode && typeof window !== 'undefined') {
-            (window as any).__gemExporterActiveClient = client;
+            window.__gemExporterActiveClient = client;
         }
     }
 

@@ -633,7 +633,8 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
     function findDocContentById(root: unknown, docId: string): unknown {
         if (!docId) return null;
         let targetId = String(docId).replace(/^c_/, "");
-        let matched: any = null;
+        type MatchedDocContent = unknown[] & { contentMatch?: "substring" };
+        let matched: MatchedDocContent | null = null;
 
         deepWalk(root, (node) => {
             if (matched) return false;
@@ -655,7 +656,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                     let hasSections = node.some(x => Array.isArray(x) && x.some(y => Array.isArray(y) && typeof y[0] === "string" && y[0].length > 50));
                     let hasLongStr = node.some(x => typeof x === "string" && x.length > 200 && (x.includes("#") || x.includes("\n\n")));
                     if (hasSections || hasLongStr) {
-                        matched = node;
+                        matched = node as MatchedDocContent;
                         if (idMatch === "substring") matched.contentMatch = "substring";
                         return false;
                     }
@@ -670,7 +671,13 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         let links: DocLink[] = [];
         let contentMarkdown = "";
         // P1-9: 上游 heuristic 标记透传，不静默转成正常可信结果
-        const contentMatch = (docContentArr as any)?.contentMatch === "substring" ? "substring" as const : void 0;
+        const contentMatch = (
+            typeof docContentArr === "object" &&
+            docContentArr !== null &&
+            (docContentArr as { contentMatch?: unknown }).contentMatch === "substring"
+        )
+            ? "substring" as const
+            : void 0;
         if (!Array.isArray(docContentArr)) return { sections, links, contentMarkdown, contentMatch };
 
         deepWalk(docContentArr, (node) => {
