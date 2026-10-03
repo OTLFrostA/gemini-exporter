@@ -365,7 +365,10 @@ declare global {
         const nativeOpen = origOpen;
         const nativeSend = origSend;
 
-        XMLHttpRequest.prototype.open = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['open']>): void {
+        type XhrOpenArgs =
+            | [method: string, url: string | URL]
+            | [method: string, url: string | URL, async: boolean, username?: string | null, password?: string | null];
+        const hookedOpen = function(this: XMLHttpRequest, ...args: XhrOpenArgs): void {
             try {
                 this.__hookUrl = args[1];
             } catch (e) {
@@ -373,6 +376,7 @@ declare global {
             }
             nativeOpen.apply(this, args);
         };
+        XMLHttpRequest.prototype.open = hookedOpen;
 
         XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
             try {

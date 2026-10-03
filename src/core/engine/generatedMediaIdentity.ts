@@ -5,11 +5,12 @@ type GenerationAttachment = {
     providerRequestId?: string;
     generation?: GeneratedMediaIdentity;
     imageOrdinal?: number;
+    fileName?: string;
 };
 
 type GenerationMessage = {
-    role?: string;
-    content?: string;
+    role?: 'user' | 'model' | 'assistant' | 'system';
+    content: string;
     id?: string;
     timestamp?: number | string | null;
     turnId?: string;
