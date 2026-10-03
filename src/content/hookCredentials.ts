@@ -374,7 +374,11 @@ declare global {
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
-            nativeOpen.apply(this, args);
+            if (args.length === 2) {
+                nativeOpen.call(this, args[0], args[1]);
+            } else {
+                nativeOpen.apply(this, args);
+            }
         };
         XMLHttpRequest.prototype.open = hookedOpen;
 
