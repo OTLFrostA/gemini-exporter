@@ -1,3 +1,5 @@
+import type { ContentConversationDetail, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
+import type { normalizeReliableTitleSource, TitleResolutionInput } from '../core/utils/titleUtils.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import { SyncEngine } from './syncEngine.js';
 import { DomScraper } from './domScraper.js';
@@ -27,8 +29,8 @@ export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine;
     scraper?: typeof DomScraper;
     assets?: typeof AssetFetcher;
-    storage?: any;
-    utils?: any;
+    storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>>;
+    utils?: Partial<Pick<typeof GeminiUtils, 'cleanTitle' | 'isRealTitle' | 'setTitleBySource' | 'resolveDetailTitle'>> & { normalizeReliableTitleSource?: typeof normalizeReliableTitleSource };
 }
 
 export function init({
@@ -46,14 +48,14 @@ export function init({
 
     const cleanTitle = (t?: string | null) => (Utils?.cleanTitle ? Utils.cleanTitle(t || '') : (t || '').trim());
     const isRealTitle = (t?: string | null, id?: string) => (Utils?.isRealTitle ? Utils.isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
-    const setTitleBySource = (it: any, src: string, val: string) => {
+    const setTitleBySource = (it: TitleResolutionInput, src: string, val: string) => {
         if (Utils?.setTitleBySource) return Utils.setTitleBySource(it, src, val);
         const rel = Utils?.normalizeReliableTitleSource ? Utils.normalizeReliableTitleSource(src) : undefined;
         if (rel && it) {
             (it.titles = it.titles || {})[rel] = val;
         }
     };
-    const resolveDetailTitle = (msgs: any[], id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
+    const resolveDetailTitle = (msgs: ContentConversationDetail['messages'], id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
 
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
@@ -132,13 +134,14 @@ export function init({
 
         if (msg.action === 'getConversationDetail') {
             const detailMsg = msg as GetConversationDetailMessage;
+            const respondDetail = (response: GetConversationDetailResponse) => respond(response);
             const cid = detailMsg.conversationId;
             if (!cid) {
-                respond({ success: false, error: 'no id' });
+                respondDetail({ success: false, error: 'no id' });
                 return true;
             }
             void (async () => {
-                async function persistDetailTitle(chatObj: any): Promise<void> {
+                async function persistDetailTitle(chatObj: ContentConversationDetail): Promise<void> {
                     if (!chatObj) return;
                     const nid = normId(cid || chatObj.id);
                     chatObj.title = cleanTitle(chatObj.title);
@@ -160,7 +163,7 @@ export function init({
                         // bypassed nothing here since setTitleBySource already
                         // arbitrates through the title tiers.
                         if (Storage && typeof Storage.updateConversation === 'function') {
-                            await Storage.updateConversation(slot, nid, (current: any) => {
+                            await Storage.updateConversation(slot, nid, (current) => {
                                 if (!current) return null;
                                 const item = { ...current, titles: { ...(current.titles || {}) } };
                                 const beforeTitle = item.title;
@@ -175,14 +178,14 @@ export function init({
                     }
                 }
 
-                let batchexecuteEmptyDebug: any = null;
+                let batchexecuteEmptyDebug: ProviderEmptyDebug | null = null;
                 try {
                     const provider = resolveProvider() as ApplicationProvider | undefined;
                     if (provider) {
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
                         if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                             await persistDetailTitle(detail);
-                            respond({ success: true, data: detail, source: 'batchexecute' });
+                            respondDetail({ success: true, data: detail, source: 'batchexecute' });
                             return;
                         } else if (detail) {
                             const rawKeys = detail._raw ? Object.keys(detail._raw) : [];
@@ -208,7 +211,7 @@ export function init({
                                 await Storage.removeConversation(slot, cid);
                                 const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
                                     ? await Storage.getLastSync(slot)
-                                    : { count: (await Storage.getConversations(slot)).length };
+                                    : { count: (await Storage.getConversations!(slot)).length };
                                 const count = syncMeta.count;
                                 if (Sync && Sync.updateBadge) {
                                     Sync.updateBadge(count, 0);
@@ -228,7 +231,7 @@ export function init({
                             if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
                         }
                         const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
-                        respond({
+                        respondDetail({
                             success: true,
                             data: {
                                 id: cid,
@@ -249,7 +252,7 @@ export function init({
                         const chat = await Scraper.contentFetchChatDetail(cid);
                         if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
                             await persistDetailTitle(chat);
-                            respond({ success: true, data: chat, source: 'dom' });
+                            respondDetail({ success: true, data: chat, source: 'dom' });
                             return;
                         } else {
                             if (contentContext.isDevMode()) {
@@ -265,7 +268,7 @@ export function init({
                                         await Storage.removeConversation(slot, cid);
                                         const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
                                             ? await Storage.getLastSync(slot)
-                                            : { count: (await Storage.getConversations(slot)).length };
+                                            : { count: (await Storage.getConversations!(slot)).length };
                                         const count = syncMeta.count;
                                         if (Sync && Sync.updateBadge) {
                                             Sync.updateBadge(count, 0);
@@ -288,7 +291,7 @@ export function init({
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
                             const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
                             const errDomEmpty = contentContext.isZh() ? 'DOM 返回内容为空' : 'DOM returned empty content';
-                            respond({
+                            respondDetail({
                                 success: true,
                                 data: {
                                     ...chat,
@@ -310,14 +313,14 @@ export function init({
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     const mergedDebug = { batchexecuteEmptyDebug, domError: errMsg };
-                    respond({ success: false, error: errMsg, _debug: mergedDebug });
+                    respondDetail({ success: false, error: errMsg, _debug: mergedDebug });
                 }
                 // S1: fail closed — every response path above returns, so
                 // reaching here means nothing was sent (e.g. no provider
                 // and no scraper). Never leave the port hanging. The
                 // exactly-once guard makes this a no-op when a response
                 // was already produced.
-                respond({ ok: false, success: false, error: 'conversation detail unavailable: no provider or scraper produced a result' });
+                respondDetail({ ok: false, success: false, error: 'conversation detail unavailable: no provider or scraper produced a result' });
             })();
             return true;
         }

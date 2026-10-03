@@ -65,6 +65,14 @@ Verdict 定义：
 
 "两套 Actions" 澄清：`framework/actions.py`（命令式 helper）与 `pipeline/actions.py`（原子动作原语）是**不同抽象层级**，前者已委托给后者所在的 pipeline，不存在"同一职责两套实现"。
 
+## Wave 2 detail transport status (W2-06)
+
+Content detail responses now distinguish Gemini companion evidence, DOM observations
+and deletion/empty diagnostics in `src/types/detailTransport.ts`. Router detail
+responses and live-save acquisition use these types; flat wire payloads and fallback
+precedence remain unchanged. Broad runtime/asset/export transport and cancellation
+remain deferred. See [W2-06 report](docs/audits/wave2-detail-transport-consumer.md).
+
 ## Maintenance Convergence Status
 
 Status: COMPLETE

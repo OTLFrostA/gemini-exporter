@@ -1,3 +1,4 @@
+import type { TitleSources } from '../../../types/conversation.js';
 import { normId } from '../../utils/pathUtils.js';
 import {
     cleanTitle,
@@ -32,7 +33,7 @@ export interface BuildExportCompletionInput {
     /** Explicit provenance/source of candidate title (e.g. 'rpc', 'takeout', 'dom', 'sniff') */
     titleProvenance?: string | null;
     /** Explicit titles map if available */
-    titles?: Record<string, string> | null;
+    titles?: TitleSources | null;
     /** Explicit message count if already calculated */
     messageCount?: number;
     /** Explicit authoritative timestamp if available */

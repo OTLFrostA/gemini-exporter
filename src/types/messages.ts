@@ -1,3 +1,4 @@
+export type { GetConversationDetailResponse } from './detailTransport.js';
 import type { Conversation } from './conversation.js';
 import type { LiveSaveConfig } from './liveSave.js';
 
