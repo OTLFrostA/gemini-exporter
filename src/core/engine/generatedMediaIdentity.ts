@@ -9,7 +9,7 @@ type GenerationAttachment = {
 };
 
 type GenerationMessage = {
-    role?: 'user' | 'model' | 'assistant' | 'system';
+    role: 'user' | 'model' | 'assistant' | 'system';
     content: string;
     id?: string;
     timestamp?: number | string | null;
@@ -19,11 +19,6 @@ type GenerationMessage = {
     images?: GenerationAttachment[];
     attachments?: GenerationAttachment[];
 };
-
-interface GenerationChat {
-    id?: string;
-    messages?: GenerationMessage[];
-}
 
 /** Takeout activity timestamps have second precision; RPC retains milliseconds. */
 function eventSecond(value: unknown): number | null {
@@ -60,9 +55,9 @@ export function sameGenerationEvent(a: GeneratedMediaIdentity, b: GeneratedMedia
 }
 
 /** Resolve only a unique prompt/time event and its sole response, never a first/last turn guess. */
-export function findGenerationModelMessage(chat: GenerationChat, generation: GeneratedMediaIdentity): GenerationMessage | null {
+export function findGenerationModelMessage<T extends GenerationMessage>(chat: { id?: string; messages?: T[] }, generation: GeneratedMediaIdentity): T | null {
     if (chat?.id && normalizeChatId(chat.id) !== normalizeChatId(generation.chatId)) return null;
-    const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+    const messages: T[] = Array.isArray(chat?.messages) ? chat.messages : [];
 
     const targetReq = normalizeRequestId(generation.providerRequestId);
     if (targetReq) {

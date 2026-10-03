@@ -3,7 +3,7 @@ import type {
     GeneratedMediaIdentity
 } from "../../types/conversation.js";
 import type { TakeoutEngineModule } from "./takeoutEngine.js";
-import type { DownloadAssetDirectMessage, DownloadAssetResponse } from "../../types/messages.js";
+import type { DownloadAssetDirectMessage } from "../../types/messages.js";
 
 export interface ProcessAssetOptions {
     isImage?: boolean;
@@ -31,7 +31,27 @@ export interface AcquireAssetBytesResult {
     localName: string;
 }
 
-type AssetDownloadResponse = DownloadAssetResponse;
+interface AssetDownloadResponse {
+    success?: boolean;
+    ok?: boolean;
+    error?: string;
+    dataBuffer?: ArrayBuffer | ArrayBufferView | null;
+    dataBase64?: string | null;
+    blobBase64?: string | null;
+    dataUrl?: string | null;
+    mimeType?: string | null;
+    mime?: string | null;
+}
+
+interface AssetTabWithId {
+    id: number;
+}
+
+type AssetTabCandidate = chrome.tabs.Tab | { id?: number };
+
+function hasAssetTabId(tab: AssetTabCandidate | null | undefined): tab is AssetTabWithId {
+    return !!tab && typeof tab.id === 'number';
+}
 
 export interface TabAssetRequestExtra {
     fileName?: string;
@@ -84,7 +104,7 @@ export interface AssetPipelineOptions {
     writer?: IExportWriter | null;
     writeFileDirect?: (path: string, content: Uint8Array) => Promise<void>;
     takeoutEngine?: AssetPipelineTakeoutEngine | TakeoutEngineModule | null;
-    getGeminiTab?: (slot?: string) => Promise<chrome.tabs.Tab | { id?: number } | null | undefined>;
+    getGeminiTab?: (slot?: string) => Promise<AssetTabCandidate | null | undefined>;
     sendToGeminiTab?: (
         message: DownloadAssetDirectMessage,
         slot?: string,
@@ -108,7 +128,7 @@ export interface AssetPipelineInstance {
     writer: IExportWriter | null;
     writeFileDirect: ((path: string, content: Uint8Array) => Promise<void>) | null;
     takeoutEngine: AssetPipelineTakeoutEngine | TakeoutEngineModule | null;
-    getGeminiTab: ((slot?: string) => Promise<chrome.tabs.Tab | { id?: number } | null | undefined>) | null;
+    getGeminiTab: ((slot?: string) => Promise<AssetTabCandidate | null | undefined>) | null;
     sendToGeminiTab: ((message: DownloadAssetDirectMessage, slot?: string, timeoutMs?: number) => Promise<unknown>) | null;
     fetchAssetDelegate: ((params: FetchAssetParams) => Promise<unknown>) | null;
     onLog: (msg: string, level?: string) => void;
@@ -283,7 +303,7 @@ class AssetPipeline implements AssetPipelineInstance {
         item: AssetPipelineItem,
         timeoutMs: number,
         signal: AbortSignal | null
-    ): Promise<AssetDownloadResponse> {
+    ): Promise<AssetDownloadResponse | null> {
         let r: AssetDownloadResponse | null = null;
         // Search thumbnails are public media. Fetch from the extension origin,
         // whose host permission avoids Gemini page CORS restrictions.
@@ -317,10 +337,10 @@ class AssetPipeline implements AssetPipelineInstance {
             fileName: item.fileName || item.title,
             candidates: Array.isArray(item.candidates) ? item.candidates : undefined
         };
-        const requestFromTab = async (preferBuffer: boolean): Promise<AssetDownloadResponse> => {
+        const requestFromTab = async (preferBuffer: boolean): Promise<AssetDownloadResponse | null> => {
             const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-            let response: AssetDownloadResponse | null = (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
-                ? await sendTabAssetRequest(tab.id as number, targetUrl, chat.id, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
+            let response: AssetDownloadResponse | null = (hasAssetTabId(tab) && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
+                ? await sendTabAssetRequest(tab.id, targetUrl, chat.id, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
                 : null;
             const noReceiver = response && !response.success &&
                 /Receiving end does not exist|Could not establish connection/i.test(String(response.error || ''));
@@ -338,7 +358,7 @@ class AssetPipeline implements AssetPipelineInstance {
                     response = { success: false, error: getErrorMessage(e) };
                 }
             }
-            return signal?.aborted ? { success: false, error: 'aborted' } : (response || { success: false, error: 'Download failed without response' });
+            return signal?.aborted ? { success: false, error: 'aborted' } : response;
         };
 
         if (this.fetchAssetDelegate && targetUrl) {
@@ -366,7 +386,7 @@ class AssetPipeline implements AssetPipelineInstance {
         if (extensionFailure && !r?.success && !r?.ok) {
             return { success: false, error: `${extensionFailure}; page fallback: ${r?.error || 'unavailable'}` };
         }
-        return r || { success: false, error: 'Download failed without response' };
+        return r;
     }
 
     private extractDownloadPayload(r: AssetDownloadResponse | null | undefined, isImage: boolean): {

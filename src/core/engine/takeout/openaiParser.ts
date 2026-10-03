@@ -96,7 +96,7 @@ interface OpenAiRawConversation {
     create_time?: number | null;
     update_time?: number | null;
     current_node?: string | null;
-    mapping?: Record<string, OpenAiMappingNode | undefined> | null;
+    mapping?: Record<string, unknown> | null;
     is_archived?: boolean | null;
 }
 
@@ -160,6 +160,33 @@ function isOpenAiRawConversation(val: unknown): val is OpenAiRawConversation {
     if ('title' in val && val.title !== null && typeof val.title !== 'string') return false;
     if ('current_node' in val && val.current_node !== null && typeof val.current_node !== 'string') return false;
     if ('mapping' in val && val.mapping !== null && !isRecord(val.mapping)) return false;
+    return true;
+}
+
+function isOpenAiRawMessage(val: unknown): val is OpenAiRawMessage {
+    if (!isRecord(val)) return false;
+    if ('id' in val && val.id !== null && typeof val.id !== 'string') return false;
+    if ('author' in val && val.author !== null) {
+        if (!isRecord(val.author) || ('role' in val.author && val.author.role !== null && typeof val.author.role !== 'string')) return false;
+    }
+    if ('create_time' in val && val.create_time !== null && typeof val.create_time !== 'number') return false;
+    if ('content' in val && val.content !== null) {
+        if (!isRecord(val.content)) return false;
+        if ('content_type' in val.content && val.content.content_type !== null && typeof val.content.content_type !== 'string') return false;
+        if ('parts' in val.content && val.content.parts !== null && !Array.isArray(val.content.parts)) return false;
+        if ('thoughts' in val.content && val.content.thoughts !== null && !Array.isArray(val.content.thoughts)) return false;
+    }
+    if ('metadata' in val && val.metadata !== null) {
+        if (!isRecord(val.metadata) || ('attachments' in val.metadata && val.metadata.attachments !== null && !Array.isArray(val.metadata.attachments))) return false;
+    }
+    return true;
+}
+
+function isOpenAiMappingNode(val: unknown): val is OpenAiMappingNode {
+    if (!isRecord(val)) return false;
+    if ('id' in val && val.id !== null && typeof val.id !== 'string') return false;
+    if ('parent' in val && val.parent !== null && typeof val.parent !== 'string') return false;
+    if ('message' in val && val.message !== null && !isOpenAiRawMessage(val.message)) return false;
     return true;
 }
 
@@ -376,7 +403,7 @@ function extractMessages(
         if (visited.has(key)) break;
         visited.add(key);
         const node = mapping[key];
-        if (!node || typeof node !== 'object') break;
+        if (!isOpenAiMappingNode(node)) break;
         chain.push(node);
         nodeId = node.parent;
     }

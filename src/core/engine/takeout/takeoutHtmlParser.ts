@@ -17,7 +17,7 @@ import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 
-const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
+const getUtils = (): GeminiUtilsModule | null => __resolveModule<GeminiUtilsModule | null>('GeminiUtils', null);
 
 export interface GenerationBlock {
     chatId: string;
@@ -48,8 +48,26 @@ type HistoricalTakeoutImage = {
     generation?: GeneratedMediaIdentity;
 };
 
+type TakeoutChatMessage = Omit<ChatMessage, 'images' | 'attachments'> & {
+    images?: HistoricalTakeoutImage[];
+    attachments?: Array<HistoricalTakeoutImage | MessageDocument | NonNullable<ChatMessage['attachments']>[number]>;
+};
+
+type TakeoutCachedConversation = Omit<Conversation, 'messages'> & {
+    messages?: TakeoutChatMessage[];
+};
+
 function isTakeoutZipEntry(value: unknown): value is TakeoutZipEntry {
-    return typeof value === 'object' && value !== null;
+    if (typeof value !== 'object' || value === null) return false;
+    if ('name' in value && value.name !== undefined && typeof value.name !== 'string') return false;
+    if ('dir' in value && value.dir !== undefined && typeof value.dir !== 'boolean') return false;
+    if ('date' in value && value.date !== undefined && !(value.date instanceof Date)) return false;
+    if ('async' in value && value.async !== undefined && typeof value.async !== 'function') return false;
+    if ('_data' in value && value._data !== undefined) {
+        if (typeof value._data !== 'object' || value._data === null) return false;
+        if ('uncompressedSize' in value._data && value._data.uncompressedSize !== undefined && typeof value._data.uncompressedSize !== 'number') return false;
+    }
+    return true;
 }
 
 export interface TakeoutMediaItem {
@@ -79,7 +97,7 @@ export interface ParseTakeoutHtmlOptions {
 
 export interface ParseTakeoutHtmlOutput {
     extractedMap: Record<string, Conversation>;
-    localConvCache: Record<string, Conversation>;
+    localConvCache: Record<string, TakeoutCachedConversation>;
     localMediaMap: Record<string, TakeoutMediaItem[]>;
     genBlocks: GenerationBlock[];
 }
@@ -94,7 +112,7 @@ export interface TakeoutHtmlParserModule {
         watermarkedImages: TakeoutWatermarkedImage[],
         genBlocks: GenerationBlock[],
         localMediaMap: Record<string, TakeoutMediaItem[]>,
-        localConvCache: Record<string, Conversation>,
+        localConvCache: Record<string, TakeoutCachedConversation>,
         extractedMap: Record<string, Conversation>
     ) => void;
 }
@@ -235,7 +253,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
     }
 
     const extractedMap: Record<string, Conversation> = {};
-    const localConvCache: Record<string, Conversation> = {};
+    const localConvCache: Record<string, TakeoutCachedConversation> = {};
     const localMediaMap: Record<string, TakeoutMediaItem[]> = {};
     const genBlocks: GenerationBlock[] = [];
 
@@ -321,9 +339,9 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             }
         }
 
-        const turnMsgs: ChatMessage[] = [];
+        const turnMsgs: TakeoutChatMessage[] = [];
         if (promptText) {
-            const userMsg: ChatMessage = {
+            const userMsg: TakeoutChatMessage = {
                 role: 'user',
                 content: promptText,
                 timestamp: ts ?? null
@@ -336,7 +354,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     localName: `assets/${sanitizeFileName(name, 'img.jpg')}`,
                     source: 'takeout'
                 }));
-                userMsg.images = historicalImages as ChatMessage['images'];
+                userMsg.images = historicalImages;
                 userMsg.attachments = localMediaNames.map((name) => ({
                     type: /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name) ? 'image' : 'file',
                     url: name,
@@ -349,7 +367,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             turnMsgs.push(userMsg);
         }
         if (responseHtml || hasGenMarker) {
-            const modelTurn: ChatMessage = {
+            const modelTurn: TakeoutChatMessage = {
                 role: 'model',
                 content: responseHtml,
                 timestamp: (ts ? ts + 2000 : null)
@@ -541,7 +559,7 @@ export function correlateGeneratedImages(
     watermarkedImages: TakeoutWatermarkedImage[],
     genBlocks: GenerationBlock[],
     localMediaMap: Record<string, TakeoutMediaItem[]>,
-    localConvCache: Record<string, Conversation>,
+    localConvCache: Record<string, TakeoutCachedConversation>,
     extractedMap: Record<string, Conversation>
 ): void {
     const blockOrdinalMap = new Map<GenerationBlock, number>();
@@ -584,15 +602,15 @@ export function correlateGeneratedImages(
         if (cached && Array.isArray(cached.messages)) {
             const foundModelTurn = findGenerationModelMessage(cached, generation);
             if (!foundModelTurn) {
-                const newModelTurn: ChatMessage = {
+                const newModelTurn: TakeoutChatMessage = {
                     role: 'model',
                     generation,
                     providerRequestId,
                     content: `![Generated Image](assets/${img.filename})`,
-                    timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : null),
-                    images: [imgObj] as ChatMessage['images'],
-                    attachments: [imgObj] as ChatMessage['attachments']
+                    timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : null)
                 };
+                newModelTurn.images = [imgObj];
+                newModelTurn.attachments = [imgObj];
                 cached.messages.push(newModelTurn);
             } else {
                 foundModelTurn.images = foundModelTurn.images || [];
