@@ -26,7 +26,7 @@ declare var __WIZ_global_data: Record<string, string> | undefined;
 
 interface Window {
     __gemExporterAborted?: boolean;
-    __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
+    __gemExporterActiveClient?: (import('../content/contentContext.js').ActiveClientContract & { abort: () => void }) | null;
     __gemExporterContentContext?: import('../content/contentContext.js').ContentContext;
     __gemExporterDeepScanPromise?: Promise<unknown> | null;
     __gemExporterInjected?: boolean;
