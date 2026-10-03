@@ -103,6 +103,16 @@ The scoped gate now covers 18 whole production files, including these four share
 files. See [W3-01 audit](docs/audits/wave3-shared-type-foundations.md) for the narrow
 runtime adaptation, exact compile-time regression and deferred categories.
 
+## Wave 3 message transport boundaries (W3-02)
+
+Generic Chrome senders expose `unknown` replies, and an action match proves only
+the discriminant. Scan and popup validate their consumed reply fields before
+successful completion/export; malformed replies release their UI running state.
+Valid rich detail stays intact, with deeper formatter/parser data still opaque.
+The scoped gate covers 22 whole production files, adding both transport utilities,
+the response checks and scan controller. See [W3-02 audit](docs/audits/wave3-message-transport-boundaries.md)
+for exact type/runtime regressions and remaining batch/listener/detail debt.
+
 ## Maintenance Convergence Status
 
 Status: COMPLETE

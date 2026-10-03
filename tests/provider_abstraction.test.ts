@@ -71,7 +71,7 @@ test('TabService - getAITab and sendToAITab integration', async () => {
         assert.strictEqual(geminiTab?.id, 202, 'Should resolve Gemini tab');
 
         const res = await TabService.sendToAITab('chatgpt', { action: 'test' });
-        assert.strictEqual(res.ok, true);
+        assert.deepStrictEqual(res, { ok: true, data: 'tab-response' });
     } finally {
         (global as any).chrome = origChrome;
     }

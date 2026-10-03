@@ -1,25 +1,26 @@
-import type { BaseMessage } from '../../types/messages.js';
+import type { BaseMessage, MessageAction } from '../../types/messages.js';
 
 export function getErrorMessage(err: unknown): string {
     if (!err) return 'Unknown error';
     if (typeof err === 'string') return err;
     if (err instanceof Error) return err.message;
-    if (typeof err === 'object' && 'message' in err && typeof (err as any).message === 'string') {
-        return (err as any).message;
+    if (typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+        return err.message;
     }
     return String(err);
 }
 
-export async function sendTypedMessage<T extends BaseMessage, R = any>(
+// Typed request; Chrome replies remain unknown until a consumer validates them.
+export async function sendTypedMessage<T extends BaseMessage>(
     message: T,
     timeoutMs: number = 10000
-): Promise<R> {
+): Promise<unknown> {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
         throw new Error('Chrome runtime messaging is not available in current execution context');
     }
 
-    return new Promise<R>((resolve, reject) => {
-        let timer: any = null;
+    return new Promise<unknown>((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
         if (timeoutMs > 0) {
             timer = setTimeout(() => {
                 reject(new Error(`sendTypedMessage timeout after ${timeoutMs}ms for action "${message.action}"`));
@@ -27,13 +28,13 @@ export async function sendTypedMessage<T extends BaseMessage, R = any>(
         }
 
         try {
-            chrome.runtime.sendMessage(message, (response: any) => {
+            chrome.runtime.sendMessage(message, (response: unknown) => {
                 if (timer) clearTimeout(timer);
                 if (chrome.runtime.lastError) {
                     reject(new Error(chrome.runtime.lastError.message || `Runtime error in action "${message.action}"`));
                     return;
                 }
-                resolve(response as R);
+                resolve(response);
             });
         } catch (err: unknown) {
             if (timer) clearTimeout(timer);
@@ -42,12 +43,13 @@ export async function sendTypedMessage<T extends BaseMessage, R = any>(
     });
 }
 
-export function isMessageAction<T extends BaseMessage>(msg: unknown, action: T['action']): msg is T {
+// This checks only the discriminant, never the action-specific payload.
+export function isMessageAction<A extends MessageAction>(msg: unknown, action: A): msg is { action: A } {
     return (
         typeof msg === 'object' &&
         msg !== null &&
         'action' in msg &&
-        (msg as BaseMessage).action === action
+        msg.action === action
     );
 }
 

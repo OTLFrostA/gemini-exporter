@@ -1,4 +1,4 @@
-import type { BackgroundMessage, BackgroundResponse } from '../types/entrypoints.js';
+import type { BackgroundMessage } from '../types/entrypoints.js';
 import type { AbortSyncMessage, DeepScanMessage, StopDeepScanMessage } from '../types/messages.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
 import {
@@ -35,7 +35,7 @@ void ensureStorageReady().catch((err) => {
     console.error('[Background] Storage readiness initialization failed:', err);
 });
 
-chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: BackgroundResponse) => void) => {
+chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: unknown) => void) => {
     if (msg.action === 'openOptions') {
         void chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });
@@ -98,7 +98,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         const queuedCancelEpoch = getSlotCancelEpoch(slot);
         const run = prev.then(async () => {
             let responded = false;
-            const guardedResponse = (response: any) => {
+            const guardedResponse = (response: unknown) => {
                 if (responded) return;
                 responded = true;
                 try { sendResponse(response); } catch (_) { /* port may be gone */ }

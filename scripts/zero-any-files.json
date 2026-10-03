@@ -16,5 +16,9 @@
   "src/types/ui.ts",
   "src/types/utils.ts",
   "src/types/liveSave.ts",
-  "src/types/conversation.ts"
+  "src/types/conversation.ts",
+  "src/core/utils/messaging.ts",
+  "src/core/utils/tabService.ts",
+  "src/core/utils/messageResponses.ts",
+  "src/ui/controllers/syncController.ts"
 ]

@@ -55,14 +55,14 @@ const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8'
 
 test('S3 - options deepScan goes through sendTypedMessage with an explicit timeout', () => {
     const code = SRC('src/ui/controllers/syncController.ts');
-    assert.ok(code.includes("import { sendTypedMessage } from '../../core/utils/messaging.js'"));
+    assert.ok(code.includes("import { sendTypedMessage, getErrorMessage } from '../../core/utils/messaging.js'"));
     assert.ok(
         /sendTypedMessage\(\{\s*action:\s*'deepScan'[^)]+},\s*\w+\s*\)/.test(code) ||
         (/action:\s*'deepScan'/.test(code) && /sendTypedMessage\(\s*\w+,\s*\w+\s*\)/.test(code)),
         'deepScan passes an explicit timeout'
     );
     // The stuck-state fix: the rejection path must also clear scanRunning.
-    const catchIdx = code.indexOf('.catch((err: any) => {');
+    const catchIdx = code.indexOf('.catch((err: unknown) => {');
     assert.ok(catchIdx > 0, 'deepScan has a rejection handler');
     const catchBody = code.slice(catchIdx, catchIdx + 400);
     assert.ok(catchBody.includes('setScanRunning(false)'), 'rejection clears scanRunning');
@@ -70,12 +70,12 @@ test('S3 - options deepScan goes through sendTypedMessage with an explicit timeo
 
 test('S3 - popup fetchChat goes through sendTypedMessage with an explicit timeout', () => {
     const code = SRC('src/ui/popup/popup.ts');
-    assert.ok(code.includes("import { sendTypedMessage } from '../../core/utils/messaging.js'"));
+    assert.ok(code.includes("import { sendTypedMessage, getErrorMessage } from '../../core/utils/messaging.js'"));
     assert.ok(
         /sendTypedMessage\(\{\s*action:\s*'fetchChat'[^)]+},\s*40000\s*\)/.test(code),
         'fetchChat passes a 40s timeout'
     );
-    const catchIdx = code.indexOf('}).catch((err: any) => {');
+    const catchIdx = code.indexOf('}).catch((err: unknown) => {');
     assert.ok(catchIdx > 0, 'fetchChat has a rejection handler');
     const catchBody = code.slice(catchIdx, catchIdx + 400);
     assert.ok(catchBody.includes('__releaseExportGuard()'), 'rejection releases the P1-123 guard');

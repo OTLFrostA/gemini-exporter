@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures';
+import { readFile } from 'node:fs/promises';
 
 test.describe('Popup UI & Action Center Localization', () => {
   test('should render properly localized UI, format tabs, and handle language toggle across controls and storage sync', async ({ context, extensionId }) => {
@@ -137,4 +138,51 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(popupPage.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveClass(/active/);
     await expect(popupPage.locator('#activeFormatLabel')).toHaveText('JSON (标准)');
   });
+});
+
+test('popup rejects malformed transport replies without download, releases guard, then exports valid reply', async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    const replies: unknown[] = [
+      { success: 'true', data: { messages: [] } },
+      { success: true, data: {} },
+      { success: true, data: { id: 'abcdef0123456789', title: 'Boundary regression',
+        timestamp: 1700000000000, messages: [
+          { role: 'user', content: 'Transport boundary prompt', timestamp: 1700000000000 },
+          { role: 'model', content: 'Transport boundary reply', timestamp: 1700000001000 }
+        ] } }
+    ];
+    Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{
+      id: 999, active: true, url: 'https://gemini.google.com/app/abcdef0123456789',
+      title: 'Boundary regression - Gemini'
+    }] });
+    Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value:
+      (message: { action?: unknown }, callback?: (reply: unknown) => void) => {
+        callback?.(message.action === 'fetchChat' ? replies.shift() : { ok: true });
+      }
+    });
+  });
+  await page.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
+  await expect(page.locator('#btnCurrent')).toBeEnabled();
+  await expect(page.locator('#currentChatTitle')).toHaveText('Boundary regression');
+  await page.click('#formatTabs .tab-btn[data-value="markdown"]');
+  let downloads = 0;
+  page.on('download', () => { downloads++; });
+  for (const message of ['Gemini returned an unreadable conversation reply. Refresh its page and try again.', 'Gemini returned unreadable conversation data. Refresh its page and try again.']) {
+    await page.click('#btnCurrent');
+    await expect(page.locator('#log')).toContainText(message);
+    await expect(page.locator('#btnCurrent')).toBeEnabled();
+    expect(downloads).toBe(0);
+  }
+  const downloadEvent = page.waitForEvent('download');
+  await page.click('#btnCurrent');
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toMatch(/\.md$/);
+  const file = await download.path();
+  if (!file) throw new Error('Popup download did not land on disk');
+  const markdown = await readFile(file, 'utf8');
+  expect(markdown).toContain('Transport boundary prompt');
+  expect(markdown).toContain('Transport boundary reply');
+  expect(downloads).toBe(1);
+  await expect(page.locator('#btnCurrent')).toBeEnabled();
 });

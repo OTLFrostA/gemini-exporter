@@ -11,7 +11,8 @@ import {
     buildExportFileName
 } from '../../core/utils/pathUtils.js';
 import { $, getI18n } from '../uiCommon.js';
-import { sendTypedMessage } from '../../core/utils/messaging.js';
+import { readPopupFetchResult } from '../../core/utils/messageResponses.js';
+import { sendTypedMessage, getErrorMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
 import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
@@ -271,7 +272,8 @@ function initPopupEvents(): void {
                 __releaseExportGuard();
                 return;
             }
-            sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000).then(async (res: any) => {
+            sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000).then(async (raw: unknown) => {
+                const res = readPopupFetchResult(raw);
                 try {
                     if (!res || !res.success) {
                         log(i18n.t('popupFetchFailed', res?.error || '未知错误'));
@@ -279,7 +281,7 @@ function initPopupEvents(): void {
                     }
 
                     ProgressView.update(80);
-                    const chat = res.data || res;
+                    const chat = res.chat;
                     if (!chat.id) chat.id = _activeConvId;
                     chat.title = cleanTitle(chat.title || _activeChatTitle);
 
@@ -305,9 +307,9 @@ function initPopupEvents(): void {
                 } finally {
                     __releaseExportGuard();
                 }
-            }).catch((err: any) => {
+            }).catch((err: unknown) => {
                 __releaseExportGuard();
-                log(i18n.t('popupFetchFailed', err?.message || String(err)));
+                log(i18n.t('popupFetchFailed', getErrorMessage(err)));
             });
         } catch (e: any) {
             __releaseExportGuard();
