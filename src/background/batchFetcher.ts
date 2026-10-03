@@ -5,10 +5,10 @@ import { isSlotAborted, getSlotAbortSignal, getSlotEpoch, __bgControllers } from
 import { startKeepAlive } from './keepAlive.js';
 
 // Tab communication service helper (delegates to TabService: handles 'Receiving end does not exist' and hints '刷新 gemini.google.com')
-export const sendToGeminiTab = (msg: any, slot?: string, timeoutMs?: number): Promise<any> =>
+export const sendToGeminiTab = (msg: unknown, slot?: string, timeoutMs?: number): Promise<unknown> =>
     TabService.sendToGeminiTab(msg, slot, timeoutMs);
 
-export const getGeminiTab = (slot?: string): Promise<any> =>
+export const getGeminiTab = (slot?: string): Promise<chrome.tabs.Tab | null> =>
     TabService.getGeminiTab(slot);
 
 async function sendToGeminiTabCancellable(msg: any, slot: string): Promise<any> {

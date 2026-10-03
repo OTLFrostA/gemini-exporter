@@ -1,7 +1,15 @@
 
 import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 import type { PingMessage, OpenGeminiPageMessage, ReloadGeminiTabMessage } from '../../types/messages.js';
+import { isObjectRecord } from './messageResponses.js';
+import { isMessageAction } from './messaging.js';
 import { detectSlotFromUrl } from './pathUtils.js';
+
+// Preserve connection failover's message-property behavior for thrown values.
+function errorMessageProperty(error: unknown): unknown {
+    return error != null && (typeof error === 'object' || typeof error === 'function') && 'message' in error
+        ? error.message : undefined;
+}
 
     function filterTabsBySlot(tabs: chrome.tabs.Tab[], slot?: string): chrome.tabs.Tab[] {
         if (!tabs || !tabs.length) return [];
@@ -29,12 +37,12 @@ import { detectSlotFromUrl } from './pathUtils.js';
         return tabs.find(t => t.active) || tabs[0];
     }
 
-    async function sendToGeminiTab(msg: any, slot?: string, timeoutMs?: number): Promise<any> {
+    async function sendToGeminiTab(msg: unknown, slot?: string, timeoutMs?: number): Promise<unknown> {
         if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) {
             throw new Error('chrome.tabs API 不可用');
         }
         if (!timeoutMs || typeof timeoutMs !== 'number') {
-            timeoutMs = (msg && msg.action === 'deepScan') ? 300000 : 25000;
+            timeoutMs = isMessageAction(msg, 'deepScan') ? 300000 : 25000;
         }
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
@@ -53,11 +61,11 @@ import { detectSlotFromUrl } from './pathUtils.js';
         }
         candidates.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
 
-        let lastError: any = null;
+        let lastError: unknown = null;
         for (const tab of candidates) {
             if (tab.id == null) continue;
             try {
-                const res = await new Promise((resolve, reject) => {
+                const res = await new Promise<unknown>((resolve, reject) => {
                     let settled = false;
                     const timer = setTimeout(() => {
                         if (!settled) {
@@ -65,7 +73,7 @@ import { detectSlotFromUrl } from './pathUtils.js';
                             reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
                         }
                     }, timeoutMs);
-                    chrome.tabs.sendMessage(tab.id!, msg, (r) => {
+                    chrome.tabs.sendMessage(tab.id!, msg, (r: unknown) => {
                         if (!settled) {
                             settled = true;
                             clearTimeout(timer);
@@ -78,9 +86,9 @@ import { detectSlotFromUrl } from './pathUtils.js';
                     });
                 });
                 return res;
-            } catch (e: any) {
+            } catch (e: unknown) {
                 lastError = e;
-                const errStr = String(e?.message || '');
+                const errStr = String(errorMessageProperty(e) || '');
                 if (errStr.includes('Receiving end does not exist') || errStr.includes('Could not establish connection')) {
                     continue;
                 }
@@ -88,7 +96,7 @@ import { detectSlotFromUrl } from './pathUtils.js';
             }
         }
         if (lastError) {
-            const errStr = String(lastError?.message || '');
+            const errStr = String(errorMessageProperty(lastError) || '');
             if (errStr.includes('Receiving end does not exist') || errStr.includes('Could not establish connection')) {
                 throw new Error('未能与 Gemini 建立连接，请刷新 gemini.google.com 页面后重试: Receiving end does not exist');
             }
@@ -133,11 +141,11 @@ import { detectSlotFromUrl } from './pathUtils.js';
                 }
 
                 const pingMsg: PingMessage = { action: 'ping' };
-                chrome.tabs.sendMessage(targetTab.id, pingMsg, (response) => {
+                chrome.tabs.sendMessage(targetTab.id, pingMsg, (response: unknown) => {
                     if (!settled) {
                         settled = true;
                         clearTimeout(timer);
-                        if (chrome.runtime.lastError || !response || !response.ok) {
+                        if (chrome.runtime.lastError || !isObjectRecord(response) || response.ok !== true) {
                             resolve({ status: 'NEED_REFRESH', tab: targetTab, error: chrome.runtime.lastError?.message });
                         } else {
                             resolve({ status: 'CONNECTED', tab: targetTab, response });
@@ -145,12 +153,13 @@ import { detectSlotFromUrl } from './pathUtils.js';
                     }
                 });
             });
-        } catch (e: any) {
-            return { status: 'ERROR', error: e?.message, tab: null };
+        } catch (e: unknown) {
+            const message = errorMessageProperty(e);
+            return { status: 'ERROR', error: typeof message === 'string' ? message : undefined, tab: null };
         }
     }
 
-    async function openGeminiPage(): Promise<any> {
+    async function openGeminiPage(): Promise<unknown> {
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) {
             return chrome.tabs.create({ url: 'https://gemini.google.com/app' });
         } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -161,7 +170,7 @@ import { detectSlotFromUrl } from './pathUtils.js';
         }
     }
 
-    async function reloadGeminiTab(tabId?: number): Promise<any> {
+    async function reloadGeminiTab(tabId?: number): Promise<unknown> {
         if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.reload && tabId) {
             return chrome.tabs.reload(tabId);
         } else if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -188,7 +197,7 @@ import { detectSlotFromUrl } from './pathUtils.js';
         return tabs.find(t => t.active) || tabs[0];
     }
 
-    async function sendToAITab(providerIdOrPattern: string, msg: any, slot?: string, timeoutMs?: number): Promise<any> {
+    async function sendToAITab(providerIdOrPattern: string, msg: unknown, slot?: string, timeoutMs?: number): Promise<unknown> {
         if (!providerIdOrPattern || providerIdOrPattern === 'gemini') {
             return sendToGeminiTab(msg, slot, timeoutMs);
         }
@@ -200,7 +209,7 @@ import { detectSlotFromUrl } from './pathUtils.js';
             throw new Error(`未找到 ${providerIdOrPattern} 标签页，请先在浏览器中打开对应页面`);
         }
         const timeout = timeoutMs || 25000;
-        return new Promise((resolve, reject) => {
+        return new Promise<unknown>((resolve, reject) => {
             let settled = false;
             const timer = setTimeout(() => {
                 if (!settled) {
@@ -208,7 +217,7 @@ import { detectSlotFromUrl } from './pathUtils.js';
                     reject(new Error(`与 ${providerIdOrPattern} 页面通信超时 (${timeout}ms)`));
                 }
             }, timeout);
-            chrome.tabs.sendMessage(tab.id!, msg, (r) => {
+            chrome.tabs.sendMessage(tab.id!, msg, (r: unknown) => {
                 if (!settled) {
                     settled = true;
                     clearTimeout(timer);

@@ -1,9 +1,10 @@
-import type { SyncControllerContract } from '../../types/ui.js';
+import type { SyncControllerContract, ScanCallbacks, StopScanCallbacks } from '../../types/ui.js';
 import type { DeepScanMessage, StopDeepScanMessage } from '../../types/messages.js';
 import GeminiProtocol from '../../core/protocol/protocol.js';
 import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
-import { sendTypedMessage } from '../../core/utils/messaging.js';
+import { isScanResponse } from '../../core/utils/messageResponses.js';
+import { sendTypedMessage, getErrorMessage } from '../../core/utils/messaging.js';
 
 let scanRunning = false;
 
@@ -40,7 +41,7 @@ export function isServerRateOrQuotaLimit(text?: string | null): boolean {
 function _runScan(
     mode: 'incremental' | 'full',
     slot: string,
-    { onStart, onProgress, onLog, onFinished, onError }: any = {},
+    { onStart, onProgress, onLog, onFinished, onError }: ScanCallbacks = {},
     i18nKey: string,
     fallbackMsgFn: (count: number) => string
 ): void {
@@ -52,14 +53,16 @@ function _runScan(
     // (300s full, 90s incremental) to prevent scanRunning from getting permanently stuck.
     const uiTimeoutMs = mode === 'full' ? 330000 : 120000;
     const msg: DeepScanMessage = { action: 'deepScan', mode, accountSlot: slot || 'u0' };
-    sendTypedMessage(msg, uiTimeoutMs).then((res: any) => {
+    sendTypedMessage(msg, uiTimeoutMs).then((raw: unknown) => {
+        if (!isScanResponse(raw)) throw new Error('Gemini returned unreadable sync data. Refresh its page and try again.');
+        const res = raw;
         setScanRunning(false);
 
         const slidingLimit = (GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 500;
         const hitGoogleLimit = !!(
             res?.hitGoogleLimit ||
             res?.diagnostics?.hitGoogleLimit ||
-            (mode === 'full' && ((res?.count >= slidingLimit) || (res?.total >= slidingLimit))) ||
+            (mode === 'full' && (((res.count ?? 0) >= slidingLimit) || ((res.total ?? 0) >= slidingLimit))) ||
             isServerRateOrQuotaLimit(res?.diagnostics?.stopReason) ||
             isServerRateOrQuotaLimit(res?.error)
         );
@@ -82,23 +85,23 @@ function _runScan(
             if (onLog) onLog(errMsg, 'error');
             if (onError) onError(new Error(err), errMsg, { hitGoogleLimit, res });
         }
-    }).catch((err: any) => {
+    }).catch((err: unknown) => {
         setScanRunning(false);
-        const errMsg = formatSyncErrorMessage(err?.message || String(err));
+        const errMsg = formatSyncErrorMessage(getErrorMessage(err));
         if (onLog) onLog(errMsg, 'error');
         if (onError) onError(err instanceof Error ? err : new Error(String(err)), errMsg);
     });
 }
 
-export function startIncrementalScan(slot: string, callbacks: any = {}): void {
+export function startIncrementalScan(slot: string, callbacks: ScanCallbacks = {}): void {
     _runScan('incremental', slot, callbacks, 'syncFinished', count => `增量同步完成，共 ${count} 条`);
 }
 
-export function startDeepScan(slot: string, callbacks: any = {}): void {
+export function startDeepScan(slot: string, callbacks: ScanCallbacks = {}): void {
     _runScan('full', slot, callbacks, 'deepSyncFinished', count => `全量拉取完成，共 ${count} 条`);
 }
 
-export function stopScan(slot: string, { onStopped, onLog }: any = {}): void {
+export function stopScan(slot: string, { onStopped, onLog }: StopScanCallbacks = {}): void {
     const msg: StopDeepScanMessage = { action: 'stopDeepScan', accountSlot: slot || 'u0' };
     chrome.runtime.sendMessage(msg, () => {
         const stopMsg = typeof t === 'function' ? t('stoppingSync') : '正在终止同步...';
