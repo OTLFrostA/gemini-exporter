@@ -1,5 +1,8 @@
 # W2-02 Gemini pagination / completeness contract
 
+Final integration supersedes the retained pagination/input typing debts in this
+historical report; see [W2-08 closeout](wave2-integration-closeout.md).
+
 Baseline: `05c37d3` (W2-01 / #764). This is a type-only control-plane change.
 Provider contracts, sync/reconciliation, title precedence, storage schema and
 W1 P-01–P-05 remain unchanged. No permanent lint gate is expanded.

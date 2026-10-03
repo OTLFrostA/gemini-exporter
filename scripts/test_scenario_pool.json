@@ -1,26 +1,5 @@
 [
   {
-    "id": "condensed_matter_quantum_spin_liquid_kitaev_honeycomb",
-    "domain": "condensed_matter_quantum_spin_liquid_kitaev_honeycomb",
-    "title": "量子自旋液体与Kitaev蜂窝模型：马约拉纳费米子分数化与非阿贝尔任意子拓扑推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 Kitaev 蜂窝晶格严格可解自旋哈密顿量 Jordan-Wigner / 四费米子表示、Z2 规范场通量算符积分、非阿贝尔伊辛任意子量子编织",
-    "turns": [
-      "在二维蜂窝晶格中，写出具有方向依赖键交换相互作用的 Kitaev 纯自旋哈密顿量 H = - sum_{<ij>_gamma} J_gamma * sigma_i^gamma * sigma_j^gamma (gamma in {x, y, z})，引入 4 种局域马约拉纳费米子算符 c_i, b_i^x, b_i^y, b_i^z 实现自旋自由度的严格分数化映射。",
-      "证明定义在每个六边形晶胞上的通量算符 W_p = sigma_1^x * sigma_2^y * sigma_3^z * sigma_4^x * sigma_5^y * sigma_6^z 与哈密顿量完全对易且互相独立对易 ([W_p, H] = 0, [W_p, W_q] = 0)，从而证明整个希尔伯特空间能严格对角化为解耦的自由静态 Z_2 规范场扇区与流动马约拉纳费米子谱带。",
-      "在施加外部垂直微扰弱磁场 h_x * h_y * h_z 下，推导由有效时间反演破缺引起的三阶微扰非阿贝尔拓扑相有效哈密顿量，计算非零陈数 (Chern Number) nu = pm 1 导致的半整数量子热霍尔电导率 kappa_{xy} = (nu / 2) * (pi * k_B^2 / (6 * hbar)) * T。",
-      "使用 Python 编写基于动量空间布里渊区的 Kitaev 模型无通量基态能带结构计算脚本，求解并绘制沿 Gamma-M-K 高对称路径的马约拉纳费米子狄拉克锥色散曲线，计算费米速度并在存在质量能隙 Delta_M 时计算贝里曲率分布积分。",
-      "使用 Markdown 表格横向对比 Kitaev 量子自旋液体材料候选物 (如 alpha-RuCl3、Na2IrO3)、 Kagome 晶格自旋液体候选物 (Herbertsmithite) 与有机阻挫自旋液体系统的海森堡/非海森堡交换耦合参数、磁阻挫参数、连续自旋激发谱特征与无序杂质屏蔽机制。"
-    ]
-  },
-  {
     "id": "quantum_optomechanics_cavity_ground_state_cooling",
     "domain": "quantum_optomechanics_cavity_cooling",
     "title": "量子腔光力学：辐射压力耦合线性化与微机械振子基态冷却动力学",
@@ -204,29 +183,6 @@
       "使用 Python 编写基于一维层状介质反射率法 (Kennett Reflectivity Method) 或频散波慢度求和法的小型数值仿真脚本，合成高频震相 SPdKS 在经过具有 15 km 厚度、-10% P波降速与 -30% S波降速的核幔边界 ULVZ 介质时的合成三分量地震位移记录图。",
       "设计结构化 Markdown 表格，系统对比下地幔底部 D\" 层四大核心构造：大剪切波低速省 (LLVP)、超低速带 (ULVZ)、俯冲板块残余巨型石板 (Subducted Slab Graveyard) 以及全地幔柱根 (Mantle Plume Root) 在横波波速异常 \\delta V_s、纵横波波速比 \\delta \\ln V_s / \\delta \\ln V_p、密度异常 \\delta \\rho、空间分布尺度与富铁硅酸盐部分熔融热力学状态。",
       "从高压凝聚态物理矿物相变角度，推导后钙钛矿 (Post-Perovskite, pPv, (Mg,Fe)SiO3) 相变与富铁方镁铁矿 ((Mg,Fe)O) 在 CMB 强剪切流动下的晶格择优取向 (LPO)，分析晶体声学各向异性导致横波沿不同偏振方向产生剪切波分裂 (SKS/SKKS Splitting) 的相变微观动力学机制。"
-    ]
-  },
-  {
-    "id": "synthetic_biology_riboswitch_rna_origami_nanostructure",
-    "domain": "synthetic_biology_riboswitch_rna_origami_nanostructure",
-    "title": "合成生物学：RNA 折纸纳米结构与核糖开关变构动力学推导",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试人工合成 RNA 折纸纳米结构生成、四态变构 Monod-Wyman-Changeux 热力学模型、Nussinov-Zuker 动态规划二次结构 Python 求解器与核酸纳米技术横向对比",
-    "turns": [
-      "生成一张完全虚构的高分辨率科学示意图：展示一个人工设计的四面体 RNA 折纸（RNA Origami）纳米笼结构，其四个顶点集成对腺苷变构敏感的 RNA 核糖开关（Riboswitch），包含发卡环识别位点、荧光报告基团与碱基互补杂交双螺旋束的精细分子构象与图例标注。",
-      "使用 LaTeX 建立该核糖开关配体结合与变构诱导的四态变构模型（Monod-Wyman-Changeux 模型拓展），推导配体结合分数 \\theta(L) 与吉布斯自由能能景 \\Delta G_{fold}，分析协同性 Hill 系数 n_H 与解离常数 K_d 的热力学关系。",
-      "编写 Python 代码块，基于 Nussinov-Zuker 动态规划二次结构预测算法的简化自由能邻近规则，计算一段短 RNA 序列的碱基配对最优自由能矩阵，并输出变构前后最小自由能 (MFE) 构象的括号表示法 (Dot-Bracket Notation)。",
-      "使用 Markdown 表格，对比 RNA 折纸技术、DNA 折纸技术（DNA Origami）、蛋白质从头设计（De Novo Protein Design, 如 RFdiffusion）以及超分子共价有机框架（COF）在折叠热稳定性、活细胞内转录自组装能力、载药空间封装效率与体内生物降解半衰期维度的核心技术特征。",
-      "推导该 RNA 纳米笼在活细胞微流控递送环境下的扩散输运方程与酶切降解动力学，建立含胞吞吸收、溶酶体逃逸速率常数与靶向释放产率的常微分方程组 (ODE)，给出解析稳态浓度分布解。"
     ]
   },
   {
@@ -424,6 +380,49 @@
       "推导单遍流式 sketch 的内存和计算成本，用 Mermaid 绘制输入块、sketch、压缩矩阵与重构的算法流程，并指出两遍范围寻找不能未经修改当作单遍算法。",
       "用 Markdown 表格比较精确 SVD、randomized SVD、Frequent Directions 与增量 PCA 的遍历次数、内存、误差保证、确定性和适用矩阵谱。所有示例性能数字必须标注为实验假设或实测。",
       "设计涵盖缓慢奇异值衰减、近重根、稀疏矩阵和概念漂移的实验方案，用 LaTeX 给出置信区间和误差指标，讨论有限精度失效模式，并附带中英文术语表和自动验证伪代码。"
+    ]
+  },
+  {
+    "id": "biomedical_microneedle_patch_diffusion_design",
+    "domain": "biomedical_transdermal_microneedle_diffusion",
+    "title": "可溶性微针贴片：扩散释放、力学强度与制造容差设计",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "虚构教学微针贴片的剖面生图、Fick扩散释放推导、有限差分仿真和制造容差对比，不涉及真实剂量建议。",
+    "turns": [
+      "生成一张完全虚构的教学科学示意图：展示可溶性聚合物微针贴片的三层剖面，包含锥形微针、亲水储层和柔性背衬，用清楚的箭头标示水分进入及分子扩散方向。请真正生成图片，并明确它仅用于材料工程教学。",
+      "基于刚才的虚构剖面，建立一维Fick第二定律模型，使用LaTeX写出有限厚度储层的初始条件、无通量背衬边界和理想吸收端边界，推导无量纲时间及累积释放比例，讨论扩散系数常数假设的限制。",
+      "使用Python实现守恒形式的有限差分求解器，输出不同网格与时间步下的释放曲线，给出稳定性条件、总质量误差及与解析级数解比较的收敛检查。只用虚构无量纲参数。",
+      "使用Markdown表格比较锥形、金字塔形和截锥形微针的尖端应力集中、屈曲风险、模具脱模和储层几何一致性。用LaTeX表示Euler屈曲近似，并解释微尺度下该近似的适用限制。",
+      "写一份完整的虚构材料实验设计报告：以几何尺寸与扩散系数不确定性进行蒙特卡洛灵敏度分析，提供可运行Python代码、参数表及对之前生成剖面图的图注，说明不能从教学模型推出人体给药结论。"
+    ]
+  },
+  {
+    "id": "operations_inventory_perishable_stochastic_control",
+    "domain": "operations_research_perishable_inventory_control",
+    "title": "易腐库存随机控制：年龄结构、服务约束与动态规划",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "食品冷链的虚构库存年龄结构、随机需求动态规划、可复现仿真与启发式策略比较。",
+    "turns": [
+      "为一个完全虚构的冷链仓库建立易腐商品库存模型：商品保质期3个离散周期，状态记录各年龄库存，需求服从给定离散分布，先进先出发货，过期销毁。用LaTeX完整定义状态转移、成本函数和Bellman方程，并解释订货与需求发生顺序。",
+      "推导有限时域动态规划算法，说明库存状态与订货量的截断如何影响最优性，给出服务水平约束可行性的检测方法，区分缺货惩罚与硬约束。请给出小规模可手算数值例子。",
+      "用Python实现精确动态规划和带固定随机种子的仿真器，以年龄结构为状态，在有限订货空间求策略。加入物料守恒断言和周期末过期量检查，并展示如何复现模拟轨迹。",
+      "用Markdown表格比较最优年龄感知策略、固定订货点策略与简单订货至目标策略在缺货率、过期损耗、平均成本及计算复杂度上的表现，解释共同随机数如何减少策略比较方差。",
+      "撰写长篇技术报告，将需求分布误设、延迟到货和传感器库存误差纳入鲁棒性讨论。提供置信区间计算代码、参数敏感性表格以及模型无法覆盖的现实冷链限制，保持全部数据明确为虚构。"
     ]
   }
 ]

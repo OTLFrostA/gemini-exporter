@@ -1,4 +1,4 @@
-import { isDevMode } from "../../utils/utils.js";
+import { getErrorMessage, isDevMode } from "../../utils/utils.js";
 import { isRateLimited } from "../../engine/export/rateLimiter.js";
 import type { ConversationListItem, ListParseResult, ListParseDiagnostics } from "../parser/parseList.js";
 import type { DetailParseResult, ParserMessage } from "../parser/parseDetail.js";
@@ -217,16 +217,17 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             try {
                 res = await client.getConversationList(token, targetSid, undefined, { signal: opts?.signal });
             } catch (err: unknown) {
-                console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, (err as { message?: unknown }).message || err);
-                const isLimit = isRateLimited(err);
+                console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, getErrorMessage(err));
+                const aborted = isAborted() || (typeof err === 'object' && err !== null && 'name' in err && err.name === 'AbortError');
+                const isLimit = !aborted && isRateLimited(err);
                 if (isLimit) {
                     diagLog.hitGoogleLimit = true;
                 }
-                diagLog.stopReason = `网络或服务异常: ${(err as { message?: unknown }).message || err}`;
+                diagLog.stopReason = aborted ? `用户手动终止同步: ${getErrorMessage(err)}` : `网络或服务异常: ${getErrorMessage(err)}`;
                 reachedMax = false;
                 if (all.length > 0) {
                     interruptedByError = true;
-                    completionReason = isLimit ? 'hit_google_limit' : 'error';
+                    completionReason = aborted ? 'aborted' : isLimit ? 'hit_google_limit' : 'error';
                     break;
                 }
                 throw err;
@@ -287,6 +288,10 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     stoppedEarly = true;
                     completionReason = 'hit_google_limit';
+                } else if (res?._debug?.error === "NO_INNER_STR" || !Array.isArray(res?.conversations)) {
+                    diagLog.stopReason = `第 ${i + 1} 页列表响应无法解析，不能确认历史已耗尽`;
+                    stoppedEarly = true;
+                    completionReason = 'error';
                 } else {
                     diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                     completionReason = 'natural_exhaustion';
@@ -322,14 +327,14 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             const pageDelay = incremental ? 50 : 120;
             await new Promise(r => setTimeout(r, pageDelay));
         }
-        if (reachedMax && maxPages > 0) {
+        if (reachedMax) {
             diagLog.stopReason = `已达到最大页数限制 (${maxPages} 页)`;
             stoppedEarly = true;
             completionReason = 'max_pages';
         }
         diagLog.totalConversations = all.length;
         diagLog.endTime = new Date().toISOString();
-        const isEarly = !!(stoppedEarly || interruptedByError || (reachedMax && maxPages > 0) || diagLog.hitGoogleLimit);
+        const isEarly = !!(stoppedEarly || interruptedByError || reachedMax || diagLog.hitGoogleLimit);
         const finalResult: PaginationResult = {
             conversations: all,
             total: all.length,

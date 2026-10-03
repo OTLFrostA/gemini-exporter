@@ -1,11 +1,18 @@
 import type {
-    GeminiProviderClient, GeminiProviderContract, GeminiProviderReadinessContext, GeminiProviderReadiness,
+    GeminiProviderClient, GeminiProviderContract, GeminiProviderReadiness,
     GeminiProviderListOptions, GeminiProviderPageResult,
-    GeminiProviderDetailOptions, GeminiProviderConversationDetail
+    GeminiProviderConversationDetail
 } from "./geminiContracts.js";
 import { ProviderRegistry } from "../providerRegistry.js";
 import { GeminiAPIClient } from "../../api/geminiClient.js";
 import GeminiClientCredentialManager from "../../api/client/credentialManager.js";
+
+/** Opaque neutral callers may pass any value; only observed string inputs are used. */
+function readStringInput(input: unknown, key: 'accountSlot' | 'targetSid' | 'slot'): string | undefined {
+    if (input === null || (typeof input !== 'object' && typeof input !== 'function') || !(key in input)) return undefined;
+    const value: unknown = Reflect.get(input, key);
+    return typeof value === 'string' ? value : undefined;
+}
 
 /** Credential failures are diagnostics; only a nonempty string is a readiness error. */
 function readinessErrorMessage(error: unknown): string {
@@ -47,9 +54,9 @@ export class GeminiProvider implements GeminiProviderContract {
         }
     }
 
-    async checkReadiness(context?: GeminiProviderReadinessContext): Promise<GeminiProviderReadiness> {
+    async checkReadiness(context?: unknown): Promise<GeminiProviderReadiness> {
         try {
-            const slot = context?.accountSlot || 'u0';
+            const slot = readStringInput(context, 'accountSlot') || 'u0';
             const cred = await GeminiClientCredentialManager.resolveCred(slot);
             if (cred && cred.at) {
                 return {
@@ -90,9 +97,9 @@ export class GeminiProvider implements GeminiProviderContract {
         return page;
     }
 
-    async fetchConversationDetail(conversationId: string, options?: GeminiProviderDetailOptions): Promise<GeminiProviderConversationDetail> {
+    async fetchConversationDetail(conversationId: string, options?: unknown): Promise<GeminiProviderConversationDetail> {
         const client = this.getClient();
-        const targetSid = options?.targetSid || options?.slot || null;
+        const targetSid = readStringInput(options, 'targetSid') || readStringInput(options, 'slot') || null;
         const detail = await client.getConversationDetail(conversationId, targetSid);
         // Keep the full typed Gemini evidence beside the neutral core without cloning messages.
         const mapped: GeminiProviderConversationDetail = {

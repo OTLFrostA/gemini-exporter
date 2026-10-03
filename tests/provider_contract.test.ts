@@ -1,17 +1,19 @@
 import type { ApplicationProvider } from "../src/content/providerCompatibility.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AIProvider, ProviderConversationDetail, ProviderConversationItem, ProviderMessage, ProviderPageResult, ProviderListOptions } from '../src/core/provider/aiProvider.js';
+import type { AIProvider, ProviderConversationDetail, ProviderConversationItem, ProviderMessage, ProviderPageResult, ProviderListOptions, ProviderReadiness } from '../src/core/provider/aiProvider.js';
 import type { GeminiProviderClient, GeminiProviderListOptions, GeminiProviderConversationDetail, GeminiProviderPageResult } from '../src/core/provider/gemini/geminiContracts.js';
+import type { ParserDocument } from '../src/core/api/parser/parseDetail.js';
 import credentials from '../src/core/api/client/credentialManager.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';
 import { resolveProvider } from '../src/core/provider/providerResolver.js';
-import type { PaginationCompletionReason, PaginationResult } from '../src/core/api/client/pagination.js';
+import type { PaginationCompletionReason, PaginationResult, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
 import { isPaginationExhaustive } from '../src/core/api/client/pagination.js';
 
 type Assert<T extends true> = T;
-type NotAny<T> = 0 extends (1 & T) ? false : true;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type StrictFunction<F extends (...args: never[]) => unknown> = (...args: Parameters<F>) => ReturnType<F>;
 type RequiredField<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
 type TypeContracts = [
     Assert<RequiredField<ProviderPageResult<ProviderConversationItem>, 'exhaustive'>>,
@@ -21,13 +23,20 @@ type TypeContracts = [
     Assert<'_raw' extends keyof ProviderConversationDetail ? false : true>,
     Assert<'documents' extends keyof ProviderMessage ? false : true>,
     Assert<'targetSid' extends keyof ProviderListOptions ? false : true>,
-    Assert<NotAny<Parameters<AIProvider['fetchConversationDetail']>[1]>>,
-    Assert<NotAny<GeminiProviderPageResult['diagnostics']>>,
-    Assert<NotAny<GeminiProviderConversationDetail['messages'][number]['documents']>>,
+    Assert<Equal<Parameters<AIProvider['fetchConversationDetail']>[1], unknown>>,
+    Assert<Equal<GeminiProviderPageResult['diagnostics'], GeminiPaginationDiagnostics>>,
+    Assert<Equal<GeminiProviderConversationDetail['messages'][number]['documents'], ParserDocument[] | undefined>>,
     Assert<GeminiProvider extends AIProvider ? true : false>,
-    Assert<GeminiProvider extends ApplicationProvider ? true : false>
+    Assert<GeminiProvider extends ApplicationProvider ? true : false>,
+    Assert<Equal<ReturnType<typeof resolveProvider>, AIProvider | undefined>>,
+    Assert<Equal<Parameters<GeminiProvider['checkReadiness']>, Parameters<AIProvider['checkReadiness']>>>,
+    Assert<Equal<Parameters<GeminiProvider['fetchConversationDetail']>, Parameters<AIProvider['fetchConversationDetail']>>>,
+    Assert<Equal<Parameters<ApplicationProvider['checkReadiness']>, Parameters<AIProvider['checkReadiness']>>>,
+    Assert<Equal<Parameters<ApplicationProvider['fetchConversationDetail']>, Parameters<AIProvider['fetchConversationDetail']>>>,
+    Assert<((context?: { accountSlot?: string }) => Promise<ProviderReadiness>) extends StrictFunction<AIProvider['checkReadiness']> ? false : true>,
+    Assert<((id: string, options?: { targetSid?: string }) => Promise<ProviderConversationDetail>) extends StrictFunction<AIProvider['fetchConversationDetail']> ? false : true>
 ];
-const typeContracts: TypeContracts = [true, true, true, true, true, true, true, true, true, true, true, true];
+const typeContracts: TypeContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
 
 function detail(): GeminiProviderConversationDetail {
     return { id: 'typed-chat', title: 'Report', titleSource: 'rpc', titles: { rpc: 'Report' },
@@ -193,4 +202,32 @@ test('provider contract: an explicitly specialized registry preserves Gemini evi
     const page = await registry.get('gemini')!.listConversations();
     assert.equal(page.diagnostics.hitGoogleLimit, true);
     assert.equal(page.completionReason, 'hit_google_limit');
+});
+
+// Rebuild function types from parameters/results so method bivariance cannot
+// silently make a narrower Gemini implementation pass the neutral contract.
+function neutralFunctions(provider: GeminiProvider) {
+    const readiness: StrictFunction<AIProvider['checkReadiness']> = provider.checkReadiness.bind(provider);
+    const detail: StrictFunction<AIProvider['fetchConversationDetail']> = provider.fetchConversationDetail.bind(provider);
+    return { readiness, detail };
+}
+
+test('provider input: opaque neutral callers are safe and Gemini string slot precedence is retained', async () => {
+    const original = credentials.resolveCred;
+    const slots: (string | null | undefined)[] = [];
+    const detailSlots: (string | null | undefined)[] = [];
+    const provider = new GeminiProvider({ ...client(result('natural_exhaustion')), async getConversationDetail(_id, slot) { detailSlots.push(slot); return detail(); } });
+    const calls = neutralFunctions(provider);
+    try {
+        credentials.resolveCred = async slot => { slots.push(slot); return { sid: 'sid', at: 'token', bl: 'build', accountSlot: slot || 'u0' }; };
+        for (const input of [undefined, null, 42, 'opaque', { accountSlot: 2, targetSid: 3, slot: false }, Symbol('opaque')]) {
+            assert.equal((await calls.readiness(input)).ready, true);
+            await calls.detail('typed-chat', input);
+        }
+        assert.deepEqual(slots, Array(6).fill('u0'));
+        assert.deepEqual(detailSlots, Array(6).fill(null));
+        await calls.readiness({ accountSlot: 'u2' });
+        await calls.detail('typed-chat', { targetSid: '', slot: 'u3' });
+        assert.equal(slots.at(-1), 'u2'); assert.equal(detailSlots.at(-1), 'u3');
+    } finally { credentials.resolveCred = original; }
 });

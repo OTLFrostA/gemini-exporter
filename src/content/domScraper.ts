@@ -1,5 +1,5 @@
 import type { DomDetail } from '../types/detailTransport.js';
-import type { ParserAttachment } from '../core/api/parser/parseDetail.js';
+import type { Attachment } from '../types/conversation.js';
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
@@ -10,7 +10,10 @@ function cleanText(t?: string | null): string {
     return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
 }
 
-export function parseDoc(doc: Document, id: string, url?: string): DomDetail {
+export function parseDoc(doc: Document, id: string, url?: string): DomDetail;
+export function parseDoc(doc: Document | null, id: string, url?: string): DomDetail | null;
+export function parseDoc(doc: Document | null, id: string, url?: string): DomDetail | null {
+    if (!doc) return null;
     let title = doc.title ? cleanTitle(doc.title) : '';
     if (!title || title === 'Gemini') {
         const h = doc.querySelector('title');
@@ -73,8 +76,8 @@ export function parseDoc(doc: Document, id: string, url?: string): DomDetail {
 
         let text = '';
         const imgNodes = Array.from(node.querySelectorAll('img'));
-        const images: ParserAttachment[] = [];
-        const attachments: ParserAttachment[] = [];
+        const images: Attachment[] = [];
+        const attachments: Attachment[] = [];
 
         for (const imgEl of imgNodes) {
             const src = (imgEl as HTMLImageElement).src || imgEl.getAttribute('src') || '';

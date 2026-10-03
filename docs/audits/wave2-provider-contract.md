@@ -1,5 +1,8 @@
 # W2-03 Provider contract stabilization
 
+Final integration supersedes the retained pagination/input typing debts in this
+historical report; see [W2-08 closeout](wave2-integration-closeout.md).
+
 Baseline: `f807a5c` (W2-02 / #765). Contract scope only; no parser, content,
 export, storage, reconciliation or cancellation behavior is migrated.
 
