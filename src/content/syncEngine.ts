@@ -1,4 +1,6 @@
 import type { ApplicationProvider } from "./providerCompatibility.js";
+import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
+import type { GeminiPaginationDiagnostics } from "../core/api/client/pagination.js";
 import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
@@ -568,7 +570,13 @@ export function resolveListSyncMode(
     };
 }
 
-export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; maxPages?: number }): Promise<any> {
+export interface ProviderSyncResult {
+    count: number;
+    diagnostics: GeminiPaginationDiagnostics;
+    hitGoogleLimit: boolean;
+}
+
+export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; maxPages?: number }): Promise<ProviderSyncResult | null> {
     if (contentContext.getDeepScanPromise()) return null;
 
     let _resolve: (() => void) | undefined;
@@ -598,14 +606,11 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         const effectiveForceFull = isForceFull || (currentCheckpoint === null);
 
         let stoppedByWatermark = false;
-        let page1Batch: any[] = [];
-        // Typed as any: the registered Gemini provider spreads the full pagination
-        // result (conversations/hitGoogleLimit/diagnostics) into the page shape
-        // at runtime; the provider-neutral declared type is still stabilizing.
-        const all: any = await provider.listConversations({
+        let page1Batch: GeminiProviderConversationItem[] = [];
+        const all: GeminiProviderPageResult = await provider.listConversations({
             maxPages: effectiveMaxPages,
             forceFull: effectiveForceFull,
-            onPageBatch: async (batch: any[], info: { page: number; hasMore: boolean }) => {
+            onPageBatch: async (batch, info) => {
                 if (info.page === 1) {
                     page1Batch = batch;
                 }
@@ -625,7 +630,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                     };
                 }
             },
-            onProgress: (prog: any) => {
+            onProgress: (prog) => {
                 const zh = isZh();
                 const badge = document.getElementById('geminiExportBadgeText');
                 if (badge) {
@@ -657,6 +662,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             incremental: !effectiveForceFull
         });
 
+        // Required producer completeness plus the existing error/limit/abort vetoes.
         const isFullExhaustive = effectiveForceFull && !contentContext.isAborted() && isPaginationExhaustive(all);
 
         // If this was a full scan that finished naturally and exhaustively (not stopped early, not hit limit, not aborted)
@@ -670,21 +676,24 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             });
         }
 
-        if (all && all.diagnostics) {
+        // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
+        const diagnostics: GeminiPaginationDiagnostics = all?.diagnostics;
+        const hitGoogleLimit = !!(all?.hitGoogleLimit || diagnostics?.hitGoogleLimit);
+        if (all && diagnostics) {
             const setDiag = Storage?.setLastSyncDiagnostics || StorageService.setLastSyncDiagnostics;
-            await setDiag(all.diagnostics);
+            await setDiag(diagnostics);
         }
 
-        if (all && all.conversations && all.conversations.length) {
+        if (all && all.items && all.items.length) {
             // Each page batch was already incrementally upserted via onPageBatch;
             // avoid a second full O(n log n) pass here.
-            let mergedLen = all.conversations.length;
+            let mergedLen = all.items.length;
             // Absence from the fetched list only proves deletion when the listing is
             // provably complete. A Google ~600 sliding-window limit or early loop means
             // the tail was never fetched — reconciling against it would mass-delete
             // still-alive older conversations, so non-exhaustive cases must skip reconciliation.
             if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
-                const recRes = await Storage.reconcileConversations(slot, all.conversations, { keepTakeout: true });
+                const recRes = await Storage.reconcileConversations(slot, all.items, { keepTakeout: true });
                 if (recRes && recRes.removed > 0) {
                     console.log(`[Gemini Exporter] Reconciled with cloud: pruned ${recRes.removed} deleted conversations`, recRes.removedIds);
                     mergedLen = recRes.kept;
@@ -692,7 +701,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             }
             const Proto = getProtocol();
             const slidingLimit = Proto?.LIMITS?.SLIDING_WINDOW || 600;
-            const isLimit = !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit || (effectiveForceFull && mergedLen >= slidingLimit));
+            const isLimit = !!(hitGoogleLimit || (effectiveForceFull && mergedLen >= slidingLimit));
             const zh = isZh();
             const badge = document.getElementById('geminiExportBadgeText');
             if (badge) badge.textContent = zh ? `已同步 ${mergedLen} 条 ✓` : `${mergedLen} synced ✓`;
@@ -705,7 +714,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                         void setPending({
                             slot,
                             count: mergedLen,
-                            hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit),
+                            hitGoogleLimit: hitGoogleLimit,
                             timestamp: Date.now()
                         });
                     }
@@ -728,10 +737,10 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             } catch (e) {
                 if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
             }
-            return { count: mergedLen, diagnostics: all.diagnostics, hitGoogleLimit: isLimit };
+            return { count: mergedLen, diagnostics, hitGoogleLimit: isLimit };
         }
-        if (all && all.diagnostics) {
-            return { count: 0, diagnostics: all.diagnostics, hitGoogleLimit: !!(all?.hitGoogleLimit || all?.diagnostics?.hitGoogleLimit) };
+        if (all && diagnostics) {
+            return { count: 0, diagnostics, hitGoogleLimit: hitGoogleLimit };
         }
     } catch (e: unknown) {
         const errMsg = getErrorMessage(e);

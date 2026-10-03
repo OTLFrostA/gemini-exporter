@@ -113,7 +113,9 @@ is unchanged; W2-04 now removes this unchecked projection through real narrowing
 
 Four temporary single assertions now reside at the content resolver call sites;
 their current Gemini-only application assumption is explicit, not a neutral
-registry requirement. Outside this task, syncEngine's `const all: any`/callbacks, ActiveClientContract,
+registry requirement. [W2-05](wave2-sync-provider-consumer.md) now removes
+syncEngine's provider result/callback escapes; mixed storage/DOM ingestion,
+ActiveClientContract,
 live-save/router runtime envelopes and export escapes remain for W2-04/05/06/07.
 Shared ChatMessage still has documents/citations any arrays; the provider's Gemini
 companion uses W2-01 ParserMessage's explicitly typed replacements. Parser wire
