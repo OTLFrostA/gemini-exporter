@@ -164,7 +164,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         detectorKind: string;
     }
 
-    type ImageNodeDetector = (node: any, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
+    type ImageNodeDetector = (node: unknown, schema: typeof GEMINI_JSPB_SCHEMA) => RawImageCandidate | null;
 
     const detectInlineImageTuple: ImageNodeDetector = (node, schema) => {
         if (!Array.isArray(node)) return null;
@@ -234,8 +234,9 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
 
     const detectAttachmentType36: ImageNodeDetector = (node) => {
         // Form 1: Deserialized object with attachmentType === 36 (runtime structured content node / attachment)
-        if (node && typeof node === "object" && !Array.isArray(node) && (node as any).attachmentType === 36) {
-            const obj = node as any;
+        if (node && typeof node === "object" && !Array.isArray(node)) {
+            const obj = node as Record<string, unknown>;
+            if (obj.attachmentType !== 36) return null;
             const kc = typeof obj.Kc === "string" ? obj.Kc : undefined;
             const ze = typeof obj.Ze === "string" ? obj.Ze : (typeof obj.NHc === "string" ? obj.NHc : undefined);
             const imgUrl = typeof obj.imageUrl === "string" ? obj.imageUrl : undefined;
@@ -674,6 +675,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         const contentMatch = (
             typeof docContentArr === "object" &&
             docContentArr !== null &&
+            !Array.isArray(docContentArr) &&
             (docContentArr as { contentMatch?: unknown }).contentMatch === "substring"
         )
             ? "substring" as const
@@ -768,4 +770,3 @@ export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
 
 export default GeminiParserAttachments;
-

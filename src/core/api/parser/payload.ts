@@ -8,7 +8,7 @@ export interface InnerPayloadDiscoveryOptions {
 }
 
 export interface InnerPayloadDiscoveryResult {
-    inner: any | null;
+    inner: unknown | null;
     innerStr: string | null;
     isStandardWrb: boolean;
     bardError: string | null;
@@ -63,7 +63,7 @@ export function extractInnerPayload(
         }
     }
 
-    let inner: any = null;
+    let inner: unknown = null;
     if (innerStr) {
         try {
             inner = JSON.parse(innerStr);

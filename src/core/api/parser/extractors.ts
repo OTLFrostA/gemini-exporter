@@ -404,9 +404,11 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
 
     function extractCandidateText(cand: unknown): string {
         if (!cand) return "";
-        const body = (cand as any)?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
-            ? (cand as any)[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
-            : (Array.isArray(cand) && cand.length === 1 ? cand[0] : cand);
+        const body = Array.isArray(cand)
+            ? (cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] !== undefined
+                ? cand[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY]
+                : (cand.length === 1 ? cand[0] : cand))
+            : cand;
 
         for (const extractor of CANDIDATE_BODY_EXTRACTORS) {
             const text = extractor(body);
@@ -578,7 +580,8 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
 
         deepWalk(candidate, (node) => {
             if (!node || typeof node !== "object") return;
-            const f44 = (node as any)["44"] ?? (node as any)[44];
+            const record = node as Record<string, unknown>;
+            const f44 = record["44"] ?? record[44];
             if (Array.isArray(f44)) {
                 for (const item of f44) {
                     if (Array.isArray(item) && Array.isArray(item[0])) {
@@ -672,7 +675,9 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
         }
         if (Array.isArray(turns)) {
             for (let t of turns) {
-                let uText = (t as any)?.[2]?.[0]?.[0];
+                const t2 = Array.isArray(t) ? t[2] : undefined;
+                const t20 = Array.isArray(t2) ? t2[0] : undefined;
+                const uText = Array.isArray(t20) ? t20[0] : undefined;
                 if (typeof uText === "string" && uText.trim() && !RESEARCH_PROMPT_PREFIX_RE.test(uText)) {
                     const concise = smartSummarizePrompt(uText);
                     if (isRealTitle(concise)) return { title: concise, source: "sniff" };
@@ -699,7 +704,10 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
 
         if (metaInner) {
             try {
-                let list = Array.isArray(metaInner?.[1]) ? metaInner[1] : (Array.isArray(metaInner?.[2]) ? metaInner[2] : (Array.isArray(metaInner?.[0]) ? metaInner[0] : []));
+                const metaArray = Array.isArray(metaInner) ? metaInner : [];
+                const list = Array.isArray(metaArray[1]) ? metaArray[1] :
+                    (Array.isArray(metaArray[2]) ? metaArray[2] :
+                        (Array.isArray(metaArray[0]) ? metaArray[0] : []));
                 for (let entry of list) {
                     if (Array.isArray(entry)) {
                         let id = entry[0];
@@ -781,4 +789,3 @@ export const GeminiParserExtractors: GeminiParserExtractorsModule = {
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserExtractors;
 
 export default GeminiParserExtractors;
-

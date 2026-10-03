@@ -172,50 +172,105 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                         if (!decodeGeminiAnnotation(a)) return null;
                     }
                 }
-                return node as unknown as GeminiStructuredNode;
+                return {
+                    nodeType: 18,
+                    text: node.text,
+                    ...(typeof node.jJ === "number" ? { jJ: node.jJ } : {}),
+                    ...(Array.isArray(node.annotations)
+                        ? { annotations: node.annotations.map(decodeGeminiAnnotation).filter((a): a is GeminiAnnotation => a !== null) }
+                        : {})
+                };
             }
             case 12: {
                 if (typeof node.FTa !== "string") return null;
-                return node as unknown as GeminiStructuredNode;
+                return { nodeType: 12, FTa: node.FTa };
             }
             case 1: {
                 if (typeof node.code !== "string") return null;
-                return node as unknown as GeminiStructuredNode;
+                return {
+                    nodeType: 1,
+                    code: node.code,
+                    ...(typeof node.info === "string" ? { info: node.info } : {})
+                };
             }
             case 19:
             case 13:
             case 0:
-                return node as unknown as GeminiStructuredNode;
+                if (node.nodeType === 19) return { nodeType: 19 };
+                if (node.nodeType === 13) return { nodeType: 13 };
+                const rawXj = node.Xj;
+                if (rawXj === undefined) return { nodeType: 0 };
+                if (!Array.isArray(rawXj)) return null;
+                const Xj = rawXj.filter((entry): entry is Record<string, unknown> =>
+                    !!entry && typeof entry === "object" && !Array.isArray(entry));
+                if (Xj.length !== rawXj.length) return null;
+                return { nodeType: 0, Xj };
             case 15: {
                 if (!Array.isArray(node.children)) return null;
-                for (const c of node.children) {
-                    if (!decodeGeminiStructuredNode(c)) return null;
-                }
-                return node as unknown as GeminiStructuredNode;
+                const children = node.children.map(decodeGeminiStructuredNode);
+                if (children.some((c): c is null => c === null)) return null;
+                return { nodeType: 15, children: children.filter((c): c is GeminiStructuredNode => c !== null) };
             }
             case 20:
             case 14: {
                 if (!Array.isArray(node.items)) return null;
-                for (const item of node.items as any[]) {
-                    if (!item || !Array.isArray(item.children)) return null;
-                    for (const c of item.children) {
+                for (const item of node.items) {
+                    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+                    const itemRecord = item as Record<string, unknown>;
+                    if (!Array.isArray(itemRecord.children)) return null;
+                    for (const c of itemRecord.children) {
                         if (!decodeGeminiStructuredNode(c)) return null;
                     }
                 }
-                return node as unknown as GeminiStructuredNode;
+                const items: GeminiListItem[] = [];
+                for (const item of node.items) {
+                    if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+                    const children = (item as Record<string, unknown>).children;
+                    if (!Array.isArray(children)) return null;
+                    const decodedChildren = children.map(decodeGeminiStructuredNode);
+                    if (decodedChildren.some((c): c is null => c === null)) return null;
+                    items.push({ children: decodedChildren.filter((c): c is GeminiStructuredNode => c !== null) });
+                }
+                return node.nodeType === 20
+                    ? { nodeType: 20, items }
+                    : { nodeType: 14, items, ...(typeof node.VHa === "number" ? { VHa: node.VHa } : {}) };
             }
             case 17: {
                 if (!Array.isArray(node.rows)) return null;
-                for (const row of node.rows as any[]) {
-                    if (!row || !Array.isArray(row.cells)) return null;
-                    for (const cell of row.cells) {
-                        if (!cell || !Array.isArray(cell.children)) return null;
-                        for (const c of cell.children) {
+                for (const row of node.rows) {
+                    if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+                    const cells = (row as Record<string, unknown>).cells;
+                    if (!Array.isArray(cells)) return null;
+                    for (const cell of cells) {
+                        if (!cell || typeof cell !== "object" || Array.isArray(cell)) return null;
+                        const children = (cell as Record<string, unknown>).children;
+                        if (!Array.isArray(children)) return null;
+                        for (const c of children) {
                             if (!decodeGeminiStructuredNode(c)) return null;
                         }
                     }
                 }
-                return node as unknown as GeminiStructuredNode;
+                const rows: GeminiTableRow[] = [];
+                for (const row of node.rows) {
+                    if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+                    const rawCells = (row as Record<string, unknown>).cells;
+                    if (!Array.isArray(rawCells)) return null;
+                    const cells: GeminiTableCell[] = [];
+                    for (const cell of rawCells) {
+                        if (!cell || typeof cell !== "object" || Array.isArray(cell)) return null;
+                        const cellRecord = cell as Record<string, unknown>;
+                        if (!Array.isArray(cellRecord.children)) return null;
+                        const children = cellRecord.children.map(decodeGeminiStructuredNode);
+                        if (children.some((c): c is null => c === null)) return null;
+                        cells.push({
+                            children: children.filter((c): c is GeminiStructuredNode => c !== null),
+                            ...(typeof cellRecord.colSpan === "number" ? { colSpan: cellRecord.colSpan } : {}),
+                            ...(typeof cellRecord.rowSpan === "number" ? { rowSpan: cellRecord.rowSpan } : {})
+                        });
+                    }
+                    rows.push({ cells });
+                }
+                return { nodeType: 17, rows };
             }
             default:
                 return null;
@@ -415,16 +470,22 @@ export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDoc
 }
 
 export function extractStructuredContent(turn: unknown, cand?: unknown, candidateIndex: number = 0): GeminiStructuredDocument | undefined {
+    const getStructuredContent = (value: unknown): unknown => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+        return (value as Record<string, unknown>).structuredContent;
+    };
     // 1. Check if mock / test fixture already populated structuredContent directly on cand
-    if (cand && typeof cand === "object" && "structuredContent" in cand && (cand as any).structuredContent) {
-        const decoded = decodeGeminiStructuredPayload((cand as any).structuredContent);
+    const candidateStructuredContent = getStructuredContent(cand);
+    if (candidateStructuredContent) {
+        const decoded = decodeGeminiStructuredPayload(candidateStructuredContent);
         if (decoded) return decoded;
     }
 
     // 2. Direct turn-attached structuredContent (test fixture / mock): only applies to primary candidate
-    if (turn && typeof turn === "object" && !Array.isArray(turn) && "structuredContent" in turn && (turn as any).structuredContent) {
+    const turnStructuredContent = getStructuredContent(turn);
+    if (turnStructuredContent) {
         if (candidateIndex === 0) {
-            const decoded = decodeGeminiStructuredPayload((turn as any).structuredContent);
+            const decoded = decodeGeminiStructuredPayload(turnStructuredContent);
             if (decoded) return decoded;
         }
         return undefined;
