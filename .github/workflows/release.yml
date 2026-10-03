@@ -70,7 +70,7 @@ jobs:
               fi
               # Sync package.json + README badges from manifest.json (SSOT) before the release commit,
               # so the tag and main carry the same version everywhere. build.js no longer does this.
-              npm run release:prepare
+              node scripts/release-prepare.js
               git commit -am "chore(release): bump version to ${TAG} [skip ci]"
               git push origin main
               git tag -a "${TAG}" -m "Release ${TAG}"
@@ -86,7 +86,7 @@ jobs:
               fi
               # Sync package.json + README badges from manifest.json (SSOT) before the release commit,
               # so the tag and main carry the same version everywhere. build.js no longer does this.
-              npm run release:prepare
+              node scripts/release-prepare.js
               git commit -am "chore(release): bump version to ${TAG} [skip ci]"
               git push origin main
               git tag -a "${TAG}" -m "Release ${TAG}"
@@ -95,7 +95,7 @@ jobs:
               TAG="${CUSTOM_TAG}"
               VERSION="${TAG#v}"
               # No-op when versions are in sync; guarantees tag-time consistency otherwise.
-              npm run release:prepare
+              node scripts/release-prepare.js
               if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
                 git tag -a "${TAG}" -m "Release ${TAG}"
                 git push origin "${TAG}"
@@ -106,7 +106,7 @@ jobs:
               VERSION="${CURRENT_VER}"
               echo "Releasing current main version: ${TAG}"
               # No-op when versions are in sync; guarantees tag-time consistency otherwise.
-              npm run release:prepare
+              node scripts/release-prepare.js
               if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
                 git tag -a "${TAG}" -m "Release ${TAG}"
                 git push origin "${TAG}" || true
@@ -125,12 +125,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci || npm install
-
-      - name: Build dist bundles
-        run: |
-          # esbuild transform of src/ -> dist/ (manifest loads dist/ for all JS)
-          node build.js
-          ls -lh dist | head -5
 
       - name: Package extension zip
         run: |

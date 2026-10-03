@@ -94,7 +94,7 @@ class OnlineScenarioProvider:
         """
         pool = self._read_pool()
         if not pool:
-            raise RuntimeError("❌ [场景池安全门禁拦截] 场景池已枯竭 (0 个可用场景)！请先运行 `npm run pool:status` 并补充场景！")
+            raise RuntimeError("❌ [场景池安全门禁拦截] 场景池已枯竭 (0 个可用场景)！请先运行 `python3 scripts/manage_scenario_pool.py status` 并补充场景！")
 
         target_idx = None
 

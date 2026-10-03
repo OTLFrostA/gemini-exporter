@@ -176,17 +176,17 @@ graph LR
 项目构建了行业领先的 3 层测试防线，兼顾 CI 极速验证与真实环境闭环：
 
 - **第一层：CI 自动化极速门禁 (`npm test`)**：
-  - Scoped zero-any 门禁 (`npm run lint:zero-any`)；
+  - Scoped zero-any 门禁 (`node scripts/check-zero-any.cjs`)；
   - TypeScript 严格类型检查 (`tsc --noEmit`)；
   - 当前全量核心单元测试套件 (`python3 tests/run_tests.py`)；
   - esbuild 5 大 Bundle 纯打包构建检查 (`node build.js`)；
   - 当前全量无头 Playwright 端到端浏览器测试 (`playwright test`)；
   - *日常开发推荐*：`npm run test:changed` 秒级（5~15s）运行改动影响传递测试。
-- **第二层：真实 Chrome 全流程实跑测试 (`npm run test:live`)**：
+- **第二层：真实 Chrome 全流程实跑测试 (`npm run test:tier2`)**：
   - 依托 9222 调试端口与真实 Google 账号交互；
   - 维持 20 题多模态高价值场景动态池（覆盖 Imagen 生图、LaTeX、代码块、长文本报告）；
   - 严格通过物理解压 ZIP 逐字断言与 4 大黄金分类附件规范检验。
-- **第三层：纯视觉 AI 盲测与自主质检 (`npm run test:visual` / `npm run test:visual:custom`)**：
+- **第三层：纯视觉 AI 盲测与自主质检 (`python3 scripts/test_visual_agent.py --playground` / `python3 scripts/test_visual_agent.py --api`)**：
   - 采用双途径纯截屏感知架构（无 Context 子智能体交互靶场 / 自定义多模态 AI 接口），零 DOM 泄露、硬件级物理鼠标/键盘事件驱动；
   - 闭环产出结构化 UX 体验评分卡与 HTML 视觉审计报告（`tests/output/visual_audit/`）。
 

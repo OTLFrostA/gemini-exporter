@@ -5,7 +5,7 @@
 // build; it was moved here so that `node build.js` is pure and never mutates the
 // tracked source tree.
 //
-// Usage: npm run release:prepare
+// Usage: node scripts/release-prepare.js
 
 const fs = require('fs');
 const path = require('path');

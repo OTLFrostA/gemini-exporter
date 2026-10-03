@@ -48,7 +48,7 @@ npm test
 
 # 或分别单独执行
 npm run test:unit    # 运行 python3 tests/run_tests.py (当前全量单元测试套件)
-npm run test:e2e     # 运行 npx playwright test (当前全量 Playwright 用例)
+npx playwright test  # 运行当前全量 Playwright 用例 (需先 node build.js)
 ```
 
 ### 3. 测试覆盖范围
@@ -73,7 +73,7 @@ npm run test:e2e     # 运行 npx playwright test (当前全量 Playwright 用�
 .\scripts\open_test_chrome.ps1         # Windows PowerShell
 
 # 标准模式：从场景池消费 2 个最新多模态场景运行全流程实跑测试
-npm run test:live
+npm run test:tier2
 # 或: python3 scripts/test_live_chat_and_export.py
 ```
 
@@ -104,11 +104,10 @@ Tier 3 纯视觉测试专为评估黑盒环境下的真实视觉交互与自主�
 ### 3. 运行命令
 ```bash
 # 途径一：就绪交互靶场 (供人类或无 Context 子智能体 Subagent 探索)
-npm run test:visual
-# 或: python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini]
+python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini]
 
 # 途径二：通过自定义 AI 接口执行推演
-npm run test:visual:custom -- --endpoint <url> [--model <name>] [--goal "<测试目标>"]
+python3 scripts/test_visual_agent.py --api --endpoint <url> [--model <name>] [--goal "<测试目标>"]
 # 或: python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
 ```
 

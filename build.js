@@ -31,7 +31,7 @@ const EXT_VERSION = (() => {
 })();
 
 // NOTE: package.json / README version-badge syncing used to live here. It now
-// lives in scripts/release-prepare.js (`npm run release:prepare`) so that
+// lives in scripts/release-prepare.js (`node scripts/release-prepare.js`) so that
 // `node build.js` is pure and never mutates the tracked source tree.
 
 const DEFINE_VERSION = {

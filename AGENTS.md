@@ -35,22 +35,22 @@
 
 ### 第一层：CI 自动化门禁测试 (Tier 1: Fast & Headless)
 * **执行命令**：
-  - **全量门禁**：`npm test`（对应 `npm run lint:zero-any && npm run type-check && python3 tests/run_tests.py && node build.js && playwright test`）。
+  - **全量门禁**：`npm test`（对应 `node scripts/check-zero-any.cjs && npm run type-check && python3 tests/run_tests.py && node build.js && playwright test`）。
   - **增量极速（推荐日常开发使用）**：`npm run test:changed`（基于 Git 差异进行**模块级反向依赖分析与传递闭包推导 (Transitive Impact Analysis)**，若修改底层依赖则自动递归追溯并运行所有直接与间接关联模块及对应 Playwright 规格，耗时仅 5~15 秒）。
-  - **影响分析报告**：`npm run test:impact`（打印当前改动对全仓模块与测试的传递影响拓扑）。
+  - **影响分析报告**：`python3 scripts/test_impact_analyzer.py --summary`（打印当前改动对全仓模块与测试的传递影响拓扑）。
   - **单点定向单元测试**：`python3 tests/run_tests.py --filter <keyword>`（如 `python3 tests/run_tests.py --filter storage`，秒级验证指定模块）。
 * **适用场景**：日常功能开发与单步迭代推荐使用 `npm run test:changed` 极速自测；每次提交 PR 前必须全量通过 `npm test`，GitHub Actions 门禁对此强制校验。
 * **特性**：轻量极速，包含 scoped zero-any 门禁、TypeScript 严格类型检查、当前全量单元测试套件、esbuild 生产 Bundle 打包构建校验与当前全量无头 Playwright 端到端用例（含 1:1 HTML 导出、老会话置顶升权、会话实时删除与 Takeout 标题升级视觉审计），完全自包含，不依赖外网与真实 Google 账号。
 
 ### 第二层：真实调试 Chrome 全流程实跑测试 (Tier 2: Live Debug Staging)
-* **执行命令**：`npm run test:live`（对应 `python3 scripts/test_live_chat_and_export.py`）。
+* **执行命令**：`npm run test:tier2`（对应 `python3 scripts/test_live_chat_and_export.py`）。
 * **适用场景**：修改了 Protobuf/JSPB 解析引擎、Google Takeout 导入逻辑、会话排序、网络请求拦截或发布新版本前。
 * **环境准备**：需先通过 `./scripts/open_test_chrome.sh`（Windows 环境运行 `.\scripts\open_test_chrome.ps1` 或 `.\scripts\open_test_chrome.cmd`）启动开启 9222 调试端口的独立 Chrome 并登录测试账号。
 * **运行模式与场景调度机制**：
   * **统一标准模式：动态 20 题多模态场景池机制（默认行为）**：
     1. 项目在 `scripts/test_scenario_pool.json` 维护了 20 个覆盖 10+ 领域的高价值测试场景（包含 AI 图像生成、LaTeX 公式、Markdown 表格、多语言混排、长代码等全模态特性）；
-    2. 运行 `npm run test:live`（或 `npm run test:live:pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），消费记录与归档写入 `temp/scenario_pool/`（git-ignored），corpus 文件本身不被修改；
-    3. **AI 补仓铁律（用 2 补 2，常驻 20 题）**：AI 助手在协同开发、跑测试或提交 PR 前，必须运行 `npm run pool:status` 检查水位。若水位低于 20 个，必须针对当前缺口领域构思全新多模态题材补充回 20 题，杜绝同一题材（如深空探测器）反复堆积。
+    2. 运行 `npm run test:tier2`（或 `npm run test:tier2 -- --pool`），自动从池中出队消费 2 个最新场景（1 个含 Imagen 生图，1 个长文本深度推演），消费记录与归档写入 `temp/scenario_pool/`（git-ignored），corpus 文件本身不被修改；
+    3. **AI 补仓铁律（用 2 补 2，常驻 20 题）**：AI 助手在协同开发、跑测试或提交 PR 前，必须运行 `python3 scripts/manage_scenario_pool.py status` 检查水位。若水位低于 20 个，必须针对当前缺口领域构思全新多模态题材补充回 20 题，杜绝同一题材（如深空探测器）反复堆积。
   * **自定义外挂数据集模式 (`--dataset`)**：
     - 支持通过 `--dataset <path>` 传入自定义的 JSON 测试用例文件，执行器将直接加载并运行该数据集。
 
@@ -84,7 +84,7 @@
 npm run test:changed
 
 # 查看当前改动的影响拓扑与受影响测试清单
-npm run test:impact
+python3 scripts/test_impact_analyzer.py --summary
 
 # 定向过滤运行特定单元测试 (秒级完成，如仅测 storage)
 python3 tests/run_tests.py --filter storage
@@ -95,10 +95,10 @@ python3 tests/run_tests.py --filter storage
 .\scripts\open_test_chrome.cmd         # Windows CMD
 
 # 查看场景池当前水位与领域特征分布
-npm run pool:status
+python3 scripts/manage_scenario_pool.py status
 
 # 运行全量实跑测试 (标准模式：从 20 题场景池消费 2 个最新多模态场景)
-npm run test:live
+npm run test:tier2
 # 或: python3 scripts/test_live_chat_and_export.py
 
 # 运行自定义外挂数据集测试
@@ -108,12 +108,10 @@ python3 scripts/test_live_chat_and_export.py --dataset <path_to_custom_dataset.j
 python3 tests/helpers/export_spec_asserter.py <解压目录路径>
 
 # 途径一：就绪交互靶场 (供人类或无 Context 子智能体 Subagent 探索)
-npm run test:visual
-# 或: python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini]
+python3 scripts/test_visual_agent.py --playground [--target options|popup|gemini]
 
 # 途径二：通过自定义 AI 接口驱动自主推演
-npm run test:visual:custom -- --endpoint <url> [--goal "<目标>"]
-# 或: python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
+python3 scripts/test_visual_agent.py --api --endpoint <url> [--ai-review]
 ```
 
 
