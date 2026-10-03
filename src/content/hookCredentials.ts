@@ -46,9 +46,7 @@ declare global {
     function toUrlString(url: string | URL | Request | null | undefined): string {
         if (!url) return '';
         if (typeof url === 'string') return url;
-        if (url instanceof URL) return url.toString();
-        if (typeof Request !== 'undefined' && url instanceof Request) return url.url;
-        return String(url);
+        return url.toString();
     }
 
     function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
@@ -312,7 +310,7 @@ declare global {
             } else if (typeof input === 'object' && input !== null && 'body' in input) {
                 requestBody = input.body;
             }
-            const body: unknown = init?.body ?? requestBody;
+            const body: unknown = (init && init.body) || requestBody;
 
             try {
                 captureFromUrl(input, body);

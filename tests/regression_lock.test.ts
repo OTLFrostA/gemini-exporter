@@ -432,6 +432,73 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
     assert.strictEqual(await wasRelayed(detailBatchexecute), true, 'Detail RPC must pass filter');
 });
 
+test('hookCredentials - Request input is not recognized as URL under (url || "").toString() semantics', async () => {
+    const { posted, win } = createHookSandbox();
+    win.__nextResponseText = ')]}\'\n\n[["wrb.fr","MaZiqc","[]",null]]';
+
+    // A standard browser Request object produces "[object Request]" from .toString().
+    // The pre-refactor hook relied on (url || '').toString() and thus never recognized
+    // Request instances as batchexecute or streaming endpoints.
+    class MockRequest {
+        url: string;
+        body: any;
+        constructor(url: string, init?: any) {
+            this.url = url;
+            this.body = init?.body;
+        }
+        toString() {
+            return '[object Request]';
+        }
+    }
+
+    const req = new MockRequest(
+        'https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid',
+        { body: 'f.req=[[["MaZiqc",null]]]' }
+    );
+
+    await win.fetch(req as any, { method: 'POST', body: 'f.req=[[["MaZiqc",null]]]' });
+    await new Promise(r => setTimeout(r, 50));
+
+    // Must not emit credentials, stream events, or relayed batchexecute payloads
+    assert.strictEqual(posted.length, 0, 'Request object input must not be intercepted by (url || "").toString() logic');
+
+    // In contrast, a direct string URL (or URL object) is recognized and intercepted
+    await win.fetch('https://gemini.google.com/u/0/batchexecute?at=dummy_at&f.sid=dummy_sid', {
+        method: 'POST',
+        body: 'f.req=[[["MaZiqc",null]]]'
+    });
+    await new Promise(r => setTimeout(r, 50));
+    assert.ok(posted.length > 0, 'String URL must be recognized and intercepted');
+    assert.ok(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'), 'Credentials must be captured from string URL');
+});
+
+test('hookCredentials - fetch body preserves (init.body || requestBody) fallback semantics for falsy init.body', async () => {
+    const { posted, win } = createHookSandbox();
+
+    // 1. Falsy init.body ('') must fall back to args[0].body (requestBody), matching init.body || (args[0] && args[0].body)
+    const fallbackInput = {
+        body: 'f.req=at=fallback_at_token&f.sid=fallback_sid',
+        toString() {
+            return 'https://gemini.google.com/u/0/batchexecute';
+        }
+    };
+    await win.fetch(fallbackInput as any, { method: 'POST', body: '' });
+    await new Promise(r => setTimeout(r, 20));
+
+    const credEvents1 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+    assert.strictEqual(credEvents1.length, 1, 'Expected credentials capture from fallback body');
+    assert.strictEqual(credEvents1[0].msg.payload.at, 'fallback_at_token', 'Must extract at token from fallback body when init.body is empty');
+
+    // 2. Truthy init.body must override requestBody
+    posted.length = 0;
+    await win.fetch(fallbackInput as any, { method: 'POST', body: 'f.req=at=override_at_token&f.sid=override_sid' });
+    await new Promise(r => setTimeout(r, 20));
+
+    const credEvents2 = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+    assert.strictEqual(credEvents2.length, 1, 'Expected credentials capture from override body');
+    assert.strictEqual(credEvents2[0].msg.payload.at, 'override_at_token', 'Must extract at token from override init.body');
+});
+
 test('bootstrap - runSerializedCredOp serializes concurrent read-modify-write cycles', async () => {
     // runSerializedCredOp is module-private in bootstrap.ts, so this test
     // exercises the identical chain idiom below AND locks the source shape:
