@@ -1,18 +1,26 @@
-import type { Attachment, ChatMessage, GeneratedMediaIdentity } from '../../types/conversation.js';
+import type { GeneratedMediaIdentity } from '../../types/conversation.js';
 
-type GenerationAttachment = Partial<Attachment>;
+type GenerationAttachment = {
+    isGenerated?: boolean;
+    providerRequestId?: string;
+    generation?: GeneratedMediaIdentity;
+    imageOrdinal?: number;
+};
 
-type GenerationMessage = Pick<ChatMessage, 'role' | 'content'> & Partial<Pick<
-    ChatMessage,
-    'id' | 'timestamp' | 'turnId' | 'providerRequestId' | 'generation'
->> & {
+type GenerationMessage = {
+    role?: string;
+    content?: string;
+    id?: string;
+    timestamp?: number | string | null;
+    turnId?: string;
+    providerRequestId?: string;
+    generation?: GeneratedMediaIdentity;
     images?: GenerationAttachment[];
     attachments?: GenerationAttachment[];
 };
 
 interface GenerationChat {
     id?: string;
-    timestamp?: number | string | null;
     messages?: GenerationMessage[];
 }
 

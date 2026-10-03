@@ -3,7 +3,7 @@ export interface ZipBombGuardModule {
     MAX_ZIP_SIZE: number;
     MAX_ENTRY_COUNT: number;
     MAX_TOTAL_UNCOMPRESSED: number;
-    validateZipFile: (file?: { size?: number } | null) => void;
+    validateZipFile: (file?: unknown) => void;
     validateZipEntries: (zip?: any) => void;
 }
 
@@ -18,17 +18,21 @@ function getI18n() {
     return __resolveModule('I18n', I18nStatic);
 }
 
-export function validateZipFile(file?: { size?: number } | null): void {
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+export function validateZipFile(file?: unknown): void {
     // Handle pre-loaded JSZip instances
-    if (file && typeof (file as any).file === 'function' && (file as any).files) {
+    if (isRecord(file) && typeof file.file === 'function' && file.files) {
         validateZipEntries(file);
         return;
     }
     // Accept File/Blob (.size) as well as Buffer/Uint8Array (.length/.byteLength).
-    const byteSize = file
+    const byteSize = isRecord(file)
         ? (typeof file.size === 'number' ? file.size
-            : typeof (file as any).length === 'number' ? (file as any).length
-            : typeof (file as any).byteLength === 'number' ? (file as any).byteLength
+            : typeof file.length === 'number' ? file.length
+            : typeof file.byteLength === 'number' ? file.byteLength
             : NaN)
         : NaN;
     // Fail closed when size cannot be determined

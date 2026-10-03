@@ -52,16 +52,21 @@ export interface DownloadAssetDirectMessage extends BaseMessage {
     url: string;
     referer?: string;
     preferBuffer?: boolean;
+    fileName?: string;
+    candidates?: string[];
     timeoutMs?: number;
 }
 
 export interface DownloadAssetResponse {
-    success: boolean;
+    success?: boolean;
+    ok?: boolean;
     dataBuffer?: ArrayBuffer | ArrayBufferView;
     blobBuffer?: ArrayBuffer | ArrayBufferView;
     dataBase64?: string;
     blobBase64?: string;
+    dataUrl?: string;
     mime?: string;
+    mimeType?: string;
     contentType?: string;
     size?: number;
     finalUrl?: string;
@@ -175,5 +180,3 @@ export interface ReloadGeminiTabMessage extends BaseMessage {
     action: 'reloadGeminiTab';
     tabId?: number;
 }
-
-

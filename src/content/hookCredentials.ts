@@ -99,15 +99,15 @@ declare global {
     ): void {
         try {
             const u = toUrlString(url);
-            const hasGz = (typeof body === 'string' && body.includes(Proto.RPCS.DELETE)) ||
-                          (typeof responseText === 'string' && responseText.includes(Proto.RPCS.DELETE)) ||
+            const bodyStr = body ? String(body) : '';
+            const respStr = responseText ? String(responseText) : '';
+            const hasGz = (bodyStr && bodyStr.includes(Proto.RPCS.DELETE)) ||
+                          (respStr && respStr.includes(Proto.RPCS.DELETE)) ||
                           u.includes(Proto.RPCS.DELETE);
             if (!hasGz) return;
 
             const slot = getSlotFromUrl(url);
 
-            const bodyStr = typeof body === 'string' ? body : '';
-            const respStr = typeof responseText === 'string' ? responseText : '';
             let targetText = bodyStr + ' ' + respStr;
             try {
                 if (targetText.includes('%')) {
@@ -365,32 +365,19 @@ declare global {
         const nativeOpen = origOpen;
         const nativeSend = origSend;
 
-        XMLHttpRequest.prototype.open = function(
-            this: XMLHttpRequest,
-            method: string,
-            url: string | URL,
-            async?: boolean,
-            username?: string | null,
-            password?: string | null
-        ): void {
+        XMLHttpRequest.prototype.open = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['open']>): void {
             try {
-                this.__hookUrl = url;
+                this.__hookUrl = args[1];
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
-            if (username !== undefined || password !== undefined) {
-                nativeOpen.call(this, method, url, async ?? true, username, password);
-            } else {
-                nativeOpen.call(this, method, url, async ?? true);
-            }
+            nativeOpen.apply(this, args);
         };
 
-        XMLHttpRequest.prototype.send = function(
-            this: XMLHttpRequest,
-            body?: Document | XMLHttpRequestBodyInit | null
-        ): void {
+        XMLHttpRequest.prototype.send = function(this: XMLHttpRequest, ...args: Parameters<XMLHttpRequest['send']>): void {
             try {
                 const url = this.__hookUrl;
+                const body = args[0];
                 captureFromUrl(url, body);
 
                 const u = toUrlString(url);
@@ -422,7 +409,7 @@ declare global {
             } catch (e) {
                 if (isDev()) console.debug('[GemExporter:hook]', e);
             }
-            nativeSend.call(this, body);
+            nativeSend.apply(this, args);
         };
     }
 
