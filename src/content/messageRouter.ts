@@ -113,9 +113,8 @@ export function init({
         if (msg.action === 'stopDeepScan' || msg.action === 'abortSync') {
             contentContext.abort();
             if (typeof window !== 'undefined') {
-                const w = window as any;
-                w.__gemExporterAborted = true;
-                try { w.__gemExporterActiveClient && w.__gemExporterActiveClient.abort(); } catch { /* intentional: best-effort cleanup */ }
+                window.__gemExporterAborted = true;
+                try { window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort(); } catch { /* intentional: best-effort cleanup */ }
             }
             respond({ ok: true, aborted: true });
             return true;

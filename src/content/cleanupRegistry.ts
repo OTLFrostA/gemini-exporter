@@ -1,5 +1,4 @@
 // Runs cleanups before re-injected bundles register new listeners.
-const KEY = '__gemExporterCleanups';
 
 /**
  * Register a cleanup to run before the next bundle (re-)initializes.
@@ -7,9 +6,8 @@ const KEY = '__gemExporterCleanups';
  */
 export function registerCleanup(fn: () => void): void {
     if (typeof window === 'undefined') return;
-    const w = window as any;
-    if (!Array.isArray(w[KEY])) w[KEY] = [];
-    w[KEY].push(fn);
+    if (!Array.isArray(window.__gemExporterCleanups)) window.__gemExporterCleanups = [];
+    window.__gemExporterCleanups.push(fn);
 }
 
 /**
@@ -18,9 +16,8 @@ export function registerCleanup(fn: () => void): void {
  */
 export function runCleanups(): void {
     if (typeof window === 'undefined') return;
-    const w = window as any;
-    const fns: Array<() => void> = Array.isArray(w[KEY]) ? w[KEY] : [];
-    w[KEY] = [];
+    const fns: Array<() => void> = Array.isArray(window.__gemExporterCleanups) ? window.__gemExporterCleanups : [];
+    window.__gemExporterCleanups = [];
     for (const fn of fns) {
         try {
             fn();
@@ -32,6 +29,5 @@ export function runCleanups(): void {
 
 export function pendingCleanupCount(): number {
     if (typeof window === 'undefined') return 0;
-    const w = window as any;
-    return Array.isArray(w[KEY]) ? w[KEY].length : 0;
+    return Array.isArray(window.__gemExporterCleanups) ? window.__gemExporterCleanups.length : 0;
 }
