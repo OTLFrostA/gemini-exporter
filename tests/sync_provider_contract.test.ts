@@ -6,14 +6,17 @@ import { contentContext } from '../src/content/contentContext.js';
 import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 import type { GeminiProviderContract, GeminiProviderConversationItem, GeminiProviderPageResult, GeminiProviderListOptions } from '../src/core/provider/gemini/geminiContracts.js';
-import type { PaginationCompletionReason, PaginationStopDecision } from '../src/core/api/client/pagination.js';
+import { getAllConversations } from '../src/core/api/client/pagination.js';
+import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
+import type { ListParseResult } from '../src/core/api/parser/parseList.js';
+import type { PaginationCompletionReason, PaginationStopDecision, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
 import type { Conversation } from '../src/types/conversation.js';
 import { GeminiProtocol } from '../src/core/protocol/protocol.js';
 
 type Assert<T extends true> = T;
-type NotAny<T> = 0 extends (1 & T) ? false : true;
-const typedResult: Assert<NotAny<Awaited<ReturnType<typeof tryBatchExecuteFull>>>> = true;
-const typedDiagnostics: Assert<NotAny<ProviderSyncResult['diagnostics']>> = true;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+const typedResult: Assert<Equal<Awaited<ReturnType<typeof tryBatchExecuteFull>>, ProviderSyncResult | null>> = true;
+const typedDiagnostics: Assert<Equal<ProviderSyncResult['diagnostics'], GeminiPaginationDiagnostics>> = true;
 const NOW = 1700000000000;
 function item(id = 'chat_visible'): GeminiProviderConversationItem {
     return { id, title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' },
@@ -196,4 +199,27 @@ test('sync provider: empty complete account retains the existing conservative no
     assert.equal(trace.reconcileCalls, 0);
     assert.ok(records.some(c => c.id === 'chat_old'));
     assert.equal(trace.checkpointWrites.length, 1);
+});
+
+test('sync safety: real pagination edge results pass through adapter without reconciling unseen history', async () => {
+    const abort = new Error('request aborted'); abort.name = 'AbortError';
+    const malformed: ListParseResult = { conversations: [], nextPageToken: null, _debug: { error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
+    for (const edge of ['negative-budget', 'empty-no-inner', 'partial-no-inner', 'partial-abort'] as const) {
+        let calls = 0;
+        const actual = await getAllConversations({ async getConversationList() {
+            if (edge === 'negative-budget') throw new Error('negative budget must not fetch');
+            if (edge === 'empty-no-inner') return malformed;
+            if (calls++ === 0) return { conversations: [item()], nextPageToken: 'tC_more' };
+            if (edge === 'partial-abort') throw abort;
+            return malformed;
+        } }, { maxPages: edge === 'negative-budget' ? -1 : 4, incremental: true });
+        assert.equal(actual.exhaustive, false, edge);
+        assert.equal(actual.completionReason, edge === 'negative-budget' ? 'max_pages' : edge === 'partial-abort' ? 'aborted' : 'error', edge);
+        const adapter = new GeminiProvider({ async getAllConversations() { return actual; }, async getConversationDetail() { throw new Error('unexpected detail'); } });
+        const mapped = await adapter.listConversations();
+        const { trace, records } = await scan(mapped);
+        assert.equal(trace.reconcileCalls, 0, edge);
+        assert.ok(records.some(c => c.id === 'chat_old'), edge);
+        assert.deepEqual(trace.checkpointWrites, [], edge);
+    }
 });

@@ -128,7 +128,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
     if (Scraper && typeof Scraper.parseDoc === 'function') {
         const doc = typeof document !== 'undefined' ? document : null;
         try {
-            const docResult = Scraper.parseDoc(doc!, nid);
+            const docResult = Scraper.parseDoc(doc, nid);
             if (docResult && Array.isArray(docResult.messages) && docResult.messages.length > 0) {
                 return docResult;
             }

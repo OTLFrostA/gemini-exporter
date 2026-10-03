@@ -9,7 +9,7 @@ import type { DomDetail, GetConversationDetailResponse } from '../src/types/deta
 
 // Compile-time regression: explicit null disables these optional runtime dependencies.
 // Keep this assignment typed; routing through an unchecked fixture would hide the bug.
-const deps: MessageRouterDeps = { storage: null, utils: null };
+const deps: MessageRouterDeps = { syncEngine: null, scraper: null, assets: null, storage: null, utils: null };
 void deps;
 
 function detail(): GeminiProviderConversationDetail {
@@ -121,5 +121,18 @@ test('liveSave: empty/failed provider and failed injected client still permit DO
         class Client { async getConversationDetail(): Promise<GeminiProviderConversationDetail> { throw new Error('injected failure'); } }
         initLive({ scraper: { ...DomScraper, parseDoc: () => dom }, ...(mode === 'injected' ? { clientClass: Client } : {}) });
         assert.strictEqual(await resolveConversationDetail('detail123'), dom);
+    }
+}));
+
+test('liveSave: missing document is an explicit null DOM fallback, not a non-null assertion', async () => withProvider(async set => {
+    set(async () => { throw new Error('provider unavailable'); });
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    Reflect.deleteProperty(globalThis, 'document');
+    try {
+        assert.equal(DomScraper.parseDoc(null, 'detail123'), null);
+        initLive();
+        assert.equal(await resolveConversationDetail('detail123'), null);
+    } finally {
+        if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
     }
 }));

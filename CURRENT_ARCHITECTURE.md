@@ -81,6 +81,17 @@ with zero repository imports through either surface. W2-03 already removed them;
 W2-07 preserves the planned Provider/asset/routing seams and clarifies barrel
 comments. See [W2-07 report](docs/audits/wave2-provider-namespace-cleanup.md).
 
+## Wave 2 integration status (W2-08)
+
+Final integration adds exact awaited producer/client, resolver, sync and function-input
+contract gates. Provider readiness/detail inputs stay opaque and Gemini narrows known
+string fields, with no method-bivariance shortcut. Pagination negative budgets,
+NO_INNER_STR and partial AbortError results are incomplete and cannot reconcile.
+The permanent explicit-any gate covers 14 whole production files listed in
+`scripts/zero-any-files.json`; broad mixed consumer/export/raw-wire files remain
+explicitly outside this gate. See [W2-08 closeout](docs/audits/wave2-integration-closeout.md)
+for the final chain, debt disposition and validation evidence.
+
 ## Maintenance Convergence Status
 
 Status: COMPLETE

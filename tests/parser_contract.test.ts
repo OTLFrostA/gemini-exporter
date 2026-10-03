@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import type { GeminiResponseParserFacade, ListParseResult, DetailParseResult, ParserMessage } from '../src/core/api/geminiParser.js';
 import type { GeminiParserAttachmentsModule } from '../src/core/api/parser/attachments.js';
 import type { GeminiParserExtractorsModule } from '../src/core/api/parser/extractors.js';
+import type { ListParseDiagnostics } from '../src/core/api/parser/parseList.js';
+import type { DetailParseDiagnostics, ParserDocument, ParserAttachment } from '../src/core/api/parser/parseDetail.js';
+import type { Citation } from '../src/core/api/parser/extractors.js';
 import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
 import type { GeminiUtilsModule } from '../src/core/utils/utils.js';
 import { parseList } from '../src/core/api/parser/parseList.js';
@@ -12,24 +15,27 @@ import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/m
 // Compile-time regression: the facade must preserve module contracts rather
 // than widening media/results/dependencies back to an unchecked escape.
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
-type NotAny<T> = 0 extends (1 & T) ? false : true;
 type Assert<T extends true> = T;
 type OutputContracts = [
     Assert<Equal<ListParseResult['_raw'], unknown>>,
     Assert<Equal<DetailParseResult['_raw'], unknown>>,
-    Assert<NotAny<NonNullable<ListParseResult['_debug']>>>,
-    Assert<NotAny<NonNullable<DetailParseResult['_debug']>>>,
-    Assert<NotAny<ParserMessage>>,
-    Assert<NotAny<NonNullable<ParserMessage['documents']>[number]>>,
-    Assert<NotAny<NonNullable<ParserMessage['citations']>[number]>>,
-    Assert<NotAny<NonNullable<ParserMessage['attachments']>[number]>>,
+    Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
+    Assert<Equal<DetailParseResult['_debug'], DetailParseDiagnostics | null | undefined>>,
+    Assert<Equal<DetailParseResult['messages'][number], ParserMessage>>,
+    Assert<Equal<ParserMessage['documents'], ParserDocument[] | undefined>>,
+    Assert<Equal<ParserMessage['citations'], Citation[] | undefined>>,
+    Assert<Equal<ParserMessage['attachments'], ParserAttachment[] | undefined>>,
     Assert<Equal<GeminiResponseParserFacade['extractImages'], GeminiParserAttachmentsModule['extractImages']>>,
     Assert<Equal<GeminiResponseParserFacade['parseDocSections'], GeminiParserAttachmentsModule['parseDocSections']>>,
     Assert<Equal<GeminiResponseParserFacade['deepWalk'], GeminiParserExtractorsModule['deepWalk']>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getProtocol']>, GeminiProtocolModule>>,
-    Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, GeminiUtilsModule>>
+    Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, GeminiUtilsModule>>,
+    Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
+    Assert<Equal<ReturnType<typeof parseDetail>, DetailParseResult>>,
+    Assert<Equal<ReturnType<GeminiResponseParserFacade['parseList']>, ListParseResult>>,
+    Assert<Equal<ReturnType<GeminiResponseParserFacade['parseDetail']>, DetailParseResult>>
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
 test('parser output and facade contracts remain explicitly typed', () => {
     assert.ok(contracts.every(Boolean));
 });

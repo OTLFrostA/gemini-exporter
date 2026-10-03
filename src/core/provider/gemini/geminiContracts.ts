@@ -38,7 +38,7 @@ export interface GeminiProviderClient {
 }
 
 export interface GeminiProviderContract extends AIProvider {
-    checkReadiness(context?: GeminiProviderReadinessContext): Promise<GeminiProviderReadiness>;
-    listConversations(options?: GeminiProviderListOptions): Promise<GeminiProviderPageResult>;
-    fetchConversationDetail(conversationId: string, options?: GeminiProviderDetailOptions): Promise<GeminiProviderConversationDetail>;
+    checkReadiness: (context?: unknown) => Promise<GeminiProviderReadiness>;
+    listConversations: (options?: GeminiProviderListOptions) => Promise<GeminiProviderPageResult>;
+    fetchConversationDetail: (conversationId: string, options?: unknown) => Promise<GeminiProviderConversationDetail>;
 }

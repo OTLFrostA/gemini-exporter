@@ -1,7 +1,6 @@
 import type { ProviderConversationDetail } from '../core/provider/aiProvider.js';
 import type { GeminiProviderConversationDetail } from '../core/provider/gemini/geminiContracts.js';
-import type { ParserAttachment } from '../core/api/parser/parseDetail.js';
-import type { TitleSource, TitleSources } from './conversation.js';
+import type { Attachment, TitleSource, TitleSources } from './conversation.js';
 
 /** DOM observations are not parser/wire diagnostics. */
 export interface DomDetailDebug {
@@ -15,8 +14,8 @@ export interface DomDetailDebug {
 
 export interface DomDetail extends ProviderConversationDetail {
     messages: Array<ProviderConversationDetail['messages'][number] & {
-        images?: ParserAttachment[];
-        attachments?: ParserAttachment[];
+        images?: Attachment[];
+        attachments?: Attachment[];
     }>;
     titleSource?: TitleSource;
     titles?: TitleSources;

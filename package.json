@@ -27,7 +27,7 @@
     "test:corpus": "node -r ./tests/ts_register.js ./scripts/parser_migration/run_corpus.ts",
     "provenance:summary": "python3 ./scripts/parser_migration/test_provenance.py --summary",
     "release": "gh workflow run release.yml --ref main",
-    "lint:zero-any": "oxlint -A all -D typescript/no-explicit-any --no-ignore --disable-nested-config src/core/utils/titleUtils.ts src/core/utils/mergeUtils.ts",
+    "lint:zero-any": "node scripts/check-zero-any.cjs",
     "lint": "oxlint -A all -D typescript/no-floating-promises --type-aware src/"
   },
   "keywords": [

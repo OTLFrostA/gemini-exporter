@@ -26,9 +26,9 @@ function isAllowedAssetUrl(u: unknown): boolean {
 }
 
 export interface MessageRouterDeps {
-    syncEngine?: typeof SyncEngine;
-    scraper?: typeof DomScraper;
-    assets?: typeof AssetFetcher;
+    syncEngine?: typeof SyncEngine | null;
+    scraper?: typeof DomScraper | null;
+    assets?: typeof AssetFetcher | null;
     storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
     utils?: (Partial<Pick<typeof GeminiUtils, 'cleanTitle' | 'isRealTitle' | 'setTitleBySource' | 'resolveDetailTitle'>> & { normalizeReliableTitleSource?: typeof normalizeReliableTitleSource }) | null;
 }

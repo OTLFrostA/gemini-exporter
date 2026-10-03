@@ -1,0 +1,16 @@
+[
+  "src/core/utils/titleUtils.ts",
+  "src/core/utils/mergeUtils.ts",
+  "src/core/api/geminiParser.ts",
+  "src/core/api/parser/parseList.ts",
+  "src/core/api/client/pagination.ts",
+  "src/core/provider/aiProvider.ts",
+  "src/core/provider/providerRegistry.ts",
+  "src/core/provider/providerResolver.ts",
+  "src/core/provider/index.ts",
+  "src/core/provider/gemini/geminiContracts.ts",
+  "src/core/provider/gemini/geminiProvider.ts",
+  "src/content/providerCompatibility.ts",
+  "src/types/detailTransport.ts",
+  "src/types/messages.ts"
+]

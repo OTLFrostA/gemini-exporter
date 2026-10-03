@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getAllConversations, getConversationDetail, isPaginationExhaustive } from '../src/core/api/client/pagination.js';
-import type { GeminiPaginationListClient, GeminiPaginationDetailClient, PaginationOptions, PaginationResult, PaginationProgressInfo, PaginatedDetailResult } from '../src/core/api/client/pagination.js';
+import type { GeminiPaginationListClient, GeminiPaginationDetailClient, PaginationOptions, PaginationResult, PaginationProgressInfo, PaginatedDetailResult, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
 import type { ConversationListItem, ListParseResult, DetailParseResult } from '../src/core/api/geminiParser.js';
+import { parseList } from '../src/core/api/parser/parseList.js';
+import type { ListParseDiagnostics } from '../src/core/api/parser/parseList.js';
 import type { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
 function item(id: string): ConversationListItem {
@@ -39,19 +41,22 @@ function detailClient(pages: DetailParseResult[]): GeminiPaginationDetailClient 
 // Keep the producer's required completeness/diagnostic contracts from widening
 // when the provider adapter is migrated. The legacy guard intentionally accepts {}.
 type Assert<T extends true> = T;
-type NotAny<T> = 0 extends (1 & T) ? false : true;
+type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type RequiredField<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
 type TypeContracts = [
     Assert<RequiredField<PaginationResult, 'exhaustive'>>,
     Assert<RequiredField<PaginationResult, 'completionReason'>>,
-    Assert<NotAny<PaginationResult['diagnostics']>>,
-    Assert<NotAny<PaginationResult['diagnostics']['pageHistory'][number]['debugInfo']>>,
-    Assert<NotAny<Parameters<NonNullable<PaginationOptions['onPageBatch']>>[0][number]>>,
-    Assert<NotAny<Parameters<NonNullable<PaginationOptions['onProgress']>>[0]>>,
+    Assert<Equal<PaginationResult['diagnostics'], GeminiPaginationDiagnostics>>,
+    Assert<Equal<PaginationResult['diagnostics']['pageHistory'][number]['debugInfo'], ListParseDiagnostics | null>>,
+    Assert<Equal<Parameters<NonNullable<PaginationOptions['onPageBatch']>>[0], ConversationListItem[]>>,
+    Assert<Equal<Parameters<NonNullable<PaginationOptions['onProgress']>>[0], PaginationProgressInfo>>,
     Assert<GeminiAPIClient extends GeminiPaginationListClient & GeminiPaginationDetailClient ? true : false>,
-    Assert<NotAny<ReturnType<GeminiAPIClient['getAllConversations']>>>
+    Assert<Equal<Awaited<ReturnType<GeminiAPIClient['getAllConversations']>>, PaginationResult>>,
+    Assert<Equal<Awaited<ReturnType<GeminiAPIClient['getConversationDetail']>>, PaginatedDetailResult>>,
+    Assert<Equal<Awaited<ReturnType<typeof getAllConversations>>, PaginationResult>>,
+    Assert<Equal<Awaited<ReturnType<typeof getConversationDetail>>, PaginatedDetailResult>>
 ];
-const typeContracts: TypeContracts = [true, true, true, true, true, true, true, true];
+const typeContracts: TypeContracts = [true, true, true, true, true, true, true, true, true, true, true];
 
 test('list: empty page and terminal populated page are naturally exhaustive', async () => {
     assert.ok(typeContracts.every(Boolean));
@@ -263,7 +268,7 @@ test('list: global abort fallback is observed before the first fetch and preserv
     }
 });
 
-test('list: zero maxPages keeps its default fallback and negative maxPages keeps the legacy zero-iteration result', async () => {
+test('list: zero maxPages keeps its default fallback and negative maxPages is an incomplete budget stop', async () => {
     const zero = await getAllConversations(listClient([page([])]), { maxPages: 0 });
     assert.equal(zero.diagnostics.maxPages, 2000);
     assert.equal(zero.completionReason, 'natural_exhaustion');
@@ -272,9 +277,10 @@ test('list: zero maxPages keeps its default fallback and negative maxPages keeps
     assert.equal(client.calls, 0);
     assert.equal(negative.diagnostics.maxPages, -1);
     assert.equal(negative.diagnostics.totalPagesFetched, 0);
-    assert.equal(negative.exhaustive, true);
-    assert.equal(negative.completionReason, 'natural_exhaustion');
-    assert.equal(negative.stoppedEarly, undefined);
+    assert.equal(negative.exhaustive, false);
+    assert.equal(negative.completionReason, 'max_pages');
+    assert.equal(negative.stoppedEarly, true);
+    assert.equal(isPaginationExhaustive(negative), false);
 });
 
 test('detail: metadata-only retry flags and authoritative primary title remain unchanged', async () => {
@@ -304,22 +310,37 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
     assert.deepEqual(result.schemaDrift, ['initial drift', 'retry drift']);
 });
 
-test('known behavior: an empty NO_INNER_STR parser result still counts as natural exhaustion', async () => {
+test('list: an empty NO_INNER_STR parser result is incomplete', async () => {
     const result = await getAllConversations(listClient([{ ...page([]), _debug: {
         error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'raw', topParsed: null
     } }]));
-    assert.equal(result.exhaustive, true);
-    assert.equal(result.completionReason, 'natural_exhaustion');
+    assert.equal(result.exhaustive, false);
+    assert.equal(result.completionReason, 'error');
+    assert.equal(isPaginationExhaustive(result), false);
     assert.equal(result.hitGoogleLimit, false);
     assert.equal(result.diagnostics.pageHistory[0].debugInfo?.error, 'NO_INNER_STR');
 });
 
-test('known behavior: an in-flight abort rejection after partial data maps to error rather than loop-level aborted', async () => {
+test('list: an in-flight AbortError preserves partial data as aborted', async () => {
     const aborted = new Error('fixture request aborted');
     aborted.name = 'AbortError';
     const result = await getAllConversations(listClient([page(['one'], 'tC_more'), aborted]), { incremental: true });
-    assert.equal(result.completionReason, 'error');
+    assert.equal(result.completionReason, 'aborted');
     assert.equal(result.exhaustive, false);
     assert.equal(result.stoppedEarly, true);
     assert.equal(result.total, 1);
+    assert.equal(isPaginationExhaustive(result), false);
+});
+
+test('list: actual empty/malformed NO_INNER_STR responses cannot exhaust a partially fetched account', async () => {
+    for (const text of ['', 'not JSON', '{}', '[null]']) {
+        const malformed = parseList(text);
+        assert.equal(malformed._debug?.error, 'NO_INNER_STR');
+        const result = await getAllConversations(listClient([page(['one'], 'tC_more'), malformed]), { incremental: true });
+        assert.equal(result.completionReason, 'error', text);
+        assert.equal(result.exhaustive, false, text);
+        assert.equal(result.stoppedEarly, true, text);
+        assert.equal(result.total, 1);
+        assert.equal(isPaginationExhaustive(result), false);
+    }
 });

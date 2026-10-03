@@ -71,9 +71,9 @@ export interface AIProvider {
     readonly hostPatterns: string[];
 
     /** Context/detail options are unverified at the neutral seam. */
-    checkReadiness(context?: unknown): Promise<ProviderReadiness>;
-    listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<ProviderConversationItem>>;
-    fetchConversationDetail(conversationId: string, options?: unknown): Promise<ProviderConversationDetail>;
+    checkReadiness: (context?: unknown) => Promise<ProviderReadiness>;
+    listConversations: (options?: ProviderListOptions) => Promise<ProviderPageResult<ProviderConversationItem>>;
+    fetchConversationDetail: (conversationId: string, options?: unknown) => Promise<ProviderConversationDetail>;
     matchesUrl(url: string): boolean;
     /** @unverified-provider-scaffold No implementation or production caller yet. */
     fetchAsset?(url: string, options?: unknown): Promise<Blob | ArrayBuffer>;
