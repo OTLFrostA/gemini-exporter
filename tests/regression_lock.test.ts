@@ -327,7 +327,12 @@ test('regression: stop sync must sync window flag and active client', () => {
     const contentContent = readSrc('../src/content/content.js') + readSrc('../src/content/messageRouter.js') + readSrc('../src/content/contentContext.js');
     assert.ok(clientContent.includes('window.__gemExporterAborted') && clientContent.includes('isAborted'), 'gemini_client should check window abort flag');
     assert.ok(contentContent.includes('__gemExporterActiveClient'), 'content should store active client');
-    assert.ok(contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()') || contentContent.includes('w.__gemExporterActiveClient && w.__gemExporterActiveClient.abort()'), 'stopDeepScan should abort active client');
+    assert.ok(
+        contentContent.includes("typeof active?.abort === 'function'") ||
+        contentContent.includes('__gemExporterActiveClient && window.__gemExporterActiveClient.abort()') ||
+        contentContent.includes('w.__gemExporterActiveClient && w.__gemExporterActiveClient.abort()'),
+        'stopDeepScan should abort active client'
+    );
 });
 
 test('regression: empty cloud response must be logged as error with debug', () => {

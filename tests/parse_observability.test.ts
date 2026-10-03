@@ -160,6 +160,30 @@ test('P1-9i: parseDocSections 透传上游 contentMatch 标记', () => {
     assert.strictEqual(clean.contentMatch, undefined);
 });
 
+test('P1-9k: findDocContentById substring match -> parseDocSections 端到端透传 contentMatch 标记', () => {
+    const rawSection = "这是一段用于测试文档段落的文字内容，长度确保超过五十个字符以进入 sections 集合。".repeat(2);
+    const substringNode = ["prefix_docSubId_suffix", [[rawSection, "https://example.com/doc-link"]]];
+    const root = [substringNode];
+
+    // 1. findDocContentById 通过 substring 规则命中并在数组上设置 contentMatch = 'substring'
+    const found: any = attachments.findDocContentById(root, "docSubId");
+    assert.strictEqual(found, substringNode, '应返回匹配的数组节点');
+    assert.strictEqual(found.contentMatch, 'substring', 'findDocContentById 应在数组上打上 substring 标记');
+
+    // 2. parseDocSections 接收带有 property 的数组并正确透传 contentMatch
+    const res = attachments.parseDocSections(found);
+    assert.strictEqual(res.contentMatch, 'substring', 'parseDocSections 必须从 array-with-property 上完整透传 contentMatch');
+    assert.ok(res.contentMarkdown.includes("这是一段用于测试文档段落的文字内容"), 'sections 内容应被正确解析为 markdown');
+
+    // 3. 对照组：全等匹配节点不标记 contentMatch，经 parseDocSections 后 contentMatch 保持 undefined
+    const exactNode = ["docExactId", [[rawSection, "https://example.com/doc-link"]]];
+    const exactFound: any = attachments.findDocContentById([exactNode], "docExactId");
+    assert.strictEqual(exactFound, exactNode);
+    assert.strictEqual(exactFound.contentMatch, undefined, '全等匹配不应带有 contentMatch 标记');
+    const exactRes = attachments.parseDocSections(exactFound);
+    assert.strictEqual(exactRes.contentMatch, undefined, '全等匹配经 parseDocSections 不应带有 contentMatch');
+});
+
 test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
     const docId = UUID;
     const flatItem = ["https://y/immersive_entry_chip/e2e", docId, "End To End Heuristic Title"];

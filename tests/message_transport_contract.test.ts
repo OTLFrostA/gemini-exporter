@@ -65,14 +65,17 @@ test('scan validation rejects malformed fields while preserving valid diagnostic
         void count;
         assert.equal(reply.diagnostics.pageHistory.length, 1);
     }
-    for (const bad of [null, [], {}, { success: 'true' }, { success: true, count: '2' },
+    for (const bad of [null, [], {}, { success: 'true' }, { success: true }, { success: true, count: '2' },
         { success: true, total: Infinity }, { success: true, count: NaN },
         { success: false, error: {} }, { success: true, hitGoogleLimit: 'yes' },
         { success: true, diagnostics: null }, { success: true, diagnostics: { stopReason: 4 } },
         { success: true, diagnostics: { hitGoogleLimit: 'false' } }]) {
         assert.equal(isScanResponse(bad), false);
     }
+    assert.equal(isScanResponse({ success: true, count: 0 }), true);
+    assert.equal(isScanResponse({ success: true, total: 0 }), true);
     assert.equal(isScanResponse({ success: false, error: 'HTTP 429' }), true);
+    assert.equal(isScanResponse({ success: false }), true);
 });
 
 test('popup validation preserves rich envelope/direct replies and rejects false success shapes', () => {
@@ -98,7 +101,7 @@ test('popup validation preserves rich envelope/direct replies and rejects false 
 test('scan consumer never completes malformed replies and always releases its running state', async () => {
     const restoreDoc = replaceGlobal('document', { getElementById: () => null });
     try {
-        for (const reply of [{ success: 'true', count: 2 }, { success: true, count: '2' }, null]) {
+        for (const reply of [{ success: 'true', count: 2 }, { success: true, count: '2' }, { success: true }, null]) {
             const restoreChrome = replaceGlobal('chrome', { runtime: {
                 sendMessage(_message: unknown, callback: (value: unknown) => void) { callback(reply); }
             } });
@@ -109,21 +112,26 @@ test('scan consumer never completes malformed replies and always releases its ru
                     onError(error) { resolve(error); }
                 }));
                 assert.match(err.message, /unreadable sync data/);
-                assert.equal(completed, false);
+                assert.equal(completed, false, 'malformed success { success: true } must not trigger onFinished');
+                assert.equal(isScanning(), false, 'running state must be released');
+            } finally { restoreChrome(); }
+        }
+        for (const validSuccess of [
+            { success: true, count: 2, diagnostics: { hitGoogleLimit: true } },
+            { success: true, count: 0 },
+            { success: true, total: 0 }
+        ] as ScanResponse[]) {
+            const restoreChrome = replaceGlobal('chrome', { runtime: {
+                sendMessage(_message: unknown, callback: (value: unknown) => void) { callback(validSuccess); }
+            } });
+            try {
+                const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) =>
+                    startIncrementalScan('u0', { onFinished: resolve, onError: reject }));
+                assert.equal(result.res, validSuccess);
+                assert.equal(result.count, validSuccess.count || validSuccess.total || 0);
                 assert.equal(isScanning(), false);
             } finally { restoreChrome(); }
         }
-        const reply: ScanResponse = { success: true, count: 2, diagnostics: { hitGoogleLimit: true } };
-        const restoreChrome = replaceGlobal('chrome', { runtime: {
-            sendMessage(_message: unknown, callback: (value: unknown) => void) { callback(reply); }
-        } });
-        try {
-            const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) =>
-                startIncrementalScan('u0', { onFinished: resolve, onError: reject }));
-            assert.equal(result.res, reply);
-            assert.equal(result.hitGoogleLimit, true);
-            assert.equal(isScanning(), false);
-        } finally { restoreChrome(); }
     } finally { setScanRunning(false); restoreDoc(); }
 });
 

@@ -114,7 +114,10 @@ export function init({
             contentContext.abort();
             if (typeof window !== 'undefined') {
                 window.__gemExporterAborted = true;
-                try { window.__gemExporterActiveClient && window.__gemExporterActiveClient.abort(); } catch { /* intentional: best-effort cleanup */ }
+                const active = window.__gemExporterActiveClient;
+                if (typeof active?.abort === 'function') {
+                    try { active.abort(); } catch { /* intentional: best-effort cleanup */ }
+                }
             }
             respond({ ok: true, aborted: true });
             return true;
