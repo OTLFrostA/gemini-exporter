@@ -322,6 +322,6 @@ const __zhFactory = (): LocaleDictionary => {
     };
 };
 export const zh: LocaleDictionary = __zhFactory();
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = zh;
+if (typeof module !== 'undefined' && (module as { exports?: unknown }).exports) (module as { exports: unknown }).exports = zh;
 export default zh;
 

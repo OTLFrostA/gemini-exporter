@@ -331,7 +331,7 @@ function initPopupEvents(): void {
     });
 
     const i18n = getI18n();
-    i18n.initLanguage().then(async () => {
+    void i18n.initLanguage().then(async () => {
         i18n.applyI18n();
         i18n.applyLangToggleUI();
         i18n.onLanguageChange(() => i18n.applyLangToggleUI());

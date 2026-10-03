@@ -32,10 +32,11 @@ export function setSafeFormattedContent(el: Element, val: string): void {
 }
 
 export function applyI18n(container?: Element | Document): void {
-    const root: any = container || document;
+    const root = container || (typeof document !== 'undefined' ? document : null);
+    if (!root) return;
 
-    const applyToElement = (el: any) => {
-        if (!el || !el.getAttribute) return;
+    const applyToElement = (el: Element): void => {
+        if (!el || typeof el.getAttribute !== 'function') return;
         const textKey = el.getAttribute('data-i18n');
         if (textKey) {
             const val = t(textKey);
@@ -49,21 +50,23 @@ export function applyI18n(container?: Element | Document): void {
         const titleKey = el.getAttribute('data-i18n-title');
         if (titleKey) {
             const val = t(titleKey);
-            if (val) el.title = val;
+            if (val && 'title' in el) (el as HTMLElement).title = val;
         }
         const placeholderKey = el.getAttribute('data-i18n-placeholder');
         if (placeholderKey) {
             const val = t(placeholderKey);
-            if (val) el.placeholder = val;
+            if (val && 'placeholder' in el) (el as HTMLInputElement).placeholder = val;
         }
     };
 
     if (root !== document && root.nodeType === 1) {
-        applyToElement(root);
+        applyToElement(root as Element);
     }
 
-    if (root && root.querySelectorAll) {
-        root.querySelectorAll('[data-i18n], [data-i18n-html], [data-i18n-title], [data-i18n-placeholder]').forEach(applyToElement);
+    if (typeof root.querySelectorAll === 'function') {
+        root.querySelectorAll('[data-i18n], [data-i18n-html], [data-i18n-title], [data-i18n-placeholder]').forEach((el) => {
+            applyToElement(el);
+        });
     }
 }
 

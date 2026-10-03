@@ -56,8 +56,9 @@ export const STEPS: TourStep[] = [
             const cleanups: (() => void)[] = [];
             const listEl = document.getElementById('list');
             if (listEl) {
-                const onListChange = (e: any) => {
-                    if (e.target && e.target.type === 'checkbox' && e.target.checked) {
+                const onListChange = (e: Event): void => {
+                    const target = e.target as HTMLInputElement | null;
+                    if (target && target.type === 'checkbox' && target.checked) {
                         setTimeout(advance, 250);
                     }
                 };
