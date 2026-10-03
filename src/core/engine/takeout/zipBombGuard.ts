@@ -4,7 +4,7 @@ export interface ZipBombGuardModule {
     MAX_ENTRY_COUNT: number;
     MAX_TOTAL_UNCOMPRESSED: number;
     validateZipFile: (file?: unknown) => void;
-    validateZipEntries: (zip?: any) => void;
+    validateZipEntries: (zip?: unknown) => void;
 }
 
 export const MAX_ZIP_SIZE = 500 * 1024 * 1024; // 500MB compressed size
@@ -22,19 +22,25 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
 
+function isZipContainer(value: unknown): value is { files: Record<string, unknown> } {
+    return isRecord(value) && isRecord(value.files);
+}
+
 export function validateZipFile(file?: unknown): void {
     // Handle pre-loaded JSZip instances
-    if (isRecord(file) && typeof file.file === 'function' && file.files) {
+    if (isRecord(file) && typeof file.file === 'function' && isRecord(file.files)) {
         validateZipEntries(file);
         return;
     }
     // Accept File/Blob (.size) as well as Buffer/Uint8Array (.length/.byteLength).
-    const byteSize = isRecord(file)
-        ? (typeof file.size === 'number' ? file.size
-            : typeof file.length === 'number' ? file.length
-            : typeof file.byteLength === 'number' ? file.byteLength
-            : NaN)
-        : NaN;
+    const byteSize = typeof file === 'string'
+        ? file.length
+        : isRecord(file)
+            ? (typeof file.size === 'number' ? file.size
+                : typeof file.length === 'number' ? file.length
+                : typeof file.byteLength === 'number' ? file.byteLength
+                : NaN)
+            : NaN;
     // Fail closed when size cannot be determined
     if (!Number.isFinite(byteSize)) {
         const i18n = getI18n();
@@ -54,8 +60,8 @@ export function validateZipFile(file?: unknown): void {
     }
 }
 
-export function validateZipEntries(zip?: any): void {
-    if (!zip || !zip.files) return;
+export function validateZipEntries(zip?: unknown): void {
+    if (!isZipContainer(zip)) return;
     const entryCount = Object.keys(zip.files).length;
     if (entryCount > MAX_ENTRY_COUNT) {
         const i18n = getI18n();
@@ -66,12 +72,13 @@ export function validateZipEntries(zip?: any): void {
     }
 
     let approxUncompressed = 0;
-    const files: any[] = Object.values(zip.files);
+    const files = Object.values(zip.files);
     let unknownSizeEntries = 0;
     for (const f of files) {
-        if (f.dir) continue;
-        const sz = f && f._data && typeof f._data.uncompressedSize === 'number'
-            ? f._data.uncompressedSize
+        if (isRecord(f) && f.dir) continue;
+        const data = isRecord(f) && isRecord(f._data) ? f._data : null;
+        const sz = data && typeof data.uncompressedSize === 'number'
+            ? data.uncompressedSize
             : NaN;
         if (!Number.isFinite(sz)) {
             unknownSizeEntries++;

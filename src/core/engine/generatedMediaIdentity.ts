@@ -9,7 +9,7 @@ type GenerationAttachment = {
 };
 
 type GenerationMessage = {
-    role?: 'user' | 'model' | 'assistant' | 'system';
+    role: 'user' | 'model' | 'assistant' | 'system';
     content: string;
     id?: string;
     timestamp?: number | string | null;

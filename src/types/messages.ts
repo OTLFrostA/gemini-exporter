@@ -58,13 +58,11 @@ export interface DownloadAssetDirectMessage extends BaseMessage {
 }
 
 export interface DownloadAssetResponse {
-    success?: boolean;
-    ok?: boolean;
+    success: boolean;
     dataBuffer?: ArrayBuffer | ArrayBufferView;
     blobBuffer?: ArrayBuffer | ArrayBufferView;
     dataBase64?: string;
     blobBase64?: string;
-    dataUrl?: string;
     mime?: string;
     mimeType?: string;
     contentType?: string;
