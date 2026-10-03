@@ -1,8 +1,10 @@
-export function positionElements(spotlightEl: HTMLElement | null, popoverEl: HTMLElement | null, step: any): void {
+import type { TourStep } from '../../types/ui.js';
+
+export function positionElements(spotlightEl: HTMLElement | null, popoverEl: HTMLElement | null, step: TourStep): void {
     if (!spotlightEl || !popoverEl || typeof window === 'undefined') return;
 
     const target = step.getTarget ? step.getTarget() : null;
-    if (target && target.isConnected && target.offsetParent !== null) {
+    if (target && target.isConnected && (target as HTMLElement).offsetParent !== null) {
         const rect = target.getBoundingClientRect();
         const pad = 6;
 
@@ -16,8 +18,8 @@ export function positionElements(spotlightEl: HTMLElement | null, popoverEl: HTM
             target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        const popoverWidth = (popoverEl as HTMLElement).offsetWidth || 360;
-        const popoverHeight = (popoverEl as HTMLElement).offsetHeight || 240;
+        const popoverWidth = popoverEl.offsetWidth || 360;
+        const popoverHeight = popoverEl.offsetHeight || 240;
         const gap = 16;
         const placement = step.placement || 'bottom';
 

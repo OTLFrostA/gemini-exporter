@@ -322,6 +322,6 @@ const __enFactory = (): LocaleDictionary => {
     };
 };
 export const en: LocaleDictionary = __enFactory();
-if (typeof module !== 'undefined' && (module as any).exports) (module as any).exports = en;
+if (typeof module !== 'undefined' && (module as { exports?: unknown }).exports) (module as { exports: unknown }).exports = en;
 export default en;
 

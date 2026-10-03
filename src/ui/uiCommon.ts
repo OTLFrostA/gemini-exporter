@@ -1,3 +1,4 @@
+import type { I18nModule } from '../types/utils.js';
 import { normId, cleanTitle, isRealTitle } from '../core/utils/utils.js';
 import { I18n as I18nStatic } from '../core/utils/i18n.js';
 import { __resolveModule } from '../core/utils/moduleOverrides.js';
@@ -7,8 +8,17 @@ import { applyI18n, applyLangToggleUI } from './utils/domI18n.js';
 export const $ = (id: string): HTMLElement | null =>
     typeof document !== 'undefined' ? document.getElementById(id) : null;
 
-export const getI18n = (): any => {
-    const base = __resolveModule('I18n', I18nStatic);
+export interface UiI18nModule extends I18nModule {
+    applyLangToggleUI(opts?: {
+        toggle?: HTMLInputElement | null;
+        labelZh?: HTMLElement | null;
+        labelEn?: HTMLElement | null;
+    }): void;
+    applyI18n(container?: Element | Document): void;
+}
+
+export const getI18n = (): UiI18nModule => {
+    const base = __resolveModule<I18nModule>('I18n', I18nStatic);
     return {
         ...base,
         applyI18n,
@@ -16,7 +26,7 @@ export const getI18n = (): any => {
     };
 };
 
-export const t = (key: string, ...args: any[]): string => {
+export const t = (key: string, ...args: unknown[]): string => {
     const i18n = getI18n();
     return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
 };
