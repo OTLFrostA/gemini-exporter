@@ -1,9 +1,9 @@
 import type { IExportWriter } from "./writers/writerInterface.js";
 import type {
-    Conversation,
     GeneratedMediaIdentity
 } from "../../types/conversation.js";
 import type { TakeoutEngineModule } from "./takeoutEngine.js";
+import type { DownloadAssetDirectMessage, DownloadAssetResponse } from "../../types/messages.js";
 
 export interface ProcessAssetOptions {
     isImage?: boolean;
@@ -31,24 +31,14 @@ export interface AcquireAssetBytesResult {
     localName: string;
 }
 
-export interface AssetDownloadResponse {
-    success?: boolean;
-    ok?: boolean;
-    error?: string;
-    dataBuffer?: ArrayBuffer | ArrayBufferView | null;
-    dataBase64?: string | null;
-    blobBase64?: string | null;
-    dataUrl?: string | null;
-    mimeType?: string | null;
-    mime?: string | null;
-}
+type AssetDownloadResponse = DownloadAssetResponse;
 
 export interface TabAssetRequestExtra {
     fileName?: string;
     candidates?: string[];
 }
 
-export type AssetPipelineChat = Conversation | { id: string; title?: string | null };
+export type AssetPipelineChat = { id: string; title?: string | null };
 
 export interface AssetPipelineItem {
     url?: string;
@@ -79,22 +69,13 @@ export interface FetchAssetParams {
     candidates?: string[];
 }
 
-export interface DownloadAssetDirectMessage {
-    action: string;
-    url: string;
-    referer: string;
-    preferBuffer: boolean;
-    fileName?: string;
-    candidates?: string[];
-}
-
 export interface AssetPipelineTakeoutEngine {
     getTakeoutFallbackMedia?: (
         chatId: string,
         filenameOrId: string,
         slot?: string | null,
         generation?: GeneratedMediaIdentity
-    ) => Promise<Uint8Array | ArrayBufferView | ArrayBuffer | null>;
+    ) => Promise<Uint8Array | null>;
 }
 
 export interface AssetPipelineOptions {
@@ -179,7 +160,7 @@ function decodeBase64ToBytes(b64: string): Uint8Array {
 
 function normalizeDownloadResponse(val: unknown): AssetDownloadResponse {
     if (!val || typeof val !== 'object') {
-        return { success: false, error: 'Empty or invalid response' };
+        return {};
     }
     const r: AssetDownloadResponse = {};
     if ('success' in val && typeof val.success === 'boolean') {
@@ -338,8 +319,8 @@ class AssetPipeline implements AssetPipelineInstance {
         };
         const requestFromTab = async (preferBuffer: boolean): Promise<AssetDownloadResponse> => {
             const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
-            let response: AssetDownloadResponse | null = (tab && typeof tab.id === 'number' && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
-                ? await sendTabAssetRequest(tab.id, targetUrl, chat.id, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
+            let response: AssetDownloadResponse | null = (tab && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
+                ? await sendTabAssetRequest(tab.id as number, targetUrl, chat.id, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
                 : null;
             const noReceiver = response && !response.success &&
                 /Receiving end does not exist|Could not establish connection/i.test(String(response.error || ''));
@@ -357,7 +338,7 @@ class AssetPipeline implements AssetPipelineInstance {
                     response = { success: false, error: getErrorMessage(e) };
                 }
             }
-            return signal?.aborted ? { success: false, error: 'aborted' } : (response || { success: false, error: 'No response from tab' });
+            return signal?.aborted ? { success: false, error: 'aborted' } : (response || { success: false, error: 'Download failed without response' });
         };
 
         if (this.fetchAssetDelegate && targetUrl) {
@@ -528,15 +509,8 @@ class AssetPipeline implements AssetPipelineInstance {
         if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {
             try {
                 const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot, item.generation);
-                if (offlineBin && offlineBin.byteLength > 0) {
-                    let bytes: Uint8Array;
-                    if (offlineBin instanceof Uint8Array) {
-                        bytes = offlineBin;
-                    } else if (offlineBin instanceof ArrayBuffer) {
-                        bytes = new Uint8Array(offlineBin);
-                    } else {
-                        bytes = new Uint8Array(offlineBin.buffer, offlineBin.byteOffset, offlineBin.byteLength);
-                    }
+                if (offlineBin && offlineBin.length > 0) {
+                    const bytes = offlineBin;
                     if (!this.writer && !this.writeFileDirect) {
                         this.logTakeoutRecovery(chat, localName, isImage);
                     }

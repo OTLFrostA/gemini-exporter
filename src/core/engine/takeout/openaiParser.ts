@@ -18,39 +18,32 @@ import { normId as utilsNormId } from "../../utils/utils.js";
 import { ZipBombGuard } from "./zipBombGuard.js";
 import { TakeoutParseError } from "../../../types/errors.js";
 import type { Attachment, ChatMessage, Conversation } from "../../../types/index.js";
-import type { TakeoutParseResult } from "./takeoutParser.js";
 
-export interface OpenAiZipEntryData {
-    uncompressedSize?: number;
-}
-
-export interface OpenAiZipEntry {
+interface OpenAiZipEntry {
     name?: string;
     dir?: boolean;
     date?: Date | { getTime: () => number } | null;
-    _data?: OpenAiZipEntryData;
-    async(type: 'text'): Promise<string>;
-    async(type: 'uint8array'): Promise<Uint8Array>;
+    _data?: { uncompressedSize?: number };
     async(type: string): Promise<unknown>;
 }
 
-export interface OpenAiZipInstance {
+interface OpenAiZipInstance {
     files: Record<string, unknown>;
-    file?: (name: string, content?: unknown) => unknown;
+    file: (name: string, content?: unknown) => unknown;
 }
 
 interface OpenAiZipLoader {
     loadAsync: (data: unknown) => Promise<unknown>;
 }
 
-export interface OpenAiMediaEntry {
+interface OpenAiMediaEntry {
     filename: string;
     stem: string;
     fileObj: OpenAiZipEntry;
     time: number | null;
 }
 
-export interface OpenAiParseResult extends TakeoutParseResult {
+export interface OpenAiParseResult {
     conversations: Conversation[];
     totalMediaCount: number;
     convCache: Record<string, Conversation>;
@@ -67,21 +60,21 @@ const normId = utilsNormId;
 /** conversations.json payload size cap before loading into memory (mirrors takeout S-4). */
 const MAX_CONVERSATIONS_UNCOMPRESSED_SIZE = 250 * 1024 * 1024;
 
-export interface OpenAiRawMessageAuthor {
+interface OpenAiRawMessageAuthor {
     role?: string | null;
 }
 
-export interface OpenAiRawMessageContent {
+interface OpenAiRawMessageContent {
     content_type?: string | null;
     parts?: unknown[] | null;
     thoughts?: unknown[] | null;
 }
 
-export interface OpenAiRawMessageMetadata {
+interface OpenAiRawMessageMetadata {
     attachments?: unknown[] | null;
 }
 
-export interface OpenAiRawMessage {
+interface OpenAiRawMessage {
     id?: string | null;
     author?: OpenAiRawMessageAuthor | null;
     create_time?: number | null;
@@ -89,14 +82,14 @@ export interface OpenAiRawMessage {
     metadata?: OpenAiRawMessageMetadata | null;
 }
 
-export interface OpenAiMappingNode {
+interface OpenAiMappingNode {
     id?: string | null;
     parent?: string | null;
     children?: string[] | null;
     message?: OpenAiRawMessage | null;
 }
 
-export interface OpenAiRawConversation {
+interface OpenAiRawConversation {
     id?: string | null;
     conversation_id?: string | null;
     title?: string | null;
@@ -140,10 +133,6 @@ function getZipLoader(): OpenAiZipLoader {
     throw new Error('JSZip 库未加载，无法解析 ZIP');
 }
 
-function isZipFileCandidate(val: unknown): val is { size?: number } {
-    return typeof val === 'object' && val !== null;
-}
-
 function isOpenAiZipEntry(val: unknown): val is OpenAiZipEntry {
     return (
         typeof val === 'object' &&
@@ -155,7 +144,7 @@ function isOpenAiZipEntry(val: unknown): val is OpenAiZipEntry {
 
 function isOpenAiZipInstance(val: unknown): val is OpenAiZipInstance {
     if (typeof val !== 'object' || val === null) return false;
-    if (!('files' in val)) return false;
+    if (!('files' in val) || !('file' in val) || typeof val.file !== 'function') return false;
     const files = val.files;
     return typeof files === 'object' && files !== null;
 }
@@ -165,7 +154,19 @@ function isRecord(val: unknown): val is Record<string, unknown> {
 }
 
 function isOpenAiRawConversation(val: unknown): val is OpenAiRawConversation {
-    return typeof val === 'object' && val !== null;
+    if (!isRecord(val)) return false;
+    if ('id' in val && val.id !== null && typeof val.id !== 'string') return false;
+    if ('conversation_id' in val && val.conversation_id !== null && typeof val.conversation_id !== 'string') return false;
+    if ('title' in val && val.title !== null && typeof val.title !== 'string') return false;
+    if ('current_node' in val && val.current_node !== null && typeof val.current_node !== 'string') return false;
+    if ('mapping' in val && val.mapping !== null && !isRecord(val.mapping)) return false;
+    return true;
+}
+
+async function readZipText(entry: OpenAiZipEntry): Promise<string> {
+    const value = await entry.async('text');
+    if (typeof value !== 'string') throw new TakeoutParseError('ZIP 文本条目无效', false, entry.name);
+    return value;
 }
 
 function toMs(epochSeconds?: unknown): number | null {
@@ -254,7 +255,7 @@ async function applyAssetNameAliases(
     if (!assetFile) return nameByDat;
     let mapping: Record<string, unknown> = {};
     try {
-        const text = await assetFile.async('text');
+        const text = await readZipText(assetFile);
         const parsed: unknown = JSON.parse(text);
         if (isRecord(parsed)) mapping = parsed;
     } catch {
@@ -370,7 +371,7 @@ function extractMessages(
     const chain: OpenAiMappingNode[] = [];
     let nodeId: unknown = raw.current_node;
     let guard = 0;
-    while (nodeId != null && guard++ < 100000) {
+    while (nodeId && guard++ < 100000) {
         const key = String(nodeId);
         if (visited.has(key)) break;
         visited.add(key);
@@ -461,13 +462,7 @@ export async function parseOpenAiZip(
 
     const guard = ZipBombGuard;
     if (guard?.validateZipFile) {
-        if (file === null) {
-            guard.validateZipFile(null);
-        } else if (isZipFileCandidate(file)) {
-            guard.validateZipFile(file);
-        } else {
-            guard.validateZipFile(undefined);
-        }
+        guard.validateZipFile(file);
     }
 
     if (onProgress) onProgress(15, '正在解压 ChatGPT 导出压缩包...');
@@ -506,7 +501,7 @@ export async function parseOpenAiZip(
         );
     }
 
-    const jsonText: string = await convFile.async('text');
+    const jsonText = await readZipText(convFile);
     let parsed: unknown;
     try {
         parsed = JSON.parse(jsonText);

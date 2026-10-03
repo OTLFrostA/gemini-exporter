@@ -1,13 +1,11 @@
 import type {
     Conversation,
     ChatMessage,
-    Attachment,
     MessageDocument,
     GeneratedMediaIdentity
 } from '../../../types/index.js';
 import { findGenerationModelMessage } from '../generatedMediaIdentity.js';
 import {
-    GeminiUtils,
     normId as utilsNormId,
     shortScope as utilsShortScope,
     stripHtmlTags as utilsStripHtmlTags,
@@ -19,7 +17,7 @@ import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
 
-const getUtils = (): GeminiUtilsModule => __resolveModule('GeminiUtils', GeminiUtils);
+const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
 
 export interface GenerationBlock {
     chatId: string;
@@ -36,6 +34,22 @@ export interface TakeoutZipEntry {
     date?: Date;
     async?: (type: string) => Promise<unknown>;
     _data?: { uncompressedSize?: number };
+}
+
+type HistoricalTakeoutImage = {
+    url: string;
+    name: string;
+    fileName: string;
+    localName: string;
+    source: string;
+    isGenerated?: boolean;
+    providerRequestId?: string;
+    imageOrdinal?: number;
+    generation?: GeneratedMediaIdentity;
+};
+
+function isTakeoutZipEntry(value: unknown): value is TakeoutZipEntry {
+    return typeof value === 'object' && value !== null;
 }
 
 export interface TakeoutMediaItem {
@@ -58,7 +72,7 @@ export interface TakeoutWatermarkedImage {
 
 export interface ParseTakeoutHtmlOptions {
     htmlText: string;
-    zipFiles: Record<string, TakeoutZipEntry>;
+    zipFiles: Record<string, unknown>;
     normIdFn?: (id?: string | null) => string;
     onProgress?: ((pct: number, msg: string) => void) | null;
 }
@@ -315,15 +329,15 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                 timestamp: ts ?? null
             };
             if (localMediaNames.length > 0) {
-                userMsg.images = localMediaNames.map((name): Attachment => ({
-                    type: 'image',
+                const historicalImages: HistoricalTakeoutImage[] = localMediaNames.map((name) => ({
                     url: name,
                     name: name,
                     fileName: name,
                     localName: `assets/${sanitizeFileName(name, 'img.jpg')}`,
                     source: 'takeout'
                 }));
-                userMsg.attachments = localMediaNames.map((name): Attachment => ({
+                userMsg.images = historicalImages as ChatMessage['images'];
+                userMsg.attachments = localMediaNames.map((name) => ({
                     type: /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name) ? 'image' : 'file',
                     url: name,
                     name: name,
@@ -376,8 +390,9 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
 
         const __zipEntries: ZipIndexEntry[] = [];
         const __zipExact = new Map<string, ZipIndexEntry[]>();
-        for (const [path, fObj] of Object.entries(zipFiles)) {
-            if (fObj.dir) continue;
+        for (const [path, rawEntry] of Object.entries(zipFiles)) {
+            if (!isTakeoutZipEntry(rawEntry) || rawEntry.dir) continue;
+            const fObj = rawEntry;
             const zipFilename = path.replace(/^.*[\\\/]/, '').trim();
             const entry: ZipIndexEntry = {
                 filename: zipFilename,
@@ -554,8 +569,7 @@ export function correlateGeneratedImages(
                 providerRequestId, imageOrdinal, generation,
             });
         }
-        const imgObj: Attachment = {
-            type: 'image',
+        const imgObj: HistoricalTakeoutImage = {
             url: img.filename,
             name: img.filename,
             fileName: img.filename,
@@ -576,8 +590,8 @@ export function correlateGeneratedImages(
                     providerRequestId,
                     content: `![Generated Image](assets/${img.filename})`,
                     timestamp: img.time || (cached.timestamp ? cached.timestamp + 2000 : null),
-                    images: [imgObj],
-                    attachments: [imgObj]
+                    images: [imgObj] as ChatMessage['images'],
+                    attachments: [imgObj] as ChatMessage['attachments']
                 };
                 cached.messages.push(newModelTurn);
             } else {
