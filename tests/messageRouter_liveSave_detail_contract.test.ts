@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { init as initRouter } from '../src/content/messageRouter.js';
+import { init as initRouter, type MessageRouterDeps } from '../src/content/messageRouter.js';
 import { init as initLive, resolveConversationDetail } from '../src/content/liveSaveCoordinator.js';
 import { DomScraper } from '../src/content/domScraper.js';
 import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
 import type { GeminiProviderConversationDetail } from '../src/core/provider/gemini/geminiContracts.js';
 import type { DomDetail, GetConversationDetailResponse } from '../src/types/detailTransport.js';
+
+// Compile-time regression: explicit null disables these optional runtime dependencies.
+// Keep this assignment typed; routing through an unchecked fixture would hide the bug.
+const deps: MessageRouterDeps = { storage: null, utils: null };
+void deps;
 
 function detail(): GeminiProviderConversationDetail {
     return { id: 'detail123', title: 'Research', titleSource: 'rpc', titles: { rpc: 'Research' },
