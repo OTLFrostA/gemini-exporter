@@ -73,6 +73,14 @@ responses and live-save acquisition use these types; flat wire payloads and fall
 precedence remain unchanged. Broad runtime/asset/export transport and cancellation
 remain deferred. See [W2-06 report](docs/audits/wave2-detail-transport-consumer.md).
 
+## Wave 2 namespace status (W2-07)
+
+Current-main recheck confirms `Conversation`, `ChatMessage`, `Attachment` and
+`TitleSources` remain absent from both the neutral Provider module and its barrel,
+with zero repository imports through either surface. W2-03 already removed them;
+W2-07 preserves the planned Provider/asset/routing seams and clarifies barrel
+comments. See [W2-07 report](docs/audits/wave2-provider-namespace-cleanup.md).
+
 ## Maintenance Convergence Status
 
 Status: COMPLETE
