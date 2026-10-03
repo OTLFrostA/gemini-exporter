@@ -23,6 +23,7 @@ import {
 import { migrateCredentials } from "../api/client/credentialManager.js";
 import { openHandleDB } from "./idbHandleStore.js";
 import { openDetailDB } from "./conversationDetailStore.js";
+import { getErrorMessage } from "../utils/messaging.js";
 import { t } from "../utils/i18n.js";
 
 export const SCHEMA_VERSION_KEY = "gemini_schema_version";
@@ -191,9 +192,9 @@ export async function migrate(): Promise<SchemaMigrateResult> {
             await migrateStepCredentials();
             await migrateIdb();
             await chrome.storage.local.set({ [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION });
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("[SchemaMigration] Migration step failed, version stamp withheld for retry:", e);
-            return { ok: false, frozen: false, error: e?.message || String(e) };
+            return { ok: false, frozen: false, error: getErrorMessage(e) };
         }
     }
     return { ok: true, frozen: false };

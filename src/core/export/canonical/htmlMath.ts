@@ -1,6 +1,7 @@
 import katex from 'katex';
 import type { RenderDiagnostic } from './rendering.js';
 import { getRendererStrings } from './rendererStrings.js';
+import { getErrorMessage } from '../../utils/messaging.js';
 
 export interface RenderMathHtmlResult {
     html: string;
@@ -77,8 +78,8 @@ export function renderMathHtml(
             ? `<div class="gem-math-block">${mathml}</div>`
             : `<span class="gem-math-inline">${mathml}</span>`;
         return { html: container };
-    } catch (err: any) {
-        const errMsg = err?.message || String(err);
+    } catch (err: unknown) {
+        const errMsg = getErrorMessage(err);
         return {
             html: renderFallback(cleanSource, display, strings.mathFallback),
             diagnostic: {

@@ -5,6 +5,7 @@ import { StorageService } from '../core/storage/storageService.js';
 import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
 import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/utils.js';
 import { sanitizeFileName, sanitizeRelativePath, normId } from '../core/utils/pathUtils.js';
+import { getErrorMessage } from '../core/utils/messaging.js';
 
 export async function markDirDeletedInConfig(): Promise<void> {
     try {
@@ -80,7 +81,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     await setLiveConfig({ dirError: 'permission_prompt_needed' });
                     return { ok: false, error: 'permission_prompt_needed' };
                 }
-            } catch (permErr: any) {
+            } catch (permErr: unknown) {
                 console.warn('[Background:liveSave] queryPermission threw, prompt needed:', permErr);
                 await setLiveConfig({ dirError: 'permission_prompt_needed' });
                 return { ok: false, error: 'permission_prompt_needed' };
@@ -90,14 +91,16 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         // Verify the directory physically exists on disk before proceeding
         try {
             for await (const _ of handle.keys()) break;
-        } catch (probeErr: any) {
-            if (probeErr?.name === 'NotFoundError' || probeErr?.message?.includes('not be found') || probeErr?.message?.includes('NotFoundError')) {
+        } catch (probeErr: unknown) {
+            const errName = probeErr instanceof Error ? probeErr.name : '';
+            const errMsg = getErrorMessage(probeErr);
+            if (errName === 'NotFoundError' || errMsg.includes('not be found') || errMsg.includes('NotFoundError')) {
                 console.warn('[Background:liveSave] Target directory was deleted on disk:', probeErr);
                 await clearStoredDirHandle();
                 await markDirDeletedInConfig();
-                return { ok: false, error: 'dir_not_found', details: probeErr?.message };
+                return { ok: false, error: 'dir_not_found', details: errMsg };
             }
-            if (probeErr?.name === 'NotAllowedError' || probeErr?.name === 'SecurityError') {
+            if (errName === 'NotAllowedError' || errName === 'SecurityError') {
                 console.info('[Background:liveSave] Directory probe threw NotAllowedError, prompt needed');
                 await setLiveConfig({ dirError: 'permission_prompt_needed' });
                 return { ok: false, error: 'permission_prompt_needed' };
@@ -224,19 +227,21 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         }
 
         return { ok: failedAssets.length === 0, failedAssets, handleName: handle.name, targetFile };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.warn('[Background:liveSave] liveSaveViaHandle error:', err);
-        const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('could not be found') || err?.message?.includes('NotFoundError');
+        const errName = err instanceof Error ? err.name : '';
+        const errMsg = getErrorMessage(err);
+        const isNotFound = errName === 'NotFoundError' || errMsg.includes('could not be found') || errMsg.includes('NotFoundError');
         if (isNotFound) {
             await clearStoredDirHandle();
             await markDirDeletedInConfig();
-            return { ok: false, error: 'dir_not_found', details: err?.message };
+            return { ok: false, error: 'dir_not_found', details: errMsg };
         }
-        if (err?.name === 'NotAllowedError' || err?.name === 'SecurityError') {
+        if (errName === 'NotAllowedError' || errName === 'SecurityError') {
             console.info('[Background:liveSave] liveSaveViaHandle caught permission error, prompt needed');
             await setLiveConfig({ dirError: 'permission_prompt_needed' });
             return { ok: false, error: 'permission_prompt_needed' };
         }
-        return { ok: false, error: err?.message || String(err) };
+        return { ok: false, error: errMsg };
     }
 }

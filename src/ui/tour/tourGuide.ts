@@ -6,6 +6,7 @@ import { t } from '../uiCommon.js';
 import { STEPS } from './tourSteps.js';
 import { positionElements as positionTourElements } from './tourPosition.js';
 import { getExtensionVersion } from '../../core/utils/constants.js';
+import { getErrorMessage } from '../../core/utils/utils.js';
 export { STEPS } from './tourSteps.js';
 
 let currentStep = 0;
@@ -164,8 +165,8 @@ async function checkCurrentTabStatus(): Promise<{ status: string; error?: string
     }
     try {
         return await tabService.checkGeminiStatus();
-    } catch (e: any) {
-        return { status: 'ERROR', error: e.message };
+    } catch (e: unknown) {
+        return { status: 'ERROR', error: getErrorMessage(e) };
     }
 }
 

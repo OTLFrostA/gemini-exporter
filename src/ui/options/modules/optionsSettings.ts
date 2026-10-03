@@ -16,7 +16,7 @@ import {
 import { getLatestEligibleFeature } from '../../tour/featureReleases.js';
 import { $ } from '../../uiCommon.js';
 import { normId } from '../../../core/utils/pathUtils.js';
-import { cleanTitle, resolveTitle } from '../../../core/utils/utils.js';
+import { cleanTitle, resolveTitle, getErrorMessage } from '../../../core/utils/utils.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../../../core/utils/constants.js';
 import { isLocalDevelopment } from '../../../core/utils/environment.js';
 import { buildDiagnosticSnapshot } from '../../../core/diagnostics/diagnosticSnapshot.js';
@@ -123,8 +123,9 @@ export async function exportDiagnostics(): Promise<void> {
         a.click();
         setTimeout(() => URL.revokeObjectURL(url), 3000);
         log(typeof t === 'function' ? t('diagExportSuccess') : '已生成诊断数据文件', 'info');
-    } catch (e: any) {
-        log(typeof t === 'function' ? t('diagExportFailed', e?.message || String(e)) : ('导出诊断失败: ' + (e?.message || String(e))), 'error');
+    } catch (e: unknown) {
+        const errMessage = getErrorMessage(e);
+        log(typeof t === 'function' ? t('diagExportFailed', errMessage) : ('导出诊断失败: ' + errMessage), 'error');
     }
 }
 
@@ -454,12 +455,14 @@ export async function initLiveSaveSettings(): Promise<void> {
                         if (DirHandle && typeof DirHandle.requestDirHandle === 'function') {
                             handle = await DirHandle.requestDirHandle();
                         }
-                    } catch (err: any) {
+                    } catch (err: unknown) {
                         diskToggle.checked = false;
-                        if (err?.name === 'AbortError') {
+                        const isAbort = err instanceof Error && err.name === 'AbortError';
+                        const errMessage = getErrorMessage(err);
+                        if (isAbort) {
                             log(typeof t === 'function' ? t('dirCancelled', '用户取消选择') : '未选择导出目录: 用户取消选择', 'warn');
                         } else {
-                            log(typeof t === 'function' ? t('dirCancelled', err?.message || '') : `选择目录失败: ${err?.message || ''}`, 'warn');
+                            log(typeof t === 'function' ? t('dirCancelled', errMessage) : `选择目录失败: ${errMessage}`, 'warn');
                         }
                         if (__updateZipUi) __updateZipUi();
                         return;

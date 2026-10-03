@@ -1,5 +1,5 @@
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
-import { isDevMode } from "../utils/utils.js";
+import { isDevMode, getErrorMessage } from "../utils/utils.js";
 import { extractConversationIdFromUrl } from "../utils/pathUtils.js";
 import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "./geminiParser.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
@@ -267,7 +267,8 @@ const pagination = GeminiClientPagination;
                     console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
                 }
                 return parsed;
-            } catch (err: any) {
+            } catch (err: unknown) {
+                const errMsg = getErrorMessage(err);
                 const errCategory = getProtocol().classifyDetailError(text, resp?.status);
                 if (errCategory === 'confirmed_deleted') {
                     if (isDev) {
@@ -281,8 +282,8 @@ const pagination = GeminiClientPagination;
                 if (errCategory === 'inaccessible') {
                     throw new Error(`会话暂时不可访问或服务端异常 (${id}) [BardErrorInfo]`);
                 }
-                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, err.message, "raw text snippet:", text.slice(0, 400));
-                throw new Error(`解析详情失败 (${err.message}): ${text.slice(0, 100)}`);
+                console.error(`[Gemini Exporter Client] parseDetail failed for ${id}:`, errMsg, "raw text snippet:", text.slice(0, 400));
+                throw new Error(`解析详情失败 (${errMsg}): ${text.slice(0, 100)}`);
             }
         }
 
