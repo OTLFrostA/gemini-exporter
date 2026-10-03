@@ -1,3 +1,5 @@
+import type { DomDetail } from '../types/detailTransport.js';
+import type { ParserAttachment } from '../core/api/parser/parseDetail.js';
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
@@ -8,14 +10,14 @@ function cleanText(t?: string | null): string {
     return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
 }
 
-export function parseDoc(doc: Document, id: string, url?: string): any {
+export function parseDoc(doc: Document, id: string, url?: string): DomDetail {
     let title = doc.title ? cleanTitle(doc.title) : '';
     if (!title || title === 'Gemini') {
         const h = doc.querySelector('title');
         if (h) title = cleanTitle(h.textContent?.trim().slice(0, 60));
     }
     if (!title) title = id;
-    const messages: any[] = [];
+    const messages: DomDetail['messages'] = [];
     const nodes = Array.from(doc.querySelectorAll('user-query, model-response'));
     let fallbackUsed: string | null = null;
     let finalNodes: Element[] = nodes;
@@ -71,8 +73,8 @@ export function parseDoc(doc: Document, id: string, url?: string): any {
 
         let text = '';
         const imgNodes = Array.from(node.querySelectorAll('img'));
-        const images: any[] = [];
-        const attachments: any[] = [];
+        const images: ParserAttachment[] = [];
+        const attachments: ParserAttachment[] = [];
 
         for (const imgEl of imgNodes) {
             const src = (imgEl as HTMLImageElement).src || imgEl.getAttribute('src') || '';
@@ -98,7 +100,7 @@ export function parseDoc(doc: Document, id: string, url?: string): any {
             if (q) text = (q.textContent || '').trim();
             if (!text) text = (node.textContent || '').trim();
             if (text || images.length) {
-                const msg: any = {
+                const msg: DomDetail['messages'][number] = {
                     role: 'user',
                     content: cleanText(text)
                 };
@@ -126,7 +128,7 @@ export function parseDoc(doc: Document, id: string, url?: string): any {
             }
             if (!t) t = (md.textContent || '').trim();
             if (t || images.length) {
-                const msg: any = {
+                const msg: DomDetail['messages'][number] = {
                     role: 'model',
                     content: cleanText(t)
                 };
@@ -155,7 +157,7 @@ export function parseDoc(doc: Document, id: string, url?: string): any {
     };
 }
 
-export async function contentFetchChatDetail(id: string): Promise<any> {
+export async function contentFetchChatDetail(id: string): Promise<DomDetail> {
     const url = `https://gemini.google.com/app/${id}`;
     let res: Response;
     try {

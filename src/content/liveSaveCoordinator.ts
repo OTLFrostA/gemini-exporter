@@ -8,7 +8,7 @@ import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { buildExportFileName, shortId, normId, sanitizeFileName } from '../core/utils/pathUtils.js';
-import type { GeminiAPIClient } from '../core/api/geminiClient.js';
+import type { ContentConversationDetail, DetailClient } from '../types/detailTransport.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt } from './assetFetcher.js';
@@ -25,7 +25,7 @@ export interface LiveSaveCoordinatorDeps {
     formatter?: typeof ChatFormatter;
     fsWriterClass?: typeof FsWriter;
     utils?: typeof GeminiUtils;
-    clientClass?: typeof GeminiAPIClient;
+    clientClass?: (new () => DetailClient) | null;
     badge?: typeof BadgeView;
     assetFetcher?: typeof AssetFetcher;
 }
@@ -93,7 +93,7 @@ export function init(deps: LiveSaveCoordinatorDeps = {}): void {
     if (isDev()) console.log('[LiveSaveCoordinator] Initialized');
 }
 
-export async function resolveConversationDetail(cid: string): Promise<any> {
+export async function resolveConversationDetail(cid: string): Promise<ContentConversationDetail | null> {
     const nid = normId(cid);
     // DI seam kept: an explicitly injected client class still uses the legacy
     // construction path. Default now resolves through the provider registry.
@@ -108,8 +108,8 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
             if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                 if (!detail.chatTime || !Number.isFinite(Number(detail.chatTime))) {
                     const times = detail.messages
-                        .map((m: any) => toTimestampMs(m?.timestamp))
-                        .filter((t: any): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0);
+                        .map((m) => toTimestampMs(m?.timestamp))
+                        .filter((t): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0);
                     if (times.length > 0) {
                         const maxTs = Math.max(...times);
                         detail.chatTime = maxTs;
@@ -128,7 +128,7 @@ export async function resolveConversationDetail(cid: string): Promise<any> {
     if (Scraper && typeof Scraper.parseDoc === 'function') {
         const doc = typeof document !== 'undefined' ? document : null;
         try {
-            const docResult = Scraper.parseDoc(doc as any, nid);
+            const docResult = Scraper.parseDoc(doc!, nid);
             if (docResult && Array.isArray(docResult.messages) && docResult.messages.length > 0) {
                 return docResult;
             }
@@ -297,8 +297,8 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             exportedAt: now,
                             failedAssets,
                             titleCandidate: safeTitle,
-                            titleProvenance: (chat as any)?.titleSource,
-                            titles: (chat as any)?.titles
+                            titleProvenance: chat?.titleSource,
+                            titles: chat?.titles
                         }
                     );
                 } catch (err) {
