@@ -1,6 +1,13 @@
-import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
+import type {
+    Conversation,
+    ChatMessage,
+    Attachment,
+    MessageDocument,
+    GeneratedMediaIdentity
+} from '../../../types/index.js';
 import { findGenerationModelMessage } from '../generatedMediaIdentity.js';
 import {
+    GeminiUtils,
     normId as utilsNormId,
     shortScope as utilsShortScope,
     stripHtmlTags as utilsStripHtmlTags,
@@ -11,9 +18,8 @@ import { TakeoutParseError } from "../../../types/errors.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { ChatFormatter } from "../chatFormatter.js";
-import type { Conversation } from "../../../types/index.js";
 
-const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
+const getUtils = (): GeminiUtilsModule => __resolveModule('GeminiUtils', GeminiUtils);
 
 export interface GenerationBlock {
     chatId: string;
@@ -24,32 +30,58 @@ export interface GenerationBlock {
     generation?: GeneratedMediaIdentity;
 }
 
+export interface TakeoutZipEntry {
+    name?: string;
+    dir?: boolean;
+    date?: Date;
+    async?: (type: string) => Promise<unknown>;
+    _data?: { uncompressedSize?: number };
+}
+
+export interface TakeoutMediaItem {
+    filename: string;
+    fileObj?: TakeoutZipEntry;
+    isGenerated?: boolean;
+    providerRequestId?: string;
+    imageOrdinal?: number;
+    generation?: GeneratedMediaIdentity;
+}
+
+export interface TakeoutWatermarkedImage {
+    filename: string;
+    stem?: string;
+    cleanStem?: string;
+    fileObj?: TakeoutZipEntry;
+    time?: number | null;
+    providerRequestId?: string;
+}
+
 export interface ParseTakeoutHtmlOptions {
     htmlText: string;
-    zipFiles: Record<string, any>;
+    zipFiles: Record<string, TakeoutZipEntry>;
     normIdFn?: (id?: string | null) => string;
     onProgress?: ((pct: number, msg: string) => void) | null;
 }
 
 export interface ParseTakeoutHtmlOutput {
     extractedMap: Record<string, Conversation>;
-    localConvCache: Record<string, any>;
-    localMediaMap: Record<string, any[]>;
+    localConvCache: Record<string, Conversation>;
+    localMediaMap: Record<string, TakeoutMediaItem[]>;
     genBlocks: GenerationBlock[];
 }
 
 export interface TakeoutHtmlParserModule {
-    stripHtmlTags: (html?: string | null | any) => string;
+    stripHtmlTags: (html?: string | null) => string;
     unescapeHtmlEntities: (str: string) => string;
     parseTakeoutPrompt: (block: string) => { promptText: string; hasExplicitPrompt: boolean };
     parseTakeoutTimestamp: (block: string) => number | null;
     parseTakeoutHtmlBlocks: (options: ParseTakeoutHtmlOptions) => Promise<ParseTakeoutHtmlOutput>;
     correlateGeneratedImages: (
-        watermarkedImages: any[],
-        genBlocks: any[],
-        localMediaMap: Record<string, any[]>,
-        localConvCache: Record<string, any>,
-        extractedMap: Record<string, any>
+        watermarkedImages: TakeoutWatermarkedImage[],
+        genBlocks: GenerationBlock[],
+        localMediaMap: Record<string, TakeoutMediaItem[]>,
+        localConvCache: Record<string, Conversation>,
+        extractedMap: Record<string, Conversation>
     ) => void;
 }
 
@@ -129,40 +161,48 @@ export function parseTakeoutTimestamp(block: string): number | null {
     };
 
     if (timeMatchEn) {
-        let rawT = timeMatchEn[1].replace(/[\u202f\xa0]/g, ' ').trim();
+        const rawT = timeMatchEn[1].replace(/[\u202f\xa0]/g, ' ').trim();
         const { cleanText, offsetStr } = extractOffset(rawT);
-        let dt = new Date(cleanText + offsetStr);
+        const dt = new Date(cleanText + offsetStr);
         if (!isNaN(dt.getTime())) ts = dt.getTime();
     } else if (timeMatchZh) {
-        let rawZh = timeMatchZh[1].replace(/[\u202f\xa0]/g, ' ').trim();
+        const rawZh = timeMatchZh[1].replace(/[\u202f\xa0]/g, ' ').trim();
         const { cleanText, offsetStr } = extractOffset(rawZh);
-        let isPm = cleanText.includes('下午');
-        let isAm = cleanText.includes('上午');
-        let parts = cleanText.replace(/上午|下午/g, '').replace(/[A-Z]{2,4}/g, '').trim()
+        const isPm = cleanText.includes('下午');
+        const isAm = cleanText.includes('上午');
+        const parts = cleanText.replace(/上午|下午/g, '').replace(/[A-Z]{2,4}/g, '').trim()
             .match(/(\d{4})年(\d{1,2})月(\d{1,2})日\s*(\d{1,2}):(\d{2})(?::(\d{2}))?/);
         if (parts) {
-            let y = parts[1], m = parts[2].padStart(2, '0'), d = parts[3].padStart(2, '0');
+            const y = parts[1];
+            const m = parts[2].padStart(2, '0');
+            const d = parts[3].padStart(2, '0');
             let h = parseInt(parts[4], 10);
-            let min = parts[5];
-            let sec = parts[6] || '00';
+            const min = parts[5];
+            const sec = parts[6] || '00';
             if (isPm && h < 12) h += 12;
             else if (isAm && h === 12) h = 0;
-            let dateStr = `${y}-${m}-${d} ${String(h).padStart(2, '0')}:${min}:${sec}${offsetStr}`;
-            let dt = new Date(dateStr);
+            const dateStr = `${y}-${m}-${d} ${String(h).padStart(2, '0')}:${min}:${sec}${offsetStr}`;
+            const dt = new Date(dateStr);
             if (!isNaN(dt.getTime())) ts = dt.getTime();
         }
     } else if (timeMatchIso) {
-        let dt = new Date(timeMatchIso[1].replace(/[\u202f\xa0]/g, ' '));
+        const dt = new Date(timeMatchIso[1].replace(/[\u202f\xa0]/g, ' '));
         if (!isNaN(dt.getTime())) ts = dt.getTime();
     }
     return ts;
+}
+
+interface ZipIndexEntry {
+    filename: string;
+    stem: string;
+    fObj: TakeoutZipEntry;
 }
 
 export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): Promise<ParseTakeoutHtmlOutput> {
     const { htmlText, zipFiles, onProgress } = options;
     const normIdFn = options.normIdFn || ((id?: string | null) => {
         try {
-            return ((getUtils()?.normId) || utilsNormId)(id);
+            return (getUtils()?.normId || utilsNormId)(id);
         } catch {
             if (!id) return "";
             return String(id).replace(/^c_/, "").trim();
@@ -181,8 +221,8 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
     }
 
     const extractedMap: Record<string, Conversation> = {};
-    const localConvCache: Record<string, any> = {};
-    const localMediaMap: Record<string, any[]> = {};
+    const localConvCache: Record<string, Conversation> = {};
+    const localMediaMap: Record<string, TakeoutMediaItem[]> = {};
     const genBlocks: GenerationBlock[] = [];
 
     for (let i = 1; i < rawBlocks.length; i++) {
@@ -199,8 +239,10 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
         if (!linkMatches.length) continue;
 
         const foundIds: string[] = [];
-        for (const lm of linkMatches as RegExpMatchArray[]) {
-            const cleanId = normIdFn(lm[1]);
+        for (const lm of linkMatches) {
+            const candidateId = lm[1];
+            if (!candidateId) continue;
+            const cleanId = normIdFn(candidateId);
             if (cleanId.length >= 8 && !foundIds.includes(cleanId)) {
                 foundIds.push(cleanId);
             }
@@ -214,10 +256,15 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
         const hasGenMarker = !!genMatch;
         const blockGenerations: GenerationBlock[] = [];
         if (hasGenMarker && foundIds.length > 0 && ts) {
+            const matchedCount = genMatch[1] || genMatch[2];
+            const parsedCount = matchedCount ? Number(matchedCount) : undefined;
+            const imageCount = typeof parsedCount === 'number' && Number.isFinite(parsedCount) ? parsedCount : undefined;
             for (const cid of foundIds) {
                 const generationBlock: GenerationBlock = {
-                    chatId: cid, time: ts, prompt: promptText,
-                    imageCount: Number(genMatch![1] || genMatch![2]),
+                    chatId: cid,
+                    time: ts,
+                    prompt: promptText,
+                    imageCount,
                 };
                 genBlocks.push(generationBlock);
                 blockGenerations.push(generationBlock);
@@ -260,22 +307,23 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             }
         }
 
-        const turnMsgs: any[] = [];
+        const turnMsgs: ChatMessage[] = [];
         if (promptText) {
-            const userMsg: any = {
+            const userMsg: ChatMessage = {
                 role: 'user',
                 content: promptText,
                 timestamp: ts ?? null
             };
             if (localMediaNames.length > 0) {
-                userMsg.images = localMediaNames.map(name => ({
+                userMsg.images = localMediaNames.map((name): Attachment => ({
+                    type: 'image',
                     url: name,
                     name: name,
                     fileName: name,
                     localName: `assets/${sanitizeFileName(name, 'img.jpg')}`,
                     source: 'takeout'
                 }));
-                userMsg.attachments = localMediaNames.map(name => ({
+                userMsg.attachments = localMediaNames.map((name): Attachment => ({
                     type: /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(name) ? 'image' : 'file',
                     url: name,
                     name: name,
@@ -287,7 +335,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             turnMsgs.push(userMsg);
         }
         if (responseHtml || hasGenMarker) {
-            const modelTurn: any = {
+            const modelTurn: ChatMessage = {
                 role: 'model',
                 content: responseHtml,
                 timestamp: (ts ? ts + 2000 : null)
@@ -310,7 +358,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                 const safeDocTitle = sanitizeFileName(docTitle, 'doc').slice(0, 60);
                 const localName = `files/${shortScope}${safeDocTitle}.md`;
 
-                const docObj = {
+                const docObj: MessageDocument = {
                     type: 'file',
                     id: `${primaryCleanId}_doc_${Date.now()}`,
                     title: docTitle,
@@ -326,12 +374,12 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             turnMsgs.push(modelTurn);
         }
 
-        const __zipEntries: { filename: string; stem: string; fObj: any }[] = [];
-        const __zipExact = new Map<string, { filename: string; stem: string; fObj: any }[]>();
-        for (const [path, fObj] of Object.entries<any>(zipFiles)) {
-            if ((fObj as any).dir) continue;
+        const __zipEntries: ZipIndexEntry[] = [];
+        const __zipExact = new Map<string, ZipIndexEntry[]>();
+        for (const [path, fObj] of Object.entries(zipFiles)) {
+            if (fObj.dir) continue;
             const zipFilename = path.replace(/^.*[\\\/]/, '').trim();
-            const entry = {
+            const entry: ZipIndexEntry = {
                 filename: zipFilename,
                 stem: zipFilename.replace(/\.[^/.]+$/, '').toLowerCase(),
                 fObj
@@ -349,7 +397,7 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             for (const refName of localMediaNames) {
                 const refStem = refName.replace(/\.[^/.]+$/, '').toLowerCase();
                 const refLower = refName.toLowerCase();
-                const consider = (entry: { filename: string; stem: string; fObj: any }): void => {
+                const consider = (entry: ZipIndexEntry): void => {
                     if (entry.filename === refName || entry.stem === refStem ||
                         entry.filename.endsWith(refName) ||
                         (refStem.length > 5 && entry.stem.includes(refStem))) {
@@ -378,7 +426,8 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             }
 
             const promptTitle = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : 'Takeout conversation';
-            if (!localConvCache[cleanId]) {
+            const cachedConv = localConvCache[cleanId];
+            if (!cachedConv) {
                 localConvCache[cleanId] = {
                     id: cleanId,
                     title: promptTitle,
@@ -392,18 +441,20 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     hasExplicitPrompt
                 };
             } else if (turnMsgs.length > 0) {
-                localConvCache[cleanId].messages.push(...turnMsgs.map((m) => ({ ...m })));
-                localConvCache[cleanId].messageCount = localConvCache[cleanId].messages.length;
-                localConvCache[cleanId].attachmentCount = (localConvCache[cleanId].attachmentCount || 0) + localMediaNames.length;
-                if (hasExplicitPrompt && !localConvCache[cleanId].hasExplicitPrompt && promptTitle) {
-                    localConvCache[cleanId].title = promptTitle;
-                    localConvCache[cleanId].titles = localConvCache[cleanId].titles || {};
-                    localConvCache[cleanId].titles.takeout = promptTitle;
-                    localConvCache[cleanId].hasExplicitPrompt = true;
+                if (!cachedConv.messages) cachedConv.messages = [];
+                cachedConv.messages.push(...turnMsgs.map((m) => ({ ...m })));
+                cachedConv.messageCount = cachedConv.messages.length;
+                cachedConv.attachmentCount = (cachedConv.attachmentCount || 0) + localMediaNames.length;
+                if (hasExplicitPrompt && !cachedConv.hasExplicitPrompt && promptTitle) {
+                    cachedConv.title = promptTitle;
+                    cachedConv.titles = cachedConv.titles || {};
+                    cachedConv.titles.takeout = promptTitle;
+                    cachedConv.hasExplicitPrompt = true;
                 }
             }
 
-            if (!extractedMap[cleanId]) {
+            const extractedConv = extractedMap[cleanId];
+            if (!extractedConv) {
                 extractedMap[cleanId] = {
                     id: cleanId,
                     title: promptTitle,
@@ -420,29 +471,30 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
                     hasExplicitPrompt
                 };
             } else {
-                extractedMap[cleanId].attachmentCount = (extractedMap[cleanId].attachmentCount || 0) + localMediaNames.length;
+                extractedConv.attachmentCount = (extractedConv.attachmentCount || 0) + localMediaNames.length;
                 const cleanPrompt = promptText ? promptText.split('\n')[0].slice(0, 80).trim() : '';
                 const shouldUpdate = cleanPrompt && (
-                    (hasExplicitPrompt && !extractedMap[cleanId].hasExplicitPrompt) ||
-                    !extractedMap[cleanId].title ||
-                    extractedMap[cleanId].title.startsWith('Untitled') ||
-                    extractedMap[cleanId].title === 'Takeout conversation'
+                    (hasExplicitPrompt && !extractedConv.hasExplicitPrompt) ||
+                    !extractedConv.title ||
+                    extractedConv.title.startsWith('Untitled') ||
+                    extractedConv.title === 'Takeout conversation'
                 );
                 if (shouldUpdate) {
-                    extractedMap[cleanId].title = cleanPrompt;
-                    extractedMap[cleanId].titles = extractedMap[cleanId].titles || {};
-                    extractedMap[cleanId].titles.takeout = cleanPrompt;
-                    if (hasExplicitPrompt) extractedMap[cleanId].hasExplicitPrompt = true;
-                    if (localConvCache[cleanId]) {
-                        localConvCache[cleanId].title = cleanPrompt;
-                        localConvCache[cleanId].titles = localConvCache[cleanId].titles || {};
-                        localConvCache[cleanId].titles.takeout = cleanPrompt;
-                        if (hasExplicitPrompt) localConvCache[cleanId].hasExplicitPrompt = true;
+                    extractedConv.title = cleanPrompt;
+                    extractedConv.titles = extractedConv.titles || {};
+                    extractedConv.titles.takeout = cleanPrompt;
+                    if (hasExplicitPrompt) extractedConv.hasExplicitPrompt = true;
+                    const cachedForTitle = localConvCache[cleanId];
+                    if (cachedForTitle) {
+                        cachedForTitle.title = cleanPrompt;
+                        cachedForTitle.titles = cachedForTitle.titles || {};
+                        cachedForTitle.titles.takeout = cleanPrompt;
+                        if (hasExplicitPrompt) cachedForTitle.hasExplicitPrompt = true;
                     }
                 }
-                if (ts && (!extractedMap[cleanId].timestamp || ts > extractedMap[cleanId].timestamp)) {
-                    extractedMap[cleanId].timestamp = ts;
-                    extractedMap[cleanId].lastSeen = new Date(ts).toISOString();
+                if (ts && (!extractedConv.timestamp || ts > extractedConv.timestamp)) {
+                    extractedConv.timestamp = ts;
+                    extractedConv.lastSeen = new Date(ts).toISOString();
                 }
             }
         }
@@ -456,8 +508,10 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
             chatId: block.chatId, time: block.time, prompt: block.prompt,
             generationOrdinal: ordinal, imageCount: block.imageCount,
         };
-        const model = localConvCache[block.chatId]?.messages?.[block.modelMessageIndex!];
-        if (model?.role === 'model') model.generation = block.generation;
+        if (typeof block.modelMessageIndex === 'number') {
+            const model = localConvCache[block.chatId]?.messages?.[block.modelMessageIndex];
+            if (model?.role === 'model') model.generation = block.generation;
+        }
     }
 
     return {
@@ -469,15 +523,15 @@ export async function parseTakeoutHtmlBlocks(options: ParseTakeoutHtmlOptions): 
 }
 
 export function correlateGeneratedImages(
-    watermarkedImages: any[],
-    genBlocks: any[],
-    localMediaMap: Record<string, any[]>,
-    localConvCache: Record<string, any>,
-    extractedMap: Record<string, any>
+    watermarkedImages: TakeoutWatermarkedImage[],
+    genBlocks: GenerationBlock[],
+    localMediaMap: Record<string, TakeoutMediaItem[]>,
+    localConvCache: Record<string, Conversation>,
+    extractedMap: Record<string, Conversation>
 ): void {
-    const blockOrdinalMap = new Map<any, number>();
+    const blockOrdinalMap = new Map<GenerationBlock, number>();
 
-    function linkTakeoutGeneratedImage(block: GenerationBlock, img: any, imageOrdinal = 0): void {
+    function linkTakeoutGeneratedImage(block: GenerationBlock, img: TakeoutWatermarkedImage, imageOrdinal = 0): void {
         const chatId = block.chatId;
         const providerRequestId = img.providerRequestId || block.generation?.providerRequestId;
         const totalCount = block.imageCount || 1;
@@ -500,7 +554,8 @@ export function correlateGeneratedImages(
                 providerRequestId, imageOrdinal, generation,
             });
         }
-        const imgObj = {
+        const imgObj: Attachment = {
+            type: 'image',
             url: img.filename,
             name: img.filename,
             fileName: img.filename,
@@ -513,9 +568,9 @@ export function correlateGeneratedImages(
         };
         const cached = localConvCache[chatId];
         if (cached && Array.isArray(cached.messages)) {
-            let modelTurn = findGenerationModelMessage(cached, generation);
-            if (!modelTurn) {
-                modelTurn = {
+            const foundModelTurn = findGenerationModelMessage(cached, generation);
+            if (!foundModelTurn) {
+                const newModelTurn: ChatMessage = {
                     role: 'model',
                     generation,
                     providerRequestId,
@@ -524,27 +579,28 @@ export function correlateGeneratedImages(
                     images: [imgObj],
                     attachments: [imgObj]
                 };
-                cached.messages.push(modelTurn);
+                cached.messages.push(newModelTurn);
             } else {
-                modelTurn.images = modelTurn.images || [];
-                modelTurn.attachments = modelTurn.attachments || [];
-                if (!modelTurn.providerRequestId && providerRequestId) {
-                    modelTurn.providerRequestId = providerRequestId;
+                foundModelTurn.images = foundModelTurn.images || [];
+                foundModelTurn.attachments = foundModelTurn.attachments || [];
+                if (!foundModelTurn.providerRequestId && providerRequestId) {
+                    foundModelTurn.providerRequestId = providerRequestId;
                 }
-                if (!modelTurn.images.some((im: any) => im.fileName === img.filename)) {
-                    modelTurn.images.push(imgObj);
+                if (!foundModelTurn.images.some((im) => im.fileName === img.filename)) {
+                    foundModelTurn.images.push(imgObj);
                 }
-                if (!modelTurn.attachments.some((at: any) => at.fileName === img.filename)) {
-                    modelTurn.attachments.push(imgObj);
+                if (!foundModelTurn.attachments.some((at) => at.fileName === img.filename)) {
+                    foundModelTurn.attachments.push(imgObj);
                 }
-                if (!modelTurn.content.includes(img.filename)) {
-                    modelTurn.content = (modelTurn.content ? modelTurn.content + '\n\n' : '') + `![Generated Image](assets/${img.filename})`;
+                if (!foundModelTurn.content.includes(img.filename)) {
+                    foundModelTurn.content = (foundModelTurn.content ? foundModelTurn.content + '\n\n' : '') + `![Generated Image](assets/${img.filename})`;
                 }
             }
             cached.attachmentCount = (cached.attachmentCount || 0) + 1;
         }
-        if (extractedMap[chatId]) {
-            extractedMap[chatId].attachmentCount = (extractedMap[chatId].attachmentCount || 0) + 1;
+        const extracted = extractedMap[chatId];
+        if (extracted) {
+            extracted.attachmentCount = (extracted.attachmentCount || 0) + 1;
         }
     }
 
@@ -552,7 +608,7 @@ export function correlateGeneratedImages(
         linkTakeoutGeneratedImage(genBlocks[0], watermarkedImages[0], 0);
     } else {
         for (const img of watermarkedImages) {
-            let bestBlock: any = null;
+            let bestBlock: GenerationBlock | null = null;
             let minDiff = Infinity;
             for (const gb of genBlocks) {
                 if (!gb.time || !img.time) continue;
