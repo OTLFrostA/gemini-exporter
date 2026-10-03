@@ -1,7 +1,7 @@
 import type { DomDetail } from '../types/detailTransport.js';
 import type { Attachment } from '../types/conversation.js';
 import { contentContext } from './contentContext.js';
-import { cleanTitle, isRealTitle } from '../core/utils/utils.js';
+import { cleanTitle, isRealTitle, getErrorMessage } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
 
 export { isReservedRoute };
@@ -165,8 +165,8 @@ export async function contentFetchChatDetail(id: string): Promise<DomDetail> {
     let res: Response;
     try {
         res = await fetch(url, { credentials: 'include' });
-    } catch (e: any) {
-        return { id, title: id, messages: [], error: 'fetch failed: ' + (e?.message || e), _debug: { isNetworkError: true } };
+    } catch (e: unknown) {
+        return { id, title: id, messages: [], error: 'fetch failed: ' + (getErrorMessage(e) || String(e)), _debug: { isNetworkError: true } };
     }
     if (!res.ok) {
         const isNotFound = res.status === 404;

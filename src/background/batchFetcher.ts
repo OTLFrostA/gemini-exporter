@@ -109,15 +109,15 @@ export async function fetchBatch(
                         _raw: res?._raw || null
                     });
                 }
-            } catch (e: any) {
+            } catch (e: unknown) {
                 results.push({
                     id: cid,
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${cid}`,
-                    error: e?.message || '抓取异常',
+                    error: (e instanceof Error && e.message) ? e.message : '抓取异常',
                     messages: [],
                     _empty: true,
-                    _debug: e?.stack || null,
+                    _debug: e instanceof Error ? (e.stack || null) : null,
                     _raw: null
                 });
             }

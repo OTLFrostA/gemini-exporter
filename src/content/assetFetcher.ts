@@ -1,4 +1,5 @@
 import { contentContext } from './contentContext.js';
+import { getErrorMessage } from '../core/utils/messaging.js';
 
 const MAX_BASE64_BLOB_SIZE = 50 * 1024 * 1024;
 const GG_CHAIN_MAX_HOPS = 5;
@@ -29,7 +30,7 @@ export async function fetchWithCredentialFallback(
 
     try {
         return await doFetch(url, primaryInit);
-    } catch (err: any) {
+    } catch (err: unknown) {
         if (baseInit.signal?.aborted) {
             throw err;
         }
@@ -222,9 +223,9 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
                     url: u
                 });
                 return;
-            } catch (err: any) {
-                const isTimeout = err?.name === 'TimeoutError' || /timeout|aborted/i.test(err?.message || '');
-                reasons.push(`${u} -> ${isTimeout ? 'timeout' : ''}${err?.message || err}`);
+            } catch (err: unknown) {
+                const isTimeout = (err instanceof Error && err.name === 'TimeoutError') || /timeout|aborted/i.test(err instanceof Error ? err.message : '');
+                reasons.push(`${u} -> ${isTimeout ? 'timeout' : ''}${getErrorMessage(err) || String(err)}`);
             }
         }
 
@@ -232,10 +233,10 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
             success: false,
             error: 'All fetch candidates failed: ' + reasons.join('; ')
         });
-    } catch (e: any) {
+    } catch (e: unknown) {
         sendResponse({
             success: false,
-            error: 'fetchFileBlob fatal: ' + (e?.message || e)
+            error: 'fetchFileBlob fatal: ' + (getErrorMessage(e) || String(e))
         });
     }
 }
@@ -312,8 +313,8 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
                     url: u
                 });
                 return;
-            } catch (e: any) {
-                lastErr = e?.message || String(e);
+            } catch (e: unknown) {
+                lastErr = getErrorMessage(e) || String(e);
             }
         }
 
@@ -321,10 +322,10 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
             success: false,
             error: 'Failed to fetch image: ' + lastErr
         });
-    } catch (e: any) {
+    } catch (e: unknown) {
         sendResponse({
             success: false,
-            error: 'handleGetImageBlob fatal: ' + (e?.message || e)
+            error: 'handleGetImageBlob fatal: ' + (getErrorMessage(e) || String(e))
         });
     }
 }
@@ -403,8 +404,8 @@ export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) =>
                 void handleGetFileBlob(msg, sendResponse);
             }
         });
-    } catch (err: any) {
-        sendResponse({ success: false, error: err?.message || String(err) });
+    } catch (err: unknown) {
+        sendResponse({ success: false, error: getErrorMessage(err) || String(err) });
     }
 }
 

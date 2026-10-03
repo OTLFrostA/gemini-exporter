@@ -90,7 +90,7 @@ export async function withRateLimitRetry<T>(
                 continue;
             }
             return res;
-        } catch (err: any) {
+        } catch (err: unknown) {
             if (options?.signal?.aborted || options?.isAborted?.()) {
                 throw err;
             }
