@@ -20,6 +20,7 @@ import {
 import { handleLiveSaveViaHandle, markDirDeletedInConfig } from './liveSaveHandler.js';
 import { fetchBatch, sendToGeminiTab, getGeminiTab } from './batchFetcher.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
+import { getErrorMessage } from '../core/utils/messaging.js';
 
 const fetchBatchChains = new Map<string, Promise<void>>();
 import { getExtensionVersion } from '../core/utils/constants.js';
@@ -122,8 +123,8 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                     // failure, never a silent success.
                     guardedResponse({ success: false, error: 'fetchBatch completed without a response' });
                 }
-            } catch (e: any) {
-                guardedResponse({ success: false, error: e?.message || String(e) });
+            } catch (e: unknown) {
+                guardedResponse({ success: false, error: getErrorMessage(e) || String(e) });
             }
         });
         // Keep the chain alive for later batches regardless of outcome.
@@ -169,8 +170,8 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                 };
                 const res = await sendToGeminiTab(deepScanMsg, msg.accountSlot, timeoutMs);
                 sendResponse(res);
-            } catch (e: any) {
-                sendResponse({ success: false, error: e?.message });
+            } catch (e: unknown) {
+                sendResponse({ success: false, error: getErrorMessage(e) });
             } finally {
                 stopKeepAlive();
             }
