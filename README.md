@@ -175,17 +175,17 @@ If you have thousands of chats dating back years, Google's web interface limits 
 Gemini Exporter maintains rigorous quality gates through a 3-tier testing architecture:
 
 - **Tier 1: CI Fast & Headless Gate (`npm test`)**:
-  - Scoped zero-any gate (`npm run lint:zero-any`).
+  - Scoped zero-any gate (`node scripts/check-zero-any.cjs`).
   - TypeScript strict type checking (`tsc --noEmit`).
   - The current full unit test suite running in Node.js via `python3 tests/run_tests.py`.
   - Single-pass `esbuild` production bundling verification (`node build.js`).
   - The current full headless Playwright E2E suite (`playwright test`).
   - *Daily development*: `npm run test:changed` runs incremental dependency-impact tests in ~5–15s.
-- **Tier 2: Live Chrome Debug Staging (`npm run test:live`)**:
+- **Tier 2: Live Chrome Debug Staging (`npm run test:tier2`)**:
   - Connects to real Chrome on port 9222 with real account interactions.
   - Employs a dynamic 20-scenario multimodal test pool (`scripts/test_scenario_pool.json`).
   - Enforces physical ZIP download and bit-level content & image assertions (`export_spec_asserter.py`).
-- **Tier 3: Pure Visual Agent & Autonomous QA (`npm run test:visual` / `npm run test:visual:custom`)**:
+- **Tier 3: Pure Visual Agent & Autonomous QA (`python3 scripts/test_visual_agent.py --playground` / `python3 scripts/test_visual_agent.py --api`)**:
   - Two-pathway pure visual exploration (context-free Subagent Playground or Custom AI Vision API) using pure screenshot perception (zero DOM leakage) and hardware-level mouse/keyboard actions.
   - Produces structured UX scorecards and HTML visual audit reports (`tests/output/visual_audit/`).
 

@@ -695,11 +695,11 @@ flowchart TD
 ### 1. 快速日常与门禁命令速查
 - **运行 CI 全量门禁**：`npm test`
 - **运行变更依赖感知增量测试（推荐日常秒级调试）**：`npm run test:changed`
-- **查看依赖变更影响拓扑**：`npm run test:impact`
+- **查看依赖变更影响拓扑**：`python3 scripts/test_impact_analyzer.py --summary`
 - **运行单点定向测试**：`python3 tests/run_tests.py --filter <keyword>`
 - **启动测试专用 Chrome**：`./scripts/open_test_chrome.sh`
-- **运行 Tier 2 场景池实跑测试**：`npm run test:live:pool`
-- **运行 Tier 3 纯视觉自主审查**：`npm run test:visual:review`
+- **运行 Tier 2 场景池实跑测试**：`npm run test:tier2 -- --pool`
+- **运行 Tier 3 纯视觉自主审查**：`python3 scripts/test_visual_agent.py --api --ai-review`
 
 ---
 

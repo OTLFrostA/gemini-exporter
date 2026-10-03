@@ -220,12 +220,12 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 
 ## Scoped Zero-Any Gate
 
-Run `npm run lint:zero-any` locally. `npm test` and the CI `Unit Tests & Syntax`
+Run `node scripts/check-zero-any.cjs` locally. `npm test` and the CI `Unit Tests & Syntax`
 job enforce the same Oxlint `typescript/no-explicit-any` rule. The initial
 protected scope is exactly `src/core/utils/titleUtils.ts` and
 `src/core/utils/mergeUtils.ts`; legacy core files and tests remain outside it.
 To expand coverage, clean a production file first, then add its path to the
-`lint:zero-any` package script. No dependency upgrade is needed.
+`scripts/check-zero-any.cjs` script. No dependency upgrade is needed.
 
 In protected production core code, `as any`, explicit `any`, `any[]`, and
 `Record<string, any>` are forbidden. `unknown` is allowed; type narrowing is

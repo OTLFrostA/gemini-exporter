@@ -77,7 +77,7 @@ jobs:
 
       - name: Scoped zero-any gate
         if: steps.filter.outputs.only_scenarios != 'true'
-        run: npm run lint:zero-any
+        run: node scripts/check-zero-any.cjs
 
       - name: Type check (TypeScript)
         if: steps.filter.outputs.only_scenarios != 'true'
@@ -89,7 +89,7 @@ jobs:
 
       - name: Release gates — no CJK fonts bundled (§16 P0)
         if: steps.filter.outputs.only_scenarios != 'true'
-        run: npm run test:release-gates
+        run: node scripts/release-gate-checks/check-no-cjk-fonts.js
 
       - name: Run Unit Tests & Syntax Verification
         if: steps.filter.outputs.only_scenarios != 'true'
@@ -170,4 +170,4 @@ jobs:
 
       - name: Run Playwright E2E Test Suite
         if: steps.filter.outputs.only_scenarios != 'true'
-        run: xvfb-run --auto-servernum npm run test:e2e
+        run: xvfb-run --auto-servernum npx playwright test
