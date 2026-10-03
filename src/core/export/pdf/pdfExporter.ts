@@ -6,6 +6,7 @@ import { createWriter, type IExportWriter } from '../../engine/writers/writerInt
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { isAbortError } from './errors.js';
+import { getErrorMessage } from '../../utils/messaging.js';
 import { BatchWorker, type FetchChatDetailResult } from '../../engine/export/batchWorker.js';
 import { IPdfCompiler } from './pdfCompiler.js';
 import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
@@ -284,8 +285,8 @@ export class PdfExporter {
         const commitRecord = async (id: string, record: any, diagnostics: RenderDiagnostic[]): Promise<void> => {
             try {
                 await onItemExported(id, record);
-            } catch (e: any) {
-                const rmsg = e?.message || String(e);
+            } catch (e: unknown) {
+                const rmsg = getErrorMessage(e);
                 diagnostics.push({
                     severity: 'warning',
                     code: 'EXPORT_RECORD_WRITE_FAILED',
@@ -332,8 +333,8 @@ export class PdfExporter {
                     await writer.init();
                 }
             }
-        } catch (e: any) {
-            const msg = e?.message || String(e);
+        } catch (e: unknown) {
+            const msg = getErrorMessage(e);
             onLog(`[PDF] 写入器初始化失败: ${msg}`, 'error');
             for (const it of items) failItem(it.id, it.title, `writer init failed: ${msg}`, []);
             return buildResult();
@@ -344,8 +345,8 @@ export class PdfExporter {
         let fonts: LocalFontResolution;
         try {
             fonts = await resolveLocalFonts();
-        } catch (e: any) {
-            const msg = e?.message || String(e);
+        } catch (e: unknown) {
+            const msg = getErrorMessage(e);
             onLog(`[PDF] 本地字体解析失败，已回退到内置字体: ${msg}`, 'warn');
             fonts = {
                 fonts: [],
@@ -475,9 +476,9 @@ export class PdfExporter {
                         break;
                 }
                 if (result.status === 'aborted') break;
-            } catch (e: any) {
+            } catch (e: unknown) {
                 if (isAbortError(e) || this.aborted || signal.aborted) break;
-                failItem(id, title, `[pipeline:PIPELINE_THREW] ${e?.message || String(e)}`, itemDiagnostics);
+                failItem(id, title, `[pipeline:PIPELINE_THREW] ${getErrorMessage(e)}`, itemDiagnostics);
             }
             report(i + 1, title);
         }
@@ -524,12 +525,12 @@ export class PdfExporter {
                     deliveredAt: writtenAt,
                 };
                 onLog(`[PDF] ZIP 打包交付成功 (${zipFileName})，${staged.length} 个文件确认成功`, 'info');
-            } catch (e: any) {
+            } catch (e: unknown) {
                 if (isAbortError(e)) {
                     wasAborted = true;
                 } else {
-                    const code = e?.code ? `[${e.code}] ` : '';
-                    const msg = `${code}${e?.message || String(e)}`;
+                    const code = (e && typeof e === 'object' && 'code' in e && (e as any).code) ? `[${(e as any).code}] ` : '';
+                    const msg = `${code}${getErrorMessage(e)}`;
                     onLog(`[PDF] ZIP 打包/交付失败: ${msg}；已暂存的 ${staged.length} 个文件不记为成功`, 'error');
                     for (const s of staged) {
                         failed.push({

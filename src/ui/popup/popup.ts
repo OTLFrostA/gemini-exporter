@@ -311,9 +311,9 @@ function initPopupEvents(): void {
                 __releaseExportGuard();
                 log(i18n.t('popupFetchFailed', getErrorMessage(err)));
             });
-        } catch (e: any) {
+        } catch (e: unknown) {
             __releaseExportGuard();
-            log(i18n.t('popupExportError', e?.message));
+            log(i18n.t('popupExportError', getErrorMessage(e)));
         }
     });
 

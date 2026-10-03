@@ -74,7 +74,8 @@ import {
     cleanZeroWidth as utilsCleanZeroWidth,
     isBrandPlaceholderTitle as utilsIsBrandPlaceholderTitle,
     sanitizeFileName as utilsSanitizeFileName,
-    normalizeReliableTitleSource as utilsNormalizeReliableTitleSource
+    normalizeReliableTitleSource as utilsNormalizeReliableTitleSource,
+    getErrorMessage
 } from "../../utils/utils.js";
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
@@ -210,8 +211,8 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                         }
                     }
                 }
-            } catch (directErr: any) {
-                if (String(directErr?.message || '').includes('aborted')) {
+            } catch (directErr: unknown) {
+                if (getErrorMessage(directErr).includes('aborted')) {
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) { settled = true; resolve({ success: false, error: 'aborted' }); }
                     return;
@@ -242,11 +243,11 @@ const isBrandPlaceholderTitle = (t?: any): boolean => {
                             }
                         }
                     });
-                } catch (sendErr: any) {
+                } catch (sendErr: unknown) {
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled) {
                         settled = true;
-                        resolve({ success: false, error: sendErr?.message || String(sendErr) });
+                        resolve({ success: false, error: getErrorMessage(sendErr) });
                     }
                 }
             } else {

@@ -2,6 +2,7 @@ import type { RenderDiagnostic } from '../../canonical/rendering.js';
 import type { TypstAdapterDiagnostic } from '../../typst/payload.js';
 import { toTypstPayload } from '../../typst/payload.js';
 import { convertMathWithMitex, initMitexWasm } from '../../typst/mathConverter.js';
+import { getErrorMessage } from '../../../utils/messaging.js';
 import {
     type PayloadStageInput,
     type PayloadStageOutput,
@@ -26,12 +27,12 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
 
     try {
         await initMitexWasm();
-    } catch (err: any) {
+    } catch (err: unknown) {
         mitexAvailable = false;
         initDiagnostics.push({
             severity: 'warning',
             code: 'TYPST_MATH_INIT_FAILED',
-            message: `MiTeX WASM initialization failed: ${err?.message ?? String(err)}. Math formulas preserved as raw LaTeX fallback.`,
+            message: `MiTeX WASM initialization failed: ${getErrorMessage(err)}. Math formulas preserved as raw LaTeX fallback.`,
         });
     }
 

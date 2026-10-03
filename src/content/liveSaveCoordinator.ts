@@ -16,6 +16,7 @@ import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/live
 import { GeminiUtils } from '../core/utils/utils.js';
 import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
 import type { LiveSaveConfig } from '../types/liveSave.js';
+import { getErrorMessage } from '../core/utils/messaging.js';
 
 export interface LiveSaveCoordinatorDeps {
     storageManager?: typeof LiveStorageManager;
@@ -188,8 +189,10 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 try {
                     failedAssets = await writeConversationToDisk(chat, safeTitle, nid, dirHandle, config);
                     writeSucceeded = true;
-                } catch (err: any) {
-                    const isNotFound = err?.name === 'NotFoundError' || err?.message?.includes('not found') || err?.message?.includes('could not be found');
+                } catch (err: unknown) {
+                    const isNotFound = (err instanceof Error && err.name === 'NotFoundError') ||
+                        getErrorMessage(err).includes('not found') ||
+                        getErrorMessage(err).includes('could not be found');
                     if (isNotFound) {
                         console.warn('[LiveSaveCoordinator] Native directory handle is dead (NotFoundError). Clearing handle.');
                         try {

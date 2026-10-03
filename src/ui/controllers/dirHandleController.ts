@@ -1,5 +1,6 @@
 import type { DirHandleControllerContract } from '../../types/ui.js';
 import { t } from '../uiCommon.js';
+import { getErrorMessage } from '../../core/utils/messaging.js';
 
 import {
     getStoredDirHandle,
@@ -40,8 +41,8 @@ async function verifyDirPermissionDetailed(handle: any, options?: { allowRequest
             break;
         }
         return { ok: true, notFound: false };
-    } catch (e: any) {
-        const notFound = e?.name === 'NotFoundError' || e?.message?.includes('not be found');
+    } catch (e: unknown) {
+        const notFound = (e instanceof Error && e.name === 'NotFoundError') || getErrorMessage(e).includes('not be found');
         if (notFound) {
             console.warn('[DirHandleController] Target directory was deleted from disk:', e);
         }

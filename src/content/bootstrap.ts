@@ -8,6 +8,7 @@ import {
 } from '../core/api/client/credStorage.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import { StorageService } from '../core/storage/storageService.js';
+import { getErrorMessage } from '../core/utils/messaging.js';
 
 export function getCredStorage(): chrome.storage.StorageArea | null {
     return sharedGetCredStorage();
@@ -141,8 +142,8 @@ export async function loadCredentialsMap(): Promise<Record<string, any>> {
     let mapObj: any = {};
     try {
         mapObj = await storage.get([SK_CRED_MAP]);
-    } catch (e: any) {
-        if (String(e?.message || e).includes('not allowed')) {
+    } catch (e: unknown) {
+        if (getErrorMessage(e).includes('not allowed')) {
             markCredSessionFailed();
             storage = chrome.storage.local;
             if (storage) {
@@ -162,8 +163,8 @@ export async function saveCredentials(map: Record<string, any>, cred?: any): Pro
     if (cred) toSave[SK_CRED] = cred;
     try {
         await storage.set(toSave);
-    } catch (e: any) {
-        if (String(e?.message || e).includes('not allowed')) {
+    } catch (e: unknown) {
+        if (getErrorMessage(e).includes('not allowed')) {
             markCredSessionFailed();
             storage = chrome.storage.local;
             if (storage) {
@@ -322,8 +323,8 @@ if (typeof window !== 'undefined') {
                     if (isDev()) {
                         console.log('[Gemini Exporter] stored creds from MAIN hook', sid.slice(0, 8), slot, 'at len', (map[sid].at || '').length);
                     }
-                } catch (err: any) {
-                    if (!String(err?.message || err).includes('Extension context invalidated')) console.warn('creds store fail', err);
+                } catch (err: unknown) {
+                    if (!getErrorMessage(err).includes('Extension context invalidated')) console.warn('creds store fail', err);
                 }
             });
         }

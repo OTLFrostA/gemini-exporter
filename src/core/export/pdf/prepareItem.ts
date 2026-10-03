@@ -10,6 +10,7 @@ import {
 } from '../../engine/assetPipeline.js';
 import { __getModuleOverride, __resolveModule } from '../../utils/moduleOverrides.js';
 import { normId } from '../../utils/pathUtils.js';
+import { getErrorMessage } from '../../utils/messaging.js';
 import TabService from '../../utils/tabService.js';
 import type { CanonicalConversationBundle } from '../canonical/conversation.js';
 import type { Diagnostic } from '../canonical/diagnostics.js';
@@ -72,8 +73,8 @@ export async function resolveFullChatDetail(args: {
     let res: FetchChatDetailResult | null = null;
     try {
         res = await fetchChatDetail({ id: nid, title }, index, total, currentSlot, skip, 'pdf', signal);
-    } catch (e: any) {
-        return { ok: false, error: e?.message || String(e) };
+    } catch (e: unknown) {
+        return { ok: false, error: getErrorMessage(e) };
     }
     if (!res || !res.success) {
         return { ok: false, error: (res && res.error) || 'unknown error' };

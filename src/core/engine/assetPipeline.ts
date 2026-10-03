@@ -381,8 +381,8 @@ function sendTabAssetRequest(tabId: number, url: string, chatId: string, preferB
                         if (await interruptibleSleep(delayMs, signal)) { failReason = 'aborted'; break; }
                         attempt++;
                     }
-                } catch (e: any) {
-                    failReason = e.message;
+                } catch (e: unknown) {
+                    failReason = getErrorMessage(e);
                 }
             } else {
                 failReason = isImage ? 'image direct download failed' : 'downloadAssetDirect failed';

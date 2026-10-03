@@ -5,6 +5,7 @@ import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
 import { deduplicateConversations as staticDeduplicateConversations, planTakeoutMerge } from '../../core/utils/mergeUtils.js';
 import { t } from '../uiCommon.js';
+import { getErrorMessage } from '../../core/utils/messaging.js';
 
 const getTakeoutEngine = () => __resolveModule('TakeoutEngine', TakeoutEngine);
 const getStore = () => __resolveModule('ConversationsStore', ConversationsStore);
@@ -81,10 +82,14 @@ export async function handleTakeoutImport(
 
         if (onLog) onLog(successMsg, 'info');
         if (onFinished) onFinished({ res, addedCount, totalMediaCount: res.totalMediaCount, message: successMsg });
-    } catch (err: any) {
-        const errMsg = typeof t === 'function' ? t('takeoutError', err.message) : `Takeout 导入失败: ${err.message}`;
+    } catch (err: unknown) {
+        const errorDetail = getErrorMessage(err);
+        const errMsg = typeof t === 'function' ? t('takeoutError', errorDetail) : `Takeout 导入失败: ${errorDetail}`;
         if (onLog) onLog(errMsg, 'error');
-        if (onError) onError(err, errMsg);
+        if (onError) {
+            const normalizedErr = err instanceof Error ? err : new Error(errorDetail);
+            onError(normalizedErr, errMsg);
+        }
     }
 }
 
