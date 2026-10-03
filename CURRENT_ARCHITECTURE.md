@@ -46,7 +46,7 @@ Verdict 定义：
 
 ### 已知非 verdict 的跟进点（不属本 PR scope）
 
-- `syncEngine.ts` 注释承认 "the provider-neutral declared type is still stabilizing"，有一处 `const all: any` 声明——W2-03 已稳定契约，待后续 content 迁移收敛。
+- W2-05 已将 `syncEngine.ts` 的 Provider 列表获取接到冻结类型并改用 `items`；存储、DOM 与混合摄入仍有无关 `any`，整文件暂不具备 zero-any 门禁条件，见 [验收报告](docs/audits/wave2-sync-provider-consumer.md)。
 - Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified.
 
 ## `scripts/framework/` 平台层级 audit（PR12，2026-09-27）
