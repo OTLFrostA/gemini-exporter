@@ -3,19 +3,19 @@ export type TabStatus = 'NO_TABS_API' | 'NO_TAB' | 'NEED_REFRESH' | 'CONNECTED' 
 export interface TabStatusResult {
     status: TabStatus;
     tab: chrome.tabs.Tab | null;
-    response?: any;
+    response?: unknown;
     error?: string;
     reason?: string;
 }
 
 export interface TabServiceModule {
     getGeminiTab(slot?: string): Promise<chrome.tabs.Tab | null>;
-    sendToGeminiTab(msg: any, slot?: string, timeoutMs?: number): Promise<any>;
+    sendToGeminiTab: (msg: unknown, slot?: string, timeoutMs?: number) => Promise<unknown>;
     checkGeminiStatus(slot?: string): Promise<TabStatusResult>;
-    openGeminiPage(): Promise<any>;
-    reloadGeminiTab(tabId?: number): Promise<any>;
+    openGeminiPage(): Promise<unknown>;
+    reloadGeminiTab(tabId?: number): Promise<unknown>;
     getAITab?(providerIdOrUrl?: string, slot?: string): Promise<chrome.tabs.Tab | null>;
-    sendToAITab?(providerIdOrUrl: string, msg: any, slot?: string, timeoutMs?: number): Promise<any>;
+    sendToAITab?: (providerIdOrUrl: string, msg: unknown, slot?: string, timeoutMs?: number) => Promise<unknown>;
 }
 
 export type SupportedLang = 'zh' | 'en';
@@ -28,7 +28,7 @@ export interface I18nModule {
     getLang(): string;
     setLang(lang: string): Promise<void>;
     onLanguageChange(fn: (lang: string) => void): void;
-    t(key: string, ...args: any[]): string;
+    t: (key: string, ...args: unknown[]) => string;
     applyLangToggleUI?(opts?: {
         toggle?: HTMLInputElement | null;
         labelZh?: HTMLElement | null;

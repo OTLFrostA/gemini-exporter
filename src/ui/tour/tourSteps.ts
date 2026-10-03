@@ -1,4 +1,6 @@
-export const STEPS: any[] = [
+import type { TourStep } from '../../types/ui.js';
+
+export const STEPS: TourStep[] = [
     {
         id: 'connect',
         getTarget: () => document.getElementById('accountSlotSelect') || document.querySelector('header h1') || null,

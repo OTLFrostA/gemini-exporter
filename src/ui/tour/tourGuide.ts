@@ -1,4 +1,4 @@
-import type { TourGuideContract } from '../../types/ui.js';
+import type { TourGuideContract, TourStep } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import StorageService from '../../core/storage/storageService.js';
 import TabService from '../../core/utils/tabService.js';
@@ -18,7 +18,7 @@ let spotlightEl: HTMLElement | null = null;
 let popoverEl: HTMLElement | null = null;
 let pollTimer: any = null;
 let lastTabStatus: any = null;
-let activeActionCleanup: (() => void) | null = null;
+let activeActionCleanup: (() => void) | null | undefined = null;
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getTabService = () => __resolveModule('TabService', TabService);
@@ -34,7 +34,7 @@ export function clearActionListeners(): void {
     }
 }
 
-export function bindStepAction(step: any): void {
+export function bindStepAction(step: TourStep | null | undefined): void {
     clearActionListeners();
     if (!step || typeof step.setupAction !== 'function') return;
 

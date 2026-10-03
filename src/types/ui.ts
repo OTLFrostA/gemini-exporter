@@ -1,4 +1,6 @@
-import type { Conversation } from './conversation.js';
+import type { Attachment, Conversation, GeneratedMediaIdentity } from './conversation.js';
+
+import type { ConversationExportState, ResolveConversationExportStateOptions } from '../core/utils/titleUtils.js';
 
 export interface ExportRecord {
     exportedAt: number | string;
@@ -11,6 +13,139 @@ export interface ExportRecord {
     chatTime?: number | string;
 }
 
+
+/** Profile fields written by content bootstrap and synchronization. */
+export interface AccountSlotInfo {
+    slot?: string;
+    accountId?: string;
+    gaiaId?: string;
+    name?: string;
+    email?: string;
+    count?: number;
+    lastSync?: string;
+}
+export type AccountSlots = Record<string, AccountSlotInfo>;
+export interface ReconcileOptions { keepTakeout?: boolean; }
+
+/** Browser directory capability used by direct writes and permission recovery. */
+export interface DirectoryHandle extends FileSystemDirectoryHandle {
+    queryPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
+    requestPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
+}
+
+export interface ExportSession {
+    status?: string;
+    slot?: string;
+    total?: number;
+    current?: number;
+    failedCount?: number;
+    lastChatTitle?: string;
+    updatedAt?: number;
+}
+export interface FailedChat { id: string; chatId?: string; title?: string; error?: string; }
+export interface FailedAttachment {
+    chatId: string;
+    chatTitle?: string;
+    file?: string;
+    error?: string;
+    sourceUrl?: string;
+    sourceEvidence?: unknown;
+}
+export interface ExportProgress {
+    current: number;
+    total: number;
+    pct: number;
+    title: string;
+    assetsDownloaded?: number;
+    assetsTotal?: number;
+}
+/** Only the Takeout capabilities used by export, independent of ZIP decoding/index internals. */
+export interface TakeoutExportSource {
+    getTakeoutOfflineChat(chatId: string, slot?: string | null): Conversation | null;
+    getTakeoutMediaForChat(chatId: string, slot?: string | null): Array<{
+        filename: string;
+        isGenerated?: boolean;
+        providerRequestId?: string;
+        imageOrdinal?: number;
+        generation?: GeneratedMediaIdentity;
+    }>;
+    getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slot?: string | null,
+        generation?: GeneratedMediaIdentity): Promise<Uint8Array | null>;
+}
+export interface UIExportOptions {
+    selected: Array<string | Pick<Conversation, 'id'> & Partial<Conversation>>;
+    format?: string;
+    useZip?: boolean;
+    currentSlot?: string;
+    dirHandle?: DirectoryHandle | null;
+    skip?: boolean;
+    includeIndex?: boolean;
+    includeAssets?: boolean;
+    conversations?: Conversation[];
+    exportedIds?: Record<string, ExportRecord>;
+    takeoutEngine?: TakeoutExportSource | null;
+    downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
+}
+export interface UIExportCallbacks {
+    onProgress?: (progress: ExportProgress) => void;
+    onLog?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
+    onTitleUpdated?: (id: string, title: string, source?: string) => void;
+    onItemExported?: (id: string, record: ExportRecord) => void;
+    onItemPendingAssets?: (id: string, count: number) => void;
+}
+/** Common UI summary. PDF omits attachment counters and skipped count. */
+export interface UIExportResult {
+    landedChats?: number;
+    exportedCount?: number;
+    failedChats?: FailedChat[];
+    failedAttachments?: FailedAttachment[];
+    skipped?: number;
+    totalAssets?: number;
+    downloadedAssets?: number;
+    aborted?: boolean;
+}
+export interface ActiveExportEngine { abort(): void; dispose?(): void; }
+export interface TakeoutImportResult {
+    conversations: Conversation[];
+    totalMediaCount: number;
+}
+/** Background/content scan reply projected to the fields consumed by the UI. */
+export interface ScanResponse {
+    success: boolean;
+    count?: number;
+    total?: number;
+    error?: string;
+    hitGoogleLimit?: boolean;
+    diagnostics?: { hitGoogleLimit?: boolean; stopReason?: string };
+}
+export interface ScanCallbacks {
+    onStart?: () => void;
+    onProgress?: (pct: number, text: string) => void;
+    onLog?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
+    onFinished?: (result: { count: number; res: ScanResponse; message: string; hitGoogleLimit: boolean }) => void;
+    onError?: (err: Error, errMsg?: string, details?: { hitGoogleLimit: boolean; res: ScanResponse | null | undefined }) => void;
+}
+export interface StopScanCallbacks {
+    onStopped?: (result: { message: string }) => void;
+    onLog?: ScanCallbacks['onLog'];
+}
+export interface TourStep {
+    id: string;
+    getTarget: () => Element | null;
+    placement: 'top' | 'bottom' | 'left' | 'right';
+    titleKey: string;
+    descKey?: string;
+    hintKey?: string;
+    isDynamicConnect?: boolean;
+    isFinal?: boolean;
+    setupAction?: (advance: () => void) => (() => void) | undefined;
+    spotlightTarget?: () => Element | null;
+    spotlightTitleKey?: string;
+    spotlightDescKey?: string;
+    spotlightHintKey?: string;
+    spotlightActionLabelKey?: string;
+}
+
 export interface IConversationsStore {
     getConversations: () => Conversation[];
     setConversations: (list: Conversation[]) => void;
@@ -18,15 +153,15 @@ export interface IConversationsStore {
     setExportedIds: (map: Record<string, ExportRecord>) => void;
     getCurrentSlot: () => string;
     setCurrentSlot: (slot: string) => void;
-    getAccountSlots: () => Record<string, any>;
-    setAccountSlots: (map: Record<string, any>) => void;
+    getAccountSlots: () => AccountSlots;
+    setAccountSlots: (map: AccountSlots) => void;
     getExportedRecord: (id: string | null | undefined) => ExportRecord | null;
     getSignature: (list?: Conversation[]) => string;
     loadStore: (slotOverride?: string) => Promise<{
         conversations: Conversation[];
         exportedIds: Record<string, ExportRecord>;
         slot: string;
-        accountSlots: Record<string, any>;
+        accountSlots: AccountSlots;
     }>;
     getLastSync: (slot?: string) => Promise<{ timestamp: number | null; count: number }>;
     saveConversations: (slot: string, list: Conversation[]) => Promise<void>;
@@ -35,7 +170,7 @@ export interface IConversationsStore {
     getDevMode: () => Promise<boolean>;
     setDevMode: (devOn: boolean) => Promise<void>;
     removeConversation: (id: string) => Promise<Conversation[]>;
-    reconcileWithCloud: (activeCloudList: any[], options?: any) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
+    reconcileWithCloud: (activeCloudList: Pick<Conversation, 'id'>[], options?: ReconcileOptions) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
     normalizeAndDeduplicate: (incoming: Conversation[]) => { processed: Conversation[]; hasDirtyTitles: boolean; changedCount: number };
     hasTakeoutData: () => boolean;
     normId: (id: string | null | undefined) => string;
@@ -52,26 +187,26 @@ export interface IListView {
     isRealTitle: (title: string, id?: string) => boolean;
     updateItemExportStatus: (chatId: string, exportRecord?: ExportRecord | null) => void;
     selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
-    checkIsUpdated?: (c: any, rec: ExportRecord | null | undefined) => boolean;
-    resolveConversationExportState?: (c: any, rec?: Partial<ExportRecord> | null, options?: { isFailedInSession?: boolean }) => any;
+    checkIsUpdated?: (c: Partial<Conversation> | null | undefined, rec: ExportRecord | null | undefined) => boolean;
+    resolveConversationExportState?: (c: Partial<Conversation> | null | undefined, rec?: Partial<ExportRecord> | null, options?: ResolveConversationExportStateOptions) => ConversationExportState;
     setSelectedIds?: (ids: Set<string> | null) => void;
 }
 
 export interface IAccountView {
-    render: (accountSlots: Record<string, any>, currentSlot: string) => void;
+    render: (accountSlots: AccountSlots, currentSlot: string) => void;
 }
 
 export interface IDialogView {
-    renderExportBanner: (session: any, currentSlot: string, isRunning: boolean) => void;
+    renderExportBanner: (session: ExportSession | null | undefined, currentSlot: string, isRunning: boolean) => void;
     dismissExportBanner: () => void;
     showDirectWritePrompt: (count: number, onConfirmFolder: () => void, onContinueZip: () => void) => void;
     hideDirectWritePrompt: () => void;
     showTakeoutLimitPrompt: (options?: { count?: number; hitGoogleLimit?: boolean; force?: boolean; onImportTakeout?: () => void; onDismiss?: () => void }) => Promise<void>;
     hideTakeoutLimitPrompt: () => void;
-    renderExportFailureBanner: (failedList: any[], onRetry?: () => void) => void;
+    renderExportFailureBanner: (failedList: FailedChat[], onRetry?: () => void) => void;
     hideExportFailureBanner: () => void;
-    getLastFailedChats: () => any[];
-    setLastFailedChats?: (list: any[]) => void;
+    getLastFailedChats: () => FailedChat[];
+    setLastFailedChats?: (list: FailedChat[]) => void;
 }
 
 export interface IProgressView {
@@ -91,14 +226,14 @@ export interface ILogView {
 }
 
 export interface DirHandleControllerContract {
-    saveStoredDirHandle: (handle: any) => Promise<boolean>;
-    getStoredDirHandle: () => Promise<any>;
-    verifyDirPermission: (handle: any, options?: { allowRequest?: boolean }) => Promise<boolean>;
-    restoreSavedDirHandle: () => Promise<any>;
-    requestDirHandle: () => Promise<any>;
-    getDirHandle: () => any;
-    setDirHandle: (handle: any) => void;
-    getPendingPermissionHandle?: () => any;
+    saveStoredDirHandle: (handle: DirectoryHandle | null) => Promise<boolean>;
+    getStoredDirHandle: () => Promise<DirectoryHandle | null>;
+    verifyDirPermission: (handle: DirectoryHandle | null, options?: { allowRequest?: boolean }) => Promise<boolean>;
+    restoreSavedDirHandle: () => Promise<DirectoryHandle | null>;
+    requestDirHandle: () => Promise<DirectoryHandle>;
+    getDirHandle: () => DirectoryHandle | null;
+    setDirHandle: (handle: DirectoryHandle | null) => void;
+    getPendingPermissionHandle?: () => DirectoryHandle | null;
     reauthorizeDirHandle?: () => Promise<boolean>;
 }
 
@@ -106,7 +241,7 @@ export interface TakeoutControllerContract {
     handleTakeoutImport: (file: File, callbacks?: {
         onProgress?: (pct: number, txt: string) => void;
         onLog?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
-        onFinished?: (result: { res: any; addedCount: number; totalMediaCount: number; message: string }) => void;
+        onFinished?: (result: { res: TakeoutImportResult; addedCount: number; totalMediaCount: number; message: string }) => void;
         onError?: (err: Error, errMsg?: string) => void;
     }) => Promise<void>;
 }
@@ -114,18 +249,18 @@ export interface TakeoutControllerContract {
 export interface SyncControllerContract {
     isScanning: () => boolean;
     setScanRunning: (running: boolean) => void;
-    startIncrementalScan: (slot: string, callbacks?: any) => void;
-    startDeepScan: (slot: string, callbacks?: any) => void;
-    stopScan: (slot: string, callbacks?: any) => void;
+    startIncrementalScan: (slot: string, callbacks?: ScanCallbacks) => void;
+    startDeepScan: (slot: string, callbacks?: ScanCallbacks) => void;
+    stopScan: (slot: string, callbacks?: StopScanCallbacks) => void;
 }
 
 export interface ExportControllerContract {
     setRunning: (running: boolean) => void;
     isRunning: () => boolean;
-    getActiveEngine: () => any;
-    runExport: (params: any, callbacks: any) => Promise<any>;
+    getActiveEngine: () => ActiveExportEngine | null;
+    runExport: (params: UIExportOptions, callbacks: UIExportCallbacks) => Promise<UIExportResult>;
     abort: () => void;
-    estimateMemoryUsage?: (selected: any[], conversations: any[]) => number;
+    estimateMemoryUsage?: (selected: Array<string | Partial<Conversation> & { attachments?: Attachment[] }>, conversations: Conversation[]) => number;
 }
 
 
@@ -142,8 +277,8 @@ export interface TourGuideContract {
     getCurrentStep: () => number;
     destroy: () => void;
     clearActionListeners: () => void;
-    bindStepAction: (step: any) => void;
-    STEPS: any[];
+    bindStepAction: (step: TourStep | null | undefined) => void;
+    STEPS: TourStep[];
 }
 
 export interface OptionsInitOptions {
@@ -151,24 +286,24 @@ export interface OptionsInitOptions {
 }
 
 export interface OptionsExportOptions {
-    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<void>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
     getSearchFilter?: () => string;
 }
 
 export interface OptionsSyncOptions {
-    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<void>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
     maybePromptTakeout?: (count: number, hitLimit: boolean) => Promise<void> | void;
 }
 
 export interface OptionsTakeoutOptions {
-    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<void>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
 }
 
 export interface OptionsSettingsOptions {
-    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<any>;
+    loadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<void>;
     log?: (msg: string, level?: 'info' | 'warn' | 'error') => void;
     clearLog?: () => void;
     renderLog?: () => void;

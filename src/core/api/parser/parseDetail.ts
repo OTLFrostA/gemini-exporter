@@ -1,6 +1,6 @@
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import type { GeminiProtocolModule } from "../../protocol/protocol.js";
-import type { Message, TitleSources, Attachment } from "../../../types/index.js";
+import type { Message, TitleSources, Attachment, MessageDocument } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { sanitizeFileName } from "../../utils/pathUtils.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
@@ -16,7 +16,7 @@ export interface DetailParseDiagnostics {
     schemaDriftWarnings?: string[];
 }
 
-export interface ParserDocument {
+export interface ParserDocument extends MessageDocument {
     id: string;
     title: string;
     createdAt?: number | null;

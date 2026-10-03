@@ -12,5 +12,9 @@
   "src/core/provider/gemini/geminiProvider.ts",
   "src/content/providerCompatibility.ts",
   "src/types/detailTransport.ts",
-  "src/types/messages.ts"
+  "src/types/messages.ts",
+  "src/types/ui.ts",
+  "src/types/utils.ts",
+  "src/types/liveSave.ts",
+  "src/types/conversation.ts"
 ]

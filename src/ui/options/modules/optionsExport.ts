@@ -1,3 +1,4 @@
+import type { ExportProgress, ExportRecord } from '../../../types/ui.js';
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
     t,
@@ -120,7 +121,7 @@ export function updateZipUi(): void {
  * No loop risk: a storage write never re-enters the export pipeline, and
  * exportOrchestrator's own write (when convsNeedSave) carries identical values.
  */
-export async function persistTitleUpdate(chatId: string, newTitle: string, source: string, exportSlot?: string): Promise<void> {
+export async function persistTitleUpdate(chatId: string, newTitle: string, source?: string, exportSlot?: string): Promise<void> {
     const Store = getStore();
     const visibleSlot = Store?.getCurrentSlot?.() || 'u0';
     const slot = exportSlot || visibleSlot;
@@ -238,7 +239,7 @@ export async function startExportPipeline(
                 setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
             }
         }, {
-            onProgress: (progress: any, txt: string) => {
+            onProgress: (progress: ExportProgress, txt?: string) => {
                 const isEn = typeof getLang === 'function' && getLang() === 'en';
                 const utils = getUtils();
                 const formatted = (utils && typeof utils.formatExportProgress === 'function')
@@ -249,10 +250,10 @@ export async function startExportPipeline(
                 if (Store?.getCurrentSlot?.() === currentSlot) ProgressView.update(pct, formatted.text);
             },
 
-            onLog: (msg: string, lvl: 'info' | 'warn' | 'error') => {
+            onLog: (msg: string, lvl?: 'info' | 'warn' | 'error') => {
                 if (Store?.getCurrentSlot?.() === currentSlot) log(msg, lvl);
             },
-            onTitleUpdated: (chatId: string, newTitle: string, source: string) => {
+            onTitleUpdated: (chatId: string, newTitle: string, source?: string) => {
                 // Fire-and-forget: persistTitleUpdate updates the in-memory item
                 // synchronously first, then persists to storage; failures are
                 // logged inside and never reject here.
@@ -264,7 +265,7 @@ export async function startExportPipeline(
                     List.updateItemExportStatus(chatId, { status: 'pending_assets' } as any);
                 }
             },
-            onItemExported: async (chatId: string, titleOrRecord: any, maybeRecord: any) => {
+            onItemExported: async (chatId: string, titleOrRecord: ExportRecord | string, maybeRecord?: ExportRecord) => {
                 if (Store?.getCurrentSlot?.() !== currentSlot) return;
                 const exportRecord = (maybeRecord && typeof maybeRecord === 'object')
                     ? maybeRecord

@@ -1,5 +1,5 @@
 import type { Conversation } from '../../types/conversation.js';
-import type { ExportRecord, IConversationsStore } from '../../types/ui.js';
+import type { AccountSlots, ReconcileOptions, ExportRecord, IConversationsStore } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 
 import StorageService from '../../core/storage/storageService.js';
@@ -13,7 +13,7 @@ import { STORAGE_KEYS } from '../../core/utils/constants.js';
 let conversations: Conversation[] = [];
 let exportedIds: Record<string, ExportRecord> = {};
 let currentSlot: string = 'u0';
-let accountSlots: Record<string, any> = {};
+let accountSlots: AccountSlots = {};
 
 const getStorage = (): any => __resolveModule('StorageService', StorageService);
 const getUtils = (): any => __resolveModule('GeminiUtils', GeminiUtils);
@@ -29,7 +29,7 @@ export function setConversations(list: Conversation[]): void { conversations = l
 export function getExportedIds(): Record<string, ExportRecord> { return exportedIds; }
 
 // Fold legacy alias keys ('c_<id>' / raw id) into canonical normId keys for consistent in-memory lookups
-function collapseExportAliases(map: Record<string, any>): void {
+function collapseExportAliases(map: Record<string, ExportRecord>): void {
     for (const k of Object.keys(map)) {
         const ck = normId(k);
         if (!ck || ck === k) continue;
@@ -47,8 +47,8 @@ export function setExportedIds(map: Record<string, ExportRecord>): void {
  }
 export function getCurrentSlot(): string { return currentSlot; }
 export function setCurrentSlot(slot: string): void { currentSlot = slot || 'u0'; }
-export function getAccountSlots(): Record<string, any> { return accountSlots; }
-export function setAccountSlots(map: Record<string, any>): void { accountSlots = map || {}; }
+export function getAccountSlots(): AccountSlots { return accountSlots; }
+export function setAccountSlots(map: AccountSlots): void { accountSlots = map || {}; }
 
 export function getExportedRecord(id?: string | null): ExportRecord | null {
     if (!id || !exportedIds) return null;
@@ -72,7 +72,7 @@ export async function loadStore(slotOverride?: string): Promise<{
     conversations: Conversation[];
     exportedIds: Record<string, ExportRecord>;
     slot: string;
-    accountSlots: Record<string, any>;
+    accountSlots: AccountSlots;
 }> {
     let slot = slotOverride || currentSlot || 'u0';
     const storage = getStorage();
@@ -168,7 +168,7 @@ export async function removeConversation(id: string): Promise<Conversation[]> {
     return conversations;
 }
 
-export async function reconcileWithCloud(activeCloudList: any[], options: any = {}): Promise<{ kept: number; removed: number; removedIds: string[] }> {
+export async function reconcileWithCloud(activeCloudList: Pick<Conversation, 'id'>[], options: ReconcileOptions = {}): Promise<{ kept: number; removed: number; removedIds: string[] }> {
     const storage = getStorage();
     if (storage && storage.reconcileConversations) {
         const res = await storage.reconcileConversations(currentSlot, activeCloudList, options);

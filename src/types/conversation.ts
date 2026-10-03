@@ -60,6 +60,29 @@ export interface Attachment {
     dataBase64?: string;
 }
 
+/** Normalized citation emitted by a conversation producer. Raw source payloads remain unknown. */
+export interface MessageCitation {
+    url: string;
+    title?: string;
+}
+
+export interface DocumentLink {
+    title: string;
+    url: string;
+}
+
+/** Shared report/file metadata; parser-only required fields belong to ParserDocument. */
+export interface MessageDocument extends Attachment {
+    id?: string;
+    createdAt?: number | null;
+    chipUrl?: string;
+    sections?: string[];
+    links?: DocumentLink[];
+    contentMarkdown?: string;
+    candidates?: string[];
+    hasFabricatedText?: boolean;
+}
+
 export type AuthorRole = 'user' | 'model' | 'assistant' | 'system';
 
 export interface ChatMessage {
@@ -74,9 +97,9 @@ export interface ChatMessage {
     attachments?: Attachment[];
     thoughts?: string | string[];
     thinking?: string;
-    citations?: any[];
+    citations?: MessageCitation[];
     images?: Attachment[];
-    documents?: any[];
+    documents?: MessageDocument[];
     attachmentCount?: number;
     messageCount?: number;
     sources?: unknown[];
