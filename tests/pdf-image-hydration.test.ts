@@ -615,3 +615,176 @@ test('PDF preparation preserves nonfatal normalization diagnostics', async () =>
     assert.strictEqual(result.ok, true);
     assert.ok(result.diagnostics.some((d: any) => d.code === 'UNKNOWN_ROLE'));
 });
+
+test('hydrated image bytes and image classification do not mutate the original input conversation object', async () => {
+    const origImage: {
+        name: string;
+        url: string;
+        dataBuffer?: unknown;
+        type?: string;
+        failureReason?: string;
+    } = {
+        name: 'test_photo.png',
+        url: 'https://example.com/test_photo.png',
+    };
+    const origMsg = {
+        id: 'm1',
+        role: 'model',
+        content: 'Check this image',
+        images: [origImage],
+    };
+    const origChat = {
+        id: 'immutability-check',
+        title: 'Immutability Check',
+        messages: [origMsg],
+    };
+
+    const dummyBytes = new Uint8Array([10, 20, 30, 40]);
+    let acquireCalls = 0;
+    const fakePipeline = {
+        acquireAssetBytes: async () => {
+            acquireCalls++;
+            return {
+                ok: true,
+                bytes: dummyBytes,
+                mimeType: 'image/png',
+                failReason: '',
+                recoveredFromTakeout: false,
+                localName: 'test_photo.png',
+            };
+        },
+    };
+
+    const result = await preparePdfItem(origChat, {
+        assetPipeline: fakePipeline,
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(acquireCalls, 1);
+    assert.strictEqual(origImage.dataBuffer, undefined);
+    assert.strictEqual(origImage.type, undefined);
+    assert.strictEqual(origImage.failureReason, undefined);
+});
+
+test('two references with the same hydration key acquire once and hydrate all targets', async () => {
+    const sharedUrl = 'https://example.com/shared_image.png';
+    const img1 = { url: sharedUrl, name: 'img1.png' };
+    const img2 = { url: sharedUrl, name: 'img2.png' };
+    const chat = {
+        id: 'dedupe-check',
+        title: 'Dedupe Check',
+        messages: [
+            { id: 'm1', role: 'model', content: 'first', images: [img1] },
+            { id: 'm2', role: 'model', content: 'second', images: [img2] },
+        ],
+    };
+
+    const dummyBytes = new Uint8Array([1, 2, 3, 4, 5]);
+    let acquireCalls = 0;
+    const fakePipeline = {
+        acquireAssetBytes: async () => {
+            acquireCalls++;
+            return {
+                ok: true,
+                bytes: dummyBytes,
+                mimeType: 'image/png',
+                failReason: '',
+                recoveredFromTakeout: false,
+                localName: 'shared_image.png',
+            };
+        },
+    };
+
+    const result = await preparePdfItem(chat, {
+        assetPipeline: fakePipeline,
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(acquireCalls, 1, 'acquireAssetBytes must be called only once for shared dedupe key');
+    assert.strictEqual(result.bundle.assets.length >= 1, true);
+    for (const asset of result.bundle.assets) {
+        if (asset.kind === 'image') {
+            assert.strictEqual(asset.status, 'available');
+        }
+    }
+});
+
+test('inline bytes skip acquisition', async () => {
+    const existingBytes = new Uint8Array([99, 98, 97]);
+    const imgWithInline = {
+        type: 'image',
+        name: 'inline_cat.png',
+        url: 'https://example.com/inline_cat.png',
+        dataBuffer: existingBytes,
+    };
+    const chat = {
+        id: 'skip-inline',
+        title: 'Skip Inline Check',
+        messages: [
+            { id: 'm1', role: 'model', content: 'already has bytes', images: [imgWithInline] },
+        ],
+    };
+
+    let acquireCalls = 0;
+    const fakePipeline = {
+        acquireAssetBytes: async () => {
+            acquireCalls++;
+            return {
+                ok: true,
+                bytes: new Uint8Array([1, 2, 3]),
+                mimeType: 'image/png',
+                failReason: '',
+                recoveredFromTakeout: false,
+                localName: 'inline_cat.png',
+            };
+        },
+    };
+
+    const result = await preparePdfItem(chat, {
+        assetPipeline: fakePipeline,
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(acquireCalls, 0, 'acquireAssetBytes must NOT be called when inline bytes exist');
+});
+
+test('dedupe key precedence follows localName > resolvedUrl > sourceUrl > url > src > fileName > name', async () => {
+    let capturedItem: { localName?: string } = {};
+    const img = {
+        localName: 'assets/key_local.png',
+        resolvedUrl: 'https://example.com/key_resolved.png',
+        sourceUrl: 'https://example.com/key_source.png',
+        url: 'https://example.com/key_url.png',
+        src: 'https://example.com/key_src.png',
+        fileName: 'key_filename.png',
+        name: 'key_name.png',
+    };
+    const chat = {
+        id: 'precedence-check',
+        title: 'Precedence Check',
+        messages: [
+            { id: 'm1', role: 'model', content: 'precedence test', images: [img] },
+        ],
+    };
+
+    const fakePipeline = {
+        acquireAssetBytes: async (item: { localName?: string }) => {
+            capturedItem = item;
+            return {
+                ok: true,
+                bytes: new Uint8Array([1, 2, 3]),
+                mimeType: 'image/png',
+                failReason: '',
+                recoveredFromTakeout: false,
+                localName: item.localName || 'asset.png',
+            };
+        },
+    };
+
+    const result = await preparePdfItem(chat, {
+        assetPipeline: fakePipeline,
+    });
+
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(capturedItem?.localName, 'assets/key_local.png');
+});
