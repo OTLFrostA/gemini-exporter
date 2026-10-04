@@ -181,6 +181,22 @@ test('takeout_engine - extractC2PATimestamp extracts ISO timestamp from C2PA bin
     const ts = MediaIndex.extractC2PATimestamp(fakeC2PA);
     assert.ok(typeof ts === 'number', 'should return numeric epoch timestamp');
     assert.strictEqual(new Date(ts).toISOString(), '2026-03-22T14:30:00.000Z');
+
+    // Uint8Array input
+    const uint8C2PA = new TextEncoder().encode('xpacket c2pa:claim_generator="Google" date="20260322143000Z"');
+    const tsUint8 = MediaIndex.extractC2PATimestamp(uint8C2PA);
+    assert.strictEqual(new Date(tsUint8).toISOString(), '2026-03-22T14:30:00.000Z');
+
+    // String input
+    const strC2PA = 'xpacket c2pa:claim_generator="Google" date="20260322143000Z"';
+    const tsStr = MediaIndex.extractC2PATimestamp(strC2PA);
+    assert.strictEqual(new Date(tsStr).toISOString(), '2026-03-22T14:30:00.000Z');
+
+    // Unsupported input types return null
+    assert.strictEqual(MediaIndex.extractC2PATimestamp(undefined), null);
+    assert.strictEqual(MediaIndex.extractC2PATimestamp(12345), null);
+    assert.strictEqual(MediaIndex.extractC2PATimestamp({}), null);
+    assert.strictEqual(MediaIndex.extractC2PATimestamp(new ArrayBuffer(10)), null);
 });
 
 test('takeout_engine - slot isolation ensures multi-account takeouts do not leak', () => {
