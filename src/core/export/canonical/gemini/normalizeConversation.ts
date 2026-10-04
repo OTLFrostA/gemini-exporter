@@ -1,8 +1,4 @@
-import type {
-    Attachment as RepoAttachment,
-    ChatMessage as RepoMessage,
-    Conversation as RepoConversation,
-} from '../../../../types/conversation.js';
+import type { GeminiNormalizationInput, GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset } from '../assets.js';
 import { createInlineByteStore, type InlineByteStore } from '../../assets/index.js';
 import type { Citation } from '../citations.js';
@@ -58,7 +54,7 @@ export function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): T
     return 'default';
 }
 
-export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[]): string | undefined {
+export function normalizeTitle(raw: GeminiNormalizationInput, diagnostics: Diagnostic[]): string | undefined {
     const candidates: TitleCandidate[] = [];
     const titles = raw.titles;
     if (titles && typeof titles === 'object') {
@@ -69,8 +65,9 @@ export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[])
         }
     }
     if (isStr(raw.title) && raw.title.trim()) {
+        const title = raw.title.trim();
         const source = canonicalTitleSource(raw.titleSource, diagnostics);
-        if (!candidates.some((c) => c.value === raw.title.trim() && c.source === source)) {
+        if (!candidates.some((c) => c.value === title && c.source === source)) {
             candidates.push({ value: raw.title.trim(), source });
         }
     }
@@ -79,7 +76,7 @@ export function normalizeTitle(raw: RepoConversation, diagnostics: Diagnostic[])
 }
 
 export async function normalizeGeminiConversation(
-    raw: RepoConversation,
+    raw: GeminiNormalizationInput,
     options: GeminiNormalizationOptions = {},
 ): Promise<GeminiNormalizationResult> {
     const providerId = options.providerId ?? 'gemini';
@@ -90,7 +87,7 @@ export async function normalizeGeminiConversation(
     const byteStore = createInlineByteStore();
 
     const messages: MessageNode[] = [];
-    const pushMessage = (m: RepoMessage, index: number, locator: string): void => {
+    const pushMessage = (m: GeminiNormalizationMessage, index: number, locator: string): void => {
         if (!m || typeof m !== 'object') {
             diagnostics.push({
                 id: `bad-message:${locator}`,
@@ -125,20 +122,20 @@ export async function normalizeGeminiConversation(
                 return;
             }
             if (isStr(t.userContent) && t.userContent) {
-                pushMessage({ role: 'user', content: t.userContent, timestamp: t.timestamp ?? undefined } as RepoMessage, mi++, `turns[${ti}].userContent`);
+                pushMessage({ role: 'user', content: t.userContent, timestamp: t.timestamp ?? undefined }, mi++, `turns[${ti}].userContent`);
             }
             const hasModel = isStr(t.modelContent) && t.modelContent;
             if (hasModel || t.thoughts || (t.attachments?.length) || (t.images?.length) || (t.sources?.length) || t.structuredContent) {
                 pushMessage({
                     role: 'model',
-                    content: hasModel ? t.modelContent as string : '',
+                    content: hasModel ? t.modelContent : '',
                     timestamp: t.timestamp ?? undefined,
-                    thoughts: t.thoughts as string | string[] | undefined,
-                    attachments: t.attachments as RepoAttachment[] | undefined,
-                    images: t.images as RepoAttachment[] | undefined,
-                    sources: t.sources as unknown[] | undefined,
+                    thoughts: t.thoughts,
+                    attachments: t.attachments,
+                    images: t.images,
+                    sources: t.sources,
                     structuredContent: t.structuredContent,
-                } as RepoMessage, mi++, `turns[${ti}].modelContent`);
+                }, mi++, `turns[${ti}].modelContent`);
             }
         });
     } else {
@@ -201,7 +198,7 @@ export async function normalizeGeminiConversation(
     return { bundle, diagnostics, byteStore };
 }
 
-export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
+export class GeminiNormalizer implements ProviderNormalizer<GeminiNormalizationInput> {
     readonly providerId = 'gemini';
     private readonly options: GeminiNormalizationOptions;
 
@@ -209,7 +206,7 @@ export class GeminiNormalizer implements ProviderNormalizer<RepoConversation> {
         this.options = options;
     }
 
-    async normalize(raw: RepoConversation, context: NormalizationContext): Promise<NormalizationResult> {
+    async normalize(raw: GeminiNormalizationInput, context: NormalizationContext): Promise<NormalizationResult> {
         let rawRef = this.options.rawRef;
         let rawEvidenceError: string | undefined;
         const effectiveProviderId = context.providerId || this.options.providerId || this.providerId;
