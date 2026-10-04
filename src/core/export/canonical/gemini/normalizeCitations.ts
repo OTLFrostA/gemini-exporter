@@ -1,4 +1,4 @@
-import type { ChatMessage as RepoMessage } from '../../../../types/conversation.js';
+import type { GeminiNormalizationMessage } from './normalizationInput.js';
 import type { BlockNode } from '../blocks.js';
 import type { Citation } from '../citations.js';
 import type { InlineNode } from '../inline.js';
@@ -12,7 +12,7 @@ function isStr(v: unknown): v is string {
     return typeof v === 'string';
 }
 
-export function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skipped: number } {
+export function extractRawCitations(m: GeminiNormalizationMessage): { list: RawCitation[]; skipped: number } {
     const list: RawCitation[] = [];
     let skipped = 0;
     const push = (c: RawCitation): void => {
@@ -22,9 +22,8 @@ export function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skip
     const fromCitations = m.citations;
     if (Array.isArray(fromCitations)) {
         for (const c of fromCitations) {
-            if (c && typeof c === 'object' && isStr((c as { url?: unknown }).url)) {
-                const o = c as { url: string; title?: unknown };
-                push(isStr(o.title) ? { url: o.url, title: o.title } : { url: o.url });
+            if (c && typeof c === 'object' && 'url' in c && isStr(c.url)) {
+                push('title' in c && isStr(c.title) ? { url: c.url, title: c.title } : { url: c.url });
             } else skipped++;
         }
     }
@@ -32,9 +31,8 @@ export function extractRawCitations(m: RepoMessage): { list: RawCitation[]; skip
     if (Array.isArray(fromSources)) {
         for (const s of fromSources) {
             if (isStr(s)) push({ url: s });
-            else if (s && typeof s === 'object' && isStr((s as { url?: unknown }).url)) {
-                const o = s as { url: string; title?: unknown };
-                push(isStr(o.title) ? { url: o.url, title: o.title } : { url: o.url });
+            else if (s && typeof s === 'object' && 'url' in s && isStr(s.url)) {
+                push('title' in s && isStr(s.title) ? { url: s.url, title: s.title } : { url: s.url });
             } else skipped++;
         }
     }

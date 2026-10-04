@@ -4,13 +4,13 @@ import type {
 } from '../../../types/conversation.js';
 import { normId as utilsNormId } from "../../utils/utils.js";
 
-export interface TakeoutMediaFile {
+interface TakeoutMediaFile {
     name?: string;
     path?: string;
     async?: (type: 'uint8array') => Promise<unknown>;
 }
 
-export interface StoredTakeoutMedia {
+interface StoredTakeoutMedia {
     filename: string;
     fileObj?: TakeoutMediaFile;
     generation?: GeneratedMediaIdentity;
@@ -19,7 +19,7 @@ export interface StoredTakeoutMedia {
     providerRequestId?: string;
 }
 
-export interface TakeoutCachedImage {
+interface TakeoutCachedImage {
     url?: string;
     name?: string;
     fileName?: string;
@@ -31,7 +31,7 @@ export interface TakeoutCachedImage {
     generation?: GeneratedMediaIdentity;
 }
 
-export interface TakeoutCachedMessage {
+interface TakeoutCachedMessage {
     id?: string;
     role?: 'user' | 'model' | 'assistant' | 'system';
     content?: string;
@@ -74,7 +74,7 @@ export interface TakeoutStore {
     convCache: Record<string, TakeoutCachedConversation>;
 }
 
-export interface MediaIndexModule {
+interface MediaIndexModule {
     getStore: (slot?: string | null) => TakeoutStore;
     normId: (id?: string | null) => string;
     extractC2PATimestamp: (bufferOrArray: unknown) => number | null;

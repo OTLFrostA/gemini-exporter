@@ -1,7 +1,4 @@
-import type {
-    Attachment as RepoAttachment,
-    ChatMessage as RepoMessage,
-} from '../../../../types/conversation.js';
+import type { GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset } from '../assets.js';
 import { collectReferencedAssetIds } from '../assetReferences.js';
 import type { BlockNode } from '../blocks.js';
@@ -73,7 +70,7 @@ export function cleanBody(text: unknown): string {
 }
 
 export function normalizeMessage(
-    m: RepoMessage,
+    m: GeminiNormalizationMessage,
     index: number,
     locator: string,
     ctx: { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore },
@@ -170,7 +167,7 @@ export function normalizeMessage(
             const cleaned = cleanBody(m.content);
             if (cleaned.trim()) blocks.push(...parseMarkdownToBlocks(cleaned, idPrefix, st));
         } else if (m.content !== undefined && m.content !== null) {
-            const visible = formatUnknownPayload(m.content as JsonValue);
+            const visible = formatUnknownPayload(m.content);
             const ub: BlockNode = {
                 id: nextBlockId(),
                 type: 'unknown',

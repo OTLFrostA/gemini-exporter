@@ -19,13 +19,9 @@ import { isObjectRecord } from '../../utils/messageResponses.js';
 import TabService from '../../utils/tabService.js';
 import type { TabServiceModule } from '../../../types/utils.js';
 import type {
-    Conversation,
-    ChatMessage,
-    Turn,
-    Attachment,
-    AuthorRole,
     GeneratedMediaIdentity,
 } from '../../../types/conversation.js';
+import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationTurn, GeminiNormalizationAttachment } from '../canonical/gemini/normalizationInput.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
 import type { CanonicalConversationBundle } from '../canonical/conversation.js';
@@ -47,7 +43,7 @@ declare global {
 export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
 export const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
 
-export interface PdfHydratableAsset {
+interface PdfHydratableAsset extends GeminiNormalizationAttachment {
     type?: string;
     isImage?: boolean;
     localName?: string;
@@ -70,10 +66,10 @@ export interface PdfHydratableAsset {
     [key: string]: unknown;
 }
 
-export interface PdfHydratableMessage {
+interface PdfHydratableMessage extends GeminiNormalizationMessage {
     id?: string;
-    role?: AuthorRole | string;
-    content?: string;
+    role?: string;
+    content?: unknown;
     timestamp?: number | null;
     turnId?: string;
     providerRequestId?: string;
@@ -84,7 +80,7 @@ export interface PdfHydratableMessage {
     [key: string]: unknown;
 }
 
-export interface PdfHydratableTurn {
+interface PdfHydratableTurn extends GeminiNormalizationTurn {
     id?: string;
     timestamp?: number | null;
     messages?: PdfHydratableMessage[];
@@ -93,7 +89,7 @@ export interface PdfHydratableTurn {
     [key: string]: unknown;
 }
 
-export interface PdfHydratableConversation {
+interface PdfHydratableConversation extends GeminiNormalizationInput {
     id?: string;
     title?: string;
     timestamp?: number | null;
@@ -102,7 +98,7 @@ export interface PdfHydratableConversation {
     [key: string]: unknown;
 }
 
-export interface PdfSelectedItemObject {
+interface PdfSelectedItemObject {
     id?: string | number | null;
     title?: string | null;
     messages?: PdfHydratableMessage[];
@@ -110,14 +106,14 @@ export interface PdfSelectedItemObject {
     [key: string]: unknown;
 }
 
-export type PdfSelectedItem = string | PdfSelectedItemObject;
+type PdfSelectedItem = string | PdfSelectedItemObject;
 
-export type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
-export type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
-export type PdfFetchAsset = NonNullable<AssetPipelineOptions['fetchAsset']>;
-export type PdfFetchAssetDelegate = NonNullable<AssetPipelineOptions['fetchAssetDelegate']>;
+type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
+type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
+type PdfFetchAsset = NonNullable<AssetPipelineOptions['fetchAsset']>;
+type PdfFetchAssetDelegate = NonNullable<AssetPipelineOptions['fetchAssetDelegate']>;
 
-export interface PdfTakeoutFallbackEngine {
+interface PdfTakeoutFallbackEngine {
     getTakeoutOfflineChat?: (chatId: string, slot?: string | null) => unknown;
     getTakeoutFallbackMedia?: (
         chatId: string,
@@ -128,7 +124,7 @@ export interface PdfTakeoutFallbackEngine {
     getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => unknown[];
 }
 
-export type PdfTakeoutEngine =
+type PdfTakeoutEngine =
     | TakeoutExportSource
     | TakeoutEngineModule
     | AssetPipelineTakeoutEngine
@@ -289,7 +285,7 @@ function collectImageHydrationGroups(chat: PdfHydratableConversation): ImageHydr
         if (!isObjectRecord(item)) return;
         const rawBuf = item.dataBuffer;
         const normalizedBuf = Array.isArray(rawBuf) ? new Uint8Array(rawBuf) : rawBuf;
-        const candidate: Attachment = {
+        const candidate: PdfHydratableAsset = {
             ...item,
             dataBuffer: normalizedBuf,
             type: forceImage ? (item.type || 'image') : (item.type ?? ''),
@@ -395,79 +391,6 @@ function resolvePdfAssetPipeline(context: PreparePdfItemContext): {
         : (!hasDelegate && !hasTabTransport ? 0 : undefined);
 
     return { pipeline, takeoutEngine, maxRetries };
-}
-
-function toNormalizableAsset(asset: PdfHydratableAsset): Attachment {
-    const rawBuf = asset.dataBuffer;
-    const dataBuffer = Array.isArray(rawBuf) ? new Uint8Array(rawBuf) : rawBuf;
-    return {
-        ...asset,
-        dataBuffer,
-        type: typeof asset.type === 'string' && asset.type ? asset.type : (asset.isImage ? 'image' : 'file'),
-    };
-}
-
-function toNormalizableMessage(msg: PdfHydratableMessage): ChatMessage {
-    const rawRole = typeof msg.role === 'string' ? msg.role : '';
-    const role: AuthorRole = rawRole === 'user' || rawRole === 'assistant' || rawRole === 'system'
-        ? rawRole
-        : 'model';
-    const content = typeof msg.content === 'string' ? msg.content : '';
-    const attachments = Array.isArray(msg.attachments) ? msg.attachments.map(toNormalizableAsset) : undefined;
-    const images = Array.isArray(msg.images) ? msg.images.map(toNormalizableAsset) : undefined;
-    const documents = Array.isArray(msg.documents)
-        ? msg.documents.map((d) => ({
-            ...toNormalizableAsset(d),
-            type: typeof d.type === 'string' && d.type ? d.type : 'doc',
-        }))
-        : undefined;
-
-    const normalizedMsg: ChatMessage = {
-        ...msg,
-        role,
-        content,
-        attachments,
-        images,
-        documents,
-    };
-    if (rawRole && role === 'model' && rawRole !== 'model') {
-        Reflect.set(normalizedMsg, 'role', rawRole);
-    }
-    return normalizedMsg;
-}
-
-function toNormalizableTurn(turn: PdfHydratableTurn): Turn {
-    const messages = Array.isArray(turn.messages) ? turn.messages.map(toNormalizableMessage) : undefined;
-    const attachments = Array.isArray(turn.attachments) ? turn.attachments.map(toNormalizableAsset) : undefined;
-    const images = Array.isArray(turn.images) ? turn.images.map(toNormalizableAsset) : undefined;
-
-    return {
-        ...turn,
-        messages,
-        attachments,
-        images,
-    };
-}
-
-function toNormalizableConversation(
-    chat: PdfHydratableConversation,
-    fallbackId: string,
-    fallbackTitle: string,
-): Conversation {
-    const id = typeof chat.id === 'string' && chat.id ? chat.id : fallbackId;
-    const title = typeof chat.title === 'string' ? chat.title : fallbackTitle;
-    const timestamp = typeof chat.timestamp === 'number'
-        ? chat.timestamp
-        : (chat.timestamp === null ? null : null);
-
-    return {
-        ...chat,
-        id,
-        title,
-        timestamp,
-        messages: Array.isArray(chat.messages) ? chat.messages.map(toNormalizableMessage) : undefined,
-        turns: Array.isArray(chat.turns) ? chat.turns.map(toNormalizableTurn) : undefined,
-    };
 }
 
 export async function preparePdfItem(
@@ -581,8 +504,7 @@ export async function preparePdfItem(
         }
     }
 
-    const normalizableChat = toNormalizableConversation(workingChat, id, title);
-    const { bundle, diagnostics: normDiags, byteStore } = await normalizeGeminiConversation(normalizableChat);
+    const { bundle, diagnostics: normDiags, byteStore } = await normalizeGeminiConversation(workingChat);
     for (const d of normDiags) diagnostics.push(toRenderDiagnostic(d));
     const integrityError = normDiags.find((d) => d.severity === 'error' && (d.code === 'MSG_BAD_ID' || d.code === 'MSG_DUP_ID'));
     if (integrityError) {

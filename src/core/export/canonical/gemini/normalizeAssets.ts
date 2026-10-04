@@ -1,5 +1,5 @@
 import { normalizeArchiveResourceName } from '../../assets/archivePath.js';
-import type { Attachment as RepoAttachment, ChatMessage as RepoMessage } from '../../../../types/conversation.js';
+import type { GeminiNormalizationAttachment, GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
@@ -208,36 +208,40 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
     return makeImageInline(assetId, alt, title);
 }
 
-export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
-    const atts: RepoAttachment[] = [];
-    const push = (a: RepoAttachment): void => {
+function rawEntries(value: object): [string, unknown][] {
+    return Object.entries(value);
+}
+
+export function mergeMessageAttachments(m: GeminiNormalizationMessage): GeminiNormalizationAttachment[] {
+    const atts: GeminiNormalizationAttachment[] = [];
+    const push = (a: GeminiNormalizationAttachment): void => {
         if (!a || typeof a !== 'object') return;
         const key = a.localName || a.url || a.sourceUrl || a.resolvedUrl || a.src;
         if (key) {
             const existing = atts.find((x) => (x.localName || x.url || x.sourceUrl || x.resolvedUrl || x.src) === key);
             if (existing) {
-                for (const [k, v] of Object.entries(a)) {
-                    if (v !== undefined && (existing as any)[k] === undefined) {
-                        (existing as any)[k] = v;
+                for (const [k, v] of rawEntries(a)) {
+                    if (v !== undefined && rawEntries(existing).find(([key]) => key === k)?.[1] === undefined) {
+                        Object.assign(existing, { [k]: v });
                     }
                 }
                 return;
             }
         }
-        const aToken = (a as any).token;
+        const aToken = a.token;
         if (aToken) {
-            const existingToken = atts.find((x) => (x as any).token === aToken);
+            const existingToken = atts.find((x) => x.token === aToken);
             if (existingToken) {
-                if ((a as any).isGenerated && !(existingToken as any).isGenerated) {
-                    for (const [k, v] of Object.entries(a)) {
+                if (a.isGenerated && !existingToken.isGenerated) {
+                    for (const [k, v] of rawEntries(a)) {
                         if (v !== undefined) {
-                            (existingToken as any)[k] = v;
+                            Object.assign(existingToken, { [k]: v });
                         }
                     }
                 } else {
-                    for (const [k, v] of Object.entries(a)) {
-                        if (v !== undefined && (existingToken as any)[k] === undefined) {
-                            (existingToken as any)[k] = v;
+                    for (const [k, v] of rawEntries(a)) {
+                        if (v !== undefined && rawEntries(existingToken).find(([key]) => key === k)?.[1] === undefined) {
+                            Object.assign(existingToken, { [k]: v });
                         }
                     }
                 }
@@ -259,9 +263,9 @@ export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
                 return xOrd === aOrd;
             });
             if (existingGen) {
-                for (const [k, v] of Object.entries(a)) {
-                    if (v !== undefined && (existingGen as any)[k] === undefined) {
-                        (existingGen as any)[k] = v;
+                for (const [k, v] of rawEntries(a)) {
+                    if (v !== undefined && rawEntries(existingGen).find(([key]) => key === k)?.[1] === undefined) {
+                        Object.assign(existingGen, { [k]: v });
                     }
                 }
                 if (!existingGen.dataBuffer && a.dataBuffer) existingGen.dataBuffer = a.dataBuffer;
@@ -273,7 +277,7 @@ export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
     };
     for (const a of m.attachments ?? []) push(a);
     for (const img of m.images ?? []) push({ ...img, type: img.type || 'image' });
-    for (const doc of (m.documents ?? []) as RepoAttachment[]) push({ ...doc, type: doc.type || 'file' });
+    for (const doc of (m.documents ?? [])) push({ ...doc, type: doc.type || 'file' });
     if ((!m.images || m.images.length === 0) && (!m.attachments || m.attachments.length === 0) && m.structuredContent) {
         const scImages = extractImages(m.structuredContent);
         for (const img of scImages) {
@@ -289,11 +293,11 @@ export function mergeMessageAttachments(m: RepoMessage): RepoAttachment[] {
     return atts;
 }
 
-export function attachmentDisplayName(a: RepoAttachment, isImage: boolean): string {
+export function attachmentDisplayName(a: GeminiNormalizationAttachment, isImage: boolean): string {
     return a.title || a.name || a.fileName || a.localName?.split('/').pop() || (isImage ? 'image.jpg' : 'file');
 }
 
-export function classifyAttachmentKind(a: RepoAttachment): { kind: AssetKind; isImage: boolean; diag?: string } {
+export function classifyAttachmentKind(a: GeminiNormalizationAttachment): { kind: AssetKind; isImage: boolean; diag?: string } {
     const mime = (a.mimeType || a.mime || '').toLowerCase();
     const name = attachmentDisplayName(a, false);
     const isImage = a.type === 'image' || a.isImage === true ||
@@ -336,7 +340,7 @@ function decodeBase64Payload(raw: string): Uint8Array | null {
     }
 }
 
-export function extractAttachmentInlineBytes(a: RepoAttachment): Uint8Array | null {
+export function extractAttachmentInlineBytes(a: GeminiNormalizationAttachment): Uint8Array | null {
     const buf = a.dataBuffer;
     if (buf) {
         if (buf instanceof Uint8Array) {
@@ -361,8 +365,8 @@ export function extractAttachmentInlineBytes(a: RepoAttachment): Uint8Array | nu
     if (rawB64) {
         return decodeBase64Payload(rawB64);
     }
-    if (typeof (a as any).contentMarkdown === 'string') {
-        const mdText = ((a as any).contentMarkdown as string).trim();
+    if (typeof a.contentMarkdown === 'string') {
+        const mdText = a.contentMarkdown.trim();
         if (mdText.length > 0) {
             return new TextEncoder().encode(mdText);
         }
@@ -377,7 +381,7 @@ export interface AssetBuild {
 }
 
 export function buildAsset(
-    a: RepoAttachment,
+    a: GeminiNormalizationAttachment,
     id: string,
     sourceRef: SourceRef,
     byteStore?: InlineByteStore,
@@ -400,8 +404,8 @@ export function buildAsset(
     const hasInlineBytes = inlineBytes !== null && inlineBytes.byteLength > 0;
     const hasLocalFile = !!rawLocal && !localIsUrl;
     const url = a.resolvedUrl || a.sourceUrl || a.url || a.src || (localIsUrl ? rawLocal : undefined);
-    const explicitFailureReason = typeof (a as any).failureReason === 'string' && (a as any).failureReason.trim()
-        ? (a as any).failureReason.trim()
+    const explicitFailureReason = typeof a.failureReason === 'string' && a.failureReason.trim()
+        ? a.failureReason.trim()
         : undefined;
 
     let status: AssetStatus;

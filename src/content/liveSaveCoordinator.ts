@@ -23,31 +23,31 @@ import type { LiveSaveAsset, LiveSaveViaHandleMessage, LiveSaveViaHandlePayload 
 import type { LiveSaveResult } from '../background/liveSaveHandler.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
-export interface LiveSaveBadge {
+interface LiveSaveBadge {
     showLiveSaveWarning?: (message?: string, isZh?: boolean) => void;
     showLiveSaveFeedback?: (title?: string, isZh?: boolean) => void;
 }
 
-export interface LiveSaveAssetFetcher {
+interface LiveSaveAssetFetcher {
     fetchImageBuffer(url: string, timeoutMs?: number): Promise<FetchedImageAsset | { buffer: ArrayBuffer | Uint8Array; ext?: string; mimeType?: string; base64?: string } | null>;
 }
 
-export interface LiveSaveStorageManager {
+interface LiveSaveStorageManager {
     getLiveConfig: () => Promise<LiveSaveConfig>;
     setLiveConfig: (patch: Partial<LiveSaveConfig>) => Promise<LiveSaveConfig>;
     getLiveDirHandle: () => Promise<DirectoryHandle | FileSystemDirectoryHandle | null>;
     saveLiveDirHandle?: (handle: DirectoryHandle | FileSystemDirectoryHandle | null) => Promise<boolean>;
 }
 
-export interface LiveSaveScraper {
+interface LiveSaveScraper {
     parseDoc: (doc: Document | null, id: string) => DomDetail | null;
 }
 
-export interface LiveSaveImageWriter {
+interface LiveSaveImageWriter {
     writeFile(subDir: string, fileName: string, data: Uint8Array): Promise<unknown>;
 }
 
-export interface LiveSaveCoordinatorDeps {
+interface LiveSaveCoordinatorDeps {
     storageManager?: LiveSaveStorageManager;
     exportRecordStore?: Pick<typeof StorageService, 'saveExportRecord'> & Partial<Pick<typeof StorageService, 'finalizeConversationExport'>>;
     completeExport?: typeof completeConversationExport;
@@ -60,7 +60,7 @@ export interface LiveSaveCoordinatorDeps {
     assetFetcher?: LiveSaveAssetFetcher;
 }
 
-export interface LiveSaveAssetReference {
+interface LiveSaveAssetReference {
     type?: string;
     isImage?: boolean;
     src?: string;
@@ -74,14 +74,14 @@ export interface LiveSaveAssetReference {
     localName?: string;
 }
 
-export interface LiveSaveCompatibleMessage {
+interface LiveSaveCompatibleMessage {
     attachments?: LiveSaveAssetReference[] | null;
     images?: LiveSaveAssetReference[] | null;
     content?: string | null;
     timestamp?: unknown;
 }
 
-export interface LiveSaveCompatibleConversation {
+interface LiveSaveCompatibleConversation {
     id?: string;
     title?: string;
     titleSource?: TitleSource | string;
@@ -93,7 +93,7 @@ export interface LiveSaveCompatibleConversation {
     createdAt?: number | string | null;
 }
 
-export interface CollectedLiveSaveAsset {
+interface CollectedLiveSaveAsset {
     fileName: string;
     subDir: string;
     buffer?: ArrayBuffer;
