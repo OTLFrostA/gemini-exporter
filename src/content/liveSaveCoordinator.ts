@@ -1,65 +1,139 @@
 import type { ApplicationProvider } from "./providerCompatibility.js";
+import type { AIProvider } from "../core/provider/aiProvider.js";
 import { StorageService } from '../core/storage/storageService.js';
 import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
-import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/titleUtils.js';
+import { toTimestampMs } from '../core/utils/titleUtils.js';
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
 import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { buildExportFileName, shortId, normId, sanitizeFileName } from '../core/utils/pathUtils.js';
-import type { ContentConversationDetail, DetailClient } from '../types/detailTransport.js';
+import type { ContentConversationDetail, DetailClient, DomDetail } from '../types/detailTransport.js';
+import type { Conversation, TitleSource, TitleSources } from '../types/conversation.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { BadgeView } from './badgeView.js';
-import { AssetFetcher, inferImageExt } from './assetFetcher.js';
-import { createLiveSaveWriter, writeLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
+import { AssetFetcher, inferImageExt, type FetchedImageAsset } from './assetFetcher.js';
+import { createLiveSaveWriter, writeLiveSaveMarkdown, type LiveSaveWriter } from '../core/engine/liveSaveWriter.js';
 import { GeminiUtils } from '../core/utils/utils.js';
 import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
 import type { LiveSaveConfig } from '../types/liveSave.js';
+import type { DirectoryHandle } from '../types/ui.js';
+import type { LiveSaveAsset, LiveSaveViaHandleMessage, LiveSaveViaHandlePayload } from '../types/messages.js';
+import type { LiveSaveResult } from '../background/liveSaveHandler.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
+export interface LiveSaveBadge {
+    showLiveSaveWarning?: (message?: string, isZh?: boolean) => void;
+    showLiveSaveFeedback?: (title?: string, isZh?: boolean) => void;
+}
+
+export interface LiveSaveAssetFetcher {
+    fetchImageBuffer(url: string, timeoutMs?: number): Promise<FetchedImageAsset | { buffer: ArrayBuffer | Uint8Array; ext?: string; mimeType?: string; base64?: string } | null>;
+}
+
+export interface LiveSaveStorageManager {
+    getLiveConfig: () => Promise<LiveSaveConfig>;
+    setLiveConfig: (patch: Partial<LiveSaveConfig>) => Promise<LiveSaveConfig>;
+    getLiveDirHandle: () => Promise<DirectoryHandle | FileSystemDirectoryHandle | null>;
+    saveLiveDirHandle?: (handle: DirectoryHandle | FileSystemDirectoryHandle | null) => Promise<boolean>;
+}
+
+export interface LiveSaveScraper {
+    parseDoc: (doc: Document | null, id: string) => DomDetail | null;
+}
+
+export interface LiveSaveImageWriter {
+    writeFile(subDir: string, fileName: string, data: Uint8Array): Promise<unknown>;
+}
+
 export interface LiveSaveCoordinatorDeps {
-    storageManager?: typeof LiveStorageManager;
+    storageManager?: LiveSaveStorageManager;
     exportRecordStore?: Pick<typeof StorageService, 'saveExportRecord'> & Partial<Pick<typeof StorageService, 'finalizeConversationExport'>>;
     completeExport?: typeof completeConversationExport;
-    scraper?: typeof DomScraper;
+    scraper?: LiveSaveScraper | typeof DomScraper;
     formatter?: typeof ChatFormatter;
     fsWriterClass?: typeof FsWriter;
     utils?: typeof GeminiUtils;
     clientClass?: (new () => DetailClient) | null;
-    badge?: typeof BadgeView;
-    assetFetcher?: typeof AssetFetcher;
+    badge?: LiveSaveBadge;
+    assetFetcher?: LiveSaveAssetFetcher;
+}
+
+export interface LiveSaveAssetReference {
+    type?: string;
+    isImage?: boolean;
+    src?: string;
+    originalUrl?: string;
+    url?: string;
+    sourceUrl?: string;
+    resolvedUrl?: string;
+    fileName?: string;
+    name?: string;
+    alt?: string;
+    localName?: string;
+}
+
+export interface LiveSaveCompatibleMessage {
+    attachments?: LiveSaveAssetReference[] | null;
+    images?: LiveSaveAssetReference[] | null;
+    content?: string | null;
+    timestamp?: unknown;
+}
+
+export interface LiveSaveCompatibleConversation {
+    id?: string;
+    title?: string;
+    titleSource?: TitleSource | string;
+    titles?: TitleSources;
+    messages?: LiveSaveCompatibleMessage[] | null;
+    chatTime?: number | string | null;
+    updatedAt?: number | string | null;
+    timestamp?: number | string | null;
+    createdAt?: number | string | null;
+}
+
+export interface CollectedLiveSaveAsset {
+    fileName: string;
+    subDir: string;
+    buffer?: ArrayBuffer;
+    base64?: string;
+}
+
+interface RawFailedAsset {
+    file: string;
+    error: string;
 }
 
 let _deps: LiveSaveCoordinatorDeps = {};
 let _isSaving = false;
-let _saveQueue = Promise.resolve<any>(null);
+let _saveQueue: Promise<boolean> = Promise.resolve(false);
 
-function getStorage() {
+function getStorage(): LiveSaveStorageManager {
     return _deps.storageManager || LiveStorageManager;
 }
 
-function getScraper() {
+function getScraper(): LiveSaveScraper | typeof DomScraper {
     return _deps.scraper || DomScraper;
 }
 
-function getFormatter() {
+function getFormatter(): typeof ChatFormatter {
     return _deps.formatter || ChatFormatter;
 }
 
-function getFsWriterClass() {
+function getFsWriterClass(): typeof FsWriter {
     return _deps.fsWriterClass || FsWriter;
 }
 
-function getUtils() {
+function getUtils(): typeof GeminiUtils {
     return _deps.utils || GeminiUtils;
 }
 
-function getBadge() {
+function getBadge(): LiveSaveBadge {
     return _deps.badge || BadgeView;
 }
 
-function getAssetFetcher() {
+function getAssetFetcher(): LiveSaveAssetFetcher {
     return _deps.assetFetcher || AssetFetcher;
 }
 
@@ -69,7 +143,7 @@ function isDev(): boolean {
 
 function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_granted' | 'no_dir_handle' | 'payload_too_large' | 'permission_prompt_needed' | 'assets_partial'): void {
     const isZh = contentContext.isZh();
-    const Badge = getBadge();
+    const badge = getBadge();
     let warnMsg = isZh ? '⚠ 目标目录已删除，实时同步已暂停' : '⚠ Folder deleted, sync paused';
     if (errorType === 'permission_not_granted') {
         warnMsg = isZh ? '⚠ 目录未授权，实时同步已暂停' : '⚠ Folder permission denied, sync paused';
@@ -82,10 +156,10 @@ function notifyLiveSaveWarning(errorType: 'dir_deleted' | 'permission_not_grante
     } else if (errorType === 'assets_partial') {
         warnMsg = isZh ? '⚠ 部分附件保存失败，下次增量同步将重试' : '⚠ Some attachments failed to save, will retry on next incremental sync';
     }
-    if (Badge && typeof (Badge as any).showLiveSaveWarning === 'function') {
-        (Badge as any).showLiveSaveWarning(warnMsg, isZh);
-    } else if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
-        (Badge as any).showLiveSaveFeedback(warnMsg);
+    if (badge && typeof badge.showLiveSaveWarning === 'function') {
+        badge.showLiveSaveWarning(warnMsg, isZh);
+    } else if (badge && typeof badge.showLiveSaveFeedback === 'function') {
+        badge.showLiveSaveFeedback(warnMsg);
     }
 }
 
@@ -94,30 +168,46 @@ export function init(deps: LiveSaveCoordinatorDeps = {}): void {
     if (isDev()) console.log('[LiveSaveCoordinator] Initialized');
 }
 
+function isApplicationProvider(provider: AIProvider | null | undefined): provider is ApplicationProvider {
+    return provider !== null && provider !== undefined && typeof provider.fetchConversationDetail === 'function' && provider.id === 'gemini';
+}
+
+function repairDetailTimestamps(detail: ContentConversationDetail): void {
+    if (!detail.chatTime || !Number.isFinite(Number(detail.chatTime))) {
+        const times = detail.messages
+            .map((m) => toTimestampMs(m?.timestamp))
+            .filter((t): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0);
+        if (times.length > 0) {
+            const maxTs = Math.max(...times);
+            detail.chatTime = maxTs;
+            detail.updatedAt = detail.updatedAt || maxTs;
+            detail.timestamp = detail.timestamp || maxTs;
+        }
+    }
+}
+
 export async function resolveConversationDetail(cid: string): Promise<ContentConversationDetail | null> {
     const nid = normId(cid);
     // DI seam kept: an explicitly injected client class still uses the legacy
     // construction path. Default now resolves through the provider registry.
     const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
-    const provider = InjectedClass ? null : resolveProvider() as ApplicationProvider | undefined;
+    const provider = InjectedClass ? null : resolveProvider();
 
-    if (InjectedClass || provider) {
+    if (InjectedClass) {
         try {
-            const detail = InjectedClass
-                ? await new InjectedClass().getConversationDetail(nid)
-                : await provider!.fetchConversationDetail(nid);
+            const detail = await new InjectedClass().getConversationDetail(nid);
             if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
-                if (!detail.chatTime || !Number.isFinite(Number(detail.chatTime))) {
-                    const times = detail.messages
-                        .map((m) => toTimestampMs(m?.timestamp))
-                        .filter((t): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0);
-                    if (times.length > 0) {
-                        const maxTs = Math.max(...times);
-                        detail.chatTime = maxTs;
-                        detail.updatedAt = detail.updatedAt || maxTs;
-                        detail.timestamp = detail.timestamp || maxTs;
-                    }
-                }
+                repairDetailTimestamps(detail);
+                return detail;
+            }
+        } catch (e) {
+            if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
+        }
+    } else if (isApplicationProvider(provider)) {
+        try {
+            const detail = await provider.fetchConversationDetail(nid);
+            if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+                repairDetailTimestamps(detail);
                 return detail;
             }
         } catch (e) {
@@ -141,12 +231,74 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
     return null;
 }
 
+function isFailedAsset(item: unknown): item is RawFailedAsset {
+    return (
+        item !== null &&
+        typeof item === 'object' &&
+        'file' in item &&
+        'error' in item &&
+        typeof item.file === 'string' &&
+        typeof item.error === 'string'
+    );
+}
+
+function normalizeLiveSaveResult(raw: unknown): LiveSaveResult | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const ok = 'ok' in raw && typeof raw.ok === 'boolean' ? raw.ok : undefined;
+    if (typeof ok !== 'boolean') return null;
+    const result: LiveSaveResult = { ok };
+    if ('handleName' in raw && typeof raw.handleName === 'string') {
+        result.handleName = raw.handleName;
+    }
+    if ('targetFile' in raw && typeof raw.targetFile === 'string') {
+        result.targetFile = raw.targetFile;
+    }
+    if ('error' in raw && typeof raw.error === 'string') {
+        result.error = raw.error;
+    }
+    if ('details' in raw && typeof raw.details === 'string') {
+        result.details = raw.details;
+    }
+    if ('failedAssets' in raw && Array.isArray(raw.failedAssets)) {
+        result.failedAssets = raw.failedAssets.filter(isFailedAsset).map((f) => ({ file: f.file, error: f.error }));
+    }
+    return result;
+}
+
+function hasNonEmptyBytes(buf: unknown): boolean {
+    if (!buf) return false;
+    if (buf instanceof ArrayBuffer) return buf.byteLength > 0;
+    if (ArrayBuffer.isView(buf)) return buf.byteLength > 0;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(buf)) return buf.length > 0;
+    if (typeof buf === 'object' && 'byteLength' in buf && typeof buf.byteLength === 'number') {
+        return buf.byteLength > 0;
+    }
+    if (typeof buf === 'object' && 'length' in buf && typeof buf.length === 'number') {
+        return buf.length > 0;
+    }
+    return false;
+}
+
+function getByteLength(buf: unknown): number {
+    if (!buf) return 0;
+    if (buf instanceof ArrayBuffer) return buf.byteLength;
+    if (ArrayBuffer.isView(buf)) return buf.byteLength;
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(buf)) return buf.length;
+    if (typeof buf === 'object' && 'byteLength' in buf && typeof buf.byteLength === 'number') {
+        return buf.byteLength;
+    }
+    if (typeof buf === 'object' && 'length' in buf && typeof buf.length === 'number') {
+        return buf.length;
+    }
+    return 0;
+}
+
 export async function executeLiveSave(cid: string, reason = 'turn_complete', options: { mockMode?: boolean } = {}): Promise<boolean> {
     if (!cid) return false;
     const nid = normId(cid);
 
     // Serialize live save operations to prevent I/O race conditions
-    _saveQueue = _saveQueue.then(async () => {
+    _saveQueue = _saveQueue.catch(() => false).then(async () => {
         try {
             _isSaving = true;
             if (!await isLiveSaveFormatSupported()) return false;
@@ -157,15 +309,15 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 const rawTitle = chat?.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
                 const Utils = getUtils();
                 const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
-                const Badge = getBadge();
-                if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
-                    (Badge as any).showLiveSaveFeedback(safeTitle);
+                const badge = getBadge();
+                if (badge && typeof badge.showLiveSaveFeedback === 'function') {
+                    badge.showLiveSaveFeedback(safeTitle);
                 }
                 return true;
             }
 
-            const Storage = getStorage();
-            const config: LiveSaveConfig = await Storage.getLiveConfig();
+            const storage = getStorage();
+            const config: LiveSaveConfig = await storage.getLiveConfig();
 
             if (!config.enabledDisk) {
                 return false;
@@ -183,7 +335,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             let failedAssets: Array<{ file: string; error: string }> = [];
 
             let writeSucceeded = false;
-            const dirHandle = await Storage.getLiveDirHandle();
+            const dirHandle = await storage.getLiveDirHandle();
 
             if (dirHandle) {
                 try {
@@ -196,9 +348,11 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                     if (isNotFound) {
                         console.warn('[LiveSaveCoordinator] Native directory handle is dead (NotFoundError). Clearing handle.');
                         try {
-                            const Storage = getStorage();
-                            await Storage.saveLiveDirHandle(null);
-                            await Storage.setLiveConfig({ enabledDisk: false, dirName: '', dirError: 'not_found' });
+                            const storageInstance = getStorage();
+                            if (storageInstance.saveLiveDirHandle) {
+                                await storageInstance.saveLiveDirHandle(null);
+                            }
+                            await storageInstance.setLiveConfig({ enabledDisk: false, dirName: '', dirError: 'not_found' });
                         } catch { /* best effort */ }
                         notifyLiveSaveWarning('dir_deleted');
                         return false;
@@ -208,11 +362,11 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             } else {
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
                     try {
-                        let collectedAssets: any[] = [];
+                        let collectedAssets: CollectedLiveSaveAsset[] = [];
                         if (config.includeAssets !== false) {
                             collectedAssets = await processAndSaveImages(chat, nid, null, failedAssets);
                         }
-                        const assetsPayload = collectedAssets.map(a => ({
+                        const assetsPayload: LiveSaveAsset[] = collectedAssets.map((a) => ({
                             fileName: a.fileName,
                             subDir: a.subDir || 'assets',
                             base64: a.base64 || (a.buffer ? arrayBufferToBase64(a.buffer) : '')
@@ -234,29 +388,39 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             notifyLiveSaveWarning('payload_too_large');
                             return false;
                         }
-                        const resp = await new Promise<any>((resolve) => {
-                            chrome.runtime.sendMessage({
+                        const conversationChat: Conversation = {
+                            ...chat,
+                            id: nid,
+                            title: chat.title || safeTitle,
+                            timestamp: typeof chat.timestamp === 'number' ? chat.timestamp : null,
+                            chatTime: typeof chat.chatTime === 'number' ? chat.chatTime : undefined,
+                            updatedAt: typeof chat.updatedAt === 'number' || typeof chat.updatedAt === 'string' ? chat.updatedAt : undefined,
+                            createdAt: typeof chat.createdAt === 'number' || typeof chat.createdAt === 'string' ? chat.createdAt : undefined,
+                        };
+                        const resp = await new Promise<LiveSaveResult | null>((resolve) => {
+                            const message: LiveSaveViaHandleMessage = {
                                 action: 'liveSaveViaHandle',
                                 payload: {
-                                    chat,
+                                    chat: conversationChat,
                                     safeTitle,
                                     nid,
                                     config,
                                     assets: assetsPayload,
                                     failedAssets
                                 }
-                            }, (r) => {
-                                if (chrome.runtime.lastError) {
+                            };
+                            chrome.runtime.sendMessage(message, (response: unknown) => {
+                                if (chrome.runtime.lastError || !response || typeof response !== 'object') {
                                     resolve(null);
-                                } else {
-                                    resolve(r);
+                                    return;
                                 }
+                                resolve(normalizeLiveSaveResult(response));
                             });
                         });
                         if (resp && resp.ok) {
                             writeSucceeded = true;
                             if (isDev()) {
-                                console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName})`);
+                                console.log(`[LiveSaveCoordinator] Conversation ${nid} persisted via options handle (${resp.handleName || ''})`);
                             }
                         } else if (resp && resp.ok === false && Array.isArray(resp.failedAssets) && resp.failedAssets.length > 0) {
                             // Phase A (P1-2): 主 md 已落盘、部分附件失败 -> partial。
@@ -308,15 +472,15 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                     console.warn('[LiveSaveCoordinator] Failed to complete conversation export:', err);
                 }
                 if (failedAssets.length) notifyLiveSaveWarning('assets_partial');
-                await Storage.setLiveConfig({
+                await storage.setLiveConfig({
                     lastSavedAt: now,
                     lastSavedTitle: safeTitle
                 });
             }
 
-            const Badge = getBadge();
-            if (Badge && typeof (Badge as any).showLiveSaveFeedback === 'function') {
-                (Badge as any).showLiveSaveFeedback(safeTitle);
+            const badge = getBadge();
+            if (badge && typeof badge.showLiveSaveFeedback === 'function') {
+                badge.showLiveSaveFeedback(safeTitle);
             }
 
             if (isDev()) {
@@ -351,8 +515,11 @@ function hashString(str: string): number {
     return hash;
 }
 
-export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | any): string {
+export function arrayBufferToBase64(buffer: unknown): string {
     if (!buffer) return '';
+    if (typeof Buffer !== 'undefined' && Buffer.isBuffer(buffer)) {
+        return buffer.toString('base64');
+    }
     let bytes: Uint8Array;
     if (buffer instanceof Uint8Array) {
         bytes = buffer;
@@ -360,13 +527,11 @@ export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | any): str
         bytes = new Uint8Array(buffer);
     } else if (ArrayBuffer.isView(buffer)) {
         bytes = new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-    } else if (typeof Buffer !== 'undefined' && Buffer.isBuffer && Buffer.isBuffer(buffer)) {
-        return buffer.toString('base64');
     } else {
         return '';
     }
 
-    if (typeof Buffer !== 'undefined' && typeof (Buffer as any).from === 'function') {
+    if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
         return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('base64');
     }
 
@@ -374,7 +539,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | any): str
     let binary = '';
     for (let i = 0; i < bytes.length; i += chunkSize) {
         const chunk = bytes.subarray(i, Math.min(i + chunkSize, bytes.length));
-        binary += String.fromCharCode.apply(null, chunk as any);
+        binary += String.fromCharCode.apply(null, Array.from(chunk));
     }
     return btoa(binary);
 }
@@ -383,7 +548,12 @@ export function arrayBufferToBase64(buffer: ArrayBuffer | Uint8Array | any): str
  * Sniff, download, and persist all multimodal images to assets/ subfolder,
  * and rewrite references in chat to local relative paths.
  */
-export async function processAndSaveImages(chat: any, nid: string, writer?: any, failures: Array<{ file: string; error: string }> = []): Promise<Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }>> {
+export async function processAndSaveImages(
+    chat: LiveSaveCompatibleConversation | null | undefined,
+    nid: string,
+    writer?: LiveSaveImageWriter | null,
+    failures: Array<{ file: string; error: string }> = []
+): Promise<CollectedLiveSaveAsset[]> {
     if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return [];
 
     const Utils = getUtils();
@@ -393,7 +563,7 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any,
 
     let imgCounter = 0;
 
-    const registerTarget = (rawUrl: string, candidateName?: string, altText?: string, turnIndex = 0) => {
+    const registerTarget = (rawUrl?: string | null, candidateName?: string, altText?: string, turnIndex = 0) => {
         if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.startsWith('http')) return;
         if (targets.has(rawUrl)) return;
 
@@ -475,35 +645,43 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any,
     const IMAGE_FETCH_CONCURRENCY = 4;
     const targetList = Array.from(targets.values());
     const fetcher = getAssetFetcher();
-    const collectedAssets: Array<{ fileName: string; subDir: string; buffer?: any; base64?: string }> = [];
+    const collectedAssets: CollectedLiveSaveAsset[] = [];
 
-    const processOneTarget = async (target: any): Promise<void> => {
+    const processOneTarget = async (target: ImageDownloadTarget): Promise<void> => {
         try {
             const res = await (fetcher && typeof fetcher.fetchImageBuffer === 'function'
                 ? fetcher.fetchImageBuffer(target.url, 12000)
                 : null);
 
             const buf = res?.buffer;
-            const hasBytes = buf && (buf.byteLength > 0 || (buf as any).length > 0);
+            const hasBytes = hasNonEmptyBytes(buf);
 
             if (res && hasBytes) {
                 if (res.ext && !target.fileName.toLowerCase().endsWith(`.${res.ext}`)) {
                     target.fileName = target.fileName.replace(/\.[a-z0-9]+$/i, `.${res.ext}`);
                     target.localName = `assets/${target.fileName}`;
                 }
+                const fileBytes: Uint8Array = res.buffer instanceof Uint8Array
+                    ? res.buffer
+                    : new Uint8Array(res.buffer);
                 if (writer && typeof writer.writeFile === 'function') {
-                    await writer.writeFile('assets', target.fileName, res.buffer);
+                    await writer.writeFile('assets', target.fileName, fileBytes);
                 }
-                const b64 = (res as any).base64 || arrayBufferToBase64(res.buffer);
+                let b64 = '';
+                if ('base64' in res && typeof res.base64 === 'string' && res.base64) {
+                    b64 = res.base64;
+                } else if (res.buffer) {
+                    b64 = arrayBufferToBase64(res.buffer);
+                }
                 collectedAssets.push({
                     fileName: target.fileName,
                     subDir: 'assets',
-                    buffer: res.buffer,
+                    buffer: res.buffer instanceof ArrayBuffer ? res.buffer : undefined,
                     base64: b64
                 });
                 target.saved = true;
                 if (isDev()) {
-                    console.log(`[LiveSaveCoordinator] Saved image asset ${target.fileName} (${res.buffer.byteLength || (res.buffer as any).length} bytes)`);
+                    console.log(`[LiveSaveCoordinator] Saved image asset ${target.fileName} (${getByteLength(res.buffer)} bytes)`);
                 }
             } else {
                 failures.push({ file: target.fileName, error: 'image download returned no bytes' });
@@ -581,10 +759,10 @@ export async function processAndSaveImages(chat: any, nid: string, writer?: any,
 }
 
 async function writeConversationToDisk(
-    chat: any,
+    chat: LiveSaveCompatibleConversation,
     safeTitle: string,
     nid: string,
-    dirHandle: any,
+    dirHandle: DirectoryHandle | FileSystemDirectoryHandle,
     config: LiveSaveConfig
 ): Promise<Array<{ file: string; error: string }>> {
     const Utils = getUtils();
