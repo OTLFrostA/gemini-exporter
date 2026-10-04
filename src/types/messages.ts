@@ -105,6 +105,7 @@ export interface LiveSaveViaHandlePayload {
     config?: LiveSaveConfig;
     fileName?: string;
     assets?: LiveSaveAsset[];
+    failedAssets?: Array<{ file: string; error: string }>;
 }
 
 export interface LiveSaveViaHandleMessage extends BaseMessage {
