@@ -71,6 +71,12 @@ test('p1_h1 - P1-117: C2PA needs a trust marker and a valid calendar date', () =
     assert.strictEqual(f('xmp:CreateDate="20230230123000Z"'), null, 'Feb 30 is invalid');
     const buf = f(Buffer.from('junk jumb data 20260322143000Z tail'));
     assert.ok(buf !== null, 'Buffer input with jumb marker must parse');
+    const u8 = f(new TextEncoder().encode('junk jumb data 20260322143000Z tail'));
+    assert.ok(u8 !== null, 'Uint8Array with jumb marker must parse');
+    assert.strictEqual(f(null), null);
+    assert.strictEqual(f(123), null);
+    assert.strictEqual(f({}), null);
+    assert.strictEqual(f(new ArrayBuffer(16)), null);
 });
 
 // ---------- P1-111: takeoutHtmlParser builds a one-time ZIP index ----------
