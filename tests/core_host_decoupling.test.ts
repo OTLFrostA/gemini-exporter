@@ -84,7 +84,9 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
 
         assert.ok(sentMessage, 'Injected messageSender must be called');
         assert.strictEqual(sentMessage.action, 'fetchBatch');
+        assert.ok(result && typeof result === 'object' && 'success' in result && 'results' in result);
         assert.strictEqual(result.success, true);
+        assert.ok(Array.isArray(result.results));
         assert.strictEqual(result.results![0].title, 'Decoupled Remote Chat');
     } finally {
         (global as any).chrome = origChrome;
