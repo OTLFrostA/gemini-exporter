@@ -1,3 +1,4 @@
+import type { StoredValue } from '../core/storage/storageCompatibility.js';
 import type { OpenOptionsMessage } from '../types/messages.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { setBadgePosition, getBadgePosition } from '../core/storage/storageService.js';
@@ -176,7 +177,7 @@ export function ensureBadgeAndText(opts: { isZh?: () => boolean; onClick?: (e: M
 }
 
 export function updateBadge(
-    mergedLen?: number,
+    mergedLen?: StoredValue,
     visible?: number,
     overrideText?: string,
     isSyncing = false,

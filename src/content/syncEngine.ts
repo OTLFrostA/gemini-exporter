@@ -1,3 +1,4 @@
+import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
 import type { GeminiPaginationDiagnostics } from "../core/api/client/pagination.js";
@@ -50,7 +51,7 @@ export function getAccountSlot(): string {
     return detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
 }
 
-export function updateBadge(mergedLen?: number, visible?: number, overrideText?: string, isSyncing = false): void {
+export function updateBadge(mergedLen?: StoredValue, visible?: number, overrideText?: string, isSyncing = false): void {
     const Badge = getBadge();
     if (Badge && Badge.updateBadge) {
         Badge.updateBadge(mergedLen, visible, overrideText, isSyncing, { isZh, getAccountSlot });
@@ -107,8 +108,9 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const slot = getAccountSlot();
             const Storage = getStorage();
             const existing = Storage ? await Storage.getConversations(slot) : [];
-            const found = existing.find((c: any) => normId(c.id) === activeId);
-            const hasResolvedTitle = found && isRealTitle(found.title, activeId)
+            const rawFound = existing.find((c: any) => normId(c.id) === activeId);
+            const found = isStoredObject(rawFound) && !Array.isArray(rawFound) ? rawFound : null;
+            const hasResolvedTitle = found && isRealTitle(typeof found.title === 'string' ? found.title : undefined, activeId)
                 && found.titleSource !== 'sniff' && found.titleSource !== 'default';
             if (!options?.force && hasResolvedTitle && (found.updatedAt || found.timestamp)) {
                 return;

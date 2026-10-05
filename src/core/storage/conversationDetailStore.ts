@@ -1,4 +1,4 @@
-import type { ChatMessage, Turn } from '../../types/conversation.js';
+import type { StoredValue } from './storageCompatibility.js';
 import { normId } from '../utils/pathUtils.js';
 import { IDB_DATABASES } from '../utils/constants.js';
 
@@ -8,9 +8,9 @@ export const DETAIL_STORE = 'conversation_details';
 
 export interface ConversationDetailRecord {
     id: string;
-    messages?: ChatMessage[];
-    turns?: Turn[];
-    updatedAt?: number | string;
+    messages?: StoredValue;
+    turns?: StoredValue;
+    updatedAt?: StoredValue;
     savedAt?: number;
 }
 
