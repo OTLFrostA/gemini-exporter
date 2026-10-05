@@ -11,7 +11,9 @@ const {
     saveExportRecordsBatch,
     migrateExportAliases,
     finalizeConversationExport,
-    removeConversation
+    removeConversation,
+    getAccountSlots,
+    updateAccountSlot
 } = require('../src/core/storage/storageService.js');
 
 function setupMockStorage(initialStore: Record<string, any> = {}) {
@@ -392,7 +394,8 @@ test('C2-10: missing-conversation registration creates conversation with clean m
         assert.strictEqual(convs[0].titleSource, 'rpc');
         assert.strictEqual(convs[0].titles?.rpc, 'Brand New Chat');
         assert.strictEqual(convs[0].messageCount, 4);
-        assert.strictEqual(convs[0].timestamp, 4000);
+        assert.strictEqual(convs[0].timestamp, undefined, 'timestamp must remain missing on registered newConv');
+        assert.strictEqual(convs[0].updatedAt, 4000, 'updatedAt must be populated from export chatTime');
     } finally {
         restore();
     }
@@ -459,6 +462,124 @@ test('C2-12: removeConversation cleans up conversation, details, and export reco
         assert.strictEqual(exports['target'], undefined);
         assert.strictEqual(exports['c_target'], undefined);
         assert.strictEqual(exports['keep'] !== undefined, true);
+    } finally {
+        restore();
+    }
+});
+
+test('C2-13: getConversations preserves historical partial metadata rows without filtering or mutation', async () => {
+    const historicalRows = [
+        { id: 'part_1' },
+        { id: 'part_2', title: 'Only Title' },
+        { id: 'part_3', timestamp: null, extraField: 'custom_value' }
+    ];
+    const { store, restore } = setupMockStorage({
+        gemini_conversations: historicalRows
+    });
+    try {
+        const fetched = await getConversations('u0');
+        assert.strictEqual(fetched.length, 3);
+        assert.strictEqual(fetched[0].id, 'part_1');
+        assert.strictEqual((fetched[0] as any).title, undefined);
+        assert.strictEqual(fetched[1].title, 'Only Title');
+        assert.strictEqual((fetched[2] as any).extraField, 'custom_value');
+
+        // Roundtrip via setConversations preserves rows
+        await setConversations('u0', fetched);
+        const stored = store['gemini_conversations'];
+        assert.strictEqual(stored.length, 3);
+        assert.strictEqual(stored[0].id, 'part_1');
+        assert.strictEqual(stored[2].extraField, 'custom_value');
+    } finally {
+        restore();
+    }
+});
+
+test('C2-14: getExportedIds preserves primitive and null values in exportedIds', async () => {
+    const { store, restore } = setupMockStorage({
+        exportedIds: {
+            c_flag: true,
+            c_null: null,
+            c_num: 42,
+            c_rec: { exportedAt: 1234, format: 'json', status: 'ok' }
+        }
+    });
+    try {
+        const map = await getExportedIds('u0');
+        assert.strictEqual(map['flag'], true);
+        assert.strictEqual(map['null'], null);
+        assert.strictEqual(map['num'], 42);
+        assert.strictEqual(map['rec']?.status, 'ok');
+
+        // Batch update preserves other primitive/null values
+        await saveExportRecordsBatch('u0', {
+            c_new: { exportedAt: 5678, status: 'ok' }
+        });
+        const rawStore = store['exportedIds'];
+        assert.strictEqual(rawStore['flag'], true);
+        assert.strictEqual(rawStore['null'], null);
+        assert.strictEqual(rawStore['num'], 42);
+        assert.strictEqual(rawStore['new'].status, 'ok');
+    } finally {
+        restore();
+    }
+});
+
+test('C2-15: getAccountSlots and updateAccountSlot preserve primitive and null values in slots', async () => {
+    const { store, restore } = setupMockStorage({
+        gemini_account_slots: {
+            u0: { slot: 'u0', name: 'Primary Account' },
+            legacy_bool: true,
+            tombstone: null
+        }
+    });
+    try {
+        const slots = await getAccountSlots();
+        assert.strictEqual(slots['u0']?.name, 'Primary Account');
+        assert.strictEqual((slots as any)['legacy_bool'], true);
+        assert.strictEqual((slots as any)['tombstone'], null);
+
+        // Updating slot does not strip other entries
+        await updateAccountSlot('u0', { email: 'primary@example.com' });
+        const updatedStore = store['gemini_account_slots'];
+        assert.strictEqual(updatedStore['u0'].name, 'Primary Account');
+        assert.strictEqual(updatedStore['u0'].email, 'primary@example.com');
+        assert.strictEqual(updatedStore['legacy_bool'], true);
+        assert.strictEqual(updatedStore['tombstone'], null);
+    } finally {
+        restore();
+    }
+});
+
+test('C2-16: finalizeConversationExport preserves {ok: true, record} and missing timestamp semantics', async () => {
+    const { store, restore } = setupMockStorage({
+        gemini_conversations: []
+    });
+    try {
+        const customRecord = { format: 'typst', exportedAt: 9999, customProp: 'hello' };
+        const res = await finalizeConversationExport(
+            'u0',
+            'c_fresh_chat',
+            customRecord,
+            {
+                conversationUpdate: {
+                    title: 'Fresh Chat Without Timestamp'
+                }
+            }
+        );
+
+        // Return shape must be exact { ok: true, record }
+        assert.strictEqual(res.ok, true);
+        assert.strictEqual(res.record, customRecord);
+        assert.strictEqual((res.record as any).customProp, 'hello');
+
+        const convs = store['gemini_conversations'];
+        assert.strictEqual(convs.length, 1);
+        assert.strictEqual(convs[0].id, 'fresh_chat');
+        assert.strictEqual(convs[0].title, 'Fresh Chat Without Timestamp');
+        // Missing timestamp in original registration must NOT be injected
+        assert.strictEqual(convs[0].timestamp, undefined, 'timestamp must remain missing');
+        assert.ok(typeof convs[0].updatedAt === 'number' && convs[0].updatedAt > 0, 'updatedAt must be generated');
     } finally {
         restore();
     }
