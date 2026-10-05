@@ -1,37 +1,82 @@
 
+import type {
+    UIExportOptions,
+    UIExportCallbacks,
+    UIExportResult,
+    FailedChat,
+    FailedAttachment,
+    TakeoutExportSource,
+} from "../../../types/ui.js";
+import type { Conversation } from "../../../types/conversation.js";
+import type { I18nModule, TabServiceModule } from "../../../types/utils.js";
+import type { StoredExportRecordMap } from "../../storage/storageCompatibility.js";
+import type { StorageServiceModule } from "../../storage/storageService.js";
+import {
+    type ExportActivityRecord,
+    type TitleResolution,
+    type TitleResolutionInput
+} from "../../utils/titleUtils.js";
+import { isObjectRecord } from "../../utils/messageResponses.js";
+import type { BatchWorkerRequestedItem } from "./batchWorker.js";
+import type { ExportIndexMetaItem, FinalizeChatRecordEntry } from "./sessionRecovery.js";
+import type { ProgressReporterModule } from "./progressReporter.js";
+
 export interface ExportOptions {
-    selected: any[];
+    selected: UIExportOptions['selected'];
     format?: string;
     useZip?: boolean;
     currentSlot?: string;
-    dirHandle?: any;
+    dirHandle?: UIExportOptions['dirHandle'];
     skip?: boolean;
     includeIndex?: boolean;
     includeAssets?: boolean;
-    conversations?: any[];
-    exportedIds?: Record<string, any>;
-    takeoutEngine?: any;
+    conversations?: Conversation[];
+    exportedIds?: StoredExportRecordMap;
+    takeoutEngine?: TakeoutExportSource | null;
     downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
-    [key: string]: any;
+    worker?: Partial<BatchWorkerModule>;
+    concurrency?: number;
+    [key: string]: unknown;
 }
 
-export interface ExportCallbacks {
-    onProgress?: (progress: any) => void;
+export interface ExportCallbacks extends Omit<UIExportCallbacks, 'onItemExported'> {
     onLog?: (msg: string, level?: string) => void;
-    onTitleUpdated?: (id: string, title: string, source?: string) => void;
-    onItemExported?: (id: string, record: any) => void;
-    onItemPendingAssets?: (id: string, count: number) => void;
+    onItemExported?: (id: string, record: FinalizeChatRecordEntry) => void;
 }
 
-export interface ExportResult {
+interface ExportFailedChat extends FailedChat {
+    debug?: unknown;
+    raw?: unknown;
+    isDeleted?: boolean;
+}
+
+export interface ExportResult extends UIExportResult {
     landedChats: number;
     exportedCount?: number;
-    failedChats: any[];
-    failedAttachments: any[];
+    failedChats: ExportFailedChat[];
+    failedAttachments: FailedAttachment[];
     skipped: number;
     totalAssets: number;
     downloadedAssets: number;
     aborted?: boolean;
+}
+
+interface ExportItemPayload extends BatchWorkerRequestedItem {
+    id: string;
+    title: string;
+    url: string;
+    timestamp?: number | null;
+    lastSeen?: number | string;
+}
+
+interface ExportSessionContext {
+    payloadIds: ExportItemPayload[];
+    skippedItems: ExportItemPayload[];
+    totalSelected: number;
+    slot: string;
+    Storage: StorageServiceModule & { isDevMode?: () => Promise<boolean> | boolean };
+    curIds: StoredExportRecordMap;
+    abortSignal: AbortSignal | null;
 }
 
 import { __resolveModule } from "../../utils/moduleOverrides.js";
@@ -79,9 +124,22 @@ import {
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
-const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', GeminiUtils);
-const getI18n = (): any => __resolveModule('I18n', I18nStatic);
-const getProgressReporter = (): any => progressReporterModule;
+function toExportActivityRecord(value: unknown): ExportActivityRecord | null {
+    if (!isObjectRecord(value)) return null;
+    return {
+        exportedAt: typeof value.exportedAt === 'string' || typeof value.exportedAt === 'number' ? value.exportedAt : undefined,
+        chatTime: typeof value.chatTime === 'string' || typeof value.chatTime === 'number' ? value.chatTime : undefined,
+        messageCount: typeof value.messageCount === 'number' ? value.messageCount : undefined,
+        status: typeof value.status === 'string' ? value.status : undefined,
+        hasFailedAssets: typeof value.hasFailedAssets === 'boolean' ? value.hasFailedAssets : undefined,
+        isTruncated: typeof value.isTruncated === 'boolean' ? value.isTruncated : undefined,
+        truncated: typeof value.truncated === 'boolean' ? value.truncated : undefined
+    };
+}
+
+const getUtils = (): GeminiUtilsModule | null => __resolveModule<GeminiUtilsModule | null>('GeminiUtils', GeminiUtils);
+const getI18n = (): I18nModule => __resolveModule<I18nModule>('I18n', I18nStatic);
+const getProgressReporter = (): ProgressReporterModule => progressReporterModule;
 const getBatchWorker = (): BatchWorkerModule => BatchWorker;
 const getSessionRecovery = (): SessionRecoveryModule => SessionRecovery;
 const getRateLimiter = (): RateLimitModule => rateLimitModule;
@@ -95,13 +153,19 @@ export const normId = (id?: string | number | null): string =>
 export const sanitizeZipPath = (p?: string | null): string =>
     ((getUtils()?.sanitizeRelativePath) || sanitizeRelativePath)(p, 'file');
 
-export const checkIsUpdated = (c: any, rec?: any): boolean =>
-    ((getUtils()?.checkIsUpdated) || utilsCheckIsUpdated)(c, rec);
+export const checkIsUpdated = (
+    c?: Partial<Conversation> | null,
+    rec?: unknown
+): boolean => ((getUtils()?.checkIsUpdated) || utilsCheckIsUpdated)(c, toExportActivityRecord(rec));
 
-export const getEffectiveTimestamp = (c: any): number =>
+export const getEffectiveTimestamp = (c?: Partial<Conversation> | null): number =>
     ((getUtils()?.getEffectiveTimestamp) || utilsGetEffectiveTimestamp)(c);
 
-export const setTitleBySource = (chat: any, source?: string, rawTitle?: string): any =>
+export const setTitleBySource = (
+    chat?: TitleResolutionInput | null,
+    source?: string,
+    rawTitle?: string
+): TitleResolution =>
     ((getUtils()?.setTitleBySource) || utilsSetTitleBySource)(chat, source, rawTitle);
 
 export const cleanTitle = (rawTitle?: string | null): string =>
@@ -109,8 +173,6 @@ export const cleanTitle = (rawTitle?: string | null): string =>
 
 export const isRealTitle = (title?: string | null, id?: string | number): boolean =>
     ((getUtils()?.isRealTitle) || utilsIsRealTitle)(title, id);
-
-
 
     function toIso(v: any): string | null {
         if (!v) return null;
@@ -183,10 +245,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
     const ensureSubDir = fsEnsureSubDir;
 
-    const getGeminiTab = async (slot?: string): Promise<any> =>
-        (__resolveModule('TabService', TabService))?.getGeminiTab?.(slot) ?? null;
-    const sendToGeminiTab = (message: any, slot?: string, timeoutMs?: number): Promise<any> =>
-        (__resolveModule('TabService', TabService)).sendToGeminiTab(message, slot, timeoutMs);
+    const getGeminiTab = async (slot?: string): Promise<chrome.tabs.Tab | null> =>
+        (__resolveModule<TabServiceModule | null>('TabService', TabService))?.getGeminiTab?.(slot) ?? null;
+    const sendToGeminiTab = (message: unknown, slot?: string, timeoutMs?: number): Promise<unknown> =>
+        (__resolveModule<TabServiceModule>('TabService', TabService)).sendToGeminiTab(message, slot, timeoutMs);
 
     const getAssetPipelineClass = (): any => __resolveModule('AssetPipeline', AssetPipelineStatic);
 
@@ -230,7 +292,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             }
         }
 
-        async _initSession(options: ExportOptions, _callbacks: ExportCallbacks = {}): Promise<any> {
+        async _initSession(options: ExportOptions, _callbacks: ExportCallbacks = {}): Promise<ExportSessionContext> {
             const {
                 selected = [],
                 format = 'markdown',
@@ -255,14 +317,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             // Phase A (P1-4): Storage 解析不再允许 null —— 静态 import 做 fallback，
             // 生产环境永远拿到真正的 StorageService；测试可用 __setModuleOverride 覆盖。
             // finalizeChatExport 只认 saveExportRecord 一条正式路径（fail-closed）。
-            const Storage = __resolveModule('StorageService', StorageServiceStatic);
-            let curIds = await Storage.getExportedIds(slot);
+            const Storage = __resolveModule<StorageServiceModule>('StorageService', StorageServiceStatic);
+            let curIds: StoredExportRecordMap = await Storage.getExportedIds(slot);
             if (options.exportedIds && typeof options.exportedIds === 'object') {
                 curIds = { ...curIds, ...options.exportedIds };
             }
 
-            const payloadIds: any[] = [];
-            const skippedItems: any[] = [];
+            const payloadIds: ExportItemPayload[] = [];
+            const skippedItems: ExportItemPayload[] = [];
 
             const utils = getUtils();
             const checkUpdatedFn = (utils && typeof utils.checkIsUpdated === 'function')
@@ -270,14 +332,16 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 : checkIsUpdated;
 
             for (const s of selected) {
-                const sid = typeof s === 'string' ? s : s?.id;
+                const isStr = typeof s === 'string';
+                const sObj = isStr ? undefined : s;
+                const sid = isStr ? s : s.id;
                 const nid = normId(sid);
-                const itemPayload = {
+                const itemPayload: ExportItemPayload = {
                     id: sid,
-                    title: s.title || sid,
-                    url: s.url || s.href || `https://gemini.google.com/app/${sid}`,
-                    timestamp: s.timestamp,
-                    lastSeen: s.lastSeen
+                    title: sObj?.title || sid,
+                    url: sObj?.url || sObj?.href || `https://gemini.google.com/app/${sid}`,
+                    timestamp: sObj?.timestamp,
+                    lastSeen: sObj?.lastSeen
                 };
 
                 if (skip) {
@@ -289,14 +353,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     // store. A single canonical probe is enough.
                     const rec = curIds[nid] || null;
                     if (rec) {
-                        const conv = (Array.isArray(conversations) ? conversations.find((c: any) => normId(c.id) === nid) : null) || (typeof s === 'object' ? s : null);
+                        const conv = (Array.isArray(conversations) ? conversations.find(c => normId(c.id) === nid) : null) || sObj || null;
                         const isUpdated = checkUpdatedFn(conv || itemPayload, rec);
                         if (!isUpdated) {
                             skippedItems.push(itemPayload);
                             FlightRecorder.record('export', 'item_skipped_unmodified', {
                                 id: nid,
-                                chatTime: (rec as any)?.chatTime,
-                                exportedAt: typeof rec === 'object' && 'exportedAt' in rec ? rec.exportedAt : undefined
+                                chatTime: isObjectRecord(rec) ? rec.chatTime : undefined,
+                                exportedAt: isObjectRecord(rec) && 'exportedAt' in rec ? rec.exportedAt : undefined
                             });
                             continue;
                         }
@@ -503,7 +567,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             let failedAttachments: any[] = [];
             let parseDriftChats: any[] = [];
             let skipped = skippedItems.length;
-            let metaResults: any[] = [];
+            let metaResults: ExportIndexMetaItem[] = [];
 
             const totalChats = totalSelected || payloadIds.length;
 

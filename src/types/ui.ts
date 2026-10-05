@@ -42,7 +42,7 @@ export interface ExportSession {
     lastChatTitle?: string;
     updatedAt?: number;
 }
-export interface FailedChat { id: string; chatId?: string; title?: string; error?: string; }
+export interface FailedChat { id: string; chatId?: string; title?: string; error?: string | null; }
 export interface FailedAttachment {
     chatId: string;
     chatTitle?: string;

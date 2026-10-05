@@ -46,7 +46,7 @@ export interface SessionLogOptions {
     isDevMode?: boolean;
 }
 
-interface ExportIndexMetaItem {
+export interface ExportIndexMetaItem {
     title?: string;
     exportFile?: string;
     messageCount?: number;
@@ -75,7 +75,7 @@ interface SessionDiagnosticsPayload {
     [key: string]: unknown;
 }
 
-interface FinalizeChatRecordEntry extends StoredExportRecord {
+export interface FinalizeChatRecordEntry extends StoredExportRecord {
     exportRecord?: StoredExportRecord | null;
     conversationUpdate?: FinalizeExportOptions['conversationUpdate'];
     isTruncated?: boolean;
