@@ -1,30 +1,130 @@
+import type { FailedChat, FailedAttachment, ExportRecord } from "../../../types/ui.js";
+import type { ChatParseDrift } from "./parseDrift.js";
+import type { ExportSessionData } from "../../storage/sessionStore.js";
+import type { StorageServiceModule, FinalizeExportOptions } from "../../storage/storageService.js";
+import type { StoredExportRecordMap } from "../../storage/storageCompatibility.js";
+import type { StandardConversationUpdate } from "./exportCompletion.js";
+import type { IExportWriter } from "../writers/writerInterface.js";
+import type { I18nModule } from "../../../types/utils.js";
+import { normId as utilsNormId } from "../../utils/utils.js";
+import type { GeminiUtilsModule } from "../../utils/utils.js";
+import { __resolveModule } from "../../utils/moduleOverrides.js";
+import { I18n as I18nStatic } from "../../utils/i18n.js";
+import { SessionStore } from "../../storage/sessionStore.js";
+import { applyAssetFailureToExportRecord } from "./exportCompletion.js";
+import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
+
+export { EXT_VERSION, getExtensionVersion };
+
+export interface SessionLogFailedChatEntry extends Partial<FailedChat> {
+    chatTitle?: string;
+    reason?: string;
+    debug?: unknown;
+    raw?: unknown;
+    isDeleted?: boolean;
+}
+
+export type SessionLogFailedChatItem = string | SessionLogFailedChatEntry;
+
+export interface SessionLogFailedAttachmentEntry extends Partial<FailedAttachment> {
+    chat?: string;
+    reason?: string;
+}
+
+export interface SessionParseDriftEntry extends Partial<ChatParseDrift> {
+    id?: string;
+    title?: string;
+}
+
 export interface SessionLogOptions {
     landedChats?: number;
     totalChats?: number;
     downloadedAssets?: number;
     totalAssets?: number;
     skipped?: number;
-    failedChats?: any[];
-    failedAttachments?: any[];
-    parseDrift?: any[];
+    failedChats?: SessionLogFailedChatItem[];
+    failedAttachments?: SessionLogFailedAttachmentEntry[];
+    parseDrift?: SessionParseDriftEntry[];
     isDevMode?: boolean;
 }
 
+export interface ExportIndexMetaItem {
+    id?: string;
+    title?: string;
+    url?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    messageCount?: number;
+    attachmentCount?: number;
+    exportFile?: string;
+    status?: string;
+    parseStatus?: string;
+    schemaDrift?: string[];
+    turnsRejected?: number;
+    hasHeuristicDocs?: boolean;
+    [key: string]: unknown;
+}
+
+export interface SessionDiagnosticsSummary {
+    total?: number;
+    landed?: number;
+    failed?: number;
+    skipped?: number;
+    assetsTotal?: number;
+    assetsDownloaded?: number;
+    assetsFailed?: number;
+}
+
+export interface SessionDiagnosticsPayload {
+    exportedAt?: string;
+    isDevMode?: boolean;
+    summary?: SessionDiagnosticsSummary;
+    failedChats?: SessionLogFailedChatItem[];
+    failedAttachments?: SessionLogFailedAttachmentEntry[];
+    parseDrift?: SessionParseDriftEntry[];
+    [key: string]: unknown;
+}
+
+export interface FinalizeChatRecordEntry extends Partial<ExportRecord> {
+    isTruncated?: boolean;
+    truncateReason?: string;
+    exportRecord?: FinalizeChatRecordEntry;
+    conversationUpdate?: StandardConversationUpdate;
+    targetId?: string;
+}
+
+export type StorageAdapter =
+    | StorageServiceModule
+    | {
+          finalizeConversationExport?: (
+              slot: string | null | undefined,
+              id: string | number,
+              record: FinalizeChatRecordEntry,
+              options?: FinalizeExportOptions<FinalizeChatRecordEntry>
+          ) => Promise<unknown> | unknown;
+          saveExportRecord?: (
+              slot: string | null | undefined,
+              id: string | number,
+              record: FinalizeChatRecordEntry
+          ) => Promise<unknown> | unknown;
+          [key: string]: unknown;
+      };
+
 export interface FinalizeChatExportContext {
     finalizedChatsSet?: Set<string>;
-    chatRecordsMap?: Map<string, any>;
+    chatRecordsMap?: Map<string, FinalizeChatRecordEntry>;
     chatFailedAssetsSet?: Set<string>;
-    curIds?: Record<string, any>;
-    exportedIds?: Record<string, any>;
-    Storage?: any;
-    storageAdapter?: any;
+    curIds?: StoredExportRecordMap | Record<string, unknown>;
+    exportedIds?: StoredExportRecordMap | Record<string, unknown>;
+    Storage?: StorageAdapter | null;
+    storageAdapter?: StorageAdapter | null;
     slot?: string;
-    onItemExported?: (id: string, record: any) => void;
+    onItemExported?: (id: string, record: FinalizeChatRecordEntry) => void;
 }
 
 export interface SessionRecoveryModule {
     writeIndexAndMeta: (
-        metaResults: any[],
+        metaResults: ExportIndexMetaItem[],
         landedChats: number,
         downloadedAssets: number,
         totalAssets: number,
@@ -32,257 +132,256 @@ export interface SessionRecoveryModule {
     ) => Promise<void>;
     writeDiagnostics: (
         isDevMode: boolean,
-        sessionJson: any,
+        sessionJson: SessionDiagnosticsPayload,
         fullLogText: string,
         writer?: IExportWriter | null,
         onLog?: (msg: string, level?: string) => void
     ) => Promise<void>;
     buildSessionLogText: (options?: SessionLogOptions) => string;
     finalizeChatExport: (targetId: string, context?: FinalizeChatExportContext) => Promise<boolean>;
-    updateSessionStatus: (patch: any) => Promise<void>;
+    updateSessionStatus: (patch: Partial<ExportSessionData>) => Promise<void>;
     getExtensionVersion: (customVersion?: string) => string;
 }
 
-import { normId as utilsNormId } from "../../utils/utils.js";
-import type { GeminiUtilsModule } from "../../utils/utils.js";
-import { __resolveModule } from "../../utils/moduleOverrides.js";
-import { I18n as I18nStatic } from "../../utils/i18n.js";
-import { SessionStore } from "../../storage/sessionStore.js";
-import { applyAssetFailureToExportRecord } from "./exportCompletion.js";
-
-const getUtils = (): GeminiUtilsModule | null => __resolveModule('GeminiUtils', null);
+const getUtils = (): GeminiUtilsModule | null => __resolveModule<GeminiUtilsModule | null>('GeminiUtils', null);
 
 const normId = (id?: string | number | null): string => {
     return ((getUtils()?.normId) || utilsNormId)(id);
 };
 
-import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
-import type { IExportWriter } from "../writers/writerInterface.js";
-export { EXT_VERSION, getExtensionVersion };
+async function writeIndexAndMeta(
+    metaResults: ExportIndexMetaItem[],
+    landedChats: number,
+    downloadedAssets: number,
+    totalAssets: number,
+    writer?: IExportWriter | null
+): Promise<void> {
+    if (!metaResults || !metaResults.length) return;
+    const I18n = __resolveModule<I18nModule>('I18n', I18nStatic);
+    const isZh = typeof I18n?.getLang === 'function' && I18n.getLang() === 'zh';
+    let indexContent = isZh
+        ? `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`
+        : `# Gemini Conversation Export Index\n\n> Export Time: ${new Date().toLocaleString()} · Total Chats: ${landedChats} · Assets: ${downloadedAssets}/${totalAssets}\n\n| Conversation Title | Messages | Assets | Original URL | Exported File |\n| :--- | :--- | :--- | :--- | :--- |\n`;
 
-    async function writeIndexAndMeta(
-        metaResults: any[],
-        landedChats: number,
-        downloadedAssets: number,
-        totalAssets: number,
-        writer?: IExportWriter | null
-    ): Promise<void> {
-        if (!metaResults || !metaResults.length) return;
-        const I18n = __resolveModule('I18n', I18nStatic);
-        const isZh = I18n.getLang && I18n.getLang() === 'zh';
-        let indexContent = isZh
-            ? `# Gemini 对话索引目录 (Export Index)\n\n> 导出时间: ${new Date().toLocaleString()} · 总会话数: ${landedChats} · 附件数: ${downloadedAssets}/${totalAssets}\n\n| 对话标题 (Title) | 消息数 | 附件 | 原始链接 (URL) | 导出文件 |\n| :--- | :--- | :--- | :--- | :--- |\n`
-            : `# Gemini Conversation Export Index\n\n> Export Time: ${new Date().toLocaleString()} · Total Chats: ${landedChats} · Assets: ${downloadedAssets}/${totalAssets}\n\n| Conversation Title | Messages | Assets | Original URL | Exported File |\n| :--- | :--- | :--- | :--- | :--- |\n`;
-
-        for (const meta of metaResults) {
-            const safeT = (meta.title || '')
-                .replace(/\\/g, '\\\\')
-                .replace(/\|/g, '\\|')
-                .replace(/\[/g, '\\[')
-                .replace(/\]/g, '\\]');
-            const linkText = isZh ? '🔗 原文' : '🔗 Link';
-            indexContent += `| **[${safeT}](${meta.exportFile})** | ${meta.messageCount} | ${meta.attachmentCount} | [${linkText}](${meta.url}) | \`${meta.exportFile}\` |\n`;
-        }
-        indexContent += `\n---\n_Generated by Gemini Exporter at ${new Date().toISOString()}_\n`;
-
-        const metaJsonContent = JSON.stringify({
-            exportedAt: new Date().toISOString(),
-            version: getExtensionVersion(),
-            total: metaResults.length,
-            conversations: metaResults
-        }, null, 2);
-
-        // Phase B (B1): 写出口统一收口到 writer，不再分 folder/writeFileDirect 分支。
-        // Phase A (P0-1) 语义：index 写失败 fail-closed，直接外抛。
-        if (!writer || typeof writer.writeFile !== 'function') {
-            throw new Error('[sessionRecovery] writeIndexAndMeta: IExportWriter is required');
-        }
-        await writer.writeFile('00_INDEX.md', indexContent);
-        await writer.writeFile('meta.json', metaJsonContent);
+    for (const meta of metaResults) {
+        const rawTitle = typeof meta.title === 'string' ? meta.title : '';
+        const safeT = rawTitle
+            .replace(/\\/g, '\\\\')
+            .replace(/\|/g, '\\|')
+            .replace(/\[/g, '\\[')
+            .replace(/\]/g, '\\]');
+        const linkText = isZh ? '🔗 原文' : '🔗 Link';
+        const exportFile = typeof meta.exportFile === 'string' ? meta.exportFile : '';
+        const messageCount = typeof meta.messageCount === 'number' ? meta.messageCount : (meta.messageCount ?? '');
+        const attachmentCount = typeof meta.attachmentCount === 'number' ? meta.attachmentCount : (meta.attachmentCount ?? '');
+        const url = typeof meta.url === 'string' ? meta.url : (meta.url ?? '');
+        indexContent += `| **[${safeT}](${exportFile})** | ${messageCount} | ${attachmentCount} | [${linkText}](${url}) | \`${exportFile}\` |\n`;
     }
+    indexContent += `\n---\n_Generated by Gemini Exporter at ${new Date().toISOString()}_\n`;
 
-    function buildSessionLogText({
-        landedChats = 0,
-        totalChats = 0,
-        downloadedAssets = 0,
-        totalAssets = 0,
-        skipped = 0,
-        failedChats = [],
-        failedAttachments = [],
-        parseDrift = [],
-        isDevMode = false
-    }: SessionLogOptions = {}): string {
-        let fullLogText = `=======================================================\n`;
-        fullLogText += ` Gemini Exporter Session Log${isDevMode ? ' (Dev Mode)' : ' (Error Report)'}\n`;
-        fullLogText += ` Time: ${new Date().toISOString()}\n`;
-        fullLogText += ` Summary: Landed ${landedChats}/${totalChats} chats, Assets ${downloadedAssets}/${totalAssets}, Skipped ${skipped}\n`;
-        fullLogText += ` Failed Chats: ${failedChats.length}, Failed Assets: ${failedAttachments.length}\n`;
-        fullLogText += `=======================================================\n\n`;
+    const metaJsonContent = JSON.stringify({
+        exportedAt: new Date().toISOString(),
+        version: getExtensionVersion(),
+        total: metaResults.length,
+        conversations: metaResults
+    }, null, 2);
 
-        if (failedChats.length > 0) {
-            fullLogText += `[FAILED CONVERSATIONS]\n`;
-            for (const fc of failedChats) {
-                if (typeof fc === 'string') {
-                    fullLogText += `  - ${fc}\n`;
-                } else {
-                    const fcId = fc.id || fc.chatId || 'unknown';
-                    const fcTitle = (fc.title || fc.chatTitle || '').slice(0, 60);
-                    const fcErr = fc.error || fc.reason || 'unknown';
-                    fullLogText += `  - ${fcId} | "${fcTitle}" | ${fcErr}\n`;
-                    if (fc.debug && typeof fc.debug === 'object') {
-                        try {
-                            fullLogText += `    [debug] ${JSON.stringify(fc.debug).slice(0, 800)}\n`;
-                        } catch (e) {
-                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.ts]', e);
-                        }
-                    } else if (fc.raw && typeof fc.raw === 'object') {
-                        try {
-                            fullLogText += `    [raw_preview] ${JSON.stringify(fc.raw).slice(0, 400)}\n`;
-                        } catch (e) {
-                            if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.ts]', e);
-                        }
-                    }
-                }
-            }
-            fullLogText += `\n`;
-        }
-
-        if (failedAttachments.length > 0) {
-            fullLogText += `[FAILED ASSETS / ATTACHMENTS]\n`;
-            for (const fa of failedAttachments) {
-                fullLogText += `  - Chat: "${fa.chatTitle || fa.chatId || fa.chat}" | File: "${fa.file}" | Reason: ${fa.error || fa.reason}\n`;
-            }
-            fullLogText += `\n`;
-        }
-
-        // P1-8: parser 漂移（成功但 partial 的会话）同样可见
-        if (parseDrift.length > 0) {
-            fullLogText += `[PARSE DRIFT / PARTIAL SESSIONS]\n`;
-            for (const pd of parseDrift) {
-                const bits: string[] = [];
-                if (pd.turnsRejected > 0) bits.push(`turnsRejected=${pd.turnsRejected}`);
-                if (pd.hasHeuristicDocs) bits.push(`heuristicDocs`);
-                fullLogText += `  - ${pd.id || 'unknown'} | "${(pd.title || '').slice(0, 60)}" | ${bits.join(", ") || "schema drift"}\n`;
-                if (Array.isArray(pd.schemaDrift)) {
-                    for (const w of pd.schemaDrift.slice(0, 5)) {
-                        fullLogText += `    [drift] ${String(w).slice(0, 200)}\n`;
-                    }
-                }
-            }
-            fullLogText += `\n`;
-        }
-
-        return fullLogText;
+    // Phase B (B1): 写出口统一收口到 writer，不再分 folder/writeFileDirect 分支。
+    // Phase A (P0-1) 语义：index 写失败 fail-closed，直接外抛。
+    if (!writer || typeof writer.writeFile !== 'function') {
+        throw new Error('[sessionRecovery] writeIndexAndMeta: IExportWriter is required');
     }
+    await writer.writeFile('00_INDEX.md', indexContent);
+    await writer.writeFile('meta.json', metaJsonContent);
+}
 
-    async function writeDiagnostics(
-        isDevMode: boolean,
-        sessionJson: any,
-        fullLogText: string,
-        writer?: IExportWriter | null,
-        onLog: (msg: string, level?: string) => void = (() => {})
-    ): Promise<void> {
-        try {
-            if (!writer || typeof writer.writeFile !== 'function') {
-                throw new Error('[sessionRecovery] writeDiagnostics: IExportWriter is required');
-            }
-            await writer.writeFile('_export_dev.log', fullLogText);
-            if (sessionJson.failedAttachments?.length || sessionJson.failedChats?.length || sessionJson.parseDrift?.length) {
-                await writer.writeFile('_export_errors.json', JSON.stringify(sessionJson, null, 2));
-            }
-            if (isDevMode) {
-                await writer.writeFile('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
-            }
-            const I18n = __resolveModule('I18n', I18nStatic);
-            onLog(I18n.t('logDevLogWritten'), 'info');
-        } catch (logWriteErr) {
-            // Phase A (P0-1): 不再静默吞错。记 console 后外抛，由调用方
-            // (exportOrchestrator) 统一 try/catch + onLog，避免"写错误报告失败再写错误报告"递归
-            if (typeof console !== 'undefined' && console.error) {
-                console.error('Failed to write _export_dev.log', logWriteErr);
-            }
-            throw logWriteErr;
-        }
-    }
+function buildSessionLogText({
+    landedChats = 0,
+    totalChats = 0,
+    downloadedAssets = 0,
+    totalAssets = 0,
+    skipped = 0,
+    failedChats = [],
+    failedAttachments = [],
+    parseDrift = [],
+    isDevMode = false
+}: SessionLogOptions = {}): string {
+    let fullLogText = `=======================================================\n`;
+    fullLogText += ` Gemini Exporter Session Log${isDevMode ? ' (Dev Mode)' : ' (Error Report)'}\n`;
+    fullLogText += ` Time: ${new Date().toISOString()}\n`;
+    fullLogText += ` Summary: Landed ${landedChats}/${totalChats} chats, Assets ${downloadedAssets}/${totalAssets}, Skipped ${skipped}\n`;
+    fullLogText += ` Failed Chats: ${failedChats.length}, Failed Assets: ${failedAttachments.length}\n`;
+    fullLogText += `=======================================================\n\n`;
 
-    async function finalizeChatExport(targetId: string, context: FinalizeChatExportContext = {}): Promise<boolean> {
-        const {
-            finalizedChatsSet,
-            chatRecordsMap,
-            chatFailedAssetsSet,
-            curIds,
-            exportedIds,
-            Storage,
-            storageAdapter = Storage,
-            slot = 'u0',
-            onItemExported = (() => {})
-        } = context;
-
-        const targetNid = normId(targetId);
-        if (finalizedChatsSet && finalizedChatsSet.has(targetNid)) return false;
-        const rawEntry = chatRecordsMap ? (chatRecordsMap.get(targetNid) || chatRecordsMap.get(targetId)) : null;
-        if (!rawEntry) return false;
-
-        const rec = rawEntry.exportRecord ? rawEntry.exportRecord : rawEntry;
-        const conversationUpdate = rawEntry.conversationUpdate;
-
-        if (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid)) {
-            applyAssetFailureToExportRecord(rec);
-        }
-
-        if (
-            !storageAdapter ||
-            (
-                typeof storageAdapter.finalizeConversationExport !== 'function' &&
-                typeof storageAdapter.saveExportRecord !== 'function'
-            )
-        ) {
-            throw new Error(
-                `[GemExporter:sessionRecovery.ts] adapter must implement finalizeConversationExport or saveExportRecord to finalize export for ${targetId} (slot ${slot})`
-            );
-        }
-        // Claim before the first await so concurrent asset completions cannot
-        // persist and notify the same chat twice. Release on write failure.
-        if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
-        try {
-            if (typeof storageAdapter.finalizeConversationExport === 'function') {
-                await storageAdapter.finalizeConversationExport(slot, targetId, rec, {
-                    conversationUpdate,
-                    onItemExported
-                });
+    if (failedChats.length > 0) {
+        fullLogText += `[FAILED CONVERSATIONS]\n`;
+        for (const fc of failedChats) {
+            if (typeof fc === 'string') {
+                fullLogText += `  - ${fc}\n`;
             } else {
-                await storageAdapter.saveExportRecord(slot, targetId, rec);
-                try {
-                    onItemExported(targetId, rec);
-                } catch (e) {
-                    if (typeof console !== 'undefined' && console.debug) {
-                        console.debug('[GemExporter:sessionRecovery.ts] onItemExported callback error', e);
+                const fcId = fc.id || fc.chatId || 'unknown';
+                const fcTitle = (fc.title || fc.chatTitle || '').slice(0, 60);
+                const fcErr = fc.error || fc.reason || 'unknown';
+                fullLogText += `  - ${fcId} | "${fcTitle}" | ${fcErr}\n`;
+                if (fc.debug && typeof fc.debug === 'object') {
+                    try {
+                        fullLogText += `    [debug] ${JSON.stringify(fc.debug).slice(0, 800)}\n`;
+                    } catch (e) {
+                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.ts]', e);
+                    }
+                } else if (fc.raw && typeof fc.raw === 'object') {
+                    try {
+                        fullLogText += `    [raw_preview] ${JSON.stringify(fc.raw).slice(0, 400)}\n`;
+                    } catch (e) {
+                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:sessionRecovery.ts]', e);
                     }
                 }
             }
-        } catch (e) {
-            if (finalizedChatsSet) finalizedChatsSet.delete(targetNid);
-            if (typeof console !== 'undefined' && console.error) {
-                console.error('[GemExporter:sessionRecovery.ts] finalizeChatExport failed for', targetId, e);
-            }
-            throw e;
         }
-
-        if (curIds && targetNid) curIds[targetNid] = rec;
-        if (exportedIds && targetNid) exportedIds[targetNid] = rec;
-        return true;
+        fullLogText += `\n`;
     }
 
-    // Serialize session status writes to prevent race conditions
-    let sessionStatusWriteChain: Promise<void> = Promise.resolve();
-
-    async function updateSessionStatus(patch: any): Promise<void> {
-        const task = sessionStatusWriteChain.then(() => SessionStore.updateSession(patch));
-        // Keep the chain alive even if this write fails; the caller still
-        // observes the rejection via `task`.
-        sessionStatusWriteChain = task.then(() => undefined, () => undefined);
-        await task;
+    if (failedAttachments.length > 0) {
+        fullLogText += `[FAILED ASSETS / ATTACHMENTS]\n`;
+        for (const fa of failedAttachments) {
+            fullLogText += `  - Chat: "${fa.chatTitle || fa.chatId || fa.chat || ''}" | File: "${fa.file || ''}" | Reason: ${fa.error || fa.reason || ''}\n`;
+        }
+        fullLogText += `\n`;
     }
+
+    // P1-8: parser 漂移（成功但 partial 的会话）同样可见
+    if (parseDrift.length > 0) {
+        fullLogText += `[PARSE DRIFT / PARTIAL SESSIONS]\n`;
+        for (const pd of parseDrift) {
+            const bits: string[] = [];
+            if (typeof pd.turnsRejected === 'number' && pd.turnsRejected > 0) bits.push(`turnsRejected=${pd.turnsRejected}`);
+            if (pd.hasHeuristicDocs) bits.push(`heuristicDocs`);
+            fullLogText += `  - ${pd.id || 'unknown'} | "${(pd.title || '').slice(0, 60)}" | ${bits.join(", ") || "schema drift"}\n`;
+            if (Array.isArray(pd.schemaDrift)) {
+                for (const w of pd.schemaDrift.slice(0, 5)) {
+                    fullLogText += `    [drift] ${String(w).slice(0, 200)}\n`;
+                }
+            }
+        }
+        fullLogText += `\n`;
+    }
+
+    return fullLogText;
+}
+
+async function writeDiagnostics(
+    isDevMode: boolean,
+    sessionJson: SessionDiagnosticsPayload,
+    fullLogText: string,
+    writer?: IExportWriter | null,
+    onLog: (msg: string, level?: string) => void = (() => {})
+): Promise<void> {
+    try {
+        if (!writer || typeof writer.writeFile !== 'function') {
+            throw new Error('[sessionRecovery] writeDiagnostics: IExportWriter is required');
+        }
+        await writer.writeFile('_export_dev.log', fullLogText);
+        const hasErrors = Boolean(
+            (Array.isArray(sessionJson.failedAttachments) && sessionJson.failedAttachments.length > 0) ||
+            (Array.isArray(sessionJson.failedChats) && sessionJson.failedChats.length > 0) ||
+            (Array.isArray(sessionJson.parseDrift) && sessionJson.parseDrift.length > 0)
+        );
+        if (hasErrors) {
+            await writer.writeFile('_export_errors.json', JSON.stringify(sessionJson, null, 2));
+        }
+        if (isDevMode) {
+            await writer.writeFile('_export_session_dev.json', JSON.stringify(sessionJson, null, 2));
+        }
+        const I18n = __resolveModule<I18nModule>('I18n', I18nStatic);
+        onLog(typeof I18n?.t === 'function' ? I18n.t('logDevLogWritten') : 'Dev log written', 'info');
+    } catch (logWriteErr) {
+        // Phase A (P0-1): 不再静默吞错。记 console 后外抛，由调用方
+        // (exportOrchestrator) 统一 try/catch + onLog，避免"写错误报告失败再写错误报告"递归
+        if (typeof console !== 'undefined' && console.error) {
+            console.error('Failed to write _export_dev.log', logWriteErr);
+        }
+        throw logWriteErr;
+    }
+}
+
+async function finalizeChatExport(targetId: string, context: FinalizeChatExportContext = {}): Promise<boolean> {
+    const {
+        finalizedChatsSet,
+        chatRecordsMap,
+        chatFailedAssetsSet,
+        curIds,
+        exportedIds,
+        Storage,
+        storageAdapter = Storage,
+        slot = 'u0',
+        onItemExported = (() => {})
+    } = context;
+
+    const targetNid = normId(targetId);
+    if (finalizedChatsSet && finalizedChatsSet.has(targetNid)) return false;
+    const rawEntry = chatRecordsMap ? (chatRecordsMap.get(targetNid) || chatRecordsMap.get(targetId)) : null;
+    if (!rawEntry) return false;
+
+    const rec = rawEntry.exportRecord ? rawEntry.exportRecord : rawEntry;
+    const conversationUpdate = rawEntry.conversationUpdate;
+
+    if (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid)) {
+        applyAssetFailureToExportRecord(rec);
+    }
+
+    if (
+        !storageAdapter ||
+        (
+            typeof storageAdapter.finalizeConversationExport !== 'function' &&
+            typeof storageAdapter.saveExportRecord !== 'function'
+        )
+    ) {
+        throw new Error(
+            `[GemExporter:sessionRecovery.ts] adapter must implement finalizeConversationExport or saveExportRecord to finalize export for ${targetId} (slot ${slot})`
+        );
+    }
+    // Claim before the first await so concurrent asset completions cannot
+    // persist and notify the same chat twice. Release on write failure.
+    if (finalizedChatsSet) finalizedChatsSet.add(targetNid);
+    try {
+        if (typeof storageAdapter.finalizeConversationExport === 'function') {
+            await storageAdapter.finalizeConversationExport(slot, targetId, rec, {
+                conversationUpdate,
+                onItemExported
+            });
+        } else if (typeof storageAdapter.saveExportRecord === 'function') {
+            await storageAdapter.saveExportRecord(slot, targetId, rec);
+            try {
+                onItemExported(targetId, rec);
+            } catch (e) {
+                if (typeof console !== 'undefined' && console.debug) {
+                    console.debug('[GemExporter:sessionRecovery.ts] onItemExported callback error', e);
+                }
+            }
+        }
+    } catch (e) {
+        if (finalizedChatsSet) finalizedChatsSet.delete(targetNid);
+        if (typeof console !== 'undefined' && console.error) {
+            console.error('[GemExporter:sessionRecovery.ts] finalizeChatExport failed for', targetId, e);
+        }
+        throw e;
+    }
+
+    if (curIds && targetNid) curIds[targetNid] = rec;
+    if (exportedIds && targetNid) exportedIds[targetNid] = rec;
+    return true;
+}
+
+// Serialize session status writes to prevent race conditions
+let sessionStatusWriteChain: Promise<void> = Promise.resolve();
+
+async function updateSessionStatus(patch: Partial<ExportSessionData>): Promise<void> {
+    const task = sessionStatusWriteChain.then(() => SessionStore.updateSession(patch));
+    // Keep the chain alive even if this write fails; the caller still
+    // observes the rejection via `task`.
+    sessionStatusWriteChain = task.then(() => undefined, () => undefined);
+    await task;
+}
 
 export {
     writeIndexAndMeta,
