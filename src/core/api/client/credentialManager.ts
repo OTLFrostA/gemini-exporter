@@ -5,14 +5,16 @@ import { __resolveModule } from "../../utils/moduleOverrides.js";
 import { getCredStorage, withCredMapLock } from "./credStorage.js";
 
 export interface GeminiCredentials {
-    sid: string;
+    sid: string | (number & { length?: never });
     at: string;
     bl: string;
-    accountSlot: string;
+    accountSlot?: string;
     lastUsed?: number;
+    [key: string]: unknown;
 }
 
-export type GeminiCredentialsMap = Record<string, GeminiCredentials>;
+type LocalRawCredential = Record<string, unknown>;
+export type GeminiCredentialsMap = Record<string, LocalRawCredential>;
 
 export interface GeminiClientCredentialManagerModule {
     getBlFromPage: (doc?: unknown) => string | null;
@@ -60,6 +62,14 @@ function getTargetDocument(doc?: unknown): Record<string, unknown> | null {
     return null;
 }
 
+function getDocumentHtmlLength(targetDoc: Record<string, unknown>): number {
+    const docEl = targetDoc.documentElement;
+    if (isRecord(docEl) && typeof docEl.innerHTML === "string") {
+        return docEl.innerHTML.length;
+    }
+    return 0;
+}
+
 function getDocumentHtml(targetDoc: Record<string, unknown>): string {
     const docEl = targetDoc.documentElement;
     if (isRecord(docEl) && typeof docEl.innerHTML === "string") {
@@ -73,12 +83,12 @@ function getBlFromPage(doc?: unknown): string | null {
         const glob = getGlobalObject();
         const targetDoc = getTargetDocument(doc);
         if (!targetDoc) return null;
-        const html = getDocumentHtml(targetDoc);
-        const htmlLen = html.length;
+        const htmlLen = getDocumentHtmlLength(targetDoc);
         if (_blCache && Date.now() - _blCache.ts < CRED_CACHE_TTL && _blCache.len === htmlLen) {
             return _blCache.v;
         }
         const P = getProtocol();
+        const html = getDocumentHtml(targetDoc);
         const m = html.match(P.TOKEN_PATTERNS.blCfb2hFromHtml) || html.match(P.TOKEN_PATTERNS.blAssistantFromHtml);
         let res: string | null = null;
         if (m && typeof m[1] === "string") {
@@ -108,8 +118,7 @@ function getAtFromPage(doc?: unknown): string {
         }
         const targetDoc = getTargetDocument(doc);
         if (!targetDoc) return "";
-        const html = getDocumentHtml(targetDoc);
-        const htmlLen = html.length;
+        const htmlLen = getDocumentHtmlLength(targetDoc);
         if (_atCache && Date.now() - _atCache.ts < CRED_CACHE_TTL && _atCache.len === htmlLen) {
             return _atCache.v;
         }
@@ -154,6 +163,7 @@ function getAtFromPage(doc?: unknown): string {
                 }
             }
         }
+        const html = getDocumentHtml(targetDoc);
         const mHtml = html.match(P.TOKEN_PATTERNS.atFromScript);
         if (mHtml && typeof mHtml[1] === "string") {
             _atCache = { v: mHtml[1], ts: Date.now(), len: htmlLen };
@@ -191,39 +201,29 @@ function normalizeLegacySingleCred(s: unknown, map: GeminiCredentialsMap): void 
     const legacy = s[STORAGE_KEYS.CREDENTIALS];
     if (!isRecord(legacy)) return;
     const rawSid = legacy.sid;
-    const sid = typeof rawSid === "string" ? rawSid : (typeof rawSid === "number" ? String(rawSid) : "");
-    if (sid && !map[sid]) {
-        const at = typeof legacy.at === "string" ? legacy.at : "";
-        const bl = typeof legacy.bl === "string" && legacy.bl ? legacy.bl : getProtocol().BL_FALLBACK;
-        map[sid] = {
-            at,
-            bl,
-            sid,
-            accountSlot: "default",
-            lastUsed: Date.now()
-        };
+    if ((typeof rawSid === "string" || typeof rawSid === "number") && rawSid !== "" && rawSid !== 0) {
+        const key = String(rawSid);
+        if (!map[key]) {
+            const at = typeof legacy.at === "string" ? legacy.at : "";
+            const bl = typeof legacy.bl === "string" && legacy.bl ? legacy.bl : getProtocol().BL_FALLBACK;
+            map[key] = {
+                at,
+                bl,
+                sid: rawSid,
+                accountSlot: "default",
+                lastUsed: Date.now()
+            };
+        }
     }
 }
 
-function parseCredentialsMap(raw: unknown): GeminiCredentialsMap {
+function toRawCredentialMap(raw: unknown): GeminiCredentialsMap {
     if (!isRecord(raw)) return {};
     const map: GeminiCredentialsMap = {};
     for (const [key, val] of Object.entries(raw)) {
-        if (!isRecord(val)) continue;
-        const sid = typeof val.sid === "string" ? val.sid : key;
-        const at = typeof val.at === "string" ? val.at : "";
-        const bl = typeof val.bl === "string" ? val.bl : "";
-        const accountSlot = typeof val.accountSlot === "string" ? val.accountSlot : "default";
-        const cred: GeminiCredentials = {
-            sid,
-            at,
-            bl,
-            accountSlot
-        };
-        if (typeof val.lastUsed === "number") {
-            cred.lastUsed = val.lastUsed;
+        if (isRecord(val)) {
+            map[key] = val;
         }
-        map[key] = cred;
     }
     return map;
 }
@@ -234,7 +234,7 @@ async function loadCredMap(): Promise<GeminiCredentialsMap> {
     try {
         const s: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP]);
         if (isRecord(s)) {
-            return parseCredentialsMap(s[STORAGE_KEYS.CREDENTIALS_MAP]);
+            return toRawCredentialMap(s[STORAGE_KEYS.CREDENTIALS_MAP]);
         }
         return {};
     } catch {
@@ -275,9 +275,12 @@ async function resolveCredInner(
     const targetSid = (!isSlotParam && targetSidOrSlot && map[targetSidOrSlot]) ? targetSidOrSlot : null;
     const requestedSlot = overrides?.accountSlot || (isSlotParam ? targetSidOrSlot : null);
 
-    if ((!vals.length || !vals[0].at) && pageAt) {
+    const firstAt = vals[0]?.at;
+    if ((!vals.length || !firstAt) && pageAt) {
         const slot = requestedSlot || detectSlot() || "default";
-        const sid = vals[0]?.sid || ("page_" + Date.now());
+        const rawFirstSid = vals[0]?.sid;
+        const firstSid = (typeof rawFirstSid === "string" || typeof rawFirstSid === "number") ? rawFirstSid : null;
+        const sid = firstSid || ("page_" + Date.now());
         const entry: GeminiCredentials = {
             sid,
             at: pageAt,
@@ -289,7 +292,7 @@ async function resolveCredInner(
         try {
             const storage = getCredStorage();
             if (storage) {
-                map[sid] = entry;
+                map[String(sid)] = entry;
                 await storage.set({
                     [STORAGE_KEYS.CREDENTIALS_MAP]: map,
                     [STORAGE_KEYS.CREDENTIALS]: {
@@ -308,35 +311,53 @@ async function resolveCredInner(
         }
     } else if (pageBl) {
         const curSlot = normSlot(requestedSlot || detectSlot());
-        const target = vals.find(v => !v.bl && normSlot(v.accountSlot) === curSlot);
+        const target = vals.find(v => {
+            const rawBl = v.bl;
+            const hasBl = typeof rawBl === "string" && rawBl.length > 0;
+            const rawSlot = typeof v.accountSlot === "string" ? v.accountSlot : undefined;
+            return !hasBl && normSlot(rawSlot) === curSlot;
+        });
         if (target) {
             target.bl = pageBl;
             try {
                 const storage = getCredStorage();
                 if (storage) await storage.set({ [STORAGE_KEYS.CREDENTIALS_MAP]: map });
-            } catch (e) { /* keep in-memory copy; retried on next resolveCred */ }
+            } catch { /* keep in-memory copy; retried on next resolveCred */ }
         }
     }
 
     let result: GeminiCredentials;
     if (targetSid && map[targetSid]) {
+        const stored = map[targetSid];
+        const storedBl = typeof stored.bl === "string" ? stored.bl : null;
+        const storedAt = typeof stored.at === "string" ? stored.at : null;
+        const fallbackSid = (typeof stored.sid === "string" || typeof stored.sid === "number") ? stored.sid : targetSid;
         result = {
-            ...map[targetSid],
-            bl: map[targetSid].bl || pageBl || getProtocol().BL_FALLBACK,
-            at: map[targetSid].at || pageAt || ""
+            sid: fallbackSid,
+            ...stored,
+            bl: storedBl || pageBl || getProtocol().BL_FALLBACK,
+            at: storedAt || pageAt || ""
         };
     } else {
         const cur = normSlot(requestedSlot || detectSlot());
-        const f = vals.filter(v => normSlot(v.accountSlot) === cur);
+        const f = vals.filter(v => {
+            const rawSlot = typeof v.accountSlot === "string" ? v.accountSlot : undefined;
+            return normSlot(rawSlot) === cur;
+        });
         // CRITICAL SECURITY FIX: Do NOT fall back to `vals` when `f` is empty!
         // Borrowing other accounts' credentials causes silent cross-account token pollution.
         const arr = f;
-        arr.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+        arr.sort((a, b) => (Number(b.lastUsed) || 0) - (Number(a.lastUsed) || 0));
         if (arr[0]) {
+            const best = arr[0];
+            const bestBl = typeof best.bl === "string" ? best.bl : null;
+            const bestAt = typeof best.at === "string" ? best.at : null;
+            const fallbackSid = (typeof best.sid === "string" || typeof best.sid === "number") ? best.sid : generateFallbackSid();
             result = {
-                ...arr[0],
-                bl: arr[0].bl || pageBl || getProtocol().BL_FALLBACK,
-                at: arr[0].at || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
+                sid: fallbackSid,
+                ...best,
+                bl: bestBl || pageBl || getProtocol().BL_FALLBACK,
+                at: bestAt || (cur === normSlot(detectSlot()) ? pageAt : "") || ""
             };
         } else {
             const isCurrentPageMatch = cur === normSlot(detectSlot());
@@ -364,7 +385,7 @@ async function migrateCredentials(): Promise<boolean> {
         try {
             const s: unknown = await storage.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
             const rawMap = isRecord(s) ? s[STORAGE_KEYS.CREDENTIALS_MAP] : null;
-            const map: GeminiCredentialsMap = parseCredentialsMap(rawMap);
+            const map: GeminiCredentialsMap = toRawCredentialMap(rawMap);
             const before = Object.keys(map).length;
             normalizeLegacySingleCred(s, map);
             if (Object.keys(map).length !== before) migrated = true;
@@ -372,11 +393,14 @@ async function migrateCredentials(): Promise<boolean> {
                 try {
                     const localS: unknown = await chrome.storage.local.get([STORAGE_KEYS.CREDENTIALS_MAP, STORAGE_KEYS.CREDENTIALS]);
                     const localRawMap = isRecord(localS) ? localS[STORAGE_KEYS.CREDENTIALS_MAP] : null;
-                    const localMap: GeminiCredentialsMap = parseCredentialsMap(localRawMap);
+                    const localMap: GeminiCredentialsMap = toRawCredentialMap(localRawMap);
                     normalizeLegacySingleCred(localS, localMap);
                     let merged = false;
                     for (const [k, v] of Object.entries(localMap)) {
-                        if (!map[k]) { map[k] = v; merged = true; }
+                        if (!map[k]) {
+                            map[k] = v;
+                            merged = true;
+                        }
                     }
                     if (merged) {
                         migrated = true;

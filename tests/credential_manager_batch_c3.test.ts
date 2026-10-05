@@ -434,3 +434,118 @@ test('13. Resolve queue survives prior failure without deadlock', async () => {
         (globalThis as Record<string, unknown>).chrome = origChrome;
     }
 });
+
+test('14. Missing historical fields remaining missing: loadCredMap and migrateCredentials do not inject missing bl/accountSlot/lastUsed', async () => {
+    const origChrome = (globalThis as Record<string, unknown>).chrome;
+    const mock = makeMockStorage({
+        gemini_credentials_map: {
+            hist_1: { sid: 'hist_1', at: 'tok_1' }
+        }
+    });
+    (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
+    try {
+        const credManager = getFreshCredManager();
+        const map = await credManager.loadCredMap();
+        assert.ok(map.hist_1, 'entry must exist');
+        assert.strictEqual(map.hist_1.sid, 'hist_1');
+        assert.strictEqual(map.hist_1.at, 'tok_1');
+        assert.strictEqual(map.hist_1.bl, undefined, 'bl must not be synthesized');
+        assert.strictEqual(map.hist_1.accountSlot, undefined, 'accountSlot must not be synthesized');
+        assert.strictEqual(map.hist_1.lastUsed, undefined, 'lastUsed must not be synthesized');
+
+        // Migration without legacy entries should not mutate or inject missing fields
+        const migrated = await credManager.migrateCredentials();
+        assert.strictEqual(migrated, false);
+        const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
+        assert.strictEqual(storedMap.hist_1.bl, undefined);
+        assert.strictEqual(storedMap.hist_1.accountSlot, undefined);
+        assert.strictEqual(storedMap.hist_1.lastUsed, undefined);
+
+        // resolveCred on hist_1 must preserve lack of accountSlot and not inject accountSlot: 'default'
+        const resolved = await credManager.resolveCred('hist_1');
+        assert.strictEqual(resolved.accountSlot, undefined, 'accountSlot must not be synthesized in resolved object');
+        assert.strictEqual(resolved.sid, 'hist_1');
+    } finally {
+        (globalThis as Record<string, unknown>).chrome = origChrome;
+    }
+});
+
+test('15. Extension fields retained on migration and page BL writeback', async () => {
+    const origChrome = (globalThis as Record<string, unknown>).chrome;
+    const mock = makeMockStorage({
+        gemini_credentials_map: {
+            ext_1: { sid: 'ext_1', at: 'tok_1', bl: 'ext_1_bl', customMeta: 'custom_123', flags: [1, 2, 3] },
+            ext_2: { sid: 'ext_2', at: 'tok_2', accountSlot: 'default', customPluginData: { alpha: true } }
+        },
+        gemini_credentials: { sid: 'legacy_single', at: 'legacy_at' }
+    });
+    (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
+    try {
+        const credManager = getFreshCredManager();
+
+        // 1. Migration retention: existing extension fields must survive legacy migration
+        const migrated = await credManager.migrateCredentials();
+        assert.strictEqual(migrated, true);
+        const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
+        assert.strictEqual(storedMap.ext_1.customMeta, 'custom_123', 'ext_1 customMeta preserved on migration');
+        assert.deepStrictEqual(storedMap.ext_1.flags, [1, 2, 3], 'ext_1 flags array preserved on migration');
+
+        // 2. Page BL writeback: backfilling page BL must retain extension metadata
+        (globalThis as Record<string, unknown>).document = {
+            documentElement: { innerHTML: '<div>"cfb2h":"bl_backfill_123"</div>' }
+        };
+        const resolved = await credManager.resolveCred('ext_2');
+        assert.strictEqual(resolved.sid, 'ext_2');
+        assert.strictEqual(resolved.bl, 'bl_backfill_123');
+
+        const updatedStored = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
+        assert.strictEqual(updatedStored.ext_2.bl, 'bl_backfill_123', 'bl backfilled in storage');
+        assert.deepStrictEqual(updatedStored.ext_2.customPluginData, { alpha: true }, 'customPluginData preserved on bl writeback');
+    } finally {
+        delete (globalThis as Record<string, unknown>).document;
+        (globalThis as Record<string, unknown>).chrome = origChrome;
+    }
+});
+
+test('16. Numeric legacy SID behavior: preserved in storage and resolved cleanly', async () => {
+    const origChrome = (globalThis as Record<string, unknown>).chrome;
+    const mock = makeMockStorage({
+        gemini_credentials: {
+            sid: 987654321,
+            at: 'legacy_num_at',
+            bl: 'legacy_num_bl'
+        }
+    });
+    (globalThis as Record<string, unknown>).chrome = { storage: { session: mock, local: mock } };
+    try {
+        const credManager = getFreshCredManager();
+
+        // 1. Migration stores numeric sid as-is without coercing to string in storage
+        const migrated = await credManager.migrateCredentials();
+        assert.strictEqual(migrated, true, 'legacy single credential migrated');
+        const storedMap = mock.data.gemini_credentials_map as Record<string, Record<string, unknown>>;
+        assert.ok(storedMap['987654321'], 'entry keyed by string representation');
+        assert.strictEqual(storedMap['987654321'].sid, 987654321, 'legacy numeric sid preserved as number in storage');
+        assert.strictEqual(storedMap['987654321'].accountSlot, 'default');
+        assert.strictEqual(storedMap['987654321'].at, 'legacy_num_at');
+        assert.strictEqual(storedMap['987654321'].bl, 'legacy_num_bl');
+
+        // 2. loadCredMap preserves numeric sid
+        const loadedMap = await credManager.loadCredMap();
+        assert.strictEqual(loadedMap['987654321'].sid, 987654321, 'loadCredMap returns numeric sid');
+
+        // 3. resolveCred by targetSid resolves cleanly with numeric sid preserved
+        const resolvedBySid = await credManager.resolveCred('987654321');
+        assert.strictEqual(resolvedBySid.sid, 987654321, 'numeric legacy sid preserved as number');
+        assert.strictEqual(resolvedBySid.at, 'legacy_num_at');
+        assert.strictEqual(resolvedBySid.bl, 'legacy_num_bl');
+        assert.strictEqual(resolvedBySid.accountSlot, 'default');
+
+        // 4. resolveCred by slot selects the entry and resolves cleanly with numeric sid preserved
+        const resolvedBySlot = await credManager.resolveCred('default');
+        assert.strictEqual(resolvedBySlot.sid, 987654321, 'numeric legacy sid preserved as number when resolved by slot');
+        assert.strictEqual(resolvedBySlot.at, 'legacy_num_at');
+    } finally {
+        (globalThis as Record<string, unknown>).chrome = origChrome;
+    }
+});
