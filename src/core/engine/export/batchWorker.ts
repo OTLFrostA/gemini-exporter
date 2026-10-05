@@ -47,7 +47,7 @@ interface FetchChatDetailOptions {
 /** Raw transport output is intentionally not normalized by BatchWorker. */
 export type FetchChatDetailResult = unknown;
 
-type BatchWorkerRequestedItem = {
+export type BatchWorkerRequestedItem = {
     id: string;
     title?: string;
     url?: string;
