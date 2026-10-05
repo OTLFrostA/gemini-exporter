@@ -584,3 +584,59 @@ test('C2-16: finalizeConversationExport preserves {ok: true, record} and missing
         restore();
     }
 });
+
+test('C2 review: detail writes preserve explicit fields and truthy timestamp fallback', async () => {
+    const fixture = setupMockStorage();
+    const details = require('../src/core/storage/conversationDetailStore.js');
+    const originalSave = details.saveConversationDetailsBatch;
+    const originalNow = Date.now;
+    const captured: Record<string, unknown>[] = [];
+    details.saveConversationDetailsBatch = async (records: Record<string, unknown>[]) => {
+        captured.push(...records);
+        return originalSave(records);
+    };
+    Date.now = () => 1710000000000;
+    const turns = [{ messages: [{ role: 'model', content: { legacy: true } }] }];
+    try {
+        await setConversations('u0', [
+            { id: 'c_zero', messages: [], turns, updatedAt: 0, timestamp: 12345 },
+            { id: 'c_empty', messages: undefined, turns, updatedAt: '', timestamp: 0 },
+            { id: 'c_iso', messages: [], turns, updatedAt: '2026-01-01T00:00:00Z' }
+        ]);
+        assert.strictEqual(captured.length, 3);
+        for (const record of captured) {
+            assert.strictEqual(Object.hasOwn(record, 'messages'), true);
+            assert.strictEqual(Object.hasOwn(record, 'turns'), true);
+            assert.strictEqual(record.turns, turns);
+            assert.strictEqual(record.savedAt, 1710000000000);
+        }
+        assert.deepStrictEqual(captured[0].messages, []);
+        assert.strictEqual(captured[1].messages, undefined);
+        assert.strictEqual(captured[0].updatedAt, 12345);
+        assert.strictEqual(captured[1].updatedAt, 1710000000000);
+        assert.strictEqual(captured[2].updatedAt, '2026-01-01T00:00:00Z');
+    } finally { details.saveConversationDetailsBatch = originalSave; Date.now = originalNow; details.__clearMemoryStore(); fixture.restore(); }
+});
+
+test('C2 review: last-sync reads keep historical truthiness without finite-number normalization', async () => {
+    const fixture = setupMockStorage();
+    const { getLastSync } = require('../src/core/storage/storageService.js');
+    try {
+        for (const [timestamp, count] of [[0, 0], ['legacy-time', '7'], [Infinity, Infinity], [false, null], [{ legacy: true }, true]]) {
+            fixture.store.gemini_last_sync = timestamp;
+            fixture.store.gemini_last_count = count;
+            const value = await getLastSync('u0');
+            assert.strictEqual(value.timestamp, timestamp || null);
+            assert.strictEqual(value.count, count || 0);
+        }
+    } finally { fixture.restore(); }
+});
+
+test('C2 review: container reads preserve raw elements without full-domain assertions', async () => {
+    const raw = [1, null, { id: 'partial', extension: true }];
+    const fixture = setupMockStorage({ gemini_conversations: raw, exportedIds: { c_primitive: 12, c_null: null } });
+    try {
+        assert.strictEqual(await getConversations('u0'), raw);
+        assert.deepStrictEqual(await getExportedIds('u0'), { primitive: 12, null: null });
+    } finally { fixture.restore(); }
+});

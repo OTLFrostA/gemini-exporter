@@ -176,7 +176,7 @@ export function ensureBadgeAndText(opts: { isZh?: () => boolean; onClick?: (e: M
 }
 
 export function updateBadge(
-    mergedLen?: number,
+    mergedLen?: unknown,
     visible?: number,
     overrideText?: string,
     isSyncing = false,

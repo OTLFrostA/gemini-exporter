@@ -296,7 +296,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             FlightRecorder.record('export', 'item_skipped_unmodified', {
                                 id: nid,
                                 chatTime: (rec as any)?.chatTime,
-                                exportedAt: rec.exportedAt
+                                exportedAt: typeof rec === 'object' && 'exportedAt' in rec ? rec.exportedAt : undefined
                             });
                             continue;
                         }

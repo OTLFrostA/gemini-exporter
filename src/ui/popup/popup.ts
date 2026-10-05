@@ -1,3 +1,4 @@
+import { isObjectRecord } from "../../core/utils/messageResponses.js";
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { ensureStorageReady } from '../../core/storage/schemaMigration.js';
@@ -112,9 +113,10 @@ async function updateCount(): Promise<void> {
 
         if (isGemini && _activeConvId) {
             const list = getStorage() ? await getStorage().getConversations(slot) : [];
-            const found = list.find((c: any) => c.id === _activeConvId || c.id === `c_${_activeConvId}`);
+            const rawFound = list.find((c: any) => c.id === _activeConvId || c.id === `c_${_activeConvId}`);
+            const found = isObjectRecord(rawFound) ? rawFound : null;
             if (found && found.title) {
-                _activeChatTitle = cleanTitle(found.title);
+                _activeChatTitle = cleanTitle(typeof found.title === 'string' ? found.title : undefined);
             } else if (tab?.title) {
                 _activeChatTitle = cleanTitle(tab.title.replace(/ - Gemini$/, ''));
             } else {
@@ -126,9 +128,9 @@ async function updateCount(): Promise<void> {
                 currentChatTitleEl.title = _activeChatTitle;
             }
 
-            const msgCount = found?.messageCount || found?.messages?.length || 0;
+            const msgCount = found?.messageCount || (Array.isArray(found?.messages) ? found.messages.length : 0) || 0;
             if (chatTurnBadgeEl) {
-                chatTurnBadgeEl.textContent = msgCount > 0
+                chatTurnBadgeEl.textContent = Number(msgCount) > 0
                     ? (i18n.t('chatMessagesCount', msgCount))
                     : (i18n.t('chatNoMessages'));
             }
@@ -141,7 +143,7 @@ async function updateCount(): Promise<void> {
             }
         }
 
-        let count = 0;
+        let count: unknown = 0;
         const convs = await getStorage().getConversations(slot);
         count = convs.length;
         if (!count) {

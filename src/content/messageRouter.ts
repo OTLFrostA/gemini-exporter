@@ -167,7 +167,7 @@ export function init({
                         if (Storage && typeof Storage.updateConversation === 'function') {
                             await Storage.updateConversation(slot, nid, (current) => {
                                 if (!current) return null;
-                                const item = { ...current, titles: { ...(current.titles || {}) } };
+                                const item: Record<string, unknown> = { ...current, titles: { ...(current.titles || {}) } };
                                 const beforeTitle = item.title;
                                 const beforeSource = item.titleSource;
                                 setTitleBySource(item, detectedSource, chatObj.title);

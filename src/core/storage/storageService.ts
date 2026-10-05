@@ -3,9 +3,7 @@ import type {
     ExportRecord,
     AccountSlotInfo,
     AccountSlots,
-    ReconcileOptions,
-    ChatMessage,
-    Turn
+    ReconcileOptions
 } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
 import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, isRealTitle, resolveTitle, toTimestampMs, getEffectiveTimestamp, normalizeReliableTitleSource } from "../utils/titleUtils.js";
@@ -23,7 +21,6 @@ export interface FinalizeExportOptions<T = ExportRecord> {
         updatedAt?: number | string;
         timestamp?: number | string;
         chatTime?: number | string;
-        [key: string]: unknown;
     };
     /** Callback invoked after successful write */
     onItemExported?: (id: string, record: T) => void;
@@ -65,9 +62,9 @@ export interface StorageKeys {
     checkpointKey: string;
 }
 
-export interface SyncStatus {
-    timestamp: number | null;
-    count: number;
+interface SyncStatus {
+    timestamp: unknown;
+    count: unknown;
 }
 
 export interface ReconcileResult {
@@ -83,45 +80,22 @@ export interface ConversationTransaction {
     changed: number;
 }
 
-interface StoredConversationDraft {
-    id: string;
-    title?: string;
-    titleSource?: string;
-    titles?: Record<string, string>;
-    timestamp?: number | null;
-    updatedAt?: number | string | null;
-    createdAt?: number | string | null;
-    chatTime?: number | string;
-    lastSeen?: number | string;
-    source?: string;
-    messages?: ChatMessage[];
-    turns?: Turn[];
-    accountSlot?: string;
-    isTakeoutOnly?: boolean;
-    hitGoogleLimit?: boolean;
-    url?: string;
-    attachmentCount?: number;
-    messageCount?: number;
-    href?: string;
-    sidebarIndex?: number;
-    hasExplicitPrompt?: boolean;
-    [key: string]: unknown;
+function fields(raw: unknown): Record<string, unknown> {
+    if (raw === null || raw === undefined) throw new TypeError('Cannot read null conversation');
+    if (isObjectRecord(raw)) return raw;
+    if (typeof raw === 'string') {
+        const chars: Record<string, unknown> = {};
+        for (let i = 0; i < raw.length; i++) chars[String(i)] = raw[i];
+        return chars;
+    }
+    return {};
+}
+function normalizedConversationId(raw: unknown): string {
+    return normId(String(fields(raw).id || ''));
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isConversationArray(raw: unknown): raw is Conversation[] {
-    return Array.isArray(raw);
-}
-
-function isExportRecordMap(val: unknown): val is Record<string, ExportRecord> {
-    return typeof val === 'object' && val !== null && !Array.isArray(val);
-}
-
-function isAccountSlots(val: unknown): val is AccountSlots {
-    return typeof val === 'object' && val !== null && !Array.isArray(val);
+    return typeof value === 'object' && value !== null;
 }
 
 function normSlot(slot?: string | null): string {
@@ -142,14 +116,12 @@ function getStorageKeys(slot?: string | null): StorageKeys {
     };
 }
 
-async function getConversations(slot?: string | null): Promise<Conversation[]> {
+async function getConversations(slot?: string | null): Promise<unknown[]> {
     const { convKey } = getStorageKeys(slot);
     const data = await chrome.storage.local.get<Record<string, unknown>>([convKey]);
     const raw = data[convKey];
-    if (isConversationArray(raw)) {
-        return raw;
-    }
-    return [];
+    const list: unknown[] = Array.isArray(raw) ? raw : [];
+    return list;
 }
 
 let _convChain: Promise<void> = Promise.resolve();
@@ -212,31 +184,29 @@ function withSlotLock<T>(fn: () => Promise<T>): Promise<T> {
     return p;
 }
 
+// Typed producer input retains its metadata contract after slimming. Raw
+// storage snapshots retain a raw return type; no container check upgrades them.
+function _setConversationsRaw(slot: string | null | undefined, list: Conversation[]): Promise<Conversation[]>;
+function _setConversationsRaw(slot: string | null | undefined, list: unknown[]): Promise<unknown[]>;
 async function _setConversationsRaw(
     slot: string | null | undefined,
-    list: (Conversation | StoredConversationDraft)[]
-): Promise<Conversation[]> {
+    list: unknown[]
+): Promise<unknown[]> {
     const { convKey } = getStorageKeys(slot);
     const detailsToSave: ConversationDetailRecord[] = [];
-    const slimList: (Conversation | StoredConversationDraft)[] = (list || []).map(c => {
-        if (!c) return c;
+    const slimList = (list || []).map(value => {
+        if (!value) return value;
+        const c = fields(value);
         const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
         const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
         if (hasMessages || hasTurns) {
             const detailRec: ConversationDetailRecord = {
-                id: normId(c.id),
+                id: normalizedConversationId(c),
+                messages: c.messages,
+                turns: c.turns,
+                updatedAt: c.updatedAt || c.timestamp || Date.now(),
                 savedAt: Date.now()
             };
-            if (hasMessages) {
-                detailRec.messages = c.messages;
-            }
-            if (hasTurns) {
-                detailRec.turns = c.turns;
-            }
-            const timeVal = c.updatedAt ?? c.timestamp ?? Date.now();
-            if (typeof timeVal === 'number' || typeof timeVal === 'string') {
-                detailRec.updatedAt = timeVal;
-            }
             detailsToSave.push(detailRec);
         }
         const bestCount = Math.max(
@@ -244,7 +214,7 @@ async function _setConversationsRaw(
             Array.isArray(c.messages) ? c.messages.length : 0,
             Array.isArray(c.turns) ? c.turns.length : 0
         );
-        const copy: Conversation | StoredConversationDraft = { ...c };
+        const copy = { ...c };
         if (bestCount > 0) {
             copy.messageCount = bestCount;
         }
@@ -263,13 +233,10 @@ async function _setConversationsRaw(
     }
 
     await chrome.storage.local.set({ [convKey]: slimList });
-    if (isConversationArray(slimList)) {
-        return slimList;
-    }
-    return [];
+    return slimList;
 }
 
-async function setConversations(slot: string | null | undefined, list: Conversation[]): Promise<void> {
+async function setConversations(slot: string | null | undefined, list: unknown[]): Promise<void> {
     await withConversationLock(() => _setConversationsRaw(slot, list));
 }
 
@@ -283,10 +250,18 @@ async function setConversations(slot: string | null | undefined, list: Conversat
 // Callers must NOT read the list first and merge outside: that is exactly the
 // cross-tab lost-update hole this closes (two tabs read the same snapshot,
 // the later write discards the earlier tab's merge).
+function transactConversations(
+    slot: string | null | undefined,
+    updater: (existing: unknown[]) => ConversationTransaction | null
+): Promise<{ list: unknown[]; changed: number; written: false } | { list: Conversation[]; changed: number; written: true }>;
+function transactConversations(
+    slot: string | null | undefined,
+    updater: (existing: unknown[]) => { list: unknown[]; changed: number } | null
+): Promise<{ list: unknown[]; changed: number; written: boolean }>;
 async function transactConversations(
     slot: string | null | undefined,
-    updater: (existing: Conversation[]) => ConversationTransaction | null
-): Promise<{ list: Conversation[]; changed: number; written: boolean }> {
+    updater: (existing: unknown[]) => { list: unknown[]; changed: number } | null
+): Promise<{ list: unknown[]; changed: number; written: boolean }> {
     return withConversationLock(async () => {
         const existing = (await getConversations(slot)) || [];
         const res = updater(existing);
@@ -301,17 +276,17 @@ async function transactConversations(
 async function updateConversation(
     slot: string | null | undefined,
     conversationId: string,
-    patchOrUpdater: Partial<Conversation> | ((conv: Conversation) => Partial<Conversation> | Conversation | null | void)
+    patchOrUpdater: Record<string, unknown> | ((conv: Record<string, unknown>) => Record<string, unknown> | null | void)
 ): Promise<boolean> {
     return withConversationLock(async () => {
         if (!conversationId) return false;
         const targetId = normId(conversationId);
         const list = await getConversations(slot);
-        const index = list.findIndex(c => c && c.id && normId(c.id) === targetId);
+        const index = list.findIndex(c => c && fields(c).id && normalizedConversationId(c) === targetId);
         if (index === -1) return false;
 
-        const current = list[index];
-        let updated: Conversation;
+        const current = fields(list[index]);
+        let updated: Record<string, unknown>;
         if (typeof patchOrUpdater === 'function') {
             const res = patchOrUpdater(current);
             if (res === null) return false;
@@ -334,8 +309,8 @@ async function removeConversation(slot: string | null | undefined, conversationI
         const list = await getConversations(slot);
         const initialLen = list.length;
         const filtered = list.filter(c => {
-            if (!c || !c.id) return false;
-            return normId(c.id) !== targetId;
+            if (!c || !fields(c).id) return false;
+            return normalizedConversationId(c) !== targetId;
         });
         if (filtered.length !== initialLen) {
             const { convKey, countKey } = getStorageKeys(slot);
@@ -356,7 +331,7 @@ async function clearConversations(slot?: string | null): Promise<void> {
     await withConversationLock(async () => {
         const { convKey, countKey, checkpointKey, expKey } = getStorageKeys(slot);
         const existing = await getConversations(slot);
-        const ids = (existing || []).map(c => normId(c.id)).filter(Boolean);
+        const ids = (existing || []).map(c => normalizedConversationId(c)).filter(Boolean);
         if (ids.length > 0) {
             await removeConversationDetails(ids);
         }
@@ -390,13 +365,13 @@ async function reconcileConversations(
             }
         });
 
-        const kept: Conversation[] = [];
+        const kept: unknown[] = [];
         const removedIds: string[] = [];
 
         for (const conv of existing) {
-            if (!conv || !conv.id) continue;
-            const nid = normId(conv.id);
-            const isTakeout = keepTakeout && isTakeoutConversation(conv);
+            if (!conv || !fields(conv).id) continue;
+            const nid = normalizedConversationId(conv);
+            const isTakeout = keepTakeout && isTakeoutConversation(fields(conv));
 
             if (activeIdSet.has(nid) || isTakeout) {
                 kept.push(conv);
@@ -424,18 +399,15 @@ async function reconcileConversations(
     });
 }
 
-async function getExportedIds(slot?: string | null): Promise<Record<string, ExportRecord>> {
+async function getExportedIds(slot?: string | null): Promise<Record<string, unknown>> {
     const { expKey } = getStorageKeys(slot);
     const data = await chrome.storage.local.get<Record<string, unknown>>([expKey]);
     const raw = data[expKey];
-    const records: Record<string, unknown> = (typeof raw === 'object' && raw !== null && !Array.isArray(raw))
+    const records: Record<string, unknown> = (typeof raw === 'object' && raw !== null)
         ? { ...raw }
         : {};
     collapseExportAliases(records);
-    if (isExportRecordMap(records)) {
-        return records;
-    }
-    return {};
+    return records;
 }
 
 async function setExportedIds(slot: string | null | undefined, map: Record<string, unknown>): Promise<void> {
@@ -512,7 +484,7 @@ async function saveExportRecord<T = unknown>(
     slot: string | null | undefined,
     id: string,
     record: T
-): Promise<Record<string, ExportRecord>> {
+): Promise<Record<string, unknown>> {
     const ck = canonicalExportKey(id);
     if (!ck) {
         throw new Error('[StorageService] saveExportRecord: empty conversation id');
@@ -521,11 +493,11 @@ async function saveExportRecord<T = unknown>(
 }
 
 interface StorageFinalizeDelegate {
-    saveExportRecord?: <T = unknown>(slot: string | null | undefined, id: string, record: T) => Promise<Record<string, ExportRecord>>;
+    saveExportRecord?: <T = unknown>(slot: string | null | undefined, id: string, record: T) => Promise<Record<string, unknown>>;
     updateConversation?: (
         slot: string | null | undefined,
         conversationId: string,
-        patchOrUpdater: Partial<Conversation> | ((conv: Conversation) => Partial<Conversation> | Conversation | null | void)
+        patchOrUpdater: Record<string, unknown> | ((conv: Record<string, unknown>) => Record<string, unknown> | null | void)
     ) => Promise<boolean>;
 }
 
@@ -553,10 +525,10 @@ async function finalizeConversationExport<T = ExportRecord>(
             const convUpdate = options?.conversationUpdate || {};
             const recObj = isObjectRecord(record) ? record : null;
             const recTitle = typeof recObj?.title === 'string' ? recObj.title : undefined;
-            const recMsgCount = typeof recObj?.messageCount === 'number' && Number.isFinite(recObj.messageCount) && recObj.messageCount > 0 ? recObj.messageCount : undefined;
+            const recMsgCount = recObj?.messageCount;
             const recChatTime = recObj?.chatTime !== undefined ? recObj.chatTime : undefined;
             const candidateTitle = convUpdate.title || recTitle;
-            const updated = await doUpdateConv(slot, targetId, (existing: Conversation) => {
+            const updated = await doUpdateConv(slot, targetId, (existing: Record<string, unknown>) => {
                 const incomingTitles: Record<string, string> =
                     convUpdate.titles && typeof convUpdate.titles === 'object' ? { ...convUpdate.titles } : {};
                 const candidateSource = convUpdate.titleSource || undefined;
@@ -571,7 +543,7 @@ async function finalizeConversationExport<T = ExportRecord>(
 
                 const newMsgCount = convUpdate.messageCount ?? recMsgCount;
                 if (typeof newMsgCount === 'number' && newMsgCount > 0) {
-                    existing.messageCount = Math.max(existing.messageCount || 0, newMsgCount);
+                    existing.messageCount = Math.max(Number(existing.messageCount || 0), newMsgCount);
                 }
 
                 const rawTime = convUpdate.updatedAt || convUpdate.timestamp || convUpdate.chatTime || recChatTime;
@@ -591,7 +563,7 @@ async function finalizeConversationExport<T = ExportRecord>(
             if (!updated && candidateTitle) {
                 await withConversationLock(async () => {
                     const list = await getConversations(slot);
-                    if (!list.some(c => c && normId(c.id) === targetId)) {
+                    if (!list.some(c => c && normalizedConversationId(c) === targetId)) {
                         const cleanedTitle = cleanTitle(candidateTitle);
                         const initialSource = normalizeReliableTitleSource(convUpdate.titleSource) || 'legacy';
                         const initialTitles: Record<string, string> = {};
@@ -609,7 +581,7 @@ async function finalizeConversationExport<T = ExportRecord>(
                             initialTitles.legacy = cleanedTitle;
                         }
 
-                        const newConv: StoredConversationDraft = {
+                        const newConv = {
                             id: targetId,
                             title: cleanedTitle,
                             titleSource: initialSource,
@@ -620,7 +592,7 @@ async function finalizeConversationExport<T = ExportRecord>(
                         const resolved = resolveTitle(newConv);
                         newConv.title = resolved.title;
                         newConv.titleSource = resolved.source;
-                        const nextList: (Conversation | StoredConversationDraft)[] = [newConv, ...list];
+                        const nextList: unknown[] = [newConv, ...list];
                         await _setConversationsRaw(slot, nextList);
                     }
                 });
@@ -643,12 +615,12 @@ async function finalizeConversationExport<T = ExportRecord>(
 async function saveExportRecordsBatch<T = unknown>(
     slot: string | null | undefined,
     records: Record<string, T>
-): Promise<Record<string, ExportRecord>> {
+): Promise<Record<string, unknown>> {
     return enqueueSaveRecordChain(async () => {
         const { expKey, slot: s } = getStorageKeys(slot);
         const data = await chrome.storage.local.get<Record<string, unknown>>([expKey]);
         const raw = data[expKey];
-        const cur: Record<string, unknown> = (typeof raw === 'object' && raw !== null && !Array.isArray(raw))
+        const cur: Record<string, unknown> = (typeof raw === 'object' && raw !== null)
             ? { ...raw }
             : {};
         collapseExportAliases(cur);
@@ -658,10 +630,7 @@ async function saveExportRecordsBatch<T = unknown>(
             updates['exportedIds'] = cur;
         }
         await chrome.storage.local.set(updates);
-        if (isExportRecordMap(cur)) {
-            return cur;
-        }
-        return {};
+        return cur;
     });
 }
 
@@ -733,8 +702,8 @@ async function getLastSync(slot?: string | null): Promise<SyncStatus> {
     const rawTs = data[syncKey];
     const rawCount = data[countKey];
     return {
-        timestamp: typeof rawTs === 'number' && Number.isFinite(rawTs) ? rawTs : null,
-        count: typeof rawCount === 'number' && Number.isFinite(rawCount) ? rawCount : 0
+        timestamp: rawTs || null,
+        count: rawCount || 0
     };
 }
 
@@ -771,13 +740,10 @@ async function setScanCheckpoint(slot: string | null | undefined, timestamp: num
     });
 }
 
-async function getAccountSlots(): Promise<AccountSlots> {
+async function getAccountSlots(): Promise<Record<string, unknown>> {
     const data = await chrome.storage.local.get<Record<string, unknown>>([STORAGE_KEYS.ACCOUNT_SLOTS]);
     const raw = data[STORAGE_KEYS.ACCOUNT_SLOTS];
-    if (isAccountSlots(raw)) {
-        return { ...raw };
-    }
-    return {};
+    return isObjectRecord(raw) ? raw : {};
 }
 
 async function setAccountSlots(map: AccountSlots | Record<string, unknown>): Promise<void> {
@@ -787,7 +753,7 @@ async function setAccountSlots(map: AccountSlots | Record<string, unknown>): Pro
 async function updateAccountSlot(
     slot: string | null | undefined,
     info: Partial<AccountSlotInfo> | Record<string, unknown> | null | undefined
-): Promise<AccountSlots> {
+): Promise<Record<string, unknown>> {
     return withSlotLock(async () => {
         const s = normSlot(slot);
         const map: Record<string, unknown> = await getAccountSlots();
@@ -799,13 +765,10 @@ async function updateAccountSlot(
                 }
             }
         }
-        const existingSlot = isObjectRecord(map[s]) ? map[s] : {};
+        const existingSlot = map[s] ? fields(map[s]) : {};
         map[s] = { ...existingSlot, ...cleanInfo };
         await setAccountSlots(map);
-        if (isAccountSlots(map)) {
-            return map;
-        }
-        return {};
+        return map;
     });
 }
 
@@ -822,17 +785,18 @@ async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
         const data = await chrome.storage.local.get<Record<string, unknown>>([STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]);
         if (data && data[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]) return true;
         const convs = await getConversations(slot);
-        return (convs || []).some(c => c && isTakeoutConversation(c));
+        return (convs || []).some(c => c && isTakeoutConversation(fields(c)));
     } catch {
         return false;
     }
 }
 
-async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<Conversation | null> {
+async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<Record<string, unknown> | null> {
     if (!id) return null;
     const targetId = normId(id);
     const list = await getConversations(slot);
-    const meta = list.find(c => c && normId(c.id) === targetId);
+    const rawMeta = list.find(c => c && normalizedConversationId(c) === targetId);
+    const meta = rawMeta ? fields(rawMeta) : null;
     if (!meta) return null;
     const detail = await getConversationDetail(targetId);
     return {
