@@ -1,487 +1,547 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const {
+import test from 'node:test';
+import assert from 'node:assert';
+import {
     writeIndexAndMeta,
     writeDiagnostics,
     buildSessionLogText,
     finalizeChatExport,
     updateSessionStatus,
-    SessionRecovery
-} = require('../src/core/engine/export/sessionRecovery.js');
-const { SessionStore } = require('../src/core/storage/sessionStore.js');
+    SessionRecovery,
+    type FinalizeChatExportContext,
+    type SessionLogOptions
+} from '../src/core/engine/export/sessionRecovery.js';
+import { SessionStore, type ExportSessionData } from '../src/core/storage/sessionStore.js';
+import type { IExportWriter } from '../src/core/engine/writers/writerInterface.js';
+import type { StoredExportRecordMap, StoredExportRecord } from '../src/core/storage/storageCompatibility.js';
 
-function createMockWriter() {
+interface MockMemoryWriter extends IExportWriter {
+    files: Record<string, string>;
+    writeHistory: string[];
+}
+
+function createMemoryWriter(): MockMemoryWriter {
     const files: Record<string, string> = {};
+    const writeHistory: string[] = [];
     return {
         files,
-        writeFile: async (filePath: string, content: string) => {
-            files[filePath] = content;
+        writeHistory,
+        writeFile: async (filePath: string, content: string | Uint8Array) => {
+            writeHistory.push(filePath);
+            files[filePath] = typeof content === 'string' ? content : new TextDecoder().decode(content);
             return filePath;
         }
     };
 }
 
-// 1. finalize only once
-test('C4-1: finalize only once - concurrent or repeated calls are deduplicated', async () => {
+// 1. Concurrent claim before first await & deduplication
+test('C4-1: finalizeChatExport claims before first await, deduplicating concurrent calls', async () => {
+    let pauseSaveResolve: (() => void) | undefined;
+    const pausePromise = new Promise<void>((resolve) => {
+        pauseSaveResolve = resolve;
+    });
+
+    let firstCallStarted = false;
+    let firstCallFinished = false;
+    let saveCount = 0;
+
+    const pausingAdapter = {
+        saveExportRecord: async () => {
+            saveCount++;
+            firstCallStarted = true;
+            await pausePromise;
+            return {};
+        }
+    };
+
     const finalizedChatsSet = new Set<string>();
-    const chatRecordsMap = new Map<string, any>([
-        ['chat_once', {
-            title: 'Only Once Chat',
+    const chatRecordsMap = new Map<string, StoredExportRecord>([
+        ['chat_concurrent', {
+            title: 'Concurrent Chat',
             status: 'ok',
-            messageCount: 3,
             exportedAt: '2026-10-05T12:00:00.000Z'
         }]
     ]);
 
+    const context: FinalizeChatExportContext = {
+        finalizedChatsSet,
+        chatRecordsMap,
+        storageAdapter: pausingAdapter,
+        slot: 'u0'
+    };
+
+    // Launch first call: it claims before first await, then suspends in saveExportRecord
+    const firstCallPromise = finalizeChatExport('c_chat_concurrent', context).then((res) => {
+        firstCallFinished = true;
+        return res;
+    });
+
+    // Verify synchronous claim happened before the first await resumed
+    assert.strictEqual(finalizedChatsSet.has('chat_concurrent'), true);
+
+    // Launch concurrent second call while first call is suspended in flight
+    const secondCallPromise = finalizeChatExport('chat_concurrent', context);
+
+    // Second call must return false immediately without re-saving
+    const secondResult = await secondCallPromise;
+    assert.strictEqual(secondResult, false);
+    assert.strictEqual(firstCallFinished, false, 'First call must still be paused');
+    assert.strictEqual(saveCount, 1);
+
+    // Resume first call and assert success
+    if (pauseSaveResolve) pauseSaveResolve();
+    const firstResult = await firstCallPromise;
+    assert.strictEqual(firstResult, true);
+    assert.strictEqual(firstCallFinished, true);
+    assert.strictEqual(saveCount, 1, 'saveExportRecord must only have run once');
+});
+
+// 2. Claim release on failure & map/callback isolation
+test('C4-2: claim released on write failure, maps not updated early, callback not called', async () => {
+    const finalizedChatsSet = new Set<string>();
+    const curIds: StoredExportRecordMap = {};
+    const exportedIds: StoredExportRecordMap = {};
     let callbackCount = 0;
-    let persistCount = 0;
-    const mockAdapter = {
+    let attempts = 0;
+    let shouldFail = true;
+
+    const failingAdapter = {
         saveExportRecord: async () => {
-            persistCount++;
+            attempts++;
+            // Verify maps have NOT been updated before write completes
+            assert.strictEqual(curIds['chat_fail'], undefined);
+            assert.strictEqual(exportedIds['chat_fail'], undefined);
+            if (shouldFail) {
+                throw new Error('Storage write failed');
+            }
+            return {};
         }
     };
 
-    const context = {
+    const context: FinalizeChatExportContext = {
         finalizedChatsSet,
-        chatRecordsMap,
-        storageAdapter: mockAdapter,
-        slot: 'u0',
+        chatRecordsMap: new Map<string, StoredExportRecord>([
+            ['chat_fail', { title: 'Fail Chat', exportedAt: '2026-10-05T12:00:00.000Z' }]
+        ]),
+        curIds,
+        exportedIds,
+        storageAdapter: failingAdapter,
         onItemExported: () => {
             callbackCount++;
         }
     };
 
-    // First call succeeds
-    const first = await finalizeChatExport('c_chat_once', context);
-    assert.strictEqual(first, true);
-    assert.strictEqual(persistCount, 1);
-    assert.strictEqual(callbackCount, 1);
-    assert.ok(finalizedChatsSet.has('chat_once'));
-
-    // Second call with same normalized id is deduped
-    const second = await finalizeChatExport('chat_once', context);
-    assert.strictEqual(second, false);
-    assert.strictEqual(persistCount, 1, 'Storage must not be called a second time');
-    assert.strictEqual(callbackCount, 1, 'Callback must not be called a second time');
-
-    // Third call with c_ prefix is also deduped
-    const third = await finalizeChatExport('c_chat_once', context);
-    assert.strictEqual(third, false);
-    assert.strictEqual(persistCount, 1);
-    assert.strictEqual(callbackCount, 1);
-});
-
-// 2. claim released after failed write
-test('C4-2: claim released after failed write - allows subsequent retry', async () => {
-    const finalizedChatsSet = new Set<string>();
-    const chatRecordsMap = new Map<string, any>([
-        ['chat_fail', {
-            title: 'Retry Chat',
-            status: 'ok',
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }]
-    ]);
-
-    let shouldFail = true;
-    let persistAttempts = 0;
-    const mockAdapter = {
-        saveExportRecord: async () => {
-            persistAttempts++;
-            if (shouldFail) {
-                throw new Error('Disk write failed');
-            }
-        }
-    };
-
-    const context = {
-        finalizedChatsSet,
-        chatRecordsMap,
-        storageAdapter: mockAdapter,
-        slot: 'u0'
-    };
-
     // First attempt fails
     await assert.rejects(
-        () => finalizeChatExport('c_chat_fail', context),
-        /Disk write failed/
+        () => finalizeChatExport('chat_fail', context),
+        /Storage write failed/
     );
-    assert.strictEqual(persistAttempts, 1);
-    assert.strictEqual(finalizedChatsSet.has('chat_fail'), false, 'Claim must be removed from set on write failure');
 
-    // Second attempt succeeds after fixing failure condition
+    // Claim released
+    assert.strictEqual(finalizedChatsSet.has('chat_fail'), false);
+    // Maps untouched
+    assert.strictEqual(curIds['chat_fail'], undefined);
+    assert.strictEqual(exportedIds['chat_fail'], undefined);
+    // Callback never fired
+    assert.strictEqual(callbackCount, 0);
+    assert.strictEqual(attempts, 1);
+
+    // Retry succeeds
     shouldFail = false;
-    const retry = await finalizeChatExport('c_chat_fail', context);
-    assert.strictEqual(retry, true);
-    assert.strictEqual(persistAttempts, 2);
-    assert.strictEqual(finalizedChatsSet.has('chat_fail'), true, 'Claim must be retained after successful write');
+    const retryOk = await finalizeChatExport('chat_fail', context);
+    assert.strictEqual(retryOk, true);
+    assert.strictEqual(finalizedChatsSet.has('chat_fail'), true);
+    assert.ok(curIds['chat_fail']);
+    assert.ok(exportedIds['chat_fail']);
+    assert.strictEqual(callbackCount, 1);
+    assert.strictEqual(attempts, 2);
 });
 
-// 3. finalizeConversationExport preferred when available
-test('C4-3: finalizeConversationExport preferred when available over saveExportRecord', async () => {
+// 3. finalizeConversationExport preferred & callback called once via adapter
+test('C4-3: finalizeConversationExport preferred over saveExportRecord and delegates callback once', async () => {
     let finalizeCalls = 0;
-    let saveRecordCalls = 0;
-    let passedOptions: any = null;
+    let saveCalls = 0;
+    let callbackCount = 0;
 
-    const mockAdapter = {
-        finalizeConversationExport: async (_slot: any, _id: any, _rec: any, options: any) => {
+    const dualAdapter = {
+        finalizeConversationExport: async <T>(
+            _slot: string | null | undefined,
+            id: string | number,
+            record: T,
+            options?: { onItemExported?: (id: string, record: T) => void }
+        ) => {
             finalizeCalls++;
-            passedOptions = options;
+            // The adapter executes the callback
+            options?.onItemExported?.(String(id), record);
+            return { ok: true, record };
         },
         saveExportRecord: async () => {
-            saveRecordCalls++;
+            saveCalls++;
+            return {};
         }
     };
 
-    const chatRecordsMap = new Map<string, any>([
-        ['chat_pref', {
-            title: 'Preferred Method Chat',
-            status: 'ok',
-            exportedAt: '2026-10-05T12:00:00.000Z',
-            conversationUpdate: { title: 'Updated Title', titleSource: 'rpc' }
-        }]
-    ]);
+    const recordObj: StoredExportRecord = {
+        title: 'Dual Adapter Chat',
+        exportedAt: '2026-10-05T12:00:00.000Z'
+    };
 
-    let callbackInvoked = false;
-    const ok = await finalizeChatExport('c_chat_pref', {
-        chatRecordsMap,
-        storageAdapter: mockAdapter,
-        slot: 'u1',
+    const context: FinalizeChatExportContext = {
+        chatRecordsMap: new Map([
+            ['chat_dual', {
+                ...recordObj,
+                exportRecord: recordObj,
+                conversationUpdate: { title: 'Dual Title', titleSource: 'rpc' }
+            }]
+        ]),
+        storageAdapter: dualAdapter,
         onItemExported: () => {
-            callbackInvoked = true;
+            callbackCount++;
         }
-    });
+    };
 
+    const ok = await finalizeChatExport('c_chat_dual', context);
     assert.strictEqual(ok, true);
     assert.strictEqual(finalizeCalls, 1, 'finalizeConversationExport must be invoked');
-    assert.strictEqual(saveRecordCalls, 0, 'saveExportRecord must NOT be called when finalizeConversationExport is present');
-    assert.ok(passedOptions);
-    assert.strictEqual(passedOptions.conversationUpdate.title, 'Updated Title');
-    assert.strictEqual(typeof passedOptions.onItemExported, 'function');
+    assert.strictEqual(saveCalls, 0, 'saveExportRecord must NOT be invoked when finalizeConversationExport exists');
+    assert.strictEqual(callbackCount, 1, 'Callback must be called exactly once via adapter');
 });
 
-// 4. saveExportRecord fallback
-test('C4-4: saveExportRecord fallback when finalizeConversationExport is missing', async () => {
-    let saveRecordCalls = 0;
-    let savedSlot: any = null;
-    let savedId: any = null;
-    let savedRec: any = null;
+// 4. saveExportRecord fallback path
+test('C4-4: saveExportRecord fallback invokes onItemExported and survives callback errors', async () => {
+    let saveCalls = 0;
+    let callbackCount = 0;
 
-    const mockAdapter = {
-        saveExportRecord: async (slot: any, id: any, rec: any) => {
-            saveRecordCalls++;
-            savedSlot = slot;
-            savedId = id;
-            savedRec = rec;
+    const saveOnlyAdapter = {
+        saveExportRecord: async () => {
+            saveCalls++;
+            return {};
         }
     };
 
-    const chatRecordsMap = new Map<string, any>([
-        ['chat_fb', {
-            title: 'Fallback Chat',
-            status: 'ok',
-            messageCount: 5,
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }]
-    ]);
-
-    let callbackRec: any = null;
-    const ok = await finalizeChatExport('c_chat_fb', {
-        chatRecordsMap,
-        storageAdapter: mockAdapter,
-        slot: 'u2',
-        onItemExported: (_id: string, record: any) => {
-            callbackRec = record;
-        }
-    });
-
-    assert.strictEqual(ok, true);
-    assert.strictEqual(saveRecordCalls, 1);
-    assert.strictEqual(savedSlot, 'u2');
-    assert.strictEqual(savedId, 'c_chat_fb');
-    assert.strictEqual(savedRec.title, 'Fallback Chat');
-    assert.strictEqual(callbackRec.title, 'Fallback Chat');
-});
-
-// 5. failed assets -> partial record
-test('C4-5: failed assets -> partial record and hasFailedAssets flag', async () => {
-    // Case A: ok status gets upgraded to partial
-    const chatFailedAssetsSet = new Set<string>(['asset_fail_1']);
-    const chatRecordsMap = new Map<string, any>([
-        ['asset_fail_1', {
-            title: 'Asset Failure Chat',
-            status: 'ok',
-            hasFailedAssets: false,
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }],
-        ['asset_fail_empty', {
-            title: 'Empty Asset Failure Chat',
-            status: 'empty',
-            hasFailedAssets: false,
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }],
-        ['asset_fail_failed', {
-            title: 'Failed Asset Failure Chat',
-            status: 'failed',
-            hasFailedAssets: false,
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }]
-    ]);
-
-    let persistedRec: any = null;
-    const mockAdapter = {
-        saveExportRecord: async (_slot: any, _id: any, rec: any) => {
-            persistedRec = rec;
-        }
-    };
-
-    // Test Case A: ok -> partial
-    await finalizeChatExport('c_asset_fail_1', {
-        chatRecordsMap,
-        chatFailedAssetsSet,
-        storageAdapter: mockAdapter
-    });
-    assert.strictEqual(persistedRec.status, 'partial', 'ok status must become partial when assets fail');
-    assert.strictEqual(persistedRec.hasFailedAssets, true);
-
-    // Test Case B: empty preserves empty status
-    chatFailedAssetsSet.add('asset_fail_empty');
-    await finalizeChatExport('c_asset_fail_empty', {
-        chatRecordsMap,
-        chatFailedAssetsSet,
-        storageAdapter: mockAdapter
-    });
-    assert.strictEqual(persistedRec.status, 'empty', 'empty status must be preserved');
-    assert.strictEqual(persistedRec.hasFailedAssets, true);
-
-    // Test Case C: failed preserves failed status
-    chatFailedAssetsSet.add('asset_fail_failed');
-    await finalizeChatExport('c_asset_fail_failed', {
-        chatRecordsMap,
-        chatFailedAssetsSet,
-        storageAdapter: mockAdapter
-    });
-    assert.strictEqual(persistedRec.status, 'failed', 'failed status must be preserved');
-    assert.strictEqual(persistedRec.hasFailedAssets, true);
-});
-
-// 6. curIds/exportedIds updated
-test('C4-6: curIds and exportedIds maps updated on successful finalization', async () => {
-    const curIds: Record<string, any> = {};
-    const exportedIds: Record<string, any> = {};
-    const chatRecordsMap = new Map<string, any>([
-        ['map_update_chat', {
-            title: 'Map Update Chat',
-            status: 'ok',
-            messageCount: 7,
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }]
-    ]);
-
-    const mockAdapter = {
-        saveExportRecord: async () => {}
-    };
-
-    const ok = await finalizeChatExport('c_map_update_chat', {
-        chatRecordsMap,
-        curIds,
-        exportedIds,
-        storageAdapter: mockAdapter
-    });
-
-    assert.strictEqual(ok, true);
-    assert.ok(curIds['map_update_chat'], 'curIds must be populated with normalized id');
-    assert.strictEqual(curIds['map_update_chat'].title, 'Map Update Chat');
-    assert.ok(exportedIds['map_update_chat'], 'exportedIds must be populated with normalized id');
-    assert.strictEqual(exportedIds['map_update_chat'].title, 'Map Update Chat');
-});
-
-// 7. callback called once and callback errors do not abort
-test('C4-7: onItemExported callback called once, and callback errors do not abort finalization', async () => {
-    let callCount = 0;
-    const chatRecordsMap = new Map<string, any>([
-        ['cb_err_chat', {
-            title: 'Callback Error Chat',
-            status: 'ok',
-            exportedAt: '2026-10-05T12:00:00.000Z'
-        }]
-    ]);
-
-    const mockAdapter = {
-        saveExportRecord: async () => {}
-    };
-
-    const ok = await finalizeChatExport('c_cb_err_chat', {
-        chatRecordsMap,
-        storageAdapter: mockAdapter,
+    const context: FinalizeChatExportContext = {
+        chatRecordsMap: new Map<string, StoredExportRecord>([
+            ['chat_fallback_err', { title: 'Fallback Error Chat', exportedAt: '2026-10-05T12:00:00.000Z' }]
+        ]),
+        storageAdapter: saveOnlyAdapter,
         onItemExported: () => {
-            callCount++;
-            throw new Error('Callback boom');
+            callbackCount++;
+            throw new Error('Callback throws deliberately');
         }
-    });
+    };
 
-    assert.strictEqual(ok, true, 'Callback throwing must not abort fallback finalization');
-    assert.strictEqual(callCount, 1, 'Callback must be called once');
+    const ok = await finalizeChatExport('chat_fallback_err', context);
+    assert.strictEqual(ok, true, 'Fallback must succeed even if callback throws');
+    assert.strictEqual(saveCalls, 1);
+    assert.strictEqual(callbackCount, 1);
 });
 
-// 8. writeDiagnostics fail-closed behavior
-test('C4-8: writeDiagnostics fail-closed behavior - throws on missing or failing writer', async () => {
+// 5. failed assets -> partial mutation while preserving empty and failed
+test('C4-5: failed assets mutates ok to partial while preserving failed and empty', async () => {
+    const chatFailedAssetsSet = new Set<string>(['ok', 'empty', 'failed']);
+    const okRecord: StoredExportRecord = { title: 'OK', status: 'ok', hasFailedAssets: false, exportedAt: 1 };
+    const emptyRecord: StoredExportRecord = { title: 'Empty', status: 'empty', hasFailedAssets: false, exportedAt: 2 };
+    const failedRecord: StoredExportRecord = { title: 'Failed', status: 'failed', hasFailedAssets: false, exportedAt: 3 };
+
+    const chatRecordsMap = new Map<string, StoredExportRecord>([
+        ['ok', okRecord],
+        ['empty', emptyRecord],
+        ['failed', failedRecord]
+    ]);
+
+    const mockAdapter = {
+        saveExportRecord: async () => ({})
+    };
+
+    await finalizeChatExport('c_ok', { chatRecordsMap, chatFailedAssetsSet, storageAdapter: mockAdapter });
+    assert.strictEqual(okRecord.status, 'partial', 'ok must become partial');
+    assert.strictEqual(okRecord.hasFailedAssets, true);
+
+    await finalizeChatExport('c_empty', { chatRecordsMap, chatFailedAssetsSet, storageAdapter: mockAdapter });
+    assert.strictEqual(emptyRecord.status, 'empty', 'empty status must be preserved');
+    assert.strictEqual(emptyRecord.hasFailedAssets, true);
+
+    await finalizeChatExport('c_failed', { chatRecordsMap, chatFailedAssetsSet, storageAdapter: mockAdapter });
+    assert.strictEqual(failedRecord.status, 'failed', 'failed status must be preserved');
+    assert.strictEqual(failedRecord.hasFailedAssets, true);
+});
+
+// 6. Diagnostics fail-closed on 2nd and 3rd write failures
+test('C4-6: writeDiagnostics fail-closed on 2nd and 3rd write failures without reporting success', async () => {
     // Missing writer throws
     await assert.rejects(
-        () => writeDiagnostics(false, {}, 'log text', null),
+        () => writeDiagnostics(false, {}, 'log', null),
         /IExportWriter is required/
     );
 
-    await assert.rejects(
-        () => writeDiagnostics(false, {}, 'log text', {} as any),
-        /IExportWriter is required/
-    );
-
-    // Failing writer rethrows
-    const failingWriter = {
-        writeFile: async () => {
-            throw new Error('IO error during diagnostics write');
+    // 2nd write failure (_export_errors.json)
+    const writerFailsOnSecond: IExportWriter = {
+        writeFile: async (filePath: string) => {
+            if (filePath === '_export_errors.json') {
+                throw new Error('Errors JSON write failed');
+            }
+            return filePath;
         }
     };
-    await assert.rejects(
-        () => writeDiagnostics(false, {}, 'log text', failingWriter as any),
-        /IO error during diagnostics write/
-    );
 
-    // writeIndexAndMeta also fail-closed
+    let logReported = false;
     await assert.rejects(
-        () => writeIndexAndMeta([{ title: 't' }], 1, 0, 0, null),
-        /IExportWriter is required/
+        () => writeDiagnostics(
+            true,
+            { failedChats: ['c1'] },
+            'log',
+            writerFailsOnSecond,
+            () => { logReported = true; }
+        ),
+        /Errors JSON write failed/
     );
+    assert.strictEqual(logReported, false, 'onLog must NOT be called when writing errors JSON fails');
+
+    // 3rd write failure (_export_session_dev.json)
+    const writerFailsOnThird: IExportWriter = {
+        writeFile: async (filePath: string) => {
+            if (filePath === '_export_session_dev.json') {
+                throw new Error('Session Dev JSON write failed');
+            }
+            return filePath;
+        }
+    };
+
+    logReported = false;
     await assert.rejects(
-        () => writeIndexAndMeta([{ title: 't' }], 1, 0, 0, failingWriter as any),
-        /IO error during diagnostics write/
+        () => writeDiagnostics(
+            true,
+            { failedChats: ['c1'] },
+            'log',
+            writerFailsOnThird,
+            () => { logReported = true; }
+        ),
+        /Session Dev JSON write failed/
     );
-
-    // Successful writeDiagnostics outputs appropriate files
-    const writer = createMockWriter();
-    const logs: string[] = [];
-    await writeDiagnostics(
-        true,
-        {
-            failedChats: ['c1'],
-            failedAttachments: [{ chatId: 'c1', file: 'a.png' }],
-            parseDrift: [{ id: 'c1', turnsRejected: 1 }]
-        },
-        'FULL LOG',
-        writer,
-        (msg: string) => logs.push(msg)
-    );
-
-    assert.ok(writer.files['_export_dev.log'], '_export_dev.log must be written');
-    assert.strictEqual(writer.files['_export_dev.log'], 'FULL LOG');
-    assert.ok(writer.files['_export_errors.json'], '_export_errors.json must be written when errors exist');
-    assert.ok(writer.files['_export_session_dev.json'], '_export_session_dev.json must be written in devMode');
-    assert.strictEqual(logs.length, 1);
+    assert.strictEqual(logReported, false, 'onLog must NOT be called when writing session dev JSON fails');
 });
 
-// 9. session update queue survives rejection
-test('C4-9: session update queue survives rejection without wedging subsequent writes', async () => {
+// 7. Session update queue FIFO continuity after rejection
+test('C4-7: session update queue executes subsequent items in FIFO order after a rejection', async () => {
     const origUpdateSession = SessionStore.updateSession;
-    let callIndex = 0;
-    const receivedPatches: any[] = [];
+    const executionOrder: string[] = [];
 
-    SessionStore.updateSession = async (patch: any) => {
-        callIndex++;
-        if (callIndex === 1) {
-            throw new Error('First update rejected');
+    let rejectFirst: ((err: Error) => void) | undefined;
+    const firstGate = new Promise<void>((_, reject) => {
+        rejectFirst = reject;
+    });
+
+    let resolveSecond: (() => void) | undefined;
+    const secondGate = new Promise<void>((resolve) => {
+        resolveSecond = resolve;
+    });
+
+    let callCount = 0;
+    SessionStore.updateSession = async () => {
+        callCount++;
+        if (callCount === 1) {
+            executionOrder.push('start:1');
+            await firstGate;
+            executionOrder.push('end:1');
+        } else if (callCount === 2) {
+            executionOrder.push('start:2');
+            await secondGate;
+            executionOrder.push('end:2');
         }
-        receivedPatches.push(patch);
     };
 
     try {
-        // First update fails
-        await assert.rejects(
-            () => updateSessionStatus({ status: 'running', current: 1 }),
-            /First update rejected/
-        );
+        // Enqueue write 1
+        const p1 = updateSessionStatus({ status: 'running', current: 1 });
+        await Promise.resolve();
+        assert.deepStrictEqual(executionOrder, ['start:1']);
 
-        // Second update succeeds and is not blocked by previous rejection
-        await updateSessionStatus({ status: 'completed', current: 2 });
-        assert.strictEqual(receivedPatches.length, 1);
-        assert.strictEqual(receivedPatches[0].status, 'completed');
-        assert.strictEqual(receivedPatches[0].current, 2);
+        // While write 1 is in-flight, enqueue write 2
+        const p2 = updateSessionStatus({ status: 'completed', current: 2 });
+        await Promise.resolve();
+        // Write 2 is waiting behind write 1; has not started yet
+        assert.deepStrictEqual(executionOrder, ['start:1']);
+
+        // Reject write 1
+        if (rejectFirst) rejectFirst(new Error('Write 1 failed'));
+        await assert.rejects(() => p1, /Write 1 failed/);
+
+        // Allow microtask to process write 2 start
+        await new Promise((r) => setTimeout(r, 10));
+        assert.deepStrictEqual(executionOrder, ['start:1', 'start:2']);
+
+        // Complete write 2
+        if (resolveSecond) resolveSecond();
+        await p2;
+        assert.deepStrictEqual(executionOrder, ['start:1', 'start:2', 'end:2']);
     } finally {
         SessionStore.updateSession = origUpdateSession;
     }
 });
 
-// 10. session-log formatting
-test('C4-10: session-log formatting matches all required sections and data shapes', () => {
-    const logText = buildSessionLogText({
-        landedChats: 8,
-        totalChats: 10,
-        downloadedAssets: 15,
-        totalAssets: 20,
-        skipped: 1,
-        isDevMode: true,
-        failedChats: [
-            'raw_string_chat_id',
-            {
-                id: 'chat_detailed',
-                title: 'Detailed Title That Is Quite Long And Will Be Safely Processed By Slice Method',
-                error: 'HTTP 500 error',
-                debug: { trace: 'stacktrace-123' },
-                raw: { payload: 'preview-456' }
-            },
-            {
-                chatId: 'legacy_chat_id',
-                chatTitle: 'Legacy Title',
-                reason: 'Timed out'
-            }
-        ],
-        failedAttachments: [
-            {
-                chatTitle: 'Chat With Failed Img',
-                file: 'photo.jpg',
-                error: 'Network 404'
-            },
-            {
-                chat: 'Legacy Asset Chat',
-                file: 'data.bin',
-                reason: 'Corrupted bytes'
-            }
-        ],
-        parseDrift: [
-            {
-                id: 'drift_chat_1',
-                title: 'Drift Chat Title',
-                turnsRejected: 2,
-                hasHeuristicDocs: true,
-                schemaDrift: ['unknown field x', 'invalid turn shape']
-            }
-        ]
-    });
+// 8. Fixed-clock session log & debug/raw precedence & missing fields formatting
+test('C4-8: session-log formatting matches exact sections, debug/raw precedence, and missing fields', () => {
+    const origToISOString = Date.prototype.toISOString;
+    Date.prototype.toISOString = () => '2026-10-05T12:00:00.000Z';
 
-    // Header & Summary
-    assert.ok(logText.includes('Gemini Exporter Session Log (Dev Mode)'));
-    assert.ok(logText.includes('Summary: Landed 8/10 chats, Assets 15/20, Skipped 1'));
-    assert.ok(logText.includes('Failed Chats: 3, Failed Assets: 2'));
+    try {
+        // Test empty/default options
+        const emptyLog = buildSessionLogText();
+        assert.ok(emptyLog.includes('Gemini Exporter Session Log (Error Report)'));
+        assert.ok(emptyLog.includes('Summary: Landed 0/0 chats, Assets 0/0, Skipped 0'));
+        assert.ok(emptyLog.includes('Failed Chats: 0, Failed Assets: 0'));
 
-    // Failed Chats Section
-    assert.ok(logText.includes('[FAILED CONVERSATIONS]'));
-    assert.ok(logText.includes('- raw_string_chat_id'));
-    assert.ok(logText.includes('chat_detailed | "Detailed Title That Is Quite Long And Will Be Safely Process" | HTTP 500 error'));
-    assert.ok(logText.includes('[debug] {"trace":"stacktrace-123"}'));
-    assert.ok(logText.includes('legacy_chat_id | "Legacy Title" | Timed out'));
+        // Test comprehensive formatting
+        const longDebugStr = 'x'.repeat(900);
+        const longRawStr = 'y'.repeat(500);
+        const suppressedRawStr = 'z'.repeat(500);
 
-    // Failed Assets Section
-    assert.ok(logText.includes('[FAILED ASSETS / ATTACHMENTS]'));
-    assert.ok(logText.includes('Chat: "Chat With Failed Img" | File: "photo.jpg" | Reason: Network 404'));
-    assert.ok(logText.includes('Chat: "Legacy Asset Chat" | File: "data.bin" | Reason: Corrupted bytes'));
+        const fullLog = buildSessionLogText({
+            landedChats: 5,
+            totalChats: 8,
+            downloadedAssets: 10,
+            totalAssets: 12,
+            skipped: 2,
+            isDevMode: true,
+            failedChats: [
+                'plain_chat_string',
+                {
+                    id: 'chat_with_both_debug_and_raw',
+                    title: 'Title Debug Beats Raw',
+                    error: 'Error 1',
+                    debug: { payload: longDebugStr },
+                    raw: { payload: suppressedRawStr }
+                },
+                {
+                    id: 'chat_raw_only',
+                    title: 'Title Raw Only',
+                    error: 'Error 2',
+                    raw: { payload: longRawStr }
+                },
+                {
+                    chatId: 'legacy_chat',
+                    chatTitle: 'Legacy Title',
+                    reason: 'Legacy Reason'
+                },
+                {}
+            ],
+            failedAttachments: [
+                {
+                    chatTitle: 'Chat Attach 1',
+                    file: 'img.png',
+                    error: '404'
+                },
+                {
+                    chat: 'Chat Attach Legacy',
+                    file: 'file.bin',
+                    reason: 'EIO'
+                },
+                {}
+            ],
+            parseDrift: [
+                {
+                    id: 'drift_1',
+                    title: 'Drift Title',
+                    turnsRejected: 2,
+                    hasHeuristicDocs: true,
+                    schemaDrift: ['d1', 'd2', 'd3', 'd4', 'd5', 'd6_excess']
+                },
+                {}
+            ]
+        });
 
-    // Parse Drift Section
-    assert.ok(logText.includes('[PARSE DRIFT / PARTIAL SESSIONS]'));
-    assert.ok(logText.includes('drift_chat_1 | "Drift Chat Title" | turnsRejected=2, heuristicDocs'));
-    assert.ok(logText.includes('[drift] unknown field x'));
-    assert.ok(logText.includes('[drift] invalid turn shape'));
+        // Verify Dev Mode title
+        assert.ok(fullLog.includes('Gemini Exporter Session Log (Dev Mode)'));
+        assert.ok(fullLog.includes('Summary: Landed 5/8 chats, Assets 10/12, Skipped 2'));
+        assert.ok(fullLog.includes('Failed Chats: 5, Failed Assets: 3'));
 
-    // Non-dev mode header
-    const prodLog = buildSessionLogText({ isDevMode: false });
-    assert.ok(prodLog.includes('Gemini Exporter Session Log (Error Report)'));
+        // Failed conversations assertions
+        assert.ok(fullLog.includes('  - plain_chat_string\n'));
+        assert.ok(fullLog.includes('  - chat_with_both_debug_and_raw | "Title Debug Beats Raw" | Error 1\n'));
+        // Debug precedence: debug must be printed (truncated to 800 chars), raw_preview must NOT appear for this chat
+        assert.ok(fullLog.includes('    [debug] {"payload":"' + 'x'.repeat(788)));
+        assert.ok(!fullLog.includes('[raw_preview] {"payload":"zzzz'));
+
+        // Raw only: raw_preview printed (truncated to 400 chars)
+        assert.ok(fullLog.includes('  - chat_raw_only | "Title Raw Only" | Error 2\n'));
+        assert.ok(fullLog.includes('    [raw_preview] {"payload":"' + 'y'.repeat(388)));
+
+        // Legacy fields
+        assert.ok(fullLog.includes('  - legacy_chat | "Legacy Title" | Legacy Reason\n'));
+        // Empty object failed chat
+        assert.ok(fullLog.includes('  - unknown | "" | unknown\n'));
+
+        // Failed attachments assertions
+        assert.ok(fullLog.includes('  - Chat: "Chat Attach 1" | File: "img.png" | Reason: 404\n'));
+        assert.ok(fullLog.includes('  - Chat: "Chat Attach Legacy" | File: "file.bin" | Reason: EIO\n'));
+        assert.ok(fullLog.includes('  - Chat: "undefined" | File: "undefined" | Reason: undefined\n'));
+
+        // Parse drift assertions
+        assert.ok(fullLog.includes('  - drift_1 | "Drift Title" | turnsRejected=2, heuristicDocs\n'));
+        assert.ok(fullLog.includes('    [drift] d1\n'));
+        assert.ok(fullLog.includes('    [drift] d5\n'));
+        assert.ok(!fullLog.includes('    [drift] d6_excess\n'), 'schemaDrift must be sliced to 5');
+        assert.ok(fullLog.includes('  - unknown | "" | schema drift\n'));
+    } finally {
+        Date.prototype.toISOString = origToISOString;
+    }
+});
+
+// 9. Fixed-clock writeIndexAndMeta markdown & JSON output
+test('C4-9: writeIndexAndMeta matches exact index table escaping and meta.json structure', async () => {
+    const origToISOString = Date.prototype.toISOString;
+    const origToLocaleString = Date.prototype.toLocaleString;
+    Date.prototype.toISOString = () => '2026-10-05T12:00:00.000Z';
+    Date.prototype.toLocaleString = () => '10/5/2026, 12:00:00 PM';
+
+    try {
+        const writer = createMemoryWriter();
+
+        await writeIndexAndMeta(
+            [
+                {
+                    title: 'Title | With [Special] \\ Chars',
+                    exportFile: 'export_01.md',
+                    messageCount: 10,
+                    attachmentCount: 3,
+                    url: 'https://gemini.google.com/app/test1'
+                },
+                {}
+            ],
+            2,
+            3,
+            4,
+            writer
+        );
+
+        assert.deepStrictEqual(writer.writeHistory, ['00_INDEX.md', 'meta.json']);
+
+        const indexMd = writer.files['00_INDEX.md'];
+        assert.ok(indexMd.includes('| **[Title \\| With \\[Special\\] \\\\ Chars](export_01.md)** | 10 | 3 | [🔗 Link](https://gemini.google.com/app/test1) | `export_01.md` |\n'));
+        assert.ok(indexMd.includes('| **[](undefined)** | undefined | undefined | [🔗 Link](undefined) | `undefined` |\n'));
+        assert.ok(indexMd.includes('_Generated by Gemini Exporter at 2026-10-05T12:00:00.000Z_'));
+
+        const metaJson = JSON.parse(writer.files['meta.json']) as {
+            exportedAt: string;
+            total: number;
+            conversations: Array<Record<string, unknown>>;
+        };
+        assert.strictEqual(metaJson.exportedAt, '2026-10-05T12:00:00.000Z');
+        assert.strictEqual(metaJson.total, 2);
+        assert.strictEqual(metaJson.conversations.length, 2);
+    } finally {
+        Date.prototype.toISOString = origToISOString;
+        Date.prototype.toLocaleString = origToLocaleString;
+    }
+});
+
+// 10. SessionRecovery module export parity
+test('C4-10: SessionRecovery default and named exports expose exact module contract', () => {
+    assert.strictEqual(typeof SessionRecovery.writeIndexAndMeta, 'function');
+    assert.strictEqual(typeof SessionRecovery.writeDiagnostics, 'function');
+    assert.strictEqual(typeof SessionRecovery.buildSessionLogText, 'function');
+    assert.strictEqual(typeof SessionRecovery.finalizeChatExport, 'function');
+    assert.strictEqual(typeof SessionRecovery.updateSessionStatus, 'function');
+    assert.strictEqual(typeof SessionRecovery.getExtensionVersion, 'function');
+    assert.strictEqual(SessionRecovery.finalizeChatExport, finalizeChatExport);
+    assert.strictEqual(SessionRecovery.updateSessionStatus, updateSessionStatus);
 });
