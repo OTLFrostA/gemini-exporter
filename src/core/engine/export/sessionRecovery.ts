@@ -1,4 +1,4 @@
-import type { FailedChat, FailedAttachment, ExportRecord } from "../../../types/ui.js";
+import type { FailedChat, FailedAttachment } from "../../../types/ui.js";
 import type { ChatParseDrift } from "./parseDrift.js";
 import type { ExportSessionData } from "../../storage/sessionStore.js";
 import type { StorageServiceModule, FinalizeExportOptions } from "../../storage/storageService.js";
@@ -76,7 +76,7 @@ interface SessionDiagnosticsPayload {
 }
 
 interface FinalizeChatRecordEntry extends StoredExportRecord {
-    exportRecord?: FinalizeChatRecordEntry;
+    exportRecord?: StoredExportRecord | null;
     conversationUpdate?: FinalizeExportOptions['conversationUpdate'];
     isTruncated?: boolean;
     truncateReason?: string;
@@ -314,8 +314,10 @@ async function finalizeChatExport(targetId: string, context: FinalizeChatExportC
                 conversationUpdate,
                 onItemExported
             });
-        } else if (typeof storageAdapter.saveExportRecord === 'function') {
-            await storageAdapter.saveExportRecord(slot, targetId, rec);
+        } else {
+            // The adapter check above guarantees the fallback; keep the original
+            // call and rejection behavior if its method changes during finalization.
+            await storageAdapter.saveExportRecord!(slot, targetId, rec);
             try {
                 onItemExported(targetId, rec);
             } catch (e) {
