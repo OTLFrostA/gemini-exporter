@@ -549,3 +549,56 @@ test('16. Numeric legacy SID behavior: preserved in storage and resolved cleanly
         (globalThis as Record<string, unknown>).chrome = origChrome;
     }
 });
+
+test('C3 review: existing entries without SID are not repaired on either selection path', async () => {
+    const glob = globalThis as Record<string, unknown>;
+    const previous = glob.chrome;
+    const entry = { at: 'kept_at', bl: 'kept_bl', lastUsed: '100', extension: { retained: true } };
+    const mock = makeMockStorage({ gemini_credentials_map: { stored_key: entry } });
+    glob.chrome = { storage: { session: mock, local: mock } };
+    try {
+        const manager = getFreshCredManager();
+        for (const target of ['stored_key', 'default']) {
+            const result = await manager.resolveCred(target);
+            assert.strictEqual(Object.hasOwn(result, 'sid'), false);
+            assert.strictEqual(Object.hasOwn(result, 'accountSlot'), false);
+            assert.strictEqual(result.lastUsed, '100');
+            assert.deepStrictEqual(result.extension, entry.extension);
+        }
+        assert.deepStrictEqual(mock.data.gemini_credentials_map, { stored_key: entry });
+    } finally { glob.chrome = previous; }
+});
+
+test('C3 review: migration retains every raw entry, including malformed and null entries', async () => {
+    const glob = globalThis as Record<string, unknown>;
+    const previous = glob.chrome;
+    const raw = { primitive: 123, nullEntry: null, text: 'legacy', array: [1, 2], partial: { custom: true } };
+    const mock = makeMockStorage({ gemini_credentials_map: raw, gemini_credentials: { sid: 'new_legacy', at: 'legacy_at' } });
+    glob.chrome = { storage: { session: mock, local: mock } };
+    try {
+        const manager = getFreshCredManager();
+        assert.deepStrictEqual(await manager.loadCredMap(), raw);
+        assert.strictEqual(await manager.migrateCredentials(), true);
+        const persisted = mock.data.gemini_credentials_map;
+        if (!persisted || typeof persisted !== 'object') throw new Error('missing persisted map');
+        for (const [key, value] of Object.entries(raw)) assert.deepStrictEqual(Reflect.get(persisted, key), value);
+        assert.strictEqual(Reflect.get(persisted, 'new_legacy').sid, 'new_legacy');
+    } finally { glob.chrome = previous; }
+});
+
+test('C3 review: numeric SID HTTP diagnostics use the real SID contract', async () => {
+    const glob = globalThis as Record<string, unknown>;
+    const previousChrome = glob.chrome;
+    const previousFetch = glob.fetch;
+    const mock = makeMockStorage({ gemini_credentials_map: {
+        '12345': { sid: 12345, at: 'diagnostic_at', bl: 'diagnostic_bl', accountSlot: 'default' }
+    } });
+    glob.chrome = { storage: { session: mock, local: mock } };
+    glob.fetch = async () => new Response('diagnostic failure', { status: 418 });
+    try {
+        getFreshCredManager();
+        bustRequireCache('../src/core/api/geminiClient.js');
+        const Client = require('../src/core/api/geminiClient.js').GeminiAPIClient;
+        await assert.rejects(new Client().getConversationList(null, '12345'), /sidLen:5/);
+    } finally { glob.chrome = previousChrome; glob.fetch = previousFetch; }
+});

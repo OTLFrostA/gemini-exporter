@@ -156,7 +156,7 @@ const pagination = GeminiClientPagination;
                 }
                 if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
 
-                throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${cred.sid?.length ?? 0} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
+                throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
             let txt = await resp.text();
             return getParser().parseList(txt);
