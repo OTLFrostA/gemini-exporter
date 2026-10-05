@@ -1,4 +1,4 @@
-import { isObjectRecord } from "../../core/utils/messageResponses.js";
+import { isStoredObject, type StoredValue } from '../../core/storage/storageCompatibility.js';
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
 import { ensureStorageReady } from '../../core/storage/schemaMigration.js';
@@ -114,7 +114,7 @@ async function updateCount(): Promise<void> {
         if (isGemini && _activeConvId) {
             const list = getStorage() ? await getStorage().getConversations(slot) : [];
             const rawFound = list.find((c: any) => c.id === _activeConvId || c.id === `c_${_activeConvId}`);
-            const found = isObjectRecord(rawFound) ? rawFound : null;
+            const found = isStoredObject(rawFound) && !Array.isArray(rawFound) ? rawFound : null;
             if (found && found.title) {
                 _activeChatTitle = cleanTitle(typeof found.title === 'string' ? found.title : undefined);
             } else if (tab?.title) {
@@ -143,7 +143,7 @@ async function updateCount(): Promise<void> {
             }
         }
 
-        let count: unknown = 0;
+        let count: StoredValue = 0;
         const convs = await getStorage().getConversations(slot);
         count = convs.length;
         if (!count) {

@@ -13,7 +13,8 @@ const {
     finalizeConversationExport,
     removeConversation,
     getAccountSlots,
-    updateAccountSlot
+    updateAccountSlot,
+    updateConversation
 } = require('../src/core/storage/storageService.js');
 
 function setupMockStorage(initialStore: Record<string, any> = {}) {
@@ -638,5 +639,47 @@ test('C2 review: container reads preserve raw elements without full-domain asser
     try {
         assert.strictEqual(await getConversations('u0'), raw);
         assert.deepStrictEqual(await getExportedIds('u0'), { primitive: 12, null: null });
+    } finally { fixture.restore(); }
+});
+
+
+test('C2 follow-up: compatibility reads and updates retain incompatible historical object fields', async () => {
+    const row = { id: 7, title: 23, messageCount: '7', titles: { rpc: false }, timestamp: { historical: true }, extension: ['retained', null] };
+    const fixture = setupMockStorage({ gemini_conversations: [row] });
+    try {
+        const read = await getConversations('u0');
+        assert.strictEqual(read[0], row);
+        let seen: unknown;
+        await updateConversation('u0', '7', (current: Record<string, unknown>) => {
+            seen = current;
+            return { url: 'https://gemini.google.com/app/7' };
+        });
+        assert.strictEqual(seen, row);
+        const updated = (await getConversations('u0'))[0];
+        assert.strictEqual(updated.title, 23);
+        assert.deepStrictEqual(updated.titles, { rpc: false });
+        assert.deepStrictEqual(updated.timestamp, { historical: true });
+        assert.deepStrictEqual(updated.extension, ['retained', null]);
+        assert.strictEqual(updated.url, 'https://gemini.google.com/app/7');
+    } finally { fixture.restore(); }
+});
+
+
+test('C2 follow-up: incompatible export and slot objects survive reads and writeback', async () => {
+    const exported = { exportedAt: null, title: 7, files: [42], extension: true };
+    const profile = { name: { historical: true }, count: '3', extension: ['retained'] };
+    const fixture = setupMockStorage({ exportedIds: { c_legacy: exported, scalar: true }, gemini_account_slots: { u1: profile, u2: null, u3: 12 } });
+    try {
+        assert.strictEqual((await getExportedIds('u0')).legacy, exported);
+        await saveExportRecord('u0', 'new', { exportedAt: 123 });
+        assert.strictEqual((await getExportedIds('u0')).legacy, exported);
+        const slots = await getAccountSlots();
+        assert.strictEqual(slots.u1, profile);
+        await updateAccountSlot('u0', { email: 'current@example.com' });
+        const after = await getAccountSlots();
+        assert.strictEqual(after.u1, profile);
+        assert.strictEqual(after.u2, null);
+        assert.strictEqual(after.u3, 12);
+        assert.deepStrictEqual(after.u1, { name: { historical: true }, count: '3', extension: ['retained'] });
     } finally { fixture.restore(); }
 });

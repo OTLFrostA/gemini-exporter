@@ -1,3 +1,4 @@
+import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
 import type { ContentConversationDetail, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { normalizeReliableTitleSource, TitleResolutionInput } from '../core/utils/titleUtils.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
@@ -167,10 +168,11 @@ export function init({
                         if (Storage && typeof Storage.updateConversation === 'function') {
                             await Storage.updateConversation(slot, nid, (current) => {
                                 if (!current) return null;
-                                const item: Record<string, unknown> = { ...current, titles: { ...(current.titles || {}) } };
+                                const item: StoredObject = { ...current, titles: { ...readStoredObject(current.titles || {}) } };
                                 const beforeTitle = item.title;
                                 const beforeSource = item.titleSource;
-                                setTitleBySource(item, detectedSource, chatObj.title);
+                                const titleTarget: Record<string, unknown> = item;
+                                setTitleBySource(titleTarget, detectedSource, chatObj.title);
                                 if (item.title === beforeTitle && item.titleSource === beforeSource) return null;
                                 return { title: item.title, titleSource: item.titleSource, titles: item.titles };
                             });

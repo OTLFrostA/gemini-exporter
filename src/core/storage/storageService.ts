@@ -1,3 +1,10 @@
+import {
+    readStoredValue, readStoredObject, isStoredConversationRow,
+    readStoredConversationFields, readStoredExportMap, readStoredSlotMap,
+    type StoredObject, type StoredConversationRow,
+    type StoredConversationFields, type StoredExportRecordMap,
+    type StoredAccountSlotMap, type StoredSyncStatus,
+} from './storageCompatibility.js';
 import type {
     Conversation,
     ExportRecord,
@@ -62,10 +69,6 @@ export interface StorageKeys {
     checkpointKey: string;
 }
 
-interface SyncStatus {
-    timestamp: unknown;
-    count: unknown;
-}
 
 export interface ReconcileResult {
     kept: number;
@@ -80,11 +83,11 @@ export interface ConversationTransaction {
     changed: number;
 }
 
-function fields(raw: unknown): Record<string, unknown> {
+function fields(raw: unknown): StoredObject {
     if (raw === null || raw === undefined) throw new TypeError('Cannot read null conversation');
-    if (isObjectRecord(raw)) return raw;
+    if (isObjectRecord(raw)) return readStoredObject(raw);
     if (typeof raw === 'string') {
-        const chars: Record<string, unknown> = {};
+        const chars: StoredObject = {};
         for (let i = 0; i < raw.length; i++) chars[String(i)] = raw[i];
         return chars;
     }
@@ -116,12 +119,13 @@ function getStorageKeys(slot?: string | null): StorageKeys {
     };
 }
 
-async function getConversations(slot?: string | null): Promise<unknown[]> {
+async function getConversations(slot?: string | null): Promise<StoredConversationRow[]> {
     const { convKey } = getStorageKeys(slot);
     const data = await chrome.storage.local.get<Record<string, unknown>>([convKey]);
     const raw = data[convKey];
-    const list: unknown[] = Array.isArray(raw) ? raw : [];
-    return list;
+    if (!Array.isArray(raw)) return [];
+    if (!raw.every(isStoredConversationRow)) throw new TypeError('Non-serializable stored conversation row');
+    return raw;
 }
 
 let _convChain: Promise<void> = Promise.resolve();
@@ -185,17 +189,20 @@ function withSlotLock<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 // Typed producer input retains its metadata contract after slimming. Raw
-// storage snapshots retain a raw return type; no container check upgrades them.
+// storage snapshots retain their compatibility type; no container check
+// upgrades them to a complete domain record.
 function _setConversationsRaw(slot: string | null | undefined, list: Conversation[]): Promise<Conversation[]>;
-function _setConversationsRaw(slot: string | null | undefined, list: unknown[]): Promise<unknown[]>;
+function _setConversationsRaw(slot: string | null | undefined, list: StoredConversationRow[]): Promise<StoredConversationRow[]>;
+function _setConversationsRaw(slot: string | null | undefined, list: Conversation[] | StoredConversationRow[]): Promise<Conversation[] | StoredConversationRow[]>;
+function _setConversationsRaw(slot: string | null | undefined, list: unknown[]): Promise<StoredConversationRow[]>;
 async function _setConversationsRaw(
     slot: string | null | undefined,
     list: unknown[]
-): Promise<unknown[]> {
+): Promise<Conversation[] | StoredConversationRow[]> {
     const { convKey } = getStorageKeys(slot);
     const detailsToSave: ConversationDetailRecord[] = [];
     const slimList = (list || []).map(value => {
-        if (!value) return value;
+        if (!value) return readStoredValue(value);
         const c = fields(value);
         const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
         const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
@@ -236,7 +243,7 @@ async function _setConversationsRaw(
     return slimList;
 }
 
-async function setConversations(slot: string | null | undefined, list: unknown[]): Promise<void> {
+async function setConversations(slot: string | null | undefined, list: Conversation[] | StoredConversationRow[]): Promise<void> {
     await withConversationLock(() => _setConversationsRaw(slot, list));
 }
 
@@ -252,16 +259,16 @@ async function setConversations(slot: string | null | undefined, list: unknown[]
 // the later write discards the earlier tab's merge).
 function transactConversations(
     slot: string | null | undefined,
-    updater: (existing: unknown[]) => ConversationTransaction | null
-): Promise<{ list: unknown[]; changed: number; written: false } | { list: Conversation[]; changed: number; written: true }>;
+    updater: (existing: StoredConversationRow[]) => ConversationTransaction | null
+): Promise<{ list: StoredConversationRow[]; changed: number; written: false } | { list: Conversation[]; changed: number; written: true }>;
 function transactConversations(
     slot: string | null | undefined,
-    updater: (existing: unknown[]) => { list: unknown[]; changed: number } | null
-): Promise<{ list: unknown[]; changed: number; written: boolean }>;
+    updater: (existing: StoredConversationRow[]) => { list: unknown[]; changed: number } | null
+): Promise<{ list: StoredConversationRow[]; changed: number; written: boolean }>;
 async function transactConversations(
     slot: string | null | undefined,
-    updater: (existing: unknown[]) => { list: unknown[]; changed: number } | null
-): Promise<{ list: unknown[]; changed: number; written: boolean }> {
+    updater: (existing: StoredConversationRow[]) => { list: unknown[]; changed: number } | null
+): Promise<{ list: Conversation[] | StoredConversationRow[]; changed: number; written: boolean }> {
     return withConversationLock(async () => {
         const existing = (await getConversations(slot)) || [];
         const res = updater(existing);
@@ -276,7 +283,7 @@ async function transactConversations(
 async function updateConversation(
     slot: string | null | undefined,
     conversationId: string,
-    patchOrUpdater: Record<string, unknown> | ((conv: Record<string, unknown>) => Record<string, unknown> | null | void)
+    patchOrUpdater: Partial<StoredConversationFields> | ((conv: StoredConversationFields) => Partial<StoredConversationFields> | null | void)
 ): Promise<boolean> {
     return withConversationLock(async () => {
         if (!conversationId) return false;
@@ -285,8 +292,8 @@ async function updateConversation(
         const index = list.findIndex(c => c && fields(c).id && normalizedConversationId(c) === targetId);
         if (index === -1) return false;
 
-        const current = fields(list[index]);
-        let updated: Record<string, unknown>;
+        const current = readStoredConversationFields(fields(list[index]));
+        let updated: StoredObject;
         if (typeof patchOrUpdater === 'function') {
             const res = patchOrUpdater(current);
             if (res === null) return false;
@@ -296,7 +303,7 @@ async function updateConversation(
         }
 
         const nextList = [...list];
-        nextList[index] = updated;
+        nextList[index] = readStoredConversationFields(updated);
         await _setConversationsRaw(slot, nextList);
         return true;
     });
@@ -399,18 +406,18 @@ async function reconcileConversations(
     });
 }
 
-async function getExportedIds(slot?: string | null): Promise<Record<string, unknown>> {
+async function getExportedIds(slot?: string | null): Promise<StoredExportRecordMap> {
     const { expKey } = getStorageKeys(slot);
     const data = await chrome.storage.local.get<Record<string, unknown>>([expKey]);
     const raw = data[expKey];
-    const records: Record<string, unknown> = (typeof raw === 'object' && raw !== null)
-        ? { ...raw }
+    const records: StoredExportRecordMap = (typeof raw === 'object' && raw !== null)
+        ? { ...readStoredExportMap(raw) }
         : {};
     collapseExportAliases(records);
     return records;
 }
 
-async function setExportedIds(slot: string | null | undefined, map: Record<string, unknown>): Promise<void> {
+async function setExportedIds(slot: string | null | undefined, map: StoredExportRecordMap): Promise<void> {
     const { expKey, slot: s } = getStorageKeys(slot);
     const canonical = normalizeExportRecordKeys(map);
     const updates: Record<string, unknown> = { [expKey]: canonical || {} };
@@ -424,8 +431,8 @@ function canonicalExportKey(id: string | number | null | undefined): string {
     return normId(id);
 }
 
-function normalizeExportRecordKeys(records: Record<string, unknown>): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
+function normalizeExportRecordKeys(records: StoredExportRecordMap): StoredExportRecordMap {
+    const out: StoredExportRecordMap = {};
     for (const [k, v] of Object.entries(records || {})) {
         const ck = canonicalExportKey(k);
         if (!ck) continue;
@@ -434,7 +441,7 @@ function normalizeExportRecordKeys(records: Record<string, unknown>): Record<str
     return out;
 }
 
-function collapseExportAliases(map: Record<string, unknown>): void {
+function collapseExportAliases(map: StoredExportRecordMap): void {
     for (const k of Object.keys(map)) {
         const ck = canonicalExportKey(k);
         if (!ck || ck === k) continue;
@@ -450,11 +457,11 @@ async function migrateExportAliases(slot: string | null | undefined): Promise<bo
         const { expKey, slot: s } = getStorageKeys(slot);
         const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
         const data = await chrome.storage.local.get<Record<string, unknown>>(readKeys);
-        const merged: Record<string, unknown> = {};
+        const merged: StoredExportRecordMap = {};
         for (const k of readKeys) {
             const m = data[k];
             if (isObjectRecord(m)) {
-                Object.assign(merged, m);
+                Object.assign(merged, readStoredExportMap(m));
             }
         }
         const before = Object.keys(merged);
@@ -484,7 +491,7 @@ async function saveExportRecord<T = unknown>(
     slot: string | null | undefined,
     id: string,
     record: T
-): Promise<Record<string, unknown>> {
+): Promise<StoredExportRecordMap> {
     const ck = canonicalExportKey(id);
     if (!ck) {
         throw new Error('[StorageService] saveExportRecord: empty conversation id');
@@ -493,11 +500,11 @@ async function saveExportRecord<T = unknown>(
 }
 
 interface StorageFinalizeDelegate {
-    saveExportRecord?: <T = unknown>(slot: string | null | undefined, id: string, record: T) => Promise<Record<string, unknown>>;
+    saveExportRecord?: <T = unknown>(slot: string | null | undefined, id: string, record: T) => Promise<StoredExportRecordMap>;
     updateConversation?: (
         slot: string | null | undefined,
         conversationId: string,
-        patchOrUpdater: Record<string, unknown> | ((conv: Record<string, unknown>) => Record<string, unknown> | null | void)
+        patchOrUpdater: Partial<StoredConversationFields> | ((conv: StoredConversationFields) => Partial<StoredConversationFields> | null | void)
     ) => Promise<boolean>;
 }
 
@@ -523,12 +530,12 @@ async function finalizeConversationExport<T = ExportRecord>(
     if (!options?.skipConversationUpdate) {
         try {
             const convUpdate = options?.conversationUpdate || {};
-            const recObj = isObjectRecord(record) ? record : null;
+            const recObj = isObjectRecord(record) ? readStoredObject(record) : null;
             const recTitle = typeof recObj?.title === 'string' ? recObj.title : undefined;
             const recMsgCount = recObj?.messageCount;
             const recChatTime = recObj?.chatTime !== undefined ? recObj.chatTime : undefined;
             const candidateTitle = convUpdate.title || recTitle;
-            const updated = await doUpdateConv(slot, targetId, (existing: Record<string, unknown>) => {
+            const updated = await doUpdateConv(slot, targetId, (existing: StoredConversationFields) => {
                 const incomingTitles: Record<string, string> =
                     convUpdate.titles && typeof convUpdate.titles === 'object' ? { ...convUpdate.titles } : {};
                 const candidateSource = convUpdate.titleSource || undefined;
@@ -539,7 +546,8 @@ async function finalizeConversationExport<T = ExportRecord>(
                     titleSource: candidateSource
                 };
 
-                applyExportTitleWriteback(existing, incoming);
+                const titleTarget: Record<string, unknown> = existing;
+                applyExportTitleWriteback(titleTarget, incoming);
 
                 const newMsgCount = convUpdate.messageCount ?? recMsgCount;
                 if (typeof newMsgCount === 'number' && newMsgCount > 0) {
@@ -549,7 +557,7 @@ async function finalizeConversationExport<T = ExportRecord>(
                 const rawTime = convUpdate.updatedAt || convUpdate.timestamp || convUpdate.chatTime || recChatTime;
                 const timeMs = toTimestampMs(rawTime);
                 if (timeMs && timeMs > 0) {
-                    const existingTs = getEffectiveTimestamp(existing);
+                    const existingTs = getEffectiveTimestamp(titleTarget);
                     if (timeMs > existingTs) {
                         existing.updatedAt = timeMs;
                         if (existing.timestamp) existing.timestamp = timeMs;
@@ -592,7 +600,7 @@ async function finalizeConversationExport<T = ExportRecord>(
                         const resolved = resolveTitle(newConv);
                         newConv.title = resolved.title;
                         newConv.titleSource = resolved.source;
-                        const nextList: unknown[] = [newConv, ...list];
+                        const nextList: StoredConversationRow[] = [newConv, ...list];
                         await _setConversationsRaw(slot, nextList);
                     }
                 });
@@ -615,16 +623,16 @@ async function finalizeConversationExport<T = ExportRecord>(
 async function saveExportRecordsBatch<T = unknown>(
     slot: string | null | undefined,
     records: Record<string, T>
-): Promise<Record<string, unknown>> {
+): Promise<StoredExportRecordMap> {
     return enqueueSaveRecordChain(async () => {
         const { expKey, slot: s } = getStorageKeys(slot);
         const data = await chrome.storage.local.get<Record<string, unknown>>([expKey]);
         const raw = data[expKey];
-        const cur: Record<string, unknown> = (typeof raw === 'object' && raw !== null)
-            ? { ...raw }
+        const cur: StoredExportRecordMap = (typeof raw === 'object' && raw !== null)
+            ? { ...readStoredExportMap(raw) }
             : {};
         collapseExportAliases(cur);
-        Object.assign(cur, normalizeExportRecordKeys(records));
+        Object.assign(cur, normalizeExportRecordKeys(readStoredExportMap(records)));
         const updates: Record<string, unknown> = { [expKey]: cur };
         if (s === 'u0') {
             updates['exportedIds'] = cur;
@@ -696,14 +704,14 @@ async function removeExportRecords(slot: string | null | undefined, ids: string[
     });
 }
 
-async function getLastSync(slot?: string | null): Promise<SyncStatus> {
+async function getLastSync(slot?: string | null): Promise<StoredSyncStatus> {
     const { syncKey, countKey } = getStorageKeys(slot);
     const data = await chrome.storage.local.get<Record<string, unknown>>([syncKey, countKey]);
     const rawTs = data[syncKey];
     const rawCount = data[countKey];
     return {
-        timestamp: rawTs || null,
-        count: rawCount || 0
+        timestamp: readStoredValue(rawTs) || null,
+        count: readStoredValue(rawCount) || 0
     };
 }
 
@@ -740,10 +748,10 @@ async function setScanCheckpoint(slot: string | null | undefined, timestamp: num
     });
 }
 
-async function getAccountSlots(): Promise<Record<string, unknown>> {
+async function getAccountSlots(): Promise<StoredAccountSlotMap> {
     const data = await chrome.storage.local.get<Record<string, unknown>>([STORAGE_KEYS.ACCOUNT_SLOTS]);
     const raw = data[STORAGE_KEYS.ACCOUNT_SLOTS];
-    return isObjectRecord(raw) ? raw : {};
+    return isObjectRecord(raw) ? readStoredSlotMap(raw) : {};
 }
 
 async function setAccountSlots(map: AccountSlots | Record<string, unknown>): Promise<void> {
@@ -753,20 +761,21 @@ async function setAccountSlots(map: AccountSlots | Record<string, unknown>): Pro
 async function updateAccountSlot(
     slot: string | null | undefined,
     info: Partial<AccountSlotInfo> | Record<string, unknown> | null | undefined
-): Promise<Record<string, unknown>> {
+): Promise<StoredAccountSlotMap> {
     return withSlotLock(async () => {
         const s = normSlot(slot);
-        const map: Record<string, unknown> = await getAccountSlots();
-        const cleanInfo: Record<string, unknown> = {};
+        const map: StoredAccountSlotMap = await getAccountSlots();
+        const cleanInfo: StoredObject = {};
         if (isObjectRecord(info)) {
             for (const [k, v] of Object.entries(info)) {
                 if (v !== undefined) {
-                    cleanInfo[k] = v;
+                    cleanInfo[k] = readStoredValue(v);
                 }
             }
         }
         const existingSlot = map[s] ? fields(map[s]) : {};
-        map[s] = { ...existingSlot, ...cleanInfo };
+        const nextSlot = { ...existingSlot, ...cleanInfo };
+        map[s] = readStoredSlotMap({ [s]: nextSlot })[s];
         await setAccountSlots(map);
         return map;
     });
@@ -791,7 +800,7 @@ async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
     }
 }
 
-async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<Record<string, unknown> | null> {
+async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<StoredConversationFields | null> {
     if (!id) return null;
     const targetId = normId(id);
     const list = await getConversations(slot);
