@@ -47,13 +47,11 @@ interface FetchChatDetailOptions {
 /** Raw transport output is intentionally not normalized by BatchWorker. */
 export type FetchChatDetailResult = unknown;
 
-type BatchWorkerRequestedItem =
-    | string
-    | {
-        id: string;
-        title?: string;
-        url?: string;
-        };
+type BatchWorkerRequestedItem = {
+    id: string;
+    title?: string;
+    url?: string;
+};
 
 interface ResolveChatOptions {
     messageSender?: MessageSenderFunction | null;
