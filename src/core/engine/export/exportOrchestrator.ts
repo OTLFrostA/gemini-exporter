@@ -6,6 +6,8 @@ import type {
     FailedChat,
     FailedAttachment,
     TakeoutExportSource,
+    ExportProgress,
+    DirectoryHandle,
 } from "../../../types/ui.js";
 import type { Conversation } from "../../../types/conversation.js";
 import type { I18nModule, TabServiceModule } from "../../../types/utils.js";
@@ -79,8 +81,46 @@ interface ExportSessionContext {
     abortSignal: AbortSignal | null;
 }
 
+interface AssetTaskMeta {
+    nid: string;
+    chatId: string;
+    listTitle?: string;
+    fileName: string;
+}
+
+interface AssetTask {
+    (): Promise<void>;
+    __assetMeta?: AssetTaskMeta;
+}
+
+type WriteFileDirectFn = (localName: string, data: WriteFileContent) => Promise<void>;
+
+interface ExportWriterContext {
+    zip: JSZipLike | null;
+    folder: unknown;
+    zipWriter: IExportWriter | null;
+    batchDirHandle: DirectoryHandle | null;
+    fsWriter: IExportWriter | null;
+    writer: IExportWriter;
+    writeFileDirect: WriteFileDirectFn;
+}
+
+interface JSZipAsyncMetadata {
+    percent: number;
+}
+
+interface JSZipLike {
+    generateAsync(options: { type: 'blob' }, onUpdate?: (metadata: JSZipAsyncMetadata) => void): Promise<Blob>;
+}
+
+type ZipPackageSource = IExportWriter | JSZipLike | null;
+
 import { __resolveModule } from "../../utils/moduleOverrides.js";
-import { AssetPipeline as AssetPipelineStatic } from "../assetPipeline.js";
+import {
+    AssetPipeline as AssetPipelineStatic,
+    type AssetPipelineClass,
+    type AssetPipelineInstance
+} from "../assetPipeline.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
     sanitizeFileName as utilsSanitizeFileName,
@@ -101,11 +141,17 @@ import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
-import rateLimitModule, { isRateLimited, calculateBackoff, abortableSleep, type RateLimitModule } from "./rateLimiter.js";
+import rateLimitModule, {
+    isRateLimited,
+    calculateBackoff,
+    abortableSleep,
+    type RateLimitManager,
+    type RateLimitModule
+} from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter } from "./progressReporter.js";
 import TabService from "../../utils/tabService.js";
 import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
-import { createWriter } from "../writers/writerInterface.js";
+import { createWriter, type IExportWriter, type WriteFileContent } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
 import { ChatFormatter } from "../chatFormatter.js";
@@ -180,9 +226,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
         return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
     }
 
-    class AsyncQueue {
-        _queue: any[];
-        _waiters: ((task: any) => void)[];
+    class AsyncQueue<T = unknown> {
+        _queue: T[];
+        _waiters: ((task: T | null) => void)[];
         _closed: boolean;
 
         constructor() {
@@ -191,7 +237,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             this._closed = false;
         }
 
-        push(task: any): boolean {
+        push(task: T): boolean {
             if (this._closed) return false;
             if (this._waiters.length > 0) {
                 const waiter = this._waiters.shift()!;
@@ -202,14 +248,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             return true;
         }
 
-        async pop(abortSignal?: AbortSignal | null): Promise<any> {
+        async pop(abortSignal?: AbortSignal | null): Promise<T | null> {
             if (this._queue.length > 0) {
-                return this._queue.shift();
+                return this._queue.shift() ?? null;
             }
             if (this._closed) return null;
-            return new Promise((resolve) => {
-                let onAbort: any = null;
-                const waiter = (task: any) => {
+            return new Promise<T | null>((resolve) => {
+                let onAbort: (() => void) | null = null;
+                const waiter = (task: T | null) => {
                     if (onAbort && abortSignal) {
                         try { abortSignal.removeEventListener('abort', onAbort); } catch (_) { /* intentional */ }
                     }
@@ -250,12 +296,33 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
     const sendToGeminiTab = (message: unknown, slot?: string, timeoutMs?: number): Promise<unknown> =>
         (__resolveModule<TabServiceModule>('TabService', TabService)).sendToGeminiTab(message, slot, timeoutMs);
 
-    const getAssetPipelineClass = (): any => __resolveModule('AssetPipeline', AssetPipelineStatic);
+    const getAssetPipelineClass = (): AssetPipelineClass | null =>
+        __resolveModule<AssetPipelineClass | null>('AssetPipeline', AssetPipelineStatic);
+
+    function isNotAllowedError(e: unknown, errMsg: string): boolean {
+        const isNamedNotAllowed = e !== null && (typeof e === 'object' || typeof e === 'function')
+            && 'name' in e && e.name === 'NotAllowedError';
+        return isNamedNotAllowed || /permission|not\s*allowed/i.test(errMsg);
+    }
+
+    function getThrownMessage(e: unknown): string {
+        return e !== null && typeof e === 'object' && 'message' in e ? String(e.message) : String(e);
+    }
+
+    function hasGenerateBlob(obj: unknown): obj is { generateBlob: (onUpdate?: (pct: number) => void) => Promise<Blob> } {
+        return isObjectRecord(obj) && typeof obj.generateBlob === 'function';
+    }
+
+    function hasGenerateAsync(obj: unknown): obj is {
+        generateAsync: (options: { type: 'blob' }, onUpdate?: (metadata: JSZipAsyncMetadata) => void) => Promise<Blob>;
+    } {
+        return isObjectRecord(obj) && typeof obj.generateAsync === 'function';
+    }
 
     class ExportOrchestrator {
         aborted: boolean;
         _abortController: AbortController | null;
-        rateLimiter: any;
+        rateLimiter: RateLimitManager;
 
         get rateLimitCooldownUntil(): number {
             return this.rateLimiter ? this.rateLimiter.rateLimitCooldownUntil : 0;
@@ -404,34 +471,35 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             };
         }
 
-        async _initWriter(options: ExportOptions, onLog: (msg: string, level?: string) => void): Promise<any> {
+        async _initWriter(options: ExportOptions, onLog: (msg: string, level?: string) => void): Promise<ExportWriterContext> {
             // P1-13: schema frozen 时写路径 fail-closed（读路径不受影响）
             await assertSchemaWritable();
             const { useZip = true, dirHandle = null } = options;
             const exportFolderName = DEFAULT_EXPORT_FOLDER_NAME;
-            let batchDirHandle: any = null;
-            let zip: any = null;
-            let folder: any = null;
-            let zipWriter: any = null;
-            let fsWriter: any = null;
-            let writer: any = null;
+            let batchDirHandle: DirectoryHandle | null = null;
+            let zip: JSZipLike | null = null;
+            let folder: unknown = null;
+            let zipWriter: IExportWriter | null = null;
+            let fsWriter: IExportWriter | null = null;
+            let writer: IExportWriter;
 
             if (useZip) {
                 writer = createWriter('zip', { folderName: exportFolderName });
                 zipWriter = writer;
-                zip = (writer as any).zip;
-                folder = (writer as any).folder;
+                const zipCandidate = isObjectRecord(writer) && 'zip' in writer ? writer.zip : null;
+                zip = hasGenerateAsync(zipCandidate) ? zipCandidate : null;
+                folder = isObjectRecord(writer) && 'folder' in writer ? writer.folder : null;
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
                     writer = createWriter('fs', { dirHandle, folderName: exportFolderName });
                     fsWriter = writer;
-                    batchDirHandle = await (fsWriter as any).init();
+                    if (typeof writer.init !== 'function') throw new TypeError('fsWriter.init is not a function');
+                    batchDirHandle = await writer.init();
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     onLog(`创建子文件夹失败: ${errMsg}`, 'warn');
-                    const errObj = e as any;
-                    const isPermissionRevoked = errObj?.name === 'NotAllowedError' || /permission|not\s*allowed/i.test(errMsg);
+                    const isPermissionRevoked = isNotAllowedError(e, errMsg);
                     if (isPermissionRevoked) {
                         onLog('目录句柄权限失效，请重新授权文件夹', 'warn');
                     }
@@ -439,7 +507,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 }
             }
 
-            const writeFileDirect = async (localName: string, data: any): Promise<void> => {
+            const writeFileDirect: WriteFileDirectFn = async (localName: string, data: WriteFileContent): Promise<void> => {
                 if (this.aborted) throw new DOMException('Export aborted', 'AbortError');
                 const cleanPath = sanitizeZipPath(localName);
                 if (!writer) {
@@ -449,9 +517,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     await writer.writeFile(cleanPath, data);
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
-                    const errObj = e as any;
-                    const isPermissionRevoked = errObj?.name === 'NotAllowedError'
-                        || /permission|not\s*allowed/i.test(errMsg);
+                    const isPermissionRevoked = isNotAllowedError(e, errMsg);
                     if (isPermissionRevoked) {
                         const I18n = getI18n();
                         onLog(I18n.t('fsPermissionRevoked'), 'error');
@@ -467,13 +533,13 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
         }
 
         async _packageAndDownload(
-            zipWriterOrZip: any,
-            payloadIds: any[],
+            zipWriterOrZip: ZipPackageSource,
+            payloadIds: readonly unknown[],
             downloadedAssets: number,
             totalAssets: number,
             options: ExportOptions,
             onLog: (msg: string, level?: string) => void,
-            onProgress: (progress: any) => void
+            onProgress: (progress: ExportProgress) => void
         ): Promise<void> {
             // B3: 取消后不再打包/下载 —— 取消是用户意图，不应触发下载回调
             if (this.aborted || this._abortController?.signal.aborted) return;
@@ -490,9 +556,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     assetsTotal: totalAssets
                 });
             };
-            const blob = (zipWriterOrZip && typeof zipWriterOrZip.generateBlob === 'function')
-                ? await zipWriterOrZip.generateBlob(onUpdate)
-                : await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata: any) => onUpdate(metadata.percent));
+            let blob: Blob;
+            if (hasGenerateBlob(zipWriterOrZip)) {
+                blob = await zipWriterOrZip.generateBlob(onUpdate);
+            } else if (hasGenerateAsync(zipWriterOrZip)) {
+                blob = await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata) => onUpdate(metadata.percent));
+            } else {
+                throw new ExportPipelineError('No valid ZIP generator available', undefined, 'write');
+            }
 
             if (options.downloadHandler && typeof options.downloadHandler === 'function') {
                 await options.downloadHandler(blob, zipFileName);
@@ -549,7 +620,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             const { zip, zipWriter, batchDirHandle, writer, writeFileDirect } = await this._initWriter(options, onLog);
 
             const AssetPipelineClass = getAssetPipelineClass();
-            const assetPipeline = AssetPipelineClass ? new AssetPipelineClass({
+            const assetPipeline: AssetPipelineInstance | null = AssetPipelineClass ? new AssetPipelineClass({
                 currentSlot,
                 useZip,
                 writer,
@@ -596,7 +667,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 updateProgress(skipped, 'Preparing...');
             }
 
-            const attachmentQueue = new AsyncQueue();
+            const attachmentQueue = new AsyncQueue<AssetTask>();
             const MAX_CONCURRENT = 4;
 
             if (abortSignal) {
@@ -609,10 +680,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     if (!task) break;
                     try {
                         await task();
-                    } catch (e) {
-                        const meta = (task as any)?.__assetMeta || null;
+                    } catch (e: unknown) {
+                        const meta = task.__assetMeta;
                         if (meta) {
-                            const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
+                            const errMsg = getThrownMessage(e);
                             chatFailedAssetsSet.add(meta.nid);
                             failedAttachments.push({
                                 chatId: meta.chatId,
@@ -823,12 +894,12 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         let queuedAssetsForThisChat = 0;
-                        const chatAssetTasks: (() => Promise<void>)[] = [];
+                        const chatAssetTasks: AssetTask[] = [];
                         const queueAsset = (item: any, isImage: boolean) => {
                             totalAssets++;
                             queuedAssetsForThisChat++;
                             updateProgress();
-                            const assetTask = async () => {
+                            const assetTask: AssetTask = async () => {
                                 let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
                                 if (assetPipeline) {
                                     assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
@@ -854,7 +925,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     if (left === 0) await finalizeChatExport(chat.id);
                                 }
                             };
-                            (assetTask as any).__assetMeta = { nid, chatId: chat.id, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                            assetTask.__assetMeta = { nid, chatId: chat.id, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
                             chatAssetTasks.push(assetTask);
                         };
 
@@ -883,7 +954,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                     updateProgress();
                                                 } catch (e) {
                                                     // 取消不记为资产失败，直接向上传播（B3 会进一步区分取消语义）
-                                                    if ((e as any)?.name === 'AbortError' || this.aborted) throw e;
+                                                    if ((e !== null && (typeof e === 'object' || typeof e === 'function') && 'name' in e && e.name === 'AbortError') || this.aborted) throw e;
                                                     chatFailedAssetsSet.add(nid);
                                                     failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName, error: getErrorMessage(e) });
                                                 }
@@ -891,14 +962,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                 totalAssets++;
                                                 queuedAssetsForThisChat++;
                                                 updateProgress();
-                                                const mdTask = async () => {
+                                                const mdTask: AssetTask = async () => {
                                                     const docFileName = att.localName || `${safeBase}_${shortId(chat.id)}.md`;
                                                     try {
                                                         await writeFileDirect(docFileName, cleanDocMd);
                                                         downloadedAssets++;
                                                     } catch (e) {
                                                         // 取消不记为资产失败，直接向上传播
-                                                        if ((e as any)?.name === 'AbortError' || this.aborted) throw e;
+                                                        if ((e !== null && (typeof e === 'object' || typeof e === 'function') && 'name' in e && e.name === 'AbortError') || this.aborted) throw e;
                                                         chatFailedAssetsSet.add(nid);
                                                         failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: docFileName, error: getErrorMessage(e) });
                                                     }
@@ -907,7 +978,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                     pendingAssetsPerChat.set(nid, left);
                                                     if (left === 0) await finalizeChatExport(chat.id);
                                                 };
-                                                (mdTask as any).__assetMeta = { nid, chatId: chat.id, listTitle, fileName: att.localName || 'doc.md' };
+                                                mdTask.__assetMeta = { nid, chatId: chat.id, listTitle, fileName: att.localName || 'doc.md' };
                                                 chatAssetTasks.push(mdTask);
                                             }
                                             continue;
@@ -996,7 +1067,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         const enqueued = attachmentQueue.push(task);
                                         if (!enqueued) {
                                             chatFailedAssetsSet.add(nid);
-                                            const meta = (task as any)?.__assetMeta;
+                                            const meta = task.__assetMeta;
                                             if (meta) {
                                                 failedAttachments.push({
                                                     chatId: meta.chatId,
