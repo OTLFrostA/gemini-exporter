@@ -48,7 +48,7 @@ test('p1_b1 - P1-016: tasks carry __assetMeta', () => {
 
 test('p1_b1 - P1-016: consumer catch decrements pending and records failure', () => {
     const src = SRC('core/engine/export/exportOrchestrator.ts');
-    assert.ok(/const meta = \(task as any\)\?\.__assetMeta/.test(src), 'consumer reads metadata');
+    assert.ok(/const meta = task\.__assetMeta/.test(src), 'consumer reads typed task metadata');
     assert.ok(src.includes('pendingAssetsPerChat.set(meta.nid, left)'), 'pending count decremented on throw');
     assert.ok(src.includes('failedAttachments.push({'), 'failure recorded');
 });

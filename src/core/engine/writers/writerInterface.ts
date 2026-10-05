@@ -1,3 +1,4 @@
+import type { DirectoryHandle } from '../../../types/ui.js';
 
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
@@ -6,7 +7,7 @@ export interface IExportWriter {
     generateBlob?(onUpdate?: (pct: number) => void): Promise<Blob>;
     close?(): Promise<void>;
     getTotalBytes?(): number;
-    init?(): Promise<any>;
+    init?(): Promise<DirectoryHandle>;
     [key: string]: any;
 }
 
@@ -48,4 +49,3 @@ export const WriterInterface: WriterInterfaceModule = {
 };
 
 export default WriterInterface;
-
