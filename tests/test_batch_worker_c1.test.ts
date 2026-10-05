@@ -40,7 +40,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     };
 
     const directResult = await fetchChatDetail(
-        'chat_direct_1',
+        { id: 'chat_direct_1' },
         0,
         1,
         'u0',
@@ -62,7 +62,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     };
     runtimeCalled = false;
     const directErrResult = await fetchChatDetail(
-        'chat_direct_err',
+        { id: 'chat_direct_err' },
         0,
         1,
         'u0',
@@ -81,7 +81,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     };
     runtimeCalled = false;
     const malformedResult = await fetchChatDetail(
-        'chat_direct_malformed',
+        { id: 'chat_direct_malformed' },
         0,
         1,
         'u0',
@@ -109,7 +109,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         });
     };
     const fallbackResult = await fetchChatDetail(
-        'chat_remote_1',
+        { id: 'chat_remote_1' },
         0,
         1,
         'u0',
@@ -137,7 +137,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
     };
 
     const abortedResult = await fetchChatDetail(
-        'chat_aborted_1',
+        { id: 'chat_aborted_1' },
         0,
         1,
         'u0',
@@ -156,7 +156,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
         sendToGeminiTab: () => new Promise(() => {})
     };
     const pendingPromise = fetchChatDetail(
-        'chat_aborted_2',
+        { id: 'chat_aborted_2' },
         0,
         1,
         'u0',
@@ -322,7 +322,7 @@ test('Track C1: resolveChat Deep Research report extraction', async () => {
         ]
     };
 
-    const resolved = await resolveChat(chatWithReport, 'c_deep_research_1');
+    const resolved = await resolveChat(chatWithReport, { id: 'c_deep_research_1' });
     assert.equal(resolved.isError, false);
     const modelMsg = resolved.chat.messages?.[1];
     assert.ok(modelMsg);
@@ -344,7 +344,7 @@ test('Track C1: resolveChat confirmed-deleted detection and title resolution wri
         isDeleted: true,
         messages: []
     };
-    const deletedRes = await resolveChat(deletedChat, 'c_deleted_1');
+    const deletedRes = await resolveChat(deletedChat, { id: 'c_deleted_1' });
     assert.equal(deletedRes.isConfirmedDeleted, true, 'Confirmed deleted chat must be flagged');
 
     // 2. Title sniffing and arbitration writeback
@@ -369,7 +369,7 @@ test('Track C1: resolveChat confirmed-deleted detection and title resolution wri
 
     const sniffRes = await resolveChat(
         untitledChat,
-        'c_sniff_1',
+        { id: 'c_sniff_1' },
         listChat,
         null,
         'u0',
@@ -385,4 +385,57 @@ test('Track C1: resolveChat confirmed-deleted detection and title resolution wri
     assert.equal(titleUpdatedNid, 'sniff_1');
     assert.match(titleUpdatedTitle, /Python中的协程与线程有什么区别/);
     assert.equal(titleUpdatedSource, 'sniff');
+});
+
+test('C1 review: direct payload and runtime response retain identity and missing fields', async () => {
+    const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
+    const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
+        tabService: { sendToGeminiTab: async () => ({ success: true, data: payload }) }
+    });
+    assert.equal(direct.results[0], payload);
+    assert.equal(Object.hasOwn(payload, 'id'), false);
+    const envelope = { results: [payload], error: 0, extension: 'retained' };
+    const runtime = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
+        tabService: { sendToGeminiTab: async () => null },
+        messageSender: (_msg: unknown, callback: (value: unknown) => void) => callback(envelope)
+    });
+    assert.equal(runtime, envelope);
+    assert.equal(Object.hasOwn(runtime, 'success'), false);
+    const rawError = { error: { code: 403 }, extension: 'error payload' };
+    const error = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
+        tabService: { sendToGeminiTab: async () => rawError }
+    });
+    assert.equal(error, rawError);
+});
+
+test('C1 review: recovery discards unrelated broken online fields', async () => {
+    const offline = { messages: [{ role: 'model', content: 'offline' }], offlineField: true };
+    const recovered = await resolveConversationData({ error: 'network', _empty: true, brokenField: true }, 'review', null, {
+        getTakeoutOfflineChat: () => offline
+    });
+    assert.equal(recovered.offlineField, true);
+    assert.equal(Object.hasOwn(recovered, 'brokenField'), false);
+    assert.equal(Object.hasOwn(recovered, 'error'), false);
+    await detailStore.saveConversationDetail('review_stored', { messages: [{ role: 'model', content: 'stored' }] });
+    try {
+        const stored = await resolveConversationData({ error: 'network', brokenField: true }, 'review_stored', { listField: true });
+        assert.equal(stored.listField, true);
+        assert.equal(Object.hasOwn(stored, 'brokenField'), false);
+        assert.equal(stored.messages[0].content, 'stored');
+    } finally { detailStore.__clearMemoryStore(); }
+});
+
+test('C1 review: requestId matches legacy non-string content without filtering messages', () => {
+    const content = { historical: 'structured response' };
+    const message = { role: 'model', content, providerRequestId: 'matching-request' };
+    const chat = { id: 'review_image', messages: [message] };
+    const media = { filename: 'generated.png', isGenerated: true, providerRequestId: 'matching-request', imageOrdinal: 0 };
+    const takeout = { getTakeoutMediaForChat: () => [media] };
+    supplementTakeoutGeneratedMedia(chat, 'review_image', 'u0', takeout, { appendMarkdownRef: false });
+    assert.equal(chat.messages.length, 1);
+    assert.equal(chat.messages[0], message);
+    assert.equal(message.content, content);
+    assert.equal(Reflect.get(message, 'images')[0].fileName, 'generated.png');
+    supplementTakeoutGeneratedMedia(chat, 'review_image', 'u0', takeout, { appendMarkdownRef: false });
+    assert.equal(Reflect.get(message, 'images').length, 1);
 });

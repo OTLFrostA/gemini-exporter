@@ -155,8 +155,8 @@ export function extractChatFromDetailResult(
     nid: string,
     fallback: PdfHydratableConversation,
 ): PdfHydratableConversation {
-    const rawResults: unknown = res.results;
-    const rawChat: unknown = res.chat;
+    const rawResults: unknown = isObjectRecord(res) ? res.results : undefined;
+    const rawChat: unknown = isObjectRecord(res) ? res.chat : undefined;
     const chunkResults: readonly unknown[] = Array.isArray(rawResults)
         ? rawResults
         : (isObjectRecord(rawChat) ? [rawChat] : []);
@@ -192,8 +192,8 @@ export async function resolveFullChatDetail(args: {
     } catch (e: unknown) {
         return { ok: false, error: getErrorMessage(e) };
     }
-    if (!res || !res.success) {
-        return { ok: false, error: (res && res.error) || 'unknown error' };
+    if (!isObjectRecord(res) || !res.success) {
+        return { ok: false, error: (isObjectRecord(res) && typeof res.error === 'string' && res.error) || 'unknown error' };
     }
     const chat = extractChatFromDetailResult(res, nid, { id: nid, title });
     const msgCount = Array.isArray(chat.messages) ? chat.messages.length : 0;

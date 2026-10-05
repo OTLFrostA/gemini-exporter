@@ -9,15 +9,15 @@ type GenerationAttachment = {
 };
 
 type GenerationMessage = {
-    role: 'user' | 'model' | 'assistant' | 'system';
-    content: string;
+    role?: unknown;
+    content?: unknown;
     id?: string;
-    timestamp?: number | string | null;
+    timestamp?: unknown;
     turnId?: string;
     providerRequestId?: string;
     generation?: GeneratedMediaIdentity;
-    images?: GenerationAttachment[];
-    attachments?: GenerationAttachment[];
+    images?: GenerationAttachment[] | null;
+    attachments?: GenerationAttachment[] | null;
 };
 
 /** Takeout activity timestamps have second precision; RPC retains milliseconds. */

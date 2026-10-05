@@ -30,47 +30,36 @@ import TabService from "../../utils/tabService.js";
 import { getConversationDetail } from "../../storage/conversationDetailStore.js";
 import { isConfirmedDeletedError } from "../../protocol/protocol.js";
 
-export type MessageSenderFunction = (
+type MessageSenderFunction = (
     message: unknown,
     callback?: (response: unknown) => void
 ) => Promise<unknown> | void;
 
-export interface TabServiceLike {
+interface TabServiceLike {
     sendToGeminiTab?: (msg: unknown, slot?: string, timeoutMs?: number) => Promise<unknown>;
 }
 
-export interface FetchChatDetailOptions {
+interface FetchChatDetailOptions {
     messageSender?: MessageSenderFunction | null;
     tabService?: TabServiceModule | TabServiceLike | null;
 }
 
-export interface FetchChatDetailResult {
-    success: boolean;
-    results?: WorkerChat[];
-    chat?: WorkerChat;
-    data?: unknown;
-    skipped?: number;
-    error?: string;
-    status?: number;
-    rawResponse?: unknown;
-    [key: string]: unknown;
-}
+/** Raw transport output is intentionally not normalized by BatchWorker. */
+export type FetchChatDetailResult = unknown;
 
-export type BatchWorkerRequestedItem =
+type BatchWorkerRequestedItem =
     | string
     | {
         id: string;
         title?: string;
         url?: string;
-        [key: string]: unknown;
-    };
+        };
 
-export interface ResolveChatOptions {
+interface ResolveChatOptions {
     messageSender?: MessageSenderFunction | null;
-    [key: string]: unknown;
 }
 
-export interface ResolveChatResult {
+interface ResolveChatResult {
     chat: WorkerChat;
     listTitle?: string;
     displayTitle?: string;
@@ -80,16 +69,15 @@ export interface ResolveChatResult {
     convsNeedSave: boolean;
 }
 
-export interface SupplementTakeoutMediaOptions {
+interface SupplementTakeoutMediaOptions {
     appendMarkdownRef?: boolean;
 }
 
-export type TakeoutEngineSourceLike =
+type TakeoutEngineSourceLike =
     | {
         getTakeoutOfflineChat?: (chatId: string, slot?: string | null) => unknown;
         getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => unknown;
-        [key: string]: unknown;
-    }
+        }
     | {
         getTakeoutOfflineChat?: (chatId: string, slot?: string | null) => unknown;
         getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => unknown;
@@ -101,88 +89,58 @@ export type TakeoutEngineSourceLike =
         ) => unknown;
     };
 
-export type WorkerListConversation = Partial<Conversation> | WorkerChat;
+type WorkerListConversation = Partial<Conversation> | WorkerChat;
 
 interface WorkerChatDebug {
-    isNotFound?: boolean;
-    error?: string;
+    isNotFound?: unknown;
+    error?: unknown;
     domDebug?: {
-        isNotFound?: boolean;
-        error?: string;
-        [key: string]: unknown;
-    } | null;
+        isNotFound?: unknown;
+        error?: unknown;
+        } | null;
     batchexecuteEmptyDebug?: {
-        isDeleted?: boolean;
-        error?: string;
-        [key: string]: unknown;
-    } | null;
-    [key: string]: unknown;
+        isDeleted?: unknown;
+        error?: unknown;
+        } | null;
 }
 
-export interface WorkerMessageAttachment {
-    url?: string;
-    sourceUrl?: string;
-    resolvedUrl?: string;
-    src?: string;
-    localName?: string;
+interface WorkerMessageAttachment {
+    type?: string;
     fileName?: string;
-    name?: string;
-    title?: string;
-    mimeType?: string;
-    mime?: string;
-    size?: number;
-    width?: number;
-    height?: number;
-    token?: unknown;
-    source?: string;
-    subDir?: string;
+    localName?: string;
+    contentMarkdown?: unknown;
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
     generation?: GeneratedMediaIdentity;
-    type?: string;
-    isImage?: boolean;
-    dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
-    blobBase64?: string;
-    dataBase64?: string;
-    contentMarkdown?: string;
-    failureReason?: string;
-    candidates?: string[];
-    id?: string;
-    [key: string]: unknown;
 }
-
-export interface WorkerChatMessage extends Omit<ChatMessage, 'role' | 'content' | 'thoughts' | 'thinking' | 'timestamp' | 'attachments' | 'images' | 'documents' | 'citations' | 'groundingCitationMarkers'> {
-    role?: string;
+interface WorkerChatMessage {
+    role?: unknown;
     content?: unknown;
-    timestamp?: number | string | null;
-    thoughts?: unknown;
-    thinking?: unknown;
-    citations?: unknown[];
-    groundingCitationMarkers?: unknown[];
-    attachments?: WorkerMessageAttachment[];
-    images?: WorkerMessageAttachment[];
-    documents?: WorkerMessageAttachment[];
-    [key: string]: unknown;
+    id?: string;
+    timestamp?: unknown;
+    turnId?: string;
+    providerRequestId?: string;
+    generation?: GeneratedMediaIdentity;
+    attachments?: WorkerMessageAttachment[] | null;
+    images?: WorkerMessageAttachment[] | null;
+    documents?: WorkerMessageAttachment[] | null;
 }
 
-export interface WorkerChat extends Omit<Partial<Conversation>, 'messages' | 'turns' | 'updatedAt' | 'createdAt' | 'chatTime' | 'lastSeen' | 'titleSource' | 'titles' | 'timestamp'> {
-    error?: string;
-    _empty?: boolean;
-    isDeleted?: boolean;
-    isEmpty?: boolean;
-    messages?: WorkerChatMessage[];
-    turns?: unknown[];
-    timestamp?: unknown;
-    updatedAt?: unknown;
-    createdAt?: unknown;
-    chatTime?: unknown;
-    lastSeen?: unknown;
+interface WorkerChat {
+    id?: string;
+    title?: string;
+    url?: string;
+    error?: unknown;
+    _empty?: unknown;
+    isDeleted?: unknown;
+    isEmpty?: unknown;
+    messages?: WorkerChatMessage[] | null;
+    turns?: unknown;
     titleSource?: unknown;
     titles?: unknown;
     _debug?: WorkerChatDebug | null;
     _raw?: unknown;
-    [key: string]: unknown;
 }
 
 export interface BatchWorkerModule {
@@ -224,14 +182,46 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function optionalStrings(raw: Record<string, unknown>, keys: string[]): boolean {
+    return keys.every(key => raw[key] === undefined || typeof raw[key] === 'string');
+}
+function optionalNumbers(raw: Record<string, unknown>, keys: string[]): boolean {
+    return keys.every(key => raw[key] === undefined || typeof raw[key] === 'number');
+}
 function isGeneratedMediaIdentity(value: unknown): value is GeneratedMediaIdentity {
-    return isObjectRecord(value) && typeof value.chatId === 'string' && typeof value.generationOrdinal === 'number';
+    return isObjectRecord(value) && typeof value.chatId === 'string'
+        && typeof value.generationOrdinal === 'number'
+        && optionalStrings(value, ['providerRequestId', 'prompt', 'turnId'])
+        && optionalNumbers(value, ['imageCount', 'imageOrdinal'])
+        && (value.time === undefined || value.time === null || typeof value.time === 'number');
+}
+function isWorkerAttachment(value: unknown): value is WorkerMessageAttachment {
+    return isObjectRecord(value)
+        && optionalStrings(value, ['type', 'fileName', 'localName', 'providerRequestId'])
+        && optionalNumbers(value, ['imageOrdinal'])
+        && (value.isGenerated === undefined || typeof value.isGenerated === 'boolean')
+        && (value.generation === undefined || isGeneratedMediaIdentity(value.generation));
+}
+function isWorkerMessage(value: unknown): value is WorkerChatMessage {
+    return isObjectRecord(value)
+        && optionalStrings(value, ['id', 'turnId', 'providerRequestId'])
+        && (value.generation === undefined || isGeneratedMediaIdentity(value.generation))
+        && ['images', 'attachments', 'documents'].every(key =>
+            value[key] === undefined || value[key] === null || (Array.isArray(value[key]) && value[key].every(isWorkerAttachment)));
+}
+function isWorkerDebug(value: unknown): value is WorkerChatDebug {
+    return isObjectRecord(value) && ['domDebug', 'batchexecuteEmptyDebug'].every(key =>
+        value[key] === undefined || value[key] === null || isObjectRecord(value[key]));
+}
+/** Validate only processing capabilities; return the same object and message list. */
+function isWorkerChat(value: unknown): value is WorkerChat {
+    return isObjectRecord(value)
+        && optionalStrings(value, ['id', 'title', 'url'])
+        && (value.messages === undefined || value.messages === null || (Array.isArray(value.messages) && value.messages.every(isWorkerMessage)))
+        && (value._debug === undefined || value._debug === null || isWorkerDebug(value._debug));
 }
 
 function extractRequestedId(item: unknown): string | number | null | undefined {
-    if (typeof item === 'string' || typeof item === 'number') {
-        return item;
-    }
     if (isObjectRecord(item)) {
         const id = item.id;
         if (typeof id === 'string' || typeof id === 'number' || id === null) {
@@ -368,21 +358,12 @@ async function fetchChatDetail(
                     if (!settled) {
                         if (isObjectRecord(directRes) && directRes.success) {
                             settled = true;
-                            const rawChat = isObjectRecord(directRes.data)
-                                ? directRes.data
-                                : (isObjectRecord(directRes.chat) ? directRes.chat : (isObjectRecord(directRes) ? directRes : { id: nid }));
-                            const chat: WorkerChat = { id: nid, ...rawChat };
+                            const chat = directRes.data || directRes.chat || directRes;
                             resolve({ success: true, results: [chat], skipped: 0 });
                             return;
                         } else if (isObjectRecord(directRes) && directRes.error) {
                             settled = true;
-                            const success = typeof directRes.success === 'boolean' ? directRes.success : false;
-                            const error = typeof directRes.error === 'string' ? directRes.error : getErrorMessage(directRes.error);
-                            resolve({
-                                success,
-                                error,
-                                ...directRes
-                            });
+                            resolve(directRes);
                             return;
                         } else if (directRes !== null && directRes !== undefined) {
                             settled = true;
@@ -418,16 +399,8 @@ async function fetchChatDetail(
                             settled = true;
                             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
                                 resolve({ success: false, error: chrome.runtime.lastError.message });
-                            } else if (isObjectRecord(response)) {
-                                const success = typeof response.success === 'boolean' ? response.success : !response.error;
-                                const error = typeof response.error === 'string' ? response.error : undefined;
-                                resolve({
-                                    success,
-                                    ...(error !== undefined ? { error } : {}),
-                                    ...response
-                                });
                             } else {
-                                resolve({ success: false, error: 'Empty or invalid response from runtime', rawResponse: response });
+                                resolve(response);
                             }
                         }
                     });
@@ -449,21 +422,6 @@ async function fetchChatDetail(
 
         void runFetch();
     });
-}
-
-interface GenerationCandidateMessage extends WorkerChatMessage {
-    role: 'user' | 'model' | 'assistant' | 'system';
-    content: string;
-}
-
-function isGenerationCandidateMessage(m: unknown): m is GenerationCandidateMessage {
-    if (!isObjectRecord(m)) return false;
-    const role = m.role;
-    const content = m.content;
-    return (
-        (role === 'user' || role === 'model' || role === 'assistant' || role === 'system') &&
-        typeof content === 'string'
-    );
 }
 
 function supplementTakeoutGeneratedMedia(
@@ -490,9 +448,8 @@ function supplementTakeoutGeneratedMedia(
                         generationOrdinal: 0,
                         imageOrdinal: tmImageOrdinal ?? 0,
                     } : null);
-                const generationCandidates = chat.messages.filter(isGenerationCandidateMessage);
                 const eventTarget = generation
-                    ? findGenerationModelMessage({ id: typeof chat.id === 'string' ? chat.id : undefined, messages: generationCandidates }, generation)
+                    ? findGenerationModelMessage({ id: typeof chat.id === 'string' ? chat.id : undefined, messages: chat.messages }, generation)
                     : null;
                 if (eventTarget && generation && hasGenerationImage(eventTarget, generation)) continue;
                 const candidates: WorkerChatMessage[] = generation ? (eventTarget ? [eventTarget] : []) : chat.messages;
@@ -502,7 +459,7 @@ function supplementTakeoutGeneratedMedia(
                     (typeof m.content === 'string' && m.content.includes(tmFilename))
                 );
                 if (!alreadyHas) {
-                    const imgObj: WorkerMessageAttachment = {
+                    const imgObj = {
                         url: tmFilename,
                         name: tmFilename,
                         fileName: tmFilename,
@@ -545,49 +502,49 @@ function supplementTakeoutGeneratedMedia(
 }
 
 /** Shared acquisition policy: usable online data, then Takeout, then stored detail. */
-export async function resolveConversationData<T extends WorkerChat = WorkerChat>(
-    chat: T,
+export async function resolveConversationData(
+    chat: WorkerChat,
     nid: string,
     listConversation?: WorkerListConversation | null,
     takeoutEngine?: TakeoutExportSource | TakeoutEngineSourceLike | null,
     slot: string = 'u0',
     onLog: (msg: string, level?: string) => void = (() => {}),
-): Promise<T> {
+): Promise<unknown> {
     if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0)) {
         if (takeoutEngine && typeof takeoutEngine.getTakeoutOfflineChat === 'function') {
             const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
             if (isObjectRecord(fbChat) && Array.isArray(fbChat.messages) && fbChat.messages.length > 0) {
                 const fbTitle = typeof fbChat.title === 'string' ? fbChat.title : undefined;
-                chat = {
-                    ...chat,
+                const recovered: Record<string, unknown> = {
                     ...fbChat,
                     id: nid,
                     title: isRealTitle(chat.title, nid) ? chat.title : fbTitle,
                     url: `https://gemini.google.com/app/${nid}`
                 };
-                delete chat.error;
-                delete chat._empty;
+                delete recovered.error;
+                delete recovered._empty;
                 const I18n = __resolveModule('I18n', I18nStatic);
-                onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
+                onLog(I18n.t('logTakeoutChatRecovered', recovered.title || nid), 'info');
+                return recovered;
             }
         }
         if (chat.error || chat._empty || !chat.messages || chat.messages.length === 0) {
             try {
                 const detail = await getConversationDetail(nid);
                 if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
-                    chat = {
-                        ...chat,
-                        ...listConversation,
+                    const recovered: Record<string, unknown> = {
+                        ...(listConversation || {}),
                         id: nid,
                         title: isRealTitle(chat.title, nid) ? chat.title : (listConversation?.title || nid),
                         messages: detail.messages,
                         turns: detail.turns,
                         url: (listConversation && listConversation.url) || `https://gemini.google.com/app/${nid}`
                     };
-                    delete chat.error;
-                    delete chat._empty;
+                    delete recovered.error;
+                    delete recovered._empty;
                     const I18n = __resolveModule('I18n', I18nStatic);
-                    onLog(I18n.t('logTakeoutChatRecovered', chat.title || nid), 'info');
+                    onLog(I18n.t('logTakeoutChatRecovered', recovered.title || nid), 'info');
+                    return recovered;
                 }
             } catch { /* intentional */ }
         }
@@ -610,7 +567,9 @@ async function resolveChat(
     const slot = currentSlot || 'u0';
     let convsNeedSave = false;
 
-    chat = await resolveConversationData(chat, nid, listConversation, takeoutEngine, slot, onLog);
+    const resolved = await resolveConversationData(chat, nid, listConversation, takeoutEngine, slot, onLog);
+    if (!isWorkerChat(resolved)) throw new TypeError('Malformed conversation for BatchWorker processing');
+    chat = resolved;
 
     supplementTakeoutGeneratedMedia(chat, nid, slot, takeoutEngine);
 
@@ -656,7 +615,7 @@ async function resolveChat(
                     docMarkdown = `# ${docTitle}\n\n${docMarkdown.trim()}`;
                 }
 
-                const docObj: WorkerMessageAttachment = {
+                const docObj = {
                     type: 'file',
                     id: `${nid}_doc_${mi + 1}`,
                     title: docTitle,
@@ -785,7 +744,7 @@ async function resolveChat(
         }
     }
 
-    let finalTitle = chat.title || listConversation?.title || chat.id || '';
+    let finalTitle = chat.title || listConversation?.title || chat.id;
 
     if (listConversation) {
         const rawListTitles = isObjectRecord(listConversation.titles) ? listConversation.titles : {};
@@ -809,7 +768,7 @@ async function resolveChat(
         }
         listConversation.titles = titlesRecord;
         const resolutionInput = {
-            id: typeof listConversation.id === 'string' ? listConversation.id : (typeof chat.id === 'string' ? chat.id : nid),
+            id: listConversation.id,
             title: typeof listConversation.title === 'string' ? listConversation.title : undefined,
             titleSource: typeof listConversation.titleSource === 'string' ? listConversation.titleSource : undefined,
             titles: titlesRecord
