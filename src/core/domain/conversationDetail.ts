@@ -60,10 +60,12 @@ export interface DomainDocument extends DomainAttachment {
 }
 
 export interface DomainMessage {
+    /** Optional stable message identity; never synthesized from array position. */
     id?: string;
     role: DomainMessageRole;
     content: string;
-    timestamp?: number | null;
+    /** Unix epoch milliseconds; omit when missing or unknown. */
+    timestamp?: number;
     turnId?: string;
     providerRequestId?: string;
     generation?: DomainGeneratedMediaIdentity;
