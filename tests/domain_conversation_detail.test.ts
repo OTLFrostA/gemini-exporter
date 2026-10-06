@@ -46,19 +46,17 @@ test('Domain adapter preserves missing and explicitly null server timestamps', a
 });
 
 test('Domain adapter preserves attachments and images without mutating binary data', async () => {
-    const bytes = new Uint8Array([1, 2, 3]);
     const conversation = {
         ...base,
         messages: [{ role: 'user', content: 'See image', attachments: [
-            { type: 'image', localName: 'image.png', dataBuffer: bytes, mimeType: 'image/png' },
+            { type: 'image', localName: 'image.png', dataBase64: 'AQID', mimeType: 'image/png' },
         ], images: [{ type: 'image', url: 'https://example.test/image.png', isImage: true }] }],
     };
+    const original = structuredClone(conversation);
     const domain = toDomainConversationDetail(conversation);
-    assert.notEqual(domain.messages?.[0].attachments?.[0].dataBuffer, bytes);
-    assert.deepEqual(Array.from(new Uint8Array(domain.messages?.[0].attachments?.[0].dataBuffer as ArrayBufferView)), [1, 2, 3]);
-    bytes[0] = 9;
-    assert.deepEqual(Array.from(new Uint8Array(domain.messages?.[0].attachments?.[0].dataBuffer as ArrayBufferView)), [1, 2, 3]);
-    await assertExportEquivalent({ ...conversation, messages: [{ ...conversation.messages[0], attachments: [{ type: 'image', localName: 'image.png', dataBase64: 'AQID', mimeType: 'image/png' }] }] });
+    assert.deepEqual(conversation, original);
+    assert.equal(domain.messages?.[0].attachments?.[0].dataBase64, 'AQID');
+    await assertExportEquivalent(conversation);
 });
 
 test('Domain adapter preserves generated media identity and export output', async () => {

@@ -83,14 +83,10 @@ export interface DomainTurn {
     userContent?: string;
     modelContent?: string;
     thoughts?: string | string[];
-    thinking?: string;
     attachments?: DomainAttachment[];
     images?: DomainAttachment[];
-    documents?: DomainDocument[];
-    citations?: DomainCitation[];
     sources?: unknown[];
     structuredContent?: unknown;
-    groundingCitationMarkers?: string[];
 }
 
 export interface DomainConversationDetail {

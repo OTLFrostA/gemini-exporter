@@ -9,14 +9,6 @@ import type {
     DomainTurn,
 } from './conversationDetail.js';
 
-function copyBuffer(buffer: ArrayBuffer | ArrayBufferView): ArrayBuffer | ArrayBufferView {
-    if (buffer instanceof ArrayBuffer) return buffer.slice(0);
-    const cloned = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-    if (buffer instanceof DataView) return new DataView(cloned);
-    const Ctor = buffer.constructor as { new (buffer: ArrayBuffer): ArrayBufferView };
-    return new Ctor(cloned);
-}
-
 function copyGeneratedMedia(value: GeneratedMediaIdentity): DomainGeneratedMediaIdentity {
     return { ...value };
 }
@@ -25,7 +17,6 @@ function copyAttachment(value: Attachment): DomainAttachment {
     return {
         ...value,
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
-        ...(value.dataBuffer ? { dataBuffer: copyBuffer(value.dataBuffer) } : {}),
     };
 }
 
@@ -33,7 +24,6 @@ function copyDocument(value: MessageDocument): DomainDocument {
     return {
         ...value,
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
-        ...(value.dataBuffer ? { dataBuffer: copyBuffer(value.dataBuffer) } : {}),
         ...(value.sections ? { sections: [...value.sections] } : {}),
         ...(value.links ? { links: value.links.map((link) => ({ ...link })) } : {}),
         ...(value.candidates ? { candidates: [...value.candidates] } : {}),
@@ -61,11 +51,8 @@ function copyTurn(value: Turn): DomainTurn {
         ...(Array.isArray(value.thoughts) ? { thoughts: [...value.thoughts] } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
         ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
-        ...(value.documents ? { documents: value.documents.map(copyDocument) } : {}),
-        ...(value.citations ? { citations: value.citations.map((citation) => ({ ...citation })) } : {}),
         ...(value.sources ? { sources: [...value.sources] } : {}),
         ...(value.structuredContent !== undefined ? { structuredContent: value.structuredContent } : {}),
-        ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
     };
 }
 
