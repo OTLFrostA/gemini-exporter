@@ -304,7 +304,10 @@ test('regression: export_engine failedChats must store detailed objects with err
     const orchContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
     const recContent = readSrc('../src/core/engine/export/sessionRecovery.js');
     assert.ok(orchContent.includes('failedChats.push({ id:'), 'failedChats should push detailed objects');
-    assert.ok(orchContent.includes("failedChats.push({ id: c.id, title:") || orchContent.includes("failedChats.push({ id: chat.id"), 'failedChats push should include title and error');
+    assert.ok(orchContent.includes("failedChats.push({ id: c.id, title:")
+        || orchContent.includes("failedChats.push({ id: chat.id")
+        || orchContent.includes("failedChats.push({ id: typeof chatCandidate.id === 'string' ? chatCandidate.id : nid, title:"),
+    'failedChats push should include title and error');
     assert.ok(recContent.includes('typeof fc === \'string\''), 'dev log should handle both string and object failedChats');
 });
 
