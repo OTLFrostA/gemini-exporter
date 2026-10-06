@@ -4,7 +4,7 @@ import type {
     MessageDocument,
     GeneratedMediaIdentity
 } from '../../../types/index.js';
-import { findGenerationModelMessage } from '../generatedMediaIdentity.js';
+import { findGenerationModelMessage } from '../../domain/legacyGeneratedMediaIdentity.js';
 import {
     normId as utilsNormId,
     shortScope as utilsShortScope,

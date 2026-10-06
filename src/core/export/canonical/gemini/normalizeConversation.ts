@@ -1,3 +1,4 @@
+import { reconcileLegacyMediaLists } from '../../../domain/legacyGeneratedMediaReconciliation.js';
 import type { GeminiNormalizationInput, GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset } from '../assets.js';
 import { createInlineByteStore, type InlineByteStore } from '../../assets/index.js';
@@ -136,6 +137,12 @@ export async function normalizeGeminiConversation(
                 });
             }
         });
+    }
+    for (const input of messageInputs) {
+        const m = input.message;
+        if ([...(m.attachments ?? []), ...(m.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
+            input.message = { ...m, attachments: reconcileLegacyMediaLists(m.attachments ?? [], m.images ?? []), images: undefined };
+        }
     }
     const unknownFields = Object.keys(raw ?? {}).filter((key) => !KNOWN_CONVERSATION_FIELDS.has(key));
     return normalizeCanonicalConversation(raw, messageInputs, options, unknownFields);

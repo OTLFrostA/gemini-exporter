@@ -1,3 +1,4 @@
+import { supplementLegacyGeneratedMedia, reconcileLegacyMediaLists, type LegacyGeneratedMediaEvidence } from './legacyGeneratedMediaReconciliation.js';
 import type { Conversation, ChatMessage, Attachment, MessageDocument, GeneratedMediaIdentity } from '../../types/conversation.js';
 import type {
     DomainAttachment,
@@ -65,13 +66,13 @@ function copyMessage(value: ChatMessage): DomainMessage {
     };
 }
 
-function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
+function flattenLegacyTurns(conversation: Conversation): ChatMessage[] {
     const turns = conversation.turns ?? [];
-    const messages: DomainMessage[] = [];
+    const messages: ChatMessage[] = [];
     for (const turn of turns) {
         if (!turn || typeof turn !== 'object') continue;
         if (Array.isArray(turn.messages) && turn.messages.length > 0) {
-            messages.push(...turn.messages.map(copyMessage));
+            messages.push(...turn.messages);
             continue;
         }
         if ((turn.userContent !== undefined && typeof turn.userContent !== 'string')
@@ -88,7 +89,7 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
         const hasModel = typeof turn.modelContent === 'string' && turn.modelContent;
         if (hasModel || turn.thoughts || turn.attachments?.length || turn.images?.length || turn.sources?.length || turn.structuredContent) {
             messages.push({
-                role: 'assistant',
+                role: 'model',
                 content: typeof turn.modelContent === 'string' && turn.modelContent ? turn.modelContent : '',
                 ...copyTimestamp(turn.timestamp),
                 ...(turn.thoughts !== undefined ? { thoughts: Array.isArray(turn.thoughts) ? [...turn.thoughts] : turn.thoughts } : {}),
@@ -102,11 +103,34 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
     return messages;
 }
 
-/** Copy export-relevant detail and normalize legacy message cores without mutating the input. */
-export function toDomainConversationDetail(conversation: Conversation): DomainConversationDetail {
-    const messages = conversation.messages && conversation.messages.length > 0
-        ? conversation.messages.map(copyMessage)
+/** Provider evidence accepted only while constructing Domain. */
+export interface LegacyDomainConstructionOptions {
+    /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
+    generatedMedia?: readonly LegacyGeneratedMediaEvidence[];
+}
+
+/** Resolve provider media and whitelist message fields without mutating legacy input. */
+export function toDomainConversationDetail(conversation: Conversation, options: LegacyDomainConstructionOptions = {}): DomainConversationDetail {
+    const rawMessages = conversation.messages && conversation.messages.length > 0
+        ? conversation.messages
         : flattenLegacyTurns(conversation);
+    // Clone provider evidence before reconciliation so legacy input remains untouched.
+    const legacyMessages = rawMessages.map(message => ({
+        ...message,
+        ...(message.generation ? { generation: { ...message.generation } } : {}),
+        ...(message.attachments ? { attachments: message.attachments.map(copyAttachment) } : {}),
+        ...(message.images ? { images: message.images.map(copyAttachment) } : {}),
+    }));
+    if (options.generatedMedia) supplementLegacyGeneratedMedia({ id: conversation.id, messages: legacyMessages }, conversation.id, options.generatedMedia, { appendMarkdownRef: false });
+    const messages = legacyMessages.map(message => {
+        const domain = copyMessage(message);
+        if ([...(domain.attachments ?? []), ...(domain.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
+            domain.attachments = reconcileLegacyMediaLists(domain.attachments ?? [], domain.images ?? []);
+            // The resolved attachment list is authoritative; avoid stale duplicate representations.
+            if (domain.images) domain.images = domain.attachments.filter(a => a.type === 'image' || a.isImage || a.isGenerated);
+        }
+        return domain;
+    });
     return {
         id: conversation.id,
         title: conversation.title,

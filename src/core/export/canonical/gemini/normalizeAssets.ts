@@ -250,29 +250,6 @@ export function mergeMessageAttachments(m: GeminiNormalizationMessage): GeminiNo
                 return;
             }
         }
-        const aReqId = (a.providerRequestId || a.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
-        if (aReqId) {
-            const aOrd = a.imageOrdinal ?? a.generation?.imageOrdinal ?? 0;
-            const existingGen = atts.find((x) => {
-                const xReqId = (x.providerRequestId || x.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
-                if (!xReqId || xReqId !== aReqId) return false;
-                const aChat = String(a.generation?.chatId || '').trim().replace(/^c_/, '');
-                const xChat = String(x.generation?.chatId || '').trim().replace(/^c_/, '');
-                if (aChat && xChat && aChat !== xChat) return false;
-                const xOrd = x.imageOrdinal ?? x.generation?.imageOrdinal ?? 0;
-                return xOrd === aOrd;
-            });
-            if (existingGen) {
-                for (const [k, v] of rawEntries(a)) {
-                    if (v !== undefined && rawEntries(existingGen).find(([key]) => key === k)?.[1] === undefined) {
-                        Object.assign(existingGen, { [k]: v });
-                    }
-                }
-                if (!existingGen.dataBuffer && a.dataBuffer) existingGen.dataBuffer = a.dataBuffer;
-                if (!existingGen.blobBase64 && a.blobBase64) existingGen.blobBase64 = a.blobBase64;
-                return;
-            }
-        }
         atts.push({ ...a });
     };
     for (const a of m.attachments ?? []) push(a);

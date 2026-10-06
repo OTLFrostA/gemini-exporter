@@ -129,8 +129,9 @@ test('asset_dedup - batchWorker resolveChat only supplements genuine AI generate
     const res = await BatchWorker.resolveChat(chat, requested, null, mockTakeoutEngine, 'u0');
 
     assert.ok(res.chat, 'resolveChat should return chat');
-    const modelMsg = res.chat.messages.find((m: any) => m.role === 'model');
-    assert.ok(modelMsg, 'Model message must exist');
+    assert.equal(res.chat.messages[1].content, 'Here is your artwork:', 'Missing evidence must not select an arbitrary model reply');
+    const modelMsg = res.chat.messages[2];
+    assert.ok(modelMsg, 'Unresolved generated media must remain separately exportable');
 
     // Should include ai_artwork_generated.png as generated media
     assert.ok(modelMsg.content.includes('ai_artwork_generated.png'), 'Generated media should be added');

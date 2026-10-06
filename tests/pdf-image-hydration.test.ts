@@ -335,14 +335,14 @@ test('2b. Takeout generated-media supplementation via shared BatchWorker.supplem
         title: 'Takeout Supplemented Conversation',
         messages: [
             { id: 'u1', role: 'user', content: 'Generate an astronaut cat.' },
-            { id: 'm1', role: 'model', content: 'Here is your astronaut cat:' },
+            { id: 'm1', role: 'model', content: 'Here is your astronaut cat:', providerRequestId: 'pdf-supplement-request' },
         ],
     };
 
     const fakeTakeoutEngine = {
         getTakeoutMediaForChat: () => [
             { filename: 'user_upload_ignored.png', isGenerated: false },
-            { filename: 'watermarked_takeout_cat.png', isGenerated: true },
+            { filename: 'watermarked_takeout_cat.png', isGenerated: true, providerRequestId: 'pdf-supplement-request' },
         ],
         getTakeoutFallbackMedia: async (_chatId: string, localName: string) => {
             if (localName.includes('watermarked_takeout_cat.png')) return PNG_BYTES;
