@@ -1,5 +1,8 @@
 /** Provider-neutral description of a complete conversation detail. */
-export type DomainRole = 'user' | 'model' | 'assistant' | 'system';
+export type DomainMessageRole =
+    | 'user'
+    | 'assistant'
+    | 'system';
 
 /** A file or media reference supplied with a message. */
 export interface DomainAttachment {
@@ -58,7 +61,7 @@ export interface DomainDocument extends DomainAttachment {
 
 export interface DomainMessage {
     id?: string;
-    role: DomainRole;
+    role: DomainMessageRole;
     content: string;
     timestamp?: number | null;
     turnId?: string;

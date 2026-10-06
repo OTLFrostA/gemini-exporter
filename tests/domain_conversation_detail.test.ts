@@ -3,12 +3,13 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { toDomainConversationDetail } = require('../src/core/domain/legacyConversationAdapter.js');
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/gemini/normalizeConversation.js');
+const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
 
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
     const domain = toDomainConversationDetail(legacy as never);
     const [before, after] = await Promise.all([
         normalizeGeminiConversation(legacy as never),
-        normalizeGeminiConversation(domain as never),
+        normalizeDomainConversation(domain),
     ]);
     assert.deepEqual(after.bundle, before.bundle);
 }
@@ -96,7 +97,7 @@ test('Domain adapter preserves Takeout-style turns-only conversations', async ()
     assert.deepEqual(domain.messages, [
         { role: 'user', content: 'Question' },
         {
-            role: 'model', content: 'Answer', thoughts: ['Thought'],
+            role: 'assistant', content: 'Answer', thoughts: ['Thought'],
             attachments: [{ type: 'file', fileName: 'input.pdf' }],
         },
     ]);
@@ -115,7 +116,7 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
     const domain = toDomainConversationDetail(conversation);
     assert.deepEqual(domain.messages.map((message: { id?: string; role: string; content: string; timestamp?: number | null }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
         { id: 'turn-user', role: 'user', content: 'First', timestamp: 100 },
-        { id: 'turn-model', role: 'model', content: 'Second', timestamp: null },
+        { id: 'turn-model', role: 'assistant', content: 'Second', timestamp: null },
     ]);
     assert.equal('turns' in domain, false);
     await assertExportEquivalent(conversation);
@@ -138,3 +139,28 @@ test('Domain adapter preserves OpenAI-style assistant role and message data', as
     await assertExportEquivalent(conversation);
     assert.equal(toDomainConversationDetail(conversation).messages?.[0].role, 'assistant');
 });
+
+for (const body of ['messages', 'turns'] as const) {
+    test(`Domain adapter normalizes all legacy roles from ${body} without changing other fields`, async () => {
+        const messages = [
+            { id: 'system-1', role: 'system', content: 'Instruction', timestamp: null },
+            { id: 'user-1', role: 'user', content: 'Question', timestamp: 100 },
+            { id: 'model-1', role: 'model', content: 'Gemini answer', timestamp: 200 },
+            { id: 'assistant-1', role: 'assistant', content: 'Other answer' },
+        ];
+        const conversation = {
+            ...base,
+            ...(body === 'messages' ? { messages } : { turns: [{ messages }] }),
+        };
+        const original = structuredClone(conversation);
+        const domain = toDomainConversationDetail(conversation);
+        assert.deepEqual(domain.messages, [
+            messages[0], messages[1], { ...messages[2], role: 'assistant' }, messages[3],
+        ]);
+        assert.deepEqual(domain.messages.map((message: { role: string }) => message.role), [
+            'system', 'user', 'assistant', 'assistant',
+        ]);
+        assert.deepEqual(conversation, original);
+        await assertExportEquivalent(conversation);
+    });
+}
