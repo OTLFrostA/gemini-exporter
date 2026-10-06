@@ -166,11 +166,11 @@ test('P0-5: popup log() must not be a no-op (errors must surface)', () => {
 // ---------------------------------------------------------------- P0-6
 test('P0-6: takeout image attach must tolerate model messages without content', async () => {
     const takeoutEngine = {
-        getTakeoutMediaForChat: () => [{ isGenerated: true, filename: 'imagen_1.png' }],
+        getTakeoutMediaForChat: () => [{ isGenerated: true, filename: 'imagen_1.png', providerRequestId: 'p0-request-identity' }],
     };
     const chat: any = {
         id: 'c_p0_6', title: 'T',
-        messages: [{ role: 'user', content: 'hi' }, { role: 'model' }], // model 消息没有 content 字段
+        messages: [{ role: 'user', content: 'hi' }, { role: 'model', providerRequestId: 'p0-request-identity' }], // model 消息没有 content 字段
     };
     // 带 bug 时这里 reject: TypeError: Cannot read properties of undefined (reading 'includes')
     const res: any = await BatchWorker.resolveChat(chat, { id: 'c_p0_6' }, null, takeoutEngine, 'u0');

@@ -1,4 +1,4 @@
-import { findGenerationModelMessage, hasGenerationImage } from '../generatedMediaIdentity.js';
+import { supplementLegacyGeneratedMedia } from '../../domain/legacyGeneratedMediaReconciliation.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
 import type {
     ChatMessage,
@@ -450,74 +450,9 @@ function supplementTakeoutGeneratedMedia(
     takeoutEngine?: TakeoutExportSource | TakeoutEngineSourceLike | null,
     options: SupplementTakeoutMediaOptions = {}
 ): void {
-    const appendMarkdownRef = options.appendMarkdownRef ?? true;
-    if (takeoutEngine && typeof takeoutEngine.getTakeoutMediaForChat === 'function' && Array.isArray(chat?.messages) && chat.messages.length > 0) {
-        const takeoutMedia = takeoutEngine.getTakeoutMediaForChat(nid, slot);
-        if (Array.isArray(takeoutMedia) && takeoutMedia.length > 0) {
-            for (const tm of takeoutMedia) {
-                if (!isObjectRecord(tm) || !tm.isGenerated || typeof tm.filename !== 'string') continue;
-                const tmFilename = tm.filename;
-                const tmRequestId = typeof tm.providerRequestId === 'string' ? tm.providerRequestId : undefined;
-                const tmImageOrdinal = typeof tm.imageOrdinal === 'number' ? tm.imageOrdinal : undefined;
-                const generation: GeneratedMediaIdentity | null = isGeneratedMediaIdentity(tm.generation)
-                    ? tm.generation
-                    : (tmRequestId ? {
-                        chatId: nid,
-                        providerRequestId: tmRequestId,
-                        generationOrdinal: 0,
-                        imageOrdinal: tmImageOrdinal ?? 0,
-                    } : null);
-                const eventTarget = generation
-                    ? findGenerationModelMessage({ id: typeof chat.id === 'string' ? chat.id : undefined, messages: chat.messages }, generation)
-                    : null;
-                if (eventTarget && generation && hasGenerationImage(eventTarget, generation)) continue;
-                const candidates: WorkerChatMessage[] = generation ? (eventTarget ? [eventTarget] : []) : chat.messages;
-                const alreadyHas = candidates.some((m: WorkerChatMessage) =>
-                    (m.images && m.images.some((im) => im.fileName === tmFilename || (im.localName && im.localName.includes(tmFilename)))) ||
-                    (m.attachments && m.attachments.some((at) => at.fileName === tmFilename || (at.localName && at.localName.includes(tmFilename)))) ||
-                    (typeof m.content === 'string' && m.content.includes(tmFilename))
-                );
-                if (!alreadyHas) {
-                    const imgObj = {
-                        url: tmFilename,
-                        name: tmFilename,
-                        fileName: tmFilename,
-                        localName: `assets/${tmFilename}`,
-                        source: 'takeout',
-                        isGenerated: true,
-                        providerRequestId: tmRequestId || generation?.providerRequestId,
-                        imageOrdinal: tmImageOrdinal ?? generation?.imageOrdinal,
-                        ...(generation ? { generation } : {})
-                    };
-                    const targetModelMsg = generation
-                        ? eventTarget
-                        : chat.messages.slice().reverse().find((m) => m.role === 'model' || m.role === 'assistant');
-                    if (targetModelMsg) {
-                        targetModelMsg.images = targetModelMsg.images || [];
-                        targetModelMsg.attachments = targetModelMsg.attachments || [];
-                        targetModelMsg.images.push(imgObj);
-                        targetModelMsg.attachments.push(imgObj);
-                        if (appendMarkdownRef) {
-                            const currentContent = typeof targetModelMsg.content === 'string' ? targetModelMsg.content : '';
-                            if (!currentContent.includes(tmFilename)) {
-                                targetModelMsg.content = (currentContent ? currentContent + '\n\n' : '') + `![Generated Image](assets/${tmFilename})`;
-                            }
-                        }
-                    } else {
-                        chat.messages.push({
-                            role: 'model',
-                            content: appendMarkdownRef ? `![Generated Image](assets/${tmFilename})` : '',
-                            timestamp: generation?.time ?? null,
-                            providerRequestId: tmRequestId || generation?.providerRequestId,
-                            ...(generation ? { generation } : {}),
-                            images: [imgObj],
-                            attachments: [imgObj]
-                        });
-                    }
-                }
-            }
-        }
-    }
+    if (!takeoutEngine?.getTakeoutMediaForChat || !Array.isArray(chat.messages) || !chat.messages.length) return;
+    const media = takeoutEngine.getTakeoutMediaForChat(nid, slot);
+    if (Array.isArray(media)) supplementLegacyGeneratedMedia(chat, nid, media, options);
 }
 
 /** Shared acquisition policy: usable online data, then Takeout, then stored detail. */
