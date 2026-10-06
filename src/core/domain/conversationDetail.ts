@@ -59,6 +59,12 @@ export interface DomainDocument extends DomainAttachment {
     hasFabricatedText?: boolean;
 }
 
+/** Provider-originated metadata, never a Domain relationship key. */
+export interface DomainMessageProvenance {
+    /** Optional lowercase request identity without an r_ prefix. */
+    providerRequestId?: string;
+}
+
 export interface DomainMessage {
     /** Optional stable message identity; never synthesized from array position. */
     id?: string;
@@ -66,8 +72,7 @@ export interface DomainMessage {
     content: string;
     /** Unix epoch milliseconds; omit when missing or unknown. */
     timestamp?: number;
-    turnId?: string;
-    providerRequestId?: string;
+    provenance?: DomainMessageProvenance;
     generation?: DomainGeneratedMediaIdentity;
     attachments?: DomainAttachment[];
     thoughts?: string | string[];

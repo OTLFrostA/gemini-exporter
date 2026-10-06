@@ -269,7 +269,7 @@ for (const body of ['messages', 'turns'] as const) {
         const domain = toDomainConversationDetail(conversation);
         const expected = {
             id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
-            turnId: message.turnId, providerRequestId: message.providerRequestId,
+            provenance: { providerRequestId: 'request-1' },
             generation: message.generation, attachments: message.attachments,
             thoughts: message.thoughts, thinking: message.thinking,
             citations: message.citations, images: message.images, documents: message.documents,
@@ -296,3 +296,52 @@ for (const body of ['messages', 'turns'] as const) {
         assert.deepEqual(conversation, original);
     });
 }
+
+for (const body of ['messages', 'turns'] as const) {
+    test(`Domain adapter drops message turnId and normalizes request provenance from ${body}`, async () => {
+        for (const [requestId, normalized] of [
+            ['r_abcd1234', 'abcd1234'], ['ABCD1234', 'abcd1234'],
+            [' R_ABCD1234 ', 'abcd1234'], ['abcd1234', 'abcd1234'],
+            ['r_r_ABCD1234', 'abcd1234'],
+        ]) {
+            const messages = [{ id: 'message-1', role: 'assistant', content: 'Answer', turnId: 'turn-1', providerRequestId: requestId }];
+            const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+            const original = structuredClone(conversation);
+            const domain = toDomainConversationDetail(conversation);
+            assert.deepEqual(domain.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer', provenance: { providerRequestId: normalized } }]);
+            assert.equal('turnId' in domain.messages[0], false);
+            assert.equal('providerRequestId' in domain.messages[0], false);
+            assert.deepEqual(conversation, original);
+            await assertExportEquivalent(conversation);
+        }
+    });
+
+    test(`Domain adapter omits missing, blank and invalid request provenance from ${body}`, () => {
+        for (const providerRequestId of [undefined, null, '', '   ', '\t\n', 'r_', ' R_ ', 123, {}, []]) {
+            const messages = [{ role: 'assistant', content: 'Answer', turnId: 'turn-1', providerRequestId }];
+            const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+            const original = structuredClone(conversation);
+            const domain = toDomainConversationDetail(conversation);
+            assert.deepEqual(domain.messages, [{ role: 'assistant', content: 'Answer' }]);
+            assert.equal('provenance' in domain.messages[0], false);
+            assert.deepEqual(conversation, original);
+        }
+        const messages = [{ role: 'user', content: 'No request ID' }];
+        const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+        assert.equal('provenance' in toDomainConversationDetail(conversation).messages[0], false);
+    });
+}
+
+test('Domain adapter does not synthesize message provenance from raw turns or generated media', async () => {
+    const generation = { chatId: base.id, generationOrdinal: 1, providerRequestId: 'r_MEDIA', turnId: 'media-turn' };
+    const attachment = { type: 'image', url: 'https://example.test/image.png', providerRequestId: 'r_ATTACHMENT', generation };
+    const conversation = { ...base, turns: [{ id: 'raw-turn', providerRequestId: 'r_RAW', userContent: 'Question', modelContent: 'Answer', attachments: [attachment] }] };
+    const original = structuredClone(conversation);
+    const domain = toDomainConversationDetail(conversation);
+    assert.deepEqual(domain.messages, [
+        { role: 'user', content: 'Question' },
+        { role: 'assistant', content: 'Answer', attachments: [attachment] },
+    ]);
+    assert.deepEqual(conversation, original);
+    await assertExportEquivalent(conversation);
+});

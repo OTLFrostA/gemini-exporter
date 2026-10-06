@@ -6,6 +6,7 @@ import type {
     DomainDocument,
     DomainGeneratedMediaIdentity,
     DomainMessage,
+    DomainMessageProvenance,
 } from './conversationDetail.js';
 
 function copyGeneratedMedia(value: GeneratedMediaIdentity): DomainGeneratedMediaIdentity {
@@ -33,18 +34,24 @@ function copyTimestamp(value: unknown): { timestamp?: number } {
     return typeof value === 'number' && Number.isFinite(value) ? { timestamp: value } : {};
 }
 
+function normalizeMessageProvenance(value: unknown): DomainMessageProvenance | undefined {
+    if (typeof value !== 'string') return undefined;
+    const providerRequestId = value.trim().toLowerCase().replace(/^(?:r_)+/, '');
+    return providerRequestId ? { providerRequestId } : undefined;
+}
+
 function copyMessage(value: ChatMessage): DomainMessage {
     const { id, content, timestamp } = value;
     if (typeof content !== 'string') {
         throw new TypeError('Domain message content must be a string');
     }
+    const provenance = normalizeMessageProvenance(value.providerRequestId);
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content,
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
-        ...(value.turnId !== undefined ? { turnId: value.turnId } : {}),
-        ...(value.providerRequestId !== undefined ? { providerRequestId: value.providerRequestId } : {}),
+        ...(provenance ? { provenance } : {}),
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
         ...(value.thoughts !== undefined ? { thoughts: Array.isArray(value.thoughts) ? [...value.thoughts] : value.thoughts } : {}),
