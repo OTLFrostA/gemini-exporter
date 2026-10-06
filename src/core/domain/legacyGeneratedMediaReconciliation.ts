@@ -39,7 +39,7 @@ export function supplementLegacyGeneratedMedia(
                 chatId: nid,
                 providerRequestId: tmRequestId,
                 generationOrdinal: 0,
-                imageOrdinal: tmImageOrdinal ?? 0,
+                imageOrdinal: tmImageOrdinal,
             } : null);
         const eventTarget = generation
             ? findGenerationModelMessage({ id: typeof chat.id === 'string' ? chat.id : undefined, messages: chat.messages }, generation)
@@ -110,15 +110,15 @@ export function reconcileLegacyMediaLists<T extends GenerationAttachment>(attach
         }
         const aReqId = (a.providerRequestId || a.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
         if (aReqId) {
-            const aOrd = a.imageOrdinal ?? a.generation?.imageOrdinal ?? 0;
+            const aOrd = a.imageOrdinal ?? a.generation?.imageOrdinal ?? (a.generation?.imageCount === 1 ? 0 : undefined);
             const existingGen = atts.find((x) => {
                 const xReqId = (x.providerRequestId || x.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
                 if (!xReqId || xReqId !== aReqId) return false;
                 const aChat = String(a.generation?.chatId || '').trim().replace(/^c_/, '');
                 const xChat = String(x.generation?.chatId || '').trim().replace(/^c_/, '');
                 if (aChat && xChat && aChat !== xChat) return false;
-                const xOrd = x.imageOrdinal ?? x.generation?.imageOrdinal ?? 0;
-                return xOrd === aOrd;
+                const xOrd = x.imageOrdinal ?? x.generation?.imageOrdinal ?? (x.generation?.imageCount === 1 ? 0 : undefined);
+                return aOrd !== undefined && xOrd !== undefined && xOrd === aOrd;
             });
             if (existingGen) {
                 for (const [k, v] of Object.entries(a)) {

@@ -353,3 +353,18 @@ test('mediaIndex - extractC2PATimestamp accepted inputs and edge cases', () => {
     const rawBuffer = new ArrayBuffer(50);
     assert.strictEqual(extractC2PATimestamp(rawBuffer), null, 'raw ArrayBuffer without View must return null');
 });
+
+test('mediaIndex - unknown multi-image ordinals never recover another image by request identity', async () => {
+    const slot = 'unknown-multi-ordinal';
+    const base = { chatId: 'abc', providerRequestId: 'abcd1234abcd1234', generationOrdinal: 0, imageCount: 2 };
+    try {
+        for (const storedOrdinal of [undefined, 0]) {
+            commitTakeoutData(slot, { mediaMap: { abc: [{ filename: 'offline.png', generation: { ...base, imageOrdinal: storedOrdinal },
+                fileObj: { async: async () => new Uint8Array([1, 2, 3]) } }] }, globalMedia: {}, convCache: {} });
+            assert.equal(await getTakeoutFallbackMedia('abc', 'online.jpg', slot, base), null);
+        }
+        commitTakeoutData(slot, { mediaMap: { abc: [{ filename: 'offline.png', generation: base,
+            fileObj: { async: async () => new Uint8Array([1, 2, 3]) } }] }, globalMedia: {}, convCache: {} });
+        assert.equal(await getTakeoutFallbackMedia('abc', 'online.jpg', slot, { ...base, imageOrdinal: 0 }), null);
+    } finally { clearTakeoutData(slot); }
+});

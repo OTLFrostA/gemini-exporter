@@ -79,6 +79,7 @@ for (const [ambiguity, messages] of [
         assert.ok(domain.messages.slice(0, messages.length).every(m => !m.attachments?.length));
         assert.equal(domain.messages.length, messages.length + 1, 'unresolved media is retained separately');
         assert.equal(domain.messages.at(-1)?.attachments?.[0].fileName, 'cat.png');
+        assert.ok(domain.messages.every(m => !('generation' in m)));
     });
 }
 
@@ -143,4 +144,22 @@ test('Detached generated media without messages remains a separate resolved atta
     assert.equal(domain.messages.length, 1);
     assert.equal(domain.messages[0].role, 'assistant');
     assert.equal(domain.messages[0].attachments?.[0].fileName, 'cat.png');
+});
+
+test('Unknown multi-image ordinals cannot suppress detached media using request identity', async () => {
+    const multiGeneration = { ...generation, imageCount: 2, imageOrdinal: undefined };
+    const conversation = legacy([{ role: 'assistant', content: 'Two cats', providerRequestId: requestId,
+        generation: multiGeneration,
+        images: [{ type: 'image', isGenerated: true, providerRequestId: requestId, imageOrdinal: 0, fileName: 'online.jpg', url: 'https://example.test/online.jpg' }],
+    }]);
+    const original = structuredClone(conversation);
+    const domain = toDomainConversationDetail(conversation, { generatedMedia: [
+        { filename: 'offline-a.png', isGenerated: true, generation: multiGeneration },
+        { filename: 'offline-b.png', isGenerated: true, generation: multiGeneration },
+    ] });
+    assert.equal(domain.messages.length, 1);
+    assert.deepEqual(domain.messages[0].attachments?.map(a => a.fileName), ['offline-a.png', 'offline-b.png', 'online.jpg']);
+    assert.equal('generation' in domain.messages[0], false);
+    assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 3);
+    assert.deepEqual(conversation, original);
 });

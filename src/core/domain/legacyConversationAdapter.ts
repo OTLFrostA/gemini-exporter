@@ -53,7 +53,6 @@ function copyMessage(value: ChatMessage): DomainMessage {
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
-        ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
         ...(value.thoughts !== undefined ? { thoughts: Array.isArray(value.thoughts) ? [...value.thoughts] : value.thoughts } : {}),
         ...(value.thinking !== undefined ? { thinking: value.thinking } : {}),
@@ -123,13 +122,12 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
     }));
     if (options.generatedMedia) supplementLegacyGeneratedMedia({ id: conversation.id, messages: legacyMessages }, conversation.id, options.generatedMedia, { appendMarkdownRef: false });
     const messages = legacyMessages.map(message => {
-        const domain = copyMessage(message);
-        if ([...(domain.attachments ?? []), ...(domain.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
-            domain.attachments = reconcileLegacyMediaLists(domain.attachments ?? [], domain.images ?? []);
+        if ([...(message.attachments ?? []), ...(message.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
+            message.attachments = reconcileLegacyMediaLists(message.attachments ?? [], message.images ?? []);
             // The resolved attachment list is authoritative; avoid stale duplicate representations.
-            if (domain.images) domain.images = domain.attachments.filter(a => a.type === 'image' || a.isImage || a.isGenerated);
+            if (message.images) message.images = message.attachments.filter(a => a.type === 'image' || a.isImage || a.isGenerated);
         }
-        return domain;
+        return copyMessage(message);
     });
     return {
         id: conversation.id,

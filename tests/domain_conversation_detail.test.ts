@@ -270,14 +270,14 @@ for (const body of ['messages', 'turns'] as const) {
         const expected = {
             id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
             provenance: { providerRequestId: 'request-1' },
-            generation: message.generation, attachments: message.attachments,
+            attachments: message.attachments,
             thoughts: message.thoughts, thinking: message.thinking,
             citations: message.citations, images: message.images, documents: message.documents,
             sources: message.sources, structuredContent: message.structuredContent,
             groundingCitationMarkers: message.groundingCitationMarkers,
         };
         assert.deepEqual(domain.messages, [expected]);
-        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField']) {
+        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation']) {
             assert.equal(field in domain.messages[0], false);
         }
         assert.deepEqual(conversation, original);
