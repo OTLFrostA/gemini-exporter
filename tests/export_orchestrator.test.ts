@@ -629,6 +629,80 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     }
 });
 
+test('ExportOrchestrator - validates only the first result candidate without skipping to later results', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const malformedFirst = { id: 42, title: 'Malformed first result', messages: [] };
+    const validSecond = { id: 'candidate_second', title: 'Must not be selected', messages: [] };
+    const selected = [{ id: 'candidate_first', title: 'First candidate' }];
+
+    const result = await orchestrator.run({
+        selected,
+        useZip: true,
+        includeAssets: false,
+        worker: {
+            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, validSecond] })
+        }
+    });
+
+    assert.strictEqual(result.landedChats, 0, 'A malformed first candidate must not be skipped in favor of the later valid result');
+    assert.strictEqual(result.failedChats.length, 1, 'The malformed first candidate must follow the existing per-chat failure path');
+});
+
+test('ExportOrchestrator - passes the original attachment and resolved chat to AssetPipeline', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const attachment = { url: 'https://example.com/image.png', localName: 'assets/original.png', fileName: 'original.png' };
+    const fetchedChat = {
+        id: 'asset_identity',
+        title: 'Fetched chat',
+        messages: [{ role: 'model', content: 'Image', images: [attachment] }]
+    };
+    const resolvedChat = {
+        id: 'asset_identity',
+        title: 'Resolved chat',
+        messages: fetchedChat.messages
+    };
+    let receivedItem: unknown;
+    let receivedChat: unknown;
+    const origPipeline = __getModuleOverride('AssetPipeline');
+    __setModuleOverride('AssetPipeline', class {
+        async processAsset(item: unknown, chat: unknown) {
+            receivedItem = item;
+            receivedChat = chat;
+            return { saved: true, localName: attachment.localName };
+        }
+    });
+
+    try {
+        const result = await orchestrator.run({
+            selected: [{ id: 'asset_identity', title: 'Resolved chat' }],
+            useZip: true,
+            includeAssets: true,
+            worker: {
+                fetchChatDetail: async () => ({ success: true, chat: fetchedChat }),
+                resolveChat: async () => ({
+                    chat: resolvedChat,
+                    listTitle: 'Resolved chat',
+                    displayTitle: 'Resolved chat',
+                    isConfirmedDeleted: false,
+                    isError: false,
+                    errMsg: null,
+                    convsNeedSave: false
+                })
+            }
+        });
+
+        assert.strictEqual(result.landedChats, 1);
+        assert.strictEqual(receivedItem, attachment, 'AssetPipeline must receive the original attachment object');
+        assert.strictEqual(receivedChat, resolvedChat, 'AssetPipeline must receive the original resolved chat object');
+    } finally {
+        __setModuleOverride('AssetPipeline', origPipeline);
+    }
+});
+
 test('ExportOrchestrator - exports document attachments containing immersive_entry_chip by writing cleaned markdown without dropping file', async () => {
     const mockZips = setupMockJSZip();
     setupMockStorage();
@@ -702,4 +776,3 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
     // 2. Pure chip telemetry document (empty after cleaning) must NOT be written
     assert.strictEqual(zipInstance.files['files/chat_doc_1_empty_chip.md'], undefined, 'Empty-after-cleaning chip document must not be written');
 });
-
