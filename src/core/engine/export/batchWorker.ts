@@ -57,7 +57,7 @@ interface ResolveChatOptions {
     messageSender?: MessageSenderFunction | null;
 }
 
-interface ResolveChatResult {
+export interface ResolveChatResult {
     chat: WorkerChat;
     listTitle?: string;
     displayTitle?: string;
@@ -102,17 +102,22 @@ interface WorkerChatDebug {
         } | null;
 }
 
-interface WorkerMessageAttachment {
+export interface WorkerMessageAttachment {
     type?: string;
     fileName?: string;
     localName?: string;
-    contentMarkdown?: unknown;
+    contentMarkdown?: string;
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
     generation?: GeneratedMediaIdentity;
+    url?: string;
+    sourceUrl?: string;
+    src?: string;
+    sourceEvidence?: unknown;
+    [key: string]: unknown;
 }
-interface WorkerChatMessage {
+export interface WorkerChatMessage {
     role?: unknown;
     content?: unknown;
     id?: string;
@@ -123,9 +128,10 @@ interface WorkerChatMessage {
     attachments?: WorkerMessageAttachment[] | null;
     images?: WorkerMessageAttachment[] | null;
     documents?: WorkerMessageAttachment[] | null;
+    [key: string]: unknown;
 }
 
-interface WorkerChat {
+export interface WorkerChat {
     id?: string;
     title?: string;
     url?: string;
@@ -139,6 +145,14 @@ interface WorkerChat {
     titles?: unknown;
     _debug?: WorkerChatDebug | null;
     _raw?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    timestamp?: unknown;
+    attachmentCount?: number;
+    truncated?: boolean;
+    isTruncated?: boolean;
+    truncateReason?: string;
+    [key: string]: unknown;
 }
 
 export interface BatchWorkerModule {
