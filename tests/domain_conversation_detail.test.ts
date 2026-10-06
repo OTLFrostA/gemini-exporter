@@ -74,7 +74,7 @@ test('Domain adapter preserves generated media identity and export output', asyn
     assert.equal(toDomainConversationDetail(conversation).messages?.[0].attachments?.[0].generation?.time, null);
 });
 
-test('Domain adapter preserves citations, document metadata, thoughts, and structured content', async () => {
+test('Domain adapter preserves citations, document metadata, reasoning, and structured content', async () => {
     const conversation = {
         ...base,
         messages: [{
@@ -97,7 +97,7 @@ test('Domain adapter preserves Takeout-style turns-only conversations', async ()
     assert.deepEqual(domain.messages, [
         { role: 'user', content: 'Question' },
         {
-            role: 'assistant', content: 'Answer', thoughts: ['Thought'],
+            role: 'assistant', content: 'Answer', reasoning: 'Thought',
             attachments: [{ type: 'file', fileName: 'input.pdf' }],
         },
     ]);
@@ -271,13 +271,13 @@ for (const body of ['messages', 'turns'] as const) {
             id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
             provenance: { providerRequestId: 'request-1' },
             attachments: message.attachments,
-            thoughts: message.thoughts, thinking: message.thinking,
+            reasoning: message.thoughts,
             citations: message.citations, images: message.images, documents: message.documents,
-            sources: message.sources, structuredContent: message.structuredContent,
+            structuredContent: message.structuredContent,
             groundingCitationMarkers: message.groundingCitationMarkers,
         };
         assert.deepEqual(domain.messages, [expected]);
-        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation']) {
+        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources']) {
             assert.equal(field in domain.messages[0], false);
         }
         assert.deepEqual(conversation, original);
@@ -345,4 +345,81 @@ test('Domain adapter does not synthesize message provenance from raw turns or ge
     ]);
     assert.deepEqual(conversation, original);
     await assertExportEquivalent(conversation);
+});
+
+for (const role of ['model', 'assistant']) {
+    for (const body of ['messages', 'turns'] as const) {
+        test(`Domain normalizes Gemini/OpenAI reasoning from ${role} ${body}`, async () => {
+            const cases = [
+                { fields: { thoughts: '  Step one\n正文  ' }, expected: '  Step one\n正文  ' },
+                { fields: { thoughts: [' First ', 'Second\nline'] }, expected: ' First \n\nSecond\nline' },
+                { fields: { thinking: '  OpenAI reasoning  ' }, expected: '  OpenAI reasoning  ' },
+                { fields: { thoughts: 'Preferred', thinking: 'Fallback' }, expected: 'Preferred' },
+                { fields: { thoughts: ['Preferred', 'Next'], thinking: 'Fallback' }, expected: 'Preferred\n\nNext' },
+                { fields: {}, expected: undefined },
+                { fields: { thoughts: '' }, expected: undefined },
+                { fields: { thoughts: [] }, expected: undefined },
+                { fields: { thoughts: [' ', '\t'] }, expected: undefined },
+                { fields: { thinking: ' \n ' }, expected: undefined },
+                { fields: { thoughts: '  ', thinking: 'Fallback' }, expected: undefined },
+                { fields: { thoughts: '', thinking: 'Fallback' }, expected: undefined },
+            ];
+            for (const { fields, expected } of cases) {
+                const messages = [{ role, content: 'Answer', ...fields }];
+                const legacy = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+                const original = structuredClone(legacy);
+                const domain = toDomainConversationDetail(legacy);
+                assert.equal(domain.messages[0].reasoning, expected);
+                assert.equal('reasoning' in domain.messages[0], expected !== undefined);
+                for (const alias of ['thoughts', 'thinking', 'sources']) assert.equal(alias in domain.messages[0], false);
+                assert.deepEqual(legacy, original);
+                const before = await normalizeGeminiConversation(legacy);
+                const after = await normalizeDomainConversation(domain);
+                const thoughts = (result: typeof after) => result.bundle.conversation.messages[0].blocks.filter((block: { type: string }) => block.type === 'thought');
+                assert.deepEqual(thoughts(after), thoughts(before));
+                assert.equal(thoughts(after).length, expected === undefined ? 0 : 1);
+            }
+        });
+    }
+}
+
+for (const body of ['messages', 'turns', 'raw-turn'] as const) {
+    test(`Domain merges citations and usable sources from ${body}`, async () => {
+        const primary = { url: 'https://example.com', title: 'Authoritative' };
+        const secondary = { url: 'https://other.example.com', title: 'Other' };
+        const cases = [
+            { fields: { citations: [primary] }, expected: [primary] },
+            { fields: { sources: ['https://example.com', secondary, { url: 'https://third.example.com' }] }, expected: [{ url: 'https://example.com' }, secondary, { url: 'https://third.example.com' }] },
+            { fields: { citations: [primary], sources: [secondary] }, expected: [primary, secondary] },
+            { fields: { citations: [primary, { ...primary, title: 'Duplicate' }], sources: [{ ...primary, title: 'Legacy' }, primary.url, secondary, secondary] }, expected: [primary, secondary] },
+            { fields: { sources: [null, 42, {}, { title: 'No URL' }, { url: 42 }, '', '  ', { url: '' }, { url: '\t' }, ['https://example.com']] }, expected: undefined },
+            { fields: { sources: [{ url: primary.url, title: 42 }] }, expected: [{ url: primary.url }] },
+            { fields: { citations: [{ url: primary.url }], sources: [primary] }, expected: [{ url: primary.url }] },
+        ];
+        for (const { fields, expected } of cases) {
+            // Raw legacy turns have sources but no citations field in their schema.
+            if (body === 'raw-turn' && 'citations' in fields) continue;
+            const messages = [{ role: 'model', content: 'Answer [1]', ...fields }];
+            const legacy = { ...base, ...(body === 'messages' ? { messages } : body === 'turns' ? { turns: [{ messages }] } : { turns: [{ modelContent: 'Answer [1]', ...fields }] }) };
+            const original = structuredClone(legacy);
+            const domain = toDomainConversationDetail(legacy);
+            assert.deepEqual(domain.messages[0].citations, expected);
+            assert.equal('sources' in domain.messages[0], false);
+            assert.deepEqual(legacy, original);
+            if (expected) {
+                assert.notEqual(domain.messages[0].citations, expected);
+                const canonical = await normalizeDomainConversation(domain);
+                assert.deepEqual(canonical.bundle.citations.map((citation: { url: string; title?: string }) => ({ url: citation.url, ...(citation.title !== undefined ? { title: citation.title } : {}) })), expected);
+            }
+        }
+    });
+}
+
+test('Canonical Domain path consumes only reasoning and citations even if aliases leak at runtime', async () => {
+    const clean = { ...base, messages: [{ role: 'assistant', content: 'Answer [1]', reasoning: 'Domain reasoning', citations: [{ url: 'https://example.com', title: 'Domain citation' }] }] };
+    const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
+    assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, (await normalizeDomainConversation(clean)).bundle);
+    const absent = { ...base, messages: [{ role: 'assistant', content: 'Answer' }] };
+    const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
+    assert.deepEqual((await normalizeDomainConversation(aliasesOnly)).bundle, (await normalizeDomainConversation(absent)).bundle);
 });

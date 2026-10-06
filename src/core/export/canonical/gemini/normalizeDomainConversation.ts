@@ -25,6 +25,7 @@ export async function normalizeDomainConversation(
     };
     const messages = conversation.messages.map((message, index) => ({
         message,
+        kind: 'domain' as const,
         locator: `messages[${index}]`,
     }));
     return normalizeCanonicalConversation(metadata, messages, options);

@@ -74,12 +74,10 @@ export interface DomainMessage {
     timestamp?: number;
     provenance?: DomainMessageProvenance;
     attachments?: DomainAttachment[];
-    thoughts?: string | string[];
-    thinking?: string;
+    reasoning?: string;
     citations?: DomainCitation[];
     images?: DomainAttachment[];
     documents?: DomainDocument[];
-    sources?: unknown[];
     structuredContent?: unknown;
     groundingCitationMarkers?: string[];
 }

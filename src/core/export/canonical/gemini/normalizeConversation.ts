@@ -1,3 +1,4 @@
+import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import { reconcileLegacyMediaLists } from '../../../domain/legacyGeneratedMediaReconciliation.js';
 import type { GeminiNormalizationInput, GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset } from '../assets.js';
@@ -16,7 +17,7 @@ import type {
 } from '../normalizer.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource, type TitleCandidate } from '../titleAuthority.js';
 import { validateBundle } from '../validate.js';
-import { normalizeMessage, toIso } from './normalizeMessage.js';
+import { normalizeDomainMessage, normalizeMessage, toIso } from './normalizeMessage.js';
 import { finalizeInlineAssetDigests } from './normalizeAssets.js';
 
 export interface GeminiNormalizationOptions {
@@ -43,10 +44,15 @@ export interface CanonicalConversationMetadata {
     href?: string;
 }
 
-export interface CanonicalMessageInput {
+export type CanonicalMessageInput = {
     message: GeminiNormalizationMessage;
+    kind?: 'legacy';
     locator: string;
-}
+} | {
+    message: DomainMessage;
+    kind: 'domain';
+    locator: string;
+};
 
 function isStr(v: unknown): v is string {
     return typeof v === 'string';
@@ -139,6 +145,7 @@ export async function normalizeGeminiConversation(
         });
     }
     for (const input of messageInputs) {
+        if (input.kind === 'domain') continue;
         const m = input.message;
         if ([...(m.attachments ?? []), ...(m.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
             input.message = { ...m, attachments: reconcileLegacyMediaLists(m.attachments ?? [], m.images ?? []), images: undefined };
@@ -162,7 +169,8 @@ export async function normalizeCanonicalConversation(
     const byteStore = createInlineByteStore();
 
     const messages: MessageNode[] = [];
-    const pushMessage = (m: GeminiNormalizationMessage, index: number, locator: string): void => {
+    const pushMessage = (input: CanonicalMessageInput, index: number): void => {
+        const { message: m, locator } = input;
         if (!m || typeof m !== 'object') {
             diagnostics.push({
                 id: `bad-message:${locator}`,
@@ -173,11 +181,10 @@ export async function normalizeCanonicalConversation(
             });
             return;
         }
-        const built = normalizeMessage(m, index, locator, {
-            providerId,
-            diag: diagnostics,
-            byteStore,
-        });
+        const ctx = { providerId, diag: diagnostics, byteStore };
+        const built = input.kind === 'domain'
+            ? normalizeDomainMessage(input.message, index, locator, ctx)
+            : normalizeMessage(input.message, index, locator, ctx);
         messages.push(built.node);
         assets.push(...built.assets);
         citations.push(...built.citations);
@@ -193,7 +200,7 @@ export async function normalizeCanonicalConversation(
             sourceRef: { providerId, locator: 'messages' },
         });
     }
-    messageInputs.forEach(({ message, locator }, index) => pushMessage(message, index, locator));
+    messageInputs.forEach(pushMessage);
 
     const title = normalizeTitle(raw, diagnostics);
 
