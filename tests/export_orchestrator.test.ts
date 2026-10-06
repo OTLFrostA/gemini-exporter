@@ -629,25 +629,41 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     }
 });
 
-test('ExportOrchestrator - validates only the first result candidate without skipping to later results', async () => {
+test('ExportOrchestrator - canonicalizes and resolves the original first candidate without skipping later results', async () => {
     setupMockJSZip();
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
     const malformedFirst = { id: 42, title: 'Malformed first result', messages: [] };
     const validSecond = { id: 'candidate_second', title: 'Must not be selected', messages: [] };
     const selected = [{ id: 'candidate_first', title: 'First candidate' }];
+    let receivedChat: unknown;
 
     const result = await orchestrator.run({
         selected,
         useZip: true,
         includeAssets: false,
         worker: {
-            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, validSecond] })
+            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, validSecond] }),
+            resolveChat: async (chat: any) => {
+                receivedChat = chat;
+                return {
+                    isError: true,
+                    chat,
+                    listTitle: 'First candidate',
+                    displayTitle: 'First candidate',
+                    isConfirmedDeleted: false,
+                    errMsg: 'Expected regression path',
+                    convsNeedSave: false
+                };
+            }
         }
     });
 
-    assert.strictEqual(result.landedChats, 0, 'A malformed first candidate must not be skipped in favor of the later valid result');
-    assert.strictEqual(result.failedChats.length, 1, 'The malformed first candidate must follow the existing per-chat failure path');
+    assert.strictEqual(receivedChat, malformedFirst, 'The original first candidate object must be passed to resolveChat');
+    assert.strictEqual(malformedFirst.id, 'candidate_first', 'The selected candidate id must be canonicalized before resolveChat');
+    assert.notStrictEqual(receivedChat, validSecond, 'A later valid candidate must not be selected');
+    assert.strictEqual(result.landedChats, 0, 'The mocked resolver reports the first candidate as a failure');
+    assert.strictEqual(result.failedChats.length, 1, 'The first candidate must follow the existing per-chat failure path');
 });
 
 test('ExportOrchestrator - passes the original attachment and resolved chat to AssetPipeline', async () => {
