@@ -47,3 +47,21 @@ void rejectedTopLevelRequestId;
 // @ts-expect-error Message-level provider generation evidence must be reconciled before Domain.
 const rejectedMessageGeneration: DomainMessage = { role: 'assistant', content: 'x', generation: { chatId: 'chat', generationOrdinal: 0 } };
 void rejectedMessageGeneration;
+
+const normalizedAliases: DomainMessage = {
+    role: 'assistant', content: 'Answer', reasoning: 'Provider reasoning',
+    citations: [{ url: 'https://example.com', title: 'Example' }],
+};
+// @ts-expect-error Legacy thoughts must not cross the Domain boundary.
+const rejectedThoughts: DomainMessage = { role: 'assistant', content: '', thoughts: 'Legacy' };
+// @ts-expect-error Legacy thinking must not cross the Domain boundary.
+const rejectedThinking: DomainMessage = { role: 'assistant', content: '', thinking: 'Legacy' };
+// @ts-expect-error Raw sources must not cross the Domain boundary.
+const rejectedSources: DomainMessage = { role: 'assistant', content: '', sources: ['https://example.com'] };
+// @ts-expect-error Domain reasoning has one string representation.
+const rejectedReasoningArray: DomainMessage = { role: 'assistant', content: '', reasoning: ['Legacy'] };
+void normalizedAliases;
+void rejectedThoughts;
+void rejectedThinking;
+void rejectedSources;
+void rejectedReasoningArray;

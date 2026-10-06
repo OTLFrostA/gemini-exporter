@@ -1,3 +1,4 @@
+import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset } from '../assets.js';
 import { collectReferencedAssetIds } from '../assetReferences.js';
@@ -28,7 +29,7 @@ export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
     'thinking', 'citations', 'images', 'documents', 'attachmentCount',
     'messageCount', 'sources', 'structuredContent', 'groundingCitationMarkers',
-    'provenance', // Domain metadata is recognized but does not establish relationships.
+    'reasoning', 'provenance', // Domain metadata is recognized but does not establish relationships.
 ]);
 
 function isStr(v: unknown): v is string {
@@ -70,11 +71,31 @@ export function cleanBody(text: unknown): string {
     return stripInternalChipMarkdown(convertHtmlToMarkdown(text));
 }
 
+type MessageContext = { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore };
+
+/** Compatibility for raw/legacy input ends before shared canonical construction. */
 export function normalizeMessage(
-    m: GeminiNormalizationMessage,
+    m: GeminiNormalizationMessage, index: number, locator: string, ctx: MessageContext,
+): MessageBuild {
+    const raw = m.thoughts ?? m.thinking ?? '';
+    const reasoning = Array.isArray(raw) ? raw.join('\n\n') : raw;
+    return normalizeCanonicalMessage(m, index, locator, ctx, reasoning, extractRawCitations(m));
+}
+
+export function normalizeDomainMessage(
+    message: DomainMessage, index: number, locator: string, ctx: MessageContext,
+): MessageBuild {
+    return normalizeCanonicalMessage(message, index, locator, ctx, message.reasoning,
+        extractRawCitations({ citations: message.citations }));
+}
+
+function normalizeCanonicalMessage(
+    m: Omit<GeminiNormalizationMessage, 'thoughts' | 'thinking' | 'sources'>,
     index: number,
     locator: string,
-    ctx: { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore },
+    ctx: MessageContext,
+    reasoning: unknown,
+    citationInput: ReturnType<typeof extractRawCitations>,
 ): MessageBuild {
     const diagnostics: Diagnostic[] = [];
     const msgId = isStr(m.id) && m.id ? m.id : `msg-${index}`;
@@ -139,8 +160,7 @@ export function normalizeMessage(
     const st: MarkdownParseContext = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore, nextBlockId };
     const blocks: BlockNode[] = [];
 
-    const thoughtsRaw = m.thoughts ?? m.thinking ?? '';
-    const thoughtsText = cleanBody(Array.isArray(thoughtsRaw) ? thoughtsRaw.join('\n\n') : thoughtsRaw);
+    const thoughtsText = cleanBody(reasoning);
     if (thoughtsText.trim()) {
         blocks.push({
             id: nextBlockId(),
@@ -203,7 +223,7 @@ export function normalizeMessage(
 
     const citations: Citation[] = [];
     const webCitations: Citation[] = [];
-    const { list: rawCits, skipped } = extractRawCitations(m);
+    const { list: rawCits, skipped } = citationInput;
     if (skipped > 0) {
         diagnostics.push({
             id: `citation-skipped:${msgId}`,

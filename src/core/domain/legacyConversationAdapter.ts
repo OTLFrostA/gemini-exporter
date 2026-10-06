@@ -41,12 +41,35 @@ function normalizeMessageProvenance(value: unknown): DomainMessageProvenance | u
     return providerRequestId ? { providerRequestId } : undefined;
 }
 
+/** Preserve provider text and the legacy nullish precedence, including empty thoughts. */
+function normalizeReasoning(value: ChatMessage): string | undefined {
+    const raw = value.thoughts ?? value.thinking;
+    const text = Array.isArray(raw) ? raw.join('\n\n') : raw;
+    return typeof text === 'string' && text.trim() ? text : undefined;
+}
+
+function normalizeCitations(value: ChatMessage): DomainCitation[] | undefined {
+    const citations: DomainCitation[] = [];
+    const urls = new Set<string>();
+    for (const entry of [...(value.citations ?? []), ...(value.sources ?? [])]) {
+        const url = typeof entry === 'string' ? entry
+            : entry && typeof entry === 'object' && 'url' in entry ? entry.url : undefined;
+        if (typeof url !== 'string' || !url.trim() || urls.has(url)) continue;
+        const title = entry && typeof entry === 'object' && 'title' in entry ? entry.title : undefined;
+        citations.push({ url, ...(typeof title === 'string' ? { title } : {}) });
+        urls.add(url);
+    }
+    return citations.length ? citations : undefined;
+}
+
 function copyMessage(value: ChatMessage): DomainMessage {
     const { id, content, timestamp } = value;
     if (typeof content !== 'string') {
         throw new TypeError('Domain message content must be a string');
     }
     const provenance = normalizeMessageProvenance(value.providerRequestId);
+    const reasoning = normalizeReasoning(value);
+    const citations = normalizeCitations(value);
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content,
@@ -54,12 +77,10 @@ function copyMessage(value: ChatMessage): DomainMessage {
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
-        ...(value.thoughts !== undefined ? { thoughts: Array.isArray(value.thoughts) ? [...value.thoughts] : value.thoughts } : {}),
-        ...(value.thinking !== undefined ? { thinking: value.thinking } : {}),
-        ...(value.citations ? { citations: value.citations.map((citation): DomainCitation => ({ ...citation })) } : {}),
+        ...(reasoning !== undefined ? { reasoning } : {}),
+        ...(citations ? { citations } : {}),
         ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
         ...(value.documents ? { documents: value.documents.map(copyDocument) } : {}),
-        ...(value.sources ? { sources: [...value.sources] } : {}),
         ...(value.structuredContent !== undefined ? { structuredContent: value.structuredContent } : {}),
         ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
     };
