@@ -28,6 +28,7 @@ export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
     'thinking', 'citations', 'images', 'documents', 'attachmentCount',
     'messageCount', 'sources', 'structuredContent', 'groundingCitationMarkers',
+    'provenance', // Domain metadata is recognized but does not establish relationships.
 ]);
 
 function isStr(v: unknown): v is string {

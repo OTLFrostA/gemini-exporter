@@ -34,3 +34,12 @@ const timestampedDomainMessage: DomainMessage = { role: 'user', content: 'Questi
 const rejectedNullTimestamp: DomainMessage = { role: 'assistant', content: 'Answer', timestamp: null };
 void timestampedDomainMessage;
 void rejectedNullTimestamp;
+
+const provenanceDomainMessage: DomainMessage = { role: 'assistant', content: 'x', provenance: { providerRequestId: 'abcd1234' } };
+// @ts-expect-error Raw Gemini turn metadata is not part of DomainMessage.
+const rejectedTurnId: DomainMessage = { role: 'assistant', content: 'x', turnId: 'raw-turn' };
+// @ts-expect-error Provider request identity belongs under provenance only.
+const rejectedTopLevelRequestId: DomainMessage = { role: 'assistant', content: 'x', providerRequestId: 'abcd1234' };
+void provenanceDomainMessage;
+void rejectedTurnId;
+void rejectedTopLevelRequestId;

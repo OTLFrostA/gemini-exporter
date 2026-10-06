@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
 import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
@@ -79,4 +80,26 @@ test('Domain normalization matches legacy normalization after flattening turns-o
     assert.equal('turns' in domain, false);
     assert.deepEqual(domain.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
     await assertDomainParity(conversation);
+});
+
+test('Domain Canonical output does not depend on message request provenance', async () => {
+    const domain: DomainConversationDetail = {
+        ...metadata,
+        messages: [{
+            id: 'answer-1', role: 'assistant', content: 'Answer',
+            attachments: [{ type: 'image', url: 'https://example.test/image.png' }],
+        }],
+    };
+    const original = structuredClone(domain);
+    const baseline = await normalizeDomainConversation(domain);
+    for (const providerRequestId of ['abcd1234', 'different-request']) {
+        const withProvenance: DomainConversationDetail = {
+            ...domain,
+            messages: domain.messages.map((message) => ({ ...message, provenance: { providerRequestId } })),
+        };
+        const normalized = await normalizeDomainConversation(withProvenance);
+        assert.deepEqual(normalized.bundle, baseline.bundle);
+        assert.deepEqual(normalized.diagnostics, baseline.diagnostics);
+    }
+    assert.deepEqual(domain, original);
 });
