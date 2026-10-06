@@ -34,23 +34,26 @@ function copyTimestamp(value: unknown): { timestamp?: number } {
 }
 
 function copyMessage(value: ChatMessage): DomainMessage {
-    const { id, content, timestamp, ...rest } = value;
+    const { id, content, timestamp } = value;
     if (typeof content !== 'string') {
         throw new TypeError('Domain message content must be a string');
     }
     return {
-        ...rest,
-        ...(typeof id === 'string' ? { id } : {}),
+        ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content,
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
+        ...(value.turnId !== undefined ? { turnId: value.turnId } : {}),
+        ...(value.providerRequestId !== undefined ? { providerRequestId: value.providerRequestId } : {}),
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
-        ...(Array.isArray(value.thoughts) ? { thoughts: [...value.thoughts] } : {}),
+        ...(value.thoughts !== undefined ? { thoughts: Array.isArray(value.thoughts) ? [...value.thoughts] : value.thoughts } : {}),
+        ...(value.thinking !== undefined ? { thinking: value.thinking } : {}),
         ...(value.citations ? { citations: value.citations.map((citation): DomainCitation => ({ ...citation })) } : {}),
         ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
         ...(value.documents ? { documents: value.documents.map(copyDocument) } : {}),
         ...(value.sources ? { sources: [...value.sources] } : {}),
+        ...(value.structuredContent !== undefined ? { structuredContent: value.structuredContent } : {}),
         ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
     };
 }

@@ -247,3 +247,52 @@ test('Domain adapter rejects non-string turn content and preserves attachment-on
     ]);
     await assertExportEquivalent(conversation);
 });
+
+for (const body of ['messages', 'turns'] as const) {
+    test(`Domain message whitelist excludes legacy counts and unknown fields from ${body}`, async () => {
+        const message = {
+            id: 'stable-id', role: 'assistant', content: 'Answer', timestamp: 1700000000123,
+            turnId: 'turn-1', providerRequestId: 'request-1',
+            generation: { chatId: base.id, generationOrdinal: 1 },
+            attachments: [{ type: 'file', fileName: 'input.pdf' }],
+            thoughts: 'Reasoning', thinking: 'Alternate reasoning',
+            citations: [{ url: 'https://example.test/source', title: 'Source' }],
+            images: [{ type: 'image', url: 'https://example.test/image.png' }],
+            documents: [{ type: 'doc', id: 'doc-1', contentMarkdown: '# Report' }],
+            sources: [{ url: 'https://example.test/source' }],
+            structuredContent: { type: 'text', text: 'Answer' },
+            groundingCitationMarkers: ['[cite:1]'],
+            attachmentCount: 3, messageCount: 2, futureLegacyField: 'must not leak',
+        };
+        const conversation = { ...base, ...(body === 'messages' ? { messages: [message] } : { turns: [{ messages: [message] }] }) };
+        const original = structuredClone(conversation);
+        const domain = toDomainConversationDetail(conversation);
+        const expected = {
+            id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
+            turnId: message.turnId, providerRequestId: message.providerRequestId,
+            generation: message.generation, attachments: message.attachments,
+            thoughts: message.thoughts, thinking: message.thinking,
+            citations: message.citations, images: message.images, documents: message.documents,
+            sources: message.sources, structuredContent: message.structuredContent,
+            groundingCitationMarkers: message.groundingCitationMarkers,
+        };
+        assert.deepEqual(domain.messages, [expected]);
+        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField']) {
+            assert.equal(field in domain.messages[0], false);
+        }
+        assert.deepEqual(conversation, original);
+        await assertExportEquivalent(conversation);
+    });
+
+    test(`Domain adapter omits empty or whitespace-only IDs from ${body} and preserves valid IDs verbatim`, () => {
+        const ids = ['', '   ', '\t\n', ' stable-id ', 'stable-id'];
+        const messages = ids.map((id) => ({ id, role: 'user', content: 'Question' }));
+        const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+        const original = structuredClone(conversation);
+        const domain = toDomainConversationDetail(conversation);
+        for (const message of domain.messages.slice(0, 3)) assert.equal('id' in message, false);
+        assert.equal(domain.messages[3].id, ' stable-id ');
+        assert.equal(domain.messages[4].id, 'stable-id');
+        assert.deepEqual(conversation, original);
+    });
+}
