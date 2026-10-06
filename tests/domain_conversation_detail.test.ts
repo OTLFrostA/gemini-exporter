@@ -32,7 +32,7 @@ test('Domain adapter preserves a normal RPC conversation and message order', asy
     assert.equal('turns' in domain, false);
 });
 
-test('Domain adapter preserves missing and explicitly null server timestamps', async () => {
+test('Domain adapter omits missing and null message timestamps while preserving conversation timestamp', async () => {
     const conversation = {
         ...base,
         timestamp: null,
@@ -43,8 +43,8 @@ test('Domain adapter preserves missing and explicitly null server timestamps', a
     };
     const domain = toDomainConversationDetail(conversation);
     assert.equal(domain.timestamp, null);
-    assert.equal(domain.messages?.[0].timestamp, undefined);
-    assert.equal(domain.messages?.[1].timestamp, null);
+    assert.equal('timestamp' in domain.messages[0], false);
+    assert.equal('timestamp' in domain.messages[1], false);
     await assertExportEquivalent(conversation);
 });
 
@@ -114,9 +114,9 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
         ] }],
     };
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(domain.messages.map((message: { id?: string; role: string; content: string; timestamp?: number | null }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
+    assert.deepEqual(domain.messages.map((message: { id?: string; role: string; content: string; timestamp?: number }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
         { id: 'turn-user', role: 'user', content: 'First', timestamp: 100 },
-        { id: 'turn-model', role: 'assistant', content: 'Second', timestamp: null },
+        { id: 'turn-model', role: 'assistant', content: 'Second', timestamp: undefined },
     ]);
     assert.equal('turns' in domain, false);
     await assertExportEquivalent(conversation);
@@ -141,7 +141,7 @@ test('Domain adapter preserves OpenAI-style assistant role and message data', as
 });
 
 for (const body of ['messages', 'turns'] as const) {
-    test(`Domain adapter normalizes all legacy roles from ${body} without changing other fields`, async () => {
+    test(`Domain adapter normalizes all legacy roles from ${body}`, async () => {
         const messages = [
             { id: 'system-1', role: 'system', content: 'Instruction', timestamp: null },
             { id: 'user-1', role: 'user', content: 'Question', timestamp: 100 },
@@ -155,7 +155,8 @@ for (const body of ['messages', 'turns'] as const) {
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
         assert.deepEqual(domain.messages, [
-            messages[0], messages[1], { ...messages[2], role: 'assistant' }, messages[3],
+            { id: 'system-1', role: 'system', content: 'Instruction' },
+            messages[1], { ...messages[2], role: 'assistant' }, messages[3],
         ]);
         assert.deepEqual(domain.messages.map((message: { role: string }) => message.role), [
             'system', 'user', 'assistant', 'assistant',
@@ -164,3 +165,85 @@ for (const body of ['messages', 'turns'] as const) {
         await assertExportEquivalent(conversation);
     });
 }
+
+for (const body of ['messages', 'turns'] as const) {
+    test(`Domain adapter normalizes message core from ${body} without synthesizing IDs or mutating input`, async () => {
+        const messages = [
+            { id: 'stable-id', role: 'user', content: '  Unchanged\n正文  ', timestamp: 1700000000123 },
+            { role: 'assistant', content: '', timestamp: null },
+            { role: 'system', content: 'No timestamp' },
+            { id: undefined, role: 'assistant', content: 'Explicit undefined', timestamp: undefined },
+            { role: 'user', content: 'Epoch', timestamp: 0 },
+            { role: 'assistant', content: 'Before epoch', timestamp: -1000 },
+        ];
+        const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+        const original = structuredClone(conversation);
+        const domain = toDomainConversationDetail(conversation);
+        assert.deepEqual(domain.messages, [
+            messages[0],
+            { role: 'assistant', content: '' },
+            messages[2],
+            { role: 'assistant', content: 'Explicit undefined' },
+            messages[4], messages[5],
+        ]);
+        for (const message of domain.messages.slice(1)) assert.equal('id' in message, false);
+        for (const message of domain.messages.slice(1, 4)) assert.equal('timestamp' in message, false);
+        assert.deepEqual(conversation, original);
+        await assertExportEquivalent(conversation);
+    });
+
+    test(`Domain adapter omits invalid IDs and timestamps from ${body}`, () => {
+        const messages = [NaN, Infinity, -Infinity, '123', null, undefined].map((timestamp) => ({
+            id: 123, role: 'user', content: 'Unchanged', timestamp,
+        }));
+        const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+        const original = structuredClone(conversation);
+        const domain = toDomainConversationDetail(conversation);
+        assert.deepEqual(domain.messages, messages.map(() => ({ role: 'user', content: 'Unchanged' })));
+        assert.deepEqual(conversation, original);
+    });
+
+    test(`Domain adapter rejects non-string message content from ${body}`, () => {
+        for (const content of [null, undefined, 123, {}, [], false]) {
+            const messages = [{ role: 'user', content }];
+            const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
+            const original = structuredClone(conversation);
+            assert.throws(() => toDomainConversationDetail(conversation), { name: 'TypeError', message: 'Domain message content must be a string' });
+            assert.deepEqual(conversation, original);
+        }
+    });
+}
+
+test('Domain adapter applies core timestamp invariants to synthesized turns without generating IDs', async () => {
+    for (const timestamp of [1700000000123, 0, -1000, null, undefined, NaN, Infinity, -Infinity, '123']) {
+        const conversation = { ...base, turns: [{ userContent: '  Question  ', modelContent: 'Answer\n正文', timestamp }] };
+        const original = structuredClone(conversation);
+        const domain = toDomainConversationDetail(conversation);
+        const expectedTimestamp = typeof timestamp === 'number' && Number.isFinite(timestamp) ? { timestamp } : {};
+        assert.deepEqual(domain.messages, [
+            { role: 'user', content: '  Question  ', ...expectedTimestamp },
+            { role: 'assistant', content: 'Answer\n正文', ...expectedTimestamp },
+        ]);
+        for (const message of domain.messages) assert.equal('id' in message, false);
+        assert.deepEqual(conversation, original);
+        if (timestamp === null || timestamp === undefined || typeof timestamp === 'number' && Number.isFinite(timestamp)) {
+            await assertExportEquivalent(conversation);
+        }
+    }
+});
+
+test('Domain adapter rejects non-string turn content and preserves attachment-only empty content', async () => {
+    for (const field of ['userContent', 'modelContent']) {
+        for (const content of [null, 123, {}, [], false]) {
+            const conversation = { ...base, turns: [{ [field]: content }] };
+            const original = structuredClone(conversation);
+            assert.throws(() => toDomainConversationDetail(conversation), { name: 'TypeError' });
+            assert.deepEqual(conversation, original);
+        }
+    }
+    const conversation = { ...base, turns: [{ attachments: [{ type: 'file', fileName: 'input.pdf' }], timestamp: null }] };
+    assert.deepEqual(toDomainConversationDetail(conversation).messages, [
+        { role: 'assistant', content: '', attachments: [{ type: 'file', fileName: 'input.pdf' }] },
+    ]);
+    await assertExportEquivalent(conversation);
+});

@@ -28,3 +28,9 @@ void domainRoles;
 void domainMessage;
 void rejectedDomainRole;
 void rejectedDomainMessage;
+
+const timestampedDomainMessage: DomainMessage = { role: 'user', content: 'Question', timestamp: 1700000000123 };
+// @ts-expect-error Unknown Domain message timestamps must be absent, never null.
+const rejectedNullTimestamp: DomainMessage = { role: 'assistant', content: 'Answer', timestamp: null };
+void timestampedDomainMessage;
+void rejectedNullTimestamp;

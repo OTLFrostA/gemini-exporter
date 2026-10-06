@@ -29,9 +29,20 @@ function copyDocument(value: MessageDocument): DomainDocument {
     };
 }
 
+function copyTimestamp(value: unknown): { timestamp?: number } {
+    return typeof value === 'number' && Number.isFinite(value) ? { timestamp: value } : {};
+}
+
 function copyMessage(value: ChatMessage): DomainMessage {
+    const { id, content, timestamp, ...rest } = value;
+    if (typeof content !== 'string') {
+        throw new TypeError('Domain message content must be a string');
+    }
     return {
-        ...value,
+        ...rest,
+        ...(typeof id === 'string' ? { id } : {}),
+        content,
+        ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
@@ -53,11 +64,15 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
             messages.push(...turn.messages.map(copyMessage));
             continue;
         }
+        if ((turn.userContent !== undefined && typeof turn.userContent !== 'string')
+            || (turn.modelContent !== undefined && typeof turn.modelContent !== 'string')) {
+            throw new TypeError('Domain message content must be a string');
+        }
         if (typeof turn.userContent === 'string' && turn.userContent) {
             messages.push({
                 role: 'user',
                 content: turn.userContent,
-                ...(turn.timestamp !== null && turn.timestamp !== undefined ? { timestamp: turn.timestamp } : {}),
+                ...copyTimestamp(turn.timestamp),
             });
         }
         const hasModel = typeof turn.modelContent === 'string' && turn.modelContent;
@@ -65,7 +80,7 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
             messages.push({
                 role: 'assistant',
                 content: typeof turn.modelContent === 'string' && turn.modelContent ? turn.modelContent : '',
-                ...(turn.timestamp !== null && turn.timestamp !== undefined ? { timestamp: turn.timestamp } : {}),
+                ...copyTimestamp(turn.timestamp),
                 ...(turn.thoughts !== undefined ? { thoughts: Array.isArray(turn.thoughts) ? [...turn.thoughts] : turn.thoughts } : {}),
                 ...(turn.attachments ? { attachments: turn.attachments.map(copyAttachment) } : {}),
                 ...(turn.images ? { images: turn.images.map(copyAttachment) } : {}),
@@ -77,7 +92,7 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
     return messages;
 }
 
-/** Copy export-relevant detail and normalize legacy roles without mutating the input. */
+/** Copy export-relevant detail and normalize legacy message cores without mutating the input. */
 export function toDomainConversationDetail(conversation: Conversation): DomainConversationDetail {
     const messages = conversation.messages && conversation.messages.length > 0
         ? conversation.messages.map(copyMessage)
