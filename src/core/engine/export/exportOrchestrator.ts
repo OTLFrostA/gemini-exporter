@@ -177,6 +177,7 @@ import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
     type BatchWorkerModule,
     type WorkerChat,
+    type WorkerChatResolveInput,
     type WorkerMessageAttachment,
     type ResolveChatResult
 } from "./batchWorker.js";
@@ -210,6 +211,10 @@ import {
 
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
+
+function isPropertyAssignableRecord(value: unknown): value is WorkerChatResolveInput {
+    return value !== null && (typeof value === 'object' || typeof value === 'function');
+}
 
 function toExportActivityRecord(value: unknown): ExportActivityRecord | null {
     if (!isObjectRecord(value)) return null;
@@ -868,29 +873,28 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         } else if (res.chat !== undefined && res.chat !== null) {
                             candidate = res.chat;
                         }
-                        let chat: WorkerChat & { id: string } = Object.assign(
-                            // BatchWorker.resolveChat performs the existing runtime validation after the canonical id is assigned.
-                            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-                            (candidate || { title: requestedItem.title }) as WorkerChat,
-                            { id: nid }
-                        );
+                        const chatCandidate = candidate || { title: requestedItem.title };
+                        if (!isPropertyAssignableRecord(chatCandidate)) {
+                            throw new TypeError(`Cannot create property 'id' on ${typeof chatCandidate} '${String(chatCandidate)}'`);
+                        }
+                        chatCandidate.id = nid;
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
-                        const resolvedRes: ResolveChatResult = worker && worker.resolveChat
-                            ? await worker.resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
-                            : { chat, listTitle: chat.title, displayTitle: chat.title, isError: false, errMsg: null, isConfirmedDeleted: false, convsNeedSave: false };
+                        const resolvedRes: ResolveChatResult = worker?.resolveChat
+                            ? await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
+                            : await getBatchWorker().resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
 
                         if (resolvedRes.isError) {
-                            failedChats.push({ id: chat.id || nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chat._debug || null, raw: chat._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
+                            failedChats.push({ id: typeof chatCandidate.id === 'string' ? chatCandidate.id : nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chatCandidate._debug || null, raw: chatCandidate._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
                             if (typeof console !== 'undefined' && console.warn) {
-                                console.warn('[Gemini Exporter] export empty detail', nid, resolvedRes.errMsg, 'chat keys', Object.keys(chat || {}));
+                                console.warn('[Gemini Exporter] export empty detail', nid, resolvedRes.errMsg, 'chat keys', Object.keys(chatCandidate));
                             }
                             completedCount++;
                             updateProgress(completedCount, resolvedRes.displayTitle);
                             continue;
                         }
 
-                        chat = resolvedRes.chat;
+                        let chat: WorkerChat & { id: string } = resolvedRes.chat;
                         const listTitle = resolvedRes.listTitle;
                         chat.title = listTitle;
                         const chatId = resolvedRes.chat.id;

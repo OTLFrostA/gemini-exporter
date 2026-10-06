@@ -159,6 +159,9 @@ export interface WorkerChat {
     [key: string]: unknown;
 }
 
+/** Object-shaped candidate at the resolver boundary; fields are not validated here. */
+export type WorkerChatResolveInput = Record<string, unknown>;
+
 export interface BatchWorkerModule {
     fetchChatDetail: (
         requestedItem: BatchWorkerRequestedItem,
@@ -171,7 +174,7 @@ export interface BatchWorkerModule {
         options?: FetchChatDetailOptions
     ) => Promise<FetchChatDetailResult>;
     resolveChat: (
-        chat: WorkerChat,
+        chat: WorkerChatResolveInput,
         requestedItem: BatchWorkerRequestedItem,
         listConversation?: WorkerListConversation | null,
         takeoutEngine?: TakeoutExportSource | TakeoutEngineSourceLike | null,
@@ -519,22 +522,31 @@ function supplementTakeoutGeneratedMedia(
 
 /** Shared acquisition policy: usable online data, then Takeout, then stored detail. */
 export async function resolveConversationData(
-    chat: WorkerChat,
+    chat: WorkerChatResolveInput,
     nid: string,
     listConversation?: WorkerListConversation | null,
     takeoutEngine?: TakeoutExportSource | TakeoutEngineSourceLike | null,
     slot: string = 'u0',
     onLog: (msg: string, level?: string) => void = (() => {}),
 ): Promise<unknown> {
-    if ((chat.error || chat._empty || !chat.messages || chat.messages.length === 0)) {
+    const hasNoMessages = (messages: unknown): boolean => {
+        if (!messages) return true;
+        if (typeof messages === 'string') return messages.length === 0;
+        if ((typeof messages === 'object' && messages !== null) || typeof messages === 'function') {
+            return Reflect.get(messages, 'length') === 0;
+        }
+        return false;
+    };
+    if (chat.error || chat._empty || hasNoMessages(chat.messages)) {
         if (takeoutEngine && typeof takeoutEngine.getTakeoutOfflineChat === 'function') {
             const fbChat = takeoutEngine.getTakeoutOfflineChat(nid, slot);
             if (isObjectRecord(fbChat) && Array.isArray(fbChat.messages) && fbChat.messages.length > 0) {
                 const fbTitle = typeof fbChat.title === 'string' ? fbChat.title : undefined;
+                const chatTitle = typeof chat.title === 'string' ? chat.title : undefined;
                 const recovered: Record<string, unknown> = {
                     ...fbChat,
                     id: nid,
-                    title: isRealTitle(chat.title, nid) ? chat.title : fbTitle,
+                    title: isRealTitle(chatTitle, nid) ? chatTitle : fbTitle,
                     url: `https://gemini.google.com/app/${nid}`
                 };
                 delete recovered.error;
@@ -544,14 +556,15 @@ export async function resolveConversationData(
                 return recovered;
             }
         }
-        if (chat.error || chat._empty || !chat.messages || chat.messages.length === 0) {
+        if (chat.error || chat._empty || hasNoMessages(chat.messages)) {
             try {
                 const detail = await getConversationDetail(nid);
                 if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+                    const chatTitle = typeof chat.title === 'string' ? chat.title : undefined;
                     const recovered: Record<string, unknown> = {
                         ...(listConversation || {}),
                         id: nid,
-                        title: isRealTitle(chat.title, nid) ? chat.title : (listConversation?.title || nid),
+                        title: isRealTitle(chatTitle, nid) ? chatTitle : (listConversation?.title || nid),
                         messages: detail.messages,
                         turns: detail.turns,
                         url: (listConversation && listConversation.url) || `https://gemini.google.com/app/${nid}`
@@ -570,7 +583,7 @@ export async function resolveConversationData(
 }
 
 async function resolveChat(
-    chat: WorkerChat,
+    rawChat: WorkerChatResolveInput,
     requestedItem: BatchWorkerRequestedItem,
     listConversation?: WorkerListConversation | null,
     takeoutEngine?: TakeoutExportSource | TakeoutEngineSourceLike | null,
@@ -583,9 +596,9 @@ async function resolveChat(
     const slot = currentSlot || 'u0';
     let convsNeedSave = false;
 
-    const resolved = await resolveConversationData(chat, nid, listConversation, takeoutEngine, slot, onLog);
+    const resolved = await resolveConversationData(rawChat, nid, listConversation, takeoutEngine, slot, onLog);
     if (!isWorkerChat(resolved)) throw new TypeError('Malformed conversation for BatchWorker processing');
-    chat = resolved;
+    let chat: WorkerChat = resolved;
 
     supplementTakeoutGeneratedMedia(chat, nid, slot, takeoutEngine);
 

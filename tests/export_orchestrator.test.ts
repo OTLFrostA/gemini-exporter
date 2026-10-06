@@ -666,6 +666,40 @@ test('ExportOrchestrator - canonicalizes and resolves the original first candida
     assert.strictEqual(result.failedChats.length, 1, 'The first candidate must follow the existing per-chat failure path');
 });
 
+test('ExportOrchestrator - preserves strict assignment failure for a truthy primitive first candidate', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const validSecond = { id: 'candidate_second', title: 'Must not be selected', messages: [] };
+    let resolveCalls = 0;
+
+    const result = await orchestrator.run({
+        selected: [{ id: 'candidate_primitive', title: 'Primitive candidate' }],
+        useZip: true,
+        includeAssets: false,
+        worker: {
+            fetchChatDetail: async () => ({ success: true, results: [42, validSecond] }),
+            resolveChat: async () => {
+                resolveCalls++;
+                return {
+                    isError: false,
+                    chat: validSecond,
+                    listTitle: validSecond.title,
+                    displayTitle: validSecond.title,
+                    isConfirmedDeleted: false,
+                    errMsg: null,
+                    convsNeedSave: false
+                };
+            }
+        }
+    });
+
+    assert.strictEqual(resolveCalls, 0, 'A truthy primitive cannot reach resolveChat');
+    assert.strictEqual(result.landedChats, 0, 'A truthy primitive first candidate must fail');
+    assert.strictEqual(result.failedChats.length, 1, 'The primitive failure must be isolated to its chat');
+    assert.match(result.failedChats[0].error || '', /Cannot create property 'id' on number '42'/);
+});
+
 test('ExportOrchestrator - passes the original attachment and resolved chat to AssetPipeline', async () => {
     setupMockJSZip();
     setupMockStorage();
