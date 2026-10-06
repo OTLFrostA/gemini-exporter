@@ -1,7 +1,7 @@
 import { formatUnknownPayload } from '../../export/canonical/unknownFallback.js';
 import type { BlockNode } from '../../content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../content/markdown/index.js';
-import type { Attachment, ChatMessage } from '../../../types/conversation.js';
+import type { Attachment } from '../../../types/conversation.js';
 import { extractImages } from '../../api/parser/attachments.js';
 import { convertHtmlToMarkdown } from '../../engine/formatters/htmlConverter.js';
 import { stripInternalChipMarkdown } from '../../utils/chipUtils.js';
@@ -40,9 +40,9 @@ export function parseGeminiBody(
     return [{ type: 'unknown', sourceType: 'message-content', text: visible.text }];
 }
 
-/** Keep structured-only attachments at the provider boundary before removing raw payloads from Domain. */
-export function structuredBodyAttachments(message: Pick<ChatMessage, 'attachments' | 'images' | 'structuredContent'>): Attachment[] {
-    if (message.attachments?.length || message.images?.length || !message.structuredContent) return [];
+/** Collect structured resource evidence; the input adapter resolves overlap with legacy lists. */
+export function structuredBodyAttachments(message: { structuredContent?: unknown }): Attachment[] {
+    if (!message.structuredContent) return [];
     return extractImages(message.structuredContent).map(image => ({
         ...image, type: 'image', src: image.sourceUrl,
         name: image.fileName, title: image.fileName,

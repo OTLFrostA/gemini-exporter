@@ -1,5 +1,5 @@
 import { normalizeArchiveResourceName } from '../../assets/archivePath.js';
-import type { AssetNormalizationInput, AssetListInput } from '../assetInput.js';
+import type { AssetNormalizationInput } from '../assetInput.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
@@ -205,56 +205,6 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
         }
     }
     return makeImageInline(assetId, alt, title);
-}
-
-function rawEntries(value: object): [string, unknown][] {
-    return Object.entries(value);
-}
-
-export function mergeMessageAttachments(m: AssetListInput): AssetNormalizationInput[] {
-    const atts: AssetNormalizationInput[] = [];
-    const push = (a: AssetNormalizationInput): void => {
-        if (!a || typeof a !== 'object') return;
-        const key = a.localName || a.url || a.sourceUrl || a.resolvedUrl || a.src;
-        if (key) {
-            const existing = atts.find((x) => (x.localName || x.url || x.sourceUrl || x.resolvedUrl || x.src) === key);
-            if (existing) {
-                for (const [k, v] of rawEntries(a)) {
-                    if (v !== undefined && rawEntries(existing).find(([key]) => key === k)?.[1] === undefined) {
-                        Object.assign(existing, { [k]: v });
-                    }
-                }
-                return;
-            }
-        }
-        const aToken = a.token;
-        if (aToken) {
-            const existingToken = atts.find((x) => x.token === aToken);
-            if (existingToken) {
-                if (a.isGenerated && !existingToken.isGenerated) {
-                    for (const [k, v] of rawEntries(a)) {
-                        if (v !== undefined) {
-                            Object.assign(existingToken, { [k]: v });
-                        }
-                    }
-                } else {
-                    for (const [k, v] of rawEntries(a)) {
-                        if (v !== undefined && rawEntries(existingToken).find(([key]) => key === k)?.[1] === undefined) {
-                            Object.assign(existingToken, { [k]: v });
-                        }
-                    }
-                }
-                if (!existingToken.dataBuffer && a.dataBuffer) existingToken.dataBuffer = a.dataBuffer;
-                if (!existingToken.blobBase64 && a.blobBase64) existingToken.blobBase64 = a.blobBase64;
-                return;
-            }
-        }
-        atts.push({ ...a });
-    };
-    for (const a of m.attachments ?? []) push(a);
-    for (const img of m.images ?? []) push({ ...img, type: img.type || 'image' });
-    for (const doc of (m.documents ?? [])) push({ ...doc, type: doc.type || 'file' });
-    return atts;
 }
 
 export function attachmentDisplayName(a: AssetNormalizationInput, isImage: boolean): string {

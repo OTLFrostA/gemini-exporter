@@ -78,3 +78,13 @@ const rejectedBodyAlias: DomainMessage = { role: 'assistant', content: [], conte
 void rejectedRawBody;
 void rejectedRawStructure;
 void rejectedBodyAlias;
+
+// @ts-expect-error Legacy image aliases are resolved before Domain construction.
+const rejectedImageAlias: DomainMessage = { role: 'assistant', content: [], images: [] };
+// @ts-expect-error Document metadata belongs to a resource, not a separate message list.
+const rejectedDocumentAlias: DomainMessage = { role: 'assistant', content: [], documents: [] };
+// @ts-expect-error Mutable acquisition byte views are converted to serializable payloads.
+const rejectedByteView: DomainMessage = { role: 'assistant', content: [], attachments: [{ type: 'file', dataBuffer: new Uint8Array([1]) }] };
+void rejectedImageAlias;
+void rejectedDocumentAlias;
+void rejectedByteView;
