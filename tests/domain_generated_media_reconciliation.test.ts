@@ -41,7 +41,7 @@ for (const [evidence, userFields, assistantFields] of [
         assert.equal(domain.messages.length, 6);
         assert.equal(domain.messages[3].role, 'assistant');
         assert.equal(domain.messages[3].attachments?.[0].fileName, 'cat.png');
-        assert.equal(domain.messages[3].content, 'Your cat');
+        assert.deepEqual(domain.messages[3].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'Your cat' }] }]);
         assert.equal(domain.messages.filter(m => m.attachments?.length).length, 1);
         assert.deepEqual(conversation, original);
         assert.deepEqual(media, originalMedia);
@@ -102,15 +102,15 @@ test('Domain construction deduplicates provider representations while Canonical 
     assert.deepEqual(domain.messages[0].attachments?.map(a => a.localName), ['online.jpg', 'second.jpg']);
     assert.deepEqual((await normalizeDomainConversation(domain)).bundle, (await normalizeGeminiConversation(conversation)).bundle);
     assert.deepEqual(conversation, original);
-    const explicitDomain: DomainConversationDetail = { ...metadata, messages: [{ role: 'assistant', content: '', attachments: [first, duplicate, second] }] };
+    const explicitDomain: DomainConversationDetail = { ...metadata, messages: [{ role: 'assistant', content: [], attachments: [first, duplicate, second] }] };
     assert.equal((await normalizeDomainConversation(explicitDomain)).bundle.assets.length, 3,
         'Canonical must not collapse explicit attachments using provider IDs');
 });
 
 test('Explicit message attachment ownership is authoritative downstream', async () => {
     const domain: DomainConversationDetail = { ...metadata, messages: [
-        { id: requestId, role: 'assistant', content: 'First', provenance: { providerRequestId: requestId } },
-        { role: 'assistant', content: 'Second', attachments: [{ type: 'image', fileName: 'cat.png', dataBase64: 'AQID', generation, providerRequestId: requestId }] },
+        { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }], provenance: { providerRequestId: requestId } },
+        { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachments: [{ type: 'image', fileName: 'cat.png', dataBase64: 'AQID', generation, providerRequestId: requestId }] },
     ] };
     const original = structuredClone(domain);
     const result = await normalizeDomainConversation(domain);

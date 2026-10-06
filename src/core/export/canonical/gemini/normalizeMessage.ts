@@ -32,7 +32,7 @@ export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
     'thinking', 'citations', 'images', 'documents', 'attachmentCount',
     'messageCount', 'sources', 'structuredContent', 'groundingCitationMarkers',
-    'contentAst', 'reasoning', 'provenance', // Domain metadata is recognized but does not establish relationships.
+    'reasoning', 'provenance', // Domain metadata is recognized but does not establish relationships.
 ]);
 
 function isStr(v: unknown): v is string {
@@ -88,12 +88,15 @@ export function normalizeMessage(
 export function normalizeDomainMessage(
     message: DomainMessage, index: number, locator: string, ctx: MessageContext,
 ): MessageBuild {
-    return normalizeCanonicalMessage(message, index, locator, ctx, message.reasoning,
-        extractRawCitations({ citations: message.citations }), message.contentAst);
+    const { id, role, content, timestamp, attachments, images, documents, groundingCitationMarkers,
+        reasoning, provenance, citations } = message;
+    return normalizeCanonicalMessage({ id, role, timestamp, attachments, images, documents,
+        groundingCitationMarkers, reasoning, provenance, citations }, index, locator, ctx, reasoning,
+        extractRawCitations({ citations }), content);
 }
 
 function normalizeCanonicalMessage(
-    m: Omit<GeminiNormalizationMessage, 'thoughts' | 'thinking' | 'sources'>,
+    m: Omit<GeminiNormalizationMessage, 'thoughts' | 'thinking' | 'sources'> & Pick<DomainMessage, 'reasoning' | 'provenance'>,
     index: number,
     locator: string,
     ctx: MessageContext,

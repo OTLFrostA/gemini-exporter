@@ -5,9 +5,20 @@ const { toDomainConversationDetail } = require('../src/core/domain/legacyConvers
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/gemini/normalizeConversation.js');
 const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
 
-// C2 retains the existing raw core until C3; semantic body behavior is asserted separately.
-function transitionalCore(messages: Array<{ contentAst?: unknown }>): unknown[] {
-    return messages.map(({ contentAst, ...core }) => core);
+// Explicit plain-text AST expectations for the metadata-focused fixtures below.
+function plainContent(text: string): unknown[] {
+    if (!text.trim()) return [];
+    const children: unknown[] = [];
+    for (const [index, line] of text.trim().split('\n').entries()) {
+        if (index) children.push({ type: 'lineBreak', kind: 'soft' });
+        if (line) children.push({ type: 'text', text: line });
+    }
+    return [{ type: 'paragraph', children }];
+}
+function assertDomainMessages(actual: unknown, expected: Array<Record<string, unknown>>): void {
+    assert.deepEqual(actual, expected.map(message => ({ ...message,
+        content: typeof message.content === 'string' ? plainContent(message.content) : message.content,
+    })));
 }
 
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
@@ -79,7 +90,7 @@ test('Domain adapter preserves generated media identity and export output', asyn
     assert.equal(toDomainConversationDetail(conversation).messages?.[0].attachments?.[0].generation?.time, null);
 });
 
-test('Domain adapter preserves citations, document metadata, reasoning, and structured content', async () => {
+test('Domain adapter preserves citations, document metadata, reasoning, and structured body semantics', async () => {
     const conversation = {
         ...base,
         messages: [{
@@ -99,7 +110,7 @@ test('Domain adapter preserves Takeout-style turns-only conversations', async ()
         turns: [{ timestamp: null, userContent: 'Question', modelContent: 'Answer', thoughts: ['Thought'], attachments: [{ type: 'file', fileName: 'input.pdf' }] }],
     };
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(transitionalCore(domain.messages), [
+    assertDomainMessages(domain.messages, [
         { role: 'user', content: 'Question' },
         {
             role: 'assistant', content: 'Answer', reasoning: 'Thought',
@@ -119,7 +130,7 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
         ] }],
     };
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(domain.messages.map((message: { id?: string; role: string; content: string; timestamp?: number }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
+    assertDomainMessages(domain.messages.map((message: { id?: string; role: string; content: unknown[]; timestamp?: number }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
         { id: 'turn-user', role: 'user', content: 'First', timestamp: 100 },
         { id: 'turn-model', role: 'assistant', content: 'Second', timestamp: undefined },
     ]);
@@ -130,7 +141,7 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
 test('Domain output always has an empty messages array when legacy body is absent', async () => {
     const conversation = { ...base };
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(transitionalCore(domain.messages), []);
+    assertDomainMessages(domain.messages, []);
     assert.equal('turns' in domain, false);
     await assertExportEquivalent(conversation);
 });
@@ -159,7 +170,7 @@ for (const body of ['messages', 'turns'] as const) {
         };
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
-        assert.deepEqual(transitionalCore(domain.messages), [
+        assertDomainMessages(domain.messages, [
             { id: 'system-1', role: 'system', content: 'Instruction' },
             messages[1], { ...messages[2], role: 'assistant' }, messages[3],
         ]);
@@ -184,7 +195,7 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
-        assert.deepEqual(transitionalCore(domain.messages), [
+        assertDomainMessages(domain.messages, [
             messages[0],
             { role: 'assistant', content: '' },
             messages[2],
@@ -204,7 +215,7 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
-        assert.deepEqual(transitionalCore(domain.messages), messages.map(() => ({ role: 'user', content: 'Unchanged' })));
+        assertDomainMessages(domain.messages, messages.map(() => ({ role: 'user', content: 'Unchanged' })));
         assert.deepEqual(conversation, original);
     });
 
@@ -213,7 +224,7 @@ for (const body of ['messages', 'turns'] as const) {
             const messages = [{ role: 'user', content }];
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
-            assert.throws(() => toDomainConversationDetail(conversation), { name: 'TypeError', message: 'Domain message content must be a string' });
+            assert.throws(() => toDomainConversationDetail(conversation), { name: 'TypeError', message: 'Legacy message content must be a string' });
             assert.deepEqual(conversation, original);
         }
     });
@@ -225,7 +236,7 @@ test('Domain adapter applies core timestamp invariants to synthesized turns with
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
         const expectedTimestamp = typeof timestamp === 'number' && Number.isFinite(timestamp) ? { timestamp } : {};
-        assert.deepEqual(transitionalCore(domain.messages), [
+        assertDomainMessages(domain.messages, [
             { role: 'user', content: '  Question  ', ...expectedTimestamp },
             { role: 'assistant', content: 'Answer\n正文', ...expectedTimestamp },
         ]);
@@ -247,7 +258,7 @@ test('Domain adapter rejects non-string turn content and preserves attachment-on
         }
     }
     const conversation = { ...base, turns: [{ attachments: [{ type: 'file', fileName: 'input.pdf' }], timestamp: null }] };
-    assert.deepEqual(transitionalCore(toDomainConversationDetail(conversation).messages), [
+    assertDomainMessages(toDomainConversationDetail(conversation).messages, [
         { role: 'assistant', content: '', attachments: [{ type: 'file', fileName: 'input.pdf' }] },
     ]);
     await assertExportEquivalent(conversation);
@@ -278,11 +289,10 @@ for (const body of ['messages', 'turns'] as const) {
             attachments: message.attachments,
             reasoning: message.thoughts,
             citations: message.citations, images: message.images, documents: message.documents,
-            structuredContent: message.structuredContent,
             groundingCitationMarkers: message.groundingCitationMarkers,
         };
-        assert.deepEqual(transitionalCore(domain.messages), [expected]);
-        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources']) {
+        assertDomainMessages(domain.messages, [expected]);
+        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst']) {
             assert.equal(field in domain.messages[0], false);
         }
         assert.deepEqual(conversation, original);
@@ -314,7 +324,7 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = toDomainConversationDetail(conversation);
-            assert.deepEqual(transitionalCore(domain.messages), [{ id: 'message-1', role: 'assistant', content: 'Answer', provenance: { providerRequestId: normalized } }]);
+            assertDomainMessages(domain.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer', provenance: { providerRequestId: normalized } }]);
             assert.equal('turnId' in domain.messages[0], false);
             assert.equal('providerRequestId' in domain.messages[0], false);
             assert.deepEqual(conversation, original);
@@ -328,7 +338,7 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = toDomainConversationDetail(conversation);
-            assert.deepEqual(transitionalCore(domain.messages), [{ role: 'assistant', content: 'Answer' }]);
+            assertDomainMessages(domain.messages, [{ role: 'assistant', content: 'Answer' }]);
             assert.equal('provenance' in domain.messages[0], false);
             assert.deepEqual(conversation, original);
         }
@@ -344,7 +354,7 @@ test('Domain adapter does not synthesize message provenance from raw turns or ge
     const conversation = { ...base, turns: [{ id: 'raw-turn', providerRequestId: 'r_RAW', userContent: 'Question', modelContent: 'Answer', attachments: [attachment] }] };
     const original = structuredClone(conversation);
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(transitionalCore(domain.messages), [
+    assertDomainMessages(domain.messages, [
         { role: 'user', content: 'Question' },
         { role: 'assistant', content: 'Answer', attachments: [attachment] },
     ]);
@@ -421,10 +431,10 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
 }
 
 test('Canonical Domain path consumes only reasoning and citations even if aliases leak at runtime', async () => {
-    const clean = { ...base, messages: [{ role: 'assistant', content: 'Answer [1]', reasoning: 'Domain reasoning', citations: [{ url: 'https://example.com', title: 'Domain citation' }] }] };
+    const clean = { ...base, messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: 'Domain reasoning', citations: [{ url: 'https://example.com', title: 'Domain citation' }] }] };
     const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
     assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, (await normalizeDomainConversation(clean)).bundle);
-    const absent = { ...base, messages: [{ role: 'assistant', content: 'Answer' }] };
+    const absent = { ...base, messages: [{ role: 'assistant', content: plainContent('Answer') }] };
     const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
     assert.deepEqual((await normalizeDomainConversation(aliasesOnly)).bundle, (await normalizeDomainConversation(absent)).bundle);
 });

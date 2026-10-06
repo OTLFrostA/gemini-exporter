@@ -1,3 +1,5 @@
+import type { BlockNode } from '../content/blocks.js';
+import { parseImportedBody } from '../provider/importedContentAdapter.js';
 import { parseGeminiBody, structuredBodyAttachments } from '../provider/gemini/contentAdapter.js';
 import { supplementLegacyGeneratedMedia, reconcileLegacyMediaLists, type LegacyGeneratedMediaEvidence } from './legacyGeneratedMediaReconciliation.js';
 import type { Conversation, ChatMessage, Attachment, MessageDocument, GeneratedMediaIdentity } from '../../types/conversation.js';
@@ -63,10 +65,10 @@ function normalizeCitations(value: ChatMessage): DomainCitation[] | undefined {
     return citations.length ? citations : undefined;
 }
 
-function copyMessage(value: ChatMessage): DomainMessage {
+function copyMessage(value: ChatMessage, parseContent: (body: string, structured?: unknown) => BlockNode[]): DomainMessage {
     const { id, content, timestamp } = value;
     if (typeof content !== 'string') {
-        throw new TypeError('Domain message content must be a string');
+        throw new TypeError('Legacy message content must be a string');
     }
     const provenance = normalizeMessageProvenance(value.providerRequestId);
     const reasoning = normalizeReasoning(value);
@@ -74,8 +76,7 @@ function copyMessage(value: ChatMessage): DomainMessage {
     const bodyAttachments = structuredBodyAttachments(value);
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
-        content,
-        contentAst: parseGeminiBody(content, value.structuredContent),
+        content: parseContent(content, value.structuredContent),
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
@@ -85,7 +86,6 @@ function copyMessage(value: ChatMessage): DomainMessage {
         ...(citations ? { citations } : {}),
         ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
         ...(value.documents ? { documents: value.documents.map(copyDocument) } : {}),
-        ...(value.structuredContent !== undefined ? { structuredContent: value.structuredContent } : {}),
         ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
     };
 }
@@ -101,7 +101,7 @@ function flattenLegacyTurns(conversation: Conversation): ChatMessage[] {
         }
         if ((turn.userContent !== undefined && typeof turn.userContent !== 'string')
             || (turn.modelContent !== undefined && typeof turn.modelContent !== 'string')) {
-            throw new TypeError('Domain message content must be a string');
+            throw new TypeError('Legacy message content must be a string');
         }
         if (typeof turn.userContent === 'string' && turn.userContent) {
             messages.push({
@@ -146,13 +146,16 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
         ...(message.images ? { images: message.images.map(copyAttachment) } : {}),
     }));
     if (options.generatedMedia) supplementLegacyGeneratedMedia({ id: conversation.id, messages: legacyMessages }, conversation.id, options.generatedMedia, { appendMarkdownRef: false });
+    const parseContent = conversation.source?.startsWith('openai')
+        ? (body: string): BlockNode[] => parseImportedBody(body)
+        : parseGeminiBody;
     const messages = legacyMessages.map(message => {
         if ([...(message.attachments ?? []), ...(message.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
             message.attachments = reconcileLegacyMediaLists(message.attachments ?? [], message.images ?? []);
             // The resolved attachment list is authoritative; avoid stale duplicate representations.
             if (message.images) message.images = message.attachments.filter(a => a.type === 'image' || a.isImage || a.isGenerated);
         }
-        return copyMessage(message);
+        return copyMessage(message, parseContent);
     });
     return {
         id: conversation.id,
