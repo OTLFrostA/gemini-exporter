@@ -20,7 +20,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p02-b32",
        "type": "paragraph",
        "children": [
         {
@@ -30,13 +29,11 @@
        ]
       },
       {
-       "id": "p02-b33",
        "type": "code",
        "code": "2026-09-26 10:00:04 INFO  worker-0 processed batch=1000 latency_ms=120\n2026-09-26 10:01:04 INFO  worker-1 processed batch=1001 latency_ms=123\n2026-09-26 10:02:04 INFO  worker-2 processed batch=1002 latency_ms=126\n2026-09-26 10:03:04 INFO  worker-3 processed batch=1003 latency_ms=129\n2026-09-26 10:04:04 INFO  worker-0 processed batch=1004 latency_ms=132\n2026-09-26 10:05:04 INFO  worker-1 processed batch=1005 latency_ms=135\n2026-09-26 10:06:04 INFO  worker-2 processed batch=1006 latency_ms=138\n2026-09-26 10:07:04 INFO  worker-3 processed batch=1007 latency_ms=141\n2026-09-26 10:08:04 INFO  worker-0 processed batch=1008 latency_ms=144\n2026-09-26 10:09:04 INFO  worker-1 processed batch=1009 latency_ms=147\n2026-09-26 10:10:04 INFO  worker-2 processed batch=1010 latency_ms=150\n2026-09-26 10:11:04 INFO  worker-3 processed batch=1011 latency_ms=153\n2026-09-26 10:12:04 INFO  worker-0 processed batch=1012 latency_ms=156\n2026-09-26 10:13:04 INFO  worker-1 processed batch=1013 latency_ms=159\n2026-09-26 10:14:04 INFO  worker-2 processed batch=1014 latency_ms=162\n2026-09-26 10:15:04 INFO  worker-3 processed batch=1015 latency_ms=165\n2026-09-26 10:16:04 INFO  worker-0 processed batch=1016 latency_ms=168\n2026-09-26 10:17:04 INFO  worker-1 processed batch=1017 latency_ms=171\n2026-09-26 10:18:04 INFO  worker-2 processed batch=1018 latency_ms=174\n2026-09-26 10:19:04 INFO  worker-3 processed batch=1019 latency_ms=177\n2026-09-26 10:20:04 INFO  worker-0 processed batch=1020 latency_ms=180\n2026-09-26 10:21:04 INFO  worker-1 processed batch=1021 latency_ms=183\n2026-09-26 10:22:04 INFO  worker-2 processed batch=1022 latency_ms=186\n2026-09-26 10:23:04 INFO  worker-3 processed batch=1023 latency_ms=189\n2026-09-26 10:24:04 INFO  worker-0 processed batch=1024 latency_ms=192\n2026-09-26 10:25:04 INFO  worker-1 processed batch=1025 latency_ms=195\n2026-09-26 10:26:04 INFO  worker-2 processed batch=1026 latency_ms=198\n2026-09-26 10:27:04 INFO  worker-3 processed batch=1027 latency_ms=201\n2026-09-26 10:28:04 INFO  worker-0 processed batch=1028 latency_ms=204\n2026-09-26 10:29:04 INFO  worker-1 processed batch=1029 latency_ms=207\n2026-09-26 10:30:04 INFO  worker-2 processed batch=1030 latency_ms=210\n2026-09-26 10:31:04 INFO  worker-3 processed batch=1031 latency_ms=213\n2026-09-26 10:32:04 INFO  worker-0 processed batch=1032 latency_ms=216\n2026-09-26 10:33:04 INFO  worker-1 processed batch=1033 latency_ms=219\n2026-09-26 10:34:04 INFO  worker-2 processed batch=1034 latency_ms=222\n2026-09-26 10:35:04 INFO  worker-3 processed batch=1035 latency_ms=225\n2026-09-26 10:36:04 INFO  worker-0 processed batch=1036 latency_ms=228\n2026-09-26 10:37:04 INFO  worker-1 processed batch=1037 latency_ms=231\n2026-09-26 10:38:04 INFO  worker-2 processed batch=1038 latency_ms=234\n2026-09-26 10:39:04 INFO  worker-3 processed batch=1039 latency_ms=237\n2026-09-26 10:40:04 INFO  worker-0 processed batch=1040 latency_ms=240\n2026-09-26 10:41:04 INFO  worker-1 processed batch=1041 latency_ms=243\n2026-09-26 10:42:04 INFO  worker-2 processed batch=1042 latency_ms=246\n2026-09-26 10:43:04 INFO  worker-3 processed batch=1043 latency_ms=249\n2026-09-26 10:44:04 INFO  worker-0 processed batch=1044 latency_ms=252\n2026-09-26 10:45:04 INFO  worker-1 processed batch=1045 latency_ms=255\n2026-09-26 10:46:04 INFO  worker-2 processed batch=1046 latency_ms=258\n2026-09-26 10:47:04 INFO  worker-3 processed batch=1047 latency_ms=261\n2026-09-26 10:48:04 INFO  worker-0 processed batch=1048 latency_ms=264\n2026-09-26 10:49:04 INFO  worker-1 processed batch=1049 latency_ms=267\n2026-09-26 10:50:04 INFO  worker-2 processed batch=1050 latency_ms=270\n2026-09-26 10:51:04 INFO  worker-3 processed batch=1051 latency_ms=273\n2026-09-26 10:52:04 INFO  worker-0 processed batch=1052 latency_ms=276\n2026-09-26 10:53:04 INFO  worker-1 processed batch=1053 latency_ms=279\n2026-09-26 10:54:04 INFO  worker-2 processed batch=1054 latency_ms=282\n2026-09-26 10:55:04 INFO  worker-3 processed batch=1055 latency_ms=285\n2026-09-26 10:56:04 INFO  worker-0 processed batch=1056 latency_ms=288\n2026-09-26 10:57:04 INFO  worker-1 processed batch=1057 latency_ms=291\n2026-09-26 10:58:04 INFO  worker-2 processed batch=1058 latency_ms=294\n2026-09-26 10:59:04 INFO  worker-3 processed batch=1059 latency_ms=297\n2026-09-26 10:60:04 INFO  worker-0 processed batch=1060 latency_ms=300\n2026-09-26 10:61:04 INFO  worker-1 processed batch=1061 latency_ms=303\n2026-09-26 10:62:04 INFO  worker-2 processed batch=1062 latency_ms=306\n2026-09-26 10:63:04 INFO  worker-3 processed batch=1063 latency_ms=309\n2026-09-26 10:64:04 INFO  worker-0 processed batch=1064 latency_ms=312\n2026-09-26 10:65:04 INFO  worker-1 processed batch=1065 latency_ms=315\n2026-09-26 10:66:04 INFO  worker-2 processed batch=1066 latency_ms=318\n2026-09-26 10:67:04 INFO  worker-3 processed batch=1067 latency_ms=321\n2026-09-26 10:68:04 INFO  worker-0 processed batch=1068 latency_ms=324\n2026-09-26 10:69:04 INFO  worker-1 processed batch=1069 latency_ms=327\n2026-09-26 10:70:04 INFO  worker-2 processed batch=1070 latency_ms=330\n2026-09-26 10:71:04 INFO  worker-3 processed batch=1071 latency_ms=333\n2026-09-26 10:72:04 INFO  worker-0 processed batch=1072 latency_ms=336\n2026-09-26 10:73:04 INFO  worker-1 processed batch=1073 latency_ms=339\n2026-09-26 10:74:04 INFO  worker-2 processed batch=1074 latency_ms=342",
        "language": "text"
       },
       {
-       "id": "p02-b34",
        "type": "paragraph",
        "children": [
         {
@@ -46,14 +43,12 @@
        ]
       },
       {
-       "id": "p02-b35",
        "type": "list",
        "ordered": false,
        "items": [
         {
          "blocks": [
           {
-           "id": "p02-b36",
            "type": "paragraph",
            "children": [
             {
@@ -67,7 +62,6 @@
         {
          "blocks": [
           {
-           "id": "p02-b37",
            "type": "paragraph",
            "children": [
             {
@@ -81,7 +75,6 @@
         {
          "blocks": [
           {
-           "id": "p02-b38",
            "type": "paragraph",
            "children": [
             {
@@ -95,7 +88,6 @@
        ]
       },
       {
-       "id": "p02-b39",
        "type": "paragraph",
        "children": [
         {
@@ -109,7 +101,6 @@
        ]
       },
       {
-       "id": "p02-b40",
        "type": "paragraph",
        "children": [
         {
@@ -125,7 +116,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p02-b41",
        "type": "paragraph",
        "children": [
         {
@@ -139,14 +129,12 @@
        ]
       },
       {
-       "id": "p02-b42",
        "type": "list",
        "ordered": false,
        "items": [
         {
          "blocks": [
           {
-           "id": "p02-b43",
            "type": "paragraph",
            "children": [
             {
@@ -160,7 +148,6 @@
         {
          "blocks": [
           {
-           "id": "p02-b44",
            "type": "paragraph",
            "children": [
             {
@@ -174,7 +161,6 @@
         {
          "blocks": [
           {
-           "id": "p02-b45",
            "type": "paragraph",
            "children": [
             {

@@ -129,8 +129,7 @@ test('span parity: HTML colspan/rowspan matches Typst transport', async () => {
 
 test('real WASM: colspan table compiles with all text selectable', async () => {
     const result = await compileOnce([{
-        type: 'table', id: 't1',
-        headerRows: [row(cell('alpha'), cell('beta'))],
+        type: 'table', headerRows: [row(cell('alpha'), cell('beta'))],
         rows: [
             row(cell('wide-cell', { colSpan: 2 })),
             row(cell('left'), cell('right')),
@@ -145,8 +144,7 @@ test('real WASM: colspan table compiles with all text selectable', async () => {
 
 test('real WASM: rowspan and combined spans compile with all text selectable', async () => {
     const result = await compileOnce([{
-        type: 'table', id: 't1',
-        rows: [
+        type: 'table', rows: [
             row(cell('tall-cell', { rowSpan: 2 }), cell('top-right')),
             row(cell('bottom-right')),
             row(cell('big-cell', { colSpan: 2, rowSpan: 1 })),
@@ -161,8 +159,7 @@ test('real WASM: rowspan and combined spans compile with all text selectable', a
 
 test('real WASM: header span and oversized span compile without data loss', async () => {
     const result = await compileOnce([{
-        type: 'table', id: 't1',
-        headerRows: [row(cell('merged-header', { colSpan: 2 }))],
+        type: 'table', headerRows: [row(cell('merged-header', { colSpan: 2 }))],
         rows: [
             row(cell('oversized', { colSpan: 5 }), cell('b')),
             row(cell('c'), cell('d')),
@@ -182,8 +179,7 @@ test('real WASM: multi-cell staggered rowspan occupancy compiles and retains all
     // Row 2: R2C0 (1 row), R2C2 (col 1 occupied by R0C1)
     // Row 3: R3C0, R3C1, R3C2 (all 1 row)
     const blocks = [{
-        type: 'table', id: 't_staggered',
-        rows: [
+        type: 'table', rows: [
             row(cell('R0C0-span2', { rowSpan: 2 }), cell('R0C1-span3', { rowSpan: 3 }), cell('R0C2')),
             row(cell('R1C2')),
             row(cell('R2C0'), cell('R2C2')),
@@ -210,8 +206,7 @@ test('real WASM: 2x2 multi-cell block span occupancy compiles cleanly', async ()
     // Row 1: R1C2 (cols 0, 1 occupied by 2x2-block)
     // Row 2: R2C0, R2C1, R2C2
     const blocks = [{
-        type: 'table', id: 't_block2x2',
-        rows: [
+        type: 'table', rows: [
             row(cell('block-2x2', { rowSpan: 2, colSpan: 2 }), cell('R0C2-side')),
             row(cell('R1C2-side')),
             row(cell('R2C0-base'), cell('R2C1-base'), cell('R2C2-base')),

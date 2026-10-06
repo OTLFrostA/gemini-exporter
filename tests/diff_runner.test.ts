@@ -105,7 +105,6 @@ test('Differential Runner: Ignores ephemeral IDs when content is identical', () 
         conversation: {
             messages: [{
                 blocks: [{
-                    id: 'b-random-uuid-1',
                     type: 'paragraph',
                     children: [{
                         type: 'strong',
@@ -120,7 +119,6 @@ test('Differential Runner: Ignores ephemeral IDs when content is identical', () 
         conversation: {
             messages: [{
                 blocks: [{
-                    id: 'b-completely-different-uuid-2',
                     type: 'paragraph',
                     children: [{
                         type: 'strong',
@@ -374,7 +372,7 @@ test('Differential Runner: Minimal canonicalization coalesces adjacent inline te
 
 
 test('Differential Runner: only IDs are ephemeral', () => {
-    const a = { conversation: { messages: [{ blocks: [{ id: 'a', type: 'paragraph', children: [] }] }] } };
+    const a = { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [] }] }] } };
     for (const key of ['sourceRef', 'extensions']) {
         const b = JSON.parse(JSON.stringify(a));
         b.conversation.messages[0].blocks[0][key] = { unexpected: true };

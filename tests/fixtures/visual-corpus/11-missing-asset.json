@@ -20,7 +20,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p11-b113",
        "type": "paragraph",
        "children": [
         {
@@ -36,7 +35,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p11-b108",
        "type": "paragraph",
        "children": [
         {
@@ -46,13 +44,11 @@
        ]
       },
       {
-       "id": "p11-b109",
        "type": "image",
        "assetId": "ghost-diagram",
        "alt": "缺失的架构图占位"
       },
       {
-       "id": "p11-b110",
        "type": "paragraph",
        "children": [
         {
@@ -62,13 +58,11 @@
        ]
       },
       {
-       "id": "p11-b111",
        "type": "file",
        "assetId": "ghost-report",
        "label": "缺失的报告.pdf"
       },
       {
-       "id": "p11-b112",
        "type": "paragraph",
        "children": [
         {

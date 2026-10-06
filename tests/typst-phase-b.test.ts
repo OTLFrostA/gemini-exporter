@@ -42,8 +42,7 @@ function row(...texts: string[]) {
 
 test('multi header rows all reach the transport with no collapse diagnostic', async () => {
     const b = bundle([msg('m1', 'assistant', [{
-        type: 'table', id: 't1',
-        headerRows: [row('h1a', 'h1b'), row('h2a', 'h2b')],
+        type: 'table', headerRows: [row('h1a', 'h1b'), row('h2a', 'h2b')],
         rows: [row('b1a', 'b1b')],
     }])]);
     const { payload, diagnostics } = toTypstPayload(b, opts);
@@ -61,8 +60,7 @@ test('colSpan/rowSpan map to native Typst table.cell spans with no warning', asy
     const spanned = { children: [{ type: 'text', text: 'wide' }], colSpan: 2 };
     const tall = { children: [{ type: 'text', text: 'tall' }], rowSpan: 2 };
     const b = bundle([msg('m1', 'assistant', [{
-        type: 'table', id: 't1',
-        rows: [{ cells: [spanned, { children: [{ type: 'text', text: 'b' }] }] }, { cells: [tall, { children: [{ type: 'text', text: 'c' }] }] }],
+        type: 'table', rows: [{ cells: [spanned, { children: [{ type: 'text', text: 'b' }] }] }, { cells: [tall, { children: [{ type: 'text', text: 'c' }] }] }],
     }])]);
     const { payload, diagnostics } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
@@ -89,7 +87,7 @@ test('message citationIds appends a note to blocks in Typst payload', async () =
 test('file description reaches the transport', async () => {
     const b = bundle(
         [msg('m1', 'assistant', [{
-            type: 'file', id: 'f1', assetId: 'fa',
+            type: 'file', assetId: 'fa',
             label: 'report.pdf',
             description: [{ type: 'text', text: 'Q3 summary deck' }],
         }])],
@@ -110,8 +108,8 @@ test('thought kinds map to note labels', async () => {
     ];
     for (const [kind, label] of cases) {
         const b = bundle([msg('m1', 'assistant', [{
-            type: 'thought', id: 'th1', disclosure: 'providerExposed', kind,
-            blocks: [{ type: 'paragraph', id: 'p1', children: [{ type: 'text', text: 'hmm' }] }],
+            type: 'thought', disclosure: 'providerExposed', kind,
+            blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hmm' }] }],
         }])]);
         const { payload } = toTypstPayload(b, opts);
         const node: any = payload.messages[0].blocks[0];
@@ -122,7 +120,7 @@ test('thought kinds map to note labels', async () => {
 
 test('code filename and meta reach the transport', async () => {
     const b = bundle([msg('m1', 'assistant', [{
-        type: 'code', id: 'c1', code: 'print(1)', language: 'python',
+        type: 'code', code: 'print(1)', language: 'python',
         filename: 'app.py', meta: 'runnable',
     }])]);
     const { payload } = toTypstPayload(b, opts);
@@ -134,7 +132,7 @@ test('code filename and meta reach the transport', async () => {
 
 test('code without filename has no filename field', async () => {
     const b = bundle([msg('m1', 'assistant', [
-        { type: 'code', id: 'c1', code: 'x', language: 'text' },
+        { type: 'code', code: 'x', language: 'text' },
     ])]);
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
@@ -177,24 +175,23 @@ test('real WASM: phase B features compile with all text selectable', async () =>
     const b = bundle(
         [msg('m1', 'assistant', [
             {
-                type: 'table', id: 't1',
-                headerRows: [row('hdr-one', 'hdr-two'), row('sub-one', 'sub-two')],
+                type: 'table', headerRows: [row('hdr-one', 'hdr-two'), row('sub-one', 'sub-two')],
                 rows: [row('cell-one', 'cell-two')],
             },
             {
-                type: 'file', id: 'f1', assetId: 'fa',
+                type: 'file', assetId: 'fa',
                 label: 'report.pdf',
                 description: [{ type: 'text', text: 'Q3 summary deck' }],
             },
-            { type: 'heading', id: 'h4', level: 4, children: [{ type: 'text', text: 'fourth level' }] },
-            { type: 'heading', id: 'h5', level: 5, children: [{ type: 'text', text: 'fifth level' }] },
-            { type: 'heading', id: 'h6', level: 6, children: [{ type: 'text', text: 'sixth level' }] },
+            { type: 'heading', level: 4, children: [{ type: 'text', text: 'fourth level' }] },
+            { type: 'heading', level: 5, children: [{ type: 'text', text: 'fifth level' }] },
+            { type: 'heading', level: 6, children: [{ type: 'text', text: 'sixth level' }] },
             {
-                type: 'thought', id: 'th1', disclosure: 'providerExposed', kind: 'progress',
-                blocks: [{ type: 'paragraph', id: 'tp1', children: [{ type: 'text', text: 'working on it' }] }],
+                type: 'thought', disclosure: 'providerExposed', kind: 'progress',
+                blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'working on it' }] }],
             },
             {
-                type: 'code', id: 'c1', code: 'print(1)', language: 'python',
+                type: 'code', code: 'print(1)', language: 'python',
                 filename: 'app.py', meta: 'runnable',
             },
         ], { citationIds: ['c1'] })],

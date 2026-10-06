@@ -20,7 +20,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p09-b98",
        "type": "paragraph",
        "children": [
         {
@@ -30,43 +29,36 @@
        ]
       },
       {
-       "id": "p09-b1",
        "type": "image",
        "assetId": "img-a",
        "alt": "screenshot-a.png"
       },
       {
-       "id": "p09-b2",
        "type": "image",
        "assetId": "img-b",
        "alt": "screenshot-b.png"
       },
       {
-       "id": "p09-b3",
        "type": "image",
        "assetId": "img-c",
        "alt": "screenshot-c.png"
       },
       {
-       "id": "p09-b4",
        "type": "image",
        "assetId": "img-d",
        "alt": "screenshot-d.png"
       },
       {
-       "id": "p09-b5",
        "type": "file",
        "assetId": "doc-1",
        "label": "周报-第32周.pdf"
       },
       {
-       "id": "p09-b6",
        "type": "file",
        "assetId": "doc-2",
        "label": "数据备份.zip"
       },
       {
-       "id": "p09-b7",
        "type": "file",
        "assetId": "sheet-1",
        "label": "预算表.xlsx"
@@ -78,7 +70,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p09-b99",
        "type": "paragraph",
        "children": [
         {

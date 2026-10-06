@@ -16,7 +16,6 @@
         "createdAt": "2026-09-26T12:00:00-07:00",
         "blocks": [
           {
-            "id": "u1:b0",
             "type": "paragraph",
             "children": [
               {
@@ -37,13 +36,11 @@
         },
         "blocks": [
           {
-            "id": "a1:b0",
             "type": "thought",
             "disclosure": "providerExposed",
             "kind": "reasoning",
             "blocks": [
               {
-                "id": "a1:b0:t0",
                 "type": "paragraph",
                 "children": [
                   {
@@ -55,7 +52,6 @@
             ]
           },
           {
-            "id": "a1:b1",
             "type": "heading",
             "level": 2,
             "children": [
@@ -66,11 +62,9 @@
             ]
           },
           {
-            "id": "a1:b2",
             "type": "quote",
             "blocks": [
               {
-                "id": "a1:b2:q0",
                 "type": "paragraph",
                 "children": [
                   {
@@ -80,11 +74,9 @@
                 ]
               },
               {
-                "id": "a1:b2:q1",
                 "type": "quote",
                 "blocks": [
                   {
-                    "id": "a1:b2:q1:q0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -98,14 +90,12 @@
             ]
           },
           {
-            "id": "a1:b3",
             "type": "list",
             "ordered": false,
             "items": [
               {
                 "blocks": [
                   {
-                    "id": "a1:b3:i0:b0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -119,7 +109,6 @@
               {
                 "blocks": [
                   {
-                    "id": "a1:b3:i1:b0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -133,7 +122,6 @@
               {
                 "blocks": [
                   {
-                    "id": "a1:b3:i2:b0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -156,7 +144,6 @@
             ]
           },
           {
-            "id": "a1:b4",
             "type": "list",
             "ordered": true,
             "start": 1,
@@ -164,7 +151,6 @@
               {
                 "blocks": [
                   {
-                    "id": "a1:b4:i0:b0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -178,7 +164,6 @@
               {
                 "blocks": [
                   {
-                    "id": "a1:b4:i1:b0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -192,7 +177,6 @@
               {
                 "blocks": [
                   {
-                    "id": "a1:b4:i2:b0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -206,11 +190,9 @@
             ]
           },
           {
-            "id": "a1:b5",
             "type": "thematicBreak"
           },
           {
-            "id": "a1:b6",
             "type": "paragraph",
             "children": [
               {

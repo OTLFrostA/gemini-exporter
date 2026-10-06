@@ -2,7 +2,7 @@ import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { GeminiNormalizationMessage } from './normalizationInput.js';
 import type { Asset } from '../assets.js';
 import { collectReferencedAssetIds } from '../assetReferences.js';
-import type { BlockNode } from '../blocks.js';
+import type { BlockNode } from '../../../content/blocks.js';
 import type { Citation } from '../citations.js';
 import type { MessageNode, MessageRole } from '../conversation.js';
 import type { Diagnostic } from '../diagnostics.js';
@@ -125,8 +125,6 @@ function normalizeCanonicalMessage(
     }
 
     const idPrefix = msgId;
-    let blockSeq = 0;
-    const nextBlockId = (): string => `${idPrefix}-b${blockSeq++}`;
 
     // Index attachments before markdown parsing so inline ![alt](src) nodes can link to their Asset IDs.
     const merged = mergeMessageAttachments(m);
@@ -143,27 +141,25 @@ function normalizeCanonicalMessage(
             }
         }
         diagnostics.push(...built.diagnostics);
-        const bid = nextBlockId();
         if (built.isImage) {
             attachmentBlocks.push({
-                id: bid, type: 'image', assetId,
+                type: 'image', assetId,
                 alt: built.asset.name,
             });
         } else {
             attachmentBlocks.push({
-                id: bid, type: 'file', assetId,
+                type: 'file', assetId,
                 label: built.asset.name,
             });
         }
     });
 
-    const st: MarkdownParseContext = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore, nextBlockId };
+    const st: MarkdownParseContext = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore };
     const blocks: BlockNode[] = [];
 
     const thoughtsText = cleanBody(reasoning);
     if (thoughtsText.trim()) {
         blocks.push({
-            id: nextBlockId(),
             type: 'thought',
             disclosure: 'providerExposed',
             kind: 'reasoning',
@@ -190,7 +186,6 @@ function normalizeCanonicalMessage(
         } else if (m.content !== undefined && m.content !== null) {
             const visible = formatUnknownPayload(m.content);
             const ub: BlockNode = {
-                id: nextBlockId(),
                 type: 'unknown',
                 sourceType: 'message-content',
                 text: visible.text,

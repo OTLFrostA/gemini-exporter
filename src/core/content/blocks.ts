@@ -14,16 +14,12 @@ export type BlockNode =
     | ThematicBreakBlock
     | UnknownBlock;
 
-export interface BlockBase {
-    id: string;
-}
-
-export interface ParagraphBlock extends BlockBase {
+export interface ParagraphBlock {
     type: 'paragraph';
     children: InlineNode[];
 }
 
-export interface HeadingBlock extends BlockBase {
+export interface HeadingBlock {
     type: 'heading';
     level: 1 | 2 | 3 | 4 | 5 | 6;
     children: InlineNode[];
@@ -33,19 +29,19 @@ export interface ListItem {
     blocks: BlockNode[];
 }
 
-export interface ListBlock extends BlockBase {
+export interface ListBlock {
     type: 'list';
     ordered: boolean;
     start?: number;
     items: ListItem[];
 }
 
-export interface QuoteBlock extends BlockBase {
+export interface QuoteBlock {
     type: 'quote';
     blocks: BlockNode[];
 }
 
-export interface CodeBlock extends BlockBase {
+export interface CodeBlock {
     type: 'code';
     code: string;
     language?: string;
@@ -53,7 +49,7 @@ export interface CodeBlock extends BlockBase {
     filename?: string;
 }
 
-export interface MathBlock extends BlockBase {
+export interface MathBlock {
     type: 'math';
     source: string;
 }
@@ -74,7 +70,7 @@ export interface TableRow {
     cells: TableCell[];
 }
 
-export interface TableBlock extends BlockBase {
+export interface TableBlock {
     type: 'table';
     caption?: InlineNode[];
     columns?: TableColumn[];
@@ -82,33 +78,33 @@ export interface TableBlock extends BlockBase {
     rows: TableRow[];
 }
 
-export interface ImageBlock extends BlockBase {
+export interface ImageBlock {
     type: 'image';
     assetId: string;
     alt?: string;
     caption?: InlineNode[];
 }
 
-export interface FileBlock extends BlockBase {
+export interface FileBlock {
     type: 'file';
     assetId: string;
     label?: string;
     description?: InlineNode[];
 }
 
-export interface ThoughtBlock extends BlockBase {
+export interface ThoughtBlock {
     type: 'thought';
     disclosure: 'providerExposed';
     kind?: 'summary' | 'progress' | 'reasoning' | 'unknown';
     blocks: BlockNode[];
 }
 
-export interface ThematicBreakBlock extends BlockBase {
+export interface ThematicBreakBlock {
     type: 'thematicBreak';
 }
 
 /** Unsupported content remains visible as plain text. */
-export interface UnknownBlock extends BlockBase {
+export interface UnknownBlock {
     type: 'unknown';
     sourceType: string;
     text: string;

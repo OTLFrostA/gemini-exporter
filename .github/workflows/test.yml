@@ -10,7 +10,6 @@ on:
       - 'docs/**'
       - 'scripts/test_scenario_*.json'
   pull_request:
-    branches: [ main, dev ]
 
 permissions:
   contents: read

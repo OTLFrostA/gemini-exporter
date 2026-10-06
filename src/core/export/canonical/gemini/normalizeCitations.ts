@@ -1,7 +1,7 @@
 import type { GeminiNormalizationMessage } from './normalizationInput.js';
-import type { BlockNode } from '../blocks.js';
+import type { BlockNode } from '../../../content/blocks.js';
 import type { Citation } from '../citations.js';
-import type { InlineNode } from '../inline.js';
+import type { InlineNode } from '../../../content/inline.js';
 
 export interface RawCitation {
     url?: string;

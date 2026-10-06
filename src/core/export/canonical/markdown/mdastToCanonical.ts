@@ -55,7 +55,7 @@ import type {
     TableRow,
     ThematicBreakBlock,
     UnknownBlock,
-} from '../blocks.js';
+} from '../../../content/blocks.js';
 import type {
     ImageInline,
     InlineCode,
@@ -66,7 +66,7 @@ import type {
     StrongInline,
     EmphasisInline,
     TextInline,
-} from '../inline.js';
+} from '../../../content/inline.js';
 import type { JsonValue } from '../json.js';
 import type { Diagnostic } from '../diagnostics.js';
 import type { SourceRef } from '../provenance.js';
@@ -76,7 +76,8 @@ import {
 } from '../gemini/normalizeAssets.js';
 
 export interface MarkdownParseContext extends AssetParserContext {
-    nextBlockId: () => string;
+    /** Structural location in the shared semantic body. */
+    path?: string;
     definitions?: Map<string, { url: string; title?: string }>;
 }
 
@@ -205,11 +206,12 @@ export function adaptPhrasingNode(
             }
             // Principle: unknown != disappear. Keep children / visible text, emit diagnostic.
             ctx.diagnostics.push({
-                id: `missing-ref-def:${ctx.nextBlockId()}`,
+                id: `missing-ref-def:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                 severity: 'warning',
                 code: 'REFERENCE_DEFINITION_MISSING',
                 message: `Missing definition for linkReference '[${refNode.label || refNode.identifier}]'`,
                 sourceRef: ctx.sourceRef,
+                path: ctx.path,
             });
             return children.length > 0 ? children : [{ type: 'text', text: `[${refNode.label || refNode.identifier}]` }];
         }
@@ -229,11 +231,12 @@ export function adaptPhrasingNode(
             }
             // Principle: unknown != disappear. Keep visible text fallback, emit diagnostic.
             ctx.diagnostics.push({
-                id: `missing-img-def:${ctx.nextBlockId()}`,
+                id: `missing-img-def:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                 severity: 'warning',
                 code: 'REFERENCE_DEFINITION_MISSING',
                 message: `Missing definition for imageReference '![${refNode.alt || ''}][${refNode.label || refNode.identifier}]'`,
                 sourceRef: ctx.sourceRef,
+                path: ctx.path,
             });
             return [{ type: 'text', text: `![${refNode.alt || ''}][${refNode.label || refNode.identifier}]` }];
         }
@@ -262,11 +265,12 @@ export function adaptPhrasingNode(
         default: {
             const unknownNode = node as any;
             ctx.diagnostics.push({
-                id: `unknown-inline:${ctx.nextBlockId()}`,
+                id: `unknown-inline:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                 severity: 'warning',
                 code: 'MDAST_UNKNOWN_INLINE',
                 message: `Encountered unsupported MDAST phrasing node type '${unknownNode?.type}'; preserved via fallback`,
                 sourceRef: ctx.sourceRef,
+                path: ctx.path,
                 details: { nodeType: unknownNode?.type } as JsonValue,
             });
 
@@ -293,8 +297,8 @@ export function adaptInlines(
         ? ctx
         : { ...ctx, definitions: new Map() };
     const raw: InlineNode[] = [];
-    for (const n of nodes) {
-        raw.push(...adaptPhrasingNode(n, parseCtx));
+    for (const [index, n] of nodes.entries()) {
+        raw.push(...adaptPhrasingNode(n, { ...parseCtx, path: `${ctx.path}.children[${index}]` }));
     }
     return mergeAdjacentTextNodes(raw);
 }
@@ -325,7 +329,7 @@ function adaptListItem(
     ctx: MarkdownParseContext,
     rawMarkdown: string,
 ): ListItem {
-    const blocks = adaptBlockNodes(item.children, ctx, rawMarkdown);
+    const blocks = adaptBlockNodes(item.children, { ...ctx, path: `${ctx.path}.blocks` }, rawMarkdown);
 
     // If GFM task list checkbox is present, prepend checkbox marker to first inline text
     if (item.checked !== null && item.checked !== undefined && blocks.length > 0) {
@@ -360,19 +364,18 @@ function tryExtractDisplayMathParagraph(
     if (pos && pos.start.offset !== undefined) {
         const rawSlice = rawMarkdown.slice(pos.start.offset, pos.start.offset + 2);
         if (rawSlice === '$$') {
-            const mathBlockId = ctx.nextBlockId();
             const source = (child as unknown as InlineMath).value || '';
             if (!source.trim()) {
                 ctx.diagnostics.push({
-                    id: `math-empty:${mathBlockId}`,
+                    id: `math-empty:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                     severity: 'warning',
                     code: 'MATH_BLOCK_EMPTY',
                     message: 'empty display-math fence; kept as source evidence',
                     sourceRef: ctx.sourceRef,
+                    path: ctx.path,
                 });
             }
             return {
-                id: mathBlockId,
                 type: 'math',
                 source,
             };
@@ -397,7 +400,6 @@ export function adaptBlockNode(
             const children = adaptInlines(node.children, ctx);
             if (children.length === 0) return [];
             return [{
-                id: ctx.nextBlockId(),
                 type: 'paragraph',
                 children,
             }];
@@ -406,7 +408,6 @@ export function adaptBlockNode(
         case 'heading': {
             const level = Math.min(6, Math.max(1, node.depth)) as 1 | 2 | 3 | 4 | 5 | 6;
             return [{
-                id: ctx.nextBlockId(),
                 type: 'heading',
                 level,
                 children: adaptInlines(node.children, ctx),
@@ -415,22 +416,19 @@ export function adaptBlockNode(
 
         case 'thematicBreak':
             return [{
-                id: ctx.nextBlockId(),
                 type: 'thematicBreak',
             }];
 
         case 'blockquote':
             return [{
-                id: ctx.nextBlockId(),
                 type: 'quote',
-                blocks: adaptBlockNodes(node.children, ctx, rawMarkdown),
+                blocks: adaptBlockNodes(node.children, { ...ctx, path: `${ctx.path}.blocks` }, rawMarkdown),
             }];
 
         case 'list': {
             const ordered = Boolean(node.ordered);
-            const items = node.children.map((it) => adaptListItem(it, ctx, rawMarkdown));
+            const items = node.children.map((it, index) => adaptListItem(it, { ...ctx, path: `${ctx.path}.items[${index}]` }, rawMarkdown));
             return [{
-                id: ctx.nextBlockId(),
                 type: 'list',
                 ordered,
                 ...(ordered ? { start: typeof node.start === 'number' ? node.start : 1 } : {}),
@@ -451,7 +449,6 @@ export function adaptBlockNode(
                 : [];
             const rows: TableRow[] = node.children.slice(1).map((r) => adaptTableRow(r, ctx));
             return [{
-                id: ctx.nextBlockId(),
                 type: 'table',
                 ...(columns.length ? { columns } : {}),
                 ...(headerRows.length ? { headerRows } : {}),
@@ -461,7 +458,6 @@ export function adaptBlockNode(
 
         case 'code': {
             return [{
-                id: ctx.nextBlockId(),
                 type: 'code',
                 code: node.value,
                 ...(node.lang ? { language: node.lang } : {}),
@@ -471,7 +467,6 @@ export function adaptBlockNode(
 
         case 'math': {
             const mathNode = node as unknown as MdastMath;
-            const blockId = ctx.nextBlockId();
             let source = mathNode.value || '';
             if (mathNode.meta && mathNode.meta.trim()) {
                 source = `${mathNode.meta.trim()}\n${source}`;
@@ -486,11 +481,12 @@ export function adaptBlockNode(
                 const rawSlice = rawMarkdown.slice(startOffset, endOffset).trim();
                 if (!rawSlice.endsWith('$$') || rawSlice === '$$') {
                     ctx.diagnostics.push({
-                        id: `math-fence-unclosed:${blockId}`,
+                        id: `math-fence-unclosed:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                         severity: 'warning',
                         code: 'MATH_FENCE_UNCLOSED',
                         message: 'display-math fence never closed; kept collected lines as the formula source',
                         sourceRef: ctx.sourceRef,
+                    path: ctx.path,
                         details: { line: rawSlice.slice(0, 80) } as JsonValue,
                     });
                 }
@@ -499,17 +495,17 @@ export function adaptBlockNode(
             if (!source.trim()) {
                 const preview = startOffset !== undefined ? rawMarkdown.slice(startOffset, startOffset + 80) : '';
                 ctx.diagnostics.push({
-                    id: `math-empty:${blockId}`,
+                    id: `math-empty:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                     severity: 'warning',
                     code: 'MATH_BLOCK_EMPTY',
                     message: 'empty display-math fence; kept as source evidence',
                     sourceRef: ctx.sourceRef,
+                    path: ctx.path,
                     details: { line: preview } as JsonValue,
                 });
             }
 
             return [{
-                id: blockId,
                 type: 'math',
                 source,
             }];
@@ -518,14 +514,12 @@ export function adaptBlockNode(
         case 'html': {
             if (/<hr\s*\/?>/i.test(node.value)) {
                 return [{
-                    id: ctx.nextBlockId(),
                     type: 'thematicBreak',
                 }];
             }
             const children = textWithSoftBreaks(node.value);
             if (children.length === 0) return [];
             return [{
-                id: ctx.nextBlockId(),
                 type: 'paragraph',
                 children,
             }];
@@ -538,13 +532,13 @@ export function adaptBlockNode(
 
         default: {
             const unknownNode = node as any;
-            const blockId = ctx.nextBlockId();
             ctx.diagnostics.push({
-                id: `unknown-block:${blockId}`,
+                id: `unknown-block:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                 severity: 'warning',
                 code: 'MDAST_UNKNOWN_BLOCK',
                 message: `Encountered unsupported MDAST block node type '${unknownNode?.type}'; preserved via fallback`,
                 sourceRef: ctx.sourceRef,
+                path: ctx.path,
                 details: { nodeType: unknownNode?.type } as JsonValue,
             });
 
@@ -562,7 +556,6 @@ export function adaptBlockNode(
                 ? rawMarkdown.slice(start, end).trim() : '';
             const sourceType = String(unknownNode?.type || 'unknown');
             const unknownBlock: UnknownBlock = {
-                id: blockId,
                 type: 'unknown',
                 sourceType,
                 text: rawSlice || visibleText(unknownNode) || `[Unsupported block: ${sourceType}]`,
@@ -582,7 +575,7 @@ export function adaptBlockNodes(
 ): BlockNode[] {
     const blocks: BlockNode[] = [];
     for (const n of nodes) {
-        blocks.push(...adaptBlockNode(n, ctx, rawMarkdown));
+        blocks.push(...adaptBlockNode(n, { ...ctx, path: `${ctx.path}[${blocks.length}]` }, rawMarkdown));
     }
     return blocks;
 }
@@ -604,5 +597,5 @@ export function mdastRootToBlocks(
             definitions,
         };
     }
-    return adaptBlockNodes(root.children, parseCtx, rawMarkdown);
+    return adaptBlockNodes(root.children, { ...parseCtx, path: ctx.path ?? `${ctx.sourceRef.locator}.blocks` }, rawMarkdown);
 }

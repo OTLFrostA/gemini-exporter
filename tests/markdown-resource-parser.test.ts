@@ -32,15 +32,15 @@ test('serialized literal dollars round-trip as text while links and math retain 
         conversation: {
             key: { providerId: 'gemini', accountId: 'test', conversationId: 'currency' },
             messages: [{ id: 'message', role: 'assistant', blocks: [
-                { id: 'paragraph', type: 'paragraph', children: [
+                { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },
                     { type: 'link', href: 'files/foo.pdf', children: [{ type: 'text', text: 'receipt' }] },
                     { type: 'text', text: ' to $10. ' },
                     { type: 'inlineMath', source: 'E = mc^2' },
                 ] },
-                { id: 'math', type: 'math', source: String.raw`\left[W(k)\right](\mathbf{t})` },
-                { id: 'code', type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
-                { id: 'inline-code', type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
+                { type: 'math', source: String.raw`\left[W(k)\right](\mathbf{t})` },
+                { type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
+                { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
             ] }],
         },
     };

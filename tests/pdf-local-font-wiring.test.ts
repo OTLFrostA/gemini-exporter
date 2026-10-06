@@ -161,12 +161,12 @@ function makeBundle() {
                 {
                     id: 'm1',
                     role: 'user',
-                    blocks: [{ id: 'b1', type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
+                    blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
                 },
                 {
                     id: 'm2',
                     role: 'assistant',
-                    blocks: [{ id: 'b2', type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
+                    blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
                 },
             ],
         },
@@ -349,9 +349,7 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
             '人工智能正在改变软件开发的方式，代码生成只是起点。',
             '春眠不觉晓，处处闻啼鸟。夜来风雨声，花落知多少。',
         ];
-        let seq = 0;
         const para = (text: string) => ({
-            id: `b${(seq += 1)}`,
             type: 'paragraph',
             children: [{ type: 'text', text }],
         });

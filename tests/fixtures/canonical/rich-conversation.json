@@ -13,7 +13,6 @@
         "role": "user",
         "blocks": [
           {
-            "id": "u1:b0",
             "type": "paragraph",
             "children": [
               {
@@ -36,7 +35,6 @@
         },
         "blocks": [
           {
-            "id": "a1:b0",
             "type": "paragraph",
             "children": [
               {
@@ -86,7 +84,6 @@
             ]
           },
           {
-            "id": "a1:b1",
             "type": "heading",
             "level": 2,
             "children": [
@@ -97,14 +94,12 @@
             ]
           },
           {
-            "id": "a1:b2",
             "type": "list",
             "ordered": false,
             "items": [
               {
                 "blocks": [
                   {
-                    "id": "a1:b2:i0:p0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -118,7 +113,6 @@
               {
                 "blocks": [
                   {
-                    "id": "a1:b2:i1:p0",
                     "type": "paragraph",
                     "children": [
                       {
@@ -128,7 +122,6 @@
                     ]
                   },
                   {
-                    "id": "a1:b2:i1:l0",
                     "type": "list",
                     "ordered": true,
                     "start": 1,
@@ -136,7 +129,6 @@
                       {
                         "blocks": [
                           {
-                            "id": "a1:b2:i1:l0:i0:p0",
                             "type": "paragraph",
                             "children": [
                               {
@@ -154,18 +146,15 @@
             ]
           },
           {
-            "id": "a1:b3",
             "type": "code",
             "language": "python",
             "code": "from dataclasses import dataclass\n\n@dataclass\nclass Block:\n    kind: str\n"
           },
           {
-            "id": "a1:b4",
             "type": "math",
             "source": "\\frac{P(B\\mid A)P(A)}{P(B)}"
           },
           {
-            "id": "a1:b5",
             "type": "table",
             "columns": [
               {
@@ -241,7 +230,6 @@
             ]
           },
           {
-            "id": "a1:b6",
             "type": "image",
             "assetId": "asset-image",
             "alt": "pipeline diagram",
@@ -253,13 +241,11 @@
             ]
           },
           {
-            "id": "a1:b7",
             "type": "file",
             "assetId": "asset-data",
             "label": "telemetry_data.json"
           },
           {
-            "id": "a1:b9",
             "type": "unknown",
             "sourceType": "gemini.ast_composable_future",
             "text": "Future provider block fallback."
@@ -271,7 +257,6 @@
         "role": "user",
         "blocks": [
           {
-            "id": "u2:b0",
             "type": "paragraph",
             "children": [
               {
@@ -287,13 +272,11 @@
         "role": "assistant",
         "blocks": [
           {
-            "id": "a2:b0",
             "type": "thought",
             "disclosure": "providerExposed",
             "kind": "summary",
             "blocks": [
               {
-                "id": "a2:b0:p0",
                 "type": "paragraph",
                 "children": [
                   {

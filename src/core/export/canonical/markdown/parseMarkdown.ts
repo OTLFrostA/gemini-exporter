@@ -10,8 +10,8 @@ import { gfm } from 'micromark-extension-gfm';
 import { gfmFromMarkdown } from 'mdast-util-gfm';
 import { math } from 'micromark-extension-math';
 import { mathFromMarkdown } from 'mdast-util-math';
-import type { BlockNode } from '../blocks.js';
-import type { InlineNode } from '../inline.js';
+import type { BlockNode } from '../../../content/blocks.js';
+import type { InlineNode } from '../../../content/inline.js';
 import type { Root } from 'mdast';
 import { preprocessGeminiMarkdown } from '../compat/rules.js';
 import {

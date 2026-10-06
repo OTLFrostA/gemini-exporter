@@ -1,7 +1,7 @@
 import { assetPresentation, assetCaptionText } from './assetPresentation.js';
 import type { CanonicalConversationBundle, MessageRole } from './conversation.js';
-import type { BlockNode } from './blocks.js';
-import type { InlineNode } from './inline.js';
+import type { BlockNode } from '../../content/blocks.js';
+import type { InlineNode } from '../../content/inline.js';
 import { citationDisplayLabel } from './citations.js';
 import { getRendererStrings } from './rendererStrings.js';
 
