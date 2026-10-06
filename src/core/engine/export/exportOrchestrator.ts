@@ -47,13 +47,14 @@ export interface ExportCallbacks extends Omit<UIExportCallbacks, 'onItemExported
     onItemExported?: (id: string, record: FinalizeChatRecordEntry) => void;
 }
 
-interface ExportFailedChat extends FailedChat {
+interface ExportFailedChat extends Omit<FailedChat, 'error'> {
+    error?: string | null;
     debug?: unknown;
     raw?: unknown;
     isDeleted?: boolean;
 }
 
-export interface ExportResult extends UIExportResult {
+export interface ExportResult extends Omit<UIExportResult, 'failedChats'> {
     landedChats: number;
     exportedCount?: number;
     failedChats: ExportFailedChat[];
@@ -121,23 +122,6 @@ interface ParseDriftChatEntry extends ChatParseDrift {
     title?: string;
 }
 
-interface FetchChatDetailEnvelope {
-    success?: boolean;
-    error?: string;
-    skipped?: number;
-    results?: WorkerChat[];
-    chat?: WorkerChat;
-    [key: string]: unknown;
-}
-
-function isFetchChatDetailEnvelope(value: unknown): value is FetchChatDetailEnvelope {
-    return isObjectRecord(value);
-}
-
-function hasRequiredChatId(chat: WorkerChat): chat is WorkerChat & { id: string } {
-    return typeof chat.id === 'string';
-}
-
 function isNamedError(value: unknown, name: string): boolean {
     return value !== null
         && (typeof value === 'object' || typeof value === 'function')
@@ -194,14 +178,15 @@ import BatchWorker, {
     type BatchWorkerModule,
     type WorkerChat,
     type WorkerMessageAttachment,
-    type ResolveChatResult
+    type ResolveChatResult,
+    isWorkerChat
 } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, {
     isRateLimited,
     calculateBackoff,
     abortableSleep,
-    type RateLimitManager,
+    type ExportRateLimiter,
     type RateLimitModule
 } from "./rateLimiter.js";
 import progressReporterModule, { ProgressReporter } from "./progressReporter.js";
@@ -385,7 +370,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
     class ExportOrchestrator {
         aborted: boolean;
         _abortController: AbortController | null;
-        rateLimiter: RateLimitManager;
+        rateLimiter: ExportRateLimiter;
 
         get rateLimitCooldownUntil(): number {
             return this.rateLimiter ? this.rateLimiter.rateLimitCooldownUntil : 0;
@@ -626,7 +611,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             } else if (hasGenerateAsync(zipWriterOrZip)) {
                 blob = await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata) => onUpdate(metadata.percent));
             } else {
-                throw new ExportPipelineError('No valid ZIP generator available', undefined, 'write');
+                const generateAsync = zipWriterOrZip && 'generateAsync' in zipWriterOrZip
+                    ? zipWriterOrZip.generateAsync
+                    : undefined;
+                blob = await generateAsync!({ type: 'blob' }, (metadata: JSZipAsyncMetadata) => onUpdate(metadata.percent));
             }
 
             if (options.downloadHandler && typeof options.downloadHandler === 'function') {
@@ -862,9 +850,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
-                        const res = isFetchChatDetailEnvelope(rawRes) ? rawRes : null;
-                        if (!res || !res.success) {
-                            const fetchErr = res ? res.error : 'unknown';
+                        const res = isObjectRecord(rawRes) ? rawRes : null;
+                        const success = typeof res?.success === 'boolean' ? res.success : Boolean(res?.success);
+                        if (!res || !success) {
+                            const fetchErr = typeof res?.error === 'string' ? res.error : 'unknown';
                             onLog(I18n.t('logFetchFailed', fetchErr), 'warn');
                             failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
                             onLog(I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr), 'warn');
@@ -873,10 +862,12 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        skipped += (typeof res.skipped === 'number' ? res.skipped : 0);
-                        const chunkResults: WorkerChat[] = Array.isArray(res.results) ? res.results : (res.chat ? [res.chat] : []);
-                        let chat: WorkerChat = chunkResults[0] || { id: nid, title: requestedItem.title };
-                        chat.id = nid;
+                        skipped += (typeof res.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
+                        const chunkResults: WorkerChat[] = Array.isArray(res.results)
+                            ? res.results.filter(isWorkerChat)
+                            : [];
+                        if (chunkResults.length === 0 && isWorkerChat(res.chat)) chunkResults.push(res.chat);
+                        let chat: WorkerChat & { id: string } = Object.assign(chunkResults[0] || { title: requestedItem.title }, { id: nid });
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
                         const resolvedRes: ResolveChatResult = worker && worker.resolveChat
@@ -893,12 +884,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        chat = resolvedRes.chat || chat;
+                        chat = resolvedRes.chat;
                         const listTitle = resolvedRes.listTitle;
                         chat.title = listTitle;
-                        if (typeof chat.id !== 'string') chat.id = nid;
-                        if (!hasRequiredChatId(chat)) throw new TypeError('chat.id must be a string before asset processing');
-                        const chatId = chat.id;
+                        const chatId = resolvedRes.chat.id;
 
                         const actualMsgCount = computeExportMessageCount(chat);
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
@@ -976,7 +965,13 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     recoveredFromTakeout: false
                                 };
                                 if (assetPipeline) {
-                                    assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
+                                    const pipelineItem = {
+                                        ...item,
+                                        url: typeof item.url === 'string' ? item.url : undefined,
+                                        sourceUrl: typeof item.sourceUrl === 'string' ? item.sourceUrl : undefined,
+                                        src: typeof item.src === 'string' ? item.src : undefined
+                                    };
+                                    assetRes = await assetPipeline.processAsset(pipelineItem, { id: chatId, title: chat.title }, { isImage, listTitle, signal: abortSignal });
                                 }
                                 if (assetRes.saved) {
                                     downloadedAssets++;
@@ -995,7 +990,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         chatTitle: listTitle || chat.title || chatId,
                                         file: assetRes.localName,
                                         error: assetRes.failReason || 'CDN auth expired',
-                                        sourceUrl: item.sourceUrl || item.src || item.url,
+                                        sourceUrl: typeof item.sourceUrl === 'string' ? item.sourceUrl
+                                            : typeof item.src === 'string' ? item.src
+                                                : typeof item.url === 'string' ? item.url : undefined,
                                         sourceEvidence: item.sourceEvidence
                                     });
                                     const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
@@ -1018,7 +1015,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                             continue;
                                         }
                                         if (att.type !== 'file') continue;
-                                        if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
+                                        if ((typeof att.url === 'string' && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
                                         if (att.contentMarkdown) {
                                             const docMarkdown = typeof att.contentMarkdown === 'string' ? att.contentMarkdown : '';
                                             const cleanDocMd = stripInternalChipMarkdown(docMarkdown).trim();
@@ -1099,7 +1096,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         hasHeuristicDocs: chatDrift.hasHeuristicDocs
                                     });
                                 }
-                                const isChatTruncated = !!(chat.truncated || chat.isTruncated);
+                                const isChatTruncated = Boolean(chat.truncated || chat.isTruncated);
                                 if (isChatTruncated) {
                                     onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                                 }
@@ -1129,7 +1126,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     chatTime: authoritativeChatTime,
                                     statusOverride,
                                     isTruncated: isChatTruncated,
-                                    truncateReason: isChatTruncated ? (chat.truncateReason || 'truncated') : undefined
+                                    truncateReason: isChatTruncated
+                                        ? (typeof chat.truncateReason === 'string' ? chat.truncateReason : 'truncated')
+                                        : undefined
                                 });
 
                                 chatRecordsMap.set(nid, {
@@ -1193,7 +1192,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
                             messageCount: computeExportMessageCount(chat),
-                            attachmentCount: queuedAssetsForThisChat || chat.attachmentCount || 0,
+                            attachmentCount: queuedAssetsForThisChat || (typeof chat.attachmentCount === 'number' && Number.isFinite(chat.attachmentCount) ? chat.attachmentCount : 0),
                             exportFile: fileName,
                             status: mainWriteError ? 'failed' : 'success',
                             ...(driftNotable ? {
