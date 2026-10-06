@@ -61,10 +61,10 @@ export interface TabAssetRequestExtra {
 export type AssetPipelineChat = { id: string; title?: string | null };
 
 export interface AssetPipelineItem {
-    url?: string;
-    sourceUrl?: string;
-    resolvedUrl?: string;
-    src?: string;
+    url?: unknown;
+    sourceUrl?: unknown;
+    resolvedUrl?: unknown;
+    src?: unknown;
     localName?: string;
     fileName?: string;
     name?: string;
@@ -466,10 +466,14 @@ class AssetPipeline implements AssetPipelineInstance {
 
     async acquireAssetBytes(item: AssetPipelineItem, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<AcquireAssetBytesResult> {
         const isImage = !!opts.isImage;
-        const rawCandidates = [item.url, item.sourceUrl, item.src].filter((u): u is string => typeof u === 'string' && u.length > 0);
+        const url = typeof item.url === 'string' ? item.url : undefined;
+        const sourceUrl = typeof item.sourceUrl === 'string' ? item.sourceUrl : undefined;
+        const resolvedUrl = typeof item.resolvedUrl === 'string' ? item.resolvedUrl : undefined;
+        const src = typeof item.src === 'string' ? item.src : undefined;
+        const rawCandidates = [url, sourceUrl, src].filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0);
         const nonThumbCandidates = rawCandidates.filter((u: string) => !u.includes('/viewer/thumb'));
         const targetUrl = isImage
-            ? (item.resolvedUrl || item.sourceUrl || item.url || item.src)
+            ? (resolvedUrl || sourceUrl || url || src)
             : (nonThumbCandidates[0] || rawCandidates[0]);
         const localName = item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
         const signal = opts.signal || null;

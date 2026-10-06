@@ -863,11 +863,16 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         skipped += (typeof res.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
-                        const chunkResults: WorkerChat[] = Array.isArray(res.results)
-                            ? res.results.filter(isWorkerChat)
-                            : [];
-                        if (chunkResults.length === 0 && isWorkerChat(res.chat)) chunkResults.push(res.chat);
-                        let chat: WorkerChat & { id: string } = Object.assign(chunkResults[0] || { title: requestedItem.title }, { id: nid });
+                        let candidate: WorkerChat | undefined;
+                        if (Array.isArray(res.results) && res.results.length > 0) {
+                            const firstResult: unknown = res.results[0];
+                            if (!isWorkerChat(firstResult)) throw new TypeError('Malformed conversation for BatchWorker processing');
+                            candidate = firstResult;
+                        } else if (res.chat) {
+                            if (!isWorkerChat(res.chat)) throw new TypeError('Malformed conversation for BatchWorker processing');
+                            candidate = res.chat;
+                        }
+                        let chat: WorkerChat & { id: string } = Object.assign(candidate || { title: requestedItem.title }, { id: nid });
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
                         const resolvedRes: ResolveChatResult = worker && worker.resolveChat
@@ -965,13 +970,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     recoveredFromTakeout: false
                                 };
                                 if (assetPipeline) {
-                                    const pipelineItem = {
-                                        ...item,
-                                        url: typeof item.url === 'string' ? item.url : undefined,
-                                        sourceUrl: typeof item.sourceUrl === 'string' ? item.sourceUrl : undefined,
-                                        src: typeof item.src === 'string' ? item.src : undefined
-                                    };
-                                    assetRes = await assetPipeline.processAsset(pipelineItem, { id: chatId, title: chat.title }, { isImage, listTitle, signal: abortSignal });
+                                    assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
                                 }
                                 if (assetRes.saved) {
                                     downloadedAssets++;
