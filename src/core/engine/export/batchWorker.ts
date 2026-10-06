@@ -57,15 +57,19 @@ interface ResolveChatOptions {
     messageSender?: MessageSenderFunction | null;
 }
 
-export interface ResolveChatResult {
+export type ResolveChatResult = ({
+    isError: true;
     chat: WorkerChat;
+} | {
+    isError: false;
+    chat: WorkerChat & { id: string };
+}) & {
     listTitle?: string;
     displayTitle?: string;
     isConfirmedDeleted: boolean;
-    isError: boolean;
     errMsg: string | null;
     convsNeedSave: boolean;
-}
+};
 
 interface SupplementTakeoutMediaOptions {
     appendMarkdownRef?: boolean;
@@ -106,14 +110,14 @@ export interface WorkerMessageAttachment {
     type?: string;
     fileName?: string;
     localName?: string;
-    contentMarkdown?: string;
+    contentMarkdown?: unknown;
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
     generation?: GeneratedMediaIdentity;
-    url?: string;
-    sourceUrl?: string;
-    src?: string;
+    url?: unknown;
+    sourceUrl?: unknown;
+    src?: unknown;
     sourceEvidence?: unknown;
     [key: string]: unknown;
 }
@@ -148,10 +152,10 @@ export interface WorkerChat {
     createdAt?: unknown;
     updatedAt?: unknown;
     timestamp?: unknown;
-    attachmentCount?: number;
-    truncated?: boolean;
-    isTruncated?: boolean;
-    truncateReason?: string;
+    attachmentCount?: unknown;
+    truncated?: unknown;
+    isTruncated?: unknown;
+    truncateReason?: unknown;
     [key: string]: unknown;
 }
 
@@ -226,7 +230,7 @@ function isWorkerDebug(value: unknown): value is WorkerChatDebug {
         value[key] === undefined || value[key] === null || isObjectRecord(value[key]));
 }
 /** Validate only processing capabilities; return the same object and message list. */
-function isWorkerChat(value: unknown): value is WorkerChat {
+export function isWorkerChat(value: unknown): value is WorkerChat {
     return isObjectRecord(value)
         && optionalStrings(value, ['id', 'title', 'url'])
         && (value.messages === undefined || value.messages === null || (Array.isArray(value.messages) && value.messages.every(isWorkerMessage)))
@@ -802,9 +806,10 @@ async function resolveChat(
         finalTitle = cleanTitle(chat.title);
     }
     chat.title = finalTitle;
+    const successfulChat = Object.assign(chat, { id: typeof chat.id === 'string' ? chat.id : nid });
 
     return {
-        chat,
+        chat: successfulChat,
         listTitle: finalTitle,
         isConfirmedDeleted: false,
         isError: false,

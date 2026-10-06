@@ -1,10 +1,11 @@
-import type { DirectoryHandle } from '../../../types/ui.js';
+import type { DirectoryHandle } from './directoryHandle.js';
 
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
 export interface IExportWriter {
     writeFile(relativePath: string, content: WriteFileContent, options?: any): Promise<string> | string;
     generateBlob?(onUpdate?: (pct: number) => void): Promise<Blob>;
+    generateAsync?(options: { type: 'blob' }, onUpdate?: (metadata: { percent: number }) => void): Promise<Blob>;
     close?(): Promise<void>;
     getTotalBytes?(): number;
     init?(): Promise<DirectoryHandle>;

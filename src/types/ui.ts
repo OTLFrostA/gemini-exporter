@@ -1,4 +1,6 @@
 import type { Attachment, Conversation, GeneratedMediaIdentity } from './conversation.js';
+import type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
+export type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
 
 import type { ConversationExportState, ResolveConversationExportStateOptions } from '../core/utils/titleUtils.js';
 
@@ -27,12 +29,6 @@ export interface AccountSlotInfo {
 export type AccountSlots = Record<string, AccountSlotInfo>;
 export interface ReconcileOptions { keepTakeout?: boolean; }
 
-/** Browser directory capability used by direct writes and permission recovery. */
-export interface DirectoryHandle extends FileSystemDirectoryHandle {
-    queryPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
-    requestPermission(options?: { mode?: 'read' | 'readwrite' }): Promise<PermissionState>;
-}
-
 export interface ExportSession {
     status?: string;
     slot?: string;
@@ -42,7 +38,7 @@ export interface ExportSession {
     lastChatTitle?: string;
     updatedAt?: number;
 }
-export interface FailedChat { id: string; chatId?: string; title?: string; error?: string | null; }
+export interface FailedChat { id: string; chatId?: string; title?: string; error?: string; }
 export interface FailedAttachment {
     chatId: string;
     chatTitle?: string;

@@ -15,7 +15,8 @@ import { EXT_VERSION, getExtensionVersion } from "../../utils/constants.js";
 
 export { EXT_VERSION, getExtensionVersion };
 
-interface SessionLogFailedChatEntry extends Partial<FailedChat> {
+interface SessionLogFailedChatEntry extends Omit<Partial<FailedChat>, 'error'> {
+    error?: string | null;
     chatTitle?: string;
     reason?: string;
     debug?: unknown;

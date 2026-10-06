@@ -11,6 +11,16 @@ export interface RateLimiterOptions {
     retryAfterMs?: number;
 }
 
+/** Minimal rate-limiter capability consumed by ExportOrchestrator. */
+export interface ExportRateLimiter {
+    rateLimitCooldownUntil: number;
+    reset(): void;
+    waitForCooldown(abortSignal?: AbortSignal | null): Promise<boolean>;
+    isRateLimited(res: unknown): boolean;
+    calculateBackoff(retryCount: number): number;
+    recordRateLimit(delayMs: number): void;
+}
+
 export interface RetryOptions extends RateLimiterOptions {
     onRetry?: (retryCount: number, delayMs: number, errorOrRes: any) => void;
     signal?: AbortSignal | null;
