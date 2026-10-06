@@ -1,3 +1,4 @@
+import { parseGeminiBody, structuredBodyAttachments } from '../provider/gemini/contentAdapter.js';
 import { supplementLegacyGeneratedMedia, reconcileLegacyMediaLists, type LegacyGeneratedMediaEvidence } from './legacyGeneratedMediaReconciliation.js';
 import type { Conversation, ChatMessage, Attachment, MessageDocument, GeneratedMediaIdentity } from '../../types/conversation.js';
 import type {
@@ -70,13 +71,16 @@ function copyMessage(value: ChatMessage): DomainMessage {
     const provenance = normalizeMessageProvenance(value.providerRequestId);
     const reasoning = normalizeReasoning(value);
     const citations = normalizeCitations(value);
+    const bodyAttachments = structuredBodyAttachments(value);
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content,
+        contentAst: parseGeminiBody(content, value.structuredContent),
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
-        ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
+        ...(bodyAttachments.length ? { attachments: bodyAttachments.map(copyAttachment) }
+            : value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
         ...(value.images ? { images: value.images.map(copyAttachment) } : {}),

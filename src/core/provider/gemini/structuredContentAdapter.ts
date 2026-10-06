@@ -1,11 +1,10 @@
-import type { BlockNode, ListItem, TableCell, TableRow } from '../../../content/blocks.js';
-import type { InlineNode } from '../../../content/inline.js';
-import type { MarkdownParseContext } from '../markdown/index.js';
+import type { BlockNode, ListItem, TableCell, TableRow } from '../../content/blocks.js';
+import type { InlineNode } from '../../content/inline.js';
 import type {
     GeminiAnnotation,
     GeminiStructuredDocument,
     GeminiStructuredNode,
-} from '../../../api/parser/structuredContent.js';
+} from '../../api/parser/structuredContent.js';
 
 function textWithSoftBreaks(text: string): InlineNode[] {
     if (!text.includes('\n')) {
@@ -32,12 +31,14 @@ export function convertGeminiInlines(
     text: string,
     annotations?: GeminiAnnotation[],
 ): InlineNode[] | null {
+    if (annotations !== undefined && !Array.isArray(annotations)) return null;
     if (!annotations || annotations.length === 0) {
         return textWithSoftBreaks(text);
     }
 
     // Validate annotations integrity and bounds
     for (const a of annotations) {
+        if (!a || typeof a !== 'object') return null;
         if (typeof a.start !== 'number' || typeof a.end !== 'number' || typeof a.type !== 'number') {
             return null;
         }
@@ -177,10 +178,8 @@ function convertCellChildren(children: GeminiStructuredNode[]): InlineNode[] | n
     return inlines;
 }
 
-export function geminiStructuredToCanonical(
+export function geminiStructuredToContent(
     doc: unknown,
-    idPrefix: string,
-    ctx: MarkdownParseContext,
 ): BlockNode[] | null {
     if (!doc || typeof doc !== 'object') return null;
 
@@ -262,10 +261,8 @@ export function geminiStructuredToCanonical(
                 const items: ListItem[] = [];
                 for (const item of node.items) {
                     if (!item || !Array.isArray(item.children)) return null;
-                    const itemBlocks = geminiStructuredToCanonical(
+                    const itemBlocks = geminiStructuredToContent(
                         { children: item.children },
-                        idPrefix,
-                        ctx,
                     );
                     if (itemBlocks === null) return null;
                     items.push({ blocks: itemBlocks });
@@ -282,10 +279,8 @@ export function geminiStructuredToCanonical(
             case 15: {
                 // Blockquote
                 if (!Array.isArray(node.children)) return null;
-                const quoteBlocks = geminiStructuredToCanonical(
+                const quoteBlocks = geminiStructuredToContent(
                     { children: node.children },
-                    idPrefix,
-                    ctx,
                 );
                 if (quoteBlocks === null) return null;
                 blocks.push({

@@ -6,6 +6,6 @@ export {
 } from './gemini/normalizeConversation.js';
 export { normalizeDomainConversation } from './gemini/normalizeDomainConversation.js';
 export {
-    geminiStructuredToCanonical,
+    geminiStructuredToContent as geminiStructuredToCanonical,
     convertGeminiInlines,
-} from './gemini/structuredAdapter.js';
+} from '../../provider/gemini/structuredContentAdapter.js';

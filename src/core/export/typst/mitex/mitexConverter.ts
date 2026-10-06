@@ -8,7 +8,7 @@
  */
 
 import type { RenderDiagnostic } from '../../canonical/rendering.js';
-import { preprocessGeminiLatex } from '../../canonical/compat/rules.js';
+import { preprocessGeminiLatex } from '../../../provider/gemini/markdownCompatibility.js';
 import { mitexConvertMath } from './mitexLoader.js';
 
 export interface MathConversionResult {

@@ -12,13 +12,19 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const {
-    parseMarkdownToBlocks,
+    parseMarkdownToBlocks: parseGenericMarkdownToBlocks,
     parseMarkdownToInlines,
     mdastRootToBlocks,
     adaptInlines,
     mergeAdjacentTextNodes,
-} = require('../src/core/export/canonical/markdown/index.js');
-const { newAssetLinkIndex, indexAssetRef } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
+} = require('../src/core/content/markdown/index.js');
+const { newAssetLinkIndex, indexAssetRef, linkInlineImage } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
+
+const { preprocessGeminiMarkdown } = require('../src/core/provider/gemini/markdownCompatibility.js');
+// This corpus includes captured Gemini compatibility evidence; preprocess at its input boundary.
+function parseMarkdownToBlocks(text: string, prefix: string, ctx: any) {
+    return parseGenericMarkdownToBlocks(preprocessGeminiMarkdown(text), prefix, ctx);
+}
 
 function createTestContext(overrides: any = {}) {
     const diagnostics: any[] = [];
@@ -32,6 +38,7 @@ function createTestContext(overrides: any = {}) {
         sourceRef: { providerId: 'test-provider', locator: 'test.0' },
         ...overrides,
     };
+    Object.assign(ctx, { resolveImage: (ref: string, alt: string, title?: string) => linkInlineImage(ref, alt, title, ctx) });
     return { ctx, diagnostics, inlineAssets, assetIndex };
 }
 

@@ -1,12 +1,12 @@
 /**
- * src/core/export/canonical/markdown/mdastToCanonical.ts
+ * src/core/content/markdown/mdastToContent.ts
  *
- * Pure adapter from MDAST (mdast-util-from-markdown) to Canonical AST (blocks.ts, inline.ts).
+ * Pure adapter from MDAST (mdast-util-from-markdown) to Content AST (blocks.ts, inline.ts).
  *
  * Responsibilities:
- * - Maps MDAST Root/BlockContent nodes to Canonical BlockNode[].
- * - Maps MDAST PhrasingContent nodes to Canonical InlineNode[].
- * - Wires Gemini-specific asset linking via linkInlineImage().
+ * - Maps MDAST Root/BlockContent nodes to shared BlockNode[].
+ * - Maps MDAST PhrasingContent nodes to shared InlineNode[].
+ * - Wires Gemini-specific asset linking via imageInline().
  * - Emits required Canonical diagnostics (MATH_FENCE_UNCLOSED, MATH_BLOCK_EMPTY).
  * - Preserves soft and hard line breaks according to Canonical schema.
  */
@@ -55,7 +55,7 @@ import type {
     TableRow,
     ThematicBreakBlock,
     UnknownBlock,
-} from '../../../content/blocks.js';
+} from '../blocks.js';
 import type {
     ImageInline,
     InlineCode,
@@ -66,19 +66,26 @@ import type {
     StrongInline,
     EmphasisInline,
     TextInline,
-} from '../../../content/inline.js';
-import type { JsonValue } from '../json.js';
-import type { Diagnostic } from '../diagnostics.js';
-import type { SourceRef } from '../provenance.js';
-import {
-    type AssetParserContext,
-    linkInlineImage,
-} from '../gemini/normalizeAssets.js';
-
-export interface MarkdownParseContext extends AssetParserContext {
+} from '../inline.js';
+import type { JsonValue } from '../../export/canonical/json.js';
+import type { Diagnostic } from '../../export/canonical/diagnostics.js';
+import type { SourceRef } from '../../export/canonical/provenance.js';
+/** Provider-neutral parsing hooks; asset ownership stays with the caller. */
+export interface MarkdownParseContext {
+    diagnostics: Diagnostic[];
+    sourceRef: SourceRef;
+    resolveImage?(ref: string, alt: string, title?: string): ImageInline;
     /** Structural location in the shared semantic body. */
     path?: string;
     definitions?: Map<string, { url: string; title?: string }>;
+}
+
+function imageInline(ref: string, alt: string, title: string | undefined, ctx: MarkdownParseContext): ImageInline {
+    return ctx.resolveImage?.(ref, alt, title) ?? {
+        type: 'image', assetId: ref,
+        ...(alt.trim() ? { alt: alt.trim() } : {}),
+        ...(title ? { title } : {}),
+    };
 }
 
 /**
@@ -151,7 +158,7 @@ export function collectDefinitions(
 }
 
 /**
- * Adapt a single MDAST PhrasingContent node to Canonical InlineNode[].
+ * Adapt a single MDAST PhrasingContent node to shared InlineNode[].
  */
 export function adaptPhrasingNode(
     node: PhrasingContent,
@@ -217,7 +224,7 @@ export function adaptPhrasingNode(
         }
 
         case 'image': {
-            const linked = linkInlineImage(node.url, node.alt || '', node.title || undefined, ctx);
+            const linked = imageInline(node.url, node.alt || '', node.title || undefined, ctx);
             return [linked];
         }
 
@@ -226,7 +233,7 @@ export function adaptPhrasingNode(
             const normId = (refNode.identifier || refNode.label || '').trim().toLowerCase();
             const def = ctx.definitions?.get(normId);
             if (def) {
-                const linked = linkInlineImage(def.url, refNode.alt || '', def.title || undefined, ctx);
+                const linked = imageInline(def.url, refNode.alt || '', def.title || undefined, ctx);
                 return [linked];
             }
             // Principle: unknown != disappear. Keep visible text fallback, emit diagnostic.
@@ -287,7 +294,7 @@ export function adaptPhrasingNode(
 }
 
 /**
- * Adapt an array of MDAST PhrasingContent nodes into Canonical InlineNode[].
+ * Adapt an array of MDAST PhrasingContent nodes into shared InlineNode[].
  */
 export function adaptInlines(
     nodes: PhrasingContent[],
@@ -313,7 +320,7 @@ function adaptTableCell(cell: MdastTableCell, ctx: MarkdownParseContext): { chil
 }
 
 /**
- * Adapt a TableRow to Canonical TableRow.
+ * Adapt a TableRow to shared TableRow.
  */
 function adaptTableRow(row: MdastTableRow, ctx: MarkdownParseContext): TableRow {
     return {
@@ -322,7 +329,7 @@ function adaptTableRow(row: MdastTableRow, ctx: MarkdownParseContext): TableRow 
 }
 
 /**
- * Adapt a List item to Canonical ListItem.
+ * Adapt a List item to shared ListItem.
  */
 function adaptListItem(
     item: MdastListItem,
@@ -385,7 +392,7 @@ function tryExtractDisplayMathParagraph(
 }
 
 /**
- * Adapt a single MDAST block content node to Canonical BlockNode[].
+ * Adapt a single MDAST block content node to shared BlockNode[].
  */
 export function adaptBlockNode(
     node: RootContent,
@@ -566,7 +573,7 @@ export function adaptBlockNode(
 }
 
 /**
- * Adapt an array of MDAST block content nodes to Canonical BlockNode[].
+ * Adapt an array of MDAST block content nodes to shared BlockNode[].
  */
 export function adaptBlockNodes(
     nodes: RootContent[],
@@ -581,7 +588,7 @@ export function adaptBlockNodes(
 }
 
 /**
- * Top-level adapter: converts an MDAST Root to Canonical BlockNode[].
+ * Top-level adapter: converts an MDAST Root to shared BlockNode[].
  */
 export function mdastRootToBlocks(
     root: Root,
