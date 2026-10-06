@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { messageAssets } = require('./helpers/domainAssets.js');
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
 const { supplementTakeoutGeneratedMedia } = require('../src/core/engine/export/batchWorker.js');
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
@@ -48,13 +49,13 @@ test('real Takeout fixture preserves event metadata through MediaIndex and dedup
         const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
         const domain = toDomainConversationDetail(chat);
         assert.equal('generation' in domain.messages[1], false);
-        assert.equal(domain.messages[1].attachments.length, 1);
+        assert.equal(domain.messages[1].attachmentIds.length, 1);
         assert.deepEqual((await normalizeDomainConversation(domain)).bundle, bundle);
         // Dedupe retains the offline bytes under event identity even though names differ.
         const image = chat.messages[1].images[0];
         const bytes = await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', image.generation);
         assert.ok(bytes && bytes.length > 0);
-        assert.deepEqual(await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', domain.messages[1].attachments[0].generation), bytes);
+        assert.deepEqual(await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', messageAssets(domain, 1)[0].generation), bytes);
         const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
         const pipeline = new AssetPipeline({
             currentSlot: 'identity', takeoutEngine: TakeoutEngine,

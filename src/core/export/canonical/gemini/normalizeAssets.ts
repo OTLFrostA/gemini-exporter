@@ -103,9 +103,9 @@ export function makeImageInline(assetId: string, alt: string, title: string | un
     };
 }
 
-export function linkInlineImage(src: string, alt: string, title: string | undefined, st: AssetParserContext): ImageInline {
-    const trimmedSrc = src.trim();
-    for (const key of assetRefKeys(trimmedSrc)) {
+export function linkInlineImage(src: string, alt: string, title: string | undefined, st: AssetParserContext, semanticSource?: string): ImageInline {
+    const trimmedSrc = (semanticSource ?? src).trim();
+    for (const key of semanticSource !== undefined ? [src] : assetRefKeys(trimmedSrc)) {
         const hit = st.assetIndex.byRef.get(key);
         if (hit) {
             return makeImageInline(hit, alt, title);
@@ -113,7 +113,7 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
     }
     let ambiguous = false;
     const base = assetBasename(trimmedSrc) ?? trimmedSrc;
-    if (base) {
+    if (base && semanticSource === undefined) {
         const candidates = st.assetIndex.byBasename.get(base);
         if (candidates && candidates.size === 1) {
             return makeImageInline([...candidates][0], alt, title);
@@ -182,7 +182,7 @@ export function linkInlineImage(src: string, alt: string, title: string | undefi
         status,
         ...(failureReason ? { failureReason } : {}),
     });
-    indexAssetRef(st.assetIndex, trimmedSrc, assetId);
+    indexAssetRef(st.assetIndex, semanticSource !== undefined ? src : trimmedSrc, assetId);
     if (status === 'missing' && !ambiguous) {
         if (dataUrlDiag) {
             st.diagnostics.push({
@@ -217,8 +217,8 @@ export function classifyAttachmentKind(a: AssetNormalizationInput): { kind: Asse
     const isImage = a.type === 'image' || a.isImage === true ||
         mime.startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(name);
     if (isImage) return { kind: 'image', isImage: true };
-    if (mime.startsWith('audio/')) return { kind: 'audio', isImage: false };
-    if (mime.startsWith('video/')) return { kind: 'video', isImage: false };
+    if (a.type === 'audio' || mime.startsWith('audio/')) return { kind: 'audio', isImage: false };
+    if (a.type === 'video' || mime.startsWith('video/')) return { kind: 'video', isImage: false };
     if (a.type === 'file' || a.type === 'doc' || a.type === 'code' || mime) return { kind: 'file', isImage: false };
     return {
         kind: 'other',

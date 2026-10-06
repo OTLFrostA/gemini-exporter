@@ -49,7 +49,7 @@ export function structuredBodyAttachments(message: { structuredContent?: unknown
     }));
 }
 
-/** Retain reasoning's existing export presentation separately from the structured-only message body. */
+/** Parse provider-exposed reasoning before it crosses the semantic input boundary. */
 export function parseLegacyReasoning(reasoning: unknown, context: MarkdownParseContext): BlockNode[] | undefined {
     if (typeof reasoning !== 'string') return undefined;
     const cleaned = cleanGeminiBody(reasoning);

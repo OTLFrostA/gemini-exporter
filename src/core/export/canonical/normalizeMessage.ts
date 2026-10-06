@@ -98,7 +98,8 @@ export function normalizeMessage(input: CanonicalMessageInput, index: number, ct
         const assetId = `${msgId}-a${ai}`;
         const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` }, ctx.byteStore);
         assets.push(built.asset);
-        for (const ref of [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {
+        if (a.referenceId !== undefined) assetIndex.byRef.set(a.referenceId, assetId);
+        for (const ref of a.referenceId !== undefined ? [] : [a.localName, a.url, a.sourceUrl, a.resolvedUrl, a.src]) {
             if (typeof ref === 'string' && ref) {
                 indexAssetRef(assetIndex, ref, assetId);
             }
@@ -122,9 +123,9 @@ export function normalizeMessage(input: CanonicalMessageInput, index: number, ct
         ? [{ type: 'thought', disclosure: 'providerExposed', kind: 'reasoning', blocks: reasoningBlocks }, ...m.content]
         : m.content;
     const blocks = [...mapContentAssetReferences(semanticBody, (ref, kind, alt, title) => {
-        if (assets.some(asset => asset.id === ref)) return ref;
+        if (!input.inlineAssetSources && assets.some(asset => asset.id === ref)) return ref;
         if (kind === 'file') return assetIndex.byRef.get(ref) ?? ref;
-        return linkInlineImage(ref, alt ?? '', title, st).assetId;
+        return linkInlineImage(ref, alt ?? '', title, st, input.inlineAssetSources?.get(ref)).assetId;
     })];
 
     for (const ia of st.inlineAssets) {
