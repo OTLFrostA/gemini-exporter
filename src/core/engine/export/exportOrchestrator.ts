@@ -178,8 +178,7 @@ import BatchWorker, {
     type BatchWorkerModule,
     type WorkerChat,
     type WorkerMessageAttachment,
-    type ResolveChatResult,
-    isWorkerChat
+    type ResolveChatResult
 } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, {
@@ -863,16 +862,18 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         skipped += (typeof res.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
-                        let candidate: WorkerChat | undefined;
+                        let candidate: unknown;
                         if (Array.isArray(res.results) && res.results.length > 0) {
-                            const firstResult: unknown = res.results[0];
-                            if (!isWorkerChat(firstResult)) throw new TypeError('Malformed conversation for BatchWorker processing');
-                            candidate = firstResult;
-                        } else if (res.chat) {
-                            if (!isWorkerChat(res.chat)) throw new TypeError('Malformed conversation for BatchWorker processing');
+                            candidate = res.results[0];
+                        } else if (res.chat !== undefined && res.chat !== null) {
                             candidate = res.chat;
                         }
-                        let chat: WorkerChat & { id: string } = Object.assign(candidate || { title: requestedItem.title }, { id: nid });
+                        let chat: WorkerChat & { id: string } = Object.assign(
+                            // BatchWorker.resolveChat performs the existing runtime validation after the canonical id is assigned.
+                            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+                            (candidate || { title: requestedItem.title }) as WorkerChat,
+                            { id: nid }
+                        );
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
                         const resolvedRes: ResolveChatResult = worker && worker.resolveChat
