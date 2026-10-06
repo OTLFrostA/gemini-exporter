@@ -71,9 +71,7 @@ export interface DomainMessage {
     /** Optional stable message identity; never synthesized from array position. */
     id?: string;
     role: DomainMessageRole;
-    content: string;
-    /** C2 transition: semantic body prepared before Domain, made mandatory in C3. */
-    contentAst?: BlockNode[];
+    content: BlockNode[];
     /** Unix epoch milliseconds; omit when missing or unknown. */
     timestamp?: number;
     provenance?: DomainMessageProvenance;
@@ -82,7 +80,6 @@ export interface DomainMessage {
     citations?: DomainCitation[];
     images?: DomainAttachment[];
     documents?: DomainDocument[];
-    structuredContent?: unknown;
     groundingCitationMarkers?: string[];
 }
 

@@ -86,7 +86,7 @@ test('Domain Canonical output does not depend on message request provenance', as
     const domain: DomainConversationDetail = {
         ...metadata,
         messages: [{
-            id: 'answer-1', role: 'assistant', content: 'Answer',
+            id: 'answer-1', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }],
             attachments: [{ type: 'image', url: 'https://example.test/image.png' }],
         }],
     };

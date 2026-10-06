@@ -19,7 +19,7 @@ test('Gemini chooses provider structure before Domain and does not reinterpret s
         role: 'model', content: 'raw **fallback**',
         structuredContent: { children: [{ nodeType: 18, text: '**literal structure**' }] },
     }] });
-    assert.deepEqual(domain.messages[0].contentAst, paragraph('**literal structure**'));
+    assert.deepEqual(domain.messages[0].content, paragraph('**literal structure**'));
 });
 
 for (const structured of [
@@ -86,4 +86,47 @@ test('semantic asset binding visits nested captions, descriptions and cells whil
     assert.deepEqual(new Set(seen), new Set(['caption', 'cell', 'block', 'image-caption', 'file', 'description']));
     assert.deepEqual(blocks, original);
     assert.notEqual(mapped, blocks);
+});
+
+test('Domain body is structured-only, including empty bodies, without raw provider fields', () => {
+    const domain = toDomainConversationDetail({ ...metadata, messages: [
+        { role: 'assistant', content: '', structuredContent: { children: [] } },
+        { role: 'user', content: 'Question' },
+    ] });
+    assert.deepEqual(domain.messages.map(message => message.content), [[], paragraph('Question')]);
+    for (const message of domain.messages) {
+        assert.equal('structuredContent' in message, false);
+        assert.equal('contentAst' in message, false);
+    }
+});
+
+test('existing OpenAI imports parse generic Markdown and Takeout imports interpret HTML before Domain', () => {
+    const openai = toDomainConversationDetail({ ...metadata, source: 'openai-import', messages: [{
+        role: 'assistant', content: '# Imported\n\n**answer**',
+    }] });
+    assert.deepEqual(openai.messages[0].content, [
+        { type: 'heading', level: 1, children: [{ type: 'text', text: 'Imported' }] },
+        { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
+    ]);
+    const takeout = toDomainConversationDetail({ ...metadata, source: 'takeout', turns: [{
+        modelContent: '<h2>Imported</h2><p>中文 <strong>answer</strong></p>',
+    }] });
+    assert.deepEqual(takeout.messages[0].content, [
+        { type: 'heading', level: 2, children: [{ type: 'text', text: 'Imported' }] },
+        { type: 'paragraph', children: [{ type: 'text', text: '中文 ' }, { type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
+    ]);
+});
+
+test('Domain consumers use literal AST semantics even when raw provider syntax leaks at runtime', async () => {
+    const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
+        reasoning: 'Reasoning', citations: [{ url: 'https://example.test/source' }],
+    };
+    const expected = await normalizeDomainConversation({ ...metadata, messages: [message] });
+    const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
+        thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
+    };
+    const actual = await normalizeDomainConversation({ ...metadata, messages: [leaked] });
+    assert.deepEqual(actual.bundle, expected.bundle);
+    const body = actual.bundle.conversation.messages[0].blocks.find(block => block.type === 'paragraph');
+    assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });
