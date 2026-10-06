@@ -21,7 +21,7 @@ import type { TabServiceModule } from '../../../types/utils.js';
 import type {
     GeneratedMediaIdentity,
 } from '../../../types/conversation.js';
-import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationTurn, GeminiNormalizationAttachment } from '../canonical/gemini/normalizationInput.js';
+import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationTurn, GeminiNormalizationAttachment } from '../../provider/gemini/exportInput.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
 import type { CanonicalConversationBundle } from '../canonical/conversation.js';

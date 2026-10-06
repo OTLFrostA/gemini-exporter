@@ -1,4 +1,3 @@
-import type { GeminiNormalizationMessage } from './normalizationInput.js';
 import type { BlockNode } from '../../../content/blocks.js';
 import type { Citation } from '../citations.js';
 import type { InlineNode } from '../../../content/inline.js';
@@ -12,7 +11,7 @@ function isStr(v: unknown): v is string {
     return typeof v === 'string';
 }
 
-export function extractRawCitations(m: GeminiNormalizationMessage): { list: RawCitation[]; skipped: number } {
+export function extractRawCitations(m: { citations?: unknown[]; sources?: unknown[] }): { list: RawCitation[]; skipped: number } {
     const list: RawCitation[] = [];
     let skipped = 0;
     const push = (c: RawCitation): void => {

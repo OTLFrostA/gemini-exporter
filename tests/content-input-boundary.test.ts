@@ -130,3 +130,25 @@ test('Domain consumers use literal AST semantics even when raw provider syntax l
     const body = actual.bundle.conversation.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });
+
+for (const document of [
+    { id: 'document', type: 'file', fileName: 'report.txt', localName: 'files/report.txt', sections: ['section'] },
+    { type: 'file', fileName: 'inline-report.txt', contentMarkdown: '# Report', sections: ['section'] },
+    { type: 'file', fileName: 'missing-report.txt', sections: ['section'] },
+]) {
+    test(`structured-only search images retain document/asset ordering and metadata: ${document.fileName}`, async () => {
+        const structuredContent = JSON.parse(readFileSync(join(__dirname, 'fixtures/canonical/structured_rpc/b-stack-structured.json'), 'utf8'));
+        const legacy: Conversation = { ...metadata, messages: [{
+            id: 'message', role: 'model', content: 'fallback', structuredContent, documents: [document],
+        }] };
+        const original = structuredClone(legacy);
+        const domain = toDomainConversationDetail(legacy);
+        assert.equal('structuredContent' in domain.messages[0], false);
+        assert.deepEqual(domain.messages[0].documents?.[0].sections, ['section']);
+        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain)]);
+        assert.deepEqual(semantic.bundle, raw.bundle);
+        assert.deepEqual((await normalizeDomainConversation(structuredClone(domain))).bundle, raw.bundle);
+        assert.deepEqual(semantic.bundle.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
+        assert.deepEqual(legacy, original);
+    });
+}

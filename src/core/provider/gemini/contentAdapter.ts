@@ -48,3 +48,10 @@ export function structuredBodyAttachments(message: Pick<ChatMessage, 'attachment
         name: image.fileName, title: image.fileName,
     }));
 }
+
+/** Retain reasoning's existing export presentation separately from the structured-only message body. */
+export function parseLegacyReasoning(reasoning: unknown, context: MarkdownParseContext): BlockNode[] | undefined {
+    if (typeof reasoning !== 'string') return undefined;
+    const cleaned = cleanGeminiBody(reasoning);
+    return cleaned.trim() ? parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context) : undefined;
+}

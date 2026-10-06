@@ -1,9 +1,10 @@
+import { toCanonicalDomainMessage } from '../../../domain/canonicalInputAdapter.js';
 import type { DomainConversationDetail } from '../../../domain/conversationDetail.js';
 import {
     normalizeCanonicalConversation,
-    type GeminiNormalizationOptions,
-    type GeminiNormalizationResult,
-} from './normalizeConversation.js';
+    type CanonicalNormalizationOptions as GeminiNormalizationOptions,
+    type CanonicalNormalizationResult as GeminiNormalizationResult,
+} from '../normalizeConversation.js';
 
 /** Normalize Domain messages directly through shared canonical message and bundle logic. */
 export async function normalizeDomainConversation(
@@ -23,10 +24,7 @@ export async function normalizeDomainConversation(
         url: conversation.url,
         href: conversation.href,
     };
-    const messages = conversation.messages.map((message, index) => ({
-        message,
-        kind: 'domain' as const,
-        locator: `messages[${index}]`,
-    }));
+    const messages = conversation.messages.map((message, index) =>
+        toCanonicalDomainMessage(message, `messages[${index}]`, options.providerId ?? 'gemini'));
     return normalizeCanonicalConversation(metadata, messages, options);
 }

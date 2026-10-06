@@ -1,5 +1,5 @@
 /**
- * src/core/export/canonical/compat/rules.ts
+ * src/core/provider/gemini/markdownCompatibility.ts
  *
  * Gemini Exporter - Parser Compatibility Rule Registry
  *
