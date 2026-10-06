@@ -57,24 +57,24 @@ export interface TabAssetRequestExtra {
 }
 
 export interface AssetPipelineChat {
-    id?: unknown;
-    title?: unknown;
+    id: string;
+    title?: string | null;
 }
 
 export interface AssetPipelineItem {
-    url?: unknown;
-    sourceUrl?: unknown;
-    resolvedUrl?: unknown;
-    src?: unknown;
-    localName?: unknown;
-    fileName?: unknown;
-    name?: unknown;
-    title?: unknown;
-    type?: unknown;
-    mimeType?: unknown;
-    mime?: unknown;
-    candidates?: unknown;
-    generation?: unknown;
+    url?: string;
+    sourceUrl?: string;
+    resolvedUrl?: string;
+    src?: string;
+    localName?: string;
+    fileName?: string;
+    name?: string;
+    title?: string;
+    type?: string;
+    mimeType?: string;
+    mime?: string;
+    candidates?: string[];
+    generation?: GeneratedMediaIdentity;
     sourceEvidence?: unknown;
 }
 
@@ -98,27 +98,6 @@ export interface AssetPipelineTakeoutEngine {
         slot?: string | null,
         generation?: GeneratedMediaIdentity
     ) => Promise<Uint8Array | null>;
-}
-
-function readAssetString(item: AssetPipelineItem, key: 'localName' | 'fileName' | 'name' | 'title'): string | undefined {
-    const value = Reflect.get(item, key);
-    return typeof value === 'string' ? value : undefined;
-}
-
-function isGeneratedMediaIdentity(value: unknown): value is GeneratedMediaIdentity {
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-    return typeof Reflect.get(value, 'chatId') === 'string'
-        && typeof Reflect.get(value, 'generationOrdinal') === 'number'
-        && (Reflect.get(value, 'providerRequestId') === undefined || typeof Reflect.get(value, 'providerRequestId') === 'string')
-        && (Reflect.get(value, 'prompt') === undefined || typeof Reflect.get(value, 'prompt') === 'string')
-        && (Reflect.get(value, 'turnId') === undefined || typeof Reflect.get(value, 'turnId') === 'string')
-        && (Reflect.get(value, 'imageCount') === undefined || typeof Reflect.get(value, 'imageCount') === 'number')
-        && (Reflect.get(value, 'imageOrdinal') === undefined || typeof Reflect.get(value, 'imageOrdinal') === 'number')
-        && (Reflect.get(value, 'time') === undefined || Reflect.get(value, 'time') === null || typeof Reflect.get(value, 'time') === 'number');
-}
-
-function assetChatId(chat: AssetPipelineChat): string {
-    return String(Reflect.get(chat, 'id'));
 }
 
 export interface AssetPipelineOptions {
@@ -357,10 +336,10 @@ class AssetPipeline implements AssetPipelineInstance {
 
         const extensionFailure = r?.error;
         const extra: TabAssetRequestExtra = {
-            fileName: readAssetString(item, 'fileName') || readAssetString(item, 'title'),
-            candidates: Array.isArray(item.candidates) ? item.candidates : undefined
+            fileName: item.fileName || item.title,
+            candidates: item.candidates
         };
-        const chatId = assetChatId(chat);
+        const chatId = chat.id;
         const requestFromTab = async (preferBuffer: boolean): Promise<AssetDownloadResponse | null> => {
             const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
             let response: AssetDownloadResponse | null = (hasAssetTabId(tab) && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
@@ -490,18 +469,18 @@ class AssetPipeline implements AssetPipelineInstance {
 
     async acquireAssetBytes(item: AssetPipelineItem, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<AcquireAssetBytesResult> {
         const isImage = !!opts.isImage;
-        const url = typeof item.url === 'string' ? item.url : undefined;
-        const sourceUrl = typeof item.sourceUrl === 'string' ? item.sourceUrl : undefined;
-        const resolvedUrl = typeof item.resolvedUrl === 'string' ? item.resolvedUrl : undefined;
-        const src = typeof item.src === 'string' ? item.src : undefined;
+        const url = item.url;
+        const sourceUrl = item.sourceUrl;
+        const resolvedUrl = item.resolvedUrl;
+        const src = item.src;
         const rawCandidates = [url, sourceUrl, src].filter((candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0);
         const nonThumbCandidates = rawCandidates.filter((u: string) => !u.includes('/viewer/thumb'));
         const targetUrl = isImage
             ? (resolvedUrl || sourceUrl || url || src)
             : (nonThumbCandidates[0] || rawCandidates[0]);
-        const localName = readAssetString(item, 'localName')
-            || readAssetString(item, 'fileName')
-            || readAssetString(item, 'title')
+        const localName = item.localName
+            || item.fileName
+            || item.title
             || (isImage ? 'image.jpg' : 'file.bin');
         const signal = opts.signal || null;
         const maxRetries = (typeof opts.maxRetries === "number" && opts.maxRetries >= 0) ? Math.floor(opts.maxRetries) : 3;
@@ -559,8 +538,7 @@ class AssetPipeline implements AssetPipelineInstance {
 
         if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {
             try {
-                const generation = isGeneratedMediaIdentity(item.generation) ? item.generation : undefined;
-                const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(assetChatId(chat), localName, this.currentSlot, generation);
+                const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot, item.generation);
                 if (offlineBin && offlineBin.length > 0) {
                     const bytes = offlineBin;
                     if (!this.writer && !this.writeFileDirect) {

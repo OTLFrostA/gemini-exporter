@@ -5,7 +5,7 @@
 //   2. doc-md 写失败 -> 进入 failedAttachments，记录为 partial
 //   3. index 写失败 -> fail-closed，run() 外抛
 //   4. diagnostics 写失败 -> 用户可见（onLog error），不外抛，不污染资产失败账目
-export {};
+import { makeTestWorker } from './helpers/makeTestWorker.js';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -48,7 +48,7 @@ function setupMockStorage() {
 }
 
 function makeWorker(chatOverrides: any = {}) {
-    return {
+    return makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => ({
             success: true,
             chat: {
@@ -59,7 +59,7 @@ function makeWorker(chatOverrides: any = {}) {
             },
             listTitle: requestedItem.title
         })
-    };
+    });
 }
 
 function collectLogs() {

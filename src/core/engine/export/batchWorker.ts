@@ -115,9 +115,15 @@ export interface WorkerMessageAttachment {
     providerRequestId?: string;
     imageOrdinal?: number;
     generation?: GeneratedMediaIdentity;
-    url?: unknown;
-    sourceUrl?: unknown;
-    src?: unknown;
+    url?: string;
+    sourceUrl?: string;
+    resolvedUrl?: string;
+    src?: string;
+    name?: string;
+    title?: string;
+    mimeType?: string;
+    mime?: string;
+    candidates?: string[];
     sourceEvidence?: unknown;
     [key: string]: unknown;
 }
@@ -242,7 +248,8 @@ function isGeneratedMediaIdentity(value: unknown): value is GeneratedMediaIdenti
 }
 function isWorkerAttachment(value: unknown): value is WorkerMessageAttachment {
     return isObjectRecord(value)
-        && optionalStrings(value, ['type', 'fileName', 'localName', 'providerRequestId'])
+        && optionalStrings(value, ['type', 'fileName', 'localName', 'providerRequestId', 'url', 'sourceUrl', 'resolvedUrl', 'src', 'name', 'title', 'mimeType', 'mime'])
+        && (value.candidates === undefined || (Array.isArray(value.candidates) && value.candidates.every(candidate => typeof candidate === 'string')))
         && optionalNumbers(value, ['imageOrdinal'])
         && (value.isGenerated === undefined || typeof value.isGenerated === 'boolean')
         && (value.generation === undefined || isGeneratedMediaIdentity(value.generation));
