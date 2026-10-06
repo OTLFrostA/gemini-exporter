@@ -37,7 +37,7 @@ export interface ExportOptions {
     exportedIds?: StoredExportRecordMap;
     takeoutEngine?: TakeoutExportSource | null;
     downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
-    worker?: Partial<BatchWorkerModule>;
+    worker?: BatchWorkerModule;
     concurrency?: number;
     [key: string]: unknown;
 }
@@ -154,8 +154,7 @@ import {
     AssetPipeline as AssetPipelineStatic,
     type AssetPipelineClass,
     type AssetPipelineInstance,
-    type ProcessAssetResult,
-    type AssetPipelineItem
+    type ProcessAssetResult
 } from "../assetPipeline.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
@@ -177,6 +176,7 @@ import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
     type BatchWorkerModule,
+    type WorkerMessageAttachment,
     type WorkerChatResolveInput
 } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
@@ -212,87 +212,6 @@ export { EXT_VERSION, getExtensionVersion };
 
 function isResolverPropertyAccessCandidate(value: unknown): value is WorkerChatResolveInput {
     return value !== null && (typeof value === 'object' || typeof value === 'function');
-}
-
-interface PassthroughResolveChatResult {
-    chat: WorkerChatResolveInput;
-    listTitle?: unknown;
-    displayTitle?: unknown;
-    isError: false;
-    errMsg: null;
-    isConfirmedDeleted: false;
-    convsNeedSave: false;
-}
-
-function createPassthroughResolveChatResult(chat: WorkerChatResolveInput): PassthroughResolveChatResult {
-    return {
-        chat,
-        listTitle: chat.title,
-        displayTitle: chat.title,
-        isError: false,
-        errMsg: null,
-        isConfirmedDeleted: false,
-        convsNeedSave: false
-    };
-}
-
-function isAssetPropertyAccessCandidate(value: unknown): value is AssetPipelineItem {
-    return value !== null && (typeof value === 'object' || typeof value === 'function');
-}
-
-function* iterateRuntimeIterable(value: unknown): Generator<unknown> {
-    if (value === null || value === undefined) throw new TypeError(`Value ${String(value)} is not iterable`);
-    const iteratorMethod: unknown = Reflect.get(Object(value), Symbol.iterator);
-    if (iteratorMethod === null || iteratorMethod === undefined) throw new TypeError('Value is not iterable');
-    if (typeof iteratorMethod !== 'function') throw new TypeError('Iterator method is not callable');
-
-    const iterator: unknown = Reflect.apply(iteratorMethod, value, []);
-    if (iterator === null || (typeof iterator !== 'object' && typeof iterator !== 'function')) {
-        throw new TypeError('Iterator is not an object');
-    }
-    const nextMethod: unknown = Reflect.get(iterator, 'next');
-    if (typeof nextMethod !== 'function') throw new TypeError('Iterator next method is not callable');
-
-    let complete = false;
-    try {
-        while (true) {
-            const step: unknown = Reflect.apply(nextMethod, iterator, []);
-            if (step === null || typeof step !== 'object') throw new TypeError('Iterator result is not an object');
-            const isDone: unknown = Reflect.get(step, 'done');
-            if (isDone) {
-                complete = true;
-                return;
-            }
-            const item: unknown = Reflect.get(step, 'value');
-            yield item;
-        }
-    } finally {
-        if (!complete) {
-            const returnMethod: unknown = Reflect.get(iterator, 'return');
-            if (returnMethod !== null && returnMethod !== undefined) {
-                if (typeof returnMethod !== 'function') throw new TypeError('Iterator return method is not callable');
-                const returnResult: unknown = Reflect.apply(returnMethod, iterator, []);
-                if (returnResult === null || (typeof returnResult !== 'object' && typeof returnResult !== 'function')) {
-                    throw new TypeError('Iterator return result is not an object');
-                }
-            }
-        }
-    }
-}
-
-function readDynamicProperty(value: unknown, key: PropertyKey): unknown {
-    if (value === null || value === undefined) {
-        throw new TypeError(`Cannot read properties of ${String(value)} (reading '${String(key)}')`);
-    }
-    return Reflect.get(Object(value), key);
-}
-
-function readOptionalString(value: unknown): string | undefined {
-    return typeof value === 'string' ? value : undefined;
-}
-
-function readAssetItemString(item: AssetPipelineItem, key: 'localName' | 'fileName' | 'name' | 'title' | 'sourceUrl' | 'src' | 'url'): string | undefined {
-    return readOptionalString(Reflect.get(item, key));
 }
 
 function toExportActivityRecord(value: unknown): ExportActivityRecord | null {
@@ -902,9 +821,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const I18n = getI18n();
 
                         while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                            rawRes = worker && worker.fetchChatDetail
-                                ? await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal)
-                                : null;
+                            rawRes = await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
 
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
@@ -959,9 +876,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         chatCandidate.id = nid;
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
-                        const resolvedRes = worker?.resolveChat
-                            ? await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
-                            : createPassthroughResolveChatResult(chatCandidate);
+                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
 
                         if (resolvedRes.isError) {
                             failedChats.push({ id: typeof chatCandidate.id === 'string' ? chatCandidate.id : nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chatCandidate._debug || null, raw: chatCandidate._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
@@ -974,10 +889,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         const chat = resolvedRes.chat;
-                        const rawListTitle = resolvedRes.listTitle;
-                        const listTitle = readOptionalString(rawListTitle);
-                        chat.title = rawListTitle;
-                        const chatId = readOptionalString(Reflect.get(chat, 'id')) ?? nid;
+                        const listTitle = resolvedRes.listTitle;
+                        chat.title = listTitle;
+                        const chatId = chat.id;
 
                         const actualMsgCount = computeExportMessageCount(chat);
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
@@ -1043,14 +957,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         let queuedAssetsForThisChat = 0;
                         const chatAssetTasks: AssetTask[] = [];
-                        const assetChatTitle = readOptionalString(Reflect.get(chat, 'title')) || chatId;
-                        const queueAsset = (item: AssetPipelineItem, isImage: boolean) => {
+                        const assetChatTitle = chat.title || chatId;
+                        const queueAsset = (item: WorkerMessageAttachment, isImage: boolean) => {
                             totalAssets++;
                             queuedAssetsForThisChat++;
                             updateProgress();
                             const assetTask: AssetTask = async () => {
-                                const itemLocalName = readAssetItemString(item, 'localName');
-                                const itemFileName = readAssetItemString(item, 'fileName');
+                                const itemLocalName = item.localName;
+                                const itemFileName = item.fileName;
                                 let assetRes: ProcessAssetResult = {
                                     saved: false,
                                     failReason: '',
@@ -1077,9 +991,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         chatTitle: listTitle || assetChatTitle,
                                         file: assetRes.localName,
                                         error: assetRes.failReason || 'CDN auth expired',
-                                        sourceUrl: readAssetItemString(item, 'sourceUrl')
-                                            || readAssetItemString(item, 'src')
-                                            || readAssetItemString(item, 'url'),
+                                        sourceUrl: item.sourceUrl
+                                            || item.src
+                                            || item.url,
                                         sourceEvidence: item.sourceEvidence
                                     });
                                     const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
@@ -1091,43 +1005,29 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 nid,
                                 chatId,
                                 listTitle,
-                                fileName: readAssetItemString(item, 'localName') || readAssetItemString(item, 'fileName') || (isImage ? 'image.jpg' : 'file.bin')
+                                fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin')
                             };
                             chatAssetTasks.push(assetTask);
                         };
 
-                        const chatMessages = Reflect.get(chat, 'messages');
-                        if (includeAssets && chatMessages && !mainWriteError) {
-                            for (const m of iterateRuntimeIterable(chatMessages)) {
-                                const attachments = readDynamicProperty(m, 'attachments');
-                                if (attachments && readDynamicProperty(attachments, 'length')) {
-                                    for (const attValue of iterateRuntimeIterable(attachments)) {
-                                        const attType = readDynamicProperty(attValue, 'type');
+                        if (includeAssets && chat.messages && !mainWriteError) {
+                            for (const m of chat.messages) {
+                                if (m.attachments?.length) {
+                                    for (const attValue of m.attachments) {
+                                        const attType = attValue.type;
                                         if (attType === 'image') {
-                                            const images = readDynamicProperty(m, 'images');
-                                            let alreadyListed = false;
-                                            if (images) {
-                                                const some = readDynamicProperty(images, 'some');
-                                                if (typeof some !== 'function') throw new TypeError('images.some is not callable');
-                                                const imageLocalName = readDynamicProperty(attValue, 'localName');
-                                                const imageUrl = readDynamicProperty(attValue, 'url');
-                                                const imageFileName = readDynamicProperty(attValue, 'fileName');
-                                                alreadyListed = Boolean(Reflect.apply(some, Object(images), [
-                                                    (image: unknown) => readDynamicProperty(image, 'localName') === imageLocalName
-                                                        || readDynamicProperty(image, 'url') === imageUrl
-                                                        || readDynamicProperty(image, 'fileName') === imageFileName
-                                                ]));
-                                            }
-                                            if (!images || !alreadyListed) {
-                                                if (!isAssetPropertyAccessCandidate(attValue)) throw new TypeError('Asset candidate is not object-like');
+                                            const alreadyListed = m.images?.some(image =>
+                                                image.localName === attValue.localName
+                                                || image.url === attValue.url
+                                                || image.fileName === attValue.fileName);
+                                            if (!alreadyListed) {
                                                 queueAsset(attValue, true);
                                             }
                                             continue;
                                         }
                                         if (attType !== 'file') continue;
-                                        if (!isAssetPropertyAccessCandidate(attValue)) throw new TypeError('Asset candidate is not object-like');
-                                        const attUrl = readAssetItemString(attValue, 'url');
-                                        const attContentMarkdown: unknown = Reflect.get(attValue, 'contentMarkdown');
+                                        const attUrl = attValue.url;
+                                        const attContentMarkdown = attValue.contentMarkdown;
                                         if ((attUrl && attUrl.includes('immersive_entry_chip')) && !attContentMarkdown) continue;
                                         if (attContentMarkdown) {
                                             const docMarkdown = typeof attContentMarkdown === 'string' ? attContentMarkdown : '';
@@ -1135,7 +1035,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                             if (!cleanDocMd) {
                                                 continue;
                                             }
-                                            const docLocalName = readAssetItemString(attValue, 'localName') || '';
+                                            const docLocalName = attValue.localName || '';
                                             if (useZip) {
                                                 try {
                                                     await writeFileDirect(docLocalName, cleanDocMd);
@@ -1178,10 +1078,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     }
                                 }
 
-                                const messageImages = readDynamicProperty(m, 'images');
-                                if (messageImages && readDynamicProperty(messageImages, 'length')) {
-                                    for (const imageValue of iterateRuntimeIterable(messageImages)) {
-                                        if (!isAssetPropertyAccessCandidate(imageValue)) throw new TypeError('Asset candidate is not object-like');
+                                if (m.images?.length) {
+                                    for (const imageValue of m.images) {
                                         queueAsset(imageValue, true);
                                     }
                                 }
@@ -1295,7 +1193,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 ? 'Aborted due to permission revocation'
                                 : getErrorMessage(mainWriteError);
                             failedChats.push({
-                                id: readOptionalString(Reflect.get(chat, 'id')) || nid,
+                                id: chat.id || nid,
                                 title: listTitle,
                                 error: failReason
                             });
@@ -1304,7 +1202,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         metaResults.push({
                             id: chatId,
                             title: listTitle,
-                            url: readOptionalString(Reflect.get(chat, 'url')) || `https://gemini.google.com/app/${chatId}`,
+                            url: chat.url || `https://gemini.google.com/app/${chatId}`,
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
                             messageCount: computeExportMessageCount(chat),

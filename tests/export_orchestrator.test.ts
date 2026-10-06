@@ -1,4 +1,5 @@
-export {};
+import type { FetchAssetParams } from '../src/core/engine/assetPipeline.js';
+import { makeTestWorker } from './helpers/makeTestWorker.js';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -137,7 +138,7 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
         { id: 'chat-3', title: 'Conversation 3' }
     ];
 
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             if (requestedItem.id === 'chat-2') {
                 return {
@@ -158,7 +159,7 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
                 listTitle: requestedItem.title
             };
         }
-    };
+    });
 
     const logs: string[] = [];
     const result = await orchestrator.run({
@@ -193,7 +194,7 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
     ];
 
     let fetchCount = 0;
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             fetchCount++;
             return {
@@ -206,7 +207,7 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
                 listTitle: requestedItem.title
             };
         }
-    };
+    });
 
     // Mock dirHandle where getFileHandle throws NotAllowedError
     const mockDirHandle: any = {
@@ -267,7 +268,7 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     };
 
     const fetchedIds: string[] = [];
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             fetchedIds.push(requestedItem.id);
             return {
@@ -280,7 +281,7 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
                 listTitle: requestedItem.title
             };
         }
-    };
+    });
 
     const logs: string[] = [];
     const result = await orchestrator.run({
@@ -329,12 +330,12 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
     };
 
     let fetchCalls = 0;
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async () => {
             fetchCalls++;
             return { success: true };
         }
-    };
+    });
 
     const logs: string[] = [];
     const result = await orchestrator.run({
@@ -375,7 +376,7 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
     };
 
     let fetchCalls = 0;
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async (item: any) => {
             fetchCalls++;
             return {
@@ -384,7 +385,7 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
                 listTitle: item.title
             };
         }
-    };
+    });
 
     const result = await orchestrator.run({
         selected: conversations,
@@ -516,7 +517,7 @@ test('ExportOrchestrator - empty chat exports successfully into archive with sta
         { id: 'cca63136d0630930', title: 'Used an Assistant feature', timestamp: 1710000000000 }
     ];
 
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
             success: true,
             chat: {
@@ -528,7 +529,7 @@ test('ExportOrchestrator - empty chat exports successfully into archive with sta
             }
         }),
         resolveChat: BatchWorker.resolveChat
-    };
+    });
 
     const exportedIds: Record<string, any> = {};
     const logs: string[] = [];
@@ -565,7 +566,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
         { id: 'chat_with_img', title: 'Image Chat', timestamp: tCreate, updatedAt: tUpdate }
     ];
 
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
             success: true,
             chat: {
@@ -583,7 +584,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
             }
         }),
         resolveChat: BatchWorker.resolveChat
-    };
+    });
 
     const origPipeline = __getModuleOverride('AssetPipeline');
     __setModuleOverride('AssetPipeline', class {
@@ -642,8 +643,8 @@ test('ExportOrchestrator - canonicalizes and resolves the original first candida
         selected,
         useZip: true,
         includeAssets: false,
-        worker: {
-            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, validSecond] }),
+        worker: makeTestWorker({
+            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, validSecond], chat: validSecond }),
             resolveChat: async (chat: any) => {
                 receivedChat = chat;
                 return {
@@ -656,7 +657,7 @@ test('ExportOrchestrator - canonicalizes and resolves the original first candida
                     convsNeedSave: false
                 };
             }
-        }
+        })
     });
 
     assert.strictEqual(receivedChat, malformedFirst, 'The original first candidate object must be passed to resolveChat');
@@ -677,7 +678,7 @@ test('ExportOrchestrator - preserves strict assignment failure for a truthy prim
         selected: [{ id: 'candidate_primitive', title: 'Primitive candidate' }],
         useZip: true,
         includeAssets: false,
-        worker: {
+        worker: makeTestWorker({
             fetchChatDetail: async () => ({ success: true, results: [42, validSecond] }),
             resolveChat: async () => {
                 resolveCalls++;
@@ -691,56 +692,13 @@ test('ExportOrchestrator - preserves strict assignment failure for a truthy prim
                     convsNeedSave: false
                 };
             }
-        }
+        })
     });
 
     assert.strictEqual(resolveCalls, 0, 'A truthy primitive cannot reach resolveChat');
     assert.strictEqual(result.landedChats, 0, 'A truthy primitive first candidate must fail');
     assert.strictEqual(result.failedChats.length, 1, 'The primitive failure must be isolated to its chat');
     assert.match(result.failedChats[0].error || '', /Cannot create property 'id' on number '42'/);
-});
-
-test('ExportOrchestrator - partial worker without resolveChat keeps the legacy passthrough success path', async () => {
-    const mockZips = setupMockJSZip();
-    setupMockStorage();
-    const orchestrator = new ExportOrchestrator();
-    const originalResolveChat = BatchWorker.resolveChat;
-    let defaultResolveCalls = 0;
-    BatchWorker.resolveChat = async (...args: any[]) => {
-        defaultResolveCalls++;
-        return originalResolveChat(...args);
-    };
-
-    try {
-        const result = await orchestrator.run({
-            selected: [{ id: 'partial_worker_chat', title: 'Requested title' }],
-            useZip: true,
-            includeAssets: false,
-            worker: {
-                fetchChatDetail: async () => ({
-                    success: true,
-                    chat: {
-                        id: 'partial_worker_chat',
-                        title: 'Fetched title',
-                        messages: [
-                            { role: 'user', content: 'Question' },
-                            { role: 'model', content: 'Answer' }
-                        ]
-                    }
-                })
-            }
-        });
-
-        assert.strictEqual(defaultResolveCalls, 0, 'Missing injected resolveChat must not call the default resolver');
-        assert.strictEqual(result.landedChats, 1, 'The fetched chat should pass through as a successful export');
-        assert.strictEqual(result.failedChats.length, 0);
-        assert.ok(
-            Object.keys(mockZips[0]?.files || {}).some(path => path.includes('Fetched title')),
-            'The passthrough result should keep the fetched title without running title resolution'
-        );
-    } finally {
-        BatchWorker.resolveChat = originalResolveChat;
-    }
 });
 
 test('ExportOrchestrator - passes the original attachment and resolved chat to AssetPipeline', async () => {
@@ -774,7 +732,7 @@ test('ExportOrchestrator - passes the original attachment and resolved chat to A
             selected: [{ id: 'asset_identity', title: 'Resolved chat' }],
             useZip: true,
             includeAssets: true,
-            worker: {
+            worker: makeTestWorker({
                 fetchChatDetail: async () => ({ success: true, chat: fetchedChat }),
                 resolveChat: async () => ({
                     chat: resolvedChat,
@@ -785,7 +743,7 @@ test('ExportOrchestrator - passes the original attachment and resolved chat to A
                     errMsg: null,
                     convsNeedSave: false
                 })
-            }
+            })
         });
 
         assert.strictEqual(result.landedChats, 1);
@@ -805,7 +763,7 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
         { id: 'chat_doc_1', title: 'Doc Analysis', timestamp: 1700000000000 }
     ];
 
-    const mockWorker = {
+    const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
             success: true,
             chat: {
@@ -839,7 +797,7 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
             }
         }),
         resolveChat: BatchWorker.resolveChat
-    };
+    });
 
     const result = await orchestrator.run({
         selected: conversations,
@@ -868,4 +826,145 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
 
     // 2. Pure chip telemetry document (empty after cleaning) must NOT be written
     assert.strictEqual(zipInstance.files['files/chat_doc_1_empty_chip.md'], undefined, 'Empty-after-cleaning chip document must not be written');
+});
+
+test('BatchWorker - validates attachment fields at the resolver boundary without changing identities', async () => {
+    const { isWorkerChat } = require('../src/core/engine/export/batchWorker.js');
+    const generation = { chatId: 'boundary', generationOrdinal: 0, imageOrdinal: 0 };
+    const attachment = {
+        type: 'image', url: 'https://example.com/image.png', sourceUrl: 'https://example.com/source.png',
+        resolvedUrl: 'https://example.com/resolved.png', src: 'https://example.com/src.png',
+        localName: 'assets/image.png', fileName: 'image.png', name: 'image', title: 'Image',
+        mimeType: 'image/png', mime: 'image/png', candidates: ['https://example.com/image.png'], generation
+    };
+    const message = { role: 'model', content: 'Image', images: [attachment] };
+    const chat = { id: 'boundary', title: 'Boundary validation', messages: [message] };
+    const result = await BatchWorker.resolveChat(chat, { id: 'boundary' });
+    assert.strictEqual(result.isError, false);
+    assert.strictEqual(result.chat, chat);
+    assert.strictEqual(result.chat.messages[0], message);
+    assert.strictEqual(result.chat.messages[0].images[0], attachment);
+    assert.strictEqual(result.chat.messages[0].images[0].generation, generation);
+
+    for (const key of ['url', 'sourceUrl', 'resolvedUrl', 'src', 'name', 'title', 'mimeType', 'mime', 'fileName', 'localName', 'type']) {
+        assert.strictEqual(isWorkerChat({ messages: [{ images: [{ [key]: 42 }] }] }), false, `${key} must be a string`);
+    }
+    for (const invalid of [
+        { candidates: ['valid', 42] }, { candidates: 'invalid' },
+        { generation: { chatId: 'boundary', generationOrdinal: 'invalid' } },
+    ]) {
+        const malformed = { id: 'boundary', messages: [{ role: 'model', images: [invalid] }] };
+        await assert.rejects(BatchWorker.resolveChat(malformed, { id: 'boundary' }), {
+            name: 'TypeError', message: 'Malformed conversation for BatchWorker processing'
+        });
+    }
+    await assert.rejects(BatchWorker.resolveChat({ id: 'boundary', messages: { length: 1 } }, { id: 'boundary' }), {
+        name: 'TypeError', message: 'Malformed conversation for BatchWorker processing'
+    });
+});
+
+test('ExportOrchestrator - uses envelope chat or the requested fallback without cloning the candidate', async () => {
+    for (const mode of ['envelope', 'missing', 'falsy-first']) {
+        const useEnvelopeChat = mode === 'envelope';
+        setupMockJSZip();
+        setupMockStorage();
+        const candidate = { title: 'Envelope chat' };
+        let received: unknown;
+        const worker = makeTestWorker({
+            fetchChatDetail: async () => ({ success: true, results: mode === 'falsy-first' ? [null] : [], ...(mode !== 'missing' ? { chat: candidate } : {}) }),
+            resolveChat: async (chat, ...args) => {
+                received = chat;
+                assert.strictEqual(chat.id, 'fallback');
+                assert.strictEqual(chat.title, useEnvelopeChat ? 'Envelope chat' : 'Requested title');
+                return BatchWorker.resolveChat(chat, ...args);
+            }
+        });
+        const result = await new ExportOrchestrator().run({
+            selected: [{ id: 'fallback', title: 'Requested title' }], useZip: true, includeAssets: false, worker
+        });
+        if (useEnvelopeChat) assert.strictEqual(received, candidate);
+        assert.strictEqual(result.landedChats, 1);
+        assert.strictEqual(result.failedChats.length, 0);
+    }
+});
+
+test('AssetPipeline - preserves URL priorities and filename fallbacks for typed items', async () => {
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const cases = [
+        { item: { url: 'https://example.com/url', sourceUrl: 'https://example.com/source', resolvedUrl: 'https://example.com/resolved', src: 'https://example.com/src', localName: 'local.png', fileName: 'file.png' }, isImage: true, url: 'https://example.com/resolved', localName: 'local.png' },
+        { item: { url: 'https://example.com/url', sourceUrl: 'https://example.com/source', src: 'https://example.com/src', fileName: 'file.png' }, isImage: true, url: 'https://example.com/source', localName: 'file.png' },
+        { item: { url: 'https://example.com/url', src: 'https://example.com/src' }, isImage: true, url: 'https://example.com/url', localName: 'image.jpg' },
+        { item: { src: 'https://example.com/src' }, isImage: true, url: 'https://example.com/src', localName: 'image.jpg' },
+        { item: { url: 'https://example.com/viewer/thumb', sourceUrl: 'https://example.com/source', src: 'https://example.com/src', title: 'report.pdf' }, isImage: false, url: 'https://example.com/source', localName: 'report.pdf' },
+        { item: { url: 'https://example.com/url', sourceUrl: 'https://example.com/source' }, isImage: false, url: 'https://example.com/url', localName: 'file.bin' },
+    ];
+    const chat = { id: 'asset_priority', title: 'Asset priority' };
+    for (const scenario of cases) {
+        const requests: FetchAssetParams[] = [];
+        const pipeline = new AssetPipeline({ fetchAssetDelegate: async (params: FetchAssetParams) => {
+            requests.push(params);
+            return { success: true, dataBuffer: new Uint8Array([1, 2, 3]) };
+        } });
+        const result = await pipeline.acquireAssetBytes(scenario.item, chat, { isImage: scenario.isImage, maxRetries: 0 });
+        assert.strictEqual(result.ok, true);
+        assert.strictEqual(requests[0].url, scenario.url);
+        assert.strictEqual(requests[0].item, scenario.item);
+        assert.strictEqual(requests[0].chat, chat);
+        assert.strictEqual(result.localName, scenario.localName);
+    }
+});
+
+test('AssetPipeline - passes the original generation identity to Takeout fallback', async () => {
+    const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
+    const generation = { chatId: 'generated_boundary', generationOrdinal: 2, imageOrdinal: 1, providerRequestId: 'request' };
+    let received: unknown[] = [];
+    const pipeline = new AssetPipeline({
+        currentSlot: 'u1',
+        takeoutEngine: { getTakeoutFallbackMedia: async (...args: unknown[]) => {
+            received = args;
+            return new Uint8Array([4, 5, 6]);
+        } }
+    });
+    const result = await pipeline.acquireAssetBytes({ fileName: 'generated.png', generation }, { id: 'generated_boundary' }, { isImage: true });
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.recoveredFromTakeout, true);
+    assert.deepStrictEqual(received.slice(0, 3), ['generated_boundary', 'generated.png', 'u1']);
+    assert.strictEqual(received[3], generation);
+});
+
+test('ExportOrchestrator - queues image and file attachments while preserving image deduplication', async () => {
+    setupMockJSZip();
+    setupMockStorage();
+    const image = { type: 'image', localName: 'assets/image.png', fileName: 'image.png', url: 'https://example.com/image.png' };
+    const file = { type: 'file', localName: 'assets/file.pdf', fileName: 'file.pdf', url: 'https://example.com/file.pdf' };
+    const chat = {
+        id: 'mixed_assets', title: 'Mixed assets', messages: [{
+            role: 'model', content: 'Assets', images: [image], attachments: [
+                image, file, { type: 'grounding', url: 'https://example.com/citation' },
+                { type: 'file', url: 'https://example.com/immersive_entry_chip' }
+            ]
+        }]
+    };
+    const received: { item: unknown; isImage: boolean }[] = [];
+    const origPipeline = __getModuleOverride('AssetPipeline');
+    __setModuleOverride('AssetPipeline', class {
+        async processAsset(item: { localName?: string }, receivedChat: unknown, options: { isImage: boolean }) {
+            assert.strictEqual(receivedChat, chat);
+            received.push({ item, isImage: options.isImage });
+            return { saved: true, localName: item.localName };
+        }
+    });
+    try {
+        const result = await new ExportOrchestrator().run({
+            selected: [{ id: 'mixed_assets', title: 'Mixed assets' }], useZip: true, includeAssets: true,
+            worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat }) })
+        });
+        assert.strictEqual(result.failedChats.length, 0);
+        assert.strictEqual(result.totalAssets, 2);
+        assert.strictEqual(received.length, 2);
+        assert.strictEqual(received.find(entry => entry.item === image)?.isImage, true);
+        assert.strictEqual(received.find(entry => entry.item === file)?.isImage, false);
+    } finally {
+        __setModuleOverride('AssetPipeline', origPipeline);
+    }
 });

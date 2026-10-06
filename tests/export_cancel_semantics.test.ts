@@ -4,7 +4,7 @@
 //   1. 用户取消（AbortError）：failedChats 为空、无下载回调、不写错误文件
 //   2. 权限被收回（ExportPipelineError + isPermissionRevoked）：记一条真实失败，仍无下载
 //   3. B2: 限流退避可被取消打断 —— abortableSleep 让 30s 退避在取消后即时结束
-export {};
+import { makeTestWorker } from './helpers/makeTestWorker.js';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -99,7 +99,7 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
     const orchestrator = new ExportOrchestrator();
     let downloadCalls = 0;
 
-    const worker = {
+    const worker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => ({
             success: true,
             chat: {
@@ -123,7 +123,7 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
                 convsNeedSave: false
             };
         }
-    };
+    });
 
     const result = await orchestrator.run(baseOptions({
         worker,
@@ -149,7 +149,7 @@ test('cancel semantics - permission revoked: one real failure recorded, still no
     const orchestrator = new ExportOrchestrator();
     let downloadCalls = 0;
 
-    const worker = {
+    const worker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => ({
             success: true,
             chat: {
@@ -158,7 +158,7 @@ test('cancel semantics - permission revoked: one real failure recorded, still no
                 messages: [{ role: 'user', content: 'Hello' }]
             }
         })
-    };
+    });
 
     const result = await orchestrator.run(baseOptions({
         selected: [{ id: 'chat-revoked-1', title: 'Revoked Chat' }],
@@ -192,7 +192,7 @@ test('cancel semantics - rate-limit backoff is abortable (no 30s stall on cancel
     };
 
     let fetchCalls = 0;
-    const worker = {
+    const worker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => {
             fetchCalls++;
             if (fetchCalls === 1) {
@@ -200,7 +200,7 @@ test('cancel semantics - rate-limit backoff is abortable (no 30s stall on cancel
             }
             return { success: false, error: 'rate limited' };
         }
-    };
+    });
 
     const startedAt = Date.now();
     const result = await orchestrator.run(baseOptions({
