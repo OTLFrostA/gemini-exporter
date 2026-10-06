@@ -32,6 +32,7 @@ function copyDocument(value: MessageDocument): DomainDocument {
 function copyMessage(value: ChatMessage): DomainMessage {
     return {
         ...value,
+        role: value.role === 'model' ? 'assistant' : value.role,
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
         ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
         ...(Array.isArray(value.thoughts) ? { thoughts: [...value.thoughts] } : {}),
@@ -62,7 +63,7 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
         const hasModel = typeof turn.modelContent === 'string' && turn.modelContent;
         if (hasModel || turn.thoughts || turn.attachments?.length || turn.images?.length || turn.sources?.length || turn.structuredContent) {
             messages.push({
-                role: 'model',
+                role: 'assistant',
                 content: typeof turn.modelContent === 'string' && turn.modelContent ? turn.modelContent : '',
                 ...(turn.timestamp !== null && turn.timestamp !== undefined ? { timestamp: turn.timestamp } : {}),
                 ...(turn.thoughts !== undefined ? { thoughts: Array.isArray(turn.thoughts) ? [...turn.thoughts] : turn.thoughts } : {}),
@@ -76,7 +77,7 @@ function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
     return messages;
 }
 
-/** Copy export-relevant detail without coercing, synthesizing, or mutating legacy values. */
+/** Copy export-relevant detail and normalize legacy roles without mutating the input. */
 export function toDomainConversationDetail(conversation: Conversation): DomainConversationDetail {
     const messages = conversation.messages && conversation.messages.length > 0
         ? conversation.messages.map(copyMessage)

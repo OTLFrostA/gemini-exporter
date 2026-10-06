@@ -77,6 +77,6 @@ test('Domain normalization matches legacy normalization after flattening turns-o
     };
     const domain = toDomainConversationDetail(conversation);
     assert.equal('turns' in domain, false);
-    assert.deepEqual(domain.messages.map((message) => message.role), ['user', 'model', 'user', 'model']);
+    assert.deepEqual(domain.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
     await assertDomainParity(conversation);
 });
