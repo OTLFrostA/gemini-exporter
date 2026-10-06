@@ -1,6 +1,8 @@
 import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 
 export interface AssetNormalizationInput {
+    /** Semantic input identity used solely to bind content references. */
+    referenceId?: string;
     type?: string;
     isImage?: boolean;
     url?: string;

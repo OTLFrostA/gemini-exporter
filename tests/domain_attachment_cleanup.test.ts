@@ -1,3 +1,4 @@
+import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -46,15 +47,20 @@ test('all legacy resource paths produce one Domain resource, with document and g
         documents: [document, structuredClone(document)],
     }] };
     const domain = await assertRoundTrip(input);
-    const resources = domain.messages[0].attachments!;
+    const resources = messageAssets(domain, 0)!;
     assert.equal(resources.length, 2);
-    assert.deepEqual(resources[0], document);
+    assert.equal(resources[0].name, 'Report');
+    assert.deepEqual(resources[0].source, { uri: document.url, path: document.localName });
+    assert.deepEqual(resources[0].document, {
+        id: document.id, createdAt: null, chipUrl: document.chipUrl, contentMarkdown: document.contentMarkdown,
+        sections: document.sections, links: document.links, candidates: document.candidates, hasFabricatedText: false,
+    });
     assert.deepEqual(resources[1].generation, generation);
-    assert.equal(resources[1].isGenerated, true);
+    assert.equal(resources[1].generated, true);
     assert.equal('sourceEvidence' in resources[1], false);
     assert.equal('token' in resources[1], false);
-    assert.notEqual(resources[0].sections, document.sections);
-    assert.notEqual(resources[0].links![0], document.links[0]);
+    assert.notEqual(resources[0].document?.sections, document.sections);
+    assert.notEqual(resources[0].document!.links![0], document.links[0]);
     assert.notEqual(resources[1].generation, generation);
 });
 
@@ -64,8 +70,8 @@ test('missing and inline documents deduplicate by values, never shared object id
         const input: Conversation = { ...metadata, messages: [{ role: 'assistant', content: '',
             attachments: [structuredClone(document)], documents: [structuredClone(document)] }] };
         const domain = await assertRoundTrip(input);
-        assert.equal(domain.messages[0].attachments?.length, 1);
-        assert.deepEqual(domain.messages[0].attachments?.[0].sections, ['Intro']);
+        assert.equal(messageAssets(domain, 0)?.length, 1);
+        assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['Intro']);
     }
 });
 
@@ -75,9 +81,9 @@ test('document IDs reconcile metadata without any downloadable reference', async
         attachments: [document],
         documents: [{ type: 'doc', id: 'report', sections: ['Intro'], links: [], createdAt: 1700000000123 }],
     }] });
-    assert.equal(domain.messages[0].attachments?.length, 1);
-    assert.equal(domain.messages[0].attachments?.[0].id, 'report');
-    assert.deepEqual(domain.messages[0].attachments?.[0].sections, ['Intro']);
+    assert.equal(messageAssets(domain, 0)?.length, 1);
+    assert.equal(messageAssets(domain, 0)?.[0].document?.id, 'report');
+    assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['Intro']);
 });
 
 test('merging document aliases preserves repeated metadata entries and supplements missing values', () => {
@@ -131,10 +137,10 @@ test('reliable generation identity merges online/offline paths and preserves met
         attachments: [{ type: 'image', localName: 'online.png', providerRequestId: 'r_ABCDEF0123456789', imageOrdinal: 0 }],
         images: [{ type: 'image', localName: 'offline.png', isGenerated: true, generation, dataBase64: 'AQID' }],
     }] });
-    assert.equal(domain.messages[0].attachments?.length, 1);
-    assert.equal(domain.messages[0].attachments?.[0].localName, 'online.png');
-    assert.deepEqual(domain.messages[0].attachments?.[0].generation, generation);
-    assert.equal(domain.messages[0].attachments?.[0].isGenerated, true);
+    assert.equal(messageAssets(domain, 0)?.length, 1);
+    assert.equal(messageAssets(domain, 0)?.[0].source?.path, 'online.png');
+    assert.deepEqual(messageAssets(domain, 0)?.[0].generation, generation);
+    assert.equal(messageAssets(domain, 0)?.[0].generated, true);
 });
 
 test('body references to discarded provider aliases bind to the one semantic resource', async () => {
@@ -142,10 +148,10 @@ test('body references to discarded provider aliases bind to the one semantic res
         attachments: [{ type: 'image', localName: 'online.png', generation }],
         images: [{ type: 'image', localName: 'assets/offline.png', generation, isGenerated: true }],
     }] });
-    assert.equal(domain.messages[0].attachments?.length, 1);
+    assert.equal(messageAssets(domain, 0)?.length, 1);
     const paragraph = domain.messages[0].content[0];
     assert.ok(paragraph.type === 'paragraph' && paragraph.children[0].type === 'image');
-    assert.equal(paragraph.children[0].assetId, 'online.png');
+    assert.equal(paragraph.children[0].assetId, messageAssets(domain)[0].id);
     assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 1);
 });
 
@@ -192,20 +198,20 @@ test('binary views survive Domain JSON round trips without changing input bytes'
     const domain = await assertRoundTrip({ ...metadata, messages: [{ role: 'assistant', content: '', attachments: [
         { type: 'file', name: 'bytes.bin', dataBuffer: view },
     ] }] });
-    assert.equal(domain.messages[0].attachments?.[0].dataBase64, 'AQID');
-    assert.equal('dataBuffer' in domain.messages[0].attachments![0], false);
+    assert.equal(messageAssets(domain, 0)?.[0].dataBase64, 'AQID');
+    assert.equal('dataBuffer' in messageAssets(domain, 0)![0], false);
     assert.deepEqual([...buffer], [9, 1, 2, 3, 9]);
     buffer[1] = 99;
-    assert.equal(domain.messages[0].attachments?.[0].dataBase64, 'AQID');
+    assert.equal(messageAssets(domain, 0)?.[0].dataBase64, 'AQID');
 });
 
 test('Canonical trusts explicit Domain resources and ignores runtime legacy aliases', async () => {
-    const resource = { type: 'file', name: 'report.md', contentMarkdown: '# Report' };
-    const domain: DomainConversationDetail = { ...metadata, messages: [{ role: 'assistant', content: [], attachments: [resource] }] };
+    const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
+    const domain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] };
     const expected = await normalizeDomainConversation(domain);
     const leaked = { ...domain, messages: [{ ...domain.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] };
     assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, expected.bundle);
-    const explicit = { ...domain, messages: [{ ...domain.messages[0], attachments: [resource, { ...resource }] }] };
+    const explicit = { ...domain, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.messages[0], attachmentIds: [resource.id, 'second-report'] }] };
     assert.equal((await normalizeDomainConversation(explicit)).bundle.assets.length, 2,
         'shared Canonical must not reconcile alias evidence or infer resource identity');
 });

@@ -85,9 +85,10 @@ test('Domain normalization matches legacy normalization after flattening turns-o
 test('Domain Canonical output does not depend on message request provenance', async () => {
     const domain: DomainConversationDetail = {
         ...metadata,
+        providerId: 'gemini', assets: [{ id: 'image', kind: 'image', source: { uri: 'https://example.test/image.png' } }],
         messages: [{
             id: 'answer-1', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }],
-            attachments: [{ type: 'image', url: 'https://example.test/image.png' }],
+            attachmentIds: ['image'],
         }],
     };
     const original = structuredClone(domain);

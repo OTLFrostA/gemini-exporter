@@ -1,8 +1,8 @@
-import { resolveLegacyAttachments } from '../provider/legacyAttachmentAdapter.js';
-import { mapContentAssetReferences } from '../content/assetReferences.js';
+import { closeDomainResources } from '../provider/domainResourceAdapter.js';
+import { assertDomainClosure } from './closure.js';
 import type { BlockNode } from '../content/blocks.js';
 import { parseImportedBody } from '../provider/importedContentAdapter.js';
-import { parseGeminiBody, structuredBodyAttachments } from '../provider/gemini/contentAdapter.js';
+import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from '../provider/gemini/contentAdapter.js';
 import { supplementLegacyGeneratedMedia, type LegacyGeneratedMediaEvidence } from './legacyGeneratedMediaReconciliation.js';
 import type { Conversation, ChatMessage, Attachment, GeneratedMediaIdentity } from '../../types/conversation.js';
 import type {
@@ -55,23 +55,21 @@ function normalizeCitations(value: ChatMessage): DomainCitation[] | undefined {
     return citations.length ? citations : undefined;
 }
 
-function copyMessage(value: ChatMessage, parseContent: (body: string, structured?: unknown) => BlockNode[]): DomainMessage {
+function copyMessage(value: ChatMessage, parseContent: (body: string, structured?: unknown) => BlockNode[], parseReasoning: (body: string) => BlockNode[] | undefined): DomainMessage {
     const { id, content, timestamp } = value;
     if (typeof content !== 'string') {
         throw new TypeError('Legacy message content must be a string');
     }
     const provenance = normalizeMessageProvenance(value.providerRequestId);
-    const reasoning = normalizeReasoning(value);
+    const reasoningText = normalizeReasoning(value);
+    const reasoning = reasoningText !== undefined ? parseReasoning(reasoningText) : undefined;
     const citations = normalizeCitations(value);
-    const resources = resolveLegacyAttachments(value, structuredBodyAttachments(value));
-    const { attachments } = resources;
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
-        content: mapContentAssetReferences(parseContent(content, value.structuredContent), resources.resolveReference),
+        content: parseContent(content, value.structuredContent),
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
-        ...(attachments.length || value.attachments ? { attachments } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
         ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
@@ -117,6 +115,8 @@ function flattenLegacyTurns(conversation: Conversation): ChatMessage[] {
 
 /** Provider evidence accepted only while constructing Domain. */
 export interface LegacyDomainConstructionOptions {
+    /** Explicit producer identity; inferred from the legacy source only at this boundary. */
+    providerId?: string;
     /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
     generatedMedia?: readonly LegacyGeneratedMediaEvidence[];
 }
@@ -134,11 +134,16 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
         ...(message.images ? { images: message.images.map(copyAttachment) } : {}),
     }));
     if (options.generatedMedia) supplementLegacyGeneratedMedia({ id: conversation.id, messages: legacyMessages }, conversation.id, options.generatedMedia, { appendMarkdownRef: false });
-    const parseContent = conversation.source?.startsWith('openai')
-        ? (body: string): BlockNode[] => parseImportedBody(body)
-        : parseGeminiBody;
-    const messages = legacyMessages.map(message => copyMessage(message, parseContent));
-    return {
+    const providerId = options.providerId ?? (conversation.source?.startsWith('openai') ? 'openai' : 'gemini');
+    const parseContent = providerId === 'gemini' ? parseGeminiBody : (body: string): BlockNode[] => parseImportedBody(body);
+    const parseReasoning = providerId === 'gemini'
+        ? (body: string) => parseLegacyReasoning(body, { diagnostics: [], sourceRef: { providerId, locator: 'reasoning' } })
+        : (body: string) => parseImportedBody(body, { diagnostics: [], sourceRef: { providerId, locator: 'reasoning' } });
+    const resources = closeDomainResources(providerId, legacyMessages.map(message => copyMessage(message, parseContent, parseReasoning)),
+        legacyMessages.map(message => ({ input: message, bodyAttachments: providerId === 'gemini' ? structuredBodyAttachments(message) : [] })));
+    const domain: DomainConversationDetail = {
+        providerId,
+        assets: resources.assets,
         id: conversation.id,
         title: conversation.title,
         timestamp: conversation.timestamp,
@@ -150,6 +155,8 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
         ...(conversation.href !== undefined ? { href: conversation.href } : {}),
         ...(conversation.titleSource !== undefined ? { titleSource: conversation.titleSource } : {}),
         ...(conversation.titles !== undefined ? { titles: { ...conversation.titles } } : {}),
-        messages,
+        messages: resources.messages,
     };
+    assertDomainClosure(domain);
+    return domain;
 }

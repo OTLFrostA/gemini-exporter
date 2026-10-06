@@ -1,16 +1,19 @@
+import { assertDomainClosure } from '../../../domain/closure.js';
 import { toCanonicalDomainMessage } from '../../../domain/canonicalInputAdapter.js';
 import type { DomainConversationDetail } from '../../../domain/conversationDetail.js';
 import {
     normalizeCanonicalConversation,
-    type CanonicalNormalizationOptions as GeminiNormalizationOptions,
-    type CanonicalNormalizationResult as GeminiNormalizationResult,
+    type CanonicalNormalizationOptions,
+    type CanonicalNormalizationResult,
 } from '../normalizeConversation.js';
 
 /** Normalize Domain messages directly through shared canonical message and bundle logic. */
 export async function normalizeDomainConversation(
     conversation: DomainConversationDetail,
-    options: GeminiNormalizationOptions = {},
-): Promise<GeminiNormalizationResult> {
+    options: Omit<CanonicalNormalizationOptions, 'providerId'> = {},
+): Promise<CanonicalNormalizationResult> {
+    assertDomainClosure(conversation);
+    const assets = new Map(conversation.assets.map(asset => [asset.id, asset]));
     const metadata = {
         id: conversation.id,
         title: conversation.title,
@@ -25,6 +28,6 @@ export async function normalizeDomainConversation(
         href: conversation.href,
     };
     const messages = conversation.messages.map((message, index) =>
-        toCanonicalDomainMessage(message, `messages[${index}]`, options.providerId ?? 'gemini'));
-    return normalizeCanonicalConversation(metadata, messages, options);
+        toCanonicalDomainMessage(message, `messages[${index}]`, assets));
+    return normalizeCanonicalConversation(metadata, messages, { ...options, providerId: conversation.providerId });
 }

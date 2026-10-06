@@ -1,3 +1,4 @@
+const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -15,10 +16,17 @@ function plainContent(text: string): unknown[] {
     }
     return [{ type: 'paragraph', children }];
 }
-function assertDomainMessages(actual: unknown, expected: Array<Record<string, unknown>>): void {
-    assert.deepEqual(actual, expected.map(message => ({ ...message,
-        content: typeof message.content === 'string' ? plainContent(message.content) : message.content,
-    })));
+function assertDomainMessages(actual: Array<Record<string, unknown>>, expected: Array<Record<string, unknown>>): void {
+    assert.deepEqual(actual, expected.map((message, index) => {
+        const { attachments, reasoning, ...core } = message;
+        const resources = attachments as unknown[] | undefined;
+        if (resources) assert.equal((actual[index].attachmentIds as string[]).length, resources.length);
+        return { ...core,
+            content: typeof message.content === 'string' ? plainContent(message.content) : message.content,
+            ...(typeof reasoning === 'string' ? { reasoning: reasoning.split(/\n\n+/).flatMap(plainContent) } : {}),
+            ...(resources ? { attachmentIds: actual[index].attachmentIds } : {}),
+        };
+    }));
 }
 
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
@@ -74,7 +82,7 @@ test('Domain adapter preserves attachments and images without mutating binary da
     const original = structuredClone(conversation);
     const domain = toDomainConversationDetail(conversation);
     assert.deepEqual(conversation, original);
-    assert.equal(domain.messages?.[0].attachments?.[0].dataBase64, 'AQID');
+    assert.equal(messageAssets(domain)?.[0].dataBase64, 'AQID');
     await assertExportEquivalent(conversation);
 });
 
@@ -87,7 +95,7 @@ test('Domain adapter preserves generated media identity and export output', asyn
         }] }],
     };
     await assertExportEquivalent(conversation);
-    assert.equal(toDomainConversationDetail(conversation).messages?.[0].attachments?.[0].generation?.time, null);
+    assert.equal(messageAssets(toDomainConversationDetail(conversation))?.[0].generation?.time, null);
 });
 
 test('Domain adapter preserves citations, document metadata, reasoning, and structured body semantics', async () => {
@@ -384,7 +392,7 @@ for (const role of ['model', 'assistant']) {
                 const legacy = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
                 const original = structuredClone(legacy);
                 const domain = toDomainConversationDetail(legacy);
-                assert.equal(domain.messages[0].reasoning, expected);
+                assert.deepEqual(domain.messages[0].reasoning, expected === undefined ? undefined : expected.split(/\n\n+/).flatMap(plainContent));
                 assert.equal('reasoning' in domain.messages[0], expected !== undefined);
                 for (const alias of ['thoughts', 'thinking', 'sources']) assert.equal(alias in domain.messages[0], false);
                 assert.deepEqual(legacy, original);
@@ -431,10 +439,10 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
 }
 
 test('Canonical Domain path consumes only reasoning and citations even if aliases leak at runtime', async () => {
-    const clean = { ...base, messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: 'Domain reasoning', citations: [{ url: 'https://example.com', title: 'Domain citation' }] }] };
+    const clean = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ url: 'https://example.com', title: 'Domain citation' }] }] };
     const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
     assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, (await normalizeDomainConversation(clean)).bundle);
-    const absent = { ...base, messages: [{ role: 'assistant', content: plainContent('Answer') }] };
+    const absent = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };
     const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
     assert.deepEqual((await normalizeDomainConversation(aliasesOnly)).bundle, (await normalizeDomainConversation(absent)).bundle);
 });

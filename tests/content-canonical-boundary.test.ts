@@ -8,7 +8,7 @@ import { toCanonicalDomainMessage } from '../src/core/domain/canonicalInputAdapt
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
 import { normalizeCanonicalConversation } from '../src/core/export/canonical/normalizeConversation.js';
 
-const metadata = { id: 'semantic', title: 'Semantic input', timestamp: null };
+const metadata = { id: 'semantic', title: 'Semantic input', timestamp: null, providerId: 'other', assets: [] };
 
 test('shared Canonical construction contains no body parsing or provider-format decisions', () => {
     for (const file of ['normalizeMessage.ts', 'normalizeConversation.ts', 'messageInput.ts', 'gemini/normalizeAssets.ts']) {
@@ -26,7 +26,7 @@ test('Domain semantic nodes are reused by Canonical and raw Markdown-looking tex
         ],
     }] };
     const original = structuredClone(domain);
-    const input = toCanonicalDomainMessage(domain.messages[0], 'messages[0]', 'other');
+    const input = toCanonicalDomainMessage(domain.messages[0], 'messages[0]', new Map());
     assert.equal(input.message.content, domain.messages[0].content);
     const result = await normalizeCanonicalConversation(domain, [input], { providerId: 'other' });
     assert.equal(result.bundle.conversation.messages[0].blocks[0], domain.messages[0].content[0]);
@@ -38,14 +38,14 @@ test('Domain semantic nodes are reused by Canonical and raw Markdown-looking tex
 test('separate reasoning presentation does not reinterpret the Domain body', async () => {
     const domain: DomainConversationDetail = { ...metadata, messages: [{
         role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal body**' }] }],
-        reasoning: '**formatted reasoning**',
+        reasoning: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'formatted reasoning' }] }] }],
     }] };
     const result = await normalizeDomainConversation(domain);
     const [reasoning, body] = result.bundle.conversation.messages[0].blocks;
     assert.ok(reasoning.type === 'thought' && reasoning.blocks[0].type === 'paragraph');
     assert.equal(reasoning.blocks[0].children[0].type, 'strong');
     assert.equal(body, domain.messages[0].content[0]);
-    assert.equal(domain.messages[0].reasoning, '**formatted reasoning**');
+    assert.equal(reasoning.blocks, domain.messages[0].reasoning);
 });
 
 test('legacy compatibility preserves source positional identity after rejecting malformed entries', async () => {

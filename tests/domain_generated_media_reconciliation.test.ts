@@ -1,3 +1,4 @@
+import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatMessage, Conversation, GeneratedMediaIdentity } from '../src/types/conversation.js';
@@ -40,9 +41,9 @@ for (const [evidence, userFields, assistantFields] of [
         const domain = toDomainConversationDetail(conversation, { generatedMedia: media });
         assert.equal(domain.messages.length, 6);
         assert.equal(domain.messages[3].role, 'assistant');
-        assert.equal(domain.messages[3].attachments?.[0].fileName, 'cat.png');
+        assert.equal(messageAssets(domain, 3)?.[0].name, 'cat.png');
         assert.deepEqual(domain.messages[3].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'Your cat' }] }]);
-        assert.equal(domain.messages.filter(m => m.attachments?.length).length, 1);
+        assert.equal(domain.messages.filter(m => m.attachmentIds?.length).length, 1);
         assert.deepEqual(conversation, original);
         assert.deepEqual(media, originalMedia);
         const compat = structuredClone(conversation);
@@ -76,9 +77,9 @@ for (const [ambiguity, messages] of [
     test(`Ambiguous ${ambiguity} never assigns generated image to an existing message`, () => {
         const conversation = legacy(messages.map(m => ({ ...m })));
         const domain = toDomainConversationDetail(conversation, { generatedMedia: media });
-        assert.ok(domain.messages.slice(0, messages.length).every(m => !m.attachments?.length));
+        assert.ok(domain.messages.slice(0, messages.length).every(m => !m.attachmentIds?.length));
         assert.equal(domain.messages.length, messages.length + 1, 'unresolved media is retained separately');
-        assert.equal(domain.messages.at(-1)?.attachments?.[0].fileName, 'cat.png');
+        assert.equal(messageAssets(domain, domain.messages.length - 1)?.[0].name, 'cat.png');
         assert.ok(domain.messages.every(m => !('generation' in m)));
     });
 }
@@ -88,7 +89,7 @@ test('Domain construction reconciles flattened legacy turns before evidence is d
         { role: 'user', content: 'Draw a cat', turnId: `r_${requestId}` }, { role: 'model', content: 'Answer' },
     ] }] };
     const domain = toDomainConversationDetail(conversation, { generatedMedia: media });
-    assert.equal(domain.messages[1].attachments?.[0].fileName, 'cat.png');
+    assert.equal(messageAssets(domain, 1)?.[0].name, 'cat.png');
     assert.equal('turnId' in domain.messages[0], false);
 });
 
@@ -99,18 +100,18 @@ test('Domain construction deduplicates provider representations while Canonical 
     const conversation = legacy([{ role: 'assistant', content: '', attachments: [first], images: [duplicate, second] }]);
     const original = structuredClone(conversation);
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(domain.messages[0].attachments?.map(a => a.localName), ['online.jpg', 'second.jpg']);
+    assert.deepEqual(messageAssets(domain, 0)?.map(a => a.source?.path), ['online.jpg', 'second.jpg']);
     assert.deepEqual((await normalizeDomainConversation(domain)).bundle, (await normalizeGeminiConversation(conversation)).bundle);
     assert.deepEqual(conversation, original);
-    const explicitDomain: DomainConversationDetail = { ...metadata, messages: [{ role: 'assistant', content: [], attachments: [first, duplicate, second] }] };
+    const explicitDomain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] };
     assert.equal((await normalizeDomainConversation(explicitDomain)).bundle.assets.length, 3,
         'Canonical must not collapse explicit attachments using provider IDs');
 });
 
 test('Explicit message attachment ownership is authoritative downstream', async () => {
-    const domain: DomainConversationDetail = { ...metadata, messages: [
+    const domain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: [{ id: 'cat', kind: 'image', name: 'cat.png', dataBase64: 'AQID', generation }], messages: [
         { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }], provenance: { providerRequestId: requestId } },
-        { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachments: [{ type: 'image', fileName: 'cat.png', dataBase64: 'AQID', generation, providerRequestId: requestId }] },
+        { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachmentIds: ['cat'] },
     ] };
     const original = structuredClone(domain);
     const result = await normalizeDomainConversation(domain);
@@ -125,9 +126,9 @@ test('Unknown or foreign evidence never borrows an arbitrary assistant response'
         { filename: 'foreign.png', isGenerated: true, generation: { ...generation, chatId: 'foreign-chat' } },
     ] });
     assert.equal(domain.messages.length, 3);
-    assert.equal(domain.messages[0].attachments, undefined);
-    assert.equal(domain.messages[1].attachments?.[0].fileName, 'unknown.png');
-    assert.equal(domain.messages[2].attachments?.[0].fileName, 'foreign.png');
+    assert.deepEqual(messageAssets(domain, 0), []);
+    assert.equal(messageAssets(domain, 1)?.[0].name, 'unknown.png');
+    assert.equal(messageAssets(domain, 2)?.[0].name, 'foreign.png');
 });
 
 test('Conflicting response request evidence cannot be overridden by prompt/time fallback', () => {
@@ -135,7 +136,7 @@ test('Conflicting response request evidence cannot be overridden by prompt/time 
         { role: 'user', content: 'Draw a cat', timestamp: metadata.timestamp },
         { role: 'assistant', content: 'Another event', providerRequestId: 'different-request' },
     ]), { generatedMedia: media });
-    assert.equal(domain.messages[1].attachments, undefined);
+    assert.deepEqual(messageAssets(domain, 1), []);
     assert.equal(domain.messages.length, 3);
 });
 
@@ -143,7 +144,7 @@ test('Detached generated media without messages remains a separate resolved atta
     const domain = toDomainConversationDetail(legacy([]), { generatedMedia: media });
     assert.equal(domain.messages.length, 1);
     assert.equal(domain.messages[0].role, 'assistant');
-    assert.equal(domain.messages[0].attachments?.[0].fileName, 'cat.png');
+    assert.equal(messageAssets(domain, 0)?.[0].name, 'cat.png');
 });
 
 test('Unknown multi-image ordinals cannot suppress detached media using request identity', async () => {
@@ -158,7 +159,7 @@ test('Unknown multi-image ordinals cannot suppress detached media using request 
         { filename: 'offline-b.png', isGenerated: true, generation: multiGeneration },
     ] });
     assert.equal(domain.messages.length, 1);
-    assert.deepEqual(domain.messages[0].attachments?.map(a => a.fileName), ['offline-a.png', 'offline-b.png', 'online.jpg']);
+    assert.deepEqual(messageAssets(domain, 0)?.map(a => a.name), ['offline-a.png', 'offline-b.png', 'online.jpg']);
     assert.equal('generation' in domain.messages[0], false);
     assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 3);
     assert.deepEqual(conversation, original);

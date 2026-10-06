@@ -18,8 +18,10 @@ export interface CanonicalMessageInput {
     locator: string;
     /** Preserve original positional message identity when a legacy entry is rejected. */
     sourceIndex?: number;
-    /** Reasoning remains a separate legacy string in Domain; its export presentation is prepared separately. */
+    /** Structured reasoning prepared before the semantic input boundary. */
     reasoningBlocks?: BlockNode[];
+    /** Closed Domain identities with acquisition URIs, bypassing legacy alias matching. */
+    inlineAssetSources?: ReadonlyMap<string, string>;
     citationInput: { list: RawCitation[]; skipped: number };
     diagnostics?: Diagnostic[];
     unknownFields?: string[];

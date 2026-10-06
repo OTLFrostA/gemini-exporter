@@ -6,41 +6,33 @@ export type DomainMessageRole =
     | 'assistant'
     | 'system';
 
-/** A file or media reference supplied with a message. */
-export interface DomainAttachment {
-    type: string;
-    url?: string;
-    sourceUrl?: string;
-    resolvedUrl?: string;
-    src?: string;
-    localName?: string;
-    fileName?: string;
+/** Semantic resource identity, shared across the conversation. No export destination or layout. */
+export type DomainAssetKind = 'image' | 'file' | 'audio' | 'video' | 'other';
+
+export interface DomainAsset {
+    id: string;
+    kind: DomainAssetKind;
     name?: string;
-    title?: string;
-    mimeType?: string;
-    mime?: string;
-    size?: number;
-    width?: number;
-    height?: number;
-    source?: string;
-    subDir?: string;
-    isGenerated?: boolean;
-    providerRequestId?: string;
-    imageOrdinal?: number;
-    generation?: DomainGeneratedMediaIdentity;
-    isImage?: boolean;
-    blobBase64?: string;
+    mediaType?: string;
+    byteLength?: number;
+    dimensions?: { width?: number; height?: number };
+    /** Acquisition URI and/or source archive entry, never an export destination. */
+    source?: { uri?: string; path?: string };
     dataBase64?: string;
     failureReason?: string;
-    /** Document metadata belongs to its resource record. */
-    id?: string;
-    createdAt?: number | null;
-    chipUrl?: string;
-    sections?: string[];
-    links?: Array<{ title: string; url: string }>;
-    contentMarkdown?: string;
-    candidates?: string[];
-    hasFabricatedText?: boolean;
+    origin?: string;
+    generated?: boolean;
+    generation?: Partial<DomainGeneratedMediaIdentity>;
+    document?: {
+        id?: string;
+        createdAt?: number | null;
+        chipUrl?: string;
+        sections?: string[];
+        links?: Array<{ title: string; url: string }>;
+        contentMarkdown?: string;
+        candidates?: string[];
+        hasFabricatedText?: boolean;
+    };
 }
 
 export interface DomainGeneratedMediaIdentity {
@@ -73,13 +65,18 @@ export interface DomainMessage {
     /** Unix epoch milliseconds; omit when missing or unknown. */
     timestamp?: number;
     provenance?: DomainMessageProvenance;
-    attachments?: DomainAttachment[];
-    reasoning?: string;
+    /** Explicit message-owned resources, in source order; every ID belongs to conversation.assets. */
+    attachmentIds?: string[];
+    /** Provider-exposed reasoning parsed before Domain; resource nodes use registry IDs. */
+    reasoning?: BlockNode[];
     citations?: DomainCitation[];
     groundingCitationMarkers?: string[];
 }
 
 export interface DomainConversationDetail {
+    providerId: string;
+    /** One record per semantic resource; body/reasoning assetId values refer to these IDs. */
+    assets: DomainAsset[];
     id: string;
     title: string;
     timestamp: number | null;

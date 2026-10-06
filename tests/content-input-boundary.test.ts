@@ -1,3 +1,4 @@
+import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -119,13 +120,13 @@ test('existing OpenAI imports parse generic Markdown and Takeout imports interpr
 
 test('Domain consumers use literal AST semantics even when raw provider syntax leaks at runtime', async () => {
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
-        reasoning: 'Reasoning', citations: [{ url: 'https://example.test/source' }],
+        reasoning: paragraph('Reasoning'), citations: [{ url: 'https://example.test/source' }],
     };
-    const expected = await normalizeDomainConversation({ ...metadata, messages: [message] });
+    const expected = await normalizeDomainConversation({ ...metadata, providerId: 'gemini', assets: [], messages: [message] });
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
         thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
     };
-    const actual = await normalizeDomainConversation({ ...metadata, messages: [leaked] });
+    const actual = await normalizeDomainConversation({ ...metadata, providerId: 'gemini', assets: [], messages: [leaked] });
     assert.deepEqual(actual.bundle, expected.bundle);
     const body = actual.bundle.conversation.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
@@ -144,7 +145,7 @@ for (const document of [
         const original = structuredClone(legacy);
         const domain = toDomainConversationDetail(legacy);
         assert.equal('structuredContent' in domain.messages[0], false);
-        assert.deepEqual(domain.messages[0].attachments?.[0].sections, ['section']);
+        assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['section']);
         const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain)]);
         assert.deepEqual(semantic.bundle, raw.bundle);
         assert.deepEqual((await normalizeDomainConversation(JSON.parse(JSON.stringify(domain)))).bundle, raw.bundle);

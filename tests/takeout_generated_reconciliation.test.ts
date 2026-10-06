@@ -1,3 +1,4 @@
+import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { correlateGeneratedImages, type GenerationBlock, type TakeoutWatermarkedImage, type ParseTakeoutHtmlOutput } from '../src/core/engine/takeout/takeoutHtmlParser.js';
@@ -38,9 +39,9 @@ test('Takeout chooses the closest event by absolute distance, independent of blo
         assert.equal(result.localMediaMap.closest[0].generation?.chatId, 'closest');
         assert.equal(result.localMediaMap.closest[0].imageOrdinal, 0);
         const domain = domainFromCache(result.localConvCache.closest);
-        assert.equal(domain.messages[0].attachments?.[0].fileName, 'cat.png');
+        assert.equal(messageAssets(domain, 0)?.[0].name, 'cat.png');
         assert.equal('generation' in domain.messages[0], false);
-        assert.equal(domain.messages[0].attachments?.[0].generation?.imageCount, 1);
+        assert.equal(messageAssets(domain, 0)?.[0].generation?.imageCount, 1);
     }
 });
 
@@ -78,7 +79,7 @@ test('Multi-image ZIP enumeration does not establish ordinals or collapse images
         const domain = domainFromCache(result.localConvCache.chat);
         assert.equal(domain.messages.length, 1);
         assert.equal('generation' in domain.messages[0], false);
-        assert.deepEqual(domain.messages[0].attachments?.map(a => a.fileName).sort(), ['first.png', 'second.png']);
+        assert.deepEqual(messageAssets(domain, 0)?.map(a => a.name).sort(), ['first.png', 'second.png']);
         assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 2);
     }
 });
