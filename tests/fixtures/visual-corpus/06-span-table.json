@@ -20,7 +20,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p06-b90",
        "type": "paragraph",
        "children": [
         {
@@ -36,7 +35,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p06-b88",
        "type": "paragraph",
        "children": [
         {
@@ -46,7 +44,6 @@
        ]
       },
       {
-       "id": "p06-t1",
        "type": "table",
        "headerRows": [
         {
@@ -137,7 +134,6 @@
        ]
       },
       {
-       "id": "p06-b89",
        "type": "paragraph",
        "children": [
         {

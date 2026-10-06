@@ -44,15 +44,13 @@ const {
 // builders
 // ---------------------------------------------------------------------------
 
-let blockSeq = 0;
-const bid = () => `b${(blockSeq += 1)}`;
 
 function para(text: string) {
-    return { id: bid(), type: 'paragraph', children: [{ type: 'text', text }] };
+    return { type: 'paragraph', children: [{ type: 'text', text }] };
 }
 
 function mathBlock(source: string) {
-    return { id: bid(), type: 'math', source };
+    return { type: 'math', source };
 }
 
 function msg(id: string, role: 'user' | 'assistant', blocks: unknown[], extra: Record<string, unknown> = {}) {
@@ -353,7 +351,7 @@ test('D8-5: 20 sequential compiles on one reused frame: timing + heap', async ()
                         para(`回复 ${i + 1}：包含公式与列表。`),
                         mathBlock('\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}'),
                         {
-                            id: bid(), type: 'list', ordered: false,
+                            type: 'list', ordered: false,
                             items: [
                                 { blocks: [para(`要点一：会话 ${i + 1}`)] },
                                 { blocks: [para('要点二：separate check')] },

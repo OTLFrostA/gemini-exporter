@@ -1,5 +1,5 @@
 import type { Asset } from './assets.js';
-import type { BlockNode } from './blocks.js';
+import type { BlockNode } from '../../content/blocks.js';
 import type { Citation } from './citations.js';
 
 export interface ConversationKey {

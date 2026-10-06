@@ -1,5 +1,5 @@
-import type { BlockNode } from './blocks.js';
-import type { InlineNode } from './inline.js';
+import type { BlockNode } from '../../content/blocks.js';
+import type { InlineNode } from '../../content/inline.js';
 
 function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<string> {
     const ids = new Set<string>();

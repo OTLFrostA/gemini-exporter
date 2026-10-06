@@ -5,7 +5,7 @@ import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/i
 import type { InlineByteStore } from '../../assets/index.js';
 import { classifyAssetAvailability } from '../assetResolution.js';
 import type { Diagnostic } from '../diagnostics.js';
-import type { ImageInline } from '../inline.js';
+import type { ImageInline } from '../../../content/inline.js';
 import type { JsonValue } from '../json.js';
 import type { SourceRef } from '../provenance.js';
 import { extractImages } from '../../../api/parser/attachments.js';

@@ -278,15 +278,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "children"
       ],
       "properties": {
         "type": {
           "const": "paragraph"
-        },
-        "id": {
-          "type": "string"
         },
         "children": {
           "type": "array",
@@ -301,16 +297,12 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "level",
         "children"
       ],
       "properties": {
         "type": {
           "const": "heading"
-        },
-        "id": {
-          "type": "string"
         },
         "level": {
           "type": "integer",
@@ -345,16 +337,12 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "ordered",
         "items"
       ],
       "properties": {
         "type": {
           "const": "list"
-        },
-        "id": {
-          "type": "string"
         },
         "ordered": {
           "type": "boolean"
@@ -375,15 +363,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "blocks"
       ],
       "properties": {
         "type": {
           "const": "quote"
-        },
-        "id": {
-          "type": "string"
         },
         "blocks": {
           "type": "array",
@@ -398,15 +382,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "code"
       ],
       "properties": {
         "type": {
           "const": "code"
-        },
-        "id": {
-          "type": "string"
         },
         "code": {
           "type": "string"
@@ -427,15 +407,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "source"
       ],
       "properties": {
         "type": {
           "const": "math"
-        },
-        "id": {
-          "type": "string"
         },
         "source": {
           "type": "string"
@@ -499,15 +475,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "rows"
       ],
       "properties": {
         "type": {
           "const": "table"
-        },
-        "id": {
-          "type": "string"
         },
         "caption": {
           "type": "array",
@@ -540,15 +512,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "assetId"
       ],
       "properties": {
         "type": {
           "const": "image"
-        },
-        "id": {
-          "type": "string"
         },
         "assetId": {
           "type": "string"
@@ -591,15 +559,11 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "assetId"
       ],
       "properties": {
         "type": {
           "const": "file"
-        },
-        "id": {
-          "type": "string"
         },
         "assetId": {
           "type": "string"
@@ -620,16 +584,12 @@
       "type": "object",
       "required": [
         "type",
-        "id",
         "disclosure",
         "blocks"
       ],
       "properties": {
         "type": {
           "const": "thought"
-        },
-        "id": {
-          "type": "string"
         },
         "disclosure": {
           "const": "providerExposed"
@@ -654,15 +614,11 @@
     "ThematicBreakBlock": {
       "type": "object",
       "required": [
-        "type",
-        "id"
+        "type"
       ],
       "properties": {
         "type": {
           "const": "thematicBreak"
-        },
-        "id": {
-          "type": "string"
         }
       },
       "additionalProperties": false
@@ -670,7 +626,6 @@
     "UnknownBlock": {
       "type": "object",
       "required": [
-        "id",
         "type",
         "sourceType",
         "text"
@@ -678,9 +633,6 @@
       "properties": {
         "type": {
           "const": "unknown"
-        },
-        "id": {
-          "type": "string"
         },
         "sourceType": {
           "type": "string",

@@ -42,7 +42,6 @@ function row(...texts: string[]) {
 
 const headerlessTable = {
     type: 'table',
-    id: 't1',
     rows: [row('north-one', 'north-two'), row('south-one', 'south-two')],
 };
 
@@ -59,7 +58,7 @@ test('headerless table keeps empty headers and full body rows', async () => {
 });
 
 test('thematicBreak becomes a native divider node, not an em-dash paragraph', async () => {
-    const b = bundle([msg('m1', 'assistant', [{ type: 'thematicBreak', id: 'tb1' }])]);
+    const b = bundle([msg('m1', 'assistant', [{ type: 'thematicBreak' }])]);
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.deepStrictEqual(node, { type: 'thematicBreak' });
@@ -99,10 +98,9 @@ async function compileOnce(bundle: any) {
 test('real WASM: headerless table, thematicBreak and strikethrough compile with all text selectable', async () => {
     const b = bundle([msg('m1', 'assistant', [
         headerlessTable,
-        { type: 'thematicBreak', id: 'tb1' },
+        { type: 'thematicBreak' },
         {
-            type: 'paragraph', id: 'p1',
-            children: [{ type: 'strikethrough', children: [{ type: 'text', text: 'struck-text' }] }],
+            type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'text', text: 'struck-text' }] }],
         },
     ])]);
     const result = await compileOnce(b);

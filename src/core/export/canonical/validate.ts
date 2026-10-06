@@ -1,8 +1,8 @@
 import type { Asset } from './assets.js';
-import type { BlockNode } from './blocks.js';
+import type { BlockNode } from '../../content/blocks.js';
 import type { CanonicalConversationBundle, Conversation } from './conversation.js';
 import type { Diagnostic, DiagnosticSeverity } from './diagnostics.js';
-import type { InlineNode } from './inline.js';
+import type { InlineNode } from '../../content/inline.js';
 
 export interface CanonicalValidationOptions {
     maxMessages?: number;
@@ -115,8 +115,8 @@ function walkInlineBlocks(blocks: BlockNode[], visit: (b: BlockNode, path: strin
         count += 1;
         visit(b, path);
         const kids: Array<{ blocks: BlockNode[]; at: string }> = [];
-        if (b.type === 'list') b.items?.forEach((it, i) => kids.push({ blocks: it.blocks ?? [], at: `${path}.items[${i}]` }));
-        if (b.type === 'quote' || b.type === 'thought') kids.push({ blocks: b.blocks ?? [], at: path });
+        if (b.type === 'list') b.items?.forEach((it, i) => kids.push({ blocks: it.blocks ?? [], at: `${path}.items[${i}].blocks` }));
+        if (b.type === 'quote' || b.type === 'thought') kids.push({ blocks: b.blocks ?? [], at: `${path}.blocks` });
         for (const k of kids) {
             k.blocks.forEach((child, i) => visitBlock(child, `${k.at}[${i}]`));
         }
@@ -253,7 +253,6 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
         checkUrl(cit.url, c, `citations[${cit.id}].url`);
     }
 
-    const blockIds = new Set<string>();
     let totalBlocks = 0;
     messages.forEach((m, mi) => {
         const base = `conversation.messages[${mi}]`;
@@ -267,15 +266,9 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
             });
         }
         const count = walkInlineBlocks(m.blocks ?? [], (b, path) => {
-            if (!b || typeof b.id !== 'string' || !b.id) {
-                c.add('error', 'BLOCK_BAD_ID', `block has a missing or non-string id at ${base}.${path}`, `${base}.${path}`);
-                return;
-            }
-            if (blockIds.has(b.id)) c.add('error', 'BLOCK_DUP_ID', `duplicate block id: ${b.id}`, `${base}.${path}`);
-            blockIds.add(b.id);
             for (const host of inlineHosts(b)) {
                 walkInlines(host.inlines, (n, ipath) => {
-                    const full = `${base}.${path}.${host.at}${ipath}`;
+                    const full = `${path}.${host.at}${ipath}`;
                     if (n.type === 'link') checkUrl(n.href, c, full);
                     if (n.type === 'inlineMath' && !n.source) {
                         c.add('warning', 'MATH_NO_SOURCE', 'inlineMath node without source; original LaTeX source must be preserved', full);
@@ -289,17 +282,17 @@ export function validateBundle(bundle: unknown, options: CanonicalValidationOpti
                 }, '');
             }
             if ((b.type === 'image' || b.type === 'file') && !assetIds.has(b.assetId)) {
-                c.add('error', 'ASSET_UNRESOLVED', `${b.type} block references unknown asset ${b.assetId}`, `${base}.${path}`);
+                c.add('error', 'ASSET_UNRESOLVED', `${b.type} block references unknown asset ${b.assetId}`, `${path}`);
             }
             if (b.type === 'math' && !b.source) {
-                c.add('warning', 'MATH_NO_SOURCE', 'math node without source; original LaTeX source must be preserved', `${base}.${path}`);
+                c.add('warning', 'MATH_NO_SOURCE', 'math node without source; original LaTeX source must be preserved', `${path}`);
             }
             if (b.type === 'unknown') {
                 if (typeof b.sourceType !== 'string' || !b.sourceType.trim()) {
-                    c.add('error', 'UNKNOWN_BAD_SOURCE_TYPE', 'unknown block sourceType must be non-empty', `${base}.${path}`);
+                    c.add('error', 'UNKNOWN_BAD_SOURCE_TYPE', 'unknown block sourceType must be non-empty', `${path}`);
                 }
                 if (typeof b.text !== 'string' || !b.text.trim()) {
-                    c.add('error', 'UNKNOWN_EMPTY', 'unknown block text must be non-empty', `${base}.${path}`);
+                    c.add('error', 'UNKNOWN_EMPTY', 'unknown block text must be non-empty', `${path}`);
                 }
             }
         }, `${base}.blocks`);

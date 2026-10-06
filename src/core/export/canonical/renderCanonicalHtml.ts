@@ -2,11 +2,11 @@ import { visual } from '../visualContract.js';
 import { assetPresentation, assetCaptionText } from './assetPresentation.js';
 import type { Asset } from './assets.js';
 import { collectReferencedAssetIds } from './assetReferences.js';
-import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from './blocks.js';
+import type { BlockNode, FileBlock, ImageBlock, ListBlock, TableBlock } from '../../content/blocks.js';
 import type { Citation } from './citations.js';
 import { citationDisplayLabel } from './citations.js';
 import type { CanonicalConversationBundle, MessageNode } from './conversation.js';
-import type { InlineNode } from './inline.js';
+import type { InlineNode } from '../../content/inline.js';
 import { getRendererStrings } from './rendererStrings.js';
 import type {
     CompanionResourcePlan,

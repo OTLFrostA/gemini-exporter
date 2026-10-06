@@ -1,5 +1,5 @@
-import type { BlockNode } from './blocks.js';
-import type { InlineNode } from './inline.js';
+import type { BlockNode } from '../../content/blocks.js';
+import type { InlineNode } from '../../content/inline.js';
 
 export interface TextExtractOptions {
     citationLabel?: (citationId: string) => string | undefined;

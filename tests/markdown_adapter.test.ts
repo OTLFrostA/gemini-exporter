@@ -21,13 +21,11 @@ const {
 const { newAssetLinkIndex, indexAssetRef } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
 
 function createTestContext(overrides: any = {}) {
-    let blockSeq = 0;
     const diagnostics: any[] = [];
     const inlineAssets: any[] = [];
     const assetIndex = newAssetLinkIndex();
     const ctx = {
         idPrefix: 'test-msg',
-        nextBlockId: () => `test-msg-b${blockSeq++}`,
         diagnostics,
         inlineAssets,
         assetIndex,
@@ -652,7 +650,7 @@ test('Unknown != Disappear: Unsupported block node collapses visible content to 
     const unknownBlock = blocks[0] as any;
     assert.strictEqual(unknownBlock.sourceType, 'customCalloutBox');
     assert.strictEqual(unknownBlock.text, 'Inside callout');
-    assert.deepStrictEqual(Object.keys(unknownBlock).sort(), ['id', 'sourceType', 'text', 'type']);
+    assert.deepStrictEqual(Object.keys(unknownBlock).sort(), ['sourceType', 'text', 'type']);
 
     const diag = diagnostics.find((d: any) => d.code === 'MDAST_UNKNOWN_BLOCK');
     assert.ok(diag, 'Must record MDAST_UNKNOWN_BLOCK diagnostic');

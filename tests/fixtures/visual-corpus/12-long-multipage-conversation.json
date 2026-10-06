@@ -20,7 +20,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b114",
        "type": "paragraph",
        "children": [
         {
@@ -36,7 +35,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b115",
        "type": "paragraph",
        "children": [
         {
@@ -46,7 +44,6 @@
        ]
       },
       {
-       "id": "p12-b116",
        "type": "paragraph",
        "children": [
         {
@@ -64,7 +61,6 @@
        ]
       },
       {
-       "id": "p12-b117",
        "type": "paragraph",
        "children": [
         {
@@ -78,14 +74,12 @@
        ]
       },
       {
-       "id": "p12-b118",
        "type": "list",
        "ordered": false,
        "items": [
         {
          "blocks": [
           {
-           "id": "p12-b119",
            "type": "paragraph",
            "children": [
             {
@@ -99,7 +93,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b120",
            "type": "paragraph",
            "children": [
             {
@@ -113,7 +106,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b121",
            "type": "paragraph",
            "children": [
             {
@@ -127,7 +119,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b122",
            "type": "paragraph",
            "children": [
             {
@@ -147,7 +138,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b123",
        "type": "paragraph",
        "children": [
         {
@@ -163,7 +153,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b124",
        "type": "paragraph",
        "children": [
         {
@@ -173,7 +162,6 @@
        ]
       },
       {
-       "id": "p12-b125",
        "type": "table",
        "headerRows": [
         {
@@ -361,7 +349,6 @@
        ]
       },
       {
-       "id": "p12-b126",
        "type": "paragraph",
        "children": [
         {
@@ -377,7 +364,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b127",
        "type": "paragraph",
        "children": [
         {
@@ -393,7 +379,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b128",
        "type": "paragraph",
        "children": [
         {
@@ -403,13 +388,11 @@
        ]
       },
       {
-       "id": "p12-b129",
        "type": "code",
        "code": "class RateLimiter_2:\n    def __init__(self, rate, capacity):\n        self.rate = rate\n        self.capacity = capacity\n        self.tokens = capacity\n        self.updated = time.monotonic()\n\n    def allow(self):\n        now = time.monotonic()\n        self.tokens = min(self.capacity,\n            self.tokens + (now - self.updated) * self.rate)\n        self.updated = now\n        if self.tokens >= 1:\n            self.tokens -= 1\n            return True\n        return False",
        "language": "python"
       },
       {
-       "id": "p12-b130",
        "type": "paragraph",
        "children": [
         {
@@ -425,7 +408,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b131",
        "type": "paragraph",
        "children": [
         {
@@ -441,7 +423,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b132",
        "type": "paragraph",
        "children": [
         {
@@ -451,14 +432,12 @@
        ]
       },
       {
-       "id": "p12-b143",
        "type": "list",
        "ordered": false,
        "items": [
         {
          "blocks": [
           {
-           "id": "p12-b133",
            "type": "paragraph",
            "children": [
             {
@@ -468,14 +447,12 @@
            ]
           },
           {
-           "id": "p12-b137",
            "type": "list",
            "ordered": false,
            "items": [
             {
              "blocks": [
               {
-               "id": "p12-b134",
                "type": "paragraph",
                "children": [
                 {
@@ -489,7 +466,6 @@
             {
              "blocks": [
               {
-               "id": "p12-b135",
                "type": "paragraph",
                "children": [
                 {
@@ -503,7 +479,6 @@
             {
              "blocks": [
               {
-               "id": "p12-b136",
                "type": "paragraph",
                "children": [
                 {
@@ -521,7 +496,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b138",
            "type": "paragraph",
            "children": [
             {
@@ -531,14 +505,12 @@
            ]
           },
           {
-           "id": "p12-b141",
            "type": "list",
            "ordered": false,
            "items": [
             {
              "blocks": [
               {
-               "id": "p12-b139",
                "type": "paragraph",
                "children": [
                 {
@@ -552,7 +524,6 @@
             {
              "blocks": [
               {
-               "id": "p12-b140",
                "type": "paragraph",
                "children": [
                 {
@@ -570,7 +541,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b142",
            "type": "paragraph",
            "children": [
             {
@@ -590,7 +560,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b144",
        "type": "paragraph",
        "children": [
         {
@@ -606,7 +575,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b145",
        "type": "paragraph",
        "children": [
         {
@@ -616,7 +584,6 @@
        ]
       },
       {
-       "id": "p12-b146",
        "type": "image",
        "assetId": "img-12a",
        "alt": "流程图 4",
@@ -634,7 +601,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b147",
        "type": "paragraph",
        "children": [
         {
@@ -650,7 +616,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b148",
        "type": "paragraph",
        "children": [
         {
@@ -660,11 +625,9 @@
        ]
       },
       {
-       "id": "p12-b151",
        "type": "quote",
        "blocks": [
         {
-         "id": "p12-b149",
          "type": "paragraph",
          "children": [
           {
@@ -678,7 +641,6 @@
          ]
         },
         {
-         "id": "p12-b150",
          "type": "paragraph",
          "children": [
           {
@@ -696,7 +658,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b152",
        "type": "paragraph",
        "children": [
         {
@@ -712,7 +673,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b153",
        "type": "paragraph",
        "children": [
         {
@@ -722,7 +682,6 @@
        ]
       },
       {
-       "id": "p12-b154",
        "type": "paragraph",
        "children": [
         {
@@ -740,7 +699,6 @@
        ]
       },
       {
-       "id": "p12-b155",
        "type": "paragraph",
        "children": [
         {
@@ -754,14 +712,12 @@
        ]
       },
       {
-       "id": "p12-b156",
        "type": "list",
        "ordered": false,
        "items": [
         {
          "blocks": [
           {
-           "id": "p12-b157",
            "type": "paragraph",
            "children": [
             {
@@ -775,7 +731,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b158",
            "type": "paragraph",
            "children": [
             {
@@ -789,7 +744,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b159",
            "type": "paragraph",
            "children": [
             {
@@ -803,7 +757,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b160",
            "type": "paragraph",
            "children": [
             {
@@ -823,7 +776,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b161",
        "type": "paragraph",
        "children": [
         {
@@ -839,7 +791,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b162",
        "type": "paragraph",
        "children": [
         {
@@ -849,7 +800,6 @@
        ]
       },
       {
-       "id": "p12-b163",
        "type": "table",
        "headerRows": [
         {
@@ -1037,7 +987,6 @@
        ]
       },
       {
-       "id": "p12-b164",
        "type": "paragraph",
        "children": [
         {
@@ -1053,7 +1002,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b165",
        "type": "paragraph",
        "children": [
         {
@@ -1069,7 +1017,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b166",
        "type": "paragraph",
        "children": [
         {
@@ -1079,13 +1026,11 @@
        ]
       },
       {
-       "id": "p12-b167",
        "type": "code",
        "code": "class RateLimiter_8:\n    def __init__(self, rate, capacity):\n        self.rate = rate\n        self.capacity = capacity\n        self.tokens = capacity\n        self.updated = time.monotonic()\n\n    def allow(self):\n        now = time.monotonic()\n        self.tokens = min(self.capacity,\n            self.tokens + (now - self.updated) * self.rate)\n        self.updated = now\n        if self.tokens >= 1:\n            self.tokens -= 1\n            return True\n        return False",
        "language": "python"
       },
       {
-       "id": "p12-b168",
        "type": "paragraph",
        "children": [
         {
@@ -1101,7 +1046,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b169",
        "type": "paragraph",
        "children": [
         {
@@ -1117,7 +1061,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b170",
        "type": "paragraph",
        "children": [
         {
@@ -1127,14 +1070,12 @@
        ]
       },
       {
-       "id": "p12-b181",
        "type": "list",
        "ordered": false,
        "items": [
         {
          "blocks": [
           {
-           "id": "p12-b171",
            "type": "paragraph",
            "children": [
             {
@@ -1144,14 +1085,12 @@
            ]
           },
           {
-           "id": "p12-b175",
            "type": "list",
            "ordered": false,
            "items": [
             {
              "blocks": [
               {
-               "id": "p12-b172",
                "type": "paragraph",
                "children": [
                 {
@@ -1165,7 +1104,6 @@
             {
              "blocks": [
               {
-               "id": "p12-b173",
                "type": "paragraph",
                "children": [
                 {
@@ -1179,7 +1117,6 @@
             {
              "blocks": [
               {
-               "id": "p12-b174",
                "type": "paragraph",
                "children": [
                 {
@@ -1197,7 +1134,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b176",
            "type": "paragraph",
            "children": [
             {
@@ -1207,14 +1143,12 @@
            ]
           },
           {
-           "id": "p12-b179",
            "type": "list",
            "ordered": false,
            "items": [
             {
              "blocks": [
               {
-               "id": "p12-b177",
                "type": "paragraph",
                "children": [
                 {
@@ -1228,7 +1162,6 @@
             {
              "blocks": [
               {
-               "id": "p12-b178",
                "type": "paragraph",
                "children": [
                 {
@@ -1246,7 +1179,6 @@
         {
          "blocks": [
           {
-           "id": "p12-b180",
            "type": "paragraph",
            "children": [
             {
@@ -1266,7 +1198,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b182",
        "type": "paragraph",
        "children": [
         {
@@ -1282,7 +1213,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b183",
        "type": "paragraph",
        "children": [
         {
@@ -1292,7 +1222,6 @@
        ]
       },
       {
-       "id": "p12-b184",
        "type": "image",
        "assetId": "img-12a",
        "alt": "流程图 10",
@@ -1310,7 +1239,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p12-b185",
        "type": "paragraph",
        "children": [
         {
@@ -1326,7 +1254,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p12-b186",
        "type": "paragraph",
        "children": [
         {
@@ -1336,11 +1263,9 @@
        ]
       },
       {
-       "id": "p12-b189",
        "type": "quote",
        "blocks": [
         {
-         "id": "p12-b187",
          "type": "paragraph",
          "children": [
           {
@@ -1354,7 +1279,6 @@
          ]
         },
         {
-         "id": "p12-b188",
          "type": "paragraph",
          "children": [
           {

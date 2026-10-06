@@ -1,4 +1,4 @@
-import type { InlineNode } from './inline.js';
+import type { InlineNode } from '../../content/inline.js';
 import type { Asset } from './assets.js';
 
 /** Conservative fallback for legacy assets that have no provenance metadata. */

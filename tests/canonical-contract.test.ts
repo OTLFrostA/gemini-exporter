@@ -240,7 +240,7 @@ test('missing asset without failureReason is diagnosed', () => {
 test('malicious link protocols are rejected', () => {
     const bundle = rich();
     bundle.conversation.messages[0].blocks.push({
-        id: 'evil', type: 'paragraph',
+        type: 'paragraph',
         children: [{ type: 'link', href: 'javascript:alert(1)', children: [{ type: 'text', text: 'x' }] }],
     });
     const codes = validateBundle(bundle).map((d: any) => d.code);
@@ -270,7 +270,7 @@ test('schema version and key violations are errors', () => {
 test('oversized strings are rejected by the size guard', () => {
     const bundle = rich();
     bundle.conversation.messages[0].blocks.push({
-        id: 'big', type: 'paragraph',
+        type: 'paragraph',
         children: [{ type: 'text', text: 'x'.repeat(11 * 1024 * 1024) }],
     });
     assert.ok(validateBundle(bundle).some((d: any) => d.code === 'LIMIT_STRING'));
@@ -330,8 +330,8 @@ test('final document schema contains only reachable definitions and closed docum
         Conversation: ['key', 'title', 'url', 'createdAt', 'updatedAt', 'messages'],
         MessageNode: ['id', 'role', 'author', 'createdAt', 'blocks', 'citationIds'],
         InlineMath: ['type', 'source'],
-        MathBlock: ['id', 'type', 'source'],
-        UnknownBlock: ['id', 'type', 'sourceType', 'text'],
+        MathBlock: ['type', 'source'],
+        UnknownBlock: ['type', 'sourceType', 'text'],
     })) {
         assert.deepStrictEqual(keys(schema.$defs[name]), fields.sort(), `final ${name} document shape`);
         assert.strictEqual(schema.$defs[name].additionalProperties, false);

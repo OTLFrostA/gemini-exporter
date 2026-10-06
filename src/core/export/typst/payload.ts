@@ -3,7 +3,7 @@ import type { Asset } from '../canonical/assets.js';
 import type {
     BlockNode,
     TableCell,
-} from '../canonical/blocks.js';
+} from '../../content/blocks.js';
 import type {
     CanonicalConversationBundle,
     MessageNode,
@@ -11,7 +11,7 @@ import type {
 import { extractBlockText, extractInlineText } from '../canonical/unknownFallback.js';
 import { getRendererStrings, type RendererStrings } from '../canonical/rendererStrings.js';
 import { citationDisplayLabel } from '../canonical/citations.js';
-import type { InlineNode } from '../canonical/inline.js';
+import type { InlineNode } from '../../content/inline.js';
 
 export type TypstInlineNode =
     | { type: 'text'; text: string }

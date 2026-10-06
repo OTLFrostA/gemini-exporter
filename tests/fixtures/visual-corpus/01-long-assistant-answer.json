@@ -20,7 +20,6 @@
           "role": "user",
           "blocks": [
             {
-              "id": "p01-b31",
               "type": "paragraph",
               "children": [
                 {
@@ -36,7 +35,6 @@
           "role": "assistant",
           "blocks": [
             {
-              "id": "p01-b1",
               "type": "paragraph",
               "children": [
                 {
@@ -46,7 +44,6 @@
               ]
             },
             {
-              "id": "p01-b2",
               "type": "heading",
               "level": 2,
               "children": [
@@ -57,7 +54,6 @@
               ]
             },
             {
-              "id": "p01-b3",
               "type": "paragraph",
               "children": [
                 {
@@ -71,7 +67,6 @@
               ]
             },
             {
-              "id": "p01-b4",
               "type": "paragraph",
               "children": [
                 {
@@ -89,14 +84,12 @@
               ]
             },
             {
-              "id": "p01-b5",
               "type": "list",
               "ordered": false,
               "items": [
                 {
                   "blocks": [
                     {
-                      "id": "p01-b6",
                       "type": "paragraph",
                       "children": [
                         {
@@ -110,7 +103,6 @@
                 {
                   "blocks": [
                     {
-                      "id": "p01-b7",
                       "type": "paragraph",
                       "children": [
                         {
@@ -124,7 +116,6 @@
                 {
                   "blocks": [
                     {
-                      "id": "p01-b8",
                       "type": "paragraph",
                       "children": [
                         {
@@ -138,13 +129,11 @@
               ]
             },
             {
-              "id": "p01-b9",
               "type": "code",
               "code": "def scaled_dot_product_attention(Q, K, V, mask=None):\n    d_k = Q.size(-1)\n    scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(d_k)\n    if mask is not None:\n        scores = scores.masked_fill(mask == 0, float('-inf'))\n    weights = torch.softmax(scores, dim=-1)\n    return torch.matmul(weights, V)",
               "language": "python"
             },
             {
-              "id": "p01-b10",
               "type": "heading",
               "level": 2,
               "children": [
@@ -155,7 +144,6 @@
               ]
             },
             {
-              "id": "p01-b11",
               "type": "paragraph",
               "children": [
                 {
@@ -169,11 +157,9 @@
               ]
             },
             {
-              "id": "p01-b13",
               "type": "quote",
               "blocks": [
                 {
-                  "id": "p01-b12",
                   "type": "paragraph",
                   "children": [
                     {
@@ -189,7 +175,6 @@
               ]
             },
             {
-              "id": "p01-b14",
               "type": "heading",
               "level": 2,
               "children": [
@@ -200,7 +185,6 @@
               ]
             },
             {
-              "id": "p01-b15",
               "type": "paragraph",
               "children": [
                 {
@@ -214,7 +198,6 @@
               ]
             },
             {
-              "id": "p01-b16",
               "type": "heading",
               "level": 2,
               "children": [
@@ -225,7 +208,6 @@
               ]
             },
             {
-              "id": "p01-b17",
               "type": "paragraph",
               "children": [
                 {
@@ -243,7 +225,6 @@
               ]
             },
             {
-              "id": "p01-b18",
               "type": "paragraph",
               "children": [
                 {
@@ -261,14 +242,12 @@
               ]
             },
             {
-              "id": "p01-b19",
               "type": "list",
               "ordered": false,
               "items": [
                 {
                   "blocks": [
                     {
-                      "id": "p01-b20",
                       "type": "paragraph",
                       "children": [
                         {
@@ -282,7 +261,6 @@
                 {
                   "blocks": [
                     {
-                      "id": "p01-b21",
                       "type": "paragraph",
                       "children": [
                         {
@@ -296,7 +274,6 @@
                 {
                   "blocks": [
                     {
-                      "id": "p01-b22",
                       "type": "paragraph",
                       "children": [
                         {
@@ -310,7 +287,6 @@
                 {
                   "blocks": [
                     {
-                      "id": "p01-b23",
                       "type": "paragraph",
                       "children": [
                         {
@@ -324,7 +300,6 @@
               ]
             },
             {
-              "id": "p01-b24",
               "type": "heading",
               "level": 2,
               "children": [
@@ -335,7 +310,6 @@
               ]
             },
             {
-              "id": "p01-b25",
               "type": "paragraph",
               "children": [
                 {
@@ -353,7 +327,6 @@
               ]
             },
             {
-              "id": "p01-b26",
               "type": "paragraph",
               "children": [
                 {
@@ -371,11 +344,9 @@
               ]
             },
             {
-              "id": "p01-b28",
               "type": "quote",
               "blocks": [
                 {
-                  "id": "p01-b27",
                   "type": "paragraph",
                   "children": [
                     {
@@ -391,7 +362,6 @@
               ]
             },
             {
-              "id": "p01-b29",
               "type": "paragraph",
               "children": [
                 {
@@ -409,7 +379,6 @@
               ]
             },
             {
-              "id": "p01-b30",
               "type": "paragraph",
               "children": [
                 {
@@ -427,7 +396,6 @@
               ]
             },
             {
-              "id": "p01-b22",
               "type": "paragraph",
               "children": [
                 {

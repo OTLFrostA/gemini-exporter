@@ -20,7 +20,6 @@
      "role": "user",
      "blocks": [
       {
-       "id": "p08-b97",
        "type": "paragraph",
        "children": [
         {
@@ -36,7 +35,6 @@
      "role": "assistant",
      "blocks": [
       {
-       "id": "p08-b94",
        "type": "paragraph",
        "children": [
         {
@@ -46,7 +44,6 @@
        ]
       },
       {
-       "id": "p08-b95",
        "type": "image",
        "assetId": "img-arch",
        "alt": "系统架构图",
@@ -58,7 +55,6 @@
        ]
       },
       {
-       "id": "p08-b96",
        "type": "paragraph",
        "children": [
         {

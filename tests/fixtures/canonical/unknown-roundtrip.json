@@ -12,7 +12,6 @@
         "role": "assistant",
         "blocks": [
           {
-            "id": "a1:b0",
             "type": "unknown",
             "sourceType": "gemini.future_rich_object",
             "text": "Readable fallback preserved for unsupported future object."

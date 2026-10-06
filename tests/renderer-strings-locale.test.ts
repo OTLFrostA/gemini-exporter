@@ -42,9 +42,9 @@ test('getRendererStrings returns zh and en copies', () => {
 
 test('typst zh locale localizes chrome copy', () => {
     const blocks = [
-        { id: 't1', type: 'thought', kind: 'summary', blocks: [] },
-        { id: 'u1', type: 'unknown', sourceType: 'gemini.mystery', text: 'Mystery content' },
-        { id: 'm1', type: 'math', source: 'x^2' },
+        { type: 'thought', kind: 'summary', blocks: [] },
+        { type: 'unknown', sourceType: 'gemini.mystery', text: 'Mystery content' },
+        { type: 'math', source: 'x^2' },
     ];
     const b = bundle([msg(blocks)]);
     const { payload } = toTypstPayload(b, { ...opts, locale: 'zh' });
@@ -58,7 +58,7 @@ test('typst zh locale localizes chrome copy', () => {
 });
 
 test('typst defaults to en when locale omitted', () => {
-    const b = bundle([msg([{ id: 't1', type: 'thought', kind: 'summary', blocks: [] }])]);
+    const b = bundle([msg([{ type: 'thought', kind: 'summary', blocks: [] }])]);
     const { payload } = toTypstPayload(b, opts);
     const thought = payload.messages[0].blocks.find((n: any) => n.type === 'note');
     assert.strictEqual(thought.label, 'Thinking Summary');
@@ -73,7 +73,7 @@ test('typst zh date unknown is localized', () => {
 
 test('html uses the same string source', () => {
     const blocks = [
-        { id: 't1', type: 'thought', kind: 'summary', blocks: [] },
+        { type: 'thought', kind: 'summary', blocks: [] },
     ];
     const zh = renderCanonicalHtml(bundle([msg(blocks)]), {});
     assert.ok(zh.html.includes('思考摘要'));

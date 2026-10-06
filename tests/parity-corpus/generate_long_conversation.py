@@ -5,7 +5,7 @@ Deterministic (seeded) so the committed JSON is reproducible. The fixture is
 NOT hand-written: regenerate with
     python3 generate_long_conversation.py --messages 121 --out long-conversation-121.json
 
-Every message carries a unique id/block id, source array order, and
+Every message carries a unique message id, source array order, and
 mixed Chinese/English content so the HTML/PDF parity harness has realistic
 long-document material (page breaks, repeated headings, mid-document tables
 and code blocks).
@@ -53,8 +53,8 @@ def emphasis(t):
     return {"type": "emphasis", "children": [text(t)]}
 
 
-def paragraph(bid, *children):
-    return {"id": bid, "type": "paragraph", "children": list(children)}
+def paragraph(*children):
+    return {"type": "paragraph", "children": list(children)}
 
 
 def build_message(idx, role, rng):
@@ -62,17 +62,17 @@ def build_message(idx, role, rng):
     mid = f"{'u' if role == 'user' else 'a'}{idx}"
     tpl = rng.choice(USER_TEMPLATES if role == "user" else ASSISTANT_TEMPLATES)
     n = (idx + 1) // 2  # round number
-    blocks = [paragraph(f"{mid}:b0", text(tpl.format(n=n)))]
+    blocks = [paragraph(text(tpl.format(n=n)))]
     # Sprinkle block variety deterministically so the long fixture exercises
     # more than plain paragraphs.
     if role == "assistant" and idx % 10 == 0:
         blocks.append({
-            "id": f"{mid}:b1", "type": "code", "language": "python",
+            "type": "code", "language": "python",
             "code": f"def round_{n}():\n    return 'parity-check-{n}'\n",
         })
     if role == "assistant" and idx % 15 == 0:
         blocks.append({
-            "id": f"{mid}:b2", "type": "table",
+            "type": "table",
             "columns": [{"align": "left"}, {"align": "right"}],
             "headerRows": [{"cells": [
                 {"children": [text("指标")]},
@@ -85,12 +85,11 @@ def build_message(idx, role, rng):
         })
     if role == "assistant" and idx % 21 == 0:
         blocks.append({
-            "id": f"{mid}:b3", "type": "math",
+            "type": "math",
             "source": r"\sum_{i=1}^{%d} i = %d" % (n, n * (n + 1) // 2),
         })
     if role == "user" and idx % 7 == 0:
         blocks.append(paragraph(
-            f"{mid}:b1",
             emphasis("补充："), text("这一轮还请覆盖 "),
             strong("中英文混排"), text(" 与 "),
             {"type": "inlineCode", "code": f"round_{n}"}, text(" 的行内代码。"),

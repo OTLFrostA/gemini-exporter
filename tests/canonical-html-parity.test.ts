@@ -216,7 +216,7 @@ test('inline image (#555 contract): renders inline <img>, never dropped', () => 
                 {
                     id: 'm1', role: 'user',
                     blocks: [{
-                        id: 'b1', type: 'paragraph',
+                        type: 'paragraph',
                         children: [
                             { type: 'text', text: 'see ' },
                             { type: 'image', assetId: 'a-inline', alt: 'a diagram', title: 'fig 1' },
@@ -246,7 +246,7 @@ test('inline image with missing asset: visible placeholder + diagnostic', () => 
                 {
                     id: 'm1', role: 'user',
                     blocks: [{
-                        id: 'b1', type: 'paragraph',
+                        type: 'paragraph',
                         children: [
                             { type: 'text', text: 'see ' },
                             { type: 'image', assetId: 'a-gone', alt: 'lost diagram' },

@@ -241,13 +241,6 @@ test('parity corpus: long-conversation fixture really is a long conversation', (
     const bundle = loadFixture('long-conversation-121.json');
     const messages = bundle.conversation.messages as Array<{ id: string }>;
     assert.strictEqual(messages.length, 121, 'long-conversation fixture must carry 121 messages');
-    const blockIds = new Set<string>();
-    for (const m of messages) {
-        for (const b of (m as any).blocks as Array<{ id: string }>) {
-            assert.ok(!blockIds.has(b.id), `duplicate block id ${b.id}`);
-            blockIds.add(b.id);
-        }
-    }
 });
 
 // ---------------------------------------------------------------------------

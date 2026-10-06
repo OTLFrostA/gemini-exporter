@@ -1,5 +1,5 @@
-import type { BlockNode, ListItem, TableCell, TableRow } from '../blocks.js';
-import type { InlineNode } from '../inline.js';
+import type { BlockNode, ListItem, TableCell, TableRow } from '../../../content/blocks.js';
+import type { InlineNode } from '../../../content/inline.js';
 import type { MarkdownParseContext } from '../markdown/index.js';
 import type {
     GeminiAnnotation,
@@ -213,14 +213,12 @@ export function geminiStructuredToCanonical(
 
                 if (node.jJ && node.jJ >= 1 && node.jJ <= 6) {
                     blocks.push({
-                        id: ctx.nextBlockId(),
                         type: 'heading',
                         level: node.jJ as 1 | 2 | 3 | 4 | 5 | 6,
                         children: inlines,
                     });
                 } else {
                     blocks.push({
-                        id: ctx.nextBlockId(),
                         type: 'paragraph',
                         children: inlines,
                     });
@@ -232,7 +230,6 @@ export function geminiStructuredToCanonical(
                 // Display Math
                 if (typeof node.FTa !== 'string') return null;
                 blocks.push({
-                    id: ctx.nextBlockId(),
                     type: 'math',
                     source: node.FTa,
                 });
@@ -243,7 +240,6 @@ export function geminiStructuredToCanonical(
                 // Code block
                 if (typeof node.code !== 'string') return null;
                 blocks.push({
-                    id: ctx.nextBlockId(),
                     type: 'code',
                     code: node.code,
                     ...(node.info ? { language: node.info } : {}),
@@ -254,7 +250,6 @@ export function geminiStructuredToCanonical(
             case 19: {
                 // Thematic break
                 blocks.push({
-                    id: ctx.nextBlockId(),
                     type: 'thematicBreak',
                 });
                 break;
@@ -276,7 +271,6 @@ export function geminiStructuredToCanonical(
                     items.push({ blocks: itemBlocks });
                 }
                 blocks.push({
-                    id: ctx.nextBlockId(),
                     type: 'list',
                     ordered: node.nodeType === 14,
                     ...(node.nodeType === 14 ? { start: typeof node.VHa === 'number' ? node.VHa : 1 } : {}),
@@ -295,7 +289,6 @@ export function geminiStructuredToCanonical(
                 );
                 if (quoteBlocks === null) return null;
                 blocks.push({
-                    id: ctx.nextBlockId(),
                     type: 'quote',
                     blocks: quoteBlocks,
                 });
@@ -324,7 +317,6 @@ export function geminiStructuredToCanonical(
                 const headerRows: TableRow[] = tableRows.length > 0 ? [tableRows[0]] : [];
                 const dataRows: TableRow[] = tableRows.length > 1 ? tableRows.slice(1) : [];
                 blocks.push({
-                    id: ctx.nextBlockId(),
                     type: 'table',
                     ...(headerRows.length ? { headerRows } : {}),
                     rows: dataRows,

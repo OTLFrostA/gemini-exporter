@@ -132,7 +132,6 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
     ];
 
     const blocks = equations.map((latex, idx) => ({
-        id: `math-${idx}`,
         type: 'math',
         notation: 'latex',
         source: latex,
@@ -152,7 +151,7 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
                     id: 'm1',
                     role: 'user',
                     createdAt: '2026-09-28T00:00:00Z',
-                    blocks: [{ id: 'b0', type: 'paragraph', children: [{ id: 't0', type: 'text', text: 'Math test' }] }],
+                    blocks: [{ type: 'paragraph', children: [{ id: 't0', type: 'text', text: 'Math test' }] }],
                 },
                 {
                     id: 'm2',
