@@ -154,7 +154,8 @@ import {
     AssetPipeline as AssetPipelineStatic,
     type AssetPipelineClass,
     type AssetPipelineInstance,
-    type ProcessAssetResult
+    type ProcessAssetResult,
+    type AssetPipelineItem
 } from "../assetPipeline.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
@@ -176,10 +177,7 @@ import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
     type BatchWorkerModule,
-    type WorkerChat,
-    type WorkerChatResolveInput,
-    type WorkerMessageAttachment,
-    type ResolveChatResult
+    type WorkerChatResolveInput
 } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, {
@@ -212,8 +210,89 @@ import {
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
 
-function isPropertyAssignableRecord(value: unknown): value is WorkerChatResolveInput {
+function isResolverPropertyAccessCandidate(value: unknown): value is WorkerChatResolveInput {
     return value !== null && (typeof value === 'object' || typeof value === 'function');
+}
+
+interface PassthroughResolveChatResult {
+    chat: WorkerChatResolveInput;
+    listTitle?: unknown;
+    displayTitle?: unknown;
+    isError: false;
+    errMsg: null;
+    isConfirmedDeleted: false;
+    convsNeedSave: false;
+}
+
+function createPassthroughResolveChatResult(chat: WorkerChatResolveInput): PassthroughResolveChatResult {
+    return {
+        chat,
+        listTitle: chat.title,
+        displayTitle: chat.title,
+        isError: false,
+        errMsg: null,
+        isConfirmedDeleted: false,
+        convsNeedSave: false
+    };
+}
+
+function isAssetPropertyAccessCandidate(value: unknown): value is AssetPipelineItem {
+    return value !== null && (typeof value === 'object' || typeof value === 'function');
+}
+
+function* iterateRuntimeIterable(value: unknown): Generator<unknown> {
+    if (value === null || value === undefined) throw new TypeError(`Value ${String(value)} is not iterable`);
+    const iteratorMethod: unknown = Reflect.get(Object(value), Symbol.iterator);
+    if (iteratorMethod === null || iteratorMethod === undefined) throw new TypeError('Value is not iterable');
+    if (typeof iteratorMethod !== 'function') throw new TypeError('Iterator method is not callable');
+
+    const iterator: unknown = Reflect.apply(iteratorMethod, value, []);
+    if (iterator === null || (typeof iterator !== 'object' && typeof iterator !== 'function')) {
+        throw new TypeError('Iterator is not an object');
+    }
+    const nextMethod: unknown = Reflect.get(iterator, 'next');
+    if (typeof nextMethod !== 'function') throw new TypeError('Iterator next method is not callable');
+
+    let complete = false;
+    try {
+        while (true) {
+            const step: unknown = Reflect.apply(nextMethod, iterator, []);
+            if (step === null || typeof step !== 'object') throw new TypeError('Iterator result is not an object');
+            const isDone: unknown = Reflect.get(step, 'done');
+            if (isDone) {
+                complete = true;
+                return;
+            }
+            const item: unknown = Reflect.get(step, 'value');
+            yield item;
+        }
+    } finally {
+        if (!complete) {
+            const returnMethod: unknown = Reflect.get(iterator, 'return');
+            if (returnMethod !== null && returnMethod !== undefined) {
+                if (typeof returnMethod !== 'function') throw new TypeError('Iterator return method is not callable');
+                const returnResult: unknown = Reflect.apply(returnMethod, iterator, []);
+                if (returnResult === null || (typeof returnResult !== 'object' && typeof returnResult !== 'function')) {
+                    throw new TypeError('Iterator return result is not an object');
+                }
+            }
+        }
+    }
+}
+
+function readDynamicProperty(value: unknown, key: PropertyKey): unknown {
+    if (value === null || value === undefined) {
+        throw new TypeError(`Cannot read properties of ${String(value)} (reading '${String(key)}')`);
+    }
+    return Reflect.get(Object(value), key);
+}
+
+function readOptionalString(value: unknown): string | undefined {
+    return typeof value === 'string' ? value : undefined;
+}
+
+function readAssetItemString(item: AssetPipelineItem, key: 'localName' | 'fileName' | 'name' | 'title' | 'sourceUrl' | 'src' | 'url'): string | undefined {
+    return readOptionalString(Reflect.get(item, key));
 }
 
 function toExportActivityRecord(value: unknown): ExportActivityRecord | null {
@@ -874,15 +953,15 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             candidate = res.chat;
                         }
                         const chatCandidate = candidate || { title: requestedItem.title };
-                        if (!isPropertyAssignableRecord(chatCandidate)) {
+                        if (!isResolverPropertyAccessCandidate(chatCandidate)) {
                             throw new TypeError(`Cannot create property 'id' on ${typeof chatCandidate} '${String(chatCandidate)}'`);
                         }
                         chatCandidate.id = nid;
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
-                        const resolvedRes: ResolveChatResult = worker?.resolveChat
+                        const resolvedRes = worker?.resolveChat
                             ? await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
-                            : await getBatchWorker().resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
+                            : createPassthroughResolveChatResult(chatCandidate);
 
                         if (resolvedRes.isError) {
                             failedChats.push({ id: typeof chatCandidate.id === 'string' ? chatCandidate.id : nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chatCandidate._debug || null, raw: chatCandidate._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
@@ -894,10 +973,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        let chat: WorkerChat & { id: string } = resolvedRes.chat;
-                        const listTitle = resolvedRes.listTitle;
-                        chat.title = listTitle;
-                        const chatId = resolvedRes.chat.id;
+                        const chat = resolvedRes.chat;
+                        const rawListTitle = resolvedRes.listTitle;
+                        const listTitle = readOptionalString(rawListTitle);
+                        chat.title = rawListTitle;
+                        const chatId = readOptionalString(Reflect.get(chat, 'id')) ?? nid;
 
                         const actualMsgCount = computeExportMessageCount(chat);
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
@@ -963,15 +1043,18 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         let queuedAssetsForThisChat = 0;
                         const chatAssetTasks: AssetTask[] = [];
-                        const queueAsset = (item: WorkerMessageAttachment, isImage: boolean) => {
+                        const assetChatTitle = readOptionalString(Reflect.get(chat, 'title')) || chatId;
+                        const queueAsset = (item: AssetPipelineItem, isImage: boolean) => {
                             totalAssets++;
                             queuedAssetsForThisChat++;
                             updateProgress();
                             const assetTask: AssetTask = async () => {
+                                const itemLocalName = readAssetItemString(item, 'localName');
+                                const itemFileName = readAssetItemString(item, 'fileName');
                                 let assetRes: ProcessAssetResult = {
                                     saved: false,
                                     failReason: '',
-                                    localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin'),
+                                    localName: itemLocalName || itemFileName || (isImage ? 'image.jpg' : 'file.bin'),
                                     recoveredFromTakeout: false
                                 };
                                 if (assetPipeline) {
@@ -991,44 +1074,71 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     pendingAssetsPerChat.set(nid, left);
                                     failedAttachments.push({
                                         chatId,
-                                        chatTitle: listTitle || chat.title || chatId,
+                                        chatTitle: listTitle || assetChatTitle,
                                         file: assetRes.localName,
                                         error: assetRes.failReason || 'CDN auth expired',
-                                        sourceUrl: typeof item.sourceUrl === 'string' ? item.sourceUrl
-                                            : typeof item.src === 'string' ? item.src
-                                                : typeof item.url === 'string' ? item.url : undefined,
+                                        sourceUrl: readAssetItemString(item, 'sourceUrl')
+                                            || readAssetItemString(item, 'src')
+                                            || readAssetItemString(item, 'url'),
                                         sourceEvidence: item.sourceEvidence
                                     });
                                     const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
-                                    onLog(getI18n().t(logKey, chat.title || chatId, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
+                                    onLog(getI18n().t(logKey, assetChatTitle, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
                                     if (left === 0) await finalizeChatExport(chatId);
                                 }
                             };
-                            assetTask.__assetMeta = { nid, chatId, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                            assetTask.__assetMeta = {
+                                nid,
+                                chatId,
+                                listTitle,
+                                fileName: readAssetItemString(item, 'localName') || readAssetItemString(item, 'fileName') || (isImage ? 'image.jpg' : 'file.bin')
+                            };
                             chatAssetTasks.push(assetTask);
                         };
 
-                        if (includeAssets && chat.messages && !mainWriteError) {
-                            for (const m of chat.messages) {
-                                if (m.attachments && m.attachments.length) {
-                                    for (const att of m.attachments) {
-                                        if (att.type === 'image') {
-                                            if (!m.images || !m.images.some((im: WorkerMessageAttachment) => im.localName === att.localName || im.url === att.url || im.fileName === att.fileName)) {
-                                                queueAsset(att, true);
+                        const chatMessages = Reflect.get(chat, 'messages');
+                        if (includeAssets && chatMessages && !mainWriteError) {
+                            for (const m of iterateRuntimeIterable(chatMessages)) {
+                                const attachments = readDynamicProperty(m, 'attachments');
+                                if (attachments && readDynamicProperty(attachments, 'length')) {
+                                    for (const attValue of iterateRuntimeIterable(attachments)) {
+                                        const attType = readDynamicProperty(attValue, 'type');
+                                        if (attType === 'image') {
+                                            const images = readDynamicProperty(m, 'images');
+                                            let alreadyListed = false;
+                                            if (images) {
+                                                const some = readDynamicProperty(images, 'some');
+                                                if (typeof some !== 'function') throw new TypeError('images.some is not callable');
+                                                const imageLocalName = readDynamicProperty(attValue, 'localName');
+                                                const imageUrl = readDynamicProperty(attValue, 'url');
+                                                const imageFileName = readDynamicProperty(attValue, 'fileName');
+                                                alreadyListed = Boolean(Reflect.apply(some, Object(images), [
+                                                    (image: unknown) => readDynamicProperty(image, 'localName') === imageLocalName
+                                                        || readDynamicProperty(image, 'url') === imageUrl
+                                                        || readDynamicProperty(image, 'fileName') === imageFileName
+                                                ]));
+                                            }
+                                            if (!images || !alreadyListed) {
+                                                if (!isAssetPropertyAccessCandidate(attValue)) throw new TypeError('Asset candidate is not object-like');
+                                                queueAsset(attValue, true);
                                             }
                                             continue;
                                         }
-                                        if (att.type !== 'file') continue;
-                                        if ((typeof att.url === 'string' && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
-                                        if (att.contentMarkdown) {
-                                            const docMarkdown = typeof att.contentMarkdown === 'string' ? att.contentMarkdown : '';
+                                        if (attType !== 'file') continue;
+                                        if (!isAssetPropertyAccessCandidate(attValue)) throw new TypeError('Asset candidate is not object-like');
+                                        const attUrl = readAssetItemString(attValue, 'url');
+                                        const attContentMarkdown: unknown = Reflect.get(attValue, 'contentMarkdown');
+                                        if ((attUrl && attUrl.includes('immersive_entry_chip')) && !attContentMarkdown) continue;
+                                        if (attContentMarkdown) {
+                                            const docMarkdown = typeof attContentMarkdown === 'string' ? attContentMarkdown : '';
                                             const cleanDocMd = stripInternalChipMarkdown(docMarkdown).trim();
                                             if (!cleanDocMd) {
                                                 continue;
                                             }
+                                            const docLocalName = readAssetItemString(attValue, 'localName') || '';
                                             if (useZip) {
                                                 try {
-                                                    await writeFileDirect(att.localName, cleanDocMd);
+                                                    await writeFileDirect(docLocalName, cleanDocMd);
                                                     totalAssets++;
                                                     downloadedAssets++;
                                                     updateProgress();
@@ -1036,14 +1146,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                     // 取消不记为资产失败，直接向上传播（B3 会进一步区分取消语义）
                                                     if (isNamedError(e, 'AbortError') || this.aborted) throw e;
                                                     chatFailedAssetsSet.add(nid);
-                                                    failedAttachments.push({ chatId, chatTitle: listTitle || chat.title || chatId, file: att.localName, error: getErrorMessage(e) });
+                                                    failedAttachments.push({ chatId, chatTitle: listTitle || assetChatTitle, file: docLocalName, error: getErrorMessage(e) });
                                                 }
                                             } else {
                                                 totalAssets++;
                                                 queuedAssetsForThisChat++;
                                                 updateProgress();
                                                 const mdTask: AssetTask = async () => {
-                                                    const docFileName = att.localName || `${safeBase}_${shortId(chatId)}.md`;
+                                                    const docFileName = docLocalName || `${safeBase}_${shortId(chatId)}.md`;
                                                     try {
                                                         await writeFileDirect(docFileName, cleanDocMd);
                                                         downloadedAssets++;
@@ -1051,26 +1161,28 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                         // 取消不记为资产失败，直接向上传播
                                                         if (isNamedError(e, 'AbortError') || this.aborted) throw e;
                                                         chatFailedAssetsSet.add(nid);
-                                                        failedAttachments.push({ chatId, chatTitle: listTitle || chat.title || chatId, file: docFileName, error: getErrorMessage(e) });
+                                                        failedAttachments.push({ chatId, chatTitle: listTitle || assetChatTitle, file: docFileName, error: getErrorMessage(e) });
                                                     }
                                                     updateProgress();
                                                     const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                                     pendingAssetsPerChat.set(nid, left);
                                                     if (left === 0) await finalizeChatExport(chatId);
                                                 };
-                                                mdTask.__assetMeta = { nid, chatId, listTitle, fileName: att.localName || 'doc.md' };
+                                                mdTask.__assetMeta = { nid, chatId, listTitle, fileName: docLocalName || 'doc.md' };
                                                 chatAssetTasks.push(mdTask);
                                             }
                                             continue;
                                         }
 
-                                        queueAsset(att, false);
+                                        queueAsset(attValue, false);
                                     }
                                 }
 
-                                if (m.images && m.images.length) {
-                                    for (const img of m.images) {
-                                        queueAsset(img, true);
+                                const messageImages = readDynamicProperty(m, 'images');
+                                if (messageImages && readDynamicProperty(messageImages, 'length')) {
+                                    for (const imageValue of iterateRuntimeIterable(messageImages)) {
+                                        if (!isAssetPropertyAccessCandidate(imageValue)) throw new TypeError('Asset candidate is not object-like');
+                                        queueAsset(imageValue, true);
                                     }
                                 }
                             }
@@ -1183,7 +1295,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 ? 'Aborted due to permission revocation'
                                 : getErrorMessage(mainWriteError);
                             failedChats.push({
-                                id: chat.id || nid,
+                                id: readOptionalString(Reflect.get(chat, 'id')) || nid,
                                 title: listTitle,
                                 error: failReason
                             });
@@ -1192,7 +1304,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         metaResults.push({
                             id: chatId,
                             title: listTitle,
-                            url: chat.url || `https://gemini.google.com/app/${chatId}`,
+                            url: readOptionalString(Reflect.get(chat, 'url')) || `https://gemini.google.com/app/${chatId}`,
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
                             messageCount: computeExportMessageCount(chat),

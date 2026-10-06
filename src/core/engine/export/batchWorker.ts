@@ -159,8 +159,34 @@ export interface WorkerChat {
     [key: string]: unknown;
 }
 
-/** Object-shaped candidate at the resolver boundary; fields are not validated here. */
-export type WorkerChatResolveInput = Record<string, unknown>;
+/**
+ * Property-access candidate passed to a resolver. These optional unknown fields
+ * describe the properties the resolver reads or writes; they do not prove that
+ * the value is a record or a validated WorkerChat.
+ */
+export interface WorkerChatResolveInput {
+    id?: unknown;
+    title?: unknown;
+    url?: unknown;
+    error?: unknown;
+    _empty?: unknown;
+    isDeleted?: unknown;
+    isEmpty?: unknown;
+    messages?: unknown;
+    _debug?: unknown;
+    _raw?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    timestamp?: unknown;
+    attachmentCount?: unknown;
+    truncated?: unknown;
+    isTruncated?: unknown;
+    titleSource?: unknown;
+    titles?: unknown;
+    truncateReason?: unknown;
+    schemaDrift?: unknown;
+    turnsRejected?: unknown;
+}
 
 export interface BatchWorkerModule {
     fetchChatDetail: (

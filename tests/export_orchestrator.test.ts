@@ -700,6 +700,49 @@ test('ExportOrchestrator - preserves strict assignment failure for a truthy prim
     assert.match(result.failedChats[0].error || '', /Cannot create property 'id' on number '42'/);
 });
 
+test('ExportOrchestrator - partial worker without resolveChat keeps the legacy passthrough success path', async () => {
+    const mockZips = setupMockJSZip();
+    setupMockStorage();
+    const orchestrator = new ExportOrchestrator();
+    const originalResolveChat = BatchWorker.resolveChat;
+    let defaultResolveCalls = 0;
+    BatchWorker.resolveChat = async (...args: any[]) => {
+        defaultResolveCalls++;
+        return originalResolveChat(...args);
+    };
+
+    try {
+        const result = await orchestrator.run({
+            selected: [{ id: 'partial_worker_chat', title: 'Requested title' }],
+            useZip: true,
+            includeAssets: false,
+            worker: {
+                fetchChatDetail: async () => ({
+                    success: true,
+                    chat: {
+                        id: 'partial_worker_chat',
+                        title: 'Fetched title',
+                        messages: [
+                            { role: 'user', content: 'Question' },
+                            { role: 'model', content: 'Answer' }
+                        ]
+                    }
+                })
+            }
+        });
+
+        assert.strictEqual(defaultResolveCalls, 0, 'Missing injected resolveChat must not call the default resolver');
+        assert.strictEqual(result.landedChats, 1, 'The fetched chat should pass through as a successful export');
+        assert.strictEqual(result.failedChats.length, 0);
+        assert.ok(
+            Object.keys(mockZips[0]?.files || {}).some(path => path.includes('Fetched title')),
+            'The passthrough result should keep the fetched title without running title resolution'
+        );
+    } finally {
+        BatchWorker.resolveChat = originalResolveChat;
+    }
+});
+
 test('ExportOrchestrator - passes the original attachment and resolved chat to AssetPipeline', async () => {
     setupMockJSZip();
     setupMockStorage();
