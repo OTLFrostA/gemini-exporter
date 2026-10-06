@@ -74,18 +74,22 @@ function copyMessage(value: ChatMessage, parseContent: (body: string, structured
     const reasoning = normalizeReasoning(value);
     const citations = normalizeCitations(value);
     const bodyAttachments = structuredBodyAttachments(value);
+    const documents = value.documents?.map(copyDocument);
+    // Structured-only assets followed document records in the legacy asset list.
+    // Keep document metadata exposed as aliases of those same resolved records.
+    const precedingDocuments = bodyAttachments.length ? documents ?? [] : [];
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content: parseContent(content, value.structuredContent),
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
-        ...(bodyAttachments.length ? { attachments: bodyAttachments.map(copyAttachment) }
+        ...(bodyAttachments.length ? { attachments: [...precedingDocuments, ...bodyAttachments.map(copyAttachment)] }
             : value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
         ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
-        ...(value.documents ? { documents: value.documents.map(copyDocument) } : {}),
+        ...(documents ? { documents } : {}),
         ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
     };
 }

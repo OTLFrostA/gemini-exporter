@@ -1,14 +1,13 @@
-import type { DomainMessage } from '../../../domain/conversationDetail.js';
-import type { GeminiNormalizationMessage } from './normalizationInput.js';
-import type { Asset } from '../assets.js';
-import { collectReferencedAssetIds } from '../assetReferences.js';
-import type { BlockNode } from '../../../content/blocks.js';
-import type { Citation } from '../citations.js';
-import type { MessageNode, MessageRole } from '../conversation.js';
-import type { Diagnostic } from '../diagnostics.js';
-import type { JsonValue } from '../json.js';
-import type { SourceRef } from '../provenance.js';
-import type { InlineByteStore } from '../../assets/index.js';
+import type { CanonicalMessageInput } from './messageInput.js';
+import type { Asset } from './assets.js';
+import { collectReferencedAssetIds } from './assetReferences.js';
+import type { BlockNode } from '../../content/blocks.js';
+import type { Citation } from './citations.js';
+import type { MessageNode, MessageRole } from './conversation.js';
+import type { Diagnostic } from './diagnostics.js';
+import type { JsonValue } from './json.js';
+import type { SourceRef } from './provenance.js';
+import type { InlineByteStore } from '../assets/index.js';
 import {
     type AssetParserContext,
     linkInlineImage,
@@ -16,24 +15,12 @@ import {
     indexAssetRef,
     mergeMessageAttachments,
     newAssetLinkIndex,
-} from './normalizeAssets.js';
-import { convertHtmlToMarkdown } from '../../../engine/formatters/htmlConverter.js';
-import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
-import { type MarkdownParseContext, parseMarkdownToBlocks } from '../../../content/markdown/index.js';
+} from './gemini/normalizeAssets.js';
 import {
-    extractRawCitations,
     linkCitationMarkers,
-} from './normalizeCitations.js';
-import { parseGeminiBody } from '../../../provider/gemini/contentAdapter.js';
-import { preprocessGeminiMarkdown } from '../../../provider/gemini/markdownCompatibility.js';
-import { mapContentAssetReferences } from '../../../content/assetReferences.js';
+} from './gemini/normalizeCitations.js';
+import { mapContentAssetReferences } from '../../content/assetReferences.js';
 
-export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
-    'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
-    'thinking', 'citations', 'images', 'documents', 'attachmentCount',
-    'messageCount', 'sources', 'structuredContent', 'groundingCitationMarkers',
-    'reasoning', 'provenance', // Domain metadata is recognized but does not establish relationships.
-]);
 
 function isStr(v: unknown): v is string {
     return typeof v === 'string';
@@ -69,42 +56,12 @@ export interface MessageBuild {
     diagnostics: Diagnostic[];
 }
 
-export function cleanBody(text: unknown): string {
-    if (typeof text !== 'string' || !text) return '';
-    return stripInternalChipMarkdown(convertHtmlToMarkdown(text));
-}
-
 type MessageContext = { providerId: string; diag: Diagnostic[]; byteStore: InlineByteStore };
 
-/** Compatibility for raw/legacy input ends before shared canonical construction. */
-export function normalizeMessage(
-    m: GeminiNormalizationMessage, index: number, locator: string, ctx: MessageContext,
-): MessageBuild {
-    const raw = m.thoughts ?? m.thinking ?? '';
-    const reasoning = Array.isArray(raw) ? raw.join('\n\n') : raw;
-    return normalizeCanonicalMessage(m, index, locator, ctx, reasoning, extractRawCitations(m));
-}
-
-export function normalizeDomainMessage(
-    message: DomainMessage, index: number, locator: string, ctx: MessageContext,
-): MessageBuild {
-    const { id, role, content, timestamp, attachments, images, documents, groundingCitationMarkers,
-        reasoning, provenance, citations } = message;
-    return normalizeCanonicalMessage({ id, role, timestamp, attachments, images, documents,
-        groundingCitationMarkers, reasoning, provenance, citations }, index, locator, ctx, reasoning,
-        extractRawCitations({ citations }), content);
-}
-
-function normalizeCanonicalMessage(
-    m: Omit<GeminiNormalizationMessage, 'thoughts' | 'thinking' | 'sources'> & Pick<DomainMessage, 'reasoning' | 'provenance'>,
-    index: number,
-    locator: string,
-    ctx: MessageContext,
-    reasoning: unknown,
-    citationInput: ReturnType<typeof extractRawCitations>,
-    contentAst?: BlockNode[],
-): MessageBuild {
-    const diagnostics: Diagnostic[] = [];
+/** Package an existing semantic body; syntax interpretation belongs to the input adapter. */
+export function normalizeMessage(input: CanonicalMessageInput, index: number, ctx: MessageContext): MessageBuild {
+    const { message: m, locator, reasoningBlocks, citationInput } = input;
+    const diagnostics: Diagnostic[] = [...(input.diagnostics ?? [])];
     const msgId = isStr(m.id) && m.id ? m.id : `msg-${index}`;
     if (msgId !== m.id) {
         diagnostics.push({
@@ -133,7 +90,7 @@ function normalizeCanonicalMessage(
 
     const idPrefix = msgId;
 
-    // Index attachments before markdown parsing so inline ![alt](src) nodes can link to their Asset IDs.
+    // Normalize attachments and bind semantic resource references to export identities.
     const merged = mergeMessageAttachments(m);
     const attachmentBlocks: BlockNode[] = [];
     const assets: Asset[] = [];
@@ -161,31 +118,15 @@ function normalizeCanonicalMessage(
         }
     });
 
-    const st: MarkdownParseContext & AssetParserContext = {
-        diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore,
-        resolveImage: (ref, alt, title) => linkInlineImage(ref, alt, title, st),
-    };
-    const blocks: BlockNode[] = [];
-
-    const thoughtsText = cleanBody(reasoning);
-    if (thoughtsText.trim()) {
-        blocks.push({
-            type: 'thought',
-            disclosure: 'providerExposed',
-            kind: 'reasoning',
-            blocks: parseMarkdownToBlocks(preprocessGeminiMarkdown(thoughtsText), idPrefix, st),
-        });
-    }
-
-    const usedStructured = contentAst !== undefined;
-    if (contentAst !== undefined) {
-        blocks.push(...mapContentAssetReferences(contentAst, (ref, kind, alt, title) => {
-            if (assets.some(asset => asset.id === ref)) return ref;
-            if (kind === 'file') return assetIndex.byRef.get(ref) ?? ref;
-            return linkInlineImage(ref, alt ?? '', title, st).assetId;
-        }));
-    }
-    if (!usedStructured) blocks.push(...parseGeminiBody(m.content, m.structuredContent, st));
+    const st: AssetParserContext = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore };
+    const semanticBody: BlockNode[] = reasoningBlocks
+        ? [{ type: 'thought', disclosure: 'providerExposed', kind: 'reasoning', blocks: reasoningBlocks }, ...m.content]
+        : m.content;
+    const blocks = [...mapContentAssetReferences(semanticBody, (ref, kind, alt, title) => {
+        if (assets.some(asset => asset.id === ref)) return ref;
+        if (kind === 'file') return assetIndex.byRef.get(ref) ?? ref;
+        return linkInlineImage(ref, alt ?? '', title, st).assetId;
+    })];
 
     for (const ia of st.inlineAssets) {
         assets.push(ia);
@@ -259,7 +200,7 @@ function normalizeCanonicalMessage(
         blocks.splice(0, blocks.length, ...reconciled);
     }
 
-    const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));
+    const unknownFields = input.unknownFields ?? [];
     if (unknownFields.length) {
         diagnostics.push({ id: `unknown-message-fields:${msgId}`, severity: 'info', code: 'UNKNOWN_MESSAGE_FIELDS',
             message: 'unrecognized message fields omitted from the document', sourceRef, details: { fields: unknownFields } });

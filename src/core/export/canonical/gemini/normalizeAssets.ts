@@ -1,5 +1,5 @@
 import { normalizeArchiveResourceName } from '../../assets/archivePath.js';
-import type { GeminiNormalizationAttachment, GeminiNormalizationMessage } from './normalizationInput.js';
+import type { AssetNormalizationInput, AssetListInput } from '../assetInput.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
@@ -8,7 +8,6 @@ import type { Diagnostic } from '../diagnostics.js';
 import type { ImageInline } from '../../../content/inline.js';
 import type { JsonValue } from '../json.js';
 import type { SourceRef } from '../provenance.js';
-import { extractImages } from '../../../api/parser/attachments.js';
 
 export interface AssetLinkIndex {
     byRef: Map<string, string>;
@@ -212,9 +211,9 @@ function rawEntries(value: object): [string, unknown][] {
     return Object.entries(value);
 }
 
-export function mergeMessageAttachments(m: GeminiNormalizationMessage): GeminiNormalizationAttachment[] {
-    const atts: GeminiNormalizationAttachment[] = [];
-    const push = (a: GeminiNormalizationAttachment): void => {
+export function mergeMessageAttachments(m: AssetListInput): AssetNormalizationInput[] {
+    const atts: AssetNormalizationInput[] = [];
+    const push = (a: AssetNormalizationInput): void => {
         if (!a || typeof a !== 'object') return;
         const key = a.localName || a.url || a.sourceUrl || a.resolvedUrl || a.src;
         if (key) {
@@ -255,26 +254,14 @@ export function mergeMessageAttachments(m: GeminiNormalizationMessage): GeminiNo
     for (const a of m.attachments ?? []) push(a);
     for (const img of m.images ?? []) push({ ...img, type: img.type || 'image' });
     for (const doc of (m.documents ?? [])) push({ ...doc, type: doc.type || 'file' });
-    if ((!m.images || m.images.length === 0) && (!m.attachments || m.attachments.length === 0) && m.structuredContent) {
-        const scImages = extractImages(m.structuredContent);
-        for (const img of scImages) {
-            push({
-                ...img,
-                type: 'image',
-                src: img.sourceUrl,
-                name: img.fileName,
-                title: img.fileName,
-            });
-        }
-    }
     return atts;
 }
 
-export function attachmentDisplayName(a: GeminiNormalizationAttachment, isImage: boolean): string {
+export function attachmentDisplayName(a: AssetNormalizationInput, isImage: boolean): string {
     return a.title || a.name || a.fileName || a.localName?.split('/').pop() || (isImage ? 'image.jpg' : 'file');
 }
 
-export function classifyAttachmentKind(a: GeminiNormalizationAttachment): { kind: AssetKind; isImage: boolean; diag?: string } {
+export function classifyAttachmentKind(a: AssetNormalizationInput): { kind: AssetKind; isImage: boolean; diag?: string } {
     const mime = (a.mimeType || a.mime || '').toLowerCase();
     const name = attachmentDisplayName(a, false);
     const isImage = a.type === 'image' || a.isImage === true ||
@@ -317,7 +304,7 @@ function decodeBase64Payload(raw: string): Uint8Array | null {
     }
 }
 
-export function extractAttachmentInlineBytes(a: GeminiNormalizationAttachment): Uint8Array | null {
+export function extractAttachmentInlineBytes(a: AssetNormalizationInput): Uint8Array | null {
     const buf = a.dataBuffer;
     if (buf) {
         if (buf instanceof Uint8Array) {
@@ -358,7 +345,7 @@ export interface AssetBuild {
 }
 
 export function buildAsset(
-    a: GeminiNormalizationAttachment,
+    a: AssetNormalizationInput,
     id: string,
     sourceRef: SourceRef,
     byteStore?: InlineByteStore,

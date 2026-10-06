@@ -1,33 +1,6 @@
-/** Raw Gemini input accepted by the canonical boundary; no runtime coercion implied. */
-import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
-
-export interface GeminiNormalizationAttachment {
-    type?: string;
-    isImage?: boolean;
-    url?: string;
-    sourceUrl?: string;
-    resolvedUrl?: string;
-    src?: string;
-    localName?: string;
-    fileName?: string;
-    name?: string;
-    title?: string;
-    mimeType?: string;
-    mime?: string;
-    size?: number;
-    width?: number;
-    height?: number;
-    token?: unknown;
-    isGenerated?: boolean;
-    providerRequestId?: string;
-    imageOrdinal?: number;
-    generation?: GeneratedMediaIdentity;
-    dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
-    blobBase64?: string;
-    dataBase64?: string;
-    contentMarkdown?: string;
-    failureReason?: string;
-}
+/** Raw provider input accepted only by the legacy Gemini compatibility adapter. */
+import type { AssetNormalizationInput as GeminiNormalizationAttachment } from '../../export/canonical/assetInput.js';
+export type { AssetNormalizationInput as GeminiNormalizationAttachment } from '../../export/canonical/assetInput.js';
 
 export interface GeminiNormalizationMessage {
     id?: string;
@@ -58,6 +31,7 @@ export interface GeminiNormalizationTurn {
 }
 
 export interface GeminiNormalizationInput {
+    source?: string;
     id?: string;
     title?: string;
     titleSource?: unknown;

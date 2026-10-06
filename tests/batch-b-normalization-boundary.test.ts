@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
-import type { GeminiNormalizationInput } from '../src/core/export/canonical/gemini/normalizationInput.js';
+import type { GeminiNormalizationInput } from '../src/core/provider/gemini/exportInput.js';
 
 for (const layout of ['messages', 'turns'] as const) {
     test(`PDF ${layout}: typeless historical image, unknown content and role survive normalization`, async () => {
