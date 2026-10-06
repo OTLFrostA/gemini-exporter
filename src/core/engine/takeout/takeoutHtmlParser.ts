@@ -86,6 +86,8 @@ export interface TakeoutWatermarkedImage {
     fileObj?: TakeoutZipEntry;
     time?: number | null;
     providerRequestId?: string;
+    /** Only supplied when source metadata establishes the image identity. */
+    imageOrdinal?: number;
 }
 
 export interface ParseTakeoutHtmlOptions {
@@ -562,12 +564,12 @@ export function correlateGeneratedImages(
     localConvCache: Record<string, TakeoutCachedConversation>,
     extractedMap: Record<string, Conversation>
 ): void {
-    const blockOrdinalMap = new Map<GenerationBlock, number>();
-
-    function linkTakeoutGeneratedImage(block: GenerationBlock, img: TakeoutWatermarkedImage, imageOrdinal = 0): void {
+    function linkTakeoutGeneratedImage(block: GenerationBlock, img: TakeoutWatermarkedImage): void {
         const chatId = block.chatId;
         const providerRequestId = img.providerRequestId || block.generation?.providerRequestId;
-        const totalCount = block.imageCount || 1;
+        const totalCount = block.imageCount;
+        const imageOrdinal = totalCount === 1 ? 0
+            : (typeof img.imageOrdinal === 'number' && Number.isInteger(img.imageOrdinal) && img.imageOrdinal >= 0 ? img.imageOrdinal : undefined);
         const generation: GeneratedMediaIdentity = {
             ...(block.generation || { chatId, time: block.time, prompt: block.prompt, generationOrdinal: 0, imageCount: block.imageCount }),
             providerRequestId,
@@ -636,26 +638,29 @@ export function correlateGeneratedImages(
         }
     }
 
-    if (watermarkedImages.length === 1 && genBlocks.length === 1) {
-        linkTakeoutGeneratedImage(genBlocks[0], watermarkedImages[0], 0);
-    } else {
-        for (const img of watermarkedImages) {
-            let bestBlock: GenerationBlock | null = null;
-            let minDiff = Infinity;
-            for (const gb of genBlocks) {
-                if (!gb.time || !img.time) continue;
-                const diff = img.time - gb.time;
-                if (diff >= -5000 && diff <= 120000 && diff < minDiff) {
-                    minDiff = diff;
-                    bestBlock = gb;
-                }
-            }
-            if (bestBlock) {
-                const ord = blockOrdinalMap.get(bestBlock) || 0;
-                blockOrdinalMap.set(bestBlock, ord + 1);
-                linkTakeoutGeneratedImage(bestBlock, img, ord);
+    for (const img of watermarkedImages) {
+        let bestBlock: GenerationBlock | null = null;
+        let minDiff = Infinity;
+        let ambiguous = false;
+        for (const gb of genBlocks) {
+            if (!gb.time || !img.time || !Number.isFinite(gb.time) || !Number.isFinite(img.time)) continue;
+            const diff = img.time - gb.time;
+            if (diff < -5000 || diff > 120000) continue;
+            const distance = Math.abs(diff);
+            if (distance < minDiff) {
+                minDiff = distance;
+                bestBlock = gb;
+                ambiguous = false;
+            } else if (distance === minDiff) {
+                ambiguous = true;
             }
         }
+        // Preserve the existing singleton fallback only when temporal evidence is unavailable.
+        if (!bestBlock && watermarkedImages.length === 1 && genBlocks.length === 1
+            && (!img.time || !genBlocks[0].time)) {
+            bestBlock = genBlocks[0];
+        }
+        if (bestBlock && !ambiguous) linkTakeoutGeneratedImage(bestBlock, img);
     }
 }
 

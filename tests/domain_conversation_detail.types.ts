@@ -43,3 +43,7 @@ const rejectedTopLevelRequestId: DomainMessage = { role: 'assistant', content: '
 void provenanceDomainMessage;
 void rejectedTurnId;
 void rejectedTopLevelRequestId;
+
+// @ts-expect-error Message-level provider generation evidence must be reconciled before Domain.
+const rejectedMessageGeneration: DomainMessage = { role: 'assistant', content: 'x', generation: { chatId: 'chat', generationOrdinal: 0 } };
+void rejectedMessageGeneration;

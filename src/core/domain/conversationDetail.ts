@@ -73,7 +73,6 @@ export interface DomainMessage {
     /** Unix epoch milliseconds; omit when missing or unknown. */
     timestamp?: number;
     provenance?: DomainMessageProvenance;
-    generation?: DomainGeneratedMediaIdentity;
     attachments?: DomainAttachment[];
     thoughts?: string | string[];
     thinking?: string;

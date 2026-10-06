@@ -175,9 +175,9 @@ async function getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slo
             const gen = item.generation;
             if (!gen) return false;
             if (!sameGenerationEvent(gen, generation)) return false;
-            const targetOrd = generation.imageOrdinal ?? 0;
-            const itemOrd = gen.imageOrdinal ?? 0;
-            return itemOrd === targetOrd;
+            const targetOrd = generation.imageOrdinal ?? (generation.imageCount === 1 ? 0 : undefined);
+            const itemOrd = gen.imageOrdinal ?? (gen.imageCount === 1 ? 0 : undefined);
+            return targetOrd !== undefined && itemOrd !== undefined && itemOrd === targetOrd;
         });
         if (matches.length === 1) {
             try {

@@ -144,16 +144,18 @@ export function hasGenerationImage(message: GenerationMessage, generation: Gener
     }
 
     const genReq = normalizeRequestId(generation.providerRequestId);
-    const genOrd = generation.imageOrdinal;
+    const genOrd = generation.imageOrdinal ?? (generation.imageCount === 1 ? 0 : undefined);
+    // Request identity locates the event, but cannot identify an unknown image in a multi-image event.
+    if (genOrd === undefined) return false;
 
     // Check images with providerRequestId
     if (genReq) {
         for (const image of candidateImages) {
             const imgReq = normalizeRequestId(image.providerRequestId || image.generation?.providerRequestId);
             if (imgReq === genReq) {
-                const imgOrd = image.imageOrdinal ?? image.generation?.imageOrdinal ?? 0;
-                const targetOrd = genOrd ?? 0;
-                if (imgOrd === targetOrd) {
+                const imgOrd = image.imageOrdinal ?? image.generation?.imageOrdinal
+                    ?? ((image.generation?.imageCount ?? generation.imageCount) === 1 ? 0 : undefined);
+                if (imgOrd === genOrd) {
                     if (!image.generation) image.generation = { ...generation, turnId: message.id };
                     message.generation = { ...generation, turnId: message.id };
                     return true;
@@ -163,14 +165,15 @@ export function hasGenerationImage(message: GenerationMessage, generation: Gener
         // If message itself is tagged with this providerRequestId and contains candidate generated images
         const msgReq = normalizeRequestId(message.providerRequestId || message.generation?.providerRequestId);
         if (msgReq === genReq) {
-            if ((genOrd === undefined || genOrd === 0) && (generation.imageCount === 1 || candidateImages.length === 1)) {
+            if (genOrd === 0 && generation.imageCount === 1) {
                 if (!candidateImages[0].generation) candidateImages[0].generation = { ...generation, turnId: message.id };
                 message.generation = { ...generation, turnId: message.id };
                 return true;
             }
             for (const image of candidateImages) {
-                const imgOrd = image.imageOrdinal ?? image.generation?.imageOrdinal ?? 0;
-                if (imgOrd === (genOrd ?? 0)) {
+                const imgOrd = image.imageOrdinal ?? image.generation?.imageOrdinal
+                    ?? ((image.generation?.imageCount ?? generation.imageCount) === 1 ? 0 : undefined);
+                if (imgOrd === genOrd) {
                     if (!image.generation) image.generation = { ...generation, turnId: message.id };
                     message.generation = { ...generation, turnId: message.id };
                     return true;
@@ -191,7 +194,7 @@ export function hasGenerationImage(message: GenerationMessage, generation: Gener
     }
 
     // Fallback: A single-image event where model message has exactly ONE image explicitly marked isGenerated === true.
-    if (generation.imageCount === 1 && (genOrd === undefined || genOrd === 0)) {
+    if (generation.imageCount === 1 && genOrd === 0) {
         const explicitlyGen = candidateImages.filter((image) => image.isGenerated === true);
         if (explicitlyGen.length === 1) {
             const target = explicitlyGen[0];
