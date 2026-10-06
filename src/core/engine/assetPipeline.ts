@@ -1,7 +1,5 @@
 import type { IExportWriter } from "./writers/writerInterface.js";
-import type {
-    GeneratedMediaIdentity
-} from "../../types/conversation.js";
+import type { GeneratedMediaIdentity } from "../../types/conversation.js";
 import type { TakeoutEngineModule } from "./takeoutEngine.js";
 import type { DownloadAssetDirectMessage } from "../../types/messages.js";
 
@@ -58,22 +56,26 @@ export interface TabAssetRequestExtra {
     candidates?: string[];
 }
 
-export type AssetPipelineChat = { id: string; title?: string | null };
+export interface AssetPipelineChat {
+    id?: unknown;
+    title?: unknown;
+}
 
 export interface AssetPipelineItem {
     url?: unknown;
     sourceUrl?: unknown;
     resolvedUrl?: unknown;
     src?: unknown;
-    localName?: string;
-    fileName?: string;
-    name?: string;
-    title?: string;
-    type?: string;
-    mimeType?: string;
-    mime?: string;
-    candidates?: string[];
-    generation?: GeneratedMediaIdentity;
+    localName?: unknown;
+    fileName?: unknown;
+    name?: unknown;
+    title?: unknown;
+    type?: unknown;
+    mimeType?: unknown;
+    mime?: unknown;
+    candidates?: unknown;
+    generation?: unknown;
+    sourceEvidence?: unknown;
 }
 
 export interface FetchAssetParams {
@@ -96,6 +98,27 @@ export interface AssetPipelineTakeoutEngine {
         slot?: string | null,
         generation?: GeneratedMediaIdentity
     ) => Promise<Uint8Array | null>;
+}
+
+function readAssetString(item: AssetPipelineItem, key: 'localName' | 'fileName' | 'name' | 'title'): string | undefined {
+    const value = Reflect.get(item, key);
+    return typeof value === 'string' ? value : undefined;
+}
+
+function isGeneratedMediaIdentity(value: unknown): value is GeneratedMediaIdentity {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+    return typeof Reflect.get(value, 'chatId') === 'string'
+        && typeof Reflect.get(value, 'generationOrdinal') === 'number'
+        && (Reflect.get(value, 'providerRequestId') === undefined || typeof Reflect.get(value, 'providerRequestId') === 'string')
+        && (Reflect.get(value, 'prompt') === undefined || typeof Reflect.get(value, 'prompt') === 'string')
+        && (Reflect.get(value, 'turnId') === undefined || typeof Reflect.get(value, 'turnId') === 'string')
+        && (Reflect.get(value, 'imageCount') === undefined || typeof Reflect.get(value, 'imageCount') === 'number')
+        && (Reflect.get(value, 'imageOrdinal') === undefined || typeof Reflect.get(value, 'imageOrdinal') === 'number')
+        && (Reflect.get(value, 'time') === undefined || Reflect.get(value, 'time') === null || typeof Reflect.get(value, 'time') === 'number');
+}
+
+function assetChatId(chat: AssetPipelineChat): string {
+    return String(Reflect.get(chat, 'id'));
 }
 
 export interface AssetPipelineOptions {
@@ -334,13 +357,14 @@ class AssetPipeline implements AssetPipelineInstance {
 
         const extensionFailure = r?.error;
         const extra: TabAssetRequestExtra = {
-            fileName: item.fileName || item.title,
+            fileName: readAssetString(item, 'fileName') || readAssetString(item, 'title'),
             candidates: Array.isArray(item.candidates) ? item.candidates : undefined
         };
+        const chatId = assetChatId(chat);
         const requestFromTab = async (preferBuffer: boolean): Promise<AssetDownloadResponse | null> => {
             const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
             let response: AssetDownloadResponse | null = (hasAssetTabId(tab) && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
-                ? await sendTabAssetRequest(tab.id, targetUrl, chat.id, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
+                ? await sendTabAssetRequest(tab.id, targetUrl, chatId, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
                 : null;
             const noReceiver = response && !response.success &&
                 /Receiving end does not exist|Could not establish connection/i.test(String(response.error || ''));
@@ -349,7 +373,7 @@ class AssetPipeline implements AssetPipelineInstance {
                     const raw = await this.sendToGeminiTab({
                         action: 'downloadAssetDirect',
                         url: targetUrl,
-                        referer: `https://gemini.google.com/app/${chat.id}`,
+                        referer: `https://gemini.google.com/app/${chatId}`,
                         preferBuffer,
                         ...extra
                     }, this.currentSlot, timeoutMs);
@@ -364,7 +388,7 @@ class AssetPipeline implements AssetPipelineInstance {
         if (this.fetchAssetDelegate && targetUrl) {
             const raw = await this.fetchAssetDelegate({
                 url: targetUrl,
-                referer: `https://gemini.google.com/app/${chat.id}`,
+                referer: `https://gemini.google.com/app/${chatId}`,
                 preferBuffer: true,
                 timeoutMs,
                 slot: this.currentSlot,
@@ -475,7 +499,10 @@ class AssetPipeline implements AssetPipelineInstance {
         const targetUrl = isImage
             ? (resolvedUrl || sourceUrl || url || src)
             : (nonThumbCandidates[0] || rawCandidates[0]);
-        const localName = item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
+        const localName = readAssetString(item, 'localName')
+            || readAssetString(item, 'fileName')
+            || readAssetString(item, 'title')
+            || (isImage ? 'image.jpg' : 'file.bin');
         const signal = opts.signal || null;
         const maxRetries = (typeof opts.maxRetries === "number" && opts.maxRetries >= 0) ? Math.floor(opts.maxRetries) : 3;
         const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
@@ -532,7 +559,8 @@ class AssetPipeline implements AssetPipelineInstance {
 
         if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {
             try {
-                const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot, item.generation);
+                const generation = isGeneratedMediaIdentity(item.generation) ? item.generation : undefined;
+                const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(assetChatId(chat), localName, this.currentSlot, generation);
                 if (offlineBin && offlineBin.length > 0) {
                     const bytes = offlineBin;
                     if (!this.writer && !this.writeFileDirect) {
