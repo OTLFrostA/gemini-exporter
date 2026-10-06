@@ -26,7 +26,9 @@ test('Domain adapter preserves a normal RPC conversation and message order', asy
         ],
     };
     await assertExportEquivalent(conversation);
-    assert.deepEqual(toDomainConversationDetail(conversation).messages?.map((m: { id?: string }) => m.id), ['u1', 'a1']);
+    const domain = toDomainConversationDetail(conversation);
+    assert.deepEqual(domain.messages.map((m: { id?: string }) => m.id), ['u1', 'a1']);
+    assert.equal('turns' in domain, false);
 });
 
 test('Domain adapter preserves missing and explicitly null server timestamps', async () => {
@@ -90,6 +92,40 @@ test('Domain adapter preserves Takeout-style turns-only conversations', async ()
         source: 'takeout',
         turns: [{ timestamp: null, userContent: 'Question', modelContent: 'Answer', thoughts: ['Thought'], attachments: [{ type: 'file', fileName: 'input.pdf' }] }],
     };
+    const domain = toDomainConversationDetail(conversation);
+    assert.deepEqual(domain.messages, [
+        { role: 'user', content: 'Question' },
+        {
+            role: 'model', content: 'Answer', thoughts: ['Thought'],
+            attachments: [{ type: 'file', fileName: 'input.pdf' }],
+        },
+    ]);
+    assert.equal('turns' in domain, false);
+    await assertExportEquivalent(conversation);
+});
+
+test('Domain adapter flattens legacy turn.messages in order', async () => {
+    const conversation = {
+        ...base,
+        turns: [{ messages: [
+            { id: 'turn-user', role: 'user', content: 'First', timestamp: 100 },
+            { id: 'turn-model', role: 'model', content: 'Second', timestamp: null },
+        ] }],
+    };
+    const domain = toDomainConversationDetail(conversation);
+    assert.deepEqual(domain.messages.map((message: { id?: string; role: string; content: string; timestamp?: number | null }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
+        { id: 'turn-user', role: 'user', content: 'First', timestamp: 100 },
+        { id: 'turn-model', role: 'model', content: 'Second', timestamp: null },
+    ]);
+    assert.equal('turns' in domain, false);
+    await assertExportEquivalent(conversation);
+});
+
+test('Domain output always has an empty messages array when legacy body is absent', async () => {
+    const conversation = { ...base };
+    const domain = toDomainConversationDetail(conversation);
+    assert.deepEqual(domain.messages, []);
+    assert.equal('turns' in domain, false);
     await assertExportEquivalent(conversation);
 });
 

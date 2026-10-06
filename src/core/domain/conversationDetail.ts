@@ -75,20 +75,6 @@ export interface DomainMessage {
     groundingCitationMarkers?: string[];
 }
 
-/** Legacy turn fallback retained verbatim in shape for conversations without messages. */
-export interface DomainTurn {
-    id?: string;
-    timestamp?: number | null;
-    messages?: DomainMessage[];
-    userContent?: string;
-    modelContent?: string;
-    thoughts?: string | string[];
-    attachments?: DomainAttachment[];
-    images?: DomainAttachment[];
-    sources?: unknown[];
-    structuredContent?: unknown;
-}
-
 export interface DomainConversationDetail {
     id: string;
     title: string;
@@ -99,8 +85,7 @@ export interface DomainConversationDetail {
     lastSeen?: number | string;
     url?: string;
     href?: string;
-    messages?: DomainMessage[];
-    turns?: DomainTurn[];
+    messages: DomainMessage[];
     titleSource?: string;
     titles?: Record<string, string | undefined>;
 }

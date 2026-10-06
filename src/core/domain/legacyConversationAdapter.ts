@@ -1,4 +1,4 @@
-import type { Conversation, ChatMessage, Attachment, MessageDocument, Turn, GeneratedMediaIdentity } from '../../types/conversation.js';
+import type { Conversation, ChatMessage, Attachment, MessageDocument, GeneratedMediaIdentity } from '../../types/conversation.js';
 import type {
     DomainAttachment,
     DomainCitation,
@@ -6,7 +6,6 @@ import type {
     DomainDocument,
     DomainGeneratedMediaIdentity,
     DomainMessage,
-    DomainTurn,
 } from './conversationDetail.js';
 
 function copyGeneratedMedia(value: GeneratedMediaIdentity): DomainGeneratedMediaIdentity {
@@ -44,20 +43,44 @@ function copyMessage(value: ChatMessage): DomainMessage {
     };
 }
 
-function copyTurn(value: Turn): DomainTurn {
-    return {
-        ...value,
-        ...(value.messages ? { messages: value.messages.map(copyMessage) } : {}),
-        ...(Array.isArray(value.thoughts) ? { thoughts: [...value.thoughts] } : {}),
-        ...(value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
-        ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
-        ...(value.sources ? { sources: [...value.sources] } : {}),
-        ...(value.structuredContent !== undefined ? { structuredContent: value.structuredContent } : {}),
-    };
+function flattenLegacyTurns(conversation: Conversation): DomainMessage[] {
+    const turns = conversation.turns ?? [];
+    const messages: DomainMessage[] = [];
+    for (const turn of turns) {
+        if (!turn || typeof turn !== 'object') continue;
+        if (Array.isArray(turn.messages) && turn.messages.length > 0) {
+            messages.push(...turn.messages.map(copyMessage));
+            continue;
+        }
+        if (typeof turn.userContent === 'string' && turn.userContent) {
+            messages.push({
+                role: 'user',
+                content: turn.userContent,
+                ...(turn.timestamp !== null && turn.timestamp !== undefined ? { timestamp: turn.timestamp } : {}),
+            });
+        }
+        const hasModel = typeof turn.modelContent === 'string' && turn.modelContent;
+        if (hasModel || turn.thoughts || turn.attachments?.length || turn.images?.length || turn.sources?.length || turn.structuredContent) {
+            messages.push({
+                role: 'model',
+                content: typeof turn.modelContent === 'string' && turn.modelContent ? turn.modelContent : '',
+                ...(turn.timestamp !== null && turn.timestamp !== undefined ? { timestamp: turn.timestamp } : {}),
+                ...(turn.thoughts !== undefined ? { thoughts: Array.isArray(turn.thoughts) ? [...turn.thoughts] : turn.thoughts } : {}),
+                ...(turn.attachments ? { attachments: turn.attachments.map(copyAttachment) } : {}),
+                ...(turn.images ? { images: turn.images.map(copyAttachment) } : {}),
+                ...(turn.sources ? { sources: [...turn.sources] } : {}),
+                ...(turn.structuredContent !== undefined ? { structuredContent: turn.structuredContent } : {}),
+            });
+        }
+    }
+    return messages;
 }
 
 /** Copy export-relevant detail without coercing, synthesizing, or mutating legacy values. */
 export function toDomainConversationDetail(conversation: Conversation): DomainConversationDetail {
+    const messages = conversation.messages && conversation.messages.length > 0
+        ? conversation.messages.map(copyMessage)
+        : flattenLegacyTurns(conversation);
     return {
         id: conversation.id,
         title: conversation.title,
@@ -70,7 +93,6 @@ export function toDomainConversationDetail(conversation: Conversation): DomainCo
         ...(conversation.href !== undefined ? { href: conversation.href } : {}),
         ...(conversation.titleSource !== undefined ? { titleSource: conversation.titleSource } : {}),
         ...(conversation.titles !== undefined ? { titles: { ...conversation.titles } } : {}),
-        ...(conversation.messages ? { messages: conversation.messages.map(copyMessage) } : {}),
-        ...(conversation.turns ? { turns: conversation.turns.map(copyTurn) } : {}),
+        messages,
     };
 }
