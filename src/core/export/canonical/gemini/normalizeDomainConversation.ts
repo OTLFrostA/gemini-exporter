@@ -1,17 +1,16 @@
 import type { DomainConversationDetail } from '../../../domain/conversationDetail.js';
-import type { GeminiNormalizationInput } from './normalizationInput.js';
 import {
-    normalizeGeminiConversation,
+    normalizeCanonicalConversation,
     type GeminiNormalizationOptions,
     type GeminiNormalizationResult,
 } from './normalizeConversation.js';
 
-/** Normalize a Domain conversation through canonical rules without accepting legacy turns. */
-export function normalizeDomainConversation(
+/** Normalize Domain messages directly through shared canonical message and bundle logic. */
+export async function normalizeDomainConversation(
     conversation: DomainConversationDetail,
     options: GeminiNormalizationOptions = {},
 ): Promise<GeminiNormalizationResult> {
-    const input: GeminiNormalizationInput = {
+    const metadata = {
         id: conversation.id,
         title: conversation.title,
         titleSource: conversation.titleSource,
@@ -23,7 +22,10 @@ export function normalizeDomainConversation(
         lastSeen: conversation.lastSeen,
         url: conversation.url,
         href: conversation.href,
-        messages: conversation.messages,
     };
-    return normalizeGeminiConversation(input, options);
+    const messages = conversation.messages.map((message, index) => ({
+        message,
+        locator: `messages[${index}]`,
+    }));
+    return normalizeCanonicalConversation(metadata, messages, options);
 }

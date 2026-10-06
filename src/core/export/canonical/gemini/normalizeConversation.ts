@@ -28,6 +28,25 @@ export interface GeminiNormalizationResult extends NormalizationResult {
     byteStore: InlineByteStore;
 }
 
+export interface CanonicalConversationMetadata {
+    id?: string;
+    title?: string;
+    titleSource?: unknown;
+    titles?: unknown;
+    timestamp?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+    chatTime?: unknown;
+    lastSeen?: unknown;
+    url?: string;
+    href?: string;
+}
+
+export interface CanonicalMessageInput {
+    message: GeminiNormalizationMessage;
+    locator: string;
+}
+
 function isStr(v: unknown): v is string {
     return typeof v === 'string';
 }
@@ -54,7 +73,7 @@ export function canonicalTitleSource(raw: unknown, diagnostics: Diagnostic[]): T
     return 'default';
 }
 
-export function normalizeTitle(raw: GeminiNormalizationInput, diagnostics: Diagnostic[]): string | undefined {
+export function normalizeTitle(raw: CanonicalConversationMetadata, diagnostics: Diagnostic[]): string | undefined {
     const candidates: TitleCandidate[] = [];
     const titles = raw.titles;
     if (titles && typeof titles === 'object') {
@@ -78,6 +97,55 @@ export function normalizeTitle(raw: GeminiNormalizationInput, diagnostics: Diagn
 export async function normalizeGeminiConversation(
     raw: GeminiNormalizationInput,
     options: GeminiNormalizationOptions = {},
+): Promise<GeminiNormalizationResult> {
+    const rawMessages = Array.isArray(raw.messages) ? raw.messages : [];
+    const rawTurns = Array.isArray(raw.turns) ? raw.turns : [];
+    const messageInputs: CanonicalMessageInput[] = [];
+    if (rawMessages.length) {
+        rawMessages.forEach((message, index) => messageInputs.push({ message, locator: `messages[${index}]` }));
+    } else if (rawTurns.length) {
+        rawTurns.forEach((turn, turnIndex) => {
+            if (!turn || typeof turn !== 'object') return;
+            if (Array.isArray(turn.messages) && turn.messages.length) {
+                turn.messages.forEach((message, index) => messageInputs.push({
+                    message,
+                    locator: `turns[${turnIndex}].messages[${index}]`,
+                }));
+                return;
+            }
+            if (isStr(turn.userContent) && turn.userContent) {
+                messageInputs.push({
+                    message: { role: 'user', content: turn.userContent, timestamp: turn.timestamp ?? undefined },
+                    locator: `turns[${turnIndex}].userContent`,
+                });
+            }
+            const hasModel = isStr(turn.modelContent) && turn.modelContent;
+            if (hasModel || turn.thoughts || (turn.attachments?.length) || (turn.images?.length) || (turn.sources?.length) || turn.structuredContent) {
+                messageInputs.push({
+                    message: {
+                        role: 'model',
+                        content: hasModel ? turn.modelContent : '',
+                        timestamp: turn.timestamp ?? undefined,
+                        thoughts: turn.thoughts,
+                        attachments: turn.attachments,
+                        images: turn.images,
+                        sources: turn.sources,
+                        structuredContent: turn.structuredContent,
+                    },
+                    locator: `turns[${turnIndex}].modelContent`,
+                });
+            }
+        });
+    }
+    const unknownFields = Object.keys(raw ?? {}).filter((key) => !KNOWN_CONVERSATION_FIELDS.has(key));
+    return normalizeCanonicalConversation(raw, messageInputs, options, unknownFields);
+}
+
+export async function normalizeCanonicalConversation(
+    raw: CanonicalConversationMetadata,
+    messageInputs: CanonicalMessageInput[],
+    options: GeminiNormalizationOptions = {},
+    unknownFields: string[] = [],
 ): Promise<GeminiNormalizationResult> {
     const providerId = options.providerId ?? 'gemini';
     const accountId = options.accountId ?? '';
@@ -109,36 +177,7 @@ export async function normalizeGeminiConversation(
         diagnostics.push(...built.diagnostics);
     };
 
-    const rawMessages = Array.isArray(raw.messages) ? raw.messages : [];
-    const rawTurns = Array.isArray(raw.turns) ? raw.turns : [];
-    if (rawMessages.length) {
-        rawMessages.forEach((m, i) => pushMessage(m, i, `messages[${i}]`));
-    } else if (rawTurns.length) {
-        let mi = 0;
-        rawTurns.forEach((t, ti) => {
-            if (!t || typeof t !== 'object') return;
-            if (Array.isArray(t.messages) && t.messages.length) {
-                t.messages.forEach((m, i) => pushMessage(m, mi++, `turns[${ti}].messages[${i}]`));
-                return;
-            }
-            if (isStr(t.userContent) && t.userContent) {
-                pushMessage({ role: 'user', content: t.userContent, timestamp: t.timestamp ?? undefined }, mi++, `turns[${ti}].userContent`);
-            }
-            const hasModel = isStr(t.modelContent) && t.modelContent;
-            if (hasModel || t.thoughts || (t.attachments?.length) || (t.images?.length) || (t.sources?.length) || t.structuredContent) {
-                pushMessage({
-                    role: 'model',
-                    content: hasModel ? t.modelContent : '',
-                    timestamp: t.timestamp ?? undefined,
-                    thoughts: t.thoughts,
-                    attachments: t.attachments,
-                    images: t.images,
-                    sources: t.sources,
-                    structuredContent: t.structuredContent,
-                }, mi++, `turns[${ti}].modelContent`);
-            }
-        });
-    } else {
+    if (!messageInputs.length) {
         diagnostics.push({
             id: 'no-messages',
             severity: 'warning',
@@ -147,6 +186,7 @@ export async function normalizeGeminiConversation(
             sourceRef: { providerId, locator: 'messages' },
         });
     }
+    messageInputs.forEach(({ message, locator }, index) => pushMessage(message, index, locator));
 
     const title = normalizeTitle(raw, diagnostics);
 
@@ -155,7 +195,6 @@ export async function normalizeGeminiConversation(
     // storageRefs before validation and return.
     await finalizeInlineAssetDigests(assets, byteStore);
 
-    const unknownFields = Object.keys(raw ?? {}).filter((k) => !KNOWN_CONVERSATION_FIELDS.has(k));
     if (unknownFields.length) {
         diagnostics.push({ id: 'unknown-conversation-fields', severity: 'info', code: 'UNKNOWN_CONVERSATION_FIELDS',
             message: 'unrecognized conversation fields omitted from the document', details: { fields: unknownFields } });
