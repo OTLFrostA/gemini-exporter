@@ -92,7 +92,7 @@ test('Domain Canonical output does not depend on message request provenance', as
     };
     const original = structuredClone(domain);
     const baseline = await normalizeDomainConversation(domain);
-    for (const providerRequestId of ['abcd1234', 'different-request']) {
+    for (const providerRequestId of ['abcd1234', 'different-request', 'r_R_MixedCase-XyZ', 'OpenAI:AbC']) {
         const withProvenance: DomainConversationDetail = {
             ...domain,
             messages: domain.messages.map((message) => ({ ...message, provenance: { providerRequestId } })),
