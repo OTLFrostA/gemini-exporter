@@ -75,11 +75,19 @@ interface SessionDiagnosticsPayload {
     [key: string]: unknown;
 }
 
-export interface FinalizeChatRecordEntry extends StoredExportRecord {
-    exportRecord?: StoredExportRecord | null;
+export interface FinalizeChatRecordEnvelope {
+    exportRecord: StoredExportRecord;
     conversationUpdate?: FinalizeExportOptions['conversationUpdate'];
     isTruncated?: boolean;
     truncateReason?: string;
+    targetId?: string;
+    [key: string]: unknown;
+}
+
+export type FinalizeChatRecordEntry = StoredExportRecord | FinalizeChatRecordEnvelope;
+
+function isFinalizeEnvelope(entry: FinalizeChatRecordEntry): entry is FinalizeChatRecordEnvelope {
+    return 'exportRecord' in entry && !!entry.exportRecord;
 }
 
 type StorageAdapter = Partial<Pick<StorageServiceModule, 'finalizeConversationExport' | 'saveExportRecord'>>;
@@ -287,8 +295,8 @@ async function finalizeChatExport(targetId: string, context: FinalizeChatExportC
     const rawEntry = chatRecordsMap ? (chatRecordsMap.get(targetNid) || chatRecordsMap.get(targetId)) : null;
     if (!rawEntry) return false;
 
-    const rec = rawEntry.exportRecord ? rawEntry.exportRecord : rawEntry;
-    const conversationUpdate = rawEntry.conversationUpdate;
+    const rec: StoredExportRecord = isFinalizeEnvelope(rawEntry) ? rawEntry.exportRecord : rawEntry;
+    const conversationUpdate = isFinalizeEnvelope(rawEntry) ? rawEntry.conversationUpdate : undefined;
 
     if (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid)) {
         applyAssetFailureToExportRecord(rec);

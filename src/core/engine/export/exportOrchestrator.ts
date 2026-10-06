@@ -10,6 +10,7 @@ import type {
     DirectoryHandle,
 } from "../../../types/ui.js";
 import type { Conversation } from "../../../types/conversation.js";
+import type { TitleSources } from "../../../types/conversation.js";
 import type { I18nModule, TabServiceModule } from "../../../types/utils.js";
 import type { StoredExportRecordMap } from "../../storage/storageCompatibility.js";
 import type { StorageServiceModule } from "../../storage/storageService.js";
@@ -93,7 +94,7 @@ interface AssetTask {
     __assetMeta?: AssetTaskMeta;
 }
 
-type WriteFileDirectFn = (localName: string, data: WriteFileContent) => Promise<void>;
+type WriteFileDirectFn = (localName: string | null | undefined, data: WriteFileContent) => Promise<void>;
 
 interface ExportWriterContext {
     zip: JSZipLike | null;
@@ -115,11 +116,61 @@ interface JSZipLike {
 
 type ZipPackageSource = IExportWriter | JSZipLike | null;
 
+interface ParseDriftChatEntry extends ChatParseDrift {
+    id: string;
+    title?: string;
+}
+
+interface FetchChatDetailEnvelope {
+    success?: boolean;
+    error?: string;
+    skipped?: number;
+    results?: WorkerChat[];
+    chat?: WorkerChat;
+    [key: string]: unknown;
+}
+
+function isFetchChatDetailEnvelope(value: unknown): value is FetchChatDetailEnvelope {
+    return isObjectRecord(value);
+}
+
+function hasRequiredChatId(chat: WorkerChat): chat is WorkerChat & { id: string } {
+    return typeof chat.id === 'string';
+}
+
+function isNamedError(value: unknown, name: string): boolean {
+    return value !== null
+        && (typeof value === 'object' || typeof value === 'function')
+        && 'name' in value
+        && value.name === name;
+}
+
+function getOriginalErrorMessage(value: unknown): string {
+    return typeof value === 'object' && value !== null && 'message' in value
+        ? String(value.message)
+        : String(value);
+}
+
+function asSpreadSource(value: unknown): object {
+    if (value === null || value === undefined) return {};
+    if (typeof value === 'object' || typeof value === 'function') return value;
+    if (typeof value === 'string') return new String(value);
+    return {};
+}
+
+function mergeTitleSources(listTitles: unknown, chatTitles: unknown): TitleSources {
+    return {
+        ...asSpreadSource(listTitles || {}),
+        ...asSpreadSource(chatTitles || {})
+    };
+}
+
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import {
     AssetPipeline as AssetPipelineStatic,
     type AssetPipelineClass,
-    type AssetPipelineInstance
+    type AssetPipelineInstance,
+    type ProcessAssetResult
 } from "../assetPipeline.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
@@ -139,7 +190,12 @@ import GeminiUtils, {
 export { applyExportTitleWriteback };
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
-import BatchWorker, { type BatchWorkerModule } from "./batchWorker.js";
+import BatchWorker, {
+    type BatchWorkerModule,
+    type WorkerChat,
+    type WorkerMessageAttachment,
+    type ResolveChatResult
+} from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, {
     isRateLimited,
@@ -154,9 +210,10 @@ import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
 import { createWriter, type IExportWriter, type WriteFileContent } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
-import { ChatFormatter } from "../chatFormatter.js";
+import type { StoredConversationFields } from "../../storage/storageCompatibility.js";
+import { ChatFormatter, type FormattedResult } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
-import { extractChatParseDrift, chatRecordStatusWithDrift } from "./parseDrift.js";
+import { extractChatParseDrift, chatRecordStatusWithDrift, type ChatParseDrift } from "./parseDrift.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
@@ -220,9 +277,15 @@ export const cleanTitle = (rawTitle?: string | null): string =>
 export const isRealTitle = (title?: string | null, id?: string | number): boolean =>
     ((getUtils()?.isRealTitle) || utilsIsRealTitle)(title, id);
 
-    function toIso(v: any): string | null {
+    function toIso(v: unknown): string | null {
         if (!v) return null;
-        let ms = typeof v === 'number' ? v : new Date(v).getTime();
+        const ms = typeof v === 'number'
+            ? v
+            : v instanceof Date
+                ? v.getTime()
+                : typeof v === 'boolean'
+                    ? Number(v)
+                    : new Date(String(v)).getTime();
         return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
     }
 
@@ -486,9 +549,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             if (useZip) {
                 writer = createWriter('zip', { folderName: exportFolderName });
                 zipWriter = writer;
-                const zipCandidate = isObjectRecord(writer) && 'zip' in writer ? writer.zip : null;
+                const rawWriter: unknown = writer;
+                const zipCandidate = isObjectRecord(rawWriter) ? rawWriter['zip'] : null;
                 zip = hasGenerateAsync(zipCandidate) ? zipCandidate : null;
-                folder = isObjectRecord(writer) && 'folder' in writer ? writer.folder : null;
+                folder = isObjectRecord(rawWriter) ? rawWriter['folder'] : null;
             } else {
                 if (!dirHandle) throw new Error('Directory handle not provided');
                 try {
@@ -507,7 +571,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 }
             }
 
-            const writeFileDirect: WriteFileDirectFn = async (localName: string, data: WriteFileContent): Promise<void> => {
+            const writeFileDirect: WriteFileDirectFn = async (localName: string | null | undefined, data: WriteFileContent): Promise<void> => {
                 if (this.aborted) throw new DOMException('Export aborted', 'AbortError');
                 const cleanPath = sanitizeZipPath(localName);
                 if (!writer) {
@@ -634,9 +698,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             let totalAssets = 0;
             let downloadedAssets = 0;
             let landedChats = 0;
-            let failedChats: any[] = [];
-            let failedAttachments: any[] = [];
-            let parseDriftChats: any[] = [];
+            let failedChats: ExportFailedChat[] = [];
+            let failedAttachments: FailedAttachment[] = [];
+            let parseDriftChats: ParseDriftChatEntry[] = [];
             let skipped = skippedItems.length;
             let metaResults: ExportIndexMetaItem[] = [];
 
@@ -713,7 +777,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             }
 
             const pendingAssetsPerChat = new Map<string, number>();
-            const chatRecordsMap = new Map<string, any>();
+            const chatRecordsMap = new Map<string, FinalizeChatRecordEntry>();
             const chatFailedAssetsSet = new Set<string>();
             const finalizedChatsSet = new Set<string>();
 
@@ -760,22 +824,22 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     // Per-chat error isolation: one failed chat must not abort the entire batch
                     try {
                         const nid = normId(requestedItem.id);
-                        let res: any = null;
+                        let rawRes: unknown = null;
                         let retryCount = 0;
                         const maxRateLimitRetries = 3;
 
                         const I18n = getI18n();
 
                         while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                            res = worker && worker.fetchChatDetail
+                            rawRes = worker && worker.fetchChatDetail
                                 ? await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal)
                                 : null;
 
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
                             const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
-                                ? this.rateLimiter.isRateLimited(res)
-                                : isRateLimited(res);
+                                ? this.rateLimiter.isRateLimited(rawRes)
+                                : isRateLimited(rawRes);
 
                             if (isLimited && retryCount < maxRateLimitRetries) {
                                 const delayMs = (this.rateLimiter && typeof this.rateLimiter.calculateBackoff === 'function')
@@ -798,6 +862,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
+                        const res = isFetchChatDetailEnvelope(rawRes) ? rawRes : null;
                         if (!res || !res.success) {
                             const fetchErr = res ? res.error : 'unknown';
                             onLog(I18n.t('logFetchFailed', fetchErr), 'warn');
@@ -808,13 +873,13 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        skipped += (res.skipped || 0);
-                        const chunkResults = res.results || (res.chat ? [res.chat] : []);
-                        let chat = chunkResults[0] || { id: nid, title: requestedItem.title };
+                        skipped += (typeof res.skipped === 'number' ? res.skipped : 0);
+                        const chunkResults: WorkerChat[] = Array.isArray(res.results) ? res.results : (res.chat ? [res.chat] : []);
+                        let chat: WorkerChat = chunkResults[0] || { id: nid, title: requestedItem.title };
                         chat.id = nid;
 
-                        const listC = conversations.find((c: any) => normId(c.id) === nid) || null;
-                        const resolvedRes = worker && worker.resolveChat
+                        const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
+                        const resolvedRes: ResolveChatResult = worker && worker.resolveChat
                             ? await worker.resolveChat(chat, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog)
                             : { chat, listTitle: chat.title, displayTitle: chat.title, isError: false, errMsg: null, isConfirmedDeleted: false, convsNeedSave: false };
 
@@ -831,6 +896,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         chat = resolvedRes.chat || chat;
                         const listTitle = resolvedRes.listTitle;
                         chat.title = listTitle;
+                        if (typeof chat.id !== 'string') chat.id = nid;
+                        if (!hasRequiredChatId(chat)) throw new TypeError('chat.id must be a string before asset processing');
+                        const chatId = chat.id;
 
                         const actualMsgCount = computeExportMessageCount(chat);
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
@@ -840,15 +908,16 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         if (needUpdateStorage) {
-                            const storageService = Storage || __resolveModule('StorageService', StorageServiceStatic);
+                            const storageService = Storage || __resolveModule<StorageServiceModule>('StorageService', StorageServiceStatic);
                             if (storageService && typeof storageService.updateConversation === 'function') {
                                 try {
-                                    await storageService.updateConversation(currentSlot, nid, (existing: any) => {
+                                    await storageService.updateConversation(currentSlot, nid, (existing: StoredConversationFields) => {
                                         if (listC) {
                                             // Route the title write-back through the canonical tier
                                             // arbitration: a lower-authority list snapshot must not
                                             // downgrade a higher-authority stored title.
-                                            applyExportTitleWriteback(existing, listC);
+                                            const titleTarget: Record<string, unknown> = existing;
+                                            applyExportTitleWriteback(titleTarget, listC);
                                             if (listC.messageCount) existing.messageCount = listC.messageCount;
                                         }
                                         return existing;
@@ -861,7 +930,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             }
                         }
 
-                        let formatted;
+                        let formatted: FormattedResult;
                         if (format === 'html') {
                             formatted = await ChatFormatter.formatHtmlCanonical(chat);
                         } else if (format === 'markdown') {
@@ -872,11 +941,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         const content = formatted.content;
                         const ext = formatted.ext;
-                        const safeBase = sanitizeFileName(listTitle, chat.id);
+                        const safeBase = sanitizeFileName(listTitle, chatId);
                         const resolveName = ((getUtils()?.resolveExportFileName) || utilsResolveExportFileName);
                         const fileName = useZip
-                            ? buildExportFileName(listTitle, chat.id, ext)
-                            : await resolveName(listTitle, chat.id, ext, async (n: string) => {
+                            ? buildExportFileName(listTitle, chatId, ext)
+                            : await resolveName(listTitle, chatId, ext, async (n: string) => {
                                 try {
                                     if (!batchDirHandle || typeof batchDirHandle.getFileHandle !== 'function') return false;
                                     await batchDirHandle.getFileHandle(n, { create: false });
@@ -889,18 +958,23 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         let mainWriteError: unknown = null;
                         try {
                             await writeFileDirect(fileName, content);
-                        } catch (e) {
+                        } catch (e: unknown) {
                             mainWriteError = e;
                         }
 
                         let queuedAssetsForThisChat = 0;
                         const chatAssetTasks: AssetTask[] = [];
-                        const queueAsset = (item: any, isImage: boolean) => {
+                        const queueAsset = (item: WorkerMessageAttachment, isImage: boolean) => {
                             totalAssets++;
                             queuedAssetsForThisChat++;
                             updateProgress();
                             const assetTask: AssetTask = async () => {
-                                let assetRes = { saved: false, failReason: '', localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                                let assetRes: ProcessAssetResult = {
+                                    saved: false,
+                                    failReason: '',
+                                    localName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin'),
+                                    recoveredFromTakeout: false
+                                };
                                 if (assetPipeline) {
                                     assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
                                 }
@@ -909,23 +983,27 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     updateProgress();
                                     const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                     pendingAssetsPerChat.set(nid, left);
-                                    if (left === 0) await finalizeChatExport(chat.id);
+                                    if (left === 0) await finalizeChatExport(chatId);
                                 } else {
                                     chatFailedAssetsSet.add(nid);
                                     // decrement 紧跟 add(nid)：regression lock 要求失败分支必须
                                     // decrement pendingAssetsPerChat，否则 finalize 永远等不到 left===0。
                                     const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                     pendingAssetsPerChat.set(nid, left);
-                                    failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: assetRes.localName, error: assetRes.failReason || 'CDN auth expired', sourceUrl: item.sourceUrl || item.src || item.url, sourceEvidence: item.sourceEvidence });
+                                    failedAttachments.push({
+                                        chatId,
+                                        chatTitle: listTitle || chat.title || chatId,
+                                        file: assetRes.localName,
+                                        error: assetRes.failReason || 'CDN auth expired',
+                                        sourceUrl: item.sourceUrl || item.src || item.url,
+                                        sourceEvidence: item.sourceEvidence
+                                    });
                                     const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
-                                    const fallbackMsg = isImage
-                                        ? `[${chat.title || chat.id}] 图片获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`
-                                        : `[${chat.title || chat.id}] 附件获取失败 (${assetRes.localName}): ${assetRes.failReason || 'CDN鉴权过期或资源不可达'}`;
-                                    onLog(getI18n().t(logKey, chat.title || chat.id, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
-                                    if (left === 0) await finalizeChatExport(chat.id);
+                                    onLog(getI18n().t(logKey, chat.title || chatId, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
+                                    if (left === 0) await finalizeChatExport(chatId);
                                 }
                             };
-                            assetTask.__assetMeta = { nid, chatId: chat.id, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
+                            assetTask.__assetMeta = { nid, chatId, listTitle, fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin') };
                             chatAssetTasks.push(assetTask);
                         };
 
@@ -934,7 +1012,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 if (m.attachments && m.attachments.length) {
                                     for (const att of m.attachments) {
                                         if (att.type === 'image') {
-                                            if (!m.images || !m.images.some((im: any) => im.localName === att.localName || im.url === att.url || im.fileName === att.fileName)) {
+                                            if (!m.images || !m.images.some((im: WorkerMessageAttachment) => im.localName === att.localName || im.url === att.url || im.fileName === att.fileName)) {
                                                 queueAsset(att, true);
                                             }
                                             continue;
@@ -942,7 +1020,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         if (att.type !== 'file') continue;
                                         if ((att.url && att.url.includes('immersive_entry_chip')) && !att.contentMarkdown) continue;
                                         if (att.contentMarkdown) {
-                                            const cleanDocMd = stripInternalChipMarkdown(att.contentMarkdown).trim();
+                                            const docMarkdown = typeof att.contentMarkdown === 'string' ? att.contentMarkdown : '';
+                                            const cleanDocMd = stripInternalChipMarkdown(docMarkdown).trim();
                                             if (!cleanDocMd) {
                                                 continue;
                                             }
@@ -952,33 +1031,33 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                                     totalAssets++;
                                                     downloadedAssets++;
                                                     updateProgress();
-                                                } catch (e) {
+                                                } catch (e: unknown) {
                                                     // 取消不记为资产失败，直接向上传播（B3 会进一步区分取消语义）
-                                                    if ((e !== null && (typeof e === 'object' || typeof e === 'function') && 'name' in e && e.name === 'AbortError') || this.aborted) throw e;
+                                                    if (isNamedError(e, 'AbortError') || this.aborted) throw e;
                                                     chatFailedAssetsSet.add(nid);
-                                                    failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: att.localName, error: getErrorMessage(e) });
+                                                    failedAttachments.push({ chatId, chatTitle: listTitle || chat.title || chatId, file: att.localName, error: getErrorMessage(e) });
                                                 }
                                             } else {
                                                 totalAssets++;
                                                 queuedAssetsForThisChat++;
                                                 updateProgress();
                                                 const mdTask: AssetTask = async () => {
-                                                    const docFileName = att.localName || `${safeBase}_${shortId(chat.id)}.md`;
+                                                    const docFileName = att.localName || `${safeBase}_${shortId(chatId)}.md`;
                                                     try {
                                                         await writeFileDirect(docFileName, cleanDocMd);
                                                         downloadedAssets++;
-                                                    } catch (e) {
+                                                    } catch (e: unknown) {
                                                         // 取消不记为资产失败，直接向上传播
-                                                        if ((e !== null && (typeof e === 'object' || typeof e === 'function') && 'name' in e && e.name === 'AbortError') || this.aborted) throw e;
+                                                        if (isNamedError(e, 'AbortError') || this.aborted) throw e;
                                                         chatFailedAssetsSet.add(nid);
-                                                        failedAttachments.push({ chatId: chat.id, chatTitle: listTitle || chat.title || chat.id, file: docFileName, error: getErrorMessage(e) });
+                                                        failedAttachments.push({ chatId, chatTitle: listTitle || chat.title || chatId, file: docFileName, error: getErrorMessage(e) });
                                                     }
                                                     updateProgress();
                                                     const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                                     pendingAssetsPerChat.set(nid, left);
-                                                    if (left === 0) await finalizeChatExport(chat.id);
+                                                    if (left === 0) await finalizeChatExport(chatId);
                                                 };
-                                                mdTask.__assetMeta = { nid, chatId: chat.id, listTitle, fileName: att.localName || 'doc.md' };
+                                                mdTask.__assetMeta = { nid, chatId, listTitle, fileName: att.localName || 'doc.md' };
                                                 chatAssetTasks.push(mdTask);
                                             }
                                             continue;
@@ -1013,7 +1092,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     const statusNote = driftStatus === 'partial' ? '，已记为部分导出' : '（仅告警，导出记录仍为正常）';
                                     onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
                                     parseDriftChats.push({
-                                        id: chat.id || nid,
+                                        id: chatId,
                                         title: listTitle,
                                         schemaDrift: chatDrift.schemaDrift,
                                         turnsRejected: chatDrift.turnsRejected,
@@ -1024,7 +1103,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 if (isChatTruncated) {
                                     onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                                 }
-                                const baseStatus = (actualMsgCount === 0 || chat.isEmpty) ? 'empty' : 'ok';
+                                const baseStatus = (actualMsgCount === 0 || !!chat.isEmpty) ? 'empty' : 'ok';
                                 const driftStatus = chatRecordStatusWithDrift(baseStatus, chatDrift);
                                 const statusOverride = isChatTruncated
                                     ? 'partial'
@@ -1041,8 +1120,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     format: options.format || 'markdown',
                                     exportedAt: new Date().toISOString(),
                                     titleCandidate: listTitle,
-                                    titleProvenance: resolveReliableTitleSource(chat.titleSource, listC?.titleSource),
-                                    titles: { ...(listC?.titles || {}), ...(chat.titles || {}) },
+                                    titleProvenance: resolveReliableTitleSource(
+                                        typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
+                                        listC?.titleSource
+                                    ),
+                                    titles: mergeTitleSources(listC?.titles, chat.titles),
                                     messageCount: actualMsgCount,
                                     chatTime: authoritativeChatTime,
                                     statusOverride,
@@ -1057,11 +1139,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     targetId: completion.targetId
                                 });
                                 if (queuedAssetsForThisChat === 0) {
-                                    await finalizeChatExport(chat.id);
+                                    await finalizeChatExport(chatId);
                                 } else {
                                     pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
                                     try {
-                                        onItemPendingAssets(chat.id, queuedAssetsForThisChat);
+                                        onItemPendingAssets(chatId, queuedAssetsForThisChat);
                                     } catch { /* intentional */ }
                                     for (const task of chatAssetTasks) {
                                         const enqueued = attachmentQueue.push(task);
@@ -1079,7 +1161,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                             const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
                                             pendingAssetsPerChat.set(nid, left);
                                             if (left === 0) {
-                                                await finalizeChatExport(chat.id);
+                                                await finalizeChatExport(chatId);
                                             }
                                         }
                                     }
@@ -1088,13 +1170,12 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         } else {
                             // B3: 区分用户取消 vs 权限被收回 —— 取消是用户意图，不记失败；
                             // 权限被收回是真实失败（writeFileDirect 已 abort 并记日志），保留失败记录。
-                            const errObj = mainWriteError as any;
-                            const userCancelled = errObj?.name === 'AbortError';
+                            const userCancelled = isNamedError(mainWriteError, 'AbortError');
                             if (userCancelled) {
                                 onLog(`[${listTitle}] 导出已取消`, 'warn');
                                 break;
                             }
-                            const permissionRevoked = errObj instanceof ExportPipelineError && !!errObj.isPermissionRevoked;
+                            const permissionRevoked = mainWriteError instanceof ExportPipelineError && !!mainWriteError.isPermissionRevoked;
                             const failReason = permissionRevoked
                                 ? 'Aborted due to permission revocation'
                                 : getErrorMessage(mainWriteError);
@@ -1106,9 +1187,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         metaResults.push({
-                            id: chat.id,
+                            id: chatId,
                             title: listTitle,
-                            url: chat.url || `https://gemini.google.com/app/${chat.id}`,
+                            url: chat.url || `https://gemini.google.com/app/${chatId}`,
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
                             messageCount: computeExportMessageCount(chat),
@@ -1132,7 +1213,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 slot,
                                 total: totalChats,
                                 current: completedCount,
-                                lastChatId: chat.id,
+                                lastChatId: chatId,
                                 lastChatTitle: listTitle,
                                 format,
                                 useZip
@@ -1144,20 +1225,20 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     slot,
                                     total: totalChats,
                                     current: completedCount,
-                                    lastChatId: chat.id,
+                                    lastChatId: chatId,
                                     lastChatTitle: listTitle,
                                     format,
                                     useZip
                                 });
                             } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:exportOrchestrator.ts]', e); }
                         }
-                    } catch (e) {
+                    } catch (e: unknown) {
                         // B3: AbortError = 用户取消（资产任务/写文件向上抛）—— 不记失败，直接结束
-                        if ((e as any)?.name === 'AbortError') {
+                        if (isNamedError(e, 'AbortError')) {
                             onLog(`[${requestedItem.title || requestedItem.id}] 导出已取消`, 'warn');
                             break;
                         }
-                        const errMsg = typeof e === 'object' && e !== null && 'message' in (e as any) ? String((e as any).message) : String(e);
+                        const errMsg = getOriginalErrorMessage(e);
                         const failId = requestedItem.id || 'unknown';
                         const title = requestedItem.title || failId;
                         onLog(`[${title}] export failed, skipped: ${errMsg}`, 'error');
@@ -1178,15 +1259,15 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             }
             try {
                 await Promise.all(exportWorkers);
-            } catch (e) {
-                onLog(`导出调度异常: ${typeof e === 'object' && e !== null && 'message' in (e as any) ? (e as any).message : String(e)}`, 'error');
+            } catch (e: unknown) {
+                onLog(`导出调度异常: ${getOriginalErrorMessage(e)}`, 'error');
                 throw e;
             }
 
             attachmentQueue.close();
             try {
                 await Promise.all(consumerPool);
-            } catch (e) {
+            } catch (e: unknown) {
                 if (this.aborted) onLog(getI18n().t('logAssetsAborted'), 'warn');
             }
 
@@ -1194,7 +1275,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 if (recovery && recovery.writeIndexAndMeta) {
                     try {
                         await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writer);
-                    } catch (e) {
+                    } catch (e: unknown) {
                         // index 写崩 = 导出契约不完整：记用户可见错误后 fail-closed 外抛
                         onLog(getErrorMessage(e), 'error');
                         throw e;
@@ -1245,7 +1326,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 if (recovery && recovery.writeDiagnostics) {
                     try {
                         await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writer, onLog);
-                    } catch (e) {
+                    } catch (e: unknown) {
                         // 诊断文件是 best-effort：记用户可见错误但不外抛，
                         // 避免"写错误报告失败后再写错误报告"的递归
                         onLog(getErrorMessage(e), 'error');
