@@ -1,5 +1,5 @@
 import type { GeneratedMediaIdentity } from '../../types/conversation.js';
-import { findGenerationModelMessage, hasGenerationImage, type GenerationMessage, type GenerationAttachment } from './legacyGeneratedMediaIdentity.js';
+import { findGenerationModelMessage, hasGenerationImage, type GenerationMessage } from './legacyGeneratedMediaIdentity.js';
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -89,49 +89,4 @@ export function supplementLegacyGeneratedMedia(
             }
         }
     }
-}
-
-/** Deduplicate provider representations before Domain exists, never across message ownership. */
-export function reconcileLegacyMediaLists<T extends GenerationAttachment>(attachments: readonly T[] = [], images: readonly T[] = []): T[] {
-    const atts: T[] = [];
-    for (const a of [...attachments, ...images.map(image => ({ ...image, type: image.type || 'image' }))]) {
-        if (!a || typeof a !== 'object') continue;
-        const key = a.localName || a.url || a.sourceUrl || a.resolvedUrl || a.src;
-        const resourceMatch = atts.find(x => x === a || (key && (x.localName || x.url || x.sourceUrl || x.resolvedUrl || x.src) === key));
-        const existing = resourceMatch ?? (a.token ? atts.find(x => x.token === a.token) : undefined);
-        if (existing) {
-            const preferGenerated = !resourceMatch && a.isGenerated && !existing.isGenerated;
-            for (const [k, v] of Object.entries(a)) {
-                if (v !== undefined && (Reflect.get(existing, k) === undefined || preferGenerated)) {
-                    Object.assign(existing, { [k]: v });
-                }
-            }
-            continue;
-        }
-        const aReqId = (a.providerRequestId || a.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
-        if (aReqId) {
-            const aOrd = a.imageOrdinal ?? a.generation?.imageOrdinal ?? (a.generation?.imageCount === 1 ? 0 : undefined);
-            const existingGen = atts.find((x) => {
-                const xReqId = (x.providerRequestId || x.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
-                if (!xReqId || xReqId !== aReqId) return false;
-                const aChat = String(a.generation?.chatId || '').trim().replace(/^c_/, '');
-                const xChat = String(x.generation?.chatId || '').trim().replace(/^c_/, '');
-                if (aChat && xChat && aChat !== xChat) return false;
-                const xOrd = x.imageOrdinal ?? x.generation?.imageOrdinal ?? (x.generation?.imageCount === 1 ? 0 : undefined);
-                return aOrd !== undefined && xOrd !== undefined && xOrd === aOrd;
-            });
-            if (existingGen) {
-                for (const [k, v] of Object.entries(a)) {
-                    if (v !== undefined && Reflect.get(existingGen, k) === undefined) {
-                        Object.assign(existingGen, { [k]: v });
-                    }
-                }
-                if (!existingGen.dataBuffer && a.dataBuffer) existingGen.dataBuffer = a.dataBuffer;
-                if (!existingGen.blobBase64 && a.blobBase64) existingGen.blobBase64 = a.blobBase64;
-                continue;
-            }
-        }
-        atts.push({ ...a });
-    }
-    return atts;
 }

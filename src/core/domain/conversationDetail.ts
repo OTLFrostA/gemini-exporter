@@ -29,9 +29,18 @@ export interface DomainAttachment {
     imageOrdinal?: number;
     generation?: DomainGeneratedMediaIdentity;
     isImage?: boolean;
-    dataBuffer?: ArrayBuffer | ArrayBufferView;
     blobBase64?: string;
     dataBase64?: string;
+    failureReason?: string;
+    /** Document metadata belongs to its resource record. */
+    id?: string;
+    createdAt?: number | null;
+    chipUrl?: string;
+    sections?: string[];
+    links?: Array<{ title: string; url: string }>;
+    contentMarkdown?: string;
+    candidates?: string[];
+    hasFabricatedText?: boolean;
 }
 
 export interface DomainGeneratedMediaIdentity {
@@ -48,17 +57,6 @@ export interface DomainGeneratedMediaIdentity {
 export interface DomainCitation {
     url: string;
     title?: string;
-}
-
-export interface DomainDocument extends DomainAttachment {
-    id?: string;
-    createdAt?: number | null;
-    chipUrl?: string;
-    sections?: string[];
-    links?: Array<{ title: string; url: string }>;
-    contentMarkdown?: string;
-    candidates?: string[];
-    hasFabricatedText?: boolean;
 }
 
 /** Provider-originated metadata, never a Domain relationship key. */
@@ -78,8 +76,6 @@ export interface DomainMessage {
     attachments?: DomainAttachment[];
     reasoning?: string;
     citations?: DomainCitation[];
-    images?: DomainAttachment[];
-    documents?: DomainDocument[];
     groundingCitationMarkers?: string[];
 }
 

@@ -10,8 +10,6 @@ export interface CanonicalSemanticMessage {
     timestamp?: unknown;
     content: BlockNode[];
     attachments?: AssetNormalizationInput[];
-    images?: AssetNormalizationInput[];
-    documents?: AssetNormalizationInput[];
     groundingCitationMarkers?: unknown[];
 }
 

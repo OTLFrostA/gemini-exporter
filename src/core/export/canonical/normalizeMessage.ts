@@ -13,7 +13,6 @@ import {
     linkInlineImage,
     buildAsset,
     indexAssetRef,
-    mergeMessageAttachments,
     newAssetLinkIndex,
 } from './gemini/normalizeAssets.js';
 import {
@@ -91,11 +90,11 @@ export function normalizeMessage(input: CanonicalMessageInput, index: number, ct
     const idPrefix = msgId;
 
     // Normalize attachments and bind semantic resource references to export identities.
-    const merged = mergeMessageAttachments(m);
+    const attachments = m.attachments ?? [];
     const attachmentBlocks: BlockNode[] = [];
     const assets: Asset[] = [];
     const assetIndex = newAssetLinkIndex();
-    merged.forEach((a, ai) => {
+    attachments.forEach((a, ai) => {
         const assetId = `${msgId}-a${ai}`;
         const built = buildAsset(a, assetId, { ...sourceRef, locator: `${locator}.attachments[${ai}]` }, ctx.byteStore);
         assets.push(built.asset);

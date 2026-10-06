@@ -1,13 +1,13 @@
+import { resolveLegacyAttachments } from '../provider/legacyAttachmentAdapter.js';
+import { mapContentAssetReferences } from '../content/assetReferences.js';
 import type { BlockNode } from '../content/blocks.js';
 import { parseImportedBody } from '../provider/importedContentAdapter.js';
 import { parseGeminiBody, structuredBodyAttachments } from '../provider/gemini/contentAdapter.js';
-import { supplementLegacyGeneratedMedia, reconcileLegacyMediaLists, type LegacyGeneratedMediaEvidence } from './legacyGeneratedMediaReconciliation.js';
-import type { Conversation, ChatMessage, Attachment, MessageDocument, GeneratedMediaIdentity } from '../../types/conversation.js';
+import { supplementLegacyGeneratedMedia, type LegacyGeneratedMediaEvidence } from './legacyGeneratedMediaReconciliation.js';
+import type { Conversation, ChatMessage, Attachment, GeneratedMediaIdentity } from '../../types/conversation.js';
 import type {
-    DomainAttachment,
     DomainCitation,
     DomainConversationDetail,
-    DomainDocument,
     DomainGeneratedMediaIdentity,
     DomainMessage,
     DomainMessageProvenance,
@@ -17,20 +17,10 @@ function copyGeneratedMedia(value: GeneratedMediaIdentity): DomainGeneratedMedia
     return { ...value };
 }
 
-function copyAttachment(value: Attachment): DomainAttachment {
+function copyAttachment(value: Attachment): Attachment {
     return {
         ...value,
         ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
-    };
-}
-
-function copyDocument(value: MessageDocument): DomainDocument {
-    return {
-        ...value,
-        ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
-        ...(value.sections ? { sections: [...value.sections] } : {}),
-        ...(value.links ? { links: value.links.map((link) => ({ ...link })) } : {}),
-        ...(value.candidates ? { candidates: [...value.candidates] } : {}),
     };
 }
 
@@ -73,23 +63,17 @@ function copyMessage(value: ChatMessage, parseContent: (body: string, structured
     const provenance = normalizeMessageProvenance(value.providerRequestId);
     const reasoning = normalizeReasoning(value);
     const citations = normalizeCitations(value);
-    const bodyAttachments = structuredBodyAttachments(value);
-    const documents = value.documents?.map(copyDocument);
-    // Structured-only assets followed document records in the legacy asset list.
-    // Keep document metadata exposed as aliases of those same resolved records.
-    const precedingDocuments = bodyAttachments.length ? documents ?? [] : [];
+    const resources = resolveLegacyAttachments(value, structuredBodyAttachments(value));
+    const { attachments } = resources;
     return {
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
-        content: parseContent(content, value.structuredContent),
+        content: mapContentAssetReferences(parseContent(content, value.structuredContent), resources.resolveReference),
         ...copyTimestamp(timestamp),
         role: value.role === 'model' ? 'assistant' : value.role,
         ...(provenance ? { provenance } : {}),
-        ...(bodyAttachments.length ? { attachments: [...precedingDocuments, ...bodyAttachments.map(copyAttachment)] }
-            : value.attachments ? { attachments: value.attachments.map(copyAttachment) } : {}),
+        ...(attachments.length || value.attachments ? { attachments } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
-        ...(value.images ? { images: value.images.map(copyAttachment) } : {}),
-        ...(documents ? { documents } : {}),
         ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
     };
 }
@@ -153,14 +137,7 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
     const parseContent = conversation.source?.startsWith('openai')
         ? (body: string): BlockNode[] => parseImportedBody(body)
         : parseGeminiBody;
-    const messages = legacyMessages.map(message => {
-        if ([...(message.attachments ?? []), ...(message.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
-            message.attachments = reconcileLegacyMediaLists(message.attachments ?? [], message.images ?? []);
-            // The resolved attachment list is authoritative; avoid stale duplicate representations.
-            if (message.images) message.images = message.attachments.filter(a => a.type === 'image' || a.isImage || a.isGenerated);
-        }
-        return copyMessage(message, parseContent);
-    });
+    const messages = legacyMessages.map(message => copyMessage(message, parseContent));
     return {
         id: conversation.id,
         title: conversation.title,

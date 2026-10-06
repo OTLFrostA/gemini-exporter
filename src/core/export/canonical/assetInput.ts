@@ -16,7 +16,6 @@ export interface AssetNormalizationInput {
     size?: number;
     width?: number;
     height?: number;
-    token?: unknown;
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
@@ -26,11 +25,4 @@ export interface AssetNormalizationInput {
     dataBase64?: string;
     contentMarkdown?: string;
     failureReason?: string;
-}
-
-/** Existing attachment lists accepted by export asset normalization. */
-export interface AssetListInput {
-    attachments?: AssetNormalizationInput[];
-    images?: AssetNormalizationInput[];
-    documents?: AssetNormalizationInput[];
 }

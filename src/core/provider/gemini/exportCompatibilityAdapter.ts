@@ -1,11 +1,11 @@
-import { reconcileLegacyMediaLists } from '../../domain/legacyGeneratedMediaReconciliation.js';
+import { resolveLegacyAttachments } from '../legacyAttachmentAdapter.js';
+import { mapContentAssetReferences } from '../../content/assetReferences.js';
 import type { GeminiNormalizationInput, GeminiNormalizationMessage } from './exportInput.js';
 import type { CanonicalMessageInput } from '../../export/canonical/messageInput.js';
 import { normalizeCanonicalConversation, type CanonicalNormalizationOptions as GeminiNormalizationOptions, type CanonicalNormalizationResult as GeminiNormalizationResult } from '../../export/canonical/normalizeConversation.js';
 import type { Diagnostic } from '../../export/canonical/diagnostics.js';
 import type { JsonValue } from '../../export/canonical/json.js';
 import type { NormalizationContext, NormalizationResult, ProviderNormalizer } from '../../export/canonical/normalizer.js';
-import { mergeMessageAttachments } from '../../export/canonical/gemini/normalizeAssets.js';
 import { extractRawCitations } from '../../export/canonical/gemini/normalizeCitations.js';
 import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from './contentAdapter.js';
 import { parseImportedBody } from '../importedContentAdapter.js';
@@ -35,15 +35,14 @@ function prepareLegacyMessage(m: GeminiNormalizationMessage, sourceIndex: number
     const rawReasoning = m.thoughts ?? m.thinking ?? '';
     const reasoning = Array.isArray(rawReasoning) ? rawReasoning.join('\n\n') : rawReasoning;
     const reasoningBlocks = parseLegacyReasoning(reasoning, context);
-    const mergedAttachments = mergeMessageAttachments(m);
-    const attachments = !m.attachments?.length && !m.images?.length
-        ? mergeMessageAttachments({ attachments: mergedAttachments, images: structuredBodyAttachments({ structuredContent: m.structuredContent }) })
-        : mergedAttachments;
+    const resources = resolveLegacyAttachments(m, structuredBodyAttachments(m));
+    const { attachments } = resources;
     const content = source?.startsWith('openai') && typeof m.content === 'string'
         ? parseImportedBody(m.content, context)
         : parseGeminiBody(m.content, m.structuredContent, context);
     return {
-        message: { id: m.id, role: m.role, timestamp: m.timestamp, content,
+        message: { id: m.id, role: m.role, timestamp: m.timestamp,
+            content: mapContentAssetReferences(content, resources.resolveReference),
             attachments, groundingCitationMarkers: m.groundingCitationMarkers },
         locator, sourceIndex, reasoningBlocks, citationInput: extractRawCitations(m), diagnostics,
         unknownFields: Object.keys(m).filter(key => !KNOWN_MESSAGE_FIELDS.has(key)),
@@ -92,13 +91,6 @@ export async function normalizeGeminiConversation(
                 });
             }
         });
-    }
-    for (const input of messageInputs) {
-        const m = input.message;
-        if (!m || typeof m !== 'object') continue;
-        if ([...(m.attachments ?? []), ...(m.images ?? [])].some(a => a.isGenerated || a.generation || a.providerRequestId)) {
-            input.message = { ...m, attachments: reconcileLegacyMediaLists(m.attachments ?? [], m.images ?? []), images: undefined };
-        }
     }
     const unknownFields = Object.keys(raw ?? {}).filter((key) => !KNOWN_CONVERSATION_FIELDS.has(key));
     const initialDiagnostics: Diagnostic[] = [];

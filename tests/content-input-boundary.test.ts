@@ -144,10 +144,10 @@ for (const document of [
         const original = structuredClone(legacy);
         const domain = toDomainConversationDetail(legacy);
         assert.equal('structuredContent' in domain.messages[0], false);
-        assert.deepEqual(domain.messages[0].documents?.[0].sections, ['section']);
+        assert.deepEqual(domain.messages[0].attachments?.[0].sections, ['section']);
         const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain)]);
         assert.deepEqual(semantic.bundle, raw.bundle);
-        assert.deepEqual((await normalizeDomainConversation(structuredClone(domain))).bundle, raw.bundle);
+        assert.deepEqual((await normalizeDomainConversation(JSON.parse(JSON.stringify(domain)))).bundle, raw.bundle);
         assert.deepEqual(semantic.bundle.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
         assert.deepEqual(legacy, original);
     });

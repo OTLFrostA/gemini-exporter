@@ -286,13 +286,13 @@ for (const body of ['messages', 'turns'] as const) {
         const expected = {
             id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
             provenance: { providerRequestId: 'request-1' },
-            attachments: message.attachments,
+            attachments: [...message.attachments, ...message.images, ...message.documents],
             reasoning: message.thoughts,
-            citations: message.citations, images: message.images, documents: message.documents,
+            citations: message.citations,
             groundingCitationMarkers: message.groundingCitationMarkers,
         };
         assertDomainMessages(domain.messages, [expected]);
-        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst']) {
+        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst', 'images', 'documents']) {
             assert.equal(field in domain.messages[0], false);
         }
         assert.deepEqual(conversation, original);

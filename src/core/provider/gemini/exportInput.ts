@@ -1,6 +1,6 @@
 /** Raw provider input accepted only by the legacy Gemini compatibility adapter. */
-import type { AssetNormalizationInput as GeminiNormalizationAttachment } from '../../export/canonical/assetInput.js';
-export type { AssetNormalizationInput as GeminiNormalizationAttachment } from '../../export/canonical/assetInput.js';
+import type { LegacyAttachmentInput as GeminiNormalizationAttachment } from '../legacyAttachmentAdapter.js';
+export type { LegacyAttachmentInput as GeminiNormalizationAttachment } from '../legacyAttachmentAdapter.js';
 
 export interface GeminiNormalizationMessage {
     id?: string;
