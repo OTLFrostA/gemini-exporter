@@ -1,1 +1,1 @@
-export * from './rules.js';
+export * from '../../../provider/gemini/markdownCompatibility.js';

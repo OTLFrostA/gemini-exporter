@@ -30,7 +30,7 @@ const {
 const {
     geminiStructuredToCanonical,
     convertGeminiInlines,
-} = require('../src/core/export/canonical/gemini/structuredAdapter.js');
+} = require('../src/core/provider/gemini/structuredContentAdapter.js');
 const {
     decodeGeminiAnnotation,
     decodeGeminiStructuredNode,

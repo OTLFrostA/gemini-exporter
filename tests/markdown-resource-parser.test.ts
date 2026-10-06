@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { parseMarkdownAst } from '../src/core/export/canonical/markdown/parseMarkdown.js';
+import { parseMarkdownAst } from '../src/core/content/markdown/parseMarkdown.js';
 import assert from 'node:assert/strict';
 import { extractMarkdownResourceReferences } from '../scripts/extract_markdown_resource_refs.js';
 

@@ -8,9 +8,10 @@ import type { MessageNode, MessageRole } from '../conversation.js';
 import type { Diagnostic } from '../diagnostics.js';
 import type { JsonValue } from '../json.js';
 import type { SourceRef } from '../provenance.js';
-import { formatUnknownPayload } from '../unknownFallback.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import {
+    type AssetParserContext,
+    linkInlineImage,
     buildAsset,
     indexAssetRef,
     mergeMessageAttachments,
@@ -18,18 +19,20 @@ import {
 } from './normalizeAssets.js';
 import { convertHtmlToMarkdown } from '../../../engine/formatters/htmlConverter.js';
 import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
-import { type MarkdownParseContext, parseMarkdownToBlocks } from '../markdown/index.js';
+import { type MarkdownParseContext, parseMarkdownToBlocks } from '../../../content/markdown/index.js';
 import {
     extractRawCitations,
     linkCitationMarkers,
 } from './normalizeCitations.js';
-import { geminiStructuredToCanonical } from './structuredAdapter.js';
+import { parseGeminiBody } from '../../../provider/gemini/contentAdapter.js';
+import { preprocessGeminiMarkdown } from '../../../provider/gemini/markdownCompatibility.js';
+import { mapContentAssetReferences } from '../../../content/assetReferences.js';
 
 export const KNOWN_MESSAGE_FIELDS: ReadonlySet<string> = new Set([
     'id', 'role', 'content', 'timestamp', 'turnId', 'attachments', 'thoughts',
     'thinking', 'citations', 'images', 'documents', 'attachmentCount',
     'messageCount', 'sources', 'structuredContent', 'groundingCitationMarkers',
-    'reasoning', 'provenance', // Domain metadata is recognized but does not establish relationships.
+    'contentAst', 'reasoning', 'provenance', // Domain metadata is recognized but does not establish relationships.
 ]);
 
 function isStr(v: unknown): v is string {
@@ -86,7 +89,7 @@ export function normalizeDomainMessage(
     message: DomainMessage, index: number, locator: string, ctx: MessageContext,
 ): MessageBuild {
     return normalizeCanonicalMessage(message, index, locator, ctx, message.reasoning,
-        extractRawCitations({ citations: message.citations }));
+        extractRawCitations({ citations: message.citations }), message.contentAst);
 }
 
 function normalizeCanonicalMessage(
@@ -96,6 +99,7 @@ function normalizeCanonicalMessage(
     ctx: MessageContext,
     reasoning: unknown,
     citationInput: ReturnType<typeof extractRawCitations>,
+    contentAst?: BlockNode[],
 ): MessageBuild {
     const diagnostics: Diagnostic[] = [];
     const msgId = isStr(m.id) && m.id ? m.id : `msg-${index}`;
@@ -154,7 +158,10 @@ function normalizeCanonicalMessage(
         }
     });
 
-    const st: MarkdownParseContext = { diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore };
+    const st: MarkdownParseContext & AssetParserContext = {
+        diagnostics, sourceRef, assetIndex, inlineAssets: [], idPrefix, byteStore: ctx.byteStore,
+        resolveImage: (ref, alt, title) => linkInlineImage(ref, alt, title, st),
+    };
     const blocks: BlockNode[] = [];
 
     const thoughtsText = cleanBody(reasoning);
@@ -163,44 +170,19 @@ function normalizeCanonicalMessage(
             type: 'thought',
             disclosure: 'providerExposed',
             kind: 'reasoning',
-            blocks: parseMarkdownToBlocks(thoughtsText, idPrefix, st),
+            blocks: parseMarkdownToBlocks(preprocessGeminiMarkdown(thoughtsText), idPrefix, st),
         });
     }
 
-    let usedStructured = false;
-    if (m.structuredContent) {
-        const structuredBlocks = geminiStructuredToCanonical(m.structuredContent, idPrefix, st);
-        if (structuredBlocks !== null) {
-            const rawText = typeof m.content === 'string' ? cleanBody(m.content).trim() : '';
-            if (structuredBlocks.length > 0 || !rawText) {
-                blocks.push(...structuredBlocks);
-                usedStructured = true;
-            }
-        }
+    const usedStructured = contentAst !== undefined;
+    if (contentAst !== undefined) {
+        blocks.push(...mapContentAssetReferences(contentAst, (ref, kind, alt, title) => {
+            if (assets.some(asset => asset.id === ref)) return ref;
+            if (kind === 'file') return assetIndex.byRef.get(ref) ?? ref;
+            return linkInlineImage(ref, alt ?? '', title, st).assetId;
+        }));
     }
-
-    if (!usedStructured) {
-        if (typeof m.content === 'string') {
-            const cleaned = cleanBody(m.content);
-            if (cleaned.trim()) blocks.push(...parseMarkdownToBlocks(cleaned, idPrefix, st));
-        } else if (m.content !== undefined && m.content !== null) {
-            const visible = formatUnknownPayload(m.content);
-            const ub: BlockNode = {
-                type: 'unknown',
-                sourceType: 'message-content',
-                text: visible.text,
-            };
-            blocks.push(ub);
-            diagnostics.push({
-                id: `unknown-content:${msgId}`,
-                severity: 'warning',
-                code: 'UNKNOWN_MESSAGE_CONTENT',
-                message: `message content was not a string; preserved as unknown block`,
-                sourceRef,
-                details: { truncated: visible.truncated } as JsonValue,
-            });
-        }
-    }
+    if (!usedStructured) blocks.push(...parseGeminiBody(m.content, m.structuredContent, st));
 
     for (const ia of st.inlineAssets) {
         assets.push(ia);
@@ -269,7 +251,9 @@ function normalizeCanonicalMessage(
     }
 
     if (webCitations.length > 0 || groundingMap.size > 0) {
-        linkCitationMarkers(blocks, webCitations, groundingMap);
+        const reconciled = structuredClone(blocks);
+        linkCitationMarkers(reconciled, webCitations, groundingMap);
+        blocks.splice(0, blocks.length, ...reconciled);
     }
 
     const unknownFields = Object.keys(m ?? {}).filter((k) => !KNOWN_MESSAGE_FIELDS.has(k));

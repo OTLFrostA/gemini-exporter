@@ -1,3 +1,5 @@
+import type { BlockNode } from '../content/blocks.js';
+
 /** Provider-neutral description of a complete conversation detail. */
 export type DomainMessageRole =
     | 'user'
@@ -70,6 +72,8 @@ export interface DomainMessage {
     id?: string;
     role: DomainMessageRole;
     content: string;
+    /** C2 transition: semantic body prepared before Domain, made mandatory in C3. */
+    contentAst?: BlockNode[];
     /** Unix epoch milliseconds; omit when missing or unknown. */
     timestamp?: number;
     provenance?: DomainMessageProvenance;

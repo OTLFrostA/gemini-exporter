@@ -9,7 +9,7 @@ const {gfm} = require(path.join(main,'node_modules/micromark-extension-gfm'));
 const {gfmFromMarkdown} = require(path.join(main,'node_modules/mdast-util-gfm'));
 const {math} = require(path.join(main,'node_modules/micromark-extension-math'));
 const {mathFromMarkdown} = require(path.join(main,'node_modules/mdast-util-math'));
-const {parseMarkdownToBlocks} = require(path.join(main,'src/core/export/canonical/markdown/parseMarkdown.ts'));
+const {parseMarkdownToBlocks} = require(path.join(main,'src/core/content/markdown/parseMarkdown.ts'));
 function compact(node) {
   if (Array.isArray(node)) return node.map(compact);
   if (!node || typeof node !== 'object') return node;

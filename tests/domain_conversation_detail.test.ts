@@ -5,6 +5,11 @@ const { toDomainConversationDetail } = require('../src/core/domain/legacyConvers
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/gemini/normalizeConversation.js');
 const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
 
+// C2 retains the existing raw core until C3; semantic body behavior is asserted separately.
+function transitionalCore(messages: Array<{ contentAst?: unknown }>): unknown[] {
+    return messages.map(({ contentAst, ...core }) => core);
+}
+
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
     const domain = toDomainConversationDetail(legacy as never);
     const [before, after] = await Promise.all([
@@ -94,7 +99,7 @@ test('Domain adapter preserves Takeout-style turns-only conversations', async ()
         turns: [{ timestamp: null, userContent: 'Question', modelContent: 'Answer', thoughts: ['Thought'], attachments: [{ type: 'file', fileName: 'input.pdf' }] }],
     };
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(domain.messages, [
+    assert.deepEqual(transitionalCore(domain.messages), [
         { role: 'user', content: 'Question' },
         {
             role: 'assistant', content: 'Answer', reasoning: 'Thought',
@@ -125,7 +130,7 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
 test('Domain output always has an empty messages array when legacy body is absent', async () => {
     const conversation = { ...base };
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(domain.messages, []);
+    assert.deepEqual(transitionalCore(domain.messages), []);
     assert.equal('turns' in domain, false);
     await assertExportEquivalent(conversation);
 });
@@ -154,7 +159,7 @@ for (const body of ['messages', 'turns'] as const) {
         };
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
-        assert.deepEqual(domain.messages, [
+        assert.deepEqual(transitionalCore(domain.messages), [
             { id: 'system-1', role: 'system', content: 'Instruction' },
             messages[1], { ...messages[2], role: 'assistant' }, messages[3],
         ]);
@@ -179,7 +184,7 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
-        assert.deepEqual(domain.messages, [
+        assert.deepEqual(transitionalCore(domain.messages), [
             messages[0],
             { role: 'assistant', content: '' },
             messages[2],
@@ -199,7 +204,7 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
-        assert.deepEqual(domain.messages, messages.map(() => ({ role: 'user', content: 'Unchanged' })));
+        assert.deepEqual(transitionalCore(domain.messages), messages.map(() => ({ role: 'user', content: 'Unchanged' })));
         assert.deepEqual(conversation, original);
     });
 
@@ -220,7 +225,7 @@ test('Domain adapter applies core timestamp invariants to synthesized turns with
         const original = structuredClone(conversation);
         const domain = toDomainConversationDetail(conversation);
         const expectedTimestamp = typeof timestamp === 'number' && Number.isFinite(timestamp) ? { timestamp } : {};
-        assert.deepEqual(domain.messages, [
+        assert.deepEqual(transitionalCore(domain.messages), [
             { role: 'user', content: '  Question  ', ...expectedTimestamp },
             { role: 'assistant', content: 'Answer\n正文', ...expectedTimestamp },
         ]);
@@ -242,7 +247,7 @@ test('Domain adapter rejects non-string turn content and preserves attachment-on
         }
     }
     const conversation = { ...base, turns: [{ attachments: [{ type: 'file', fileName: 'input.pdf' }], timestamp: null }] };
-    assert.deepEqual(toDomainConversationDetail(conversation).messages, [
+    assert.deepEqual(transitionalCore(toDomainConversationDetail(conversation).messages), [
         { role: 'assistant', content: '', attachments: [{ type: 'file', fileName: 'input.pdf' }] },
     ]);
     await assertExportEquivalent(conversation);
@@ -276,7 +281,7 @@ for (const body of ['messages', 'turns'] as const) {
             structuredContent: message.structuredContent,
             groundingCitationMarkers: message.groundingCitationMarkers,
         };
-        assert.deepEqual(domain.messages, [expected]);
+        assert.deepEqual(transitionalCore(domain.messages), [expected]);
         for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources']) {
             assert.equal(field in domain.messages[0], false);
         }
@@ -309,7 +314,7 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = toDomainConversationDetail(conversation);
-            assert.deepEqual(domain.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer', provenance: { providerRequestId: normalized } }]);
+            assert.deepEqual(transitionalCore(domain.messages), [{ id: 'message-1', role: 'assistant', content: 'Answer', provenance: { providerRequestId: normalized } }]);
             assert.equal('turnId' in domain.messages[0], false);
             assert.equal('providerRequestId' in domain.messages[0], false);
             assert.deepEqual(conversation, original);
@@ -323,7 +328,7 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = toDomainConversationDetail(conversation);
-            assert.deepEqual(domain.messages, [{ role: 'assistant', content: 'Answer' }]);
+            assert.deepEqual(transitionalCore(domain.messages), [{ role: 'assistant', content: 'Answer' }]);
             assert.equal('provenance' in domain.messages[0], false);
             assert.deepEqual(conversation, original);
         }
@@ -339,7 +344,7 @@ test('Domain adapter does not synthesize message provenance from raw turns or ge
     const conversation = { ...base, turns: [{ id: 'raw-turn', providerRequestId: 'r_RAW', userContent: 'Question', modelContent: 'Answer', attachments: [attachment] }] };
     const original = structuredClone(conversation);
     const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(domain.messages, [
+    assert.deepEqual(transitionalCore(domain.messages), [
         { role: 'user', content: 'Question' },
         { role: 'assistant', content: 'Answer', attachments: [attachment] },
     ]);
