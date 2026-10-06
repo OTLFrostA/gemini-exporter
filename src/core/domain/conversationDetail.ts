@@ -61,7 +61,7 @@ export interface DomainDocument extends DomainAttachment {
 
 /** Provider-originated metadata, never a Domain relationship key. */
 export interface DomainMessageProvenance {
-    /** Optional lowercase request identity without an r_ prefix. */
+    /** Opaque provider metadata; preserve case and prefixes, and never infer relationships. */
     providerRequestId?: string;
 }
 

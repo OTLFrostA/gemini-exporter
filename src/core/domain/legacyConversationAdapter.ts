@@ -37,7 +37,7 @@ function copyTimestamp(value: unknown): { timestamp?: number } {
 
 function normalizeMessageProvenance(value: unknown): DomainMessageProvenance | undefined {
     if (typeof value !== 'string') return undefined;
-    const providerRequestId = value.trim().toLowerCase().replace(/^(?:r_)+/, '');
+    const providerRequestId = value.trim();
     return providerRequestId ? { providerRequestId } : undefined;
 }
 

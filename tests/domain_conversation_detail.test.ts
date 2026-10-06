@@ -298,11 +298,12 @@ for (const body of ['messages', 'turns'] as const) {
 }
 
 for (const body of ['messages', 'turns'] as const) {
-    test(`Domain adapter drops message turnId and normalizes request provenance from ${body}`, async () => {
+    test(`Domain adapter drops message turnId and preserves opaque request provenance from ${body}`, async () => {
         for (const [requestId, normalized] of [
-            ['r_abcd1234', 'abcd1234'], ['ABCD1234', 'abcd1234'],
-            [' R_ABCD1234 ', 'abcd1234'], ['abcd1234', 'abcd1234'],
-            ['r_r_ABCD1234', 'abcd1234'],
+            ['r_abcd1234', 'r_abcd1234'], ['ABCD1234', 'ABCD1234'],
+            [' R_ABCD1234 ', 'R_ABCD1234'], ['abcd1234', 'abcd1234'],
+            ['r_r_ABCD1234', 'r_r_ABCD1234'], ['r_', 'r_'], [' R_ ', 'R_'],
+            [' OpenAI-Request-XyZ ', 'OpenAI-Request-XyZ'], ['Claude_Req:AbC', 'Claude_Req:AbC'],
         ]) {
             const messages = [{ id: 'message-1', role: 'assistant', content: 'Answer', turnId: 'turn-1', providerRequestId: requestId }];
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
@@ -317,7 +318,7 @@ for (const body of ['messages', 'turns'] as const) {
     });
 
     test(`Domain adapter omits missing, blank and invalid request provenance from ${body}`, () => {
-        for (const providerRequestId of [undefined, null, '', '   ', '\t\n', 'r_', ' R_ ', 123, {}, []]) {
+        for (const providerRequestId of [undefined, null, '', '   ', '\t\n', 123, {}, []]) {
             const messages = [{ role: 'assistant', content: 'Answer', turnId: 'turn-1', providerRequestId }];
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
