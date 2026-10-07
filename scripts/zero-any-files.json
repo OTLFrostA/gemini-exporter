@@ -62,5 +62,11 @@
   "src/core/export/document/displayDate.ts",
   "src/core/export/document/prepareDomainResources.ts",
   "src/core/export/document/exportDomainDocument.ts",
-  "src/core/diagnostics/documentDiagnostic.ts"
+  "src/core/diagnostics/documentDiagnostic.ts",
+  "src/core/domain/parsing.ts",
+  "src/core/provider/parseConversation.ts",
+  "src/core/provider/record/conversationRecord.ts",
+  "src/core/provider/record/parseConversationRecord.ts",
+  "tests/domain-parsing.test.ts",
+  "tests/domain_parsing.types.ts"
 ]

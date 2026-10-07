@@ -1689,15 +1689,66 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/domain-parsing.test.ts",
+      "domain": "domain",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Unified Domain parsing boundary, source coverage and provenance, side-channel evidence and legacy application compatibility",
+      "notes": "Project contracts; no provider wire compatibility claim and no storage migration.",
+      "testCount": 8,
+      "tests": [
+        {
+          "name": "unified parsing requires explicit provider identity and implemented format",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "legacy application callers retain provider inference and use the unified Domain result",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "source provenance and explicit completeness survive JSON without leaking transport state",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "positive truncation or paging evidence takes precedence over a complete claim",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "absence of truncation is not evidence of complete coverage",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Domain completeness is validated and copied independently from input evidence",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "conversation timestamps cannot lose meaning during JSON serialization",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "shared parse result keeps diagnostics and preparation evidence outside a closed Domain graph",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 33,
-    "totalTests": 258,
+    "totalSuites": 34,
+    "totalTests": 266,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 238,
+      "P2": 246,
       "P3": 2,
       "P4": 0
     }
