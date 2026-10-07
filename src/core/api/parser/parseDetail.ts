@@ -3,7 +3,7 @@ import type { GeminiUtilsModule } from "../../utils/utils.js";
 import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 import type { Message, TitleSources, Attachment, MessageDocument } from "../../../types/index.js";
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
-import { sanitizeFileName } from "../../utils/pathUtils.js";
+import { projectLegacyDetail } from "./legacyDetailProjection.js";
 import { __resolveModule } from "../../utils/moduleOverrides.js";
 import type { TurnDriftReport, TitleResult, Citation } from "./extractors.js";
 import type { ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocLink, DocSectionsResult } from "./attachments.js";
@@ -104,6 +104,8 @@ import {
     isRealTitle
 } from "./extractors.js";
 import {
+    extractImageEvidence,
+    extractResponseImageEvidence,
     extractImages,
     extractResponseImages,
     extractUserFiles,
@@ -112,14 +114,13 @@ import {
     parseDocSections,
     findDocMarkdownByClues,
     filterNewImages,
-    highResVariant,
     isInternalChipUrl
 } from "./attachments.js";
 import GeminiProtocol from "../../protocol/protocol.js";
 import GeminiUtils from "../../utils/utils.js";
 import { extractInnerPayload, extractNextPageToken } from "./payload.js";
 import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../utils/titleUtils.js";
-import { shortId, shortScope as getShortScope } from "../../utils/pathUtils.js";
+import { shortId } from "../../utils/pathUtils.js";
 import { extractStructuredContent } from "./structuredContent.js";
 
 const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
@@ -311,15 +312,14 @@ function extractTurnsFromInner(
 function buildUserMessage(
     turn: any,
     ts: number | null,
-    shortScope: string,
-    getUniqueLocalName: (p: string) => string,
+    media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number }
 ): GeminiMessageEvidence | null {
     const userPayload = turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
     const uText = extractUserTextFromPayload(userPayload);
-    const uImgs = filterNewImages(extractImages(userPayload, imageSeq), dedupSet);
+    const uImgs = filterNewImages(media.images(userPayload, imageSeq), dedupSet);
     const uFiles = extractUserFiles(userPayload).filter((f: UserFileAttachment) => {
         const key = f.id || f.sourceUrl || f.fileName;
         if (!key || docDedupSet.has(key)) return false;
@@ -340,17 +340,14 @@ function buildUserMessage(
 
     const formattedImages = uImgs.length ? uImgs.map((i: ImageAttachment) => ({
         ...i,
-        resolvedUrl: highResVariant(i.sourceUrl),
-        localName: getUniqueLocalName(`assets/${shortScope}${sanitizeFileName(i.fileName || "img.jpg", "img.jpg")}`),
         type: "image",
         isImage: true
     })) : void 0;
 
     const formattedDocs = uFiles.length ? uFiles.map((f: UserFileAttachment) => {
-        const safeFileName = sanitizeFileName(f.fileName || "attachment", "attachment");
         return {
             id: f.id,
-            title: f.fileName || safeFileName,
+            title: f.fileName || "attachment",
             createdAt: ts,
             chipUrl: "",
             sections: [],
@@ -358,7 +355,6 @@ function buildUserMessage(
             contentMarkdown: void 0,
             url: f.sourceUrl,
             candidates: f.thumbnailUrl ? [f.sourceUrl, f.thumbnailUrl] : [f.sourceUrl],
-            localName: getUniqueLocalName(`files/${shortScope}${safeFileName}`),
             type: "file"
         };
     }) : void 0;
@@ -368,8 +364,7 @@ function buildUserMessage(
         for (const im of formattedImages) {
             attachments.push({
                 type: "image",
-                src: im.resolvedUrl || im.sourceUrl,
-                localName: im.localName || `assets/${shortScope}${im.fileName}`,
+                src: im.sourceUrl,
                 alt: im.fileName,
                 isBlob: false,
                 isImage: true,
@@ -384,16 +379,15 @@ function buildUserMessage(
                 name: d.title || d.id,
                 title: d.title,
                 url: d.url,
-                localName: d.localName,
                 contentMarkdown: d.contentMarkdown
             });
         }
     }
 
-    const userRequestId = extractTurnRequestId(turn);
+    const userRequestId = media.sourceOnly ? extractRawTurnRequestId(turn) : extractTurnRequestId(turn);
 
     return {
-        id: userMsgId,
+        id: media.sourceOnly ? (extractRawTurnRequestId(turn) ?? "") : userMsgId,
         role: "user",
         providerRequestId: userRequestId || void 0,
         rawProviderRequestId: extractRawTurnRequestId(turn),
@@ -413,8 +407,7 @@ function parseCandidateResponse(
     turn: any,
     ts: number | null,
     inner: any,
-    shortScope: string,
-    getUniqueLocalName: (p: string) => string,
+    media: DetailMediaReader,
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number },
@@ -444,7 +437,7 @@ function parseCandidateResponse(
         ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD][GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12]
         : undefined;
     const answerBody = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY];
-    const candImages = extractResponseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
+    const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
     let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
@@ -496,12 +489,11 @@ function parseCandidateResponse(
                     id: metaItem.id,
                     title: docTitle,
                     createdAt: metaItem.createdAt,
-                    chipUrl: "",
+                    chipUrl: media.sourceOnly ? (metaItem.chipUrl ?? "") : "",
                     sections: [...parsedPrimary.sections, ...parsedAlt.sections],
                     links: [...parsedPrimary.links, ...parsedAlt.links],
                     contentMarkdown: cleanMd,
                     url: "",
-                    localName: getUniqueLocalName(`files/${shortScope}${sanitizeFileName(docTitle, "doc").slice(0, 60)}.md`),
                     type: "file",
                     ...(heuristicChain ? { hasFabricatedText: true } : {})
                 });
@@ -520,15 +512,13 @@ function parseCandidateResponse(
         responseText = stripInternalChipMarkdown(responseText);
     }
 
-    const providerRequestId = extractTurnRequestId(turn);
+    const providerRequestId = media.sourceOnly ? extractRawTurnRequestId(turn) : extractTurnRequestId(turn);
     let genOrdinal = 0;
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
         const isGen = !!img.isGenerated;
         const ordinal = isGen ? genOrdinal++ : undefined;
         return {
             ...img,
-            resolvedUrl: highResVariant(img.sourceUrl),
-            localName: getUniqueLocalName(`assets/${shortScope}${sanitizeFileName(img.fileName || "img.jpg", "img.jpg")}`),
             type: "image",
             providerRequestId: isGen ? providerRequestId : undefined,
             imageOrdinal: ordinal,
@@ -548,8 +538,7 @@ function parseCandidateResponse(
         for (const img of formattedImages) {
             attachments.push({
                 type: "image",
-                src: img.resolvedUrl || img.sourceUrl,
-                localName: img.localName || `assets/${shortScope}${img.fileName}`,
+                src: img.sourceUrl,
                 alt: img.fileName,
                 isBlob: false,
                 isImage: true,
@@ -570,8 +559,7 @@ function parseCandidateResponse(
                     name: d.title || d.id,
                     title: d.title,
                     url: d.url,
-                    localName: d.localName,
-                    contentMarkdown: d.contentMarkdown
+                        contentMarkdown: d.contentMarkdown
                 });
             }
         }
@@ -584,7 +572,7 @@ function parseCandidateResponse(
         : turn?.[0];
 
     return {
-        id: candidateId || fallbackTurnId || "",
+        id: media.sourceOnly ? (typeof candidateId === "string" ? candidateId : "") : (candidateId || fallbackTurnId || ""),
         role: "model",
         content: responseText || "",
         providerRequestId: providerRequestId || void 0,
@@ -603,7 +591,18 @@ function parseCandidateResponse(
     };
 }
 
-function decodeGeminiDetail(text: string, targetConvId?: string, _overrides: unknown = {}): GeminiDetailEvidence {
+interface DetailMediaReader {
+    sourceOnly?: boolean;
+    images: typeof extractImages;
+    responseImages: typeof extractResponseImages;
+}
+
+/** Source facts only: no archive destinations, unique names or synthetic image filenames. */
+function decodeGeminiDetail(text: string, targetConvId?: string, overrides: unknown = {}): GeminiDetailEvidence {
+    return decodeDetailEvidence(text, targetConvId, overrides, { sourceOnly: true, images: extractImageEvidence, responseImages: extractResponseImageEvidence });
+}
+
+function decodeDetailEvidence(text: string, targetConvId: string | undefined, _overrides: unknown, media: DetailMediaReader): GeminiDetailEvidence {
     try {
         const top = robustFirstPayload(text);
         const utils = getUtils();
@@ -640,29 +639,10 @@ function decodeGeminiDetail(text: string, targetConvId?: string, _overrides: unk
 
         let convId = extractConversationId(inner, turns);
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
-        const shortScope = getShortScope(convId);
 
         const allMsgs: GeminiMessageEvidence[] = [];
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
-        const usedLocalNames = new Set<string>();
-        const getUniqueLocalName = (preferredPath: string): string => {
-            if (!usedLocalNames.has(preferredPath)) {
-                usedLocalNames.add(preferredPath);
-                return preferredPath;
-            }
-            const dotIdx = preferredPath.lastIndexOf('.');
-            const base = dotIdx !== -1 ? preferredPath.slice(0, dotIdx) : preferredPath;
-            const ext = dotIdx !== -1 ? preferredPath.slice(dotIdx) : '';
-            let idx = 2;
-            while (usedLocalNames.has(`${base}_${idx}${ext}`)) {
-                idx++;
-            }
-            const unique = `${base}_${idx}${ext}`;
-            usedLocalNames.add(unique);
-            return unique;
-        };
-
         const imageSeq = { value: 1 };
         const rev = [...turns].reverse();
 
@@ -673,7 +653,7 @@ function decodeGeminiDetail(text: string, targetConvId?: string, _overrides: unk
             }
             const ts = extractTurnTimestamp(turn) ?? null;
 
-            const userMsg = buildUserMessage(turn, ts, shortScope, getUniqueLocalName, dedupSet, docDedupSet, imageSeq);
+            const userMsg = buildUserMessage(turn, ts, media, dedupSet, docDedupSet, imageSeq);
             if (userMsg) {
                 allMsgs.push(userMsg);
             }
@@ -687,8 +667,7 @@ function decodeGeminiDetail(text: string, targetConvId?: string, _overrides: unk
                         turn,
                         ts,
                         inner,
-                        shortScope,
-                        getUniqueLocalName,
+                        media,
                         dedupSet,
                         docDedupSet,
                         imageSeq,
@@ -772,8 +751,9 @@ function decodeGeminiDetail(text: string, targetConvId?: string, _overrides: unk
 
 /** Persisted compatibility boundary: preserve the existing public result and property presence. */
 function parseDetail(text: string, targetConvId?: string, overrides: unknown = {}): DetailParseResult {
-    const { metadataConversation: _metadataConversation, ...evidence } = decodeGeminiDetail(text, targetConvId, overrides);
-    return { ...evidence, messages: evidence.messages.map(({ rawProviderRequestId: _rawRequest, ...message }) => message) };
+    // Compatibility media names retain the historical sequence, including discarded duplicates.
+    return projectLegacyDetail(decodeDetailEvidence(text, targetConvId, overrides,
+        { images: extractImages, responseImages: extractResponseImages }));
 }
 
 export {

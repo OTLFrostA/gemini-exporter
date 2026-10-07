@@ -61,8 +61,8 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
         const sourceGeneration = <T extends { isGenerated?: boolean; providerRequestId?: string; generation?: DomainGeneratedMediaIdentity }>(asset: T): T =>
             asset.isGenerated && message.rawProviderRequestId ? { ...asset, providerRequestId: message.rawProviderRequestId,
                 ...(asset.generation ? { generation: { ...asset.generation, providerRequestId: message.rawProviderRequestId } } : {}) } : asset;
-        return { input: { ...message, images: message.images?.map(sourceGeneration), attachments: message.attachments?.map(sourceGeneration) }, bodyAttachments: structuredBodyAttachments(message) };
-    }));
+        return { input: { ...message, images: message.images?.map(sourceGeneration), attachments: message.attachments?.map(sourceGeneration) }, bodyAttachments: structuredBodyAttachments(message, true) };
+    }), { sourceReferences: true });
     const hasMore = Boolean(evidence.nextPageToken?.trim());
     const rejected = (evidence.turnsRejected ?? 0) > 0;
     const metadata = evidence.metadataConversation;

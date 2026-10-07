@@ -11,6 +11,7 @@ export interface ImageAttachment {
     size?: number;
     token?: string;
     fileName?: string;
+    title?: string;
     mimeType?: string;
 }
 
@@ -49,6 +50,8 @@ export interface GeminiParserAttachmentsModule {
     extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
     getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
     filterNewImages: (images: ImageAttachment[], seenSet: Set<string>) => ImageAttachment[];
+    extractImageEvidence: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
+    extractResponseImageEvidence: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
     extractImages: (obj: unknown, seqRef?: { value: number }) => ImageAttachment[];
     extractResponseImages: (candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }) => ImageAttachment[];
     extractUserFiles: (turnUserArr: unknown) => UserFileAttachment[];
@@ -344,7 +347,19 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         };
     }
 
-    function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
+    function sourceImage(raw: RawImageCandidate): ImageAttachment {
+        return {
+            sourceUrl: raw.sourceUrl,
+            sourceEvidence: { detectorKind: raw.detectorKind, node: raw.evidenceNode ?? null },
+            width: raw.width, height: raw.height, size: raw.size, token: raw.token,
+            ...(raw.rawFileName ? raw.detectorKind === 'extractImages attachmentType:36'
+                ? { title: raw.rawFileName.replace(/\.png$/, '') } : { fileName: raw.rawFileName } : {}),
+            ...(raw.mimeType ? { mimeType: raw.mimeType } : {}),
+            ...(raw.detectorKind === 'extractImages generated-media' ? { isGenerated: true } : {}),
+        };
+    }
+
+    function collectImages(obj: unknown, seqRef?: { value: number }, sourceOnly = false): ImageAttachment[] {
         const images: ImageAttachment[] = [];
         const seenKeys = new Set<string>();
         const warnedHosts = new Set<string>();
@@ -372,7 +387,7 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
                 raw.evidenceNode = evidenceJson.length <= 12000
                     ? JSON.parse(evidenceJson)
                     : { truncated: true, preview: evidenceJson.slice(0, 12000) };
-                const img = normalizeRawImage(raw, counter);
+                const img = sourceOnly ? sourceImage(raw) : normalizeRawImage(raw, counter);
                 if (img.token) {
                     const existingIdx = images.findIndex(existing => existing.token === img.token);
                     if (existingIdx !== -1) {
@@ -398,13 +413,25 @@ const IMAGE_GEN_RE = /https?:\/\/googleusercontent\.com\/(?:image_generation_con
         return images;
     }
 
+    function extractImages(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
+        return collectImages(obj, seqRef);
+    }
+    function extractImageEvidence(obj: unknown, seqRef?: { value: number }): ImageAttachment[] {
+        return collectImages(obj, seqRef, true);
+    }
+    function extractResponseImageEvidence(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }): ImageAttachment[] {
+        return responseImages(candidate, visibleMedia, text, seqRef, extractImageEvidence);
+    }
     function extractResponseImages(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }): ImageAttachment[] {
-        const visibleKeys = new Set(extractImages(visibleMedia).map(getImageDedupKey));
+        return responseImages(candidate, visibleMedia, text, seqRef, extractImages);
+    }
+    function responseImages(candidate: unknown, visibleMedia: unknown, text: string, seqRef: { value: number } | undefined, reader: typeof extractImages): ImageAttachment[] {
+        const visibleKeys = new Set(reader(visibleMedia).map(getImageDedupKey));
         const inlineUrls = new Set<string>();
         for (const match of text.matchAll(/!\[[^\]]*\]\(<?(https?:\/\/[^\s)>]+)>?(?:\s+[^)]*)?\)|<img\b[^>]*\bsrc=["'](https?:\/\/[^"']+)["']/gi)) {
             inlineUrls.add(match[1] || match[2]);
         }
-        return extractImages([candidate, visibleMedia], seqRef).filter(image => {
+        return reader([candidate, visibleMedia], seqRef).filter(image => {
             if (image.sourceEvidence?.detectorKind !== 'extractImages attachmentType:36') return true;
             // Search results in candidate metadata are not automatically answer images.
             // Require an attachment in the answer document/body or a real inline image URL.
@@ -737,6 +764,8 @@ export {
     extractImageSelectionIndex,
     getImageDedupKey,
     filterNewImages,
+    extractImageEvidence,
+    extractResponseImageEvidence,
     extractImages,
     extractResponseImages,
     extractUserFiles,
@@ -755,6 +784,8 @@ export const GeminiParserAttachments: GeminiParserAttachmentsModule = {
     extractImageSelectionIndex,
     getImageDedupKey,
     filterNewImages,
+    extractImageEvidence,
+    extractResponseImageEvidence,
     extractImages,
     extractResponseImages,
     extractUserFiles,

@@ -66,6 +66,12 @@ export interface DomainMessageProvenance {
     providerRequestId?: string;
 }
 
+/** Authored media-generation event; output files may be absent from the source. */
+export interface DomainGenerationEvent {
+    mediaKind: 'image' | 'audio' | 'video' | 'other';
+    outputCount?: number;
+}
+
 export interface DomainMessage {
     /** Optional stable message identity; never synthesized from array position. */
     id?: string;
@@ -78,6 +84,8 @@ export interface DomainMessage {
     provenance?: DomainMessageProvenance;
     /** Explicit message-owned resources, in source order; every ID belongs to conversation.assets. */
     attachmentIds?: string[];
+    /** A source-recorded generation event remains meaningful even when its output files are absent. */
+    generation?: DomainGenerationEvent;
     /** Provider-exposed reasoning parsed before Domain; resource nodes use registry IDs. */
     reasoning?: BlockNode[];
     citations?: DomainCitation[];

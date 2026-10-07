@@ -1748,7 +1748,7 @@
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "provenanceSource": "Direct Gemini RPC to Domain boundary, closed semantic facts, compatibility outputs and side-channel transport evidence",
       "notes": "Synthetic envelopes and sanitized existing wire fixtures verify project semantics; they do not establish live provider compatibility. Tier 2 remains required.",
-      "testCount": 11,
+      "testCount": 13,
       "tests": [
         {
           "name": "raw RPC input constructs Domain content, reasoning and citations directly",
@@ -1804,17 +1804,113 @@
           "name": "raw format validation rejects wrong providers and malformed envelopes",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "source extraction has no export paths and retains unsanitized source filenames",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "raw decoding never substitutes conversation or request IDs for absent message identities",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/provider-gemini-takeout-domain.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Direct raw HTML and actual ZIP byte decoding into closed Domain, source chronology and generation events, archive lookup ambiguity and transport separation",
+      "notes": "Synthetic activity records and generated ZIP archives verify project contracts; live Tier 2 and production caller migration remain pending.",
+      "testCount": 15,
+      "tests": [
+        {
+          "name": "Takeout raw HTML constructs Domain without persisted records or fabricated message dates",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing Takeout dates remain absent and activity logs never claim complete coverage",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "batch and selected parsing preserve separate conversation identities and source chronology",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "archive source paths and handles stay separate from export destinations",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing and ambiguous archive files remain explicit resources with diagnostics",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "a recorded generation event survives missing files without guessing ZIP ownership",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "explicit generated output references close body and attachment relationships over one source asset",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "uncertain media ownership preserves the source resource without inventing a message relationship",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "long report HTML becomes authored Content AST without synthetic document IDs or filenames",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Takeout extraction has no export naming and native parsing does not call compatibility constructors",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "raw ZIP bytes decode directly to selected and batch Domain results with actual archive entries",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ZIP parsing rejects malformed inventories, unverifiable HTML sizes and ambiguous activity selection",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Domain generation events reject invalid media kinds and output counts",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "response-only activity cannot fabricate a user prompt from its first content cell",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "authored assets prefixes are source paths and cannot collapse different ZIP entries",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
     }
   ],
   "summary": {
-    "totalSuites": 35,
-    "totalTests": 277,
+    "totalSuites": 36,
+    "totalTests": 294,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 257,
+      "P2": 274,
       "P3": 2,
       "P4": 0
     }

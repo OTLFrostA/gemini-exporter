@@ -72,5 +72,10 @@
   "src/core/api/parser/detailEvidence.ts",
   "src/core/provider/parsingResult.ts",
   "src/core/provider/gemini/rpcConversationParser.ts",
-  "tests/provider-gemini-rpc-domain.test.ts"
+  "tests/provider-gemini-rpc-domain.test.ts",
+  "src/core/api/parser/legacyDetailProjection.ts",
+  "src/core/engine/takeout/takeoutEvidence.ts",
+  "src/core/provider/gemini/takeoutConversationParser.ts",
+  "src/core/provider/gemini/takeoutZipParser.ts",
+  "tests/provider-gemini-takeout-domain.test.ts"
 ]

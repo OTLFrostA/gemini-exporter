@@ -47,7 +47,7 @@ void provenanceDomainMessage;
 void rejectedTurnId;
 void rejectedTopLevelRequestId;
 
-// @ts-expect-error Message-level provider generation evidence must be reconciled before Domain.
+// @ts-expect-error Legacy resource generation identity is not a message generation event.
 const rejectedMessageGeneration: DomainMessage = { role: 'assistant', content: body('x'), generation: { chatId: 'chat', generationOrdinal: 0 } };
 void rejectedMessageGeneration;
 
@@ -107,3 +107,6 @@ void rejectedExportPath;
 void rejectedExportStatus;
 void rejectedMissingProvider;
 void rejectedMissingAssets;
+
+const generationEvent: DomainMessage = { role: 'assistant', content: body(''), generation: { mediaKind: 'image', outputCount: 2 } };
+void generationEvent;

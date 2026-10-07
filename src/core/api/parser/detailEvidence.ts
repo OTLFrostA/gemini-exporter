@@ -7,7 +7,6 @@ import type { DomainGeneratedMediaIdentity } from '../../domain/conversationDeta
 export interface GeminiAttachmentEvidence {
     type: string;
     src?: string;
-    localName?: string;
     name?: string;
     title?: string;
     url?: string;
@@ -33,7 +32,6 @@ export interface GeminiDocumentEvidence {
     contentMarkdown?: string;
     url: string;
     candidates?: string[];
-    localName: string;
     type: string;
     hasFabricatedText?: boolean;
 }
@@ -50,7 +48,7 @@ export interface GeminiMessageEvidence {
     turnId?: string;
     thoughts?: string;
     citations?: Citation[];
-    images?: Array<ImageAttachment & { type: string; localName: string; resolvedUrl: string; generation?: DomainGeneratedMediaIdentity }>;
+    images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: DomainGeneratedMediaIdentity }>;
     documents?: GeminiDocumentEvidence[];
     attachments?: GeminiAttachmentEvidence[];
     attachmentCount: number;

@@ -2,7 +2,7 @@ import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../expor
 import type { LegacyResourceHints } from '../export/assets/resourceHints.js';
 import type { DomainAsset, DomainAssetKind, DomainMessage } from '../domain/conversationDetail.js';
 import type { LegacyAttachmentRecord } from './legacyAttachmentRecord.js';
-import { normalizedResourceReference, resolveLegacyAttachmentGroups, type LegacyAttachmentGroup } from './legacyAttachmentAdapter.js';
+import { normalizedSourceReference, normalizedResourceReference, resolveLegacyAttachmentGroups, type LegacyAttachmentGroup } from './legacyAttachmentAdapter.js';
 import { mapContentAssetReferences } from '../content/assetReferences.js';
 
 /** Stable semantic identities do not depend on message order or export numbering. */
@@ -25,12 +25,13 @@ function kindOf(record: LegacyAttachmentRecord): DomainAssetKind {
     if (mediaType.startsWith('video/') || record.type === 'video') return 'video';
     return ['file', 'doc', 'code'].includes(record.type) || mediaType ? 'file' : 'other';
 }
-function identityKey(record: LegacyAttachmentRecord, providerId: string): string | undefined {
+function identityKey(record: LegacyAttachmentRecord, providerId: string, sourceReferences = false): string | undefined {
     const request = (record.providerRequestId || record.generation?.providerRequestId || '').toLowerCase().replace(/^r_/, '');
     const ordinal = record.imageOrdinal ?? record.generation?.imageOrdinal ?? (record.generation?.imageCount === 1 ? 0 : undefined);
     const chat = (record.generation?.chatId ?? '').replace(/^c_/, '');
     const uri = record.resolvedUrl || record.sourceUrl || record.url || record.src || (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
     const location = uri;
+    if (sourceReferences && location) return JSON.stringify([providerId, kindOf(record), normalizedSourceReference(location)]);
     if (request) return JSON.stringify([providerId, 'generation', chat, request, ordinal ?? location ?? null]);
     if (record.generation?.time && record.generation.prompt && ordinal !== undefined) {
         return JSON.stringify([providerId, 'generation', chat, Math.floor(record.generation.time / 1000), record.generation.generationOrdinal, record.generation.prompt.trim(), ordinal]);
@@ -79,11 +80,12 @@ function acquisitionHint(record: LegacyAttachmentRecord): ResourceAcquisitionHin
 }
 
 /** Close every body/reasoning reference over one conversation resource registry before Domain. */
-export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[]): { assets: DomainAsset[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints } {
-    const resolved = resolveLegacyAttachmentGroups(groups, { semanticOnly: true });
+export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[], options: { sourceReferences?: boolean } = {}): { assets: DomainAsset[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints } {
+    const normalize = options.sourceReferences ? normalizedSourceReference : normalizedResourceReference;
+    const resolved = resolveLegacyAttachmentGroups(groups, { semanticOnly: true, ...options });
     const claimedIds = new Set<string>();
     const assets = resolved.attachments.map((record, index) => {
-        const key = identityKey(record, providerId);
+        const key = identityKey(record, providerId, options.sourceReferences);
         const candidate = key ? resourceId(key) : undefined;
         // Conflicting or incomplete evidence must not collapse distinct resources.
         const id = candidate && !claimedIds.has(candidate) ? candidate : resourceId(JSON.stringify([providerId, 'unidentified', index]));
@@ -104,7 +106,7 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
             const index = resolved.findReference(ref, groupIndex);
             if (index !== undefined) return assets[index].id;
             const hasSource = !resolved.isExportAlias(ref, groupIndex);
-            const key = JSON.stringify([providerId, 'inline', hasSource ? null : groupIndex, normalizedResourceReference(ref)]);
+            const key = JSON.stringify([providerId, 'inline', hasSource ? null : groupIndex, normalize(ref)]);
             const known = inline.get(key);
             if (known) return known;
             const id = resourceId(hasSource ? key : JSON.stringify([providerId, 'unidentified-inline', assets.length]));

@@ -130,8 +130,17 @@ test('sanitized existing wire evidence retains structured content and closed ima
     const result = native(raw);
     assert.ok(result.conversation.assets.some(a => a.kind === 'image'));
     assertDomainClosure(result.conversation);
-    assert.deepEqual(composeDomainDocument(result.conversation).document,
-        composeDomainDocument(parseProviderConversation(parseDetail(raw)).conversation).document);
+    const document = composeDomainDocument(result.conversation).document;
+    const legacyDocument = composeDomainDocument(parseProviderConversation(parseDetail(raw)).conversation).document;
+    const image = document.messages[1].blocks.find(block => block.type === 'image');
+    const oldImage = legacyDocument.messages[1].blocks.find(block => block.type === 'image');
+    assert.ok(image?.type === 'image' && oldImage?.type === 'image');
+    assert.equal(image.alt, '贝尔不等式实验示意图');
+    assert.equal(oldImage.alt, `${image.alt}.png`);
+    // Only the old fabricated filename extension differs from the authored caption.
+    oldImage.alt = image.alt;
+    oldImage.caption = image.caption;
+    assert.deepEqual(document, legacyDocument);
     for (const asset of result.conversation.assets) assert.equal('sourceEvidence' in asset, false);
 });
 
@@ -147,7 +156,7 @@ test('generated resources retain their authored request token independently of a
     const generated = result.conversation.assets.find(asset => asset.generated);
     assert.ok(generated);
     assert.equal(generated.generation?.providerRequestId, 'r_Ab12');
-    assert.ok(result.resourceHints[generated.id]?.archivePath);
+    assert.equal(result.resourceHints[generated.id]?.archivePath, undefined);
     for (const field of ['localName', 'subDir', 'rawProviderRequestId']) assert.equal(field in generated, false);
     assertDomainClosure(result.conversation);
 });
@@ -159,4 +168,39 @@ test('raw format validation rejects wrong providers and malformed envelopes', ()
     const empty = parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: rpc([]), targetConvId: ID });
     assert.equal(empty.conversation.id, ID);
     assert.equal(empty.conversation.messages.length, 0);
+});
+
+
+test('source extraction has no export paths and retains unsanitized source filenames', () => {
+    const image: unknown[] = [];
+    image[2] = 'source:photo?.png'; image[3] = 'https://lh3.googleusercontent.com/source-photo';
+    image[11] = 'image/png'; image[15] = [640, 480, 100];
+    const raw = rpc([[turn('Draw', null, [['rc_image', [['Image'], image]]])]]);
+    const evidence = decodeGeminiDetail(raw);
+    const source = evidence.messages[1].images![0];
+    assert.equal(source.fileName, 'source:photo?.png');
+    for (const message of evidence.messages) {
+        for (const resource of [...message.images ?? [], ...message.documents ?? [], ...message.attachments ?? []]) {
+            assert.equal('localName' in resource, false);
+            assert.equal('resolvedUrl' in resource, false);
+        }
+    }
+    assert.equal(parseDetail(raw).messages[1].images![0].localName, 'assets/345678_source_photo.png');
+    const bare = decodeGeminiDetail(rpc([[turn('Draw', null, [['rc_inline', [['Image'], ['https://lh3.googleusercontent.com/inline', 1, 1]]]])]]));
+    assert.equal(bare.messages[1].images![0].fileName, undefined);
+    assert.equal(native(raw).conversation.assets.find(a => a.generated)?.name, 'source:photo?.png');
+});
+
+
+test('raw decoding never substitutes conversation or request IDs for absent message identities', () => {
+    const rawTurn = [[ID], null, [['Question']], [[['', [['Answer']]]]]];
+    const raw = rpc([[rawTurn, rawTurn]]);
+    const result = native(raw);
+    assert.equal(result.conversation.messages.length, 4);
+    for (const message of result.conversation.messages) assert.equal(message.id, undefined);
+    assert.doesNotThrow(() => composeDomainDocument(result.conversation));
+    assert.equal(parseDetail(raw).messages[0].id, ID);
+    const request = rpc([[turn('Question', null, undefined, 'r_Ab12')]]);
+    assert.equal(decodeGeminiDetail(request).messages[0].providerRequestId, 'r_Ab12');
+    assert.equal(parseDetail(request).messages[0].providerRequestId, 'ab12');
 });

@@ -1,3 +1,5 @@
+import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/provider/gemini/takeoutConversationParser.js';
+import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/provider/gemini/takeoutZipParser.js';
 import type { ConversationParser, ConversationParseResult } from '../src/core/domain/parsing.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { parseConversation } from '../src/core/provider/parseConversation.js';
@@ -36,3 +38,12 @@ const invalidCoverage: DomainConversationDetail = { providerId: 'provider', id: 
 void diagnosticsInDomain;
 void cursorInDomain;
 void invalidCoverage;
+
+const takeoutParser: ConversationParser<GeminiTakeoutRaw, GeminiTakeoutParseResult> = parseGeminiTakeoutConversation;
+const zipParser: ConversationParser<GeminiTakeoutZipRaw, GeminiTakeoutParseResult> = parseGeminiTakeoutZip;
+const zipResult: Promise<GeminiTakeoutParseResult> = parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data: new Uint8Array() });
+// @ts-expect-error ZIP input is raw bytes rather than decoded HTML or a persisted record.
+parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data: '<html></html>' });
+void takeoutParser;
+void zipParser;
+void zipResult;
