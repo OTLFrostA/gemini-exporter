@@ -1,7 +1,6 @@
 import {
     BatchWorker,
     resolveConversationData,
-    supplementTakeoutGeneratedMedia,
     type FetchChatDetailResult,
 } from '../../engine/export/batchWorker.js';
 import {
@@ -28,10 +27,8 @@ import { parseProviderConversation } from '../../provider/conversationParser.js'
 import { composeDomainDocument } from '../document/composeDomainDocument.js';
 import { collectDocumentResources } from '../document/resourceReferences.js';
 import type { DocumentAst, DocumentDiagnostic } from '../document/ast.js';
-import type { PreparedResource, PreparedResources } from '../assets/preparedResources.js';
-import { decodeDataUrl } from '../assets/dataUrl.js';
-import { MAX_ASSET_BYTES } from '../assets/imageContent.js';
-import { extractAttachmentInlineBytes } from '../assets/attachmentBytes.js';
+import type { PreparedResources } from '../assets/preparedResources.js';
+import { preparePdfResources } from './prepareResources.js';
 import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
 
 declare global {
@@ -43,7 +40,7 @@ declare global {
 export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
 export const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
 
-interface PdfHydratableAsset extends GeminiNormalizationAttachment {
+interface PdfProviderAsset extends GeminiNormalizationAttachment {
     type?: string;
     isImage?: boolean;
     localName?: string;
@@ -66,7 +63,7 @@ interface PdfHydratableAsset extends GeminiNormalizationAttachment {
     [key: string]: unknown;
 }
 
-interface PdfHydratableMessage extends GeminiNormalizationMessage {
+interface PdfProviderMessage extends GeminiNormalizationMessage {
     id?: string;
     role?: string;
     content?: unknown;
@@ -74,35 +71,35 @@ interface PdfHydratableMessage extends GeminiNormalizationMessage {
     turnId?: string;
     providerRequestId?: string;
     generation?: GeneratedMediaIdentity;
-    attachments?: PdfHydratableAsset[];
-    images?: PdfHydratableAsset[];
-    documents?: PdfHydratableAsset[];
+    attachments?: PdfProviderAsset[];
+    images?: PdfProviderAsset[];
+    documents?: PdfProviderAsset[];
     [key: string]: unknown;
 }
 
-interface PdfHydratableTurn extends GeminiNormalizationTurn {
+interface PdfProviderTurn extends GeminiNormalizationTurn {
     id?: string;
     timestamp?: number | null;
-    messages?: PdfHydratableMessage[];
-    attachments?: PdfHydratableAsset[];
-    images?: PdfHydratableAsset[];
+    messages?: PdfProviderMessage[];
+    attachments?: PdfProviderAsset[];
+    images?: PdfProviderAsset[];
     [key: string]: unknown;
 }
 
-interface PdfHydratableConversation extends GeminiNormalizationInput {
+interface PdfProviderConversation extends GeminiNormalizationInput {
     id?: string;
     title?: string;
     timestamp?: number | null;
-    messages?: PdfHydratableMessage[];
-    turns?: PdfHydratableTurn[];
+    messages?: PdfProviderMessage[];
+    turns?: PdfProviderTurn[];
     [key: string]: unknown;
 }
 
 interface PdfSelectedItemObject {
     id?: string | number | null;
     title?: string | null;
-    messages?: PdfHydratableMessage[];
-    turns?: PdfHydratableTurn[];
+    messages?: PdfProviderMessage[];
+    turns?: PdfProviderTurn[];
     [key: string]: unknown;
 }
 
@@ -153,8 +150,8 @@ export function hasUsableMessages(chat: unknown): boolean {
 export function extractChatFromDetailResult(
     res: FetchChatDetailResult,
     nid: string,
-    fallback: PdfHydratableConversation,
-): PdfHydratableConversation {
+    fallback: PdfProviderConversation,
+): PdfProviderConversation {
     const rawResults: unknown = isObjectRecord(res) ? res.results : undefined;
     const rawChat: unknown = isObjectRecord(res) ? res.chat : undefined;
     const chunkResults: readonly unknown[] = Array.isArray(rawResults)
@@ -182,7 +179,7 @@ export async function resolveFullChatDetail(args: {
     signal: AbortSignal;
     fetchChatDetail: typeof BatchWorker.fetchChatDetail;
     onLog: (msg: string, level?: string) => void;
-}): Promise<{ ok: true; chat: PdfHydratableConversation } | { ok: false; error: string }> {
+}): Promise<{ ok: true; chat: PdfProviderConversation } | { ok: false; error: string }> {
     const { id, title, index, total, currentSlot, skip, signal, fetchChatDetail, onLog } = args;
     const nid = normId(id);
     let res: FetchChatDetailResult | null = null;
@@ -220,7 +217,7 @@ export interface PreparedPdfItemFailure {
 export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFailure;
 
 export interface PreparePdfItemContext {
-    conversations?: PdfHydratableConversation[];
+    conversations?: PdfProviderConversation[];
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
@@ -236,100 +233,6 @@ export interface PreparePdfItemContext {
     getGeminiTab?: PdfGetGeminiTab;
     sendToGeminiTab?: PdfSendToGeminiTab;
     maxAssetRetries?: number;
-}
-
-function cloneAttachmentList(list: PdfHydratableAsset[] | undefined): PdfHydratableAsset[] | undefined {
-    if (!Array.isArray(list)) return undefined;
-    return list.map((item) => (isObjectRecord(item) ? { ...item } : item));
-}
-
-function cloneMessageForHydration(msg: PdfHydratableMessage): PdfHydratableMessage {
-    if (!isObjectRecord(msg)) return msg;
-    return {
-        ...msg,
-        ...(Array.isArray(msg.attachments) ? { attachments: cloneAttachmentList(msg.attachments) } : {}),
-        ...(Array.isArray(msg.images) ? { images: cloneAttachmentList(msg.images) } : {}),
-        ...(Array.isArray(msg.documents) ? { documents: cloneAttachmentList(msg.documents) } : {}),
-    };
-}
-
-function cloneChatForHydration(chat: PdfHydratableConversation): PdfHydratableConversation {
-    if (!isObjectRecord(chat)) return chat;
-    return {
-        ...chat,
-        ...(Array.isArray(chat.messages) ? { messages: chat.messages.map(cloneMessageForHydration) } : {}),
-        ...(Array.isArray(chat.turns) ? {
-            turns: chat.turns.map((t) => {
-                if (!isObjectRecord(t)) return t;
-                return {
-                    ...t,
-                    ...(Array.isArray(t.messages) ? { messages: t.messages.map(cloneMessageForHydration) } : {}),
-                    ...(Array.isArray(t.attachments) ? { attachments: cloneAttachmentList(t.attachments) } : {}),
-                    ...(Array.isArray(t.images) ? { images: cloneAttachmentList(t.images) } : {}),
-                };
-            }),
-        } : {}),
-    };
-}
-
-interface ImageHydrationGroup {
-    key: string;
-    mergedItem: PdfHydratableAsset;
-    targets: PdfHydratableAsset[];
-}
-
-function collectImageHydrationGroups(chat: PdfHydratableConversation): ImageHydrationGroup[] {
-    const groups = new Map<string, ImageHydrationGroup>();
-    const registerItem = (item: PdfHydratableAsset, forceImage: boolean): void => {
-        if (!isObjectRecord(item)) return;
-        const rawBuf = item.dataBuffer;
-        const normalizedBuf = Array.isArray(rawBuf) ? new Uint8Array(rawBuf) : rawBuf;
-        const candidate: PdfHydratableAsset = {
-            ...item,
-            dataBuffer: normalizedBuf,
-            type: forceImage ? (item.type || 'image') : (item.type ?? ''),
-        };
-        const authoredName = candidate.title || candidate.name || candidate.fileName || '';
-        if (!(forceImage || candidate.type === 'image' || candidate.isImage || (candidate.mimeType || candidate.mime || '').startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(authoredName))) return;
-        const existingBytes = extractAttachmentInlineBytes(candidate);
-        if (existingBytes && existingBytes.byteLength > 0) return;
-
-        const rawKey = item.resolvedUrl || item.sourceUrl || item.url || item.src;
-        const key = rawKey || `anonymous-${groups.size}`;
-
-        let group = groups.get(key);
-        if (!group) {
-            group = {
-                key,
-                mergedItem: { ...candidate },
-                targets: [item],
-            };
-            groups.set(key, group);
-        } else {
-            for (const [k, v] of Object.entries(candidate)) {
-                if (v !== undefined && group.mergedItem[k] === undefined) {
-                    group.mergedItem[k] = v;
-                }
-            }
-            if (!group.targets.includes(item)) {
-                group.targets.push(item);
-            }
-        }
-    };
-
-    const visitHolder = (holder: { attachments?: PdfHydratableAsset[]; images?: PdfHydratableAsset[] } | undefined): void => {
-        if (!isObjectRecord(holder)) return;
-        for (const att of holder.attachments ?? []) registerItem(att, false);
-        for (const img of holder.images ?? []) registerItem(img, true);
-    };
-
-    for (const msg of chat.messages ?? []) visitHolder(msg);
-    for (const turn of chat.turns ?? []) {
-        visitHolder(turn);
-        for (const msg of turn.messages ?? []) visitHolder(msg);
-    }
-
-    return [...groups.values()];
 }
 
 function resolvePdfAssetPipeline(context: PreparePdfItemContext): {
@@ -414,7 +317,7 @@ export async function preparePdfItem(
     const listChat = Array.isArray(context.conversations)
         ? context.conversations.find((c) => normId(c.id) === id) ?? null
         : null;
-    const selectedChat: PdfHydratableConversation = typeof selectedItem !== 'string' && isObjectRecord(selectedItem)
+    const selectedChat: PdfProviderConversation = typeof selectedItem !== 'string' && isObjectRecord(selectedItem)
         ? {
             ...selectedItem,
             id: typeof selectedItem.id === 'string' ? selectedItem.id : id,
@@ -423,7 +326,7 @@ export async function preparePdfItem(
         : { id, title };
 
     const diagnostics: RenderDiagnostic[] = [];
-    let chat: PdfHydratableConversation = listChat ?? selectedChat;
+    let chat: PdfProviderConversation = listChat ?? selectedChat;
 
     if (!hasUsableMessages(chat)) {
         let fetchError: string | undefined;
@@ -451,66 +354,21 @@ export async function preparePdfItem(
         }
     }
 
-    const workingChat = cloneChatForHydration(chat);
-    if (!workingChat.id) {
-        workingChat.id = id;
-    }
-
+    const providerInput = { ...chat, id: chat.id || id };
     const { pipeline, takeoutEngine, maxRetries } = context.includeAssets === false
         ? { pipeline: null, takeoutEngine: null, maxRetries: undefined }
         : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
-
-    if (takeoutEngine) {
-        supplementTakeoutGeneratedMedia(workingChat, id, currentSlot, takeoutEngine, {
-            appendMarkdownRef: false,
-        });
-    }
-
-    const pipelineChat: AssetPipelineChat = { id: workingChat.id ?? id, title: workingChat.title };
-
-    if (pipeline && typeof pipeline.acquireAssetBytes === 'function') {
-        const groups = collectImageHydrationGroups(workingChat);
-        for (const group of groups) {
-            if (signal.aborted) {
-                return { ok: false, id, title, error: 'aborted', diagnostics };
-            }
-            const acquired = await pipeline.acquireAssetBytes(group.mergedItem, pipelineChat, {
-                isImage: true,
-                listTitle: title,
-                signal,
-                ...(typeof maxRetries === 'number' ? { maxRetries } : {}),
-            });
-            if (signal.aborted || acquired.failReason === 'aborted') {
-                return { ok: false, id, title, error: 'aborted', diagnostics };
-            }
-            if (acquired.ok && acquired.bytes && acquired.bytes.byteLength > 0) {
-                for (const target of group.targets) {
-                    target.dataBuffer = acquired.bytes;
-                    if (acquired.mimeType && !target.mimeType && !target.mime) {
-                        target.mimeType = acquired.mimeType;
-                    }
-                }
-            } else {
-                const reason = acquired.failReason || 'image direct download failed';
-                for (const target of group.targets) {
-                    target.failureReason = reason;
-                }
-                onLog(
-                    `[PDF] [${title || id}] 图片获取失败 (${acquired.localName}): ${reason}`,
-                    'warn',
-                );
-            }
-        }
-    }
+    const generatedMedia = takeoutEngine && 'getTakeoutMediaForChat' in takeoutEngine
+        ? takeoutEngine.getTakeoutMediaForChat?.(id, currentSlot) : undefined;
 
     // Parse all provider syntax before composing the sole logical document representation.
     let parsed: ReturnType<typeof parseProviderConversation>;
     let document: DocumentAst;
     try {
-        for (const message of workingChat.messages ?? workingChat.turns?.flatMap(turn => turn.messages ?? []) ?? []) {
+        for (const message of providerInput.messages ?? providerInput.turns?.flatMap(turn => turn.messages ?? []) ?? []) {
             if (message.id !== undefined && !message.id.trim()) throw new TypeError('[MSG_BAD_ID] Empty message identity');
         }
-        parsed = parseProviderConversation(workingChat);
+        parsed = parseProviderConversation(providerInput, { generatedMedia });
         diagnostics.push(...parsed.diagnostics);
         const composed = composeDomainDocument(parsed.conversation);
         document = composed.document;
@@ -523,41 +381,17 @@ export async function preparePdfItem(
     }
     if (!document.messages.length) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`, diagnostics };
 
-    const resources = new Map<string, PreparedResource>();
+    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.id, title: parsed.conversation.title };
     const { imageIds } = collectDocumentResources(document);
-    for (const asset of parsed.conversation.assets) {
-        if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-        const resource: PreparedResource = { name: asset.name, mediaType: asset.mediaType, failureReason: asset.failureReason };
-        resources.set(asset.id, resource);
-        // Metadata-only files never need decoding or acquisition for PDF.
-        if (!imageIds.has(asset.id)) continue;
-        const uri = asset.source?.uri;
-        if (asset.dataBase64 || /^data:/i.test(uri ?? '')) {
-            const raw = asset.dataBase64?.replace(/^data:[^,]*,/i, '').replace(/\s+/g, '');
-            const source = raw ? `data:${asset.mediaType ?? 'application/octet-stream'};base64,${raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')}` : uri!;
-            const decoded = asset.dataBase64 ? decodeDataUrl(source, MAX_ASSET_BYTES) : decodeDataUrl(source);
-            if (decoded.ok) {
-                resource.bytes = decoded.bytes;
-                resource.mediaType = decoded.mimeType;
-                resource.failureReason = undefined;
-            } else {
-                resource.failureReason = decoded.reason;
-                diagnostics.push({ severity: 'warning', code: decoded.code, message: decoded.message, path: `asset:${asset.id}` });
-            }
-        }
-        // Standalone source images have no legacy list entry to hydrate above.
-        if (resource.bytes || resource.failureReason || !/^https?:\/\//i.test(uri ?? '') || !pipeline) continue;
-        const acquired = await pipeline.acquireAssetBytes({ url: uri, sourceUrl: uri, fileName: asset.name,
-            localName: parsed.resourceHints[asset.id]?.archivePath || `assets/${asset.name || asset.id}` }, pipelineChat,
-            { isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}) });
-        if (signal.aborted || acquired.failReason === 'aborted') return { ok: false, id, title, error: 'aborted', diagnostics };
-        if (acquired.ok && acquired.bytes?.byteLength) {
-            resource.bytes = acquired.bytes;
-            resource.mediaType = acquired.mimeType || resource.mediaType;
-        } else {
-            resource.failureReason = acquired.failReason || 'image direct download failed';
-            onLog(`[PDF] [${title || id}] 图片获取失败 (${acquired.localName}): ${resource.failureReason}`, 'warn');
-        }
-    }
+    const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
+        signal,
+        acquire: pipeline ? (_assetId, hint) => pipeline.acquireAssetBytes(hint, pipelineChat, {
+            isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}),
+        }) : undefined,
+        onFailure: (assetId, reason) => onLog(`[PDF] [${title || id}] 图片获取失败 (${assetId}): ${reason}`, 'warn'),
+    });
+    diagnostics.push(...prepared.diagnostics);
+    if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
+    const resources = prepared.resources;
     return { ok: true, id, title, document, resources, diagnostics };
 }

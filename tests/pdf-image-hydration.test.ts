@@ -326,7 +326,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     );
 });
 
-test('2b. Takeout generated-media supplementation via shared BatchWorker.supplementTakeoutGeneratedMedia: attaches generated Takeout media and hydrates into top-level PDF image block', async () => {
+test('2b. Parser reconciles detached Takeout generated-media evidence before PDF resource acquisition', async () => {
     const rawChat = {
         id: 'chat-takeout-supplement',
         title: 'Takeout Supplemented Conversation',
@@ -659,7 +659,7 @@ test('hydrated image bytes and image classification do not mutate the original i
     assert.strictEqual(origImage.failureReason, undefined);
 });
 
-test('two references with the same hydration key acquire once and hydrate all targets', async () => {
+test('references to one Domain asset acquire once and share the prepared resource', async () => {
     const sharedUrl = 'https://example.com/shared_image.png';
     const img1 = { url: sharedUrl, name: 'img1.png' };
     const img2 = { url: sharedUrl, name: 'img2.png' };
@@ -693,7 +693,7 @@ test('two references with the same hydration key acquire once and hydrate all ta
     });
 
     assert.strictEqual(result.ok, true);
-    assert.strictEqual(acquireCalls, 1, 'acquireAssetBytes must be called only once for shared dedupe key');
+    assert.strictEqual(acquireCalls, 1, 'acquireAssetBytes must be called only once for one Domain asset ID');
     assert.strictEqual([...result.resources.values()].length >= 1, true);
     for (const asset of [...result.resources.values()]) {
         assert.ok(asset.bytes?.length);

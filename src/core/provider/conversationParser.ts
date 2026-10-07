@@ -2,11 +2,12 @@ import { closeLegacyCitations } from './domainCitationAdapter.js';
 import { closeDomainResources } from './domainResourceAdapter.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../domain/titleAuthority.js';
 import { assertDomainClosure } from '../domain/closure.js';
+import type { ResourceAcquisitionHints } from '../export/assets/resourceAcquisitionHints.js';
 import type { LegacyResourceHints } from '../export/assets/resourceHints.js';
 import type { BlockNode } from '../content/blocks.js';
 import { parseImportedBody } from './importedContentAdapter.js';
 import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from './gemini/contentAdapter.js';
-import { supplementLegacyGeneratedMedia, type LegacyGeneratedMediaEvidence } from '../domain/legacyGeneratedMediaReconciliation.js';
+import { supplementLegacyGeneratedMedia } from '../domain/legacyGeneratedMediaReconciliation.js';
 import type { GeneratedMediaIdentity } from '../../types/conversation.js';
 import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationAttachment } from './gemini/exportInput.js';
 import type { DocumentDiagnostic } from '../export/document/ast.js';
@@ -118,7 +119,7 @@ export interface LegacyDomainConstructionOptions {
     /** Explicit producer identity; inferred from the legacy source only at this boundary. */
     providerId?: string;
     /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
-    generatedMedia?: readonly LegacyGeneratedMediaEvidence[];
+    generatedMedia?: readonly unknown[];
 }
 
 /** Choose the authoritative title while raw source alternatives are still available. */
@@ -132,7 +133,7 @@ function legacyTitle(conversation: GeminiNormalizationInput): string {
 }
 
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
-export function parseProviderConversation(conversation: GeminiNormalizationInput, options: LegacyDomainConstructionOptions = {}): { conversation: DomainConversationDetail; resourceHints: LegacyResourceHints; diagnostics: DocumentDiagnostic[] } {
+export function parseProviderConversation(conversation: GeminiNormalizationInput, options: LegacyDomainConstructionOptions = {}): { conversation: DomainConversationDetail; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints; diagnostics: DocumentDiagnostic[] } {
     const diagnostics: DocumentDiagnostic[] = [];
     const parserDiagnostics: Diagnostic[] = [];
     const rawMessages = conversation.messages && conversation.messages.length > 0
@@ -176,5 +177,5 @@ export function parseProviderConversation(conversation: GeminiNormalizationInput
         messages: resources.messages,
     };
     assertDomainClosure(domain);
-    return { conversation: domain, resourceHints: resources.resourceHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
+    return { conversation: domain, resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
 }
