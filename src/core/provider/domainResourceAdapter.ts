@@ -1,3 +1,4 @@
+import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../export/assets/resourceAcquisitionHints.js';
 import type { LegacyResourceHints } from '../export/assets/resourceHints.js';
 import type { DomainAsset, DomainAssetKind, DomainMessage } from '../domain/conversationDetail.js';
 import type { LegacyAttachmentRecord } from './legacyAttachmentRecord.js';
@@ -67,8 +68,18 @@ function toAsset(record: LegacyAttachmentRecord, id: string): DomainAsset {
     };
 }
 
+function acquisitionHint(record: LegacyAttachmentRecord): ResourceAcquisitionHint {
+    const fields = ['url', 'sourceUrl', 'resolvedUrl', 'src', 'localName', 'fileName', 'name', 'title',
+        'mimeType', 'mime', 'providerRequestId', 'imageOrdinal'] as const;
+    return {
+        ...Object.fromEntries(fields.flatMap(field => record[field] !== undefined ? [[field, record[field]]] : [])),
+        ...(record.candidates ? { candidates: [...record.candidates] } : {}),
+        ...(record.generation ? { generation: { ...record.generation } } : {}),
+    };
+}
+
 /** Close every body/reasoning reference over one conversation resource registry before Domain. */
-export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[]): { assets: DomainAsset[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints } {
+export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[]): { assets: DomainAsset[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints } {
     const resolved = resolveLegacyAttachmentGroups(groups, { semanticOnly: true });
     const claimedIds = new Set<string>();
     const assets = resolved.attachments.map((record, index) => {
@@ -79,6 +90,8 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
         claimedIds.add(id);
         return toAsset(record, id);
     });
+    const acquisitionHints: Record<string, ResourceAcquisitionHint> = {};
+    resolved.attachments.forEach((record, index) => { acquisitionHints[assets[index].id] = acquisitionHint(record); });
     const resourceHints: Record<string, { archivePath?: string; fallbackName?: string; unresolvedReference?: string }> = {};
     resolved.attachments.forEach((record, index) => {
         if (record.localName && !/^[a-z][a-z\d+.-]*:/i.test(record.localName)) resourceHints[assets[index].id] = {
@@ -99,12 +112,14 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
                 // The input contains conflicting resources with this source; keep the unresolved reference separate.
                 const ambiguousId = `resource-${crypto.randomUUID()}`;
                 assets.push({ id: ambiguousId, kind, source: { uri: ref } });
+                acquisitionHints[ambiguousId] = { url: ref };
                 inline.set(key, ambiguousId);
                 return ambiguousId;
             }
             claimedIds.add(id);
             const name = alt?.trim() || (hasSource && !/^data:/i.test(ref) ? (ref.split('/').pop() ?? '').split('?')[0] : undefined);
             assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource ? { source: { uri: ref } } : {}) });
+            if (hasSource) acquisitionHints[id] = { url: ref, ...(name ? { fileName: name } : {}) };
             if (!hasSource) resourceHints[id] = { unresolvedReference: ref };
             inline.set(key, id);
             return id;
@@ -116,5 +131,5 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
         return { ...message, content, ...(reasoning ? { reasoning } : {}),
             ...(attachmentIds.length || groups[groupIndex].input.attachments ? { attachmentIds } : {}) };
     });
-    return { assets, messages: closed, resourceHints };
+    return { assets, messages: closed, resourceHints, acquisitionHints };
 }
