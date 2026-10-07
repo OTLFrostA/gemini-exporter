@@ -3,7 +3,8 @@ import { assertDomainClosure } from '../../domain/closure.js';
 import { collectReferencedAssetIds } from '../../content/collectAssetReferences.js';
 import { selectDisplayDate } from './displayDate.js';
 import { contentComposer } from './composeContent.js';
-import type { DocumentAst, DocumentDiagnostic } from './ast.js';
+import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { DocumentAst } from './ast.js';
 
 export interface DomainCompositionOptions { documentLanguage?: string }
 
@@ -35,6 +36,7 @@ export function composeDomainDocument(conversation: DomainConversationDetail, op
             variant: message.role === 'user' ? 'bubble' as const : 'flow' as const,
             label: message.role === 'user' ? 'you' as const : message.role,
             ...(message.role === 'unknown' && message.provenance?.rawRole ? { heading: { level: 2 as const, text: message.provenance.rawRole } } : {}),
+            ...(message.model ? { modelLabel: message.model } : {}),
             blocks: [...(message.reasoning ? [{ type: 'disclosure' as const, kind: 'reasoning' as const, blocks: compose(message.reasoning) }] : []), ...compose([...message.content, ...attached])],
             ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map((ref, index) => ({ ...source(ref), number: index + 1 })) } } : {}),
         };

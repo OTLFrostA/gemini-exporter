@@ -4,7 +4,8 @@ import type { HtmlRenderOptions } from './renderOptions.js';
 import { visual } from '../visualContract.js';
 import { GEM_HTML_CSS, GEM_HTML_SCRIPT, sanitizeUrl } from '../../engine/template/htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
-import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, DocumentDiagnostic, ResourceBindings, SourceGroup } from './ast.js';
+import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, ResourceBindings, SourceGroup } from './ast.js';
 
 const CANONICAL_EXTRA_CSS = `
 .gem-unknown-block {
@@ -13,6 +14,11 @@ const CANONICAL_EXTRA_CSS = `
   padding: 10px 14px;
   margin: var(--sp-block) 0;
   background: rgba(168, 199, 250, 0.04);
+}
+.gem-model-label {
+  color: var(--text-muted);
+  font-size: ${visual.type.metadata.size}px;
+  margin-bottom: var(--sp-inline);
 }
 .gem-unknown-label {
   font-size: ${visual.type.metadata.size}px;
@@ -220,7 +226,7 @@ ${node.details ? `<div>${inlines(node.details)}</div>` : ''}</div>`;
     const sources = (group: SourceGroup | undefined): string => group ? `<section class="gem-citation-group"><div class="gem-citation-chips">${group.items.map(item => item.href ? `<a class="gem-citation-chip" href="${url(item.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.label)}</a>` : `<span class="gem-citation-chip">${escapeHtml(item.label)}</span>`).join('')}</div></section>` : '';
     const message = (node: DisplayMessage, index: number): string => {
         const anchor = `turn-${node.variant === 'bubble' ? 'user' : 'model'}-${index}`;
-        const body = blocks(node.blocks);
+        const body = (node.modelLabel ? `<div class="gem-model-label">${escapeHtml(node.modelLabel)}</div>` : '') + blocks(node.blocks);
         const footer = sources(node.sources);
         if (node.variant === 'flow') return `<section class="gem-turn gem-turn-model" id="${escapeHtml(anchor)}"><div class="gem-model-content">${body}${footer}</div></section>`;
         const plain = node.blocks.map(blockText).join('\n');

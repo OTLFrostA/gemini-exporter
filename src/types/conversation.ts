@@ -88,6 +88,8 @@ export type AuthorRole = 'user' | 'model' | 'assistant' | 'system';
 export interface ChatMessage {
     id?: string;
     role: AuthorRole;
+    model?: string;
+    author?: { model?: string };
     content: string;
     /** Server-authoritative message time; null when the server provided none (never fabricate Date.now()). */
     timestamp?: number | null;
@@ -115,6 +117,8 @@ export interface Turn {
     messages?: ChatMessage[];
     userContent?: string;
     modelContent?: string;
+    model?: string;
+    author?: { model?: string };
     thoughts?: string | string[];
     attachments?: Attachment[];
     images?: Attachment[];

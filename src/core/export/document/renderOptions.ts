@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from './ast.js';
+import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { PdfLayoutPolicy } from '../typst/transport.js';
 
 /** Output controls travel beside the document, not inside its JSON tree. */

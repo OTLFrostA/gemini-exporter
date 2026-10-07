@@ -7,7 +7,7 @@
  * - Standard semantics: Preserves MiTeX upstream LaTeX authority with zero speculative compatibility rules.
  */
 
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
 import { preprocessGeminiLatex } from '../../../provider/gemini/markdownCompatibility.js';
 import { mitexConvertMath } from './mitexLoader.js';
 

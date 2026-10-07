@@ -32,7 +32,7 @@ test('PDF backend derives policies and metadata from immutable JSON display data
     assert.deepEqual(table.caption, [{ type: 'strong', children: [{ type: 'text', text: 'Table caption' }] }]);
     const changed = renderDocumentTypst(restored, resources, { repeatTableHeader: false, locale: 'zh' });
     assert.equal(changed.messages[1].blocks[4].type === 'table' && changed.messages[1].blocks[4].repeatHeader, false);
-    assert.equal(changed.messages[1].blocks[5].type === 'image' && changed.messages[1].blocks[5].caption, '123');
+    assert.deepEqual(changed.messages[1].blocks[5].type === 'image' && changed.messages[1].blocks[5].caption, [{ type: 'strong', children: [{ type: 'text', text: '123' }] }]);
 });
 
 test('real PDF engine changes page policy without recomposing the document', async () => {
@@ -65,11 +65,12 @@ test('PDF missing placements preserve authored numeric captions and descriptions
     const { document } = composeDomainDocument(input);
     const payload = renderDocumentTypst(document, {});
     const image = payload.messages[1].blocks[0], file = payload.messages[1].blocks[1];
-    assert.equal(image.type === 'unknown' && image.fallback, '123');
+    assert.deepEqual(image.type === 'unknown' && image.details, [{ type: 'strong', children: [{ type: 'text', text: '123' }] }]);
     assert.ok(file.type === 'file');
     assert.equal(file.name, 'Missing.pdf');
-    assert.equal(file.description, 'Authored description');
+    assert.deepEqual(file.description, [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }]);
     document.messages[1].blocks[1] = { type: 'placeholder', resourceId: 'missing', kind: 'file', text: 'Missing.pdf', details: [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }] };
     const placeholder = renderDocumentTypst(document, {}).messages[1].blocks[1];
-    assert.equal(placeholder.type === 'unknown' && placeholder.fallback, 'Missing.pdf\n\nAuthored description');
+    assert.equal(placeholder.type === 'unknown' && placeholder.fallback, 'Missing.pdf');
+    assert.deepEqual(placeholder.type === 'unknown' && placeholder.details, [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }]);
 });

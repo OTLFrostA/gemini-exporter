@@ -10,13 +10,13 @@ export function collectDocumentResources(document: DocumentAst): { referencedIds
     const inlines = (nodes: DisplayInline[] = []): void => {
         for (const node of nodes) {
             if (node.type === 'image') reference(node.resourceId, true);
-            if (node.type === 'placeholder' && node.resourceId) reference(node.resourceId, node.kind === 'image');
+            if (node.type === 'placeholder' && node.resourceId) reference(node.resourceId, false);
             if ('children' in node) inlines(node.children);
         }
     };
     const blocks = (nodes: DisplayBlock[]): void => {
         for (const node of nodes) {
-            if ('resourceId' in node && node.resourceId) reference(node.resourceId, node.type === 'image' || (node.type === 'placeholder' && node.kind === 'image'));
+            if ('resourceId' in node && node.resourceId) reference(node.resourceId, node.type === 'image');
             if ('children' in node) inlines(node.children);
             if ('caption' in node) inlines(node.caption);
             if ('description' in node) inlines(node.description);

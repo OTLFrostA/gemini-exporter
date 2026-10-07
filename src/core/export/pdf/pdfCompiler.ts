@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from '../document/ast.js';
+import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { TypstConversationRenderPayload } from '../typst/transport.js';
 
 /** Prepared output bytes, never a semantic Asset or source conversation. */

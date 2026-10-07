@@ -19,7 +19,7 @@ import * as path from 'path';
 import { parseProviderConversation } from '../../src/core/provider/conversationParser.js';
 import { composeDomainDocument } from '../../src/core/export/document/composeDomainDocument.js';
 import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
-import type { DocumentDiagnostic } from '../../src/core/export/document/ast.js';
+import type { DocumentDiagnostic } from '../../src/core/diagnostics/documentDiagnostic.js';
 import { convertMathWithMitex, initMitexWasm } from '../../src/core/export/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
 import { TypstSandboxCompiler } from '../../src/core/export/typst/typstSandboxCompiler.js';

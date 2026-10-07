@@ -1,5 +1,5 @@
 import katex from 'katex';
-import type { DocumentDiagnostic as RenderDiagnostic } from './ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import { getErrorMessage } from '../../utils/messaging.js';
 
 export interface RenderMathHtmlResult {

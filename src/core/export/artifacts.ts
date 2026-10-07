@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from './document/ast.js';
+import type { DocumentDiagnostic } from '../diagnostics/documentDiagnostic.js';
 
 export interface CompanionResourcePlan {
     resourceIds: string[];

@@ -2,7 +2,7 @@ import type { DomainConversationDetail } from '../../domain/conversationDetail.j
 import type { AcquireAssetBytesResult } from '../../engine/assetPipeline.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../assets/resourceAcquisitionHints.js';
 import type { PreparedResource, PreparedResources } from '../assets/preparedResources.js';
-import type { DocumentDiagnostic } from '../document/ast.js';
+import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import { decodeDataUrl } from '../assets/dataUrl.js';
 import { MAX_ASSET_BYTES } from '../assets/imageContent.js';
 

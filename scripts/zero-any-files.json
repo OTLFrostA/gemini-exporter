@@ -62,5 +62,5 @@
   "src/core/export/document/displayDate.ts",
   "src/core/export/document/prepareDomainResources.ts",
   "src/core/export/document/exportDomainDocument.ts",
-  "src/core/export/pdf/imageResources.ts"
+  "src/core/diagnostics/documentDiagnostic.ts"
 ]

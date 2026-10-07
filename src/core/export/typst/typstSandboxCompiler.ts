@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../pdf/pdfCompiler.js';
 
 import {
@@ -120,6 +120,9 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
         }
     };
     const stripBlock = (block: TypstBlockNode): void => {
+        if ('caption' in block && block.caption) stripInline(block.caption);
+        if ('description' in block && block.description) stripInline(block.description);
+        if ('details' in block && block.details) stripInline(block.details);
         switch (block.type) {
             case 'paragraph':
             case 'heading':
@@ -175,6 +178,9 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
         }
     };
     const visitBlock = (block: TypstBlockNode): void => {
+        if ('caption' in block && block.caption) visitInline(block.caption);
+        if ('description' in block && block.description) visitInline(block.description);
+        if ('details' in block && block.details) visitInline(block.details);
         if (block.type === 'image') {
             paths.add(block.asset);
         } else if (block.type === 'paragraph' || block.type === 'heading') {

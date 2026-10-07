@@ -34,9 +34,43 @@ export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format
     const title = node.filename ? node.filename + (language !== 'text' ? ` · ${language}` : '') : language;
     return title + (format === 'pdf' && node.meta ? ` · ${node.meta}` : '');
 }
+const mediaBadges: Readonly<Record<string, string>> = {
+    'application/pdf': 'PDF',
+    'application/msword': 'DOC',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+    'application/vnd.ms-word.document.macroenabled.12': 'DOCM',
+    'application/vnd.ms-excel': 'XLS',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+    'application/vnd.ms-excel.sheet.macroenabled.12': 'XLSM',
+    'application/vnd.ms-powerpoint': 'PPT',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+    'application/vnd.ms-powerpoint.presentation.macroenabled.12': 'PPTM',
+    'application/vnd.oasis.opendocument.text': 'ODT',
+    'application/vnd.oasis.opendocument.spreadsheet': 'ODS',
+    'application/vnd.oasis.opendocument.presentation': 'ODP',
+    'application/rtf': 'RTF', 'text/rtf': 'RTF',
+    'text/plain': 'TXT', 'text/markdown': 'MD', 'text/csv': 'CSV', 'text/tab-separated-values': 'TSV',
+    'application/json': 'JSON', 'application/xml': 'XML', 'text/xml': 'XML', 'text/html': 'HTML',
+    'application/zip': 'ZIP', 'application/x-zip': 'ZIP', 'application/x-zip-compressed': 'ZIP',
+    'application/gzip': 'GZ', 'application/x-gzip': 'GZ', 'application/x-tar': 'TAR',
+    'application/x-7z-compressed': '7Z', 'application/vnd.rar': 'RAR', 'application/x-rar-compressed': 'RAR',
+    'image/png': 'PNG', 'image/jpeg': 'JPG', 'image/gif': 'GIF', 'image/webp': 'WEBP',
+    'image/svg+xml': 'SVG', 'image/avif': 'AVIF', 'image/heic': 'HEIC', 'image/bmp': 'BMP', 'image/tiff': 'TIFF',
+    'audio/mpeg': 'MP3', 'audio/wav': 'WAV', 'audio/x-wav': 'WAV', 'audio/mp4': 'M4A', 'audio/ogg': 'OGG',
+    'video/mp4': 'MP4', 'video/webm': 'WEBM', 'video/quicktime': 'MOV',
+};
+const kindBadges: Readonly<Record<string, string>> = {
+    file: 'FILE', image: 'IMAGE', audio: 'AUDIO', video: 'VIDEO',
+    ...Object.fromEntries(Object.values(mediaBadges).map(badge => [badge.toLowerCase(), badge])),
+};
+
+/** Display authored type facts; filenames and arbitrary MIME subtypes are not badges. */
 export function fileBadge(node: Extract<DisplayBlock, { type: 'file' }>): string {
-    const subtype = node.mediaType?.toLowerCase().split('/')[1];
-    return subtype ? subtype.replace(/^x-/, '').toUpperCase() : node.kind.toUpperCase();
+    const mediaType = node.mediaType?.split(';')[0].trim().toLowerCase();
+    const kind = node.kind.trim().toLowerCase();
+    const category = mediaType?.split('/')[0] ?? '';
+    return (mediaType && Object.hasOwn(mediaBadges, mediaType) && mediaBadges[mediaType]) || (Object.hasOwn(kindBadges, kind) && kindBadges[kind])
+        || (['image', 'audio', 'video'].includes(category) ? kindBadges[category] : 'FILE');
 }
 export function humanBytes(value: number | undefined, unknown: string): string {
     if (value == null || !Number.isFinite(value) || value < 0) return unknown;

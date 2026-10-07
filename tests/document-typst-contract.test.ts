@@ -86,7 +86,7 @@ test('missing image asset becomes visible unknown node with diagnostic', async (
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'unknown');
     assert.strictEqual(node.sourceType, 'missing-image');
-    assert.ok(node.fallback.includes('a diagram') || node.fallback.includes('a-missing'));
+    assert.deepStrictEqual(node.details, [{ type: 'text', text: 'a diagram' }]);
     assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_IMAGE_MISSING' && d.severity === 'warning'));
 });
 
@@ -100,7 +100,7 @@ test('present image asset maps to virtual path', async () => {
     });
     assert.strictEqual(diagnostics.length, 0);
     assert.deepStrictEqual(payload.messages[0].blocks[0], {
-        type: 'image', asset: 'assets/sha256/ab/a1.png', caption: 'pic', layout: { gapBeforePt: 0, keepWithNext: false, width: 'full' },
+        type: 'image', asset: 'assets/sha256/ab/a1.png', caption: [{ type: 'text', text: 'pic' }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'full' },
     });
 });
 

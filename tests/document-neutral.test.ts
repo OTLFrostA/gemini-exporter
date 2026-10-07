@@ -26,7 +26,7 @@ test('one immutable JSON document serves all three backends without losing rich 
     assert.ok(html.includes('colspan="2"') && html.includes('<strong>Rich caption</strong>') && html.includes('<em>Image caption</em>'));
     const table = pdf.messages[0].blocks[2]; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
-    assert.equal(table.headers.length, 2); assert.equal(table.headers[0][0].colspan, 2); assert.equal(table.caption, 'Rich caption');
+    assert.equal(table.headers.length, 2); assert.equal(table.headers[0][0].colspan, 2); assert.deepEqual(table.caption, [{ type: 'strong', children: [{ type: 'text', text: 'Rich caption' }] }]);
     const file = restored.messages[0].blocks[4]; assert.equal(file.type, 'file');
     if (file.type !== 'file') throw new Error('Expected file');
     assert.equal(file.mediaType, 'application/pdf'); assert.equal(file.byteLength, 1234567);
@@ -65,7 +65,7 @@ test('neutral contract carries no units, output formats, UI controls or source-m
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
     const input = fixture(); input.messages[0].reasoning = undefined; input.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
     const { document } = composeDomainDocument(input), before = JSON.stringify(document);
-    const diagnostics: import('../src/core/export/document/ast.js').DocumentDiagnostic[] = [];
+    const diagnostics: import('../src/core/diagnostics/documentDiagnostic.js').DocumentDiagnostic[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
     const paragraph = pdf.messages[0].blocks[0]; if (paragraph.type !== 'paragraph') throw new Error('Expected paragraph');

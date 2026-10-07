@@ -57,9 +57,9 @@
   let rows = node.rows.map(row => row.map(mk))
   let aligns = node.aligns
   let table = modern-table(headers, rows, node.columnCount, aligns, node.repeatHeader, width: node.layout.width)
-  if "caption" in node and node.caption != "" {
+  if "caption" in node and node.caption.len() > 0 {
     [
-      #align(center)[#text(size: caption-size, fill: muted)[#node.caption]]
+      #align(center)[#text(size: caption-size, fill: muted)[#render-inlines(node.caption)]]
       #v(4pt)
       #table
     ]
@@ -71,13 +71,13 @@
 #let render-image(node, scope) = image-surface(
   node.asset,
   width: node.layout.width,
-  caption: if "caption" in node { node.caption } else { none },
+  caption: if "caption" in node { [#render-inlines(node.caption)] } else { none },
 )
 #let render-file(node, scope) = {
   file-attachment(node.name, node.metadata, width: node.layout.width)
-  if "description" in node and node.description != "" {
+  if "description" in node and node.description.len() > 0 {
     v(3pt)
-    text(size: caption-size, fill: muted)[#node.description]
+    text(size: caption-size, fill: muted)[#render-inlines(node.description)]
   }
 }
 
@@ -113,7 +113,7 @@
 }
 
 #let render-unknown(node) = {
-  unknown-surface(node.label, node.fallback, width: node.layout.width)
+  unknown-surface(node.label, [#node.fallback#if "details" in node { v(3pt); render-inlines(node.details) }], width: node.layout.width)
 }
 
 #let render-thematic-break(node, scope) = {
