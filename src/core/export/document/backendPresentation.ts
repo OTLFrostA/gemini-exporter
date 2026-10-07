@@ -24,7 +24,6 @@ export function blockText(node: DisplayBlock): string {
         case 'image': return node.alt;
         case 'file': return node.label;
         case 'placeholder': case 'unsupported': return node.text;
-        case 'note': return node.blocks?.map(blockText).join('\n') ?? node.children?.map(inlineText).join('') ?? '';
         case 'thematicBreak': return '';
     }
 }
@@ -35,9 +34,9 @@ export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format
     const title = node.filename ? node.filename + (language !== 'text' ? ` · ${language}` : '') : language;
     return title + (format === 'pdf' && node.meta ? ` · ${node.meta}` : '');
 }
-export function fileBadge(node: Extract<DisplayBlock, { type: 'file' }>, useMediaType = true): string {
-    const subtype = useMediaType && node.mediaType?.toLowerCase().split('/')[1];
-    return subtype ? subtype.replace(/^x-/, '').toUpperCase() : node.label.match(/\.([^.]+)$/)?.[1]?.toUpperCase() ?? node.kind.toUpperCase();
+export function fileBadge(node: Extract<DisplayBlock, { type: 'file' }>): string {
+    const subtype = node.mediaType?.toLowerCase().split('/')[1];
+    return subtype ? subtype.replace(/^x-/, '').toUpperCase() : node.kind.toUpperCase();
 }
 export function humanBytes(value: number | undefined, unknown: string): string {
     if (value == null || !Number.isFinite(value) || value < 0) return unknown;

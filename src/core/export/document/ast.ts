@@ -32,7 +32,6 @@ export type DisplayBlock = (
     | { type: 'thematicBreak' }
     | { type: 'placeholder'; resourceId?: string; kind: 'image' | 'file'; text: string; details?: DisplayInline[] }
     | { type: 'unsupported'; sourceType: string; text: string }
-    | { type: 'note'; title?: string; children?: DisplayInline[]; blocks?: DisplayBlock[] }
 );
 
 export interface SourceGroup {
@@ -44,10 +43,8 @@ export interface SourceGroup {
 export interface DisplayMessage {
     type: 'message';
     id: string;
-    anchor: string;
     variant: 'bubble' | 'flow';
     heading?: { level: 1 | 2 | 3 | 4 | 5 | 6; text: string };
-    modelLabel?: string;
     label: 'you' | 'assistant' | 'system' | 'developer' | 'unknown';
     blocks: DisplayBlock[];
     sources?: SourceGroup;
@@ -56,7 +53,17 @@ export interface DisplayMessage {
 export interface DocumentAst {
     schemaVersion: 2;
     documentLanguage?: string;
-    header: { title: string; providerLabel: string; date?: string; messageCount: number };
+    header: {
+        title: string;
+        providerLabel: string;
+        /** UTC YYYY-MM-DD display date, not an export date or a raw timestamp.
+         * First valid fact: updatedAt, lastSeen, createdAt, timestamp, chatTime.
+         * Compatibility inputs expose only updatedAt and createdAt. Omitted if none is valid.
+         * Composers select it once; backends must not reselect or reinterpret it.
+         */
+        date?: string;
+        messageCount: number;
+    };
     emptyNotice?: string;
     messages: DisplayMessage[];
 }

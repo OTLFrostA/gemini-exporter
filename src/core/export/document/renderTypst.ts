@@ -67,7 +67,6 @@ export function renderDocumentTypst(
                 const kind = fileBadge(node), size = humanBytes(node.byteLength, strings.sizeUnknown);
                 return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: text(node.description) } : {}), layout };
             }
-            case 'note': return { type: 'note', ...(node.title !== undefined ? { label: node.title } : {}), ...(node.children ? { children: node.children.map(inline) } : {}), ...(node.blocks ? { blocks: node.blocks.map(block) } : {}), layout };
             case 'unsupported': return { type: 'unknown', sourceType: node.sourceType, label: `${strings.unsupportedContent} · ${node.sourceType}`, fallback: node.text, layout };
             case 'thematicBreak': return { type: 'thematicBreak', layout };
             case 'disclosure': return { type: 'note', ...(['summary', 'progress', 'reasoning'].includes(node.kind) || node.title ? { label: disclosureTitle(node, options) } : {}), blocks: node.blocks.map(block), layout };
@@ -84,7 +83,7 @@ export function renderDocumentTypst(
             if (message.sources?.items.length) blocks.push({ type: 'note', children: [{ type: 'text', text: message.sources.items.map(item => item.label).join(' · ') }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
             applyLayout(blocks, message.variant === 'bubble', false);
             const next = document.messages[index + 1];
-            return { id: message.id, variant: message.variant, ...(message.modelLabel ? { model: message.modelLabel } : {}), plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (message.variant === 'flow' && next.variant === 'bubble' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };
+            return { id: message.id, variant: message.variant, plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (message.variant === 'flow' && next.variant === 'bubble' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };
         }),
     };
 }

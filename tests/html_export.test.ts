@@ -97,11 +97,11 @@ test('html_export - supports English localization and handles empty conversation
     };
 
     const resEn = await ChatFormatter.formatHtmlCanonical(emptyChat, { lang: 'en' });
-    assert.ok(resEn.content.includes('lang="en"'), 'HTML lang attribute must be en');
+    assert.ok(resEn.content.includes('<html>'), 'Unknown document language must not be inferred from English UI');
     assert.ok(resEn.content.includes('Empty conversation or fetch failed.'), 'Must render English empty notice');
 
     const resZh = await ChatFormatter.formatHtmlCanonical(emptyChat, { lang: 'zh' });
-    assert.ok(resZh.content.includes('lang="zh-CN"'), 'HTML lang attribute must be zh-CN');
+    assert.ok(resZh.content.includes('<html>'), 'Unknown document language must not be inferred from Chinese UI');
     assert.ok(resZh.content.includes('暂无对话记录或拉取失败。'), 'Must render Chinese empty notice');
 });
 

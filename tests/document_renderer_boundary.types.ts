@@ -24,6 +24,12 @@ void rendererBoundary;
 
 
 function neutralContract(document: DocumentAst): void {
+    // @ts-expect-error DOM anchors belong to the HTML backend.
+    document.messages[0].anchor = 'turn';
+    // @ts-expect-error Compatibility-only model labels are not in the production AST.
+    document.messages[0].modelLabel = 'model';
+    // @ts-expect-error Notes have no production Domain composition source.
+    document.messages[0].blocks.push({ type: 'note', title: 'note' });
     // @ts-expect-error Physical print policies belong to PDF render options.
     document.pdfLayout = {};
     // @ts-expect-error UI locale cannot be mistaken for the content language.

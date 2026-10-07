@@ -91,7 +91,6 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
             case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
-            case 'note': return [node.title && escapeText(node.title), node.children && inlines(node.children), node.blocks && blocks(node.blocks)].filter(Boolean).join('\n\n');
             case 'disclosure': return `<details${node.initiallyCollapsed ?? options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${node.title ? escapeText(node.title) : '🧠 ' + escapeText(disclosureTitle(node, { ...options, locale }))}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'placeholder': return [placeholder(node), node.details && inlines(node.details)].filter(Boolean).join('\n\n');
             case 'thematicBreak': return '---';

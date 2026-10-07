@@ -30,7 +30,7 @@ function message(id: string, role: string, blocks: any[]): any {
 
 function documentWith(messages: any[], _resources: any[] = []): any {
     return { schemaVersion: 2, header: { title: 'T', providerLabel: 'gemini', messageCount: messages.length },
-        messages: messages.map(message => ({ ...message, type: 'message', anchor: message.id, variant: message.role === 'user' ? 'bubble' : 'flow', label: message.role === 'user' ? 'you' : 'assistant' })) };
+        messages: messages.map(message => ({ ...message, type: 'message', variant: message.role === 'user' ? 'bubble' : 'flow', label: message.role === 'user' ? 'you' : 'assistant' })) };
 }
 
 function makeCtx() {
