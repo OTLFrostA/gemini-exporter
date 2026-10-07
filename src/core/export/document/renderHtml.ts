@@ -138,6 +138,7 @@ const CHEVRON_SVG = '<svg class="gem-thought-chevron" viewBox="0 0 24 24" width=
 
 /** Pure backend: only the presentation tree and prepared resource bindings. */
 export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings): { html: string; diagnostics: DocumentDiagnostic[] } {
+    if (document.profile.id !== 'html') throw new TypeError('Expected an HTML document profile');
     const diagnostics: DocumentDiagnostic[] = [];
     // The shared URL sanitizer already escapes the attribute value.
     const url = (value: string): string => sanitizeUrl(value, false);
