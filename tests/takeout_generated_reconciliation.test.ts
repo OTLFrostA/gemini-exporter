@@ -5,7 +5,8 @@ import { correlateGeneratedImages, type GenerationBlock, type TakeoutWatermarked
 import { parseTakeoutZip } from '../src/core/engine/takeout/takeoutParser.js';
 import { clearTakeoutData } from '../src/core/engine/takeout/mediaIndex.js';
 import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 
 const time = 1700000000000;
 function event(chatId: string, offset: number, imageCount = 1): GenerationBlock {
@@ -80,7 +81,7 @@ test('Multi-image ZIP enumeration does not establish ordinals or collapse images
         assert.equal(domain.messages.length, 1);
         assert.equal('generation' in domain.messages[0], false);
         assert.deepEqual(messageAssets(domain, 0)?.map(a => a.name).sort(), ['first.png', 'second.png']);
-        assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 2);
+        assert.equal(collectDocumentResources(composeDomainDocument(domain).document).referencedIds.size, 2);
     }
 });
 

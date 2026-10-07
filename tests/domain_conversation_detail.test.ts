@@ -3,8 +3,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { toDomainConversationDetail, parseLegacyConversation } = require('../src/core/domain/legacyConversationAdapter.js');
-const { normalizeGeminiConversation } = require('../src/core/export/canonical/gemini/normalizeConversation.js');
-const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
+const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { composeFixture } = require('./helpers/documentFixture.js');
 
 // Explicit plain-text AST expectations for the metadata-focused fixtures below.
 function plainContent(text: string): unknown[] {
@@ -32,10 +32,10 @@ function assertDomainMessages(actual: Array<Record<string, unknown>>, expected: 
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
     const { conversation: domain, resourceHints } = parseLegacyConversation(legacy as never);
     const [before, after] = await Promise.all([
-        normalizeGeminiConversation(legacy as never),
-        normalizeDomainConversation(domain, { resourceHints }),
+        composeFixture(parseProviderConversation(legacy as never).conversation, resourceHints),
+        composeFixture(domain, resourceHints),
     ]);
-    assert.deepEqual(after.bundle, before.bundle);
+    assert.deepEqual(after.document, before.document);
 }
 
 const base = { id: 'conversation-1', title: 'Example', timestamp: 1700000000000 };
@@ -395,9 +395,9 @@ for (const role of ['model', 'assistant']) {
                 assert.equal('reasoning' in domain.messages[0], expected !== undefined);
                 for (const alias of ['thoughts', 'thinking', 'sources']) assert.equal(alias in domain.messages[0], false);
                 assert.deepEqual(legacy, original);
-                const before = await normalizeGeminiConversation(legacy);
-                const after = await normalizeDomainConversation(domain);
-                const thoughts = (result: typeof after) => result.bundle.conversation.messages[0].blocks.filter((block: { type: string }) => block.type === 'thought');
+                const before = await composeFixture(parseProviderConversation(legacy).conversation);
+                const after = await composeFixture(domain);
+                const thoughts = (result: typeof after) => result.document.messages[0].blocks.filter((block: { type: string }) => block.type === 'disclosure');
                 assert.deepEqual(thoughts(after), thoughts(before));
                 assert.equal(thoughts(after).length, expected === undefined ? 0 : 1);
             }
@@ -430,18 +430,18 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
             assert.deepEqual(legacy, original);
             if (expected) {
                 assert.notEqual(domain.messages[0].citations, expected);
-                const canonical = await normalizeDomainConversation(domain);
-                assert.deepEqual(canonical.bundle.citations.map((citation: { url: string; title?: string }) => ({ url: citation.url, ...(citation.title !== undefined ? { title: citation.title } : {}) })), expected);
+                const canonical = await composeFixture(domain);
+                assert.deepEqual(canonical.document.messages[0].sources.items.map((source: { href: string; label: string }, index: number) => ({ url: source.href, ...('title' in expected[index] ? { title: source.label } : {}) })), expected);
             }
         }
     });
 }
 
-test('Canonical Domain path consumes only reasoning and citations even if aliases leak at runtime', async () => {
+test('Document composer consumes only reasoning and citations even if aliases leak at runtime', async () => {
     const clean = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] };
     const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
-    assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, (await normalizeDomainConversation(clean)).bundle);
+    assert.deepEqual((await composeFixture(leaked)).document, (await composeFixture(clean)).document);
     const absent = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };
     const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
-    assert.deepEqual((await normalizeDomainConversation(aliasesOnly)).bundle, (await normalizeDomainConversation(absent)).bundle);
+    assert.deepEqual((await composeFixture(aliasesOnly)).document, (await composeFixture(absent)).document);
 });

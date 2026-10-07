@@ -1,3 +1,4 @@
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,8 +9,8 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeLegacyAttachments } from '../src/core/provider/legacyAttachmentAdapter.js';
 import { structuredBodyAttachments } from '../src/core/provider/gemini/contentAdapter.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
+import { composeFixture } from './helpers/documentFixture.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 
 const metadata = { id: 'resources', title: 'Resources', timestamp: null };
 const generation = { chatId: metadata.id, providerRequestId: 'abcdef0123456789', time: 1700000000123,
@@ -20,10 +21,10 @@ async function assertRoundTrip(input: Conversation): Promise<DomainConversationD
     const { conversation: domain, resourceHints } = parseLegacyConversation(input);
     const serialized: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
     const [raw, semantic, restored] = await Promise.all([
-        normalizeGeminiConversation(input), normalizeDomainConversation(domain, { resourceHints }), normalizeDomainConversation(serialized, { resourceHints }),
+        composeFixture(parseProviderConversation(input).conversation, resourceHints), composeFixture(domain, resourceHints), composeFixture(serialized, resourceHints),
     ]);
-    assert.deepEqual(semantic.bundle, raw.bundle);
-    assert.deepEqual(restored.bundle, semantic.bundle);
+    assert.deepEqual(semantic.document, raw.document);
+    assert.deepEqual(restored.document, semantic.document);
     assert.deepEqual(restored.diagnostics, semantic.diagnostics);
     assert.deepEqual(input, original);
     for (const message of domain.messages) {
@@ -152,7 +153,7 @@ test('body references to discarded provider aliases bind to the one semantic res
     const paragraph = domain.messages[0].content[0];
     assert.ok(paragraph.type === 'paragraph' && paragraph.children[0].type === 'image');
     assert.equal(paragraph.children[0].assetId, messageAssets(domain)[0].id);
-    assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 1);
+    assert.equal(collectDocumentResources((await composeFixture(domain)).document).referencedIds.size, 1);
 });
 
 test('unknown image ordinals and conflicting generation ownership remain distinct', () => {
@@ -205,21 +206,20 @@ test('binary views survive Domain JSON round trips without changing input bytes'
     assert.equal(messageAssets(domain, 0)?.[0].dataBase64, 'AQID');
 });
 
-test('Canonical trusts explicit Domain resources and ignores runtime legacy aliases', async () => {
+test('Composer trusts explicit Domain resources and ignores runtime legacy aliases', async () => {
     const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
     const domain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] };
-    const expected = await normalizeDomainConversation(domain);
+    const expected = await composeFixture(domain);
     const leaked = { ...domain, messages: [{ ...domain.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] };
-    assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, expected.bundle);
+    assert.deepEqual((await composeFixture(leaked)).document, expected.document);
     const explicit = { ...domain, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.messages[0], attachmentIds: [resource.id, 'second-report'] }] };
-    assert.equal((await normalizeDomainConversation(explicit)).bundle.assets.length, 2,
-        'shared Canonical must not reconcile alias evidence or infer resource identity');
+    assert.equal(collectDocumentResources((await composeFixture(explicit)).document).referencedIds.size, 2,
+        'Composer must not reconcile alias evidence or infer resource identity');
 });
 
-test('shared Canonical and Domain consumption have no legacy resource alias reconciliation', () => {
-    for (const file of ['src/core/domain/canonicalInputAdapter.ts', 'src/core/export/canonical/messageInput.ts',
-        'src/core/export/canonical/assetInput.ts', 'src/core/export/canonical/normalizeMessage.ts',
-        'src/core/export/canonical/gemini/normalizeAssets.ts']) {
+test('shared Composer and Domain consumption have no legacy resource alias reconciliation', () => {
+    for (const file of ['src/core/domain/closure.ts', 'src/core/export/document/composeDomainDocument.ts',
+        'src/core/export/document/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /mergeMessageAttachments|reconcileLegacyMediaLists|structuredBodyAttachments|attachments\.includes|\bimages\??:|\bdocuments\??:/);
     }

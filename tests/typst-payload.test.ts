@@ -12,7 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
-const { collectReferencedAssetIds } = require('../src/core/export/canonical/assetReferences.js');
+const { collectReferencedAssetIds } = require('../src/core/content/collectAssetReferences.js');
 
 function bundle(messages: any[], extra: any = {}) {
     return {
@@ -284,6 +284,6 @@ test('PDF date uses document timestamps and stays unknown without them', () => {
     delete b.conversation.updatedAt;
     assert.strictEqual(toTypstPayload(b, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages');
     delete b.conversation.createdAt;
-    const { getRendererStrings } = require('../src/core/export/canonical/rendererStrings.js');
+    const { getRendererStrings } = require('../src/core/export/document/renderStrings.js');
     assert.strictEqual(toTypstPayload(b, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages`);
 });

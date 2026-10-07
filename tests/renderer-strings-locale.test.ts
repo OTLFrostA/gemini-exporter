@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { getRendererStrings } = require('../src/core/export/canonical/rendererStrings.js');
+const { getRendererStrings } = require('../src/core/export/document/renderStrings.js');
 const { toTypstPayload } = require('../src/core/export/typst/payload.js');
 const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
 

@@ -140,12 +140,18 @@ export function parseProviderConversation(conversation: GeminiNormalizationInput
         ? conversation.messages
         : flattenLegacyTurns(conversation);
     // Clone provider evidence before reconciliation so legacy input remains untouched.
-    const legacyMessages = rawMessages.map(message => ({
+    const legacyMessages = rawMessages.flatMap((message, index) => {
+        if (!message || typeof message !== 'object' || Array.isArray(message)) {
+            diagnostics.push({ severity: 'warning', code: 'BAD_MESSAGE_SHAPE', message: 'Ignored malformed provider message', path: `messages[${index}]` });
+            return [];
+        }
+        return [{
         ...message,
         ...(message.generation ? { generation: { ...message.generation } } : {}),
         ...(message.attachments ? { attachments: message.attachments.map(copyAttachment) } : {}),
         ...(message.images ? { images: message.images.map(copyAttachment) } : {}),
-    }));
+        }];
+    });
     if (options.generatedMedia) supplementLegacyGeneratedMedia({ id: conversation.id, messages: legacyMessages }, conversation.id ?? '', options.generatedMedia, { appendMarkdownRef: false });
     const providerId = options.providerId ?? (conversation.source?.startsWith('openai') ? 'openai' : 'gemini');
     const parseContent = (body: unknown, structured?: unknown): BlockNode[] => {

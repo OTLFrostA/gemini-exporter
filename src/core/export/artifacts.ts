@@ -21,4 +21,3 @@ export interface ExportArtifact {
     writeReport?: ArtifactWriteReport;
     diagnostics?: DocumentDiagnostic[];
 }
-
