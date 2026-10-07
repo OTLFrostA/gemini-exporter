@@ -5,10 +5,10 @@ import type { Asset, AssetKind, AssetStatus } from '../assets.js';
 import { decodeDataUrl, buildDataUrlStorageRef, sha256Hex } from '../../assets/index.js';
 import type { InlineByteStore } from '../../assets/index.js';
 import { classifyAssetAvailability } from '../assetResolution.js';
-import type { Diagnostic } from '../diagnostics.js';
+import type { Diagnostic } from '../../../content/diagnostics.js';
 import type { ImageInline } from '../../../content/inline.js';
-import type { JsonValue } from '../json.js';
-import type { SourceRef } from '../provenance.js';
+import type { JsonValue } from '../../../utils/jsonTypes.js';
+import type { SourceRef } from '../../../content/sourceRef.js';
 
 export interface AssetLinkIndex {
     byRef: Map<string, string>;

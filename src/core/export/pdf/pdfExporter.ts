@@ -1,7 +1,7 @@
+import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
 import type {
     ArtifactWriteReport,
-    RenderDiagnostic,
-} from '../canonical/rendering.js';
+} from '../artifacts.js';
 import { createWriter, type IExportWriter } from '../../engine/writers/writerInterface.js';
 import { normId } from '../../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';

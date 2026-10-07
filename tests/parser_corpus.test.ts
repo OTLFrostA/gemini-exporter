@@ -77,7 +77,7 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
         candidateParser: async (content: string, id: string) => {
             candidateParserCalled = true;
             return {
-                bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: content }] }] }] } },
+                conversation: { id, title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: content }] }] }] },
                 diagnostics: [],
             };
         },

@@ -51,5 +51,9 @@
   "src/core/export/pdf/pipeline/compileStage.ts",
   "src/core/export/pdf/pipeline/orchestrator.ts",
   "src/core/export/assets/resourceAcquisitionHints.ts",
-  "src/core/export/pdf/prepareResources.ts"
+  "src/core/export/pdf/prepareResources.ts",
+  "src/core/utils/jsonTypes.ts",
+  "src/core/content/sourceRef.ts",
+  "src/core/content/diagnostics.ts",
+  "src/core/export/artifacts.ts"
 ]

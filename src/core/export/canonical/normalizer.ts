@@ -1,5 +1,5 @@
 import type { CanonicalConversationBundle } from './conversation.js';
-import type { Diagnostic } from './diagnostics.js';
+import type { Diagnostic } from '../../content/diagnostics.js';
 
 export interface RawEvidenceWriter {
     put(kind: string, data: unknown): Promise<string>;

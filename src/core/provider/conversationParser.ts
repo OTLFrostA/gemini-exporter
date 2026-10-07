@@ -11,7 +11,7 @@ import { supplementLegacyGeneratedMedia } from '../domain/legacyGeneratedMediaRe
 import type { GeneratedMediaIdentity } from '../../types/conversation.js';
 import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationAttachment } from './gemini/exportInput.js';
 import type { DocumentDiagnostic } from '../export/document/ast.js';
-import type { Diagnostic } from '../export/canonical/diagnostics.js';
+import type { Diagnostic } from '../content/diagnostics.js';
 import { isObjectRecord } from '../utils/messageResponses.js';
 import type {
     DomainCitation,

@@ -16,14 +16,17 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { normalizeGeminiConversation } from '../../src/core/export/canonical/normalizeGemini.js';
+import { parseProviderConversation } from '../../src/core/provider/conversationParser.js';
+import { composeDomainDocument } from '../../src/core/export/document/composeDomainDocument.js';
+import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
+import type { DocumentDiagnostic } from '../../src/core/export/document/ast.js';
 import { convertMathWithMitex, initMitexWasm } from '../../src/core/export/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
 import { TypstSandboxCompiler } from '../../src/core/export/typst/typstSandboxCompiler.js';
-import { toTypstPayload } from '../../src/core/export/typst/payload.js';
+import { renderDocumentTypst } from '../../src/core/export/document/renderTypst.js';
 import { RealWasmSandboxHost, repoRoot } from '../../tests/helpers/realWasmSandbox.js';
 
-export type MarkdownParserFn = (content: string, id: string) => Promise<{ bundle: any; diagnostics: any[] }>;
+export type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: DocumentDiagnostic[] }>;
 export type MathConverterFn = (latex: string, display: boolean) => { typst?: string; diagnostic?: any };
 
 export interface CorpusRunnerOptions {
@@ -117,7 +120,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     // Default baseline parser & converter if not injected
     const defaultBaselineParser: MarkdownParserFn = async (content, id) => {
-        return normalizeGeminiConversation({
+        return parseProviderConversation({
             id,
             messages: [{ id: 'm1', role: 'user', content }],
         });
@@ -225,8 +228,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 });
             }
 
-            const msg = baseRes?.bundle?.conversation?.messages?.[0];
-            for (const block of msg?.blocks || []) {
+            const msg = baseRes?.conversation?.messages?.[0];
+            for (const block of msg?.content || []) {
                 report.markdown.baseline.blockDistribution[block.type] =
                     (report.markdown.baseline.blockDistribution[block.type] || 0) + 1;
                 if (block.type === 'unknown') {
@@ -256,8 +259,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     });
                 }
 
-                const msg = candRes?.bundle?.conversation?.messages?.[0];
-                for (const block of msg?.blocks || []) {
+                const msg = candRes?.conversation?.messages?.[0];
+                for (const block of msg?.content || []) {
                     report.markdown.candidate!.blockDistribution[block.type] =
                         (report.markdown.candidate!.blockDistribution[block.type] || 0) + 1;
                     if (block.type === 'unknown') {
@@ -278,7 +281,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         // 1c. Differential comparison if candidate parser was active
         if (activeCandidateParser) {
             if (baseRes && candRes) {
-                const diff = compareMarkdownAst(doc.text, baseRes.bundle, candRes.bundle);
+                const diff = compareMarkdownAst(doc.text, baseRes.conversation.messages[0]?.content ?? [], candRes.conversation.messages[0]?.content ?? []);
                 if (diff.hasDiff) {
                     report.markdown.diffCount += 1;
                     if (diff.category) {
@@ -473,24 +476,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const bundle = {
-                        schemaVersion: 1,
-                        conversation: {
-                            key: { providerId: 'gemini', conversationId: 'corpus-math-baseline-compile-gate' },
-                            title: 'Corpus Math Baseline Compile Gate',
-                            createdAt: '2026-09-28T00:00:00Z',
-                            messages: [{
-                                id: 'm1',
-                                role: 'assistant',
-                                blocks: baselineSuccessful.map((e, idx) => ({
-                                    id: `b${idx + 1}`,
-                                    type: 'math',
-                                    source: e.latex,
-                                })),
-                            }],
-                        },
-                        assets: [],
-                        citations: [],
+                    const domain: DomainConversationDetail = {
+                        providerId: 'gemini', id: 'corpus-math-baseline-compile-gate',
+                        title: 'Corpus Math Baseline Compile Gate', timestamp: Date.parse('2026-09-28T00:00:00Z'),
+                        assets: [], messages: [{ id: 'm1', role: 'assistant',
+                            content: baselineSuccessful.map(e => ({ type: 'math', source: e.latex })),
+                        }],
                     };
                     // Direct lookup of the cached exact Typst output from conversion phase:
                     const baseTypstMap = new Map<string, string>();
@@ -498,7 +489,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         baseTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => baseTypstMap.get(s);
-                    const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
+                    const document = renderDocumentTypst(composeDomainDocument(domain).document, {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,
@@ -531,24 +522,12 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const bundle = {
-                        schemaVersion: 1,
-                        conversation: {
-                            key: { providerId: 'gemini', conversationId: 'corpus-math-candidate-compile-gate' },
-                            title: 'Corpus Math Candidate Compile Gate',
-                            createdAt: '2026-09-28T00:00:00Z',
-                            messages: [{
-                                id: 'm1',
-                                role: 'assistant',
-                                blocks: candidateSuccessful.map((e, idx) => ({
-                                    id: `b${idx + 1}`,
-                                    type: 'math',
-                                    source: e.latex,
-                                })),
-                            }],
-                        },
-                        assets: [],
-                        citations: [],
+                    const domain: DomainConversationDetail = {
+                        providerId: 'gemini', id: 'corpus-math-candidate-compile-gate',
+                        title: 'Corpus Math Candidate Compile Gate', timestamp: Date.parse('2026-09-28T00:00:00Z'),
+                        assets: [], messages: [{ id: 'm1', role: 'assistant',
+                            content: candidateSuccessful.map(e => ({ type: 'math', source: e.latex })),
+                        }],
                     };
                     // Direct lookup of the cached exact Typst output from conversion phase:
                     const candTypstMap = new Map<string, string>();
@@ -556,7 +535,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         candTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => candTypstMap.get(s);
-                    const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
+                    const document = renderDocumentTypst(composeDomainDocument(domain).document, {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,

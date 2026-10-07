@@ -1,6 +1,6 @@
 import { classifyAssetAvailability } from '../canonical/assetResolution.js';
 import type { Asset, AssetStatus } from '../canonical/assets.js';
-import type { RenderDiagnostic } from '../canonical/rendering.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
 import { sha256Hex } from './sha256.js';
 
 import { checkImageContent, normalizeMime, extFromName, MAX_ASSET_BYTES, buildVirtualAssetPath } from './imageContent.js';
