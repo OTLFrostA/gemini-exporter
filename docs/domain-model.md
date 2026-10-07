@@ -16,7 +16,7 @@ interface ConversationParseResult {
 }
 ```
 
-Each source parser accepts its own raw schema and supplies a closed Domain graph, synchronously or asynchronously. New parsers require explicit provider identity. An import format and the content provider are different facts: Gemini live and Takeout use `gemini`, while OpenAI archives use `openai`. Diagnostics describe problems with a parse attempt; they are never fields of Domain or Content/Document AST.
+Each source parser accepts its own raw schema and supplies a closed Domain graph, synchronously or asynchronously. New parsers require explicit provider identity. An import format and the content provider are different facts: Gemini live and Takeout both use `gemini`. Compatibility records may preserve other provider identities without implying that their raw archive formats are supported. Diagnostics describe problems with a parse attempt; they are never fields of Domain or Content/Document AST.
 
 `parseConversation` in `src/core/parsers/parseConversation.ts` dispatches implemented input formats. It accepts `gemini-rpc` raw response text, `gemini-takeout` raw HTML/archive context, `gemini-takeout-zip` raw ZIP bytes (async), and `conversation-record` compatibility input from `compatibility/record`. This neutral name replaces the common parser's dependence on `GeminiNormalizationInput`; the old Gemini names remain type aliases for compatibility. The record parser returns the shared semantic result plus independent, asset-keyed resource/acquisition hints required by existing export callers.
 
@@ -83,10 +83,11 @@ Resource/acquisition hints travel beside Domain, keyed by asset ID. HTML/Markdow
 | Input | Current producer | Next migration requirement |
 | --- | --- | --- |
 | Existing application/cache records | `compatibility/record/parseConversationRecord.ts` | Keep the compatibility bridge until callers no longer need the persisted shape. |
-| OpenAI archive JSON prototype (no production import caller) | `compatibility/openai/openaiParser.ts` | Extend beyond the current toy selected-path parser, then decode raw records directly; preserve author/model facts, creation time, all meaningful roles and source node identities. Specify branching and tool-call/result relationships before projecting a selected path. |
 | Gemini RPC/JSPB | `parsers/gemini/rpc/parseConversation.ts` via `gemini-rpc`; compatibility callers remain on `compatibility/gemini/parseDetail.ts` | Direct page-to-Domain implementation and offline parity are covered. Verify live payload compatibility with Tier 2, then migrate pagination/client consumers without changing storage. |
 | Gemini Takeout HTML/archive | `parsers/gemini/takeout/parseConversation.ts` and `parsers/gemini/takeout/parseZip.ts`; production import remains on the compatibility API | Native raw HTML/ZIP-to-Domain entry points are implemented. Verify Tier 2 import/export before migrating production callers; keep file handles beside Domain and storage unchanged. |
 | Live DOM observations | `content/domScraper.ts` | Distinguish an observed fragment from a complete conversation; preserve authored content and provenance independently of DOM layout. |
+
+OpenAI archive import is not implemented. The unvalidated exploration prototype and its synthetic parser tests have been removed; OpenAI import is outside the current parser migration scope. Existing OpenAI-compatible JSON export and generic record compatibility remain separate capabilities.
 
 The currently linear message list is not a complete branching/tool execution model. Before migrating an input that contains those facts, extend the semantic contract and consumer projection together; do not silently discard non-selected branches or tool messages to fit today's renderer. Unsupported information must remain an explicit migration issue rather than being called complete support.
 
@@ -102,7 +103,7 @@ Storage adoption will be handled separately with an explicit versioned compatibi
 
 Source parsers and the common parsing contracts live in `src/core/parsers/`; Content AST lives under Domain. Document AST, composition and rendering have separate directories. RPC media filenames and persisted detail projection now live under `compatibility/gemini/`, independently of the raw wire decoder. Pure ZIP validation accepts an optional error translator; the existing UI supplies it from `compatibility/archive/` without making native parsers load storage through the language module. MiTeX's notation compatibility lives in a neutral utility, so renderers do not load the Gemini parser registry.
 
-Gemini RPC and Takeout have native raw-to-Domain entry points and offline contracts, but production client/pagination/import migration and live Tier 2 verification remain pending. OpenAI still has a selected-path archive prototype returning the legacy Conversation shape; it has no native Domain dispatch format or production import caller. Live DOM observations also still enter through existing application records. Neither the directory reorganization nor the record bridge completes those migrations.
+Gemini RPC and Takeout have native raw-to-Domain entry points and offline contracts, but production client/pagination/import migration and live Tier 2 verification remain pending. There is no OpenAI archive parser or production import caller; that unsupported exploration prototype has been removed. Live DOM observations also still enter through existing application records. Neither the directory reorganization nor the record bridge completes those migrations.
 
 Storage files, persisted Conversation types, keys, serialization and migration behavior are not modified. The existing storage layer continues to receive the same compatibility outputs.
 
