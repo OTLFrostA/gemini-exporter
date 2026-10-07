@@ -1,7 +1,7 @@
 // src/core/engine/liveSaveWriter.ts
 // Shared "format chat -> write markdown file via FsWriter" used by live-save.
 //
-// Content and background live-save share the async Canonical Markdown route,
+// Content and background live-save share the async Domain → Document AST Markdown route,
 // writer setup and "CleanTitle_Cid6.md" filename format. Formatting failures
 // propagate to the caller's existing error handling.
 //
@@ -24,7 +24,7 @@ export interface LiveSaveWriteInput {
 
 export interface LiveSaveWriterDeps {
     fsWriterClass?: new (dirHandle: any, rootDir: string) => FsWriter;
-    formatter?: Pick<typeof ChatFormatter, 'formatMarkdownCanonical'>;
+    formatter?: Pick<typeof ChatFormatter, 'formatMarkdownDocument'>;
     buildFileName?: (safeTitle: string, nid: string, ext: string) => string;
 }
 
@@ -61,7 +61,7 @@ export async function formatLiveSaveMarkdown(
     const formatter = deps.formatter ?? ChatFormatter;
     const fileName = buildFileName(input.safeTitle, input.nid, 'md');
     const shaped = { ...input.chat, title: input.safeTitle, id: input.nid };
-    const { content: markdown } = await formatter.formatMarkdownCanonical(shaped);
+    const { content: markdown } = await formatter.formatMarkdownDocument(shaped);
     return { fileName, markdown };
 }
 

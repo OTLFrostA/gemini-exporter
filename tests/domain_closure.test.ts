@@ -233,9 +233,9 @@ test('Domain consumers never parse provider syntax or reconcile acquisition alia
 });
 
 test('existing raw corpus preserves Domain, AST and all backend outputs across JSON round trips', async () => {
-    const fixtureDir = join(__dirname, 'fixtures/canonical');
+    const fixtureDir = join(__dirname, 'fixtures/provider');
     const inputs: Conversation[] = [];
-    for (const file of ['gemini-normalizer-sample.json', 'gemini-normalizer-turns.json']) {
+    for (const file of ['conversation-sample.json', 'conversation-turns.json']) {
         const input: Conversation = JSON.parse(readFileSync(join(fixtureDir, file), 'utf8'));
         // The Domain producer rejects malformed raw message bodies; compatibility fallback has its own tests.
         if (input.messages) input.messages = input.messages.filter(message => typeof message.content === 'string');

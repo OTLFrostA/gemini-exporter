@@ -497,11 +497,11 @@ test('Canonical Markdown preserves the header for empty chats', async () => {
         isEmpty: true
     };
 
-    const { content: mdZh } = await ChatFormatter.formatMarkdownCanonical(emptyChat, { lang: 'zh' });
+    const { content: mdZh } = await ChatFormatter.formatMarkdownDocument(emptyChat, { lang: 'zh' });
     assert.ok(mdZh.includes('title: "Used an Assistant feature"'), 'Frontmatter title');
     assert.ok(!mdZh.includes('## 👤'), 'empty chat has no fabricated messages');
 
-    const { content: mdEn } = await ChatFormatter.formatMarkdownCanonical(emptyChat, { lang: 'en' });
+    const { content: mdEn } = await ChatFormatter.formatMarkdownDocument(emptyChat, { lang: 'en' });
     assert.ok(mdEn.includes('# Used an Assistant feature'), 'empty chat retains title');
 });
 

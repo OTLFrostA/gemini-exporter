@@ -99,7 +99,6 @@ def build_message(idx, role, rng):
         "type": "message",
         "label": "you" if role == "user" else "assistant",
         "variant": "bubble" if role == "user" else "flow",
-        "anchor": f"turn-{'user' if role == 'user' else 'model'}-{2 * (idx - 1) + (role != 'user')}",
         "blocks": blocks,
     }
     return msg

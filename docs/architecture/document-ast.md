@@ -2,7 +2,7 @@
 
 **A renderer must not reinterpret source semantics. A renderer may perform layout.**
 
-Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. HTML, Markdown and PDF compose directly from Domain. Canonical remains only for historical compatibility APIs and fixtures; it is not part of the production presentation pipeline.
+Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. HTML, Markdown and PDF compose directly from Domain. Domain and Document AST are the only internal conversation representations; the former Canonical model and its compatibility APIs have been deleted.
 
 ```text
 raw input -> provider / legacy parser -> Domain
@@ -40,7 +40,7 @@ Document AST v2 is plain JSON and contains no provider payload, source resource 
 
 Content language is never inferred from the export UI locale. For example, a Chinese document can retain `documentLanguage: "zh-CN"` while English UI displays "Sources", "Copy" and "Thinking". When the content language is unknown, the document omits it; backends use their own fallback typography rather than invent a source-language fact.
 
-`header.date` is a unified display date in UTC `YYYY-MM-DD`, not an export date or a raw creation/update timestamp. Composition selects the first valid fact in this fixed order: `updatedAt`, `lastSeen`, `createdAt`, `timestamp`, `chatTime`. Historical Canonical compatibility inputs supply only `updatedAt` and `createdAt`. Invalid/missing candidates are skipped; the date is omitted when none is valid. Backends format this selected value without reselecting or parsing dates.
+`header.date` is a unified display date in UTC `YYYY-MM-DD`, not an export date or a raw creation/update timestamp. Composition selects the first valid fact in this fixed order: `updatedAt`, `lastSeen`, `createdAt`, `timestamp`, `chatTime`. Invalid/missing candidates are skipped; the date is omitted when none is valid. Backends format this selected value without reselecting or parsing dates.
 
 HTML generates its DOM IDs from message position and display container; `DisplayMessage.anchor` is absent from the shared contract. The unused `modelLabel` and `note` fields are removed because production Domain composition never supplied them. PDF may still emit private Typst `note` nodes for disclosures, role labels and source footers. Math source is normalized at the parser/content boundary; the HTML backend typesets it verbatim without trimming or removing dollar delimiters.
 
@@ -56,7 +56,7 @@ The PDF backend derives spacing, width, automatic keep-with-next and measurement
 
 Backends may inspect node types, containers and adjacent display nodes to choose spacing, keep a heading with following content, repeat table headers, measure/truncate a card, scale a figure, perform font/math fallback, or implement a format's capability limits. An explicit author constraint, if supported later, must be distinguishable from these automatic defaults.
 
-Backends must not read Domain, Canonical or provider payloads; parse message Markdown again; classify provider reasoning; merge legacy resource aliases; or rebind citations. Compatibility facades may receive Canonical to prepare resources, compose once and delegate, but they are orchestration rather than backend APIs.
+Backends must not read Domain or provider payloads; parse message Markdown again; classify provider reasoning; merge legacy resource aliases; or rebind citations. Orchestration parses input, composes Domain once, prepares resources separately and calls a backend with only Document AST, prepared bindings and render options.
 
 ## Practical placement questions
 
@@ -69,15 +69,15 @@ Numeric values are not automatically geometry: logical column indices, spans, he
 
 Contract tests render the same frozen JSON document through all three backends, verify rich table/caption preservation, independent content language/UI locale, raw code/file metadata, backend policy changes without recomposition, JSON roundtrip, input immutability and source-model import/type boundaries. Existing export, real-WASM, stress and visual tests remain regression gates. Backend adjacency inference is explicitly permitted; tests prohibit source-model dependencies rather than physical layout decisions.
 
-D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. D6 migrates production PDF preparation and payload orchestration to the same direct path. Obsolete Canonical conversation APIs and input adapters can now be removed in a separate cleanup. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
+D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. D6 migrates production PDF preparation and payload orchestration to the same direct path. The subsequent cleanup migrated all active callers/tests and removed the obsolete Canonical conversation APIs and input adapters. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
 
 ## Direct Domain composition (D5)
 
-`chatFormatter` retains its legacy public function names but no longer constructs a Canonical bundle for HTML/Markdown. Its provider/legacy adapter returns a closed Domain graph; `composeDomainDocument` organizes reasoning, content, attachment placement and sources into the shared Document AST. Resources retain Domain IDs, including shared resources referenced in multiple messages. `prepareDomainResources` separately binds those IDs to archive paths; neither Domain nor Document AST stores an export destination.
+`chatFormatter.formatHtmlDocument` and `formatMarkdownDocument` parse application input and orchestrate direct HTML/Markdown export. Their former Canonical public names and type aliases are deleted. Its provider/legacy adapter returns a closed Domain graph; `composeDomainDocument` organizes reasoning, content, attachment placement and sources into the shared Document AST. Resources retain Domain IDs, including shared resources referenced in multiple messages. `prepareDomainResources` separately binds those IDs to archive paths; neither Domain nor Document AST stores an export destination.
 
 Citation IDs are message-local Domain relationships. Textual web/grounding markers are resolved by input adapters (including reasoning and rich captions/descriptions); composers consume citation references and never scan text for provider marker syntax. Domain closure rejects duplicate citation IDs and unresolved references. Source UI strings remain backend-local. Authoritative title selection also happens at the legacy boundary rather than selecting raw title candidates during composition.
 
-The old Canonical composer delegates logical block composition to the same `contentComposer` for its historical API callers. That compatibility path may rename references for its historical schema, but the direct production paths never use it. No additional conversation representation is introduced. Raw/Standard/OpenAI JSON remain archival serializers of input data and are outside the presentation pipeline.
+The only conversation models are Domain facts/relationships and the logical Document AST. Raw/Standard/OpenAI JSON remain archival serializers of input data and are outside the presentation pipeline.
 
 ## Resource identity and export destinations
 
@@ -99,4 +99,4 @@ PDF stages receive Document AST plus prepared resources/options: the resource st
 
 Parser corpus evaluation now calls `parseProviderConversation` and compares the returned Content AST arrays directly. Its real-WASM compilation gates compose Domain into Document AST and lower that tree with `renderDocumentTypst`, reusing the exact cached math conversions. Corpus evaluation no longer creates a Canonical conversation bundle. Differential fixtures retain recursive comparisons for formatting, links, math, tables, unknown fields and inline text equivalence.
 
-Parser diagnostics, source references and JSON value types live in content/utilities; export artifact and delivery report types live beside the export pipeline. Production content/provider/PDF modules do not import these types through Canonical. Remaining historical tests and conversation APIs still require migration and removal before the cleanup is complete.
+Parser diagnostics, source references and JSON value types live in content/utilities; export artifact and delivery report types live beside the export pipeline. Production content/provider/PDF modules do not import these types through Canonical. All active parsing, resource, backend and compiler tests now exercise Domain/Document AST or prepared binary transport directly. The Canonical directory, schema, normalizers, composer, renderer adapters, resolver and byte store are removed. Captured external provider fixtures live in `tests/fixtures/provider`; parity/visual corpora contain frozen Document AST and separate resource bindings. PDF direct-export parity uses a frozen historical transport payload, not a retained legacy implementation. Public formatter names are `formatHtmlDocument` and `formatMarkdownDocument`, with no compatibility aliases.

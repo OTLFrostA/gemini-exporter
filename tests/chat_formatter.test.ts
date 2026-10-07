@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
-test('chat_formatter - formatMarkdownCanonical', async () => {
+test('chat_formatter - formatMarkdownDocument', async () => {
     const mockChat = {
         id: '12345678',
         title: 'Quantum Physics Guide',
@@ -15,7 +15,7 @@ test('chat_formatter - formatMarkdownCanonical', async () => {
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
+    const res = await ChatFormatter.formatMarkdownDocument(mockChat);
     assert.strictEqual(res.ext, 'md');
     // Frontmatter structure assertions
     assert.ok(res.content.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
@@ -194,7 +194,7 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
             { role: 'model', content: 'Here is the detailed explanation of const vs var.' }
         ]
     };
-    const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
+    const res = await ChatFormatter.formatMarkdownDocument(mockChat);
     assert.ok(!res.content.includes('```javascript\nPlease explain'), 'Natural language prompt must not be wrapped in javascript code block');
     assert.ok(res.content.includes('Please explain the following architectural concepts'), 'Prompt content must remain plain text');
 });
@@ -209,7 +209,7 @@ test('chat_formatter - decoupled formatters export valid focused functions', asy
     assert.strictEqual(typeof convertHtmlToMarkdown, 'function');
 
     const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
-    assert.ok((await ChatFormatter.formatMarkdownCanonical(testChat)).content.includes('title: "Test"'));
+    assert.ok((await ChatFormatter.formatMarkdownDocument(testChat)).content.includes('title: "Test"'));
     assert.throws(() => ChatFormatter.formatContent(testChat, 'markdown'), /unsupported format/);
     assert.ok(toOpenAIJson(testChat).includes('"content": "hello"'));
     assert.ok(toJsonStandard(testChat).includes('"id": "c1"'));

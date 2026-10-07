@@ -42,8 +42,8 @@ const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 (globalThis as any).self.JSZip = require('../lib/jszip.min.js');
 const JSZip = (globalThis as any).self.JSZip;
 
-const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
-const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
+const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
+const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
 
 // ---------------------------------------------------------------------------
 // Fixture helpers

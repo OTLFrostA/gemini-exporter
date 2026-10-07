@@ -31,7 +31,6 @@
       {
         "type": "message",
         "id": "m1",
-        "anchor": "turn-user-0",
         "variant": "bubble",
         "label": "you",
         "blocks": [
@@ -49,7 +48,6 @@
       {
         "type": "message",
         "id": "m2",
-        "anchor": "turn-model-1",
         "variant": "flow",
         "label": "assistant",
         "blocks": [

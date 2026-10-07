@@ -187,7 +187,7 @@ test('P0-7: Canonical Markdown must not throw on invalid date values', async () 
     let threw: any = null;
     let md = '';
     try {
-        md = (await ChatFormatter.formatMarkdownCanonical(
+        md = (await ChatFormatter.formatMarkdownDocument(
             { id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] }, {}
         )).content;
     } catch (e) {

@@ -1,6 +1,6 @@
 # Domain contract after C6
 
-C6 closes the Domain model. Document AST work must consume this contract through an adapter; it must not add provider parsing, resource aliases, export destinations, or presentation fields to Domain.
+C6 closes the Domain model. The composer consumes this contract directly; it must not add provider parsing, resource aliases, export destinations, or presentation fields to Domain.
 
 ```ts
 DomainConversationDetail {
@@ -29,14 +29,16 @@ Each semantic resource has one `DomainAsset` record. Every image/file `assetId` 
 
 Asset IDs are opaque and independent of export numbering. Known source/document/generation evidence yields deterministic IDs. Unidentified or conflicting resources receive separate minted IDs; consumers preserve them rather than reconstructing identity. These IDs survive JSON serialization. Changing message order does not change identities supported by unambiguous source evidence.
 
-`DomainAsset.kind` describes image, file, audio, video or other resources. Display names, media types, byte lengths, dimensions, failure information and generation metadata are semantic metadata. Document metadata (document ID, creation time, chip URL, sections, links, candidates, extracted Markdown and fabrication flag) stays on the resource. Acquisition byte buffers become detached base64 strings before Domain.
+`DomainAsset.kind` describes image, file, audio, video or other resources. Display names, media types, byte lengths, dimensions, failure information and generation metadata are semantic metadata. Document metadata (document ID, creation time, chip URL, sections, links, candidates, extracted Markdown and fabrication flag) stays on the resource. Original inline byte buffers may become detached base64 input facts before Domain. Bytes acquired during export stay only in PreparedResources; they never pass through Domain.
 
-`source.uri` is an acquisition reference; `source.path` is an entry in the input archive. Neither is an export destination. Domain contains no export filenames, storage handles, availability/layout state or per-provider resource aliases. Legacy fields such as `localName` and `subDir` are not part of the public model.
+`source.uri` is the original source/acquisition URI. `source.path` does not exist. Export destinations and legacy `localName` are independent preparation hints and never semantic identity evidence. Domain contains no export filenames, storage handles, availability/layout state or per-provider resource aliases. Legacy fields such as `localName` and `subDir` are not part of the public model.
 
 ## Consumer boundary
 
 `assertDomainClosure` rejects empty provider identity, repeated asset IDs, repeated attachment relationships and dangling body/reasoning/attachment references. Domain is JSON-portable and exports do not mutate it. Consumers do not parse text nodes as Markdown or HTML.
 
-The existing Canonical input adapter resolves registry IDs to the existing export asset input. Inline resources carry their semantic identity separately from their acquisition URI so export cannot infer a different relationship from matching basenames. This preserves the current Canonical schema, Document AST and renderer behavior; their redesign is a later phase. Registry uniqueness is a Domain invariant, while the existing export representation can still create a presentation asset for each message that uses the resource.
+`composeDomainDocument` consumes the closed graph directly and places explicit attachments not already referenced in content/reasoning. It binds message-local citations, organizes disclosures and sources, and returns one format-neutral Document AST. No Canonical bundle or conversation compatibility adapter exists between Domain and Document AST.
+
+Resource/acquisition hints travel beside Domain, keyed by Domain asset IDs. HTML/Markdown preparation binds IDs to archive destinations. PDF preparation acquires only rendered images into PreparedResources and then validates/mounts their bytes; acquisition outcomes cannot alter Domain or Document AST.
 
 Acceptance is covered by `tests/domain_closure.test.ts`, resource cleanup/generated-media tests, type-level boundary checks and the existing export suites, including AST/HTML/Markdown/Typst corpus parity and JSON round trips.

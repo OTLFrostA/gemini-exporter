@@ -4,7 +4,7 @@ Syntax recognition uses the shared `parseMarkdownAst(source)` primitive with unc
 
 ## Real replay provenance
 
-`tests/fixtures/canonical/math/tier2_sta_resource_oracle.md` is an unchanged display-math excerpt from conversation `0c171d7f09355a55`, exported at `2026-09-30T08:51:16.653Z`. The complete artifact is retained locally under `tests/output/contract_fixes/initial_live_export/extracted_verify_1790758278/gemini_export/冷冻电镜缺失楔与PSF拉伸推导_355a55.md`.
+`tests/fixtures/provider/math/tier2_sta_resource_oracle.md` is an unchanged display-math excerpt from conversation `0c171d7f09355a55`, exported at `2026-09-30T08:51:16.653Z`. The complete artifact is retained locally under `tests/output/contract_fixes/initial_live_export/extracted_verify_1790758278/gemini_export/冷冻电镜缺失楔与PSF拉伸推导_355a55.md`.
 
 Original artifact SHA-256: `854feb9914f07179580f389e9ef257b84e02563133be2b903f817b6b4408181e`.
 

@@ -8,7 +8,7 @@
  *  - 中文 2000+ 字零丢失
  *  - 转换失败的公式必须可见 (原文回退), 不静默丢
  *
- * These tests pin those invariants at the toTypstPayload boundary: if the
+ * These tests pin those invariants at the Document AST/PDF backend boundary: if the
  * adapter ever turns math into an image placeholder, mangles Chinese text,
  * or silently drops an unconvertible formula, the gate fails.
  *

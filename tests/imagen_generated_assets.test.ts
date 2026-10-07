@@ -119,7 +119,7 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
         ]
     };
 
-    const { content: res } = await ChatFormatter.formatMarkdownCanonical(mockChat);
+    const { content: res } = await ChatFormatter.formatMarkdownDocument(mockChat);
     // 必须包含 Markdown 图片引用 ![]
     assert.ok(res.includes('!['));
     assert.ok(res.includes('assets/b800f3_watermarked_img_16704480932994645752.jpg'));

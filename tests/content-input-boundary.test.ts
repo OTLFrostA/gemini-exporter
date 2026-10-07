@@ -139,7 +139,7 @@ for (const document of [
     { type: 'file', fileName: 'missing-report.txt', sections: ['section'] },
 ]) {
     test(`structured-only search images retain document/asset ordering and metadata: ${document.fileName}`, async () => {
-        const structuredContent = JSON.parse(readFileSync(join(__dirname, 'fixtures/canonical/structured_rpc/b-stack-structured.json'), 'utf8'));
+        const structuredContent = JSON.parse(readFileSync(join(__dirname, 'fixtures/provider/structured_rpc/b-stack-structured.json'), 'utf8'));
         const legacy: Conversation = { ...metadata, messages: [{
             id: 'message', role: 'model', content: 'fallback', structuredContent, documents: [document],
         }] };

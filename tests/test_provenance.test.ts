@@ -6,7 +6,7 @@
  * 1. Strict P0 Admission Gate: ANY test claiming P0 MUST possess a verifiable
  *    evidence file path on disk and a non-empty originalHash.
  * 2. Manifest structural integrity and valid tier definitions.
- * 3. Every canonical & typst-math test file in tests/ is audited and classified.
+ * 3. Every Domain, Document, provider and Typst contract test file in tests/ is audited and classified.
  */
 export {};
 const test = require('node:test');
@@ -113,7 +113,7 @@ test('Test Provenance Manifest: All registered suites and tests have valid class
     );
 });
 
-test('Test Provenance Manifest: No unclassified canonical or typst test files in tests/', () => {
+test('Test Provenance Manifest: No unclassified Domain, Document, provider or Typst contract test files in tests/', () => {
     const data = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
     const registeredFiles = new Set(data.suites.map((s: any) => s.file.replace(/\\/g, '/')));
 
@@ -123,9 +123,8 @@ test('Test Provenance Manifest: No unclassified canonical or typst test files in
 
     for (const f of testFiles) {
         if (!f.endsWith('.test.ts')) continue;
-        const isCanonical = f.startsWith('canonical-') || f === 'html-canonical-migration.test.ts';
-        const isTypst = f.startsWith('typst-');
-        if (isCanonical || isTypst) {
+        const auditedContract = ['domain-', 'document-', 'provider-', 'typst-', 'html-document-'].some(prefix => f.startsWith(prefix));
+        if (auditedContract) {
             const rel = `tests/${f}`;
             if (!registeredFiles.has(rel)) {
                 unclassified.push(rel);
@@ -136,6 +135,6 @@ test('Test Provenance Manifest: No unclassified canonical or typst test files in
     assert.deepStrictEqual(
         unclassified,
         [],
-        `All canonical and typst test files must be audited in the manifest. Unclassified files: ${unclassified.join(', ')}`
+        `All Domain, Document, provider and Typst contract test files must be audited in the manifest. Unclassified files: ${unclassified.join(', ')}`
     );
 });

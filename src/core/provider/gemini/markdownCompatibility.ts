@@ -129,7 +129,7 @@ export function normalizeMathFences(source: string): string {
 export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
     id: 'GM-MD-001',
     domain: 'markdown',
-    evidence: 'tests/fixtures/canonical/math/gm_md_001_evidence.md',
+    evidence: 'tests/fixtures/provider/math/gm_md_001_evidence.md',
     observedAt: '2026-09-29T23:50:00Z',
     description:
         'Normalizes multiline display-math fences ($$) where LaTeX environment keywords ' +
@@ -150,7 +150,7 @@ export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Objec
 export const GM_TEX_001_SCR_NORMALIZATION: TexCompatRule = Object.freeze({
     id: 'GM-TEX-001',
     domain: 'tex',
-    evidence: 'tests/fixtures/canonical/math/gm_tex_001_evidence.tex',
+    evidence: 'tests/fixtures/provider/math/gm_tex_001_evidence.tex',
     observedAt: '2026-10-01T18:00:00Z',
     description:
         'Normalizes \\mathscr to \\mathcal since Gemini frequently outputs standard physics ' +

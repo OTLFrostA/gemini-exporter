@@ -6,7 +6,7 @@
  * 测得 121 消息长会话可编译、100 会话最慢 50.6s（含真编译）、300 次编译 0 失败、
  * 无内存泄漏信号。
  *
- * §1–§4 是预处理阶段门禁：normalizeGeminiConversation（F2b）+ toTypstPayload（F2c 前端），
+ * §1–§4 是预处理阶段门禁：provider parsing + Domain composition + PDF backend，
  * 日常 CI 常开。§5（Item 4）是真编译器（Typst WASM sandbox，Phase D）落地后的端到端门禁：
  * 完整链路 PdfExporter → project → resources → payload → real Typst → delivery；
  * release-only——RELEASE_STRESS=1 时跑 100 会话 / 2000 消息全量，日常 CI 只跑 2 会话微型冒烟。

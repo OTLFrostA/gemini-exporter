@@ -1,8 +1,7 @@
 /**
  * tests/html_export.test.ts
  * HTML export via the production canonical path
- * (ChatFormatter.formatHtmlCanonical: normalizeGeminiConversation ->
- * CanonicalHtmlRenderer).
+ * (ChatFormatter.formatHtmlDocument: parseProviderConversation -> Domain -> Document AST -> HTML backend).
  *
  * Item 2 (P0): the legacy sync toHtml() / formatContent(chat, 'html') path
  * was removed; these tests now exercise the canonical renderer, which
@@ -13,7 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
-test('html_export - formatHtmlCanonical returns valid structure, metadata, and styles', async () => {
+test('html_export - formatHtmlDocument returns valid structure, metadata, and styles', async () => {
     const mockChat = {
         id: 'chat_html_test_123',
         title: 'Quantum Computing & Algorithms',
@@ -45,7 +44,7 @@ test('html_export - formatHtmlCanonical returns valid structure, metadata, and s
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlCanonical(mockChat);
+    const res = await ChatFormatter.formatHtmlDocument(mockChat);
     assert.strictEqual(res.ext, 'html');
     assert.strictEqual(res.mime, 'text/html');
 
@@ -96,11 +95,11 @@ test('html_export - supports English localization and handles empty conversation
         messages: []
     };
 
-    const resEn = await ChatFormatter.formatHtmlCanonical(emptyChat, { lang: 'en' });
+    const resEn = await ChatFormatter.formatHtmlDocument(emptyChat, { lang: 'en' });
     assert.ok(resEn.content.includes('<html>'), 'Unknown document language must not be inferred from English UI');
     assert.ok(resEn.content.includes('Empty conversation or fetch failed.'), 'Must render English empty notice');
 
-    const resZh = await ChatFormatter.formatHtmlCanonical(emptyChat, { lang: 'zh' });
+    const resZh = await ChatFormatter.formatHtmlDocument(emptyChat, { lang: 'zh' });
     assert.ok(resZh.content.includes('<html>'), 'Unknown document language must not be inferred from Chinese UI');
     assert.ok(resZh.content.includes('暂无对话记录或拉取失败。'), 'Must render Chinese empty notice');
 });
@@ -117,7 +116,7 @@ test('html_export - XSS protection escapes malicious tags', async () => {
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlCanonical(attackChat);
+    const res = await ChatFormatter.formatHtmlDocument(attackChat);
     assert.ok(!res.content.includes('<script>alert("hacked")</script>'), 'Title script tags must be escaped');
     assert.ok(res.content.includes('&lt;script&gt;alert(&quot;hacked&quot;)&lt;/script&gt;'), 'Title must be HTML encoded');
 });
@@ -138,7 +137,7 @@ test('html_export - XSS pseudo-protocols in markdown links are disarmed to safe 
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlCanonical(attackChat);
+    const res = await ChatFormatter.formatHtmlDocument(attackChat);
     const html = res.content;
     assert.ok(!html.includes('href="javascript:'), 'Must NOT contain javascript: in href');
     assert.ok(!html.includes('href="vbscript:'), 'Must NOT contain vbscript: in href');

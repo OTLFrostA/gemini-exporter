@@ -42,7 +42,7 @@
 1. **唯一语法缺陷审计：PR #640 (`329ce82`)**
    - **改动内容**：在 `markdownToBlocks.ts`（当时为 `normalizeGemini.ts`）的 `parseEmphasis` 中引入标准 CommonMark 的 left/right-flanking 定界符边界判断。
    - **根本原因**：Gemini 生成的代码和数学公式中包含大量行内下划线（如变量名 `foo_bar`、公式角标 `\sum_{i=1}`、文件名 `data_dump.txt`）。早期朴素的正则贪婪匹配误将下划线作为斜体解析。
-   - **处理结果**：通过对前驱/后继字符的空白与标点规则判定，**以纯通用的 CommonMark 标准规范彻底根治，未引入任何 LaTeX 专有特判**。测试套件 `canonical-underscore-delimiter.test.ts` 已对此永久锁定。
+   - **处理结果**：通过对前驱/后继字符的空白与标点规则判定，**以纯通用的 CommonMark 标准规范彻底根治，未引入任何 LaTeX 专有特判**。测试套件 `provider-underscore-delimiter.test.ts` 已对此永久锁定。
 
 2. **架构收敛提交：PR #649 (`9766457`)**
    - **改动内容**：将庞大的 `normalizeGemini.ts` 拆解为单一职责的 5 个子文件：
