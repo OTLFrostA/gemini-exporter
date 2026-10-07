@@ -1,3 +1,4 @@
+import type { Citation } from './citations.js';
 import type { BlockNode } from '../../content/blocks.js';
 import type { Diagnostic } from './diagnostics.js';
 import type { RawCitation } from './gemini/normalizeCitations.js';
@@ -22,6 +23,8 @@ export interface CanonicalMessageInput {
     reasoningBlocks?: BlockNode[];
     /** Closed Domain identities with acquisition URIs, bypassing legacy alias matching. */
     inlineAssetSources?: ReadonlyMap<string, string>;
+    /** Already bound Domain citations; compatibility packaging must not reinterpret marker text. */
+    resolvedCitations?: Citation[];
     citationInput: { list: RawCitation[]; skipped: number };
     diagnostics?: Diagnostic[];
     unknownFields?: string[];

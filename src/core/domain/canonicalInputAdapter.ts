@@ -46,12 +46,34 @@ export function toCanonicalDomainMessage(message: DomainMessage, locator: string
     };
     const reasoningBlocks = message.reasoning && mapContentAssetReferences(message.reasoning, resolve);
     const content = mapContentAssetReferences(message.content, resolve);
-    const { id, role, timestamp, groundingCitationMarkers } = message;
+    const { id, role, timestamp } = message;
+    const messageId = id ?? `msg-${Number(locator.match(/\[(\d+)\]$/)?.[1] ?? 0)}`;
+    const webCitations = (message.citations ?? []).filter(citation => citation.kind !== 'attachment');
+    const grounding = (message.citations ?? []).filter(citation => citation.kind === 'attachment');
+    const citationIds = new Map((message.citations ?? []).map(citation => [citation.id, citation.kind === 'attachment'
+        ? `${messageId}-gcit-${citation.number ?? 1}` : `${messageId}-cit${webCitations.indexOf(citation)}`]));
+    const remapCitations = (nodes: import('../content/blocks.js').BlockNode[]) => {
+        if (!citationIds.size) return nodes;
+        const cloned = structuredClone(nodes);
+        const walk = (value: unknown): void => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) { value.forEach(walk); return; }
+            const node = value as Record<string, unknown>;
+            if (node.type === 'citationRef' && typeof node.citationId === 'string') node.citationId = citationIds.get(node.citationId) ?? node.citationId;
+            Object.values(node).forEach(walk);
+        };
+        walk(cloned); return cloned;
+    };
+    const resolvedCitations: import('../export/canonical/citations.js').Citation[] = [
+        ...webCitations.map((citation, index) => ({ id: `${messageId}-cit${index}`, kind: /^https?:\/\//i.test(citation.url ?? '') ? 'web' as const : 'other' as const, url: citation.url, title: citation.title })),
+        ...grounding.map(citation => ({ id: `${messageId}-gcit-${citation.number ?? 1}`, kind: 'attachment' as const })),
+    ];
     return {
-        message: { id, role, content, timestamp, attachments, groundingCitationMarkers },
+        message: { id, role, content: remapCitations(content), timestamp, attachments },
         locator,
-        reasoningBlocks,
+        reasoningBlocks: reasoningBlocks && remapCitations(reasoningBlocks),
         inlineAssetSources,
-        citationInput: { list: message.citations ?? [], skipped: 0 },
+        resolvedCitations,
+        citationInput: { list: [], skipped: 0 },
     };
 }
