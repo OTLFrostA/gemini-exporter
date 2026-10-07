@@ -1,7 +1,8 @@
+import type { CompanionResourcePlan, ExportArtifact } from '../artifacts.js';
 import type { Asset } from './assets.js';
 import type { CanonicalConversationBundle } from './conversation.js';
 import { collectReferencedAssetIds } from './assetReferences.js';
-import type { CompanionResourcePlan, ConversationRenderer, ExportArtifact, RenderContext, RenderDiagnostic } from './rendering.js';
+import type { ConversationRenderer, RenderContext, RenderDiagnostic } from './rendering.js';
 import { composeDocument, type CompositionOptions } from '../document/composeDocument.js';
 import type { HtmlRenderOptions } from '../document/renderOptions.js';
 import { renderDocumentHtml } from '../document/renderHtml.js';

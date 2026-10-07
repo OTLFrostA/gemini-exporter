@@ -5,7 +5,7 @@ import type {
     CanonicalConversationBundle,
     MessageNode,
 } from './conversation.js';
-import type { Diagnostic } from './diagnostics.js';
+import type { Diagnostic } from '../../content/diagnostics.js';
 import type { NormalizationResult } from './normalizer.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource, type TitleCandidate } from './titleAuthority.js';
 import { validateBundle } from './validate.js';

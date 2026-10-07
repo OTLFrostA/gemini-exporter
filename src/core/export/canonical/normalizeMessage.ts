@@ -4,9 +4,9 @@ import { collectReferencedAssetIds } from './assetReferences.js';
 import type { BlockNode } from '../../content/blocks.js';
 import type { Citation } from './citations.js';
 import type { MessageNode, MessageRole } from './conversation.js';
-import type { Diagnostic } from './diagnostics.js';
-import type { JsonValue } from './json.js';
-import type { SourceRef } from './provenance.js';
+import type { Diagnostic } from '../../content/diagnostics.js';
+import type { JsonValue } from '../../utils/jsonTypes.js';
+import type { SourceRef } from '../../content/sourceRef.js';
 import type { InlineByteStore } from '../assets/index.js';
 import {
     type AssetParserContext,

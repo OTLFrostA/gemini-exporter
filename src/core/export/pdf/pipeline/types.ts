@@ -2,7 +2,7 @@ import type { DocumentAst } from '../../document/ast.js';
 import type { PreparedResources } from '../../assets/preparedResources.js';
 import type {
     ArtifactWriteReport,
-} from '../../canonical/rendering.js';
+} from '../../artifacts.js';
 import type { TypstConversationRenderPayload } from '../../typst/transport.js';
 import type { LocalFontResolution } from '../../typst/fonts/localFontProvider.js';
 import type { IPdfCompiler } from '../pdfCompiler.js';

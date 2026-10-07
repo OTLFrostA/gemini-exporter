@@ -1,6 +1,6 @@
 import type { Citation } from './citations.js';
 import type { BlockNode } from '../../content/blocks.js';
-import type { Diagnostic } from './diagnostics.js';
+import type { Diagnostic } from '../../content/diagnostics.js';
 import type { RawCitation } from './gemini/normalizeCitations.js';
 import type { AssetNormalizationInput } from './assetInput.js';
 

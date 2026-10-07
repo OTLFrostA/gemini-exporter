@@ -1,3 +1,4 @@
+import type { ExportArtifact } from '../artifacts.js';
 import type { Asset } from './assets.js';
 import type { CanonicalConversationBundle } from './conversation.js';
 export type { TypstRenderPayload } from '../pdf/pdfCompiler.js';
@@ -26,28 +27,6 @@ export interface RenderContext {
     locale: 'zh' | 'en';
     signal: AbortSignal;
     reportProgress(stage: string, current: number, total: number): void;
-}
-
-export interface CompanionResourcePlan {
-    resourceIds: string[];
-    omitted: Array<{ resourceId: string; reason: string }>;
-}
-
-export interface ArtifactWriteReport {
-    fileName: string;
-    target: 'zip' | 'folder' | string;
-    bytesWritten: number;
-    writtenAt: string;
-}
-
-export interface ExportArtifact {
-    fileName: string;
-    mimeType: string;
-    content: string | Blob | Uint8Array;
-    companionResourceIds: string[];
-    companionPlan?: CompanionResourcePlan;
-    writeReport?: ArtifactWriteReport;
-    diagnostics?: RenderDiagnostic[];
 }
 
 export interface ThoughtRenderOptions {

@@ -67,9 +67,9 @@ import type {
     EmphasisInline,
     TextInline,
 } from '../inline.js';
-import type { JsonValue } from '../../export/canonical/json.js';
-import type { Diagnostic } from '../../export/canonical/diagnostics.js';
-import type { SourceRef } from '../../export/canonical/provenance.js';
+import type { JsonValue } from '../../utils/jsonTypes.js';
+import type { Diagnostic } from '../diagnostics.js';
+import type { SourceRef } from '../sourceRef.js';
 /** Provider-neutral parsing hooks; asset ownership stays with the caller. */
 export interface MarkdownParseContext {
     diagnostics: Diagnostic[];

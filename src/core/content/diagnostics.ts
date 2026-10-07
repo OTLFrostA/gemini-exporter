@@ -1,5 +1,5 @@
-import type { JsonValue } from './json.js';
-import type { SourceRef } from './provenance.js';
+import type { JsonValue } from '../utils/jsonTypes.js';
+import type { SourceRef } from './sourceRef.js';
 
 export type DiagnosticSeverity = 'info' | 'warning' | 'error';
 

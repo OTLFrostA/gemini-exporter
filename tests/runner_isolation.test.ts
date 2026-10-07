@@ -48,11 +48,11 @@ test('Runner Isolation Matrix [1/8]: Baseline Success / Candidate Success', asyn
         corpusCategory: 'isolation' as any,
         compileTypst: false,
         baselineParser: async (text: string) => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] } },
+            conversation: { id: 'isolation', title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] },
             diagnostics: [],
         }),
         candidateParser: async (text: string) => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] } },
+            conversation: { id: 'isolation', title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] },
             diagnostics: [],
         }),
         baselineConverter: (latex: string) => ({ typst: latex }),
@@ -100,11 +100,11 @@ test('Runner Isolation Matrix [3/8]: Baseline Success / Candidate Fail (Fallback
         corpusCategory: 'isolation' as any,
         compileTypst: false,
         baselineParser: async (text: string) => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] } },
+            conversation: { id: 'isolation', title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] },
             diagnostics: [],
         }),
         candidateParser: async () => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'unknown', sourceType: 'unsupported', text: 'Unsupported content' }] }] } },
+            conversation: { id: 'isolation', title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'unknown', sourceType: 'unsupported', text: 'Unsupported content' }] }] },
             diagnostics: [{ code: 'CANDIDATE_FALLBACK', message: 'Candidate fallback' }],
         }),
     });
@@ -132,7 +132,7 @@ test('Runner Isolation Matrix [4/8]: Baseline Throw (Crash) / Candidate Success'
             throw new Error('Fatal crash in baseline parser');
         },
         candidateParser: async (text: string) => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] } },
+            conversation: { id: 'isolation', title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] },
             diagnostics: [],
         }),
     });
@@ -158,7 +158,7 @@ test('Runner Isolation Matrix [5/8]: Baseline Success / Candidate Throw (Crash)'
         corpusCategory: 'isolation' as any,
         compileTypst: false,
         baselineParser: async (text: string) => ({
-            bundle: { conversation: { messages: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] } },
+            conversation: { id: 'isolation', title: '', timestamp: null, providerId: 'gemini', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text }] }] }] },
             diagnostics: [],
         }),
         candidateParser: async () => {
