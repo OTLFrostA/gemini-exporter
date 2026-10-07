@@ -2,7 +2,7 @@
 
 Domain is the provider-neutral semantic conversation we intend to remember over time. It owns source facts and relationships, independently of the current exporter or storage implementation. The target producer pipeline is `raw input → source parser → Domain`. Consumers then use `Domain → Document AST → Renderer`.
 
-This phase establishes the shared parsing contract and entry point. It does **not** migrate the existing raw producers or storage. A historical application record is explicitly a migration bridge, not a raw decoder.
+The shared parsing contract now includes a direct Gemini detail RPC parser. Fetch/sync/storage callers still use their existing compatibility outputs; migrating those callers remains separate. A historical application record is explicitly a migration bridge, not a raw decoder.
 
 ## Shared parser contract
 
@@ -18,11 +18,19 @@ interface ConversationParseResult {
 
 Each source parser accepts its own raw schema and supplies a closed Domain graph, synchronously or asynchronously. New parsers require explicit provider identity. An import format and the content provider are different facts: Gemini live and Takeout use `gemini`, while OpenAI archives use `openai`. Diagnostics describe problems with a parse attempt; they are never fields of Domain or Content/Document AST.
 
-`parseConversation` in `src/core/provider/parseConversation.ts` dispatches implemented input formats. Today its only format is `conversation-record`, accepting `ConversationRecordInput` from `provider/record`. This neutral name replaces the common parser's dependence on `GeminiNormalizationInput`; the old Gemini names remain type aliases for compatibility. The record parser returns the shared semantic result plus independent, asset-keyed resource/acquisition hints required by existing export callers.
+`parseConversation` in `src/core/provider/parseConversation.ts` dispatches implemented input formats. It accepts `gemini-rpc` raw response text and `conversation-record` compatibility input from `provider/record`. This neutral name replaces the common parser's dependence on `GeminiNormalizationInput`; the old Gemini names remain type aliases for compatibility. The record parser returns the shared semantic result plus independent, asset-keyed resource/acquisition hints required by existing export callers.
 
 HTML/Markdown application adapters and PDF preparation enter through this function. `parseProviderConversation` remains a compatibility wrapper for existing callers and tests. Source-string provider inference is isolated in that wrapper's module; it is not a rule for new raw parsers. Unsupported formats are rejected rather than routed through a guessed decoder.
 
 When a raw producer migrates, add its explicit format and raw schema to this dispatcher and implement its parser against the shared result contract. That parser must construct Domain from source evidence directly, without first constructing the persisted `Conversation` or a renderer model. Archive lookup or asynchronous decoding can happen inside its parser; it does not require another semantic model.
+
+## Gemini raw RPC boundary
+
+`provider/gemini/rpcConversationParser.ts` constructs Domain directly from source evidence returned by `api/parser/parseDetail.ts::decodeGeminiDetail`. This shared decoder extracts the current wire grammar once. Its types live in `api/parser/detailEvidence.ts` and do not depend on the persisted `Conversation`/`Message` contract. The historical `parseDetail` projects that evidence into its unchanged compatibility output; the native parser never calls it or the record parser.
+
+The native parser preserves messages/candidates, body/reasoning, citations, structured resources, source dates, metadata-only titles and the original request tokens. Historical normalized lookup keys and archive destinations remain compatibility/preparation hints. Model names pass through when source evidence exposes them; this change does not guess an undocumented model slot.
+
+A result covers one decoded detail page. Remaining pagination or rejected source turns imply partial coverage; an absent cursor leaves completeness unknown. `transport` carries pagination, schema warnings and decoded/debug payloads beside Domain. Diagnostics also remain outside the graph. Pagination aggregation and production caller migration have not been switched. Synthetic envelopes plus existing sanitized wire fixtures verify offline semantic parity, not live RPC compatibility; Tier 2 remains pending until a logged-in debug Chrome is available.
 
 ## What Domain remembers
 
@@ -65,8 +73,8 @@ Resource/acquisition hints travel beside Domain, keyed by asset ID. HTML/Markdow
 | Input | Current producer | Next migration requirement |
 | --- | --- | --- |
 | Existing application/cache records | `provider/record/parseConversationRecord.ts` | Keep the compatibility bridge until callers no longer need the persisted shape. |
-| OpenAI archive JSON | `engine/takeout/openaiParser.ts` | Decode raw records directly; preserve author/model facts, creation time, all meaningful roles and source node identities. Specify branching and tool-call/result relationships before projecting a selected path. |
-| Gemini RPC/JSPB | `api/parser/parseDetail.ts` | Construct Content AST and resource/citation identities from wire evidence; preserve pagination/truncation semantics and exposed reasoning/model facts. Verify with real payload evidence and Tier 2. |
+| OpenAI archive JSON prototype (no production import caller) | `engine/takeout/openaiParser.ts` | Extend beyond the current toy selected-path parser, then decode raw records directly; preserve author/model facts, creation time, all meaningful roles and source node identities. Specify branching and tool-call/result relationships before projecting a selected path. |
+| Gemini RPC/JSPB | `provider/gemini/rpcConversationParser.ts` via `gemini-rpc`; compatibility callers remain on `api/parser/parseDetail.ts` | Direct page-to-Domain implementation and offline parity are covered. Verify live payload compatibility with Tier 2, then migrate pagination/client consumers without changing storage. |
 | Gemini Takeout HTML/archive | `engine/takeout/takeoutHtmlParser.ts` | Construct Domain from HTML plus archive evidence; keep resource lookup context separate, preserve generated-media and document facts. Verify Tier 2 import/export. |
 | Live DOM observations | `content/domScraper.ts` | Distinguish an observed fragment from a complete conversation; preserve authored content and provenance independently of DOM layout. |
 

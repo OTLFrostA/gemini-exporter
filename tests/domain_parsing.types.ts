@@ -2,6 +2,7 @@ import type { ConversationParser, ConversationParseResult } from '../src/core/do
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { parseConversation } from '../src/core/provider/parseConversation.js';
 import { parseConversationRecord } from '../src/core/provider/record/parseConversationRecord.js';
+import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/core/provider/gemini/rpcConversationParser.js';
 import type { ConversationRecordInput } from '../src/core/provider/record/conversationRecord.js';
 
 // Raw decoders need no legacy Conversation, export hints, storage schema or Gemini input type.
@@ -16,10 +17,15 @@ const sharedResult: ConversationParseResult = parseConversation({ format: 'conve
 void asyncRawParser;
 void recordParser;
 void sharedResult;
+const rpcParser: ConversationParser<string, GeminiRpcParseResult> = parseGeminiRpcConversation;
+const rpcResult: GeminiRpcParseResult = parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: '[]' });
+const cursor: string | null = rpcResult.transport.nextPageToken;
+void rpcParser;
+void cursor;
 
 // @ts-expect-error Every new entry point requires an explicit provider.
 parseConversation({ format: 'conversation-record', data: {} });
-// @ts-expect-error No raw format is advertised before its Domain decoder is implemented.
+// @ts-expect-error Raw RPC parsing requires response text rather than a record.
 parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: {} });
 // @ts-expect-error Problems remain outside the semantic conversation.
 const diagnosticsInDomain: DomainConversationDetail = { providerId: 'provider', id: '', title: '', timestamp: null, assets: [], messages: [], diagnostics: [] };

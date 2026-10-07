@@ -68,5 +68,9 @@
   "src/core/provider/record/conversationRecord.ts",
   "src/core/provider/record/parseConversationRecord.ts",
   "tests/domain-parsing.test.ts",
-  "tests/domain_parsing.types.ts"
+  "tests/domain_parsing.types.ts",
+  "src/core/api/parser/detailEvidence.ts",
+  "src/core/provider/parsingResult.ts",
+  "src/core/provider/gemini/rpcConversationParser.ts",
+  "tests/provider-gemini-rpc-domain.test.ts"
 ]

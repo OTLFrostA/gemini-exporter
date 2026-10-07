@@ -1,26 +1,5 @@
 [
   {
-    "id": "quantum_optomechanics_cavity_ground_state_cooling",
-    "domain": "quantum_optomechanics_cavity_cooling",
-    "title": "量子腔光力学：辐射压力耦合线性化与微机械振子基态冷却动力学",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试腔光力学非线性哈密顿量有效声子占据数推导、边带分辨极限光力阻尼率分析、朗之万方程双稳态相图 Python 求解与宏观量子基态实验平台横向对比",
-    "turns": [
-      "从单模光学共振腔与微机械谐振子辐射压力耦合哈密顿量 \\hat{H} = \\hbar \\Delta \\hat{a}^\\dagger \\hat{a} + \\hbar \\omega_m \\hat{b}^\\dagger \\hat{b} - \\hbar g_0 \\hat{a}^\\dagger \\hat{a} (\\hat{b} + \\hat{b}^\\dagger) 出发，在强相干光驱动极限下推导有效线性化光力学耦合常数 G = g_0 \\sqrt{\\bar{n}_{cav}}，并求出光力诱导频移 (Optical Spring Effect) \\delta \\omega_m 与有效光力阻尼率 \\Gamma_{opt} 的解析形式。",
-      "在边带分辨良好条件 (Resolved Sideband Regime, \\omega_m \\gg \\kappa) 下，运用量子朗之万方程 (Quantum Langevin Equations) 与玻色输入-输出理论，推导微机械振子经反斯托克斯 (Anti-Stokes) 光子散射冷却后的稳态最小声子占据数 \\bar{n}_{min} = (\\kappa / 4 \\omega_m)^2，证明实现量子基态冷却 (\\bar{n}_{eff} < 1) 所需的临界光力协同度 C = 4 G^2 / (\\kappa \\gamma_m) \\gg n_{th} 条件。",
-      "使用 Python 编写脚本，基于 Scipy 或 QuTiP 求解线性化光力学系统的漂移矩阵 (Drift Matrix) 与稳态协方差矩阵 (Covariance Matrix)，数值计算机械位移对称化功率谱密度 S_{xx}(\\omega)，并可视化展示强耦合区模式分裂 (Normal Mode Splitting) 现象。",
-      "推导微机械振子处于非经典高阶量子态（如 Fock 态 |1\\rangle 或猫态薛定谔态）时的 Wigner 准几率分布函数 W(x, p)，并论证环境热库耗散下 Wigner 函数负值区域的退相干时间尺度 \\tau_{dec} \\approx 1 / (\\gamma_m \\bar{n}_{th}) 的物理起源。",
-      "使用 Markdown 表格，对比光子晶体纳米梁腔 (Optomechanical Crystal Beam)、硅基回音壁微环微环芯 (Whispering Gallery Mode Microtoroid)、氮化硅薄膜在超导微波腔 (Membrane-in-the-Middle) 以及悬浮光镊纳米颗粒 (Levitated Nanoparticle) 在机械共振频率 \\omega_m、机械品质因数 Q_m、单光子耦合强度 g_0 以及基态冷却可达极限维度的关键实验参数。"
-    ]
-  },
-  {
     "id": "fusion_plasma_tokamak_tearing_modes_mhd",
     "domain": "fusion_plasma_tokamak_tearing_modes",
     "title": "受控核聚变等离子体物理：托卡马克新经典撕裂模 (NTM) 磁岛演化推导",
@@ -204,29 +183,6 @@
       "使用 Python 编写一个最小权重完美匹配（Minimum-Weight Perfect Matching, MWPM）译码器的核心算法实现，基于无向图的 Dijkstra 或 Floyd-Warshall 算法计算激发缺陷点之间的最短曼哈顿/测地距离矩阵，并调用网络匹配启发式算法寻找最佳配对并返回纠错恢复算符序列。",
       "使用 Markdown 表格，横向对比最小权重完美匹配译码器 (MWPM, 如 PyMatching)、并查集快速译码器 (Union-Find Decoder)、神经网络置信度译码器 (NN/Transformer Decoder) 以及张量网络最大似然译码器 (Tensor Network MLD) 在时间复杂度渐进阶、逻辑错误率下界阈值、GPU/FPGA 流水线实时延迟 (ns) 以及长距离表面码扩展性四个维度的关键工程指标。",
       "严格推导表面码阈值定理（Threshold Theorem）：使用统计物理二维 Ising/自旋玻璃无序随机键模型映射（Random-Bond Ising Model, RBIM），证明 Nishimori 线上相变临界温度对应的物理纠错理论容错阈值 p_{th} \\approx 10.9\\%（唯象无损测量下），并推导逻辑错误率随码距 d 增长的指数压制标度律 P_L \\propto C (p/p_{th})^{(d+1)/2}。"
-    ]
-  },
-  {
-    "id": "metamaterials_acoustic_cloaking_transformation_acoustics",
-    "domain": "metamaterials_acoustic_cloaking",
-    "title": "声学超构材料与声隐身：空间坐标变换声学方程推导与迷宫超表面仿真",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试变换声学质量密度张量推导、迷宫超表面声波负折射相位调制、FDTD二维声场Python求解器与超构结构对比表格",
-    "turns": [
-      "生成一个用于教学演示的二维声学隐身斗篷（Acoustic Cloaking Carpet Metasurface）微纳结构截面示意图，展示平面声波入射后沿圆弧形梯度迷宫超构单元平滑绕射、在缺陷后方无声影区复原波前的声压场云图，标注阻抗匹配层与相位调制梯度，不使用真实商业图纸。",
-      "从无源非粘性各向同性声波波动方程出发，利用微分几何坐标变换 x^i \to x^{i\\prime}(x)，严格推导出变换声学方程（Transformation Acoustics）。证明变换后介质的等效质量密度张量 \boldsymbol{\rho}^\\prime 与体积模量 \\kappa^\\prime 满足 \boldsymbol{\rho}^\\prime = \rho_0 \\det(A) (A A^T)^{-1} 与 \\kappa^\\prime = \\kappa_0 \\det(A)，并解释为什么物理实现该隐身斗篷必须引入强各向异性质量密度与非均匀惯性特征。",
-      "使用 Python 编写一个基于有限差分时域法 (FDTD) 的紧凑声学波动求解脚本，建立具有阶梯折射率分布的二维梯度迷宫超构表面，模拟单频平面声波穿过非均匀介质层的声压场时域演化，并计算透射侧相位分布以验证广义斯涅尔定律 (Generalized Snell's Law) 的反常折射与全透射无反射条件。",
-      "推导各向异性声学超构材料的等效介质散射消除理论，分析由亚波长亥姆霍兹共振腔与曲折迷宫通道耦合产生的动态等效负有效质量密度 (\rho_{eff} < 0) 与负体积模量 (\\kappa_{eff} < 0) 双负特性，给出由 Kramers-Kronig 因果律关系限定的被动无源超构材料因果性与本构带宽物理极限。",
-      "使用 Markdown 表格，对比五模式超构材料 (Pentamode)、空间卷绕迷宫单元 (Space-Coiling)、局域薄膜共振结构与穿孔板亥姆霍兹共振腔在工作相对带宽、亚波长单元尺寸比 (\\lambda / d)、模态转换损耗 (剪切波耦合)、各向异性比率调节范围以及三维微纳打印制造成熟度等核心工程维度的综合特性。"
     ]
   },
   {
@@ -423,6 +379,47 @@
       "用Python实现精确动态规划和带固定随机种子的仿真器，以年龄结构为状态，在有限订货空间求策略。加入物料守恒断言和周期末过期量检查，并展示如何复现模拟轨迹。",
       "用Markdown表格比较最优年龄感知策略、固定订货点策略与简单订货至目标策略在缺货率、过期损耗、平均成本及计算复杂度上的表现，解释共同随机数如何减少策略比较方差。",
       "撰写长篇技术报告，将需求分布误设、延迟到货和传感器库存误差纳入鲁棒性讨论。提供置信区间计算代码、参数敏感性表格以及模型无法覆盖的现实冷链限制，保持全部数据明确为虚构。"
+    ]
+  },
+  {
+    "id": "transportation_rail_bogie_vibration_fault_diagnosis",
+    "domain": "transportation_rail_bogie_vibration_fault_diagnosis",
+    "title": "Railway bogie vibration and bearing fault diagnosis",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "code",
+      "tables"
+    ],
+    "description": "Mechanical vibration derivations, signal-processing code, scientific imagery, comparison tables and a long technical report.",
+    "turns": [
+      "Build a two-degree-of-freedom vertical vibration model for a railway bogie. Derive the mass, damping and stiffness matrices and the frequency-domain transfer function for track excitation. Use LaTeX and state the units of every parameter.",
+      "Provide runnable Python code synthesizing healthy and periodic-impact bearing vibration signals. Compare short-time Fourier and continuous wavelet analysis, demonstrating the effects of sampling rate, window length and noise.",
+      "Generate a detailed scientific teaching illustration of a railway bogie showing wheelsets, suspension, dampers and accelerometer positions. Explain the visual in both Chinese and English.",
+      "Use a Markdown table to compare acceleration, temperature and acoustic-emission sensors across fault types, including sampling needs, installation constraints and limitations.",
+      "Write a long technical report combining model assumptions, algorithm pseudocode, confusion-matrix interpretation, validation across speeds and management of false alarms and missed detections."
+    ]
+  },
+  {
+    "id": "robotics_warehouse_multi_agent_pathfinding",
+    "domain": "robotics_warehouse_multi_agent_pathfinding",
+    "title": "Warehouse robot multi-agent path planning and congestion scheduling",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Discrete graph modeling, conflict-based search, executable simulation, performance tables and a long design report.",
+    "turns": [
+      "Model multi-agent warehouse path planning as constrained optimization on a discrete space-time graph. Use LaTeX to define vertex conflicts, edge-swap conflicts and two common objectives.",
+      "Explain the high-level and low-level mechanisms of conflict-based search. Give precise pseudocode and discuss completeness, optimality and worst-case complexity.",
+      "Write standalone runnable Python simulating robots on a grid with a narrow corridor. Compare prioritized planning and conflict-based search, reporting routes, collision counts and total movement cost.",
+      "Use a Markdown table to compare conflict-based search, prioritized planning, reservation tables and rolling-horizon planning. Analyze changes in robot count and obstacle density.",
+      "Produce a long design report covering dynamic orders, congestion, charging tasks and temporary aisle closures. Define reproducible evaluation metrics, failure handling and a staged implementation plan."
     ]
   }
 ]
