@@ -85,6 +85,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
             case 'file': return [`[${escapeText(node.label)}](${resource(node.resourceId)})`, node.description && inlines(node.description)].filter(Boolean).join('\n\n');
+            case 'note': return [node.title && escapeText(node.title), node.children && inlines(node.children), node.blocks && blocks(node.blocks)].filter(Boolean).join('\n\n');
             case 'disclosure': return `<details${node.initiallyCollapsed ? '' : ' open'}>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'placeholder': return [placeholder(node), node.details && inlines(node.details)].filter(Boolean).join('\n\n');
             case 'thematicBreak': return '---';
@@ -94,7 +95,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
     const yaml = document.frontMatter?.map(entry => {
         if (!/^[a-z][a-z\d_-]*$/i.test(entry.key)) throw new TypeError('Invalid front matter key');
         return Array.isArray(entry.value)
-        ? `${entry.key}:\n${entry.value.map(value => `  - ${/^[a-z][a-z\d_-]*$/i.test(value) ? value : JSON.stringify(value)}`).join('\n')}`
+        ? `${entry.key}:\n${entry.value.map(value => `  - ${/^[a-z][a-z\d_-]*$/i.test(value) && !/^(?:null|true|false|yes|no|on|off)$/i.test(value) ? value : JSON.stringify(value)}`).join('\n')}`
         : `${entry.key}: ${JSON.stringify(entry.value)}`;
     }).join('\n');
     const header = [yaml !== undefined ? `---\n${yaml}\n---\n` : undefined, `# ${escapeText(document.header.title)}`].filter(value => value !== undefined).join('\n');

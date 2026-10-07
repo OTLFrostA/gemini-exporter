@@ -76,3 +76,11 @@ test('Markdown backend cannot import semantic models, registries or clocks', () 
     assert.doesNotMatch(code, /canonical\/|content\/|provider\/|Domain|Canonical|assetPresentation|citationDisplayLabel|new Date|\.role\b|\.storageRef\b/);
     assert.doesNotMatch(code, /colSpan\s*\?\?|rowSpan\s*\?\?|headerRows\?\.slice/);
 });
+
+test('Markdown front matter preserves string scalars and rejects invalid keys', () => {
+    const { document } = composeMarkdownDocument(fixture(), {}, { exportedAt: time });
+    document.frontMatter = [{ key: 'tags', value: ['true', 'null', 'yes', 'example-export'] }];
+    assert.ok(renderDocumentMarkdown(document, {}).includes('tags:\n  - "true"\n  - "null"\n  - "yes"\n  - example-export'));
+    document.frontMatter = [{ key: 'bad\nkey', value: 'value' }];
+    assert.throws(() => renderDocumentMarkdown(document, {}), /Invalid front matter key/);
+});

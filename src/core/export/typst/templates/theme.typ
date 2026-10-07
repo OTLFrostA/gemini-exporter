@@ -1,3 +1,5 @@
+#let layout-policy = json("/payload.json").layout
+
 #let visual = json("/visual-contract.json")
 
 #let page-fill = rgb("#FCFCFB")
@@ -55,16 +57,16 @@
 #let caption-size = small-size
 #let code-size = 8.15pt
 // PDF shares the content/prose hierarchy with visualContract.ts, in print units.
-#let content-width = 166mm
-#let prose-width = content-width * visual.content.proseWidth / visual.content.maxWidth
+#let content-width = layout-policy.page.contentWidthMm * 1mm
+#let prose-width = layout-policy.page.proseWidthMm * 1mm
 #let reading-width = prose-width
-#let user-bubble-max-ratio = 85%
+#let user-bubble-max-ratio = layout-policy.bubble.maxWidthRatio
 
-#let page-width = 210mm
-#let page-height = 297mm
-#let page-margin-top = 18.5mm
-#let page-margin-bottom = 18mm
-#let page-side-padding = (page-width - content-width) / 2
+#let page-width = layout-policy.page.widthMm * 1mm
+#let page-height = layout-policy.page.heightMm * 1mm
+#let page-margin-top = layout-policy.page.topMm * 1mm
+#let page-margin-bottom = layout-policy.page.bottomMm * 1mm
+#let page-side-padding = layout-policy.page.sideMm * 1mm
 #let page-margin-left = page-side-padding
 #let page-margin-right = page-side-padding
 #let page-body-height = page-height - page-margin-top - page-margin-bottom
@@ -80,11 +82,11 @@
 #let elevation-far-y = 1.8pt
 #let elevation-far-spread = 1.0pt
 
-#let user-elevation-max-height = 120pt
+#let user-elevation-max-height = layout-policy.bubble.compactHeightPt * 1pt
 
-#let figure-max-page-ratio = 0.60
+#let figure-max-page-ratio = layout-policy.figure.maxPageHeightRatio
 #let figure-max-height = page-body-height * figure-max-page-ratio
-#let figure-caption-max-width = 115mm
+#let figure-caption-max-width = layout-policy.figure.captionMaxWidthMm * 1mm
 
 #let attachment-single-max-ratio = 48%
 #let attachment-card-height = 38.6pt
@@ -120,7 +122,7 @@
     size: body-size,
     weight: visual.type.body.weight,
     fill: ink,
-    lang: "zh",
+    lang: layout-policy.textLanguage,
     cjk-latin-spacing: auto,
   )
   show math.equation: set text(font: font-math)
@@ -129,37 +131,31 @@
   set heading(numbering: none)
 
   show heading.where(level: 1): it => block(
-    sticky: true,
     above: 0pt,
     below: 0pt,
     text(size: h1-size, weight: visual.type.title.weight, fill: ink, it.body),
   )
   show heading.where(level: 2): it => block(
-    sticky: true,
     above: 0pt,
     below: 0pt,
     text(size: h2-size, weight: visual.type.h2.weight, fill: ink, it.body),
   )
   show heading.where(level: 3): it => block(
-    sticky: true,
     above: 0pt,
     below: 0pt,
     text(size: h3-size, weight: visual.type.h3.weight, fill: ink, it.body),
   )
   show heading.where(level: 4): it => block(
-    sticky: true,
     above: 0pt,
     below: 0pt,
     text(size: body-size, weight: 620, fill: ink, it.body),
   )
   show heading.where(level: 5): it => block(
-    sticky: true,
     above: 0pt,
     below: 0pt,
     text(size: body-size, weight: 600, fill: ink, it.body),
   )
   show heading.where(level: 6): it => block(
-    sticky: true,
     above: 0pt,
     below: 0pt,
     text(size: body-size, weight: 600, fill: ink-soft, it.body),

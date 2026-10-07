@@ -438,18 +438,14 @@ test('pdfTextExtract: literal strings with raw balanced parens (Typst CID bytes)
     // strings (balanced, legal per PDF 7.3.4.2). A flat regex tokenizer
     // fragments such strings; the scanner must depth-count.
     // CIDs here are octal: \027(oct)=0x17->春, raw ( =0x28->眠, raw )=0x29->不.
-    const cmap = `1 0 obj
-<< /Length 10 >>
-stream
-1 begincodespacerange <0000> <FFFF> endcodespacerange
+    const cmapSrc = `1 begincodespacerange <0000> <FFFF> endcodespacerange
 4 beginbfchar
 <0013> <95EE>
 <0017> <6625>
 <0028> <7720>
 <0029> <4E0D>
-endbfchar
-endstream
-endobj`;
+endbfchar`;
+    const cmap = `1 0 obj\n<< /Length ${Buffer.byteLength(cmapSrc)} >>\nstream\n${cmapSrc}\nendstream\nendobj`;
     const contentSrc = 'BT /f0 12 Tf 72 720 Td ' +
         '[(' + '\\000\\023\\000\\027\\000' + '(' + '\\000' + ')' + ')] TJ ET';
     const content = `2 0 obj\n<< /Length ${Buffer.byteLength(contentSrc)} >>\nstream\n${contentSrc}\nendstream\nendobj`;

@@ -1,11 +1,6 @@
 import { isAbortError } from '../errors.js';
-import type {
-    AssetResolver,
-    RenderContext,
-    RenderDiagnostic,
-    ResolvedAsset,
-    TypstRenderPayload,
-} from '../../canonical/rendering.js';
+import type { RenderDiagnostic } from '../../canonical/rendering.js';
+import type { PdfCompileContext, PdfResource, TypstRenderPayload } from '../pdfCompiler.js';
 import {
     StageError,
     type CompileStageInput,
@@ -22,7 +17,7 @@ function makeMountAssetResolver(
     mounts: ImageMount[],
     input: CompileStageInput,
     diagnostics: RenderDiagnostic[],
-): AssetResolver {
+): PdfCompileContext['assets'] {
     const byVirtualPath = new Map<string, ImageMount[]>();
     for (const mount of mounts) {
         const v = byVirtualPath.get(mount.virtualPath) ?? [];
@@ -36,7 +31,7 @@ function makeMountAssetResolver(
     };
 
     return {
-        async resolve(assetId: string): Promise<ResolvedAsset | null> {
+        async resolve(assetId: string): Promise<PdfResource | null> {
             const asset = input.bundle.assets.find((a) => a.id === assetId);
             if (!asset) {
                 return miss(
@@ -71,7 +66,7 @@ function makeMountAssetResolver(
                     `Mount for asset ${assetId} (${mount.virtualPath}) has no bytes; returning null so the template renders its placeholder.`,
                 );
             }
-            return { asset, bytes: mount.bytes };
+            return { bytes: mount.bytes };
         },
     };
 }
@@ -107,18 +102,14 @@ export const compileStage: StageFn<CompileStageInput, CompileStageOutput> = asyn
         ctx.log('[PDF] compile: no local fonts resolved; the compiler falls back to bundled fonts', 'warn');
     }
 
-    const context: RenderContext = {
-        bundle: input.bundle,
+    const context: PdfCompileContext = {
         assets: makeMountAssetResolver(input.mounts, input, diagnostics),
-        locale: input.locale,
         signal: ctx.signal,
         reportProgress: ctx.reportProgress,
     };
 
     const compilerPayload: TypstRenderPayload = {
         rendererSchemaVersion: 1,
-        sourceSchemaVersion: 1,
-        bundle: input.bundle,
         document: input.payload,
         assetPaths: input.pathMap,
     };

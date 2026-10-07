@@ -9,9 +9,7 @@
     "providerId": "gemini",
     "conversationId": "vc-09"
    },
-   "title": {
-    "value": "附件总结"
-   },
+   "title": "附件总结",
    "createdAt": "2026-09-26T10:00:00Z",
    "updatedAt": "2026-09-26T11:00:00Z",
    "messages": [

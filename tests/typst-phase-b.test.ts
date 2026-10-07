@@ -126,8 +126,9 @@ test('code filename and meta reach the transport', async () => {
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'code');
-    assert.strictEqual(node.filename, 'app.py');
-    assert.strictEqual(node.meta, 'runnable');
+    assert.strictEqual(node.header, 'app.py · python · runnable');
+    assert.ok(!('filename' in node));
+    assert.ok(!('meta' in node));
 });
 
 test('code without filename has no filename field', async () => {

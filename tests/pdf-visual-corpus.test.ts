@@ -146,6 +146,7 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
         store[aid] = new Uint8Array(Buffer.from(b64 as string, 'base64'));
     }
     const bundle = item.bundle;
+    assert.strictEqual(typeof bundle.conversation.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
     const { payload: document, diagnostics: payloadDiagnostics } = toTypstPayload(bundle, {
         assetPath: (a: any) => `/assets/${a.id}`,
         convertMath,

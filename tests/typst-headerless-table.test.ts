@@ -61,7 +61,7 @@ test('thematicBreak becomes a native divider node, not an em-dash paragraph', as
     const b = bundle([msg('m1', 'assistant', [{ type: 'thematicBreak' }])]);
     const { payload } = toTypstPayload(b, opts);
     const node: any = payload.messages[0].blocks[0];
-    assert.deepStrictEqual(node, { type: 'thematicBreak' });
+    assert.deepStrictEqual(node, { type: 'thematicBreak', layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
 });
 
 async function compileOnce(bundle: any) {

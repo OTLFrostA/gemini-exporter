@@ -68,7 +68,7 @@ test('typst zh date unknown is localized', () => {
     const b = bundle([msg([])]);
     delete b.conversation.createdAt;
     const { payload } = toTypstPayload(b, { ...opts, locale: 'zh' });
-    assert.strictEqual(payload.date, '日期未知');
+    assert.ok(payload.metadata.includes('日期未知'));
 });
 
 test('html uses the same string source', () => {

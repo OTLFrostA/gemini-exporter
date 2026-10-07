@@ -34,11 +34,16 @@ export function parseObjects(data: Buffer): Map<number, PdfObject> {
         const sm = /stream\r?\n/.exec(body);
         if (sm) {
             const streamStart = m.index + m[0].indexOf(m[2]) + sm.index + sm[0].length;
-            const endIdx = text.indexOf('endstream', streamStart);
-            stream = data.subarray(streamStart, endIdx);
-            // strip trailing CRLF before endstream
-            while (stream.length > 0 && (stream[stream.length - 1] === 0x0a || stream[stream.length - 1] === 0x0d)) {
-                stream = stream.subarray(0, stream.length - 1);
+            const length = /\/Length\s+(\d+)(?:\s+(\d+)\s+R)?/.exec(body.slice(0, sm.index));
+            if (length && length[2] === undefined) {
+                // Compressed data can legitimately end in CR/LF. /Length counts
+                // binary bytes; trimming them corrupts the stream and hides pages.
+                stream = data.subarray(streamStart, streamStart + Number(length[1]));
+            } else {
+                const endIdx = text.indexOf('endstream', streamStart);
+                stream = data.subarray(streamStart, endIdx);
+                if (stream.subarray(-2).equals(Buffer.from('\r\n'))) stream = stream.subarray(0, -2);
+                else if (stream[stream.length - 1] === 0x0a) stream = stream.subarray(0, -1);
             }
         }
         objs.set(num, { num, dict: body, stream });

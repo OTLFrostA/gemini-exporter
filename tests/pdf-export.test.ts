@@ -97,15 +97,14 @@ function makeValidPdf(padBytes: number): Uint8Array {
 test('stub compiler returns a parseable minimal PDF', async () => {
     const compiler = new StubPdfCompiler();
     const { bundle } = await require('../src/core/export/canonical/index.js').normalizeGeminiConversation(sample);
+    const { payload: document } = require('../src/core/export/typst/payload.js').toTypstPayload(bundle, { assetPath: () => undefined });
     const ctx: any = {
-        bundle,
         assets: { resolve: async () => null },
-        locale: 'zh',
         signal: new AbortController().signal,
         reportProgress: () => {},
     };
     const { pdfBytes, diagnostics } = await compiler.compile(
-        { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as never,
+        { rendererSchemaVersion: 1, document, assetPaths: new Map() },
         ctx
     );
     const text = new TextDecoder().decode(pdfBytes);
@@ -561,12 +560,12 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
     const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     let delivered: { blob: Blob; filename: string } | null = null;
-    // Compiler returns a different-sized PDF per conversation id.
+    // Compiler returns a different-sized PDF per composed document title.
     const sizedCompiler = {
         name: 'sized-test-compiler',
         async compile(payload: any, _context: any) {
-            const convId = payload?.bundle?.conversation?.key?.conversationId ?? '';
-            const pad = convId.includes('szBig') ? 5000 : 500;
+            const title = payload.document.title;
+            const pad = title === 'big chat' ? 5000 : 500;
             // A structurally valid PDF (real xref table + trailer + startxref
             // pointer); the size difference lives inside a legal stream object.
             return { pdfBytes: makeValidPdf(pad), diagnostics: [] };

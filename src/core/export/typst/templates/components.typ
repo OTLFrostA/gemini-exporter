@@ -2,6 +2,7 @@
 
 #let reading(body, sticky: false) = layout(size => block(width: calc.min(prose-width, size.width), sticky: sticky, body))
 #let wide(body) = block(width: 100%, body)
+#let surface(body, width) = if width == "reading" { reading(body) } else { wide(body) }
 
 #let inline-code(code) = box(
   fill: inline-fill,
@@ -103,8 +104,6 @@
   }
 }
 
-#let user-to-assistant-gap() = v(sp-xl)
-#let assistant-to-user-gap() = v(sp-turn)
 
 #let sparkle-mark() = box(width: 6.5pt, height: 6.5pt)[
   #place(center)[
@@ -130,8 +129,8 @@
 
 // Natural user bubble width is capped globally; height only controls pagination/elevation.
 #let user-bubble(body, plain-text: "", min-content-width: 0pt) = layout(size => {
-  let px = 12.5pt
-  let py = 8.4pt
+  let px = layout-policy.bubble.paddingXPt * 1pt
+  let py = layout-policy.bubble.paddingYPt * 1pt
   let max-width = calc.min(size.width * user-bubble-max-ratio, prose-width)
 
   let styled-body = block(width: 100%)[
@@ -145,9 +144,9 @@
     measure(text(size: body-size)[#plain-text]).width + 2 * px
   }
 
-  let bubble-width = calc.min(calc.max(raw-width, 2 * px + calc.max(28pt, min-content-width)), max-width)
+  let bubble-width = calc.min(calc.max(raw-width, 2 * px + calc.max(layout-policy.bubble.minInnerWidthPt * 1pt, min-content-width)), max-width)
 
-  let inner-width = calc.max(bubble-width - 2 * px, 28pt)
+  let inner-width = calc.max(bubble-width - 2 * px, layout-policy.bubble.minInnerWidthPt * 1pt)
   let content-height = measure(width: inner-width, styled-body).height
   let bubble-height = content-height + 2 * py
   let compact = bubble-height < user-elevation-max-height
@@ -194,7 +193,7 @@
   ]
 ]
 
-#let file-attachment-card(name, kind, size, card-width: none) = layout(size-info => {
+#let file-attachment-card(name, metadata, card-width: none) = layout(size-info => {
   let px = 10.5pt
   let py = 8.3pt
   let icon-w = 22pt
@@ -203,7 +202,7 @@
   let card-height = attachment-card-height
   let text-area = calc.max(resolved-width - 2 * px - icon-w - gap, 32pt)
   let display-name = truncate-filename-to-width(name, text-area)
-  let meta = kind + " · " + size
+  let meta = metadata
 
   elevated-frame(
     resolved-width,
@@ -229,23 +228,23 @@
 
 // File cards reserve their actual label/metadata width plus icon and insets.
 // The enclosing user bubble must account for the same intrinsic width.
-#let file-attachment-natural-width(name, kind, size) = {
+#let file-attachment-natural-width(name, metadata) = {
   let name-w = measure(text(size: 8.25pt, weight: 560)[#name]).width
-  let meta-w = measure(text(size: metadata-size)[#(kind + " · " + size)]).width
+  let meta-w = measure(text(size: metadata-size)[#metadata]).width
   22pt + 8pt + calc.max(name-w, meta-w) + 2 * 10.5pt
 }
 
-#let file-attachment(name, kind, size) = layout(size-info => {
-  let natural = file-attachment-natural-width(name, kind, size)
+#let file-attachment(name, metadata, width: "full") = layout(size-info => {
+  let natural = file-attachment-natural-width(name, metadata)
   let max-width = size-info.width
   let card-width = calc.min(natural, max-width)
 
-  block(width: 100%)[
-    #align(right)[#file-attachment-card(name, kind, size, card-width: card-width)]
-  ]
+  surface([
+    #align(right)[#file-attachment-card(name, metadata, card-width: card-width)]
+  ], width)
 })
 
-#let code-surface(lang, code, filename: none, meta: none) = wide(
+#let code-surface(header, code, width: "full") = surface(
   block(
     width: 100%,
     fill: embedded-fill,
@@ -256,7 +255,7 @@
   )[
     #block(sticky: true, inset: (left: 12pt, right: 12pt, top: 7pt, bottom: 2pt))[
       #text(size: metadata-size, weight: 530, fill: muted)[
-        #if filename == none { lang } else if lang == "text" { filename } else { filename + " · " + lang }#if meta != none and meta != "" [ · #meta]
+        #header
       ]
     ]
     #block(inset: (left: 12pt, right: 12pt, top: 2.5pt, bottom: 9.5pt))[
@@ -267,14 +266,16 @@
       // Do not restore `raw(..., lang:)` until the vendored Typst runtime is upgraded and this regression test passes.
       #raw(code, block: true, theme: "quiet-light.tmTheme")
     ]
-  ]
+  ],
+  width,
 )
 
-#let math-surface(body) = wide(
-  block(width: 100%, breakable: false)[#align(center)[#body]]
+#let math-surface(body, width: "full") = surface(
+  block(width: 100%, breakable: false)[#align(center)[#body]],
+  width,
 )
 
-#let image-surface(path, caption: none) = wide(
+#let image-surface(path, caption: none, width: "full") = surface(
   layout(size => {
     let full = image(path, width: size.width)
     let natural = measure(full)
@@ -319,39 +320,38 @@
         ]
       ]
     ]
-  })
+  }),
+  width,
 )
 
-#let quiet-note(body) = reading(
+#let quiet-note(body, width: "reading") = surface(
   block(stroke: (left: 1pt + rule-strong), inset: (left: 7.5pt, y: 1pt))[
     #text(size: 8.1pt, fill: muted)[#body]
-  ]
+  ],
+  width,
 )
 
-#let quote-surface(body) = reading(
+#let quote-surface(body, width: "reading") = surface(
   block(stroke: (left: 1pt + rule-strong), inset: (left: 8pt, y: 0pt))[
     #text(fill: ink-soft)[#body]
-  ]
+  ],
+  width,
 )
 
-#let unknown-surface(label, body) = reading(
+#let unknown-surface(label, body, width: "reading") = surface(
   block(fill: embedded-fill, radius: 7pt, inset: 8pt)[
     #text(size: metadata-size, fill: muted)[#label]
     #v(3pt)
     #body
-  ]
+  ],
+  width,
 )
 
-#let modern-table(headers, rows, columns: none, aligns: none) = wide(
+#let modern-table(headers, rows, column-count, aligns, repeat-header, width: "full") = surface(
   block(width: 100%)[
     #set text(size: 8.5pt)
-    #let logical-cols = (headers + rows).map(row => row.fold(0, (n, c) => n + c.colspan)).fold(0, calc.max)
-    #let cols = if columns == none {
-      if logical-cols > 0 { logical-cols } else { 1 }
-    } else { columns.map(x => x * 1fr) }
-    #let al = if aligns == none { left } else {
-      aligns.map(x => if x == "center" { center } else if x == "right" { right } else { left })
-    }
+    #let cols = column-count
+    #let al = aligns.map(x => if x == "center" { center } else if x == "right" { right } else { left })
     #let span-args(cell) = {
       let args = (:)
       if cell.colspan > 1 { args.insert("colspan", cell.colspan) }
@@ -370,7 +370,7 @@
       cell.body,
     ))
     #let header-arg = if headers.len() > 0 {
-      (table.header(repeat: true, ..header-cells),)
+      (table.header(repeat: repeat-header, ..header-cells),)
     } else { () }
     #table(
       columns: cols,
@@ -380,5 +380,6 @@
       ..header-arg,
       ..body-cells,
     )
-  ]
+  ],
+  width,
 )

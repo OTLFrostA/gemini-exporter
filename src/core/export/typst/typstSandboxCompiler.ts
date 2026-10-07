@@ -1,9 +1,5 @@
-import type {
-    RenderContext,
-    RenderDiagnostic,
-    TypstRenderPayload,
-} from '../canonical/rendering.js';
-import type { IPdfCompiler, PdfCompileResult } from '../pdf/pdfCompiler.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
+import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../pdf/pdfCompiler.js';
 
 import {
     BUNDLED_FONT_PATHS,
@@ -21,7 +17,7 @@ import {
     type TypstBlockNode,
     type TypstConversationRenderPayload,
     type TypstInlineNode,
-} from './payload.js';
+} from './transport.js';
 
 const PDF_MAGIC = '%PDF-';
 
@@ -115,7 +111,7 @@ export function stripConvertedMath(doc: TypstConversationRenderPayload): number 
     let stripped = 0;
     const stripInline = (nodes: TypstInlineNode[]): void => {
         for (const node of nodes) {
-            if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'link') && 'children' in node) {
+            if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'strikethrough' || node.type === 'link') && 'children' in node) {
                 stripInline(node.children);
             } else if (node.type === 'inlineMath' && 'typst' in node && node.typst !== undefined) {
                 delete (node as { typst?: string }).typst;
@@ -173,7 +169,7 @@ function collectImagePaths(doc: TypstConversationRenderPayload): Set<string> {
         for (const node of nodes) {
             if (node.type === 'image') {
                 paths.add(node.asset);
-            } else if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'link') && 'children' in node) {
+            } else if ((node.type === 'strong' || node.type === 'emphasis' || node.type === 'strikethrough' || node.type === 'link') && 'children' in node) {
                 visitInline(node.children);
             }
         }
@@ -260,7 +256,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         this.mathFontAvailable = null;
     }
 
-    async compile(payload: TypstRenderPayload, context: RenderContext): Promise<PdfCompileResult> {
+    async compile(payload: TypstRenderPayload, context: PdfCompileContext): Promise<PdfCompileResult> {
         const run = this.compileQueue.then(() => this.compileOne(payload, context));
         this.compileQueue = run.then(
             () => undefined,
@@ -269,12 +265,12 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         return run;
     }
 
-    private async compileOne(payload: TypstRenderPayload, context: RenderContext): Promise<PdfCompileResult> {
+    private async compileOne(payload: TypstRenderPayload, context: PdfCompileContext): Promise<PdfCompileResult> {
         context.signal.throwIfAborted();
 
         const diagnostics: RenderDiagnostic[] = [];
 
-        const doc = payload.document;
+        const doc = payload.document ? structuredClone(payload.document) : undefined;
         if (!doc) {
             throw new Error(
                 'TypstSandboxCompiler requires a prebuilt Typst document payload; ' +
@@ -314,7 +310,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 diagnostics.push({
                     severity: 'warning',
                     code: 'TYPST_ASSET_PATH_UNMAPPED',
-                    message: `Image path ${imagePath} could not be mapped back to a canonical asset; the template calls image() on this path, so the compile will fail on the missing file.`,
+                    message: `Image path ${imagePath} could not be mapped back to a prepared resource; the template calls image() on this path, so the compile will fail on the missing file.`,
                 });
                 continue;
             }
@@ -383,8 +379,7 @@ export class TypstSandboxCompiler implements IPdfCompiler {
         }
         if (result.pdf === null) {
             throw new Error(
-                `Typst compile failed for ${payload.bundle.conversation.key.providerId} conversation ` +
-                `${payload.bundle.conversation.key.conversationId}: sandbox returned no PDF bytes`,
+                `Typst compile failed for ${doc.title}: sandbox returned no PDF bytes`,
             );
         }
         const pdfBytes = new Uint8Array(result.pdf);

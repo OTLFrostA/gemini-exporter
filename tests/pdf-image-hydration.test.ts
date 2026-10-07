@@ -154,7 +154,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
         { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
-    const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
+    const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
     assert.ok(modelMsg, 'assistant message present in Typst payload');
     const imageBlocks = modelMsg.blocks.filter((b: any) => b.type === 'image');
     const missingBlocks = modelMsg.blocks.filter(
@@ -197,8 +197,8 @@ test('1b. Remote URL-only attachment and standalone Markdown remote image: conte
         name: 'spy-stub-compiler',
         async compile(payload: any, compileCtx: any) {
             capturedPayload = payload;
-            for (const asset of payload.bundle.assets) {
-                const resolved = await compileCtx.assets.resolve(asset.id);
+            for (const assetId of payload.assetPaths.keys()) {
+                const resolved = await compileCtx.assets.resolve(assetId);
                 if (resolved) resolvedMountAssets.push(resolved);
             }
             const stub = new StubPdfCompiler();
@@ -316,7 +316,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
         { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
-    const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
+    const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
     assert.strictEqual(
         modelMsg.blocks.filter((b: any) => b.type === 'image').length,
         1,
@@ -373,7 +373,7 @@ test('2b. Takeout generated-media supplementation via shared BatchWorker.supplem
         { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
-    const modelMsg = s3.output.payload.messages.find((m: any) => m.role === 'assistant');
+    const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
     assert.strictEqual(
         modelMsg.blocks.filter((b: any) => b.type === 'image').length,
         1,

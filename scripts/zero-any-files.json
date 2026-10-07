@@ -31,5 +31,10 @@
   "src/core/export/document/renderHtml.ts",
   "src/core/export/document/composeDocument.ts",
   "src/core/export/document/composeMarkdown.ts",
-  "src/core/export/document/renderMarkdown.ts"
+  "src/core/export/document/renderMarkdown.ts",
+  "src/core/export/document/composePdf.ts",
+  "src/core/export/document/renderTypst.ts",
+  "src/core/export/typst/transport.ts",
+  "src/core/export/typst/payload.ts",
+  "src/core/export/pdf/pdfCompiler.ts"
 ]
