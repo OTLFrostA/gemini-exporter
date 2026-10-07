@@ -17,6 +17,8 @@
 import { test, expect } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
+import { toTypstPayload } from '../../src/core/export/typst/payload.js';
+import type { TypstConversationRenderPayload } from '../../src/core/export/typst/transport.js';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
@@ -40,9 +42,29 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
       await page.goto(`${extOrigin}/src/ui/options/options.html?notour=1`);
       await page.waitForLoadState('domcontentloaded');
 
+      const formulas = [
+        String.raw`\int_0^\infty e^{-x} dx = 1`,
+        String.raw`\frac{\sqrt{x^2 + 1}}{2}`,
+        String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`,
+      ];
+      // Exercise the production composition path rather than hand-maintaining its wire schema.
+      const { payload } = toTypstPayload({
+        schemaVersion: 1,
+        conversation: {
+          key: { providerId: 'gemini', accountId: 'test', conversationId: 'mitex-e2e' },
+          title: 'MiTeX Browser E2E Test',
+          createdAt: '2026-09-28T00:00:00Z',
+          messages: [{ id: 'm1', role: 'assistant', blocks: [
+            { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
+            ...formulas.map(source => ({ type: 'math' as const, source })),
+          ] }],
+        },
+        assets: [], citations: [],
+      }, { assetPath: () => undefined });
+
       // 1. In-browser pipeline evaluation
       const pipelineResult = await page.evaluate(
-        async (urls: { sandbox: string; wasm: string; font: string }) => {
+        async (urls: { sandbox: string; wasm: string; font: string; formulas: string[]; payload: TypstConversationRenderPayload }) => {
           const nextJob = () =>
             (crypto as Crypto).randomUUID
               ? (crypto as Crypto).randomUUID()
@@ -58,11 +80,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           if (!isReady) throw new Error('MiTeX WASM reports isReady=false after init');
 
           // Step 2: Convert representative standard LaTeX expressions in browser
-          const formulas = [
-            String.raw`\int_0^\infty e^{-x} dx = 1`,
-            String.raw`\frac{\sqrt{x^2 + 1}}{2}`,
-            String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`,
-          ];
+          const { formulas, payload } = urls;
 
           const convertedMath: string[] = [];
           for (const f of formulas) {
@@ -129,32 +147,11 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           );
           if (!inited.ok) throw new Error('sandbox init reported ok=false');
 
-          // Step 5: Build document payload using the MiTeX-converted math
+          // Step 5: Add browser MiTeX output to the composed display payload.
           const font = await fetchBytes(urls.font);
-          const payload = {
-            schemaVersion: 1,
-            title: 'MiTeX Browser E2E Test',
-            provider: 'gemini',
-            date: '2026-09-28',
-            messageCount: 1,
-            messages: [
-              {
-                id: 'm1',
-                role: 'assistant',
-                blocks: [
-                  {
-                    type: 'paragraph',
-                    children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }],
-                  },
-                  ...formulas.map((f, idx) => ({
-                    type: 'math',
-                    latex: f,
-                    typst: convertedMath[idx],
-                  })),
-                ],
-              },
-            ],
-          };
+          payload.messages[0].blocks.filter(block => block.type === 'math').forEach((block, index) => {
+            if (block.type === 'math') block.typst = convertedMath[index];
+          });
 
           // Step 6: Compile to PDF through Typst sandbox
           const compileJob = nextJob();
@@ -191,6 +188,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           };
         },
         {
+          formulas, payload,
           sandbox: `${extOrigin}/src/ui/sandbox/typst-compile.html`,
           wasm: `${extOrigin}/src/ui/sandbox/vendor/typst_ts_web_compiler_bg.wasm`,
           font: `${extOrigin}/src/ui/sandbox/fonts/NewCMMath-Regular.otf`,
@@ -199,7 +197,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
 
       expect(pipelineResult.isReady).toBe(true);
       expect(pipelineResult.convertedMathCount).toBe(3);
-      expect(pipelineResult.compileOk).toBe(true);
+      expect(pipelineResult.compileOk, JSON.stringify(pipelineResult.diagnostics)).toBe(true);
       expect(pipelineResult.pdfHeader).toBe('%PDF-');
       expect(pipelineResult.pdfBytes).toBeGreaterThan(1000);
       const errors = (pipelineResult.diagnostics || []).filter((d) => d.severity === 'error');
