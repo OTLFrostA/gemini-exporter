@@ -1,3 +1,4 @@
+import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence } from './detailEvidence.js';
 import type { GeminiUtilsModule } from "../../utils/utils.js";
 import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 import type { Message, TitleSources, Attachment, MessageDocument } from "../../../types/index.js";
@@ -76,6 +77,7 @@ export interface GeminiParserParseDetailModule {
     isTurnsArray: (arr: unknown) => boolean;
     findTurnsDeep: (root: unknown, depth?: number) => unknown[] | null;
     parseDetail: (text: string, targetConvId?: string, overrides?: unknown) => DetailParseResult;
+    decodeGeminiDetail: (text: string, targetConvId?: string, overrides?: unknown) => GeminiDetailEvidence;
     extractTurnRequestId?: (turn: unknown) => string | undefined;
     DOC_TITLE_FALLBACK_RE?: RegExp;
 }
@@ -156,7 +158,7 @@ function extractUserTextFromPayload(userPayload: unknown): string {
  * - Never search in turn[1] (which is TIMESTAMP: [seconds, nanos]).
  * - Strict contract: no heuristic .find() scanning; unconfirmed slots return undefined to prevent accidental dedupe.
  */
-function extractTurnRequestId(turn: unknown): string | undefined {
+function extractRawTurnRequestId(turn: unknown): string | undefined {
     // Indexable raw evidence only; this assertion does not validate a turn.
     const idMeta = (turn as { [slot: number]: unknown } | null | undefined)?.[GEMINI_JSPB_SCHEMA.TURN.ID_META];
     let raw: string | undefined;
@@ -172,6 +174,11 @@ function extractTurnRequestId(turn: unknown): string | undefined {
         raw = idMeta;
     }
 
+    return raw;
+}
+
+function extractTurnRequestId(turn: unknown): string | undefined {
+    const raw = extractRawTurnRequestId(turn);
     if (!raw) return undefined;
     const match = raw.match(/^r_([0-9a-fA-F]+)$/i);
     return match ? match[1].toLowerCase() : raw.replace(/^r_/i, '').toLowerCase();
@@ -309,7 +316,7 @@ function buildUserMessage(
     dedupSet: Set<string>,
     docDedupSet: Set<string>,
     imageSeq: { value: number }
-): ParserMessage | null {
+): GeminiMessageEvidence | null {
     const userPayload = turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD];
     const uText = extractUserTextFromPayload(userPayload);
     const uImgs = filterNewImages(extractImages(userPayload, imageSeq), dedupSet);
@@ -356,7 +363,7 @@ function buildUserMessage(
         };
     }) : void 0;
 
-    const attachments: ParserAttachment[] = [];
+    const attachments: GeminiAttachmentEvidence[] = [];
     if (formattedImages) {
         for (const im of formattedImages) {
             attachments.push({
@@ -389,6 +396,7 @@ function buildUserMessage(
         id: userMsgId,
         role: "user",
         providerRequestId: userRequestId || void 0,
+        rawProviderRequestId: extractRawTurnRequestId(turn),
         turnId: userMsgId || void 0,
         content: uText,
         timestamp: ts,
@@ -412,7 +420,7 @@ function parseCandidateResponse(
     imageSeq: { value: number },
     candidateIndex = 0,
     convId?: string
-): ParserMessage | null {
+): GeminiMessageEvidence | null {
     const candidateId = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] || "";
     const candidateBlock = cand?.[GEMINI_JSPB_SCHEMA.CANDIDATE.BODY] || cand;
     let responseText = extractCandidateText(cand);
@@ -453,7 +461,7 @@ function parseCandidateResponse(
         return true;
     });
 
-    const docDetails: ParserDocument[] = [];
+    const docDetails: GeminiDocumentEvidence[] = [];
     if (docs.length) {
         try {
             for (const metaItem of docs) {
@@ -535,7 +543,7 @@ function parseCandidateResponse(
         };
     }) : void 0;
 
-    const attachments: ParserAttachment[] = [];
+    const attachments: GeminiAttachmentEvidence[] = [];
     if (formattedImages) {
         for (const img of formattedImages) {
             attachments.push({
@@ -580,6 +588,7 @@ function parseCandidateResponse(
         role: "model",
         content: responseText || "",
         providerRequestId: providerRequestId || void 0,
+        rawProviderRequestId: extractRawTurnRequestId(turn),
         turnId: fallbackTurnId || void 0,
         thoughts: thoughts || void 0,
         citations: citations.length ? citations : void 0,
@@ -594,7 +603,7 @@ function parseCandidateResponse(
     };
 }
 
-function parseDetail(text: string, targetConvId?: string, _overrides: unknown = {}): DetailParseResult {
+function decodeGeminiDetail(text: string, targetConvId?: string, _overrides: unknown = {}): GeminiDetailEvidence {
     try {
         const top = robustFirstPayload(text);
         const utils = getUtils();
@@ -622,11 +631,18 @@ function parseDetail(text: string, targetConvId?: string, _overrides: unknown = 
             isDevMode
         );
 
+        const metadataRow = !turns.length && inner[0] === null && inner[1] === null
+            ? inner[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST]?.[0] : undefined;
+        const metadataConversation = Array.isArray(metadataRow)
+            && typeof metadataRow[0] === 'string' && metadataRow[0].startsWith('c_')
+            && typeof metadataRow[1] === 'string' && metadataRow[1].trim()
+            ? { id: metadataRow[0], title: cleanTitle(metadataRow[1]) } : undefined;
+
         let convId = extractConversationId(inner, turns);
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
         const shortScope = getShortScope(convId);
 
-        const allMsgs: ParserMessage[] = [];
+        const allMsgs: GeminiMessageEvidence[] = [];
         const dedupSet = new Set<string>();
         const docDedupSet = new Set<string>();
         const usedLocalNames = new Set<string>();
@@ -729,6 +745,7 @@ function parseDetail(text: string, targetConvId?: string, _overrides: unknown = 
 
         return {
             id: convId,
+            ...(metadataConversation ? { metadataConversation } : {}),
             title: cleanT,
             titleSource: finalSource,
             titles: titlesMap,
@@ -753,7 +770,14 @@ function parseDetail(text: string, targetConvId?: string, _overrides: unknown = 
     }
 }
 
+/** Persisted compatibility boundary: preserve the existing public result and property presence. */
+function parseDetail(text: string, targetConvId?: string, overrides: unknown = {}): DetailParseResult {
+    const { metadataConversation: _metadataConversation, ...evidence } = decodeGeminiDetail(text, targetConvId, overrides);
+    return { ...evidence, messages: evidence.messages.map(({ rawProviderRequestId: _rawRequest, ...message }) => message) };
+}
+
 export {
+    decodeGeminiDetail,
     isTurn,
     isTurnsArray,
     findTurnsDeep,
@@ -763,6 +787,7 @@ export {
 };
 
 export const GeminiParserParseDetail: GeminiParserParseDetailModule = {
+    decodeGeminiDetail,
     isTurn,
     isTurnsArray,
     findTurnsDeep,

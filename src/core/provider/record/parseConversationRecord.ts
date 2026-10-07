@@ -2,15 +2,14 @@ import { closeLegacyCitations } from '../domainCitationAdapter.js';
 import { closeDomainResources } from '../domainResourceAdapter.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../../domain/titleAuthority.js';
 import { assertDomainClosure } from '../../domain/closure.js';
-import type { ResourceAcquisitionHints } from '../../export/assets/resourceAcquisitionHints.js';
-import type { LegacyResourceHints } from '../../export/assets/resourceHints.js';
 import type { BlockNode } from '../../content/blocks.js';
 import { parseImportedBody } from '../importedContentAdapter.js';
 import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { supplementLegacyGeneratedMedia } from '../../domain/legacyGeneratedMediaReconciliation.js';
 import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
-import type { ConversationParseContext, ConversationParseResult } from '../../domain/parsing.js';
+import type { ConversationParseContext } from '../../domain/parsing.js';
+import type { ResourceConversationParseResult } from '../parsingResult.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { Diagnostic } from '../../content/diagnostics.js';
 import { isObjectRecord } from '../../utils/messageResponses.js';
@@ -126,10 +125,7 @@ export interface ConversationRecordParseContext extends ConversationParseContext
 }
 
 /** Compatibility preparation evidence is outside the shared semantic parse result. */
-export interface ConversationRecordParseResult extends ConversationParseResult {
-    resourceHints: LegacyResourceHints;
-    acquisitionHints: ResourceAcquisitionHints;
-}
+export interface ConversationRecordParseResult extends ResourceConversationParseResult {}
 
 function copyCompleteness(input: ConversationRecordInput): Pick<DomainConversationDetail, 'completeness'> {
     const partial = input.truncated === true || input.isTruncated === true || (typeof input.nextPageToken === 'string' && Boolean(input.nextPageToken.trim()));

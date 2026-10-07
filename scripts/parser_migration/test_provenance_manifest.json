@@ -1740,15 +1740,81 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/provider-gemini-rpc-domain.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Direct Gemini RPC to Domain boundary, closed semantic facts, compatibility outputs and side-channel transport evidence",
+      "notes": "Synthetic envelopes and sanitized existing wire fixtures verify project semantics; they do not establish live provider compatibility. Tier 2 remains required.",
+      "testCount": 11,
+      "tests": [
+        {
+          "name": "raw RPC input constructs Domain content, reasoning and citations directly",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native parsing never calls the historical persisted detail parser",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "source request tokens survive intact while the persisted parser keeps normalized keys",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "wire chronology, multiple candidates and source dates remain explicit",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing timestamps and request evidence are never fabricated",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "pagination and rejected turns yield partial coverage and side-channel diagnostics",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "metadata-only pages preserve title evidence without claiming a complete conversation",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native Domain composition matches the existing route without moving transport into the graph",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "sanitized existing wire evidence retains structured content and closed image references",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "generated resources retain their authored request token independently of archive paths",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "raw format validation rejects wrong providers and malformed envelopes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 34,
-    "totalTests": 266,
+    "totalSuites": 35,
+    "totalTests": 277,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 246,
+      "P2": 257,
       "P3": 2,
       "P4": 0
     }
