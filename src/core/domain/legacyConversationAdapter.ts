@@ -1,4 +1,6 @@
+import { closeLegacyCitations } from '../provider/domainCitationAdapter.js';
 import { closeDomainResources } from '../provider/domainResourceAdapter.js';
+import { resolveTitle, TITLE_SOURCES, type TitleSource } from './titleAuthority.js';
 import { assertDomainClosure } from './closure.js';
 import type { BlockNode } from '../content/blocks.js';
 import { parseImportedBody } from '../provider/importedContentAdapter.js';
@@ -49,7 +51,7 @@ function normalizeCitations(value: ChatMessage): DomainCitation[] | undefined {
             : entry && typeof entry === 'object' && 'url' in entry ? entry.url : undefined;
         if (typeof url !== 'string' || !url.trim() || urls.has(url)) continue;
         const title = entry && typeof entry === 'object' && 'title' in entry ? entry.title : undefined;
-        citations.push({ url, ...(typeof title === 'string' ? { title } : {}) });
+        citations.push({ id: `citation-${citations.length}`, url, ...(typeof title === 'string' ? { title } : {}) });
         urls.add(url);
     }
     return citations.length ? citations : undefined;
@@ -64,7 +66,7 @@ function copyMessage(value: ChatMessage, parseContent: (body: string, structured
     const reasoningText = normalizeReasoning(value);
     const reasoning = reasoningText !== undefined ? parseReasoning(reasoningText) : undefined;
     const citations = normalizeCitations(value);
-    return {
+    return closeLegacyCitations({
         ...(typeof id === 'string' && id.trim().length > 0 ? { id } : {}),
         content: parseContent(content, value.structuredContent),
         ...copyTimestamp(timestamp),
@@ -72,8 +74,7 @@ function copyMessage(value: ChatMessage, parseContent: (body: string, structured
         ...(provenance ? { provenance } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
-        ...(value.groundingCitationMarkers ? { groundingCitationMarkers: [...value.groundingCitationMarkers] } : {}),
-    };
+    }, value.groundingCitationMarkers);
 }
 
 function flattenLegacyTurns(conversation: Conversation): ChatMessage[] {
@@ -121,6 +122,16 @@ export interface LegacyDomainConstructionOptions {
     generatedMedia?: readonly LegacyGeneratedMediaEvidence[];
 }
 
+/** Choose the authoritative title while raw source alternatives are still available. */
+function legacyTitle(conversation: Conversation): string {
+    const candidates = Object.entries(conversation.titles ?? {}).flatMap(([source, value]) => typeof value === 'string' && value.trim()
+        ? [{ value: value.trim(), source: (TITLE_SOURCES.has(source) ? source : 'default') as TitleSource }] : []);
+    const value = conversation.title?.trim();
+    const source = (TITLE_SOURCES.has(conversation.titleSource ?? '') ? conversation.titleSource : 'default') as TitleSource;
+    if (value && !candidates.some(candidate => candidate.value === value && candidate.source === source)) candidates.push({ value, source });
+    return resolveTitle(candidates)?.value ?? '';
+}
+
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
 export function toDomainConversationDetail(conversation: Conversation, options: LegacyDomainConstructionOptions = {}): DomainConversationDetail {
     const rawMessages = conversation.messages && conversation.messages.length > 0
@@ -145,7 +156,7 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
         providerId,
         assets: resources.assets,
         id: conversation.id,
-        title: conversation.title,
+        title: legacyTitle(conversation),
         timestamp: conversation.timestamp,
         ...(conversation.updatedAt !== undefined ? { updatedAt: conversation.updatedAt } : {}),
         ...(conversation.createdAt !== undefined ? { createdAt: conversation.createdAt } : {}),

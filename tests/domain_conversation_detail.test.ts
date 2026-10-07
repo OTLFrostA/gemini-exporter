@@ -296,11 +296,10 @@ for (const body of ['messages', 'turns'] as const) {
             provenance: { providerRequestId: 'request-1' },
             attachments: [...message.attachments, ...message.images, ...message.documents],
             reasoning: message.thoughts,
-            citations: message.citations,
-            groundingCitationMarkers: message.groundingCitationMarkers,
+            citations: [{ ...message.citations[0], id: 'citation-0' }, { id: 'grounding-1', kind: 'attachment', number: 1 }],
         };
         assertDomainMessages(domain.messages, [expected]);
-        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst', 'images', 'documents']) {
+        for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst', 'images', 'documents', 'groundingCitationMarkers']) {
             assert.equal(field in domain.messages[0], false);
         }
         assert.deepEqual(conversation, original);
@@ -426,7 +425,7 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
             const legacy = { ...base, ...(body === 'messages' ? { messages } : body === 'turns' ? { turns: [{ messages }] } : { turns: [{ modelContent: 'Answer [1]', ...fields }] }) };
             const original = structuredClone(legacy);
             const domain = toDomainConversationDetail(legacy);
-            assert.deepEqual(domain.messages[0].citations, expected);
+            assert.deepEqual(domain.messages[0].citations, expected?.map((citation, index) => ({ ...citation, id: `citation-${index}` })));
             assert.equal('sources' in domain.messages[0], false);
             assert.deepEqual(legacy, original);
             if (expected) {
@@ -439,7 +438,7 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
 }
 
 test('Canonical Domain path consumes only reasoning and citations even if aliases leak at runtime', async () => {
-    const clean = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ url: 'https://example.com', title: 'Domain citation' }] }] };
+    const clean = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] };
     const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
     assert.deepEqual((await normalizeDomainConversation(leaked)).bundle, (await normalizeDomainConversation(clean)).bundle);
     const absent = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };

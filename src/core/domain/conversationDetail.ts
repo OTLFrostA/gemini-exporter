@@ -47,7 +47,12 @@ export interface DomainGeneratedMediaIdentity {
 }
 
 export interface DomainCitation {
-    url: string;
+    /** Message-local identity referenced by content/reasoning citationRef nodes. */
+    id: string;
+    kind?: 'web' | 'attachment' | 'other';
+    /** Source-authored citation number, when present (for example a grounding reference). */
+    number?: number;
+    url?: string;
     title?: string;
 }
 
@@ -70,7 +75,6 @@ export interface DomainMessage {
     /** Provider-exposed reasoning parsed before Domain; resource nodes use registry IDs. */
     reasoning?: BlockNode[];
     citations?: DomainCitation[];
-    groundingCitationMarkers?: string[];
 }
 
 export interface DomainConversationDetail {

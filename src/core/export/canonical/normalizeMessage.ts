@@ -25,21 +25,8 @@ function isStr(v: unknown): v is string {
     return typeof v === 'string';
 }
 
-export function toIso(value: unknown): string | undefined {
-    if (value === null || value === undefined) return undefined;
-    if (typeof value === 'number' && Number.isFinite(value)) {
-        const d = new Date(value);
-        return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
-    }
-    if (typeof value === 'string') {
-        const s = value.trim();
-        if (!s) return undefined;
-        if (/^-?\d+$/.test(s)) return toIso(Number(s));
-        const t = Date.parse(s);
-        return Number.isNaN(t) ? undefined : new Date(t).toISOString();
-    }
-    return undefined;
-}
+export { toIso } from '../../domain/time.js';
+import { toIso } from '../../domain/time.js';
 
 export function mapRole(role: unknown): { role: MessageRole; rawRole?: string } {
     if (role === 'user') return { role: 'user' };
@@ -142,7 +129,7 @@ export function normalizeMessage(input: CanonicalMessageInput, index: number, ct
         }
     }
 
-    const citations: Citation[] = [];
+    const citations: Citation[] = [...(input.resolvedCitations ?? [])];
     const webCitations: Citation[] = [];
     const { list: rawCits, skipped } = citationInput;
     if (skipped > 0) {
@@ -194,7 +181,7 @@ export function normalizeMessage(input: CanonicalMessageInput, index: number, ct
         }
     }
 
-    if (webCitations.length > 0 || groundingMap.size > 0) {
+    if (!input.resolvedCitations && (webCitations.length > 0 || groundingMap.size > 0)) {
         const reconciled = structuredClone(blocks);
         linkCitationMarkers(reconciled, webCitations, groundingMap);
         blocks.splice(0, blocks.length, ...reconciled);

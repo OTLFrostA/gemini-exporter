@@ -2,22 +2,28 @@
 
 **A renderer must not reinterpret source semantics. A renderer may perform layout.**
 
-Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. Canonical is currently a temporary upstream input seam; D4 does not change Domain or delete Canonical.
+Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. HTML and Markdown now compose directly from Domain. Canonical remains a temporary compatibility seam for PDF and the older canonical API; it is not part of the direct HTML/Markdown pipeline.
 
 ```text
-provider / legacy adapter -> Domain -> Canonical (temporary seam)
-                                           |
-                                        composer
-                                           |
-                                     Document AST v2
-                                           |
-                 +-------------------------+-------------------------+
-                 |                         |                         |
-            HTML backend              Markdown backend           PDF backend
-            CSS / controls            GFM projection             Typst layout
-            responsive layout         escaping                   measurement / pagination
-                 ^                         ^                         ^
-                 +------ RenderOptions / prepared resources --------+
+raw input -> provider / legacy parser -> Domain
+                                          |
+                      +-------------------+-------------------+
+                      |                                       |
+              direct composer                       Canonical compatibility
+                      |                              (PDF migration pending)
+                      |                                       |
+                      |                                compatibility composer
+                      +-------------------+-------------------+
+                                          |
+                                   Document AST v2
+                                          |
+                      +-------------------+-------------------+
+                      |                   |                   |
+                 HTML backend       Markdown backend      PDF backend
+                 CSS / controls     GFM projection        Typst layout
+                 responsive layout  escaping              measurement / pagination
+                      ^                   ^                   ^
+                      +---- RenderOptions / prepared resources+
 ```
 
 ## Field ownership
@@ -65,4 +71,12 @@ Numeric values are not automatically geometry: logical column indices, spans, he
 
 Contract tests render the same frozen JSON document through all three backends, verify rich table/caption preservation, independent content language/UI locale, raw code/file metadata, backend policy changes without recomposition, JSON roundtrip, input immutability and source-model import/type boundaries. Existing export, real-WASM, stress and visual tests remain regression gates. Backend adjacency inference is explicitly permitted; tests prohibit source-model dependencies rather than physical layout decisions.
 
-D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. Next, Domain-to-document composition and Canonical removal can be tackled against this stable boundary. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
+D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. The next remaining production migration is PDF resource preparation and payload orchestration; after that, obsolete Canonical conversation APIs and input adapters can be removed. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
+
+## Direct Domain composition (D5)
+
+`chatFormatter` retains its legacy public function names but no longer constructs a Canonical bundle for HTML/Markdown. Its provider/legacy adapter returns a closed Domain graph; `composeDomainDocument` organizes reasoning, content, attachment placement and sources into the shared Document AST. Resources retain Domain IDs, including shared resources referenced in multiple messages. `prepareDomainResources` separately binds those IDs to archive paths; neither Domain nor Document AST stores an export destination.
+
+Citation IDs are message-local Domain relationships. Textual web/grounding markers are resolved by input adapters (including reasoning and rich captions/descriptions); composers consume citation references and never scan text for provider marker syntax. Domain closure rejects duplicate citation IDs and unresolved references. Source UI strings remain backend-local. Authoritative title selection also happens at the legacy boundary rather than selecting raw title candidates during composition.
+
+The old Canonical composer delegates logical block composition to the same `contentComposer` while its remaining PDF/API callers migrate. That compatibility path may rename references for its historical schema, but the direct HTML/Markdown path never uses it. No additional conversation representation is introduced. Raw/Standard/OpenAI JSON remain archival serializers of input data and are outside the presentation pipeline.

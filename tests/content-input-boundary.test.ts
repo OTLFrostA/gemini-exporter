@@ -120,7 +120,7 @@ test('existing OpenAI imports parse generic Markdown and Takeout imports interpr
 
 test('Domain consumers use literal AST semantics even when raw provider syntax leaks at runtime', async () => {
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
-        reasoning: paragraph('Reasoning'), citations: [{ url: 'https://example.test/source' }],
+        reasoning: paragraph('Reasoning'), citations: [{ id: 'citation-0', url: 'https://example.test/source' }],
     };
     const expected = await normalizeDomainConversation({ ...metadata, providerId: 'gemini', assets: [], messages: [message] });
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },

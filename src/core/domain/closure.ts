@@ -12,6 +12,22 @@ export function assertDomainClosure(conversation: DomainConversationDetail): voi
         assets.add(asset.id);
     }
     conversation.messages.forEach((message, index) => {
+        const citations = new Set<string>();
+        for (const citation of message.citations ?? []) {
+            if (typeof citation.id !== 'string' || !citation.id || citations.has(citation.id)) throw new TypeError(`Duplicate or empty Domain citation identity in messages[${index}]`);
+            citations.add(citation.id);
+        }
+        const checkCitations = (value: unknown): void => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) { value.forEach(checkCitations); return; }
+            const node = value as Record<string, unknown>;
+            if (node.type === 'citationRef' && (typeof node.citationId !== 'string' || !citations.has(node.citationId))) {
+                throw new TypeError(`Unregistered Domain citation '${String(node.citationId)}' in messages[${index}]`);
+            }
+            Object.values(node).forEach(checkCitations);
+        };
+        checkCitations(message.content);
+        checkCitations(message.reasoning);
         const reference = (ref: string): string => {
             if (!assets.has(ref)) throw new TypeError(`Unregistered Domain asset '${ref}' in messages[${index}]`);
             return ref;

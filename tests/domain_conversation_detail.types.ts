@@ -53,7 +53,7 @@ void rejectedMessageGeneration;
 
 const normalizedAliases: DomainMessage = {
     role: 'assistant', content: body('Answer'), reasoning: body('Provider reasoning'),
-    citations: [{ url: 'https://example.com', title: 'Example' }],
+    citations: [{ id: 'source', url: 'https://example.com', title: 'Example' }],
 };
 // @ts-expect-error Legacy thoughts must not cross the Domain boundary.
 const rejectedThoughts: DomainMessage = { role: 'assistant', content: body(''), thoughts: 'Legacy' };
