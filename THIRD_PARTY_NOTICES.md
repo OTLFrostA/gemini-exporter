@@ -292,7 +292,7 @@ THE SOFTWARE.
 - **Component**: `NewCMMath-Regular.otf` (1.2 MiB) at `src/ui/sandbox/fonts/`
 - **Source**: the `newcomputermodern` package on CTAN (`fonts/newcomputermodern/otf/`), downloaded 2026-09-26
 - **License**: GUST Font License v1.0 (2009-06-22) — the work is distributed under the LaTeX Project Public License (LPPL) v1.3c or later, plus a rename request for derived works. The full license text ships with the font at `src/ui/sandbox/fonts/GUST-FONT-LICENSE.txt`.
-- **Modification**: renamed from upstream `NewComputerModernMath` to `NewCMMath` (name IDs 1/4/16 + CFF TopDict FullName/FamilyName) via fontTools so Typst matches the pinned `font-math` stack in `src/core/export/typst/templates/theme.typ`. No glyphs were altered; the OpenType MATH table is intact. The rename satisfies clause 1 of the GUST Font License. Provenance recorded in `src/ui/sandbox/fonts/README.md`.
+- **Modification**: renamed from upstream `NewComputerModernMath` to `NewCMMath` (name IDs 1/4/16 + CFF TopDict FullName/FamilyName) via fontTools so Typst matches the pinned `font-math` stack in `src/core/renderers/typst/templates/theme.typ`. No glyphs were altered; the OpenType MATH table is intact. The rename satisfies clause 1 of the GUST Font License. Provenance recorded in `src/ui/sandbox/fonts/README.md`.
 
 #### GUST Font License Text (shipped verbatim with the font):
 
@@ -336,9 +336,9 @@ THE SOFTWARE.
 - **Source**: <https://github.com/mitex-rs/mitex>
 - **License**: `Apache-2.0` (Apache License, Version 2.0)
 - **Provenance**:
-  - WASM & JS glue (`src/core/export/typst/mitex/vendor/`): vendored from third-party npm build `mitex-wasm@0.2.5` (`https://registry.npmjs.org/mitex-wasm/-/mitex-wasm-0.2.5.tgz`). `mitex_wasm_bg.wasm` SHA256: `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`.
-  - Typst scope (`src/core/export/typst/templates/mitex-scope.typ`): consolidated from `@preview/mitex:0.2.5` (`specs/prelude.typ` and `specs/latex/standard.typ`) with `#let mitex-scope = scope` appended and no LaTeX command mapping modifications.
-  - Full provenance and policy recorded in `src/core/export/typst/mitex/vendor/README.md`.
+  - WASM & JS glue (`src/core/renderers/typst/mitex/vendor/`): vendored from third-party npm build `mitex-wasm@0.2.5` (`https://registry.npmjs.org/mitex-wasm/-/mitex-wasm-0.2.5.tgz`). `mitex_wasm_bg.wasm` SHA256: `7907415f9e7bbc8447dd2ac1d9a4b7bbc3f4f42b96f855d41883dc39f904c0cf`.
+  - Typst scope (`src/core/renderers/typst/templates/mitex-scope.typ`): consolidated from `@preview/mitex:0.2.5` (`specs/prelude.typ` and `specs/latex/standard.typ`) with `#let mitex-scope = scope` appended and no LaTeX command mapping modifications.
+  - Full provenance and policy recorded in `src/core/renderers/typst/mitex/vendor/README.md`.
 - **License Text**: Licensed under the Apache License, Version 2.0. The full license text is reproduced in Section 3 above.
 
 
