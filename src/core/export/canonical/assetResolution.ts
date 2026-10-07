@@ -1,5 +1,5 @@
 import type { Asset, AssetStatus } from './assets.js';
-import type { Diagnostic } from './diagnostics.js';
+import type { Diagnostic } from '../../content/diagnostics.js';
 
 export interface ClassifiedAsset {
     asset: Asset;

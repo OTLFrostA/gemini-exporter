@@ -1,7 +1,7 @@
 import type { Asset } from './assets.js';
 import type { BlockNode } from '../../content/blocks.js';
 import type { CanonicalConversationBundle, Conversation } from './conversation.js';
-import type { Diagnostic, DiagnosticSeverity } from './diagnostics.js';
+import type { Diagnostic, DiagnosticSeverity } from '../../content/diagnostics.js';
 import type { InlineNode } from '../../content/inline.js';
 
 export interface CanonicalValidationOptions {
