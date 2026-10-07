@@ -2,7 +2,7 @@ const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { toDomainConversationDetail } = require('../src/core/domain/legacyConversationAdapter.js');
+const { toDomainConversationDetail, parseLegacyConversation } = require('../src/core/domain/legacyConversationAdapter.js');
 const { normalizeGeminiConversation } = require('../src/core/export/canonical/gemini/normalizeConversation.js');
 const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
 
@@ -30,10 +30,10 @@ function assertDomainMessages(actual: Array<Record<string, unknown>>, expected: 
 }
 
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
-    const domain = toDomainConversationDetail(legacy as never);
+    const { conversation: domain, resourceHints } = parseLegacyConversation(legacy as never);
     const [before, after] = await Promise.all([
         normalizeGeminiConversation(legacy as never),
-        normalizeDomainConversation(domain),
+        normalizeDomainConversation(domain, { resourceHints }),
     ]);
     assert.deepEqual(after.bundle, before.bundle);
 }

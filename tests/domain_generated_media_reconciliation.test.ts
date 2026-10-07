@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatMessage, Conversation, GeneratedMediaIdentity } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
 import { supplementLegacyGeneratedMedia } from '../src/core/domain/legacyGeneratedMediaReconciliation.js';
@@ -38,7 +38,7 @@ for (const [evidence, userFields, assistantFields] of [
         ]);
         const original = structuredClone(conversation);
         const originalMedia = structuredClone(media);
-        const domain = toDomainConversationDetail(conversation, { generatedMedia: media });
+        const { conversation: domain, resourceHints } = parseLegacyConversation(conversation, { generatedMedia: media });
         assert.equal(domain.messages.length, 6);
         assert.equal(domain.messages[3].role, 'assistant');
         assert.equal(messageAssets(domain, 3)?.[0].name, 'cat.png');
@@ -48,7 +48,7 @@ for (const [evidence, userFields, assistantFields] of [
         assert.deepEqual(media, originalMedia);
         const compat = structuredClone(conversation);
         supplementLegacyGeneratedMedia(compat, metadata.id, media, { appendMarkdownRef: false });
-        assert.deepEqual((await normalizeDomainConversation(domain)).bundle, (await normalizeGeminiConversation(compat)).bundle);
+        assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, (await normalizeGeminiConversation(compat)).bundle);
     });
 }
 
@@ -76,7 +76,7 @@ for (const [ambiguity, messages] of [
 ] as const) {
     test(`Ambiguous ${ambiguity} never assigns generated image to an existing message`, () => {
         const conversation = legacy(messages.map(m => ({ ...m })));
-        const domain = toDomainConversationDetail(conversation, { generatedMedia: media });
+        const { conversation: domain, resourceHints } = parseLegacyConversation(conversation, { generatedMedia: media });
         assert.ok(domain.messages.slice(0, messages.length).every(m => !m.attachmentIds?.length));
         assert.equal(domain.messages.length, messages.length + 1, 'unresolved media is retained separately');
         assert.equal(messageAssets(domain, domain.messages.length - 1)?.[0].name, 'cat.png');
@@ -88,7 +88,7 @@ test('Domain construction reconciles flattened legacy turns before evidence is d
     const conversation: Conversation = { ...metadata, turns: [{ messages: [
         { role: 'user', content: 'Draw a cat', turnId: `r_${requestId}` }, { role: 'model', content: 'Answer' },
     ] }] };
-    const domain = toDomainConversationDetail(conversation, { generatedMedia: media });
+    const { conversation: domain, resourceHints } = parseLegacyConversation(conversation, { generatedMedia: media });
     assert.equal(messageAssets(domain, 1)?.[0].name, 'cat.png');
     assert.equal('turnId' in domain.messages[0], false);
 });
@@ -99,9 +99,9 @@ test('Domain construction deduplicates provider representations while Canonical 
     const second = { ...first, imageOrdinal: 1, localName: 'second.jpg' };
     const conversation = legacy([{ role: 'assistant', content: '', attachments: [first], images: [duplicate, second] }]);
     const original = structuredClone(conversation);
-    const domain = toDomainConversationDetail(conversation);
-    assert.deepEqual(messageAssets(domain, 0)?.map(a => a.source?.path), ['online.jpg', 'second.jpg']);
-    assert.deepEqual((await normalizeDomainConversation(domain)).bundle, (await normalizeGeminiConversation(conversation)).bundle);
+    const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
+    assert.ok(messageAssets(domain, 0)?.every(asset => !('path' in (asset.source ?? {}))));
+    assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, (await normalizeGeminiConversation(conversation)).bundle);
     assert.deepEqual(conversation, original);
     const explicitDomain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] };
     assert.equal((await normalizeDomainConversation(explicitDomain)).bundle.assets.length, 3,

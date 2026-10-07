@@ -16,8 +16,8 @@ export interface DomainAsset {
     mediaType?: string;
     byteLength?: number;
     dimensions?: { width?: number; height?: number };
-    /** Acquisition URI and/or source archive entry, never an export destination. */
-    source?: { uri?: string; path?: string };
+    /** Original acquisition URI, never an export destination or legacy localName. */
+    source?: { uri?: string };
     dataBase64?: string;
     failureReason?: string;
     origin?: string;

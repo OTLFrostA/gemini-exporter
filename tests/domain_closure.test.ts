@@ -6,7 +6,7 @@ import type { Conversation } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { BlockNode } from '../src/core/content/blocks.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
 import { renderCanonicalHtml } from '../src/core/export/canonical/renderCanonicalHtml.js';
@@ -33,7 +33,7 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
         { role: 'assistant', content: '![four](https://example.test/image)' },
     ] };
     const original = structuredClone(input);
-    const domain = toDomainConversationDetail(input);
+    const { conversation: domain, resourceHints } = parseLegacyConversation(input);
     assert.equal(domain.assets.length, 1);
     const [asset] = domain.assets;
     assert.deepEqual(domain.messages.slice(0, 2).map(message => message.attachmentIds), [[asset.id], [asset.id]]);
@@ -82,7 +82,7 @@ test('document aliases merge across messages without losing metadata or byte pay
         { role: 'assistant', content: '', documents: [document] },
     ] };
     const original = structuredClone(input);
-    const domain = toDomainConversationDetail(input);
+    const { conversation: domain, resourceHints } = parseLegacyConversation(input);
     const [asset] = domain.assets;
     assert.equal(domain.assets.length, 1);
     assert.equal(asset.kind, 'file');
@@ -224,8 +224,8 @@ test('Domain consumers never parse provider syntax or reconcile acquisition alia
     const domain = toDomainConversationDetail({ ...metadata, messages: [{ role: 'assistant', content: '', attachments: [{
         type: 'image', subDir: 'export-destination', localName: 'source.png', isGenerated: true,
     }] }] });
-    assert.deepEqual(Object.keys(domain.assets[0]).sort(), ['generated', 'id', 'kind', 'name', 'source']);
-    assert.deepEqual(domain.assets[0].source, { path: 'source.png' });
+    assert.deepEqual(Object.keys(domain.assets[0]).sort(), ['generated', 'id', 'kind']);
+    assert.equal(domain.assets[0].source, undefined);
     assert.equal('attachments' in domain.messages[0], false);
 });
 
@@ -253,9 +253,9 @@ test('existing canonical corpus preserves AST, HTML, Markdown and Typst parity t
     assert.ok(inputs.length > 100);
     for (const input of inputs) {
         const original = structuredClone(input);
-        const domain = toDomainConversationDetail(input);
+        const { conversation: domain, resourceHints } = parseLegacyConversation(input);
         const [legacy, semantic, restored] = await Promise.all([
-            normalizeGeminiConversation(input), normalizeDomainConversation(domain), normalizeDomainConversation(JSON.parse(JSON.stringify(domain))),
+            normalizeGeminiConversation(input), normalizeDomainConversation(domain, { resourceHints }), normalizeDomainConversation(JSON.parse(JSON.stringify(domain)), { resourceHints }),
         ]);
         assert.deepEqual(semantic.bundle, legacy.bundle, input.id);
         assert.deepEqual(restored.bundle, semantic.bundle, input.id);

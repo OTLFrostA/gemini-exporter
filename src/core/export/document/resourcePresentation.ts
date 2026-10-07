@@ -22,7 +22,7 @@ export function isHumanMeaningfulFilename(value?: string): boolean {
  */
 export function assetPresentation(asset?: DomainAsset, explicit?: string, fallback = 'Image'): { label: string; caption?: string } {
     const human = (value?: string): string | undefined => isHumanMeaningfulFilename(value) ? value!.trim() : undefined;
-    const caption = human(explicit) ?? human(asset?.name) ?? (asset?.kind === 'file' ? human(asset.source?.path?.split('/').pop()) : undefined);
+    const caption = human(explicit) ?? human(asset?.name);
     return { label: caption ?? fallback, ...(caption ? { caption } : {}) };
 }
 

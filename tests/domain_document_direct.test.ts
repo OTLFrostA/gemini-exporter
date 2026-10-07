@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { closeLegacyCitations } from '../src/core/provider/domainCitationAdapter.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
 import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/document/exportDomainDocument.js';
 import { prepareDomainResources } from '../src/core/export/document/prepareDomainResources.js';
@@ -14,9 +14,9 @@ const raw = {
     id: 'direct', title: 'Draft', titles: { rpc: 'Authoritative title' }, timestamp: 1700000000000,
     messages: [
         { id: 'u', role: 'user' as const, content: '![photo](assets/photo.png)',
-            attachments: [{ type: 'image', localName: 'assets/photo.png', name: 'photo.png', isGenerated: true,
+            attachments: [{ type: 'image', url: 'https://example.test/photo.png', localName: 'assets/photo.png', name: 'photo.png', isGenerated: true,
                 generation: { chatId: 'direct', generationOrdinal: 1, imageOrdinal: 0 } }],
-            images: [{ type: 'image', localName: 'assets/photo.png', name: 'photo.png' }] },
+            images: [{ type: 'image', url: 'https://example.test/photo.png', localName: 'assets/photo.png', name: 'photo.png' }] },
         { id: 'a', role: 'model' as const, content: 'Answer **[1]** and [cite:2]. `[1]` stays code.', thoughts: 'Reasoning [1]',
             citations: [{ url: 'https://example.test/source', title: 'Source' }], groundingCitationMarkers: ['[cite:2]'],
             documents: [{ type: 'doc', id: 'doc', title: 'report.pdf', localName: 'files/report.pdf', mimeType: 'application/pdf', size: 1234567,
@@ -60,7 +60,7 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     const restored = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(composeDomainDocument(domain), composeDomainDocument(restored));
     assert.deepEqual(await prepareDomainResources(domain), await prepareDomainResources(restored));
-    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const };
+    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceHints: parseLegacyConversation(raw).resourceHints };
     assert.equal(await exportDomainMarkdown(domain, options), await exportDomainMarkdown(restored, options));
     assert.equal(await exportDomainHtml(domain, options), await exportDomainHtml(restored, options));
     assert.equal(await formatMarkdownCanonical(raw, options).then(result => result.content), await exportDomainMarkdown(domain, options));
@@ -124,13 +124,13 @@ test('provider citation binding covers rich captions/descriptions and ignores co
 
 test('prepared paths retain archive namespaces, hash inline bytes and omit failed/remote resources', async () => {
     const domain: DomainConversationDetail = { providerId: 'custom', id: 'resources', title: '', timestamp: null, messages: [], assets: [
-        { id: 'path', kind: 'file', source: { path: 'files/report.pdf' } },
+        { id: 'path', kind: 'file',  },
         { id: 'bytes', kind: 'image', mediaType: 'image/png', dataBase64: 'AQID' },
         { id: 'uri', kind: 'image', source: { uri: 'data:image/png;base64,AQID' } },
-        { id: 'failed', kind: 'file', source: { path: 'files/missing.pdf' }, failureReason: 'missing' },
+        { id: 'failed', kind: 'file',  failureReason: 'missing' },
         { id: 'remote', kind: 'image', source: { uri: 'https://example.test/image.png' } },
     ] };
-    const prepared = await prepareDomainResources(freeze(domain));
+    const prepared = await prepareDomainResources(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { archivePath: 'files/missing.pdf' } });
     assert.equal(prepared.path, 'files/report.pdf');
     assert.match(prepared.bytes, /^assets\/sha256\/\w{2}\/\w{2}\/\w{64}\.png$/);
     assert.equal(prepared.bytes, prepared.uri);

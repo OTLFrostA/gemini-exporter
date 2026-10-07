@@ -7,7 +7,7 @@ import type { BlockNode } from '../src/core/content/blocks.js';
 import { mapContentAssetReferences } from '../src/core/content/assetReferences.js';
 import { parseMarkdownToBlocks } from '../src/core/content/markdown/index.js';
 import { parseGeminiBody } from '../src/core/provider/gemini/contentAdapter.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
 import type { Conversation } from '../src/types/conversation.js';
@@ -65,12 +65,12 @@ for (const content of [
             attachments: [{ type: 'image', localName: 'assets/image.png', url: 'https://example.test/image.png' }],
             citations: [{ url: 'https://example.test/source', title: 'Source' }], thoughts: 'Reasoning **detail**',
         }] };
-        const domain = toDomainConversationDetail(legacy);
+        const { conversation: domain, resourceHints } = parseLegacyConversation(legacy);
         const before = structuredClone(domain);
-        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain)]);
+        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain, { resourceHints })]);
         assert.deepEqual(semantic.bundle, raw.bundle);
         assert.deepEqual(domain, before, 'asset/citation reconciliation must not mutate Domain');
-        assert.deepEqual((await normalizeDomainConversation(domain)).bundle, semantic.bundle);
+        assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, semantic.bundle);
     });
 }
 
@@ -143,12 +143,12 @@ for (const document of [
             id: 'message', role: 'model', content: 'fallback', structuredContent, documents: [document],
         }] };
         const original = structuredClone(legacy);
-        const domain = toDomainConversationDetail(legacy);
+        const { conversation: domain, resourceHints } = parseLegacyConversation(legacy);
         assert.equal('structuredContent' in domain.messages[0], false);
         assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['section']);
-        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain)]);
+        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain, { resourceHints })]);
         assert.deepEqual(semantic.bundle, raw.bundle);
-        assert.deepEqual((await normalizeDomainConversation(JSON.parse(JSON.stringify(domain)))).bundle, raw.bundle);
+        assert.deepEqual((await normalizeDomainConversation(JSON.parse(JSON.stringify(domain)), { resourceHints })).bundle, raw.bundle);
         assert.deepEqual(semantic.bundle.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
         assert.deepEqual(legacy, original);
     });

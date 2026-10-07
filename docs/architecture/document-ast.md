@@ -80,3 +80,9 @@ D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoi
 Citation IDs are message-local Domain relationships. Textual web/grounding markers are resolved by input adapters (including reasoning and rich captions/descriptions); composers consume citation references and never scan text for provider marker syntax. Domain closure rejects duplicate citation IDs and unresolved references. Source UI strings remain backend-local. Authoritative title selection also happens at the legacy boundary rather than selecting raw title candidates during composition.
 
 The old Canonical composer delegates logical block composition to the same `contentComposer` while its remaining PDF/API callers migrate. That compatibility path may rename references for its historical schema, but the direct HTML/Markdown path never uses it. No additional conversation representation is introduced. Raw/Standard/OpenAI JSON remain archival serializers of input data and are outside the presentation pipeline.
+
+## Resource identity and export destinations
+
+Domain resources carry authored names, provider/document/generation identity, acquisition URIs and intrinsic metadata. Legacy `localName` and export destinations are not semantic identity evidence and are never copied into `source.path` (the field is removed). Renaming or relocating an export cannot change the Domain graph. Destination-only unknown resources use distinct deterministic occurrence identities; they are not merged merely because a filename matches.
+
+`parseLegacyConversation` returns the Domain conversation plus separate resource preparation hints, keyed by Domain resource IDs. The input adapter may use old paths to bind body references, but those aliases do not survive in Domain. HTML/Markdown orchestration passes the transport hints beside Domain into resource preparation. Source URIs, provider tokens and document/generation identities still reconcile aliases before Domain.

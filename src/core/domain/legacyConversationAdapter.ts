@@ -2,6 +2,7 @@ import { closeLegacyCitations } from '../provider/domainCitationAdapter.js';
 import { closeDomainResources } from '../provider/domainResourceAdapter.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource } from './titleAuthority.js';
 import { assertDomainClosure } from './closure.js';
+import type { LegacyResourceHints } from '../export/assets/resourceHints.js';
 import type { BlockNode } from '../content/blocks.js';
 import { parseImportedBody } from '../provider/importedContentAdapter.js';
 import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from '../provider/gemini/contentAdapter.js';
@@ -133,7 +134,7 @@ function legacyTitle(conversation: Conversation): string {
 }
 
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
-export function toDomainConversationDetail(conversation: Conversation, options: LegacyDomainConstructionOptions = {}): DomainConversationDetail {
+export function parseLegacyConversation(conversation: Conversation, options: LegacyDomainConstructionOptions = {}): { conversation: DomainConversationDetail; resourceHints: LegacyResourceHints } {
     const rawMessages = conversation.messages && conversation.messages.length > 0
         ? conversation.messages
         : flattenLegacyTurns(conversation);
@@ -169,5 +170,10 @@ export function toDomainConversationDetail(conversation: Conversation, options: 
         messages: resources.messages,
     };
     assertDomainClosure(domain);
-    return domain;
+    return { conversation: domain, resourceHints: resources.resourceHints };
+}
+
+/** Pure semantic result; callers needing export destinations use the parser's separate resource hints. */
+export function toDomainConversationDetail(conversation: Conversation, options: LegacyDomainConstructionOptions = {}): DomainConversationDetail {
+    return parseLegacyConversation(conversation, options).conversation;
 }

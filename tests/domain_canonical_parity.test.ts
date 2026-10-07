@@ -2,15 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
 import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
 
 async function assertDomainParity(conversation: Conversation): Promise<void> {
-    const domain = toDomainConversationDetail(conversation);
+    const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
     const [legacyResult, domainResult] = await Promise.all([
         normalizeGeminiConversation(conversation),
-        normalizeDomainConversation(domain),
+        normalizeDomainConversation(domain, { resourceHints }),
     ]);
     assert.deepEqual(domainResult.bundle, legacyResult.bundle);
 }

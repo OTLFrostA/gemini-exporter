@@ -1,19 +1,20 @@
+import type { LegacyResourceHint, LegacyResourceHints } from '../export/assets/resourceHints.js';
 import type { DomainAsset, DomainMessage } from './conversationDetail.js';
 import type { CanonicalMessageInput } from '../export/canonical/messageInput.js';
 import type { AssetNormalizationInput } from '../export/canonical/assetInput.js';
 import { mapContentAssetReferences } from '../content/assetReferences.js';
 
 /** Translate semantic resource metadata into the existing export input, without provider parsing. */
-function exportResource(asset: DomainAsset): AssetNormalizationInput {
+function exportResource(asset: DomainAsset, hint?: LegacyResourceHint): AssetNormalizationInput {
     return {
         referenceId: asset.id,
         type: asset.kind,
-        name: asset.name,
+        name: asset.name ?? hint?.fallbackName,
         mimeType: asset.mediaType,
         size: asset.byteLength,
         width: asset.dimensions?.width,
         height: asset.dimensions?.height,
-        localName: asset.source?.path,
+        localName: hint?.archivePath,
         resolvedUrl: asset.source?.uri,
         dataBase64: asset.dataBase64,
         contentMarkdown: asset.document?.contentMarkdown,
@@ -22,25 +23,25 @@ function exportResource(asset: DomainAsset): AssetNormalizationInput {
 }
 
 /** Domain references are closed over the registry; reasoning and body are already Content AST. */
-export function toCanonicalDomainMessage(message: DomainMessage, locator: string, assets: ReadonlyMap<string, DomainAsset>): CanonicalMessageInput {
+export function toCanonicalDomainMessage(message: DomainMessage, locator: string, assets: ReadonlyMap<string, DomainAsset>, hints: LegacyResourceHints = {}): CanonicalMessageInput {
     const lookup = (id: string): DomainAsset => {
         const asset = assets.get(id);
         if (!asset) throw new TypeError(`Unregistered Domain resource: ${id}`);
         return asset;
     };
-    const attachments = (message.attachmentIds ?? []).map(id => exportResource(lookup(id)));
+    const attachments = (message.attachmentIds ?? []).map(id => exportResource(lookup(id), hints[id]));
     const attached = new Set(message.attachmentIds);
     const inlineAssetSources = new Map<string, string>();
     const resolve = (ref: string, kind: 'image' | 'file'): string => {
         const asset = lookup(ref);
         if (attached.has(ref)) return ref;
         // Preserve the existing inline export path and numbering for URI-only resources.
-        if (kind === 'image' && !asset.source?.path && !asset.dataBase64 && !asset.mediaType
+        if (kind === 'image' && !hints[ref]?.archivePath && !asset.dataBase64 && !asset.mediaType
             && asset.byteLength === undefined && !asset.dimensions && !asset.failureReason && !asset.document) {
-            inlineAssetSources.set(ref, asset.source?.uri ?? '');
+            inlineAssetSources.set(ref, asset.source?.uri ?? hints[ref]?.unresolvedReference ?? '');
             return ref;
         }
-        attachments.push(exportResource(asset));
+        attachments.push(exportResource(asset, hints[ref]));
         attached.add(ref);
         return ref;
     };
