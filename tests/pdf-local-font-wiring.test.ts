@@ -4,7 +4,8 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const {
     resolveLocalFonts,
     clearLocalFontCache,
@@ -150,34 +151,16 @@ async function driveCompileRoundTrip(host: FakeHost): Promise<any> {
     return compileMsg;
 }
 
-function makeBundle() {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: 'Test convo',
-            createdAt: '2026-09-20T10:00:00Z',
-            messages: [
-                {
-                    id: 'm1',
-                    role: 'user',
-                    blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
-                },
-                {
-                    id: 'm2',
-                    role: 'assistant',
-                    blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
-                },
-            ],
-        },
-        assets: [],
-        citations: [],
-    };
+function makeDomain() {
+    return { providerId: 'gemini', id: 'c1', title: 'Test convo', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages: [
+        { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
+        { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
+    ] };
 }
 
-function makeContext(bundle: any) {
+function makeContext(domain: any) {
     return {
-        bundle,
+
         assets: { resolve: async () => null },
         locale: 'en' as const,
         signal: new AbortController().signal,
@@ -192,14 +175,14 @@ function assetPathFor(asset: any) {
     return `assets/${asset.id}${ext}`;
 }
 
-function makePayload(bundle: any) {
-    const { payload: document } = toTypstPayload(bundle, { assetPath: assetPathFor });
+function makePayload(domain: any) {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
     return {
         rendererSchemaVersion: 1,
-        sourceSchemaVersion: 1,
-        bundle,
+
+
         document,
-        assetPaths: new Map((bundle.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
+        assetPaths: new Map((domain.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
     };
 }
 
@@ -218,8 +201,8 @@ test('A: resolveLocalFonts -> mountRuntimeFonts -> sandbox receives the runtime 
         assert.ok(mounted.effectiveFonts.fallbackChain[0].startsWith('Noto Sans CJK SC (local,'));
         assert.strictEqual(mounted.effectiveFonts.localFontsAvailable, true);
 
-        const bundle = makeBundle();
-        const promise = compiler.compile(makePayload(bundle), makeContext(bundle));
+        const domain = makeDomain();
+        const promise = compiler.compile(makePayload(domain), makeContext(domain));
         await driveInitHandshake(host);
         const compileMsg = await driveCompileRoundTrip(host);
         const received = (compileMsg.message.fonts as ArrayBuffer[]).map((b) => Buffer.from(b));
@@ -251,14 +234,14 @@ test('B: two compiles in one session read font bytes exactly once and install fo
         const mounted = await mountRuntimeFonts(resolution, compiler);
         assert.strictEqual(mounted.mountedCount, 1);
 
-        const bundle = makeBundle();
-        const promise1 = compiler.compile(makePayload(bundle), makeContext(bundle));
+        const domain = makeDomain();
+        const promise1 = compiler.compile(makePayload(domain), makeContext(domain));
         await driveInitHandshake(host);
         const compileMsg1 = await driveCompileRoundTrip(host);
         assert.ok(compileMsg1.message.fonts.length > 0, 'first compile carries fonts');
         await promise1;
 
-        const promise2 = compiler.compile(makePayload(bundle), makeContext(bundle));
+        const promise2 = compiler.compile(makePayload(domain), makeContext(domain));
         const compileMsg2 = await driveCompileRoundTrip(host);
         assert.strictEqual(compileMsg2.message.fonts.length, 0, 'fonts must be installed exactly once');
         await promise2;
@@ -288,8 +271,8 @@ test('C: getBytes failure emits TYPST_LOCAL_FONT_READ_FAILED and the export cont
         assert.strictEqual(mounted.effectiveFonts.localFontsAvailable, false);
         assert.deepStrictEqual(mounted.effectiveFonts.fallbackChain, [BUNDLED_MATH_FALLBACK, SYSTEM_FALLBACK]);
 
-        const bundle = makeBundle();
-        const promise = compiler.compile(makePayload(bundle), makeContext(bundle));
+        const domain = makeDomain();
+        const promise = compiler.compile(makePayload(domain), makeContext(domain));
         await driveInitHandshake(host);
         await driveCompileRoundTrip(host);
         const result = await promise;
@@ -356,29 +339,18 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
         const messages = sentences.map((s, i) => ({
             id: `m${i}`,
             role: i % 2 === 0 ? 'user' : 'assistant',
-            blocks: [para(`第${i + 1}段：${s}`)],
+            content: [para(`第${i + 1}段：${s}`)],
         }));
-        const bundle = {
-            schemaVersion: 1,
-            conversation: {
-                key: { providerId: 'gemini', conversationId: 'local-font-cjk' },
-                title: '本地字体 CJK 路径测试',
-                createdAt: '2026-09-26T00:00:00Z',
-                updatedAt: '2026-09-26T00:10:00Z',
-                messages,
-            },
-            assets: [],
-            citations: [],
-        };
+        const domain = { providerId: 'gemini', id: 'local-font-cjk', title: '本地字体 CJK 路径测试', timestamp: null, createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z', assets: [], messages };
         const context = {
-            bundle,
+
             assets: { resolve: async () => null },
             locale: 'zh' as const,
             signal: new AbortController().signal,
             reportProgress: () => undefined,
         };
         const result = await compiler.compile(
-            makePayload(bundle),
+            makePayload(domain),
             context,
         );
         compiler.dispose();

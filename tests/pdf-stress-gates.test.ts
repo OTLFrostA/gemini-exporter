@@ -24,8 +24,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { parseFixture } = require('./helpers/documentFixture.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 // §5 全链路门禁的依赖（真编译器 + 文本提取）。§1–§4 不需要它们。
 const { PdfExporter } = require('../src/core/export/pdf/index.js');
@@ -38,7 +38,7 @@ const {
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 
 const BASE_TS = 1727000000000;
-const TYPST_OPTS = { assetPath: (_a: any) => undefined };
+const TYPST_OPTS = {};
 
 // ---------------------------------------------------------------------------
 // 合成器：照抄 P0 s4 样本构成（60 轮 / 121 消息；分页、思考、引用、图片、
@@ -160,8 +160,8 @@ test('stress: 121-message conversation normalizes and converts well under budget
     assert.strictEqual(raw.messages.length, 121, 'synthetic conversation must have 121 messages');
 
     const t0 = Date.now();
-    const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
-    const { payload } = toTypstPayload(bundle, TYPST_OPTS);
+    const { document, resources, diagnostics } = await parseFixture(raw);
+    const { payload } = renderTypstFixture(document, resources, TYPST_OPTS);
     const elapsedMs = Date.now() - t0;
 
     assert.strictEqual(payload.messages.length, 121, 'payload must carry all 121 messages');
@@ -190,8 +190,8 @@ test('stress: 100-conversation batch has bounded total preprocessing time', asyn
     const t0 = Date.now();
     let totalMessages = 0;
     for (const raw of batch) {
-        const { bundle } = await normalizeGeminiConversation(raw);
-        const { payload } = toTypstPayload(bundle, TYPST_OPTS);
+        const { document, resources } = await parseFixture(raw);
+        const { payload } = renderTypstFixture(document, resources, TYPST_OPTS);
         totalMessages += payload.messages.length;
     }
     const elapsedMs = Date.now() - t0;
@@ -216,15 +216,15 @@ test('memory: repeated normalize+payload shows no leak signal', async () => {
 
     // 预热一次，让 JIT / 惰性初始化稳定
     {
-        const { bundle } = await normalizeGeminiConversation(raw);
-        toTypstPayload(bundle, TYPST_OPTS);
+        const { document, resources } = await parseFixture(raw);
+        renderTypstFixture(document, resources, TYPST_OPTS);
     }
 
     const before = process.memoryUsage().heapUsed;
     let lastMessageCount = 0;
     for (let i = 0; i < 50; i++) {
-        const { bundle } = await normalizeGeminiConversation(raw);
-        const { payload } = toTypstPayload(bundle, TYPST_OPTS);
+        const { document, resources } = await parseFixture(raw);
+        const { payload } = renderTypstFixture(document, resources, TYPST_OPTS);
         lastMessageCount = payload.messages.length;
     }
     const after = process.memoryUsage().heapUsed;

@@ -1,9 +1,10 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeLocalName, extractAttachmentInlineBytes } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
-const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
-const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
+const { normalizeArchiveResourceName: normalizeLocalName } = require('../src/core/export/assets/archivePath.js');
+const { extractAttachmentInlineBytes } = require('../src/core/export/assets/attachmentBytes.js');
+const { parseFixture } = require('./helpers/documentFixture.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
 
 
@@ -22,14 +23,14 @@ test('archive resource names reject traversal, absolute, drive and encoded unsaf
     }
 });
 
-test('canonical attachment uses files namespace through HTML output', async () => {
-    const { bundle } = await normalizeGeminiConversation({ id: 'cb8bd7', messages: [{
+test('Domain attachment uses files namespace through HTML output', async () => {
+    const { domain, document, resources } = await parseFixture({ id: 'cb8bd7', messages: [{
         id: 'm1', role: 'user', content: 'Attachment', attachments: [{
             type: 'file', name: 'test_config.json', localName: 'files/cb8bd7_test_config.json',
         }],
     }] });
-    assert.equal(bundle.assets[0].storageRef, 'files/cb8bd7_test_config.json');
-    const result = renderCanonicalHtml(bundle);
+    assert.equal(resources[domain.assets[0].id], 'files/cb8bd7_test_config.json');
+    const result = renderDocumentHtml(document, resources);
     assert.match(typeof result === 'string' ? result : result.html, /href="files\/cb8bd7_test_config.json"/);
 });
 

@@ -8,18 +8,10 @@ const {
 const {
     parseDetail,
 } = require('../src/core/api/parser/parseDetail.js');
-const {
-    normalizeGeminiConversation,
-} = require('../src/core/export/canonical/gemini/normalizeConversation.js');
-const {
-    renderCanonicalMarkdown,
-} = require('../src/core/export/canonical/renderCanonicalMarkdown.js');
-const {
-    renderCanonicalHtml,
-} = require('../src/core/export/canonical/renderCanonicalHtml.js');
-const {
-    toTypstPayload,
-} = require('../src/core/export/typst/payload.js');
+const { parseFixture } = require('./helpers/documentFixture.js');
+const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 test('extractGroundingCitationMarkers extracts declared markers from JSPB candidate metadata', () => {
     // Standard JSPB structure: cand[12] contains grounding array with field 44
@@ -67,11 +59,11 @@ test('metadata-confirmed [cite: 1] transforms to citationRef with label [1]', as
         ],
     };
 
-    const { bundle, diagnostics } = await normalizeGeminiConversation(rawConv);
+    const { domain, document, resources, diagnostics } = await parseFixture(rawConv);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     assert.strictEqual(para.type, 'paragraph');
 
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
@@ -80,10 +72,11 @@ test('metadata-confirmed [cite: 1] transforms to citationRef with label [1]', as
 
     // Citation entity is registered and referenced
     const citId = citeRefs[0].citationId;
-    assert.ok(msg.citationIds?.includes(citId));
-    const citEntity = bundle.citations.find((c: any) => c.id === citId);
+    assert.ok(msg.citations?.some((citation: any) => citation.id === citId));
+    const citEntity = domain.messages[0].citations.find((c: any) => c.id === citId);
     assert.ok(citEntity);
-    assert.strictEqual(citEntity.kind, 'attachment');
+    assert.equal(citEntity.url, undefined);
+    assert.equal(citEntity.id, citId);
 });
 
 test('space variant [cite:2] declared in metadata transforms to citationRef [2]', async () => {
@@ -101,9 +94,9 @@ test('space variant [cite:2] declared in metadata transforms to citationRef [2]'
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
     assert.strictEqual(citeRefs[0].label, '[2]');
@@ -124,9 +117,9 @@ test('repeated citation marker in the same sentence both convert cleanly', async
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
     assert.strictEqual(citeRefs[0].label, '[1]');
@@ -149,9 +142,9 @@ test('ordinary user handwritten [cite: 1] is preserved as plain text', async () 
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
 
@@ -174,9 +167,9 @@ test('model text with unconfirmed [cite: 1] (no matching metadata) is preserved 
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
 
@@ -200,9 +193,9 @@ test('only metadata-confirmed marker converts; non-matching marker in same messa
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
     assert.strictEqual(citeRefs[0].label, '[1]');
@@ -226,22 +219,22 @@ test('marker inside code block and inline code is preserved untouched', async ()
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
 
     // Para 1: inline code
-    const p1 = msg.blocks[0];
+    const p1 = msg.content[0];
     const inlineCode = p1.children.find((c: any) => c.type === 'inlineCode');
     assert.ok(inlineCode);
     assert.strictEqual(inlineCode.code, '[cite: 1]');
 
     // Para 2: code block
-    const codeBlock = msg.blocks[1];
+    const codeBlock = msg.content[1];
     assert.strictEqual(codeBlock.type, 'code');
     assert.ok(codeBlock.code.includes('[cite: 1]'));
 
     // Para 3: confirmed text citation
-    const p3 = msg.blocks[2];
+    const p3 = msg.content[2];
     const citeRef = p3.children.find((c: any) => c.type === 'citationRef');
     assert.ok(citeRef);
     assert.strictEqual(citeRef.label, '[1]');
@@ -265,16 +258,16 @@ test('existing [1] web citations do not regress', async () => {
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
     assert.strictEqual(citeRefs[0].label, '[1]');
     assert.strictEqual(citeRefs[1].label, '[2]');
 
-    const cit1 = bundle.citations.find((c: any) => c.id === citeRefs[0].citationId);
-    const cit2 = bundle.citations.find((c: any) => c.id === citeRefs[1].citationId);
+    const cit1 = domain.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
+    const cit2 = domain.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
     assert.strictEqual(cit1?.url, 'https://example.com/study1');
     assert.strictEqual(cit2?.url, 'https://example.com/study2');
 });
@@ -295,21 +288,22 @@ test('orthogonal coexistence: both web [1] and grounding [cite: 1] in same messa
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
-    const msg = bundle.conversation.messages[0];
-    const para = msg.blocks[0];
+    const { domain, document, resources } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
 
     // [1] maps to web citation
-    const webCit = bundle.citations.find((c: any) => c.id === citeRefs[0].citationId);
+    const webCit = domain.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
     assert.strictEqual(webCit?.url, 'https://example.com/web');
-    assert.strictEqual(webCit?.kind, 'web');
+    assert.ok(webCit);
 
     // [cite: 1] maps to grounding citation with label [1]
-    const groundCit = bundle.citations.find((c: any) => c.id === citeRefs[1].citationId);
+    const groundCit = domain.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
     assert.strictEqual(groundCit?.url, undefined);
-    assert.strictEqual(groundCit?.kind, 'attachment');
+    assert.ok(groundCit);
+    assert.notEqual(groundCit.id, webCit.id);
     assert.strictEqual(citeRefs[1].label, '[1]');
 });
 
@@ -328,28 +322,28 @@ test('Markdown, HTML, and Typst payload renderers contain 0 metadata-confirmed c
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(rawConv);
+    const { domain, document, resources } = await parseFixture(rawConv);
 
     // 1. Markdown
-    const md = renderCanonicalMarkdown(bundle);
+    const md = renderDocumentMarkdown(document, resources);
     assert.ok(!md.includes('cite:'), `Markdown should not leak cite:, got: ${md}`);
     assert.ok(md.includes('[1]'), `Markdown should display citation reference [1], got: ${md}`);
 
     // 2. HTML
-    const htmlResult = renderCanonicalHtml(bundle);
+    const htmlResult = renderDocumentHtml(document, resources);
     const html = htmlResult.html;
     assert.ok(!html.includes('cite:'), `HTML should not leak cite:, got: ${html}`);
     assert.ok(html.includes('gem-citation-ref'), `HTML should contain citation-ref class`);
     assert.ok(html.includes('[1]'), `HTML should display [1]`);
 
     // 3. Typst
-    const typstResult = toTypstPayload(bundle, { assetPath: () => '' });
+    const typstResult = renderTypstFixture(document, resources);
     const typstJson = JSON.stringify(typstResult.payload);
     assert.ok(!typstJson.includes('cite:'), `Typst payload should not leak cite:, got: ${typstJson}`);
     assert.ok(typstJson.includes('[1]'), `Typst payload should contain [1], got: ${typstJson}`);
 });
 
-test('end-to-end: wire batchexecute response -> parseDetail -> canonical -> renderers zero leak', async () => {
+test('end-to-end: wire batchexecute response -> parseDetail -> Domain -> Document AST -> renderers zero leak', async () => {
     // Construct wire JSPB detail structure mimicking Google Gemini server
     const mockDetailInner = [
         [
@@ -406,34 +400,34 @@ test('end-to-end: wire batchexecute response -> parseDetail -> canonical -> rend
     assert.ok(modelMsg);
     assert.deepStrictEqual(modelMsg.groundingCitationMarkers, ['[cite: 1]']);
 
-    // 2. Canonical normalization stage
+    // 2. Domain parsing stage
     const convData = {
         id: parsed.id,
         title: parsed.title || 'Config Test',
         timestamp: parsed.timestamp,
         messages: parsed.messages,
     };
-    const { bundle, diagnostics } = await normalizeGeminiConversation(convData);
+    const { domain, document, resources, diagnostics } = await parseFixture(convData);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
-    const canMsg = bundle.conversation.messages.find((m: any) => m.role === 'assistant');
+    const canMsg = domain.messages.find((m: any) => m.role === 'assistant');
     assert.ok(canMsg);
 
     // Verify citationRef inlines exist and label is [1]
-    const refs = canMsg.blocks.flatMap((b: any) => b.children || []).filter((c: any) => c.type === 'citationRef');
+    const refs = canMsg.content.flatMap((b: any) => b.children || []).filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(refs.length, 1);
     assert.strictEqual(refs[0].label, '[1]');
 
     // 3. Renderers stage
-    const md = renderCanonicalMarkdown(bundle);
+    const md = renderDocumentMarkdown(document, resources);
     assert.ok(!md.includes('cite:'), `Markdown leaked cite: -> ${md}`);
     assert.ok(md.includes('[1]'), `Markdown should display [1]`);
 
-    const html = renderCanonicalHtml(bundle).html;
+    const html = renderDocumentHtml(document, resources).html;
     assert.ok(!html.includes('cite:'), `HTML leaked cite: -> ${html}`);
     assert.ok(html.includes('[1]'), `HTML should display [1]`);
 
-    const typst = JSON.stringify(toTypstPayload(bundle, { assetPath: () => '' }).payload);
+    const typst = JSON.stringify(renderTypstFixture(document, resources).payload);
     assert.ok(!typst.includes('cite:'), `Typst leaked cite: -> ${typst}`);
     assert.ok(typst.includes('[1]'), `Typst should display [1]`);
 });

@@ -1,7 +1,7 @@
 /**
  * tests/markdown_adapter.test.ts
  *
- * Layer M1 (MDAST -> Canonical AST Adapter Unit Tests) &
+ * Layer M1 (MDAST -> Content AST Adapter Unit Tests) &
  * Layer M2 (Integration Smoke Tests for micromark / mdast-util-from-markdown pipeline)
  *
  * Conforms to Section 8 of the Parser Migration & Validation Plan.
@@ -18,7 +18,6 @@ const {
     adaptInlines,
     mergeAdjacentTextNodes,
 } = require('../src/core/content/markdown/index.js');
-const { newAssetLinkIndex, indexAssetRef, linkInlineImage } = require('../src/core/export/canonical/gemini/normalizeAssets.js');
 
 const { preprocessGeminiMarkdown } = require('../src/core/provider/gemini/markdownCompatibility.js');
 // This corpus includes captured Gemini compatibility evidence; preprocess at its input boundary.
@@ -29,7 +28,7 @@ function parseMarkdownToBlocks(text: string, prefix: string, ctx: any) {
 function createTestContext(overrides: any = {}) {
     const diagnostics: any[] = [];
     const inlineAssets: any[] = [];
-    const assetIndex = newAssetLinkIndex();
+    const assetIndex = new Map<string, string>();
     const ctx = {
         idPrefix: 'test-msg',
         diagnostics,
@@ -38,12 +37,16 @@ function createTestContext(overrides: any = {}) {
         sourceRef: { providerId: 'test-provider', locator: 'test.0' },
         ...overrides,
     };
-    Object.assign(ctx, { resolveImage: (ref: string, alt: string, title?: string) => linkInlineImage(ref, alt, title, ctx) });
+    Object.assign(ctx, { resolveImage: (ref: string, alt: string, title?: string) => {
+        let assetId = assetIndex.get(ref);
+        if (!assetId) { assetId = `inline-${inlineAssets.length}`; assetIndex.set(ref, assetId); inlineAssets.push({ id: assetId, uri: ref }); }
+        return { type: 'image', assetId, alt, ...(title ? { title } : {}) };
+    } });
     return { ctx, diagnostics, inlineAssets, assetIndex };
 }
 
 // =========================================================================
-// Layer M1: Adapter Unit Tests (Direct MDAST -> Canonical Mapping)
+// Layer M1: Adapter Unit Tests (Direct MDAST -> Content Mapping)
 // =========================================================================
 
 test('Layer M1: Text node coalescing merges adjacent text nodes', () => {
@@ -236,7 +239,7 @@ test('Layer M1: Task list checkbox prepends marker to item text', () => {
 });
 
 // =========================================================================
-// Layer M2: Integration Smoke Tests (micromark -> mdast -> Canonical AST)
+// Layer M2: Integration Smoke Tests (micromark -> mdast -> Content AST)
 // =========================================================================
 
 test('Layer M2: Smoke test - Headings, paragraphs, and standard inlines', () => {
@@ -364,7 +367,7 @@ test('Layer M2: Smoke test - Standalone single-line $$...$$ is recognized as Mat
 
 test('Layer M2: Smoke test - Asset index link matching for inline images', () => {
     const { ctx, assetIndex } = createTestContext();
-    indexAssetRef(assetIndex, 'https://example.com/photo.png', 'asset-img-001');
+    assetIndex.set('https://example.com/photo.png', 'asset-img-001');
 
     const doc = 'Here is an image: ![A mountain](https://example.com/photo.png "Mountain peak")';
     const blocks = parseMarkdownToBlocks(doc, 'smoke', ctx);
@@ -482,7 +485,7 @@ test('Reference Nodes: Definition lifetime is isolated per parse run (no leakage
 
 test('Reference Nodes: Image reference resolves definition and asset linking', () => {
     const { ctx, assetIndex } = createTestContext();
-    indexAssetRef(assetIndex, 'https://example.com/diagram.png', 'asset-diag-42');
+    assetIndex.set('https://example.com/diagram.png', 'asset-diag-42');
 
     const doc = [
         'Architecture: ![System Diagram][diag-ref]',

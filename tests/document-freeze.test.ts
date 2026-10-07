@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/export/document/ast.js';
 import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { composeDocument } from '../src/core/export/document/composeDocument.js';
 import { fileBadge } from '../src/core/export/document/backendPresentation.js';
 import { renderMathHtml } from '../src/core/export/document/htmlMath.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
@@ -63,10 +62,10 @@ test('display date selects the first valid fact and normalizes to UTC at composi
         Object.assign(input, { [field]: field === 'timestamp' ? NaN : 'invalid' });
     }
     assert.equal(composeDomainDocument(input).document.header.date, undefined);
-    const compatibility = { schemaVersion: 1 as const, conversation: { key: { providerId: 'custom', accountId: 'a', conversationId: 'c' }, title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'assistant' as const, author: { model: 'compatibility only' }, blocks: [] }] }, assets: [], citations: [] };
-    assert.equal(composeDocument(compatibility).document.header.date, '2026-10-07');
-    compatibility.conversation.updatedAt = 'invalid';
-    const document = composeDocument(compatibility).document;
+    const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
+    assert.equal(composeDomainDocument(parseProviderConversation(source).conversation).document.header.date, '2026-10-07');
+    source.updatedAt = 'invalid';
+    const document = composeDomainDocument(parseProviderConversation(source).conversation).document;
     assert.equal(document.header.date, '2026-10-04');
     assert.ok(!('modelLabel' in document.messages[0]));
     assert.ok(!('model' in renderDocumentTypst(document, {}).messages[0]));
