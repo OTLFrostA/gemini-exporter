@@ -1,94 +1,104 @@
 {
- "id": "11-missing-asset",
- "title": "缺失附件",
- "description": "引用了不存在的图片与文件资产：检查占位/降级渲染，编译不得失败。",
- "bundle": {
-  "schemaVersion": 1,
-  "conversation": {
-   "key": {
-    "providerId": "gemini",
-    "conversationId": "vc-11"
-   },
-   "title": "缺失附件",
-   "createdAt": "2026-09-26T10:00:00Z",
-   "updatedAt": "2026-09-26T11:00:00Z",
-   "messages": [
-    {
-     "id": "m1",
-     "role": "user",
-     "blocks": [
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "把架构图和报告发我。"
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "id": "m2",
-     "role": "assistant",
-     "blocks": [
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "相关架构图如下："
-        }
-       ]
-      },
-      {
-       "type": "image",
-       "assetId": "ghost-diagram",
-       "alt": "缺失的架构图占位"
-      },
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "详细数据见附件报告："
-        }
-       ]
-      },
-      {
-       "type": "file",
-       "assetId": "ghost-report",
-       "label": "缺失的报告.pdf"
-      },
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "如果图片或附件缺失，页面应显示占位提示而不是崩溃。"
-        }
-       ]
-      }
-     ]
-    }
-   ]
+  "id": "11-missing-asset",
+  "title": "缺失附件",
+  "description": "引用了不存在的图片与文件资产：检查占位/降级渲染，编译不得失败。",
+  "binaries": {},
+  "expect": {
+    "minPages": 1,
+    "imageCount": 0,
+    "phrases": [
+      "缺失的架构图占位",
+      "如果图片或附件缺失"
+    ],
+    "warnCodes": [
+      "TYPST_V8_IMAGE_MISSING"
+    ],
+    "exactlyOnce": [
+      "如果图片或附件缺失，页面应显示占位提示而不是崩溃。"
+    ]
   },
-  "assets": [],
-  "citations": []
- },
- "binaries": {},
- "expect": {
-  "minPages": 1,
-  "imageCount": 0,
-  "phrases": [
-   "缺失的架构图占位",
-   "如果图片或附件缺失"
-  ],
-  "warnCodes": [
-   "TYPST_V8_IMAGE_MISSING"
-  ],
-  "exactlyOnce": [
-   "如果图片或附件缺失，页面应显示占位提示而不是崩溃。"
-  ]
- }
+  "document": {
+    "schemaVersion": 2,
+    "header": {
+      "title": "缺失附件",
+      "providerLabel": "gemini",
+      "date": "2026-09-26",
+      "messageCount": 2
+    },
+    "messages": [
+      {
+        "type": "message",
+        "id": "m1",
+        "anchor": "turn-user-0",
+        "variant": "bubble",
+        "label": "you",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "把架构图和报告发我。"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "id": "m2",
+        "anchor": "turn-model-1",
+        "variant": "flow",
+        "label": "assistant",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "相关架构图如下："
+              }
+            ]
+          },
+          {
+            "type": "placeholder",
+            "resourceId": "ghost-diagram",
+            "kind": "image",
+            "text": "缺失的架构图占位",
+            "details": [
+              {
+                "type": "text",
+                "text": "缺失的架构图占位"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "详细数据见附件报告："
+              }
+            ]
+          },
+          {
+            "type": "placeholder",
+            "resourceId": "ghost-report",
+            "kind": "file",
+            "text": "缺失的报告.pdf"
+          },
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "如果图片或附件缺失，页面应显示占位提示而不是崩溃。"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "resourceIds": []
 }

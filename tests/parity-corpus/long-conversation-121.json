@@ -1,19 +1,19 @@
 {
-  "schemaVersion": 1,
-  "conversation": {
-    "key": {
-      "providerId": "gemini",
-      "accountId": "acct-parity-001",
-      "conversationId": "conv-long-121-001"
+  "document": {
+    "schemaVersion": 2,
+    "header": {
+      "title": "长会话：121 消息 parity 语料",
+      "providerLabel": "gemini",
+      "date": "2026-09-26",
+      "messageCount": 121
     },
-    "title": "长会话：121 消息 parity 语料",
-    "createdAt": "2026-09-26T14:00:00-07:00",
-    "updatedAt": "2026-09-26T16:02:00-07:00",
     "messages": [
       {
+        "type": "message",
         "id": "u1",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:01-07:00",
+        "anchor": "turn-user-0",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -27,9 +27,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a1",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:01-07:00",
+        "anchor": "turn-model-1",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -43,9 +45,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u2",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:02-07:00",
+        "anchor": "turn-user-2",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -59,9 +63,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a2",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:02-07:00",
+        "anchor": "turn-model-3",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -75,9 +81,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u3",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:03-07:00",
+        "anchor": "turn-user-4",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -91,9 +99,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a3",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:03-07:00",
+        "anchor": "turn-model-5",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -107,9 +117,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u4",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:04-07:00",
+        "anchor": "turn-user-6",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -123,9 +135,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a4",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:04-07:00",
+        "anchor": "turn-model-7",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -139,9 +153,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u5",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:05-07:00",
+        "anchor": "turn-user-8",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -155,9 +171,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a5",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:05-07:00",
+        "anchor": "turn-model-9",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -171,9 +189,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u6",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:06-07:00",
+        "anchor": "turn-user-10",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -187,9 +207,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a6",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:06-07:00",
+        "anchor": "turn-model-11",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -203,9 +225,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u7",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:07-07:00",
+        "anchor": "turn-user-12",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -258,9 +282,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a7",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:07-07:00",
+        "anchor": "turn-model-13",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -274,9 +300,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u8",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:08-07:00",
+        "anchor": "turn-user-14",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -290,9 +318,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a8",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:08-07:00",
+        "anchor": "turn-model-15",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -306,9 +336,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u9",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:09-07:00",
+        "anchor": "turn-user-16",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -322,9 +354,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a9",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:09-07:00",
+        "anchor": "turn-model-17",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -338,9 +372,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u10",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:10-07:00",
+        "anchor": "turn-user-18",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -354,9 +390,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a10",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:10-07:00",
+        "anchor": "turn-model-19",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -369,15 +407,18 @@
           },
           {
             "type": "code",
-            "language": "python",
-            "code": "def round_5():\n    return 'parity-check-5'\n"
+            "code": "def round_5():\n    return 'parity-check-5'\n",
+            "showHeader": true,
+            "language": "python"
           }
         ]
       },
       {
+        "type": "message",
         "id": "u11",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:11-07:00",
+        "anchor": "turn-user-20",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -391,9 +432,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a11",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:11-07:00",
+        "anchor": "turn-model-21",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -407,9 +450,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u12",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:12-07:00",
+        "anchor": "turn-user-22",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -423,9 +468,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a12",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:12-07:00",
+        "anchor": "turn-model-23",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -439,9 +486,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u13",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:13-07:00",
+        "anchor": "turn-user-24",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -455,9 +504,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a13",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:13-07:00",
+        "anchor": "turn-model-25",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -471,9 +522,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u14",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:14-07:00",
+        "anchor": "turn-user-26",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -526,9 +579,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a14",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:14-07:00",
+        "anchor": "turn-model-27",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -542,9 +597,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u15",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:15-07:00",
+        "anchor": "turn-user-28",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -558,9 +615,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a15",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:15-07:00",
+        "anchor": "turn-model-29",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -573,65 +632,75 @@
           },
           {
             "type": "table",
-            "columns": [
-              {
-                "align": "left"
-              },
-              {
-                "align": "right"
-              }
+            "columnAlignments": [
+              "left",
+              "right"
             ],
             "headerRows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "指标"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "第 8 轮"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "指标"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "第 8 轮"
+                    }
+                  ]
+                }
+              ]
             ],
             "rows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "消息数"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "15"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "消息数"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "15"
+                    }
+                  ]
+                }
+              ]
             ]
           }
         ]
       },
       {
+        "type": "message",
         "id": "u16",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:16-07:00",
+        "anchor": "turn-user-30",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -645,9 +714,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a16",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:16-07:00",
+        "anchor": "turn-model-31",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -661,9 +732,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u17",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:17-07:00",
+        "anchor": "turn-user-32",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -677,9 +750,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a17",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:17-07:00",
+        "anchor": "turn-model-33",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -693,9 +768,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u18",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:18-07:00",
+        "anchor": "turn-user-34",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -709,9 +786,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a18",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:18-07:00",
+        "anchor": "turn-model-35",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -725,9 +804,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u19",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:19-07:00",
+        "anchor": "turn-user-36",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -741,9 +822,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a19",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:19-07:00",
+        "anchor": "turn-model-37",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -757,9 +840,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u20",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:20-07:00",
+        "anchor": "turn-user-38",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -773,9 +858,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a20",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:20-07:00",
+        "anchor": "turn-model-39",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -788,15 +875,18 @@
           },
           {
             "type": "code",
-            "language": "python",
-            "code": "def round_10():\n    return 'parity-check-10'\n"
+            "code": "def round_10():\n    return 'parity-check-10'\n",
+            "showHeader": true,
+            "language": "python"
           }
         ]
       },
       {
+        "type": "message",
         "id": "u21",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:21-07:00",
+        "anchor": "turn-user-40",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -849,9 +939,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a21",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:21-07:00",
+        "anchor": "turn-model-41",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -869,9 +961,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u22",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:22-07:00",
+        "anchor": "turn-user-42",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -885,9 +979,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a22",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:22-07:00",
+        "anchor": "turn-model-43",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -901,9 +997,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u23",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:23-07:00",
+        "anchor": "turn-user-44",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -917,9 +1015,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a23",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:23-07:00",
+        "anchor": "turn-model-45",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -933,9 +1033,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u24",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:24-07:00",
+        "anchor": "turn-user-46",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -949,9 +1051,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a24",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:24-07:00",
+        "anchor": "turn-model-47",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -965,9 +1069,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u25",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:25-07:00",
+        "anchor": "turn-user-48",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -981,9 +1087,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a25",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:25-07:00",
+        "anchor": "turn-model-49",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -997,9 +1105,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u26",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:26-07:00",
+        "anchor": "turn-user-50",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1013,9 +1123,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a26",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:26-07:00",
+        "anchor": "turn-model-51",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1029,9 +1141,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u27",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:27-07:00",
+        "anchor": "turn-user-52",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1045,9 +1159,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a27",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:27-07:00",
+        "anchor": "turn-model-53",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1061,9 +1177,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u28",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:28-07:00",
+        "anchor": "turn-user-54",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1116,9 +1234,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a28",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:28-07:00",
+        "anchor": "turn-model-55",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1132,9 +1252,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u29",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:29-07:00",
+        "anchor": "turn-user-56",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1148,9 +1270,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a29",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:29-07:00",
+        "anchor": "turn-model-57",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1164,9 +1288,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u30",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:30-07:00",
+        "anchor": "turn-user-58",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1180,9 +1306,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a30",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:30-07:00",
+        "anchor": "turn-model-59",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1195,70 +1323,81 @@
           },
           {
             "type": "code",
-            "language": "python",
-            "code": "def round_15():\n    return 'parity-check-15'\n"
+            "code": "def round_15():\n    return 'parity-check-15'\n",
+            "showHeader": true,
+            "language": "python"
           },
           {
             "type": "table",
-            "columns": [
-              {
-                "align": "left"
-              },
-              {
-                "align": "right"
-              }
+            "columnAlignments": [
+              "left",
+              "right"
             ],
             "headerRows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "指标"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "第 15 轮"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "指标"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "第 15 轮"
+                    }
+                  ]
+                }
+              ]
             ],
             "rows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "消息数"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "30"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "消息数"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "30"
+                    }
+                  ]
+                }
+              ]
             ]
           }
         ]
       },
       {
+        "type": "message",
         "id": "u31",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:31-07:00",
+        "anchor": "turn-user-60",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1272,9 +1411,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a31",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:31-07:00",
+        "anchor": "turn-model-61",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1288,9 +1429,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u32",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:32-07:00",
+        "anchor": "turn-user-62",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1304,9 +1447,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a32",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:32-07:00",
+        "anchor": "turn-model-63",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1320,9 +1465,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u33",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:33-07:00",
+        "anchor": "turn-user-64",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1336,9 +1483,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a33",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:33-07:00",
+        "anchor": "turn-model-65",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1352,9 +1501,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u34",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:34-07:00",
+        "anchor": "turn-user-66",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1368,9 +1519,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a34",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:34-07:00",
+        "anchor": "turn-model-67",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1384,9 +1537,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u35",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:35-07:00",
+        "anchor": "turn-user-68",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1439,9 +1594,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a35",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:35-07:00",
+        "anchor": "turn-model-69",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1455,9 +1612,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u36",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:36-07:00",
+        "anchor": "turn-user-70",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1471,9 +1630,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a36",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:36-07:00",
+        "anchor": "turn-model-71",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1487,9 +1648,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u37",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:37-07:00",
+        "anchor": "turn-user-72",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1503,9 +1666,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a37",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:37-07:00",
+        "anchor": "turn-model-73",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1519,9 +1684,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u38",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:38-07:00",
+        "anchor": "turn-user-74",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1535,9 +1702,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a38",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:38-07:00",
+        "anchor": "turn-model-75",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1551,9 +1720,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u39",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:39-07:00",
+        "anchor": "turn-user-76",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1567,9 +1738,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a39",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:39-07:00",
+        "anchor": "turn-model-77",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1583,9 +1756,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u40",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:40-07:00",
+        "anchor": "turn-user-78",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1599,9 +1774,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a40",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:40-07:00",
+        "anchor": "turn-model-79",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1614,15 +1791,18 @@
           },
           {
             "type": "code",
-            "language": "python",
-            "code": "def round_20():\n    return 'parity-check-20'\n"
+            "code": "def round_20():\n    return 'parity-check-20'\n",
+            "showHeader": true,
+            "language": "python"
           }
         ]
       },
       {
+        "type": "message",
         "id": "u41",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:41-07:00",
+        "anchor": "turn-user-80",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1636,9 +1816,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a41",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:41-07:00",
+        "anchor": "turn-model-81",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1652,9 +1834,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u42",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:42-07:00",
+        "anchor": "turn-user-82",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1707,9 +1891,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a42",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:42-07:00",
+        "anchor": "turn-model-83",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1727,9 +1913,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u43",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:43-07:00",
+        "anchor": "turn-user-84",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1743,9 +1931,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a43",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:43-07:00",
+        "anchor": "turn-model-85",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1759,9 +1949,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u44",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:44-07:00",
+        "anchor": "turn-user-86",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1775,9 +1967,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a44",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:44-07:00",
+        "anchor": "turn-model-87",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1791,9 +1985,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u45",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:45-07:00",
+        "anchor": "turn-user-88",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1807,9 +2003,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a45",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:45-07:00",
+        "anchor": "turn-model-89",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1822,65 +2020,75 @@
           },
           {
             "type": "table",
-            "columns": [
-              {
-                "align": "left"
-              },
-              {
-                "align": "right"
-              }
+            "columnAlignments": [
+              "left",
+              "right"
             ],
             "headerRows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "指标"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "第 23 轮"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "指标"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "第 23 轮"
+                    }
+                  ]
+                }
+              ]
             ],
             "rows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "消息数"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "45"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "消息数"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "45"
+                    }
+                  ]
+                }
+              ]
             ]
           }
         ]
       },
       {
+        "type": "message",
         "id": "u46",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:46-07:00",
+        "anchor": "turn-user-90",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1894,9 +2102,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a46",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:46-07:00",
+        "anchor": "turn-model-91",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1910,9 +2120,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u47",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:47-07:00",
+        "anchor": "turn-user-92",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1926,9 +2138,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a47",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:47-07:00",
+        "anchor": "turn-model-93",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1942,9 +2156,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u48",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:48-07:00",
+        "anchor": "turn-user-94",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -1958,9 +2174,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a48",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:48-07:00",
+        "anchor": "turn-model-95",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -1974,9 +2192,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u49",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:49-07:00",
+        "anchor": "turn-user-96",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2029,9 +2249,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a49",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:49-07:00",
+        "anchor": "turn-model-97",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2045,9 +2267,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u50",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:50-07:00",
+        "anchor": "turn-user-98",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2061,9 +2285,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a50",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:50-07:00",
+        "anchor": "turn-model-99",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2076,15 +2302,18 @@
           },
           {
             "type": "code",
-            "language": "python",
-            "code": "def round_25():\n    return 'parity-check-25'\n"
+            "code": "def round_25():\n    return 'parity-check-25'\n",
+            "showHeader": true,
+            "language": "python"
           }
         ]
       },
       {
+        "type": "message",
         "id": "u51",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:51-07:00",
+        "anchor": "turn-user-100",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2098,9 +2327,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a51",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:51-07:00",
+        "anchor": "turn-model-101",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2114,9 +2345,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u52",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:52-07:00",
+        "anchor": "turn-user-102",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2130,9 +2363,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a52",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:52-07:00",
+        "anchor": "turn-model-103",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2146,9 +2381,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u53",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:53-07:00",
+        "anchor": "turn-user-104",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2162,9 +2399,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a53",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:53-07:00",
+        "anchor": "turn-model-105",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2178,9 +2417,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u54",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:54-07:00",
+        "anchor": "turn-user-106",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2194,9 +2435,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a54",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:54-07:00",
+        "anchor": "turn-model-107",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2210,9 +2453,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u55",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:55-07:00",
+        "anchor": "turn-user-108",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2226,9 +2471,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a55",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:55-07:00",
+        "anchor": "turn-model-109",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2242,9 +2489,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u56",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:56-07:00",
+        "anchor": "turn-user-110",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2297,9 +2546,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a56",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:56-07:00",
+        "anchor": "turn-model-111",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2313,9 +2564,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u57",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:57-07:00",
+        "anchor": "turn-user-112",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2329,9 +2582,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a57",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:57-07:00",
+        "anchor": "turn-model-113",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2345,9 +2600,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u58",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:58-07:00",
+        "anchor": "turn-user-114",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2361,9 +2618,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a58",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:58-07:00",
+        "anchor": "turn-model-115",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2377,9 +2636,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u59",
-        "role": "user",
-        "createdAt": "2026-09-26T14:00:59-07:00",
+        "anchor": "turn-user-116",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2393,9 +2654,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a59",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:00:59-07:00",
+        "anchor": "turn-model-117",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2409,9 +2672,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "u60",
-        "role": "user",
-        "createdAt": "2026-09-26T14:01:00-07:00",
+        "anchor": "turn-user-118",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2425,9 +2690,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a60",
-        "role": "assistant",
-        "createdAt": "2026-09-26T14:01:00-07:00",
+        "anchor": "turn-model-119",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -2440,70 +2707,81 @@
           },
           {
             "type": "code",
-            "language": "python",
-            "code": "def round_30():\n    return 'parity-check-30'\n"
+            "code": "def round_30():\n    return 'parity-check-30'\n",
+            "showHeader": true,
+            "language": "python"
           },
           {
             "type": "table",
-            "columns": [
-              {
-                "align": "left"
-              },
-              {
-                "align": "right"
-              }
+            "columnAlignments": [
+              "left",
+              "right"
             ],
             "headerRows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "指标"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "第 30 轮"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "指标"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "第 30 轮"
+                    }
+                  ]
+                }
+              ]
             ],
             "rows": [
-              {
-                "cells": [
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "消息数"
-                      }
-                    ]
-                  },
-                  {
-                    "children": [
-                      {
-                        "type": "text",
-                        "text": "60"
-                      }
-                    ]
-                  }
-                ]
-              }
+              [
+                {
+                  "column": 0,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "left",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "消息数"
+                    }
+                  ]
+                },
+                {
+                  "column": 1,
+                  "colSpan": 1,
+                  "rowSpan": 1,
+                  "align": "right",
+                  "children": [
+                    {
+                      "type": "text",
+                      "text": "60"
+                    }
+                  ]
+                }
+              ]
             ]
           }
         ]
       },
       {
+        "type": "message",
         "id": "u61",
-        "role": "user",
-        "createdAt": "2026-09-26T14:01:01-07:00",
+        "anchor": "turn-user-120",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -2518,6 +2796,5 @@
       }
     ]
   },
-  "assets": [],
-  "citations": []
+  "resourceIds": []
 }

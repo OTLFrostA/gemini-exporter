@@ -1,28 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { CanonicalConversationBundle } from '../src/core/export/canonical/conversation.js';
-import { composeDocument } from '../src/core/export/document/composeDocument.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
 import { renderDocumentTypst, defaultPdfLayout } from '../src/core/export/document/renderTypst.js';
 
-function fixture(): CanonicalConversationBundle {
-    const text = (text: string) => ({ type: 'text' as const, text });
-    return { schemaVersion: 1, conversation: { key: { providerId: 'example', accountId: 'a', conversationId: 'c' }, title: '中文对话', messages: [{ id: 'a', role: 'assistant', citationIds: ['s'], blocks: [
-        { type: 'thought', disclosure: 'providerExposed', kind: 'reasoning', blocks: [{ type: 'paragraph', children: [text('中文推理')] }] },
-        { type: 'code', language: 'python', filename: 'foo.py', meta: 'generated', code: 'print(1)' },
-        { type: 'table', caption: [{ type: 'strong', children: [text('Rich caption')] }], headerRows: [{ cells: [{ children: [text('H1')], colSpan: 2 }] }, { cells: [{ children: [text('H2')] }, { children: [text('H3')] }] }], rows: [{ cells: [{ children: [text('Body')], colSpan: 2 }] }] },
-        { type: 'image', assetId: 'image', caption: [{ type: 'emphasis', children: [text('Image caption')] }] },
-        { type: 'file', assetId: 'file', description: [{ type: 'strong', children: [text('Description')] }] },
-    ] }] }, assets: [{ id: 'image', kind: 'image', name: 'image.png', status: 'available' }, { id: 'file', kind: 'file', name: 'report.pdf', mimeType: 'application/pdf', sizeBytes: 1234567, status: 'available' }], citations: [{ id: 's', kind: 'web', title: 'Reference', url: 'https://example.com' }] };
+function fixture(): DomainConversationDetail {
+    return JSON.parse(readFileSync('tests/fixtures/document-domain/document-neutral.json', 'utf8'));
 }
+
 function freeze(value: unknown): void { if (!value || typeof value !== 'object') return; Object.freeze(value); Object.values(value).forEach(freeze); }
 
 test('one immutable JSON document serves all three backends without losing rich structure', () => {
     const input = fixture(), inputBefore = JSON.stringify(input); freeze(input);
-    const { document } = composeDocument(input, { documentLanguage: 'zh-CN' });
-    assert.deepEqual(composeDocument(input, { documentLanguage: 'zh-CN' }).document, document);
+    const { document } = composeDomainDocument(input, { documentLanguage: 'zh-CN' });
+    assert.deepEqual(composeDomainDocument(input, { documentLanguage: 'zh-CN' }).document, document);
     const restored = JSON.parse(JSON.stringify(document)) as typeof document; freeze(restored);
     const before = JSON.stringify(restored), resources = { image: 'assets/image.png', file: 'assets/report.pdf' };
     const md = renderDocumentMarkdown(restored, resources, { locale: 'en' });
@@ -42,7 +36,7 @@ test('one immutable JSON document serves all three backends without losing rich 
 });
 
 test('UI locale, theme and page policy change independently of document language and content', () => {
-    const { document } = composeDocument(fixture(), { documentLanguage: 'zh-CN' });
+    const { document } = composeDomainDocument(fixture(), { documentLanguage: 'zh-CN' });
     const resources = { image: 'assets/image.png', file: 'assets/report.pdf' }, before = JSON.stringify(document);
     const en = renderDocumentHtml(document, resources, { locale: 'en', theme: 'light', copyCode: false }).html;
     const zh = renderDocumentHtml(document, resources, { locale: 'zh' }).html;
@@ -57,20 +51,20 @@ test('UI locale, theme and page policy change independently of document language
 });
 
 test('neutral contract carries no units, output formats, UI controls or source-model dependencies', () => {
-    const { document } = composeDocument(fixture());
+    const { document } = composeDomainDocument(fixture());
     const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'metadata', 'openLabel']);
     function check(value: unknown): void { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), key); check(child); } }
     check(document);
     for (const name of ['renderHtml', 'renderMarkdown', 'renderTypst', 'backendPresentation', 'renderOptions', 'renderStrings']) {
         assert.doesNotMatch(readFileSync(`src/core/export/document/${name}.ts`, 'utf8'), /from ['"].*(?:canonical|domain|provider|content)\//);
     }
-    assert.doesNotMatch(readFileSync('src/core/export/document/composeDocument.ts', 'utf8'), /visualContract|getRendererStrings|RenderOptions|isMarkdown|isPdf|\.75|gapBeforePt/);
+    assert.doesNotMatch(readFileSync('src/core/export/document/composeDomainDocument.ts', 'utf8'), /visualContract|getRendererStrings|RenderOptions|isMarkdown|isPdf|\.75|gapBeforePt/);
 });
 
 
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
-    const input = fixture(); input.conversation.messages[0].blocks = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
-    const { document } = composeDocument(input), before = JSON.stringify(document);
+    const input = fixture(); input.messages[0].reasoning = undefined; input.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
+    const { document } = composeDomainDocument(input), before = JSON.stringify(document);
     const diagnostics: import('../src/core/export/document/ast.js').DocumentDiagnostic[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));

@@ -143,8 +143,5 @@ test('migration: duplicate message IDs fail closed at the production export boun
             { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
         ],
     };
-    const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
-    const { diagnostics } = await normalizeGeminiConversation(dupChat);
-    assert.ok(diagnostics.some((d: any) => d.code === 'MSG_DUP_ID'));
     await assert.rejects(() => ChatFormatter.formatHtmlCanonical(dupChat), /MSG_DUP_ID/);
 });

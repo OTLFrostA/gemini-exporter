@@ -2,7 +2,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { convertMath: convertLatex } = require('../src/core/export/typst/mathConverter.js');
 const convertMath = (source: string, display: boolean) => convertLatex(source, 'latex', display);
@@ -14,31 +15,20 @@ const {
 
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
-function bundle(messages: any[], extra: any = {}) {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: 'Nested list and unknown text',
-            createdAt: '2026-09-26T10:00:00Z',
-            messages,
-        },
-        assets: [],
-        citations: [],
-        ...extra,
-    };
+function domainFixture(messages: any[], assets: any[] = []) {
+    return { providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
-    return { id, role, blocks, ...extra };
+    return { id, role, content: blocks, ...extra };
 }
 
-const opts = { assetPath: (a: any) => `assets/${a.id}.png` };
+const opts = {};
 
-const imgAsset = { id: 'list-img', kind: 'image', name: 'dot.png', mimeType: 'image/png', status: 'available', sizeBytes: 70 };
+const imgAsset = { id: 'list-img', kind: 'image', name: 'dot.png', mediaType: 'image/png', byteLength: 70 };
 
 function listBundle(blocks: any[], assets: any[] = []) {
-    return bundle([msg('m1', 'user', blocks)], { assets });
+    return domainFixture([msg('m1', 'user', blocks)], assets);
 }
 
 test('list item keeps inline image as a node, not flattened text', async () => {
@@ -46,7 +36,7 @@ test('list item keeps inline image as a node, not flattened text', async () => {
         type: 'list', ordered: false,
         items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'see ' }, { type: 'image', assetId: 'list-img', alt: 'dot' }] }] }],
     }], [imgAsset]);
-    const { payload, diagnostics } = toTypstPayload(b, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'list');
     assert.deepStrictEqual(node.items[0].blocks[0].children.map((c: any) => c.type), ['text', 'image']);
@@ -68,7 +58,7 @@ test('list item keeps block image, nested list, code, math and multi-paragraph',
             ] },
         ],
     }], [imgAsset]);
-    const { payload, diagnostics } = toTypstPayload(b, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.items[0].blocks[0].type, 'image');
     assert.strictEqual(node.items[0].blocks[0].asset, 'assets/list-img.png');
@@ -88,7 +78,7 @@ test('ordered list keeps start; absent start stays absent', async () => {
         { type: 'list', ordered: true, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'one' }] }] }] },
         { type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'bullet' }] }] }] },
     ]);
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const blocks: any[] = payload.messages[0].blocks;
     assert.strictEqual(blocks[0].start, 3);
     assert.ok(!('start' in blocks[1]));
@@ -99,7 +89,7 @@ test('ordered list keeps start; absent start stays absent', async () => {
 
 test('unknown text remains visible without nested render blocks', async () => {
     const b = listBundle([{ type: 'unknown', sourceType: 'weird-widget', text: 'kept-para\ndot\nkept-code\nkept-list' }]);
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'unknown');
     assert.strictEqual(node.sourceType, 'weird-widget');
@@ -107,13 +97,13 @@ test('unknown text remains visible without nested render blocks', async () => {
     assert.ok(!('blocks' in node));
 });
 
-async function compileOnce(bundle: any, assets: Record<string, Uint8Array>) {
+async function compileOnce(domain: any, assets: Record<string, Uint8Array>) {
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const assetPath = (a: any) => `/assets/${a.id}.png`;
-    const { payload: document } = toTypstPayload(bundle, { assetPath, convertMath });
+    const resources = Object.fromEntries(domain.assets.map((asset: { id: string }) => [asset.id, `/assets/${asset.id}.png`]));
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, resources, { convertMath });
     const context = {
-        bundle,
+
         assets: {
             resolve: async (id: string) => {
                 const bytes = assets[id];
@@ -128,10 +118,9 @@ async function compileOnce(bundle: any, assets: Record<string, Uint8Array>) {
         const result = await compiler.compile(
             {
                 rendererSchemaVersion: 1,
-                sourceSchemaVersion: 1,
-                bundle,
+
                 document,
-                assetPaths: new Map((bundle.assets ?? []).map((a: any) => [a.id, assetPath(a)])),
+                assetPaths: new Map(Object.entries(resources)),
             } as never,
             context as never,
         );

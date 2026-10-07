@@ -1,33 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { CanonicalConversationBundle } from '../src/core/export/canonical/conversation.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { DocumentAst } from '../src/core/export/document/ast.js';
-import { composeDocument } from '../src/core/export/document/composeDocument.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderCanonicalHtml, CanonicalHtmlRenderer } from '../src/core/export/canonical/renderCanonicalHtml.js';
 import { formatHtmlCanonical } from '../src/core/engine/chatFormatter.js';
 
-function fixture(): CanonicalConversationBundle {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'example', accountId: 'a', conversationId: 'c' }, title: 'A conversation', createdAt: '2026-10-06T12:00:00Z',
-            messages: [
-                { id: 'u', role: 'user', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Long prompt '.repeat(30) }] }] },
-                { id: 'a', role: 'assistant', citationIds: ['c1'], blocks: [
-                    { type: 'thought', disclosure: 'providerExposed', kind: 'reasoning', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Thinking' }] }] },
-                    { type: 'code', code: '<x>', language: 'xml', filename: 'sample.xml', meta: 'example' },
-                    { type: 'image', assetId: 'img', caption: [{ type: 'strong', children: [{ type: 'text', text: '123' }] }] },
-                    { type: 'image', assetId: 'img', alt: 'Same image again' },
-                    { type: 'paragraph', children: [{ type: 'citationRef', citationId: 'c1' }, { type: 'image', assetId: 'img', title: 'inline' }] },
-                    { type: 'unknown', sourceType: 'future', text: 'Keep this' },
-                ] },
-            ],
-        },
-        assets: [{ id: 'img', kind: 'image', name: 'asset_987654.png', status: 'available', storageRef: 'assets/img.png' }],
-        citations: [{ id: 'c1', kind: 'web', title: 'Source', url: 'https://example.com' }],
-    };
+function fixture(): DomainConversationDetail {
+    return JSON.parse(readFileSync('tests/fixtures/document-domain/document-html.json', 'utf8'));
 }
 
 function freeze(value: unknown): void {
@@ -41,8 +22,8 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
     const before = JSON.stringify(input);
     freeze(input);
     const resources = Object.freeze({ img: 'assets/img.png' });
-    const first = composeDocument(input);
-    assert.deepEqual(composeDocument(input), first);
+    const first = composeDomainDocument(input);
+    assert.deepEqual(composeDomainDocument(input), first);
     assert.equal(JSON.stringify(input), before);
     const { document } = first;
     assert.equal(document.header.providerLabel, 'example');
@@ -54,14 +35,14 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
         assert.equal(disclosure.kind, 'reasoning');
         assert.equal(disclosure.initiallyCollapsed, undefined);
     }
-    assert.deepEqual(document.messages[1].sources?.items, [{ id: 'c1', label: 'Source', href: 'https://example.com', number: 1 }]);
+    assert.deepEqual(document.messages[1].sources?.items, [{ id: 'a:c1', label: 'Source', href: 'https://example.com', number: 1 }]);
     assert.equal(document.messages[1].blocks.filter(b => b.type === 'image').length, 2, 'registry identity never deduplicates placements');
     assert.ok(renderDocumentHtml(document, resources).html.includes('<strong>123</strong>'), 'explicit caption is not tested as a filename');
 });
 
 test('JSON roundtrip and explicit presentation edits work without semantic input', () => {
     const resources = { img: 'assets/img.png' };
-    const { document } = composeDocument(fixture());
+    const { document } = composeDomainDocument(fixture());
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     assert.deepEqual(restored, document);
     assert.deepEqual(renderDocumentHtml(restored, resources), renderDocumentHtml(document, resources));
@@ -80,11 +61,11 @@ test('JSON roundtrip and explicit presentation edits work without semantic input
 
 test('table alignment follows logical columns for colSpan and rowSpan', () => {
     const input = fixture();
-    input.conversation.messages[0].blocks = [{ type: 'table', columns: [{ align: 'left' }, { align: 'right' }, { align: 'center' }], rows: [
+    input.messages[0].content = [{ type: 'table', columns: [{ align: 'left' }, { align: 'right' }, { align: 'center' }], rows: [
         { cells: [{ children: [{ type: 'text', text: 'span' }], colSpan: 2, rowSpan: 2 }, { children: [{ type: 'text', text: 'last' }] }] },
         { cells: [{ children: [{ type: 'text', text: 'under' }] }] },
     ] }];
-    const { document } = composeDocument(input);
+    const { document } = composeDomainDocument(input);
     const table = document.messages[0].blocks[0];
     assert.equal(table.type, 'table');
     if (table.type === 'table') {
@@ -97,7 +78,7 @@ test('table alignment follows logical columns for colSpan and rowSpan', () => {
 });
 
 test('backend decides unavailable resources, preserves caption, and keeps nested diagnostics', () => {
-    const { document, diagnostics } = composeDocument(fixture());
+    const { document, diagnostics } = composeDomainDocument(fixture());
     assert.equal(diagnostics.length, 0);
     assert.ok(renderDocumentHtml(document, {}).diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
     const html = renderDocumentHtml(document, {}).html;
@@ -108,7 +89,7 @@ test('backend decides unavailable resources, preserves caption, and keeps nested
 });
 
 test('renderer requires prepared bindings and escapes text and URL attributes', () => {
-    const { document } = composeDocument(fixture());
+    const { document } = composeDomainDocument(fixture());
     assert.ok(renderDocumentHtml(document, {}).html.includes('gem-missing-asset'));
     const html = renderDocumentHtml(document, { img: 'assets/a" onload="evil.png' }).html;
     assert.ok(html.includes('&quot;'));
@@ -121,8 +102,8 @@ test('renderer requires prepared bindings and escapes text and URL attributes', 
 });
 
 test('empty state is composed and locale is explicit', () => {
-    const input = fixture(); input.conversation.messages = [];
-    const { document } = composeDocument(input);
+    const input = fixture(); input.messages = [];
+    const { document } = composeDomainDocument(input);
     assert.equal(document.emptyNotice, undefined);
     assert.ok(renderDocumentHtml(document, {}, { locale: 'en' }).html.includes('Empty conversation or fetch failed.'));
     document.emptyNotice = 'A different notice';
@@ -135,29 +116,19 @@ test('actual HTML backend has no semantic model or presentation inference import
     assert.doesNotMatch(source, /from ['"][^'"]*(?:domain|provider|canonical)/);
 });
 
-test('compatibility adapter and production facade use prepared paths consistently', async () => {
-    const input = fixture();
-    assert.ok(renderCanonicalHtml(input).html.includes('assets/img.png'));
-    const artifact = await new CanonicalHtmlRenderer().render({ bundle: input, locale: 'en', signal: new AbortController().signal,
-        reportProgress() {}, assets: { resolve: async id => id === 'img' ? { asset: input.assets[0], renderUrl: 'assets/ready.png' } : null } });
-    assert.deepEqual(artifact.companionResourceIds, ['img']);
-    assert.ok(String(artifact.content).includes('assets/ready.png'));
+test('production HTML facade uses prepared archive paths consistently', async () => {
     const result = await formatHtmlCanonical({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
     assert.ok(result.content.includes('assets/p.png'));
     assert.ok(!result.content.includes('gem-missing-asset">'));
 });
 
-test('resource readiness and companion plan cannot contradict custom or unsafe bindings', async () => {
-    const input = fixture();
-    const context = { bundle: input, locale: 'en' as const, signal: new AbortController().signal,
-        reportProgress() {}, assets: { resolve: async () => null } };
-    const custom = await new CanonicalHtmlRenderer({ assetUrl: () => 'assets/custom.png' }).render(context);
-    assert.deepEqual(custom.companionResourceIds, ['img']);
-    assert.deepEqual(custom.companionPlan?.omitted, []);
-    assert.ok(String(custom.content).includes('src="assets/custom.png"'));
-    const unsafe = await new CanonicalHtmlRenderer({ assetUrl: () => 'javascript:alert(1)' }).render(context);
-    assert.deepEqual(unsafe.companionResourceIds, []);
-    assert.deepEqual(unsafe.companionPlan?.omitted, [{ resourceId: 'img', reason: 'unresolvable' }]);
-    assert.ok(!String(unsafe.content).includes('javascript:'));
-    assert.ok(String(unsafe.content).includes('gem-missing-inline'));
+test('backend accepts safe custom bindings and reports unsafe bindings as unavailable', () => {
+    const { document } = composeDomainDocument(fixture());
+    const custom = renderDocumentHtml(document, { img: 'assets/custom.png' });
+    assert.deepEqual(custom.diagnostics.filter(d => d.code === 'HTML_ASSET_UNRESOLVED'), []);
+    assert.ok(custom.html.includes('src="assets/custom.png"'));
+    const unsafe = renderDocumentHtml(document, { img: 'javascript:alert(1)' });
+    assert.ok(unsafe.diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
+    assert.ok(!unsafe.html.includes('javascript:'));
+    assert.ok(unsafe.html.includes('gem-missing-inline'));
 });

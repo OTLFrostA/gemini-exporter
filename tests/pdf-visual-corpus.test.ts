@@ -4,7 +4,7 @@
  * Item 7 — fixed 12-item PDF visual corpus + programmatic layout checks.
  *
  * The corpus lives in tests/fixtures/visual-corpus/ (12 JSON fixtures). Each
- * fixture carries a canonical bundle, base64 binaries, and an `expect` block.
+ * fixture carries a neutral Document AST, base64 binaries, and an `expect` block.
  * This test compiles every fixture with the REAL vendored Typst WASM
  * (TypstSandboxCompiler + RealWasmSandboxHost, no mocks) and runs
  * programmatic checks instead of pixel diffs:
@@ -37,7 +37,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { convertMath } = require('../src/core/export/typst/mathConverter.js');
 const {
     RealWasmSandboxHost,
@@ -93,7 +93,7 @@ test('visual corpus manifest: exactly the 12 fixed fixtures with stable ids', ()
         EXPECTED_IDS,
     );
     for (const { item } of entries) {
-        assert.ok(item.bundle && item.bundle.conversation, `${item.id}: missing bundle.conversation`);
+        assert.ok(item.document && item.document.schemaVersion === 2, `${item.id}: missing Document AST`);
         assert.ok(item.expect && typeof item.expect.minPages === 'number', `${item.id}: missing expect.minPages`);
     }
 });
@@ -145,16 +145,15 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
     for (const [aid, b64] of Object.entries(item.binaries ?? {})) {
         store[aid] = new Uint8Array(Buffer.from(b64 as string, 'base64'));
     }
-    const bundle = item.bundle;
-    assert.strictEqual(typeof bundle.conversation.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
-    const { payload: document, diagnostics: payloadDiagnostics } = toTypstPayload(bundle, {
-        assetPath: (a: any) => `/assets/${a.id}`,
+    const display = item.document;
+    assert.strictEqual(typeof display.header.title, 'string', `${item.id}: fixture titles follow the current semantic contract`);
+    const { payload: document, diagnostics: payloadDiagnostics } = renderTypstFixture(display, Object.fromEntries(item.resourceIds.map((id: string) => [id, `/assets/${id}`])), {
         convertMath,
         locale: 'zh',
     });
-    const assetIds: string[] = (bundle.assets ?? []).map((a: any) => a.id);
+    const assetIds: string[] = item.resourceIds;
     const context = {
-        bundle,
+
         assets: {
             resolve: async (id: string) => (store[id] ? { bytes: store[id] } : null),
         },
@@ -165,8 +164,7 @@ async function checkOneFixture(compiler: any, entry: CorpusEntry): Promise<Fixtu
     const result = await compiler.compile(
         {
             rendererSchemaVersion: 1,
-            sourceSchemaVersion: 1,
-            bundle,
+
             document,
             assetPaths: new Map(assetIds.map((id: string) => [id, `/assets/${id}`])),
         } as never,

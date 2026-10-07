@@ -2,8 +2,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
-const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { convertMath } = require('../src/core/export/typst/mathConverter.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
@@ -12,48 +13,36 @@ const {
     repoRoot,
 } = require('./helpers/realWasmSandbox.js');
 
-function bundle(blocks: any[], extra: any = {}) {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: 'Span',
-            createdAt: '2026-09-26T10:00:00Z',
-            messages: [{ id: 'm1', role: 'assistant', blocks }],
-        },
-        assets: [],
-        citations: [],
-        ...extra,
-    };
+function domainFixture(blocks: any[], assets: any[] = []) {
+    return { providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: [{ id: 'm1', role: 'assistant', content: blocks }] };
 }
 
 function msg(id: string, role: string, blocks: any[]) {
-    return { id, role, blocks };
+    return { id, role, content: blocks };
 }
 
 const txt = (text: string) => ({ type: 'text', text });
 const cell = (text: string, extra: any = {}) => ({ children: [txt(text)], ...extra });
 const row = (...cells: any[]) => ({ cells });
 
-const opts = { assetPath: (a: any) => `assets/${a.id}.png` };
+const opts = {};
 
 function typstOf(blocks: any[]) {
-    const { payload, diagnostics } = toTypstPayload(bundle(blocks), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domainFixture(blocks)).document, {}, opts);
     return { node: payload.messages[0].blocks[0] as any, diagnostics: diagnostics as any[] };
 }
 
 function htmlOf(blocks: any[]) {
-    return renderCanonicalHtml(bundle(blocks), {}).html as string;
+    return renderDocumentHtml(composeDomainDocument(domainFixture(blocks)).document, {}).html as string;
 }
 
 async function compileOnce(blocks: any[]) {
-    const b = bundle(blocks);
+    const b = domainFixture(blocks);
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const assetPath = (a: any) => `/assets/${a.id}.png`;
-    const { payload: document } = toTypstPayload(b, { assetPath, convertMath });
+    const { payload: document } = renderTypstFixture(composeDomainDocument(b).document, {}, { convertMath });
     const context = {
-        bundle: b,
+
         assets: { resolve: async (id: string) => null },
         locale: 'en' as const,
         signal: new AbortController().signal,
@@ -63,8 +52,7 @@ async function compileOnce(blocks: any[]) {
         return await compiler.compile(
             {
                 rendererSchemaVersion: 1,
-                sourceSchemaVersion: 1,
-                bundle: b,
+
                 document,
                 assetPaths: new Map(),
             } as never,

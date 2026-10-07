@@ -21,7 +21,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
 
 // ------------------------------------------------------------------ fixtures
 
@@ -80,31 +81,21 @@ function fakeConvertMath(source: string, _display: boolean): string | undefined 
     return undefined;
 }
 
-function bundle(messages: any[]) {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'gates-1' },
-            title: 'P0 门禁回归',
-            createdAt: '2026-09-26T00:00:00Z',
-            messages,
-        },
-        assets: [],
-        citations: [],
-    };
+function domainFixture(messages: any[], assets: any[] = []) {
+    return { providerId: 'gemini', id: 'c1', title: 'P0 门禁回归', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
 }
 
 function msg(id: string, role: string, blocks: any[]) {
-    return { id, role, blocks };
+    return { id, role, content: blocks };
 }
 
-const opts = { assetPath: (_a: any) => undefined, convertMath: fakeConvertMath };
+const opts = { convertMath: fakeConvertMath };
 
 function gatesBundle() {
     const mid = Math.floor(ZH_LONG.length / 2);
     const zhHead = ZH_LONG.slice(0, mid);
     const zhTail = ZH_LONG.slice(mid);
-    return bundle([
+    return domainFixture([
         msg('m1', 'user', [
             { type: 'heading', level: 2, children: [{ type: 'text', text: '中文长文本完整性验证' }] },
             {
@@ -167,7 +158,7 @@ function collectAllStrings(o: any): string[] {
 // ------------------------------------------------------------------ gate (a)
 
 test('P0 gate (a): math travels as TEXT in the payload, never an image placeholder', () => {
-    const { payload, diagnostics } = toTypstPayload(gatesBundle(), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle()).document, {}, opts);
     assert.strictEqual(payload.messages.length, 2);
 
     const maths = collectMathNodes(payload);
@@ -206,7 +197,7 @@ test('P0 gate (a): math travels as TEXT in the payload, never an image placehold
 // ------------------------------------------------------------------ gate (b)
 
 test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
-    const { payload } = toTypstPayload(gatesBundle(), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(gatesBundle()).document, {}, opts);
     assert.strictEqual(payload.messages.length, 2);
 
     // 用户消息段落: text 节点拼接必须与输入逐字相等。
@@ -239,7 +230,7 @@ test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
 // ------------------------------------------------------------------ gate (c)
 
 test('P0 gate (c): unconvertible formula degrades to visible source fallback, never silently dropped', () => {
-    const { payload, diagnostics } = toTypstPayload(gatesBundle(), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(gatesBundle()).document, {}, opts);
 
     const maths = collectMathNodes(payload);
     const failed = maths.find((m: any) => m.latex === DISPLAY_LATEX_UNCONVERTIBLE);
@@ -260,15 +251,15 @@ test('P0 gate (c): unconvertible formula degrades to visible source fallback, ne
 
 test('P0 gate (c2): formula node count reconciles against bundle input (no silent loss)', () => {
     const b = gatesBundle();
-    const inputMathCount = b.conversation.messages
-        .flatMap((m: any) => m.blocks)
+    const inputMathCount = b.messages
+        .flatMap((m: any) => m.content)
         .filter((blk: any) => blk.type === 'math').length
-        + b.conversation.messages
-            .flatMap((m: any) => m.blocks)
+        + b.messages
+            .flatMap((m: any) => m.content)
             .flatMap((blk: any) => blk.children ?? [])
             .filter((n: any) => n.type === 'inlineMath').length;
     assert.strictEqual(inputMathCount, 3);
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     assert.strictEqual(collectMathNodes(payload).length, inputMathCount,
         'payload math node count must equal bundle math node count');
 });

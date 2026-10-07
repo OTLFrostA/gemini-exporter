@@ -1,302 +1,304 @@
 {
- "id": "04-nested-list-quote",
- "title": "嵌套列表+引用",
- "description": "三层嵌套列表、引用块内嵌套列表，用于检查缩进与嵌套渲染。",
- "bundle": {
-  "schemaVersion": 1,
-  "conversation": {
-   "key": {
-    "providerId": "gemini",
-    "conversationId": "vc-04"
-   },
-   "title": "项目计划",
-   "createdAt": "2026-09-26T10:00:00Z",
-   "updatedAt": "2026-09-26T11:00:00Z",
-   "messages": [
-    {
-     "id": "m1",
-     "role": "user",
-     "blocks": [
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "把项目计划整理成文档发我。"
-        }
-       ]
-      }
-     ]
-    },
-    {
-     "id": "m2",
-     "role": "assistant",
-     "blocks": [
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "项目计划如下："
-        }
-       ]
-      },
-      {
-       "type": "list",
-       "ordered": false,
-       "items": [
-        {
-         "blocks": [
-          {
-           "type": "paragraph",
-           "children": [
-            {
-             "type": "text",
-             "text": "第一阶段：需求调研"
-            }
-           ]
-          },
-          {
-           "type": "list",
-           "ordered": false,
-           "items": [
-            {
-             "blocks": [
-              {
-               "type": "paragraph",
-               "children": [
-                {
-                 "type": "text",
-                 "text": "用户访谈（5 家客户）"
-                }
-               ]
-              }
-             ]
-            },
-            {
-             "blocks": [
-              {
-               "type": "paragraph",
-               "children": [
-                {
-                 "type": "text",
-                 "text": "竞品分析"
-                }
-               ]
-              },
-              {
-               "type": "list",
-               "ordered": false,
-               "items": [
-                {
-                 "blocks": [
-                  {
-                   "type": "paragraph",
-                   "children": [
-                    {
-                     "type": "text",
-                     "text": "直接竞品 3 家"
-                    }
-                   ]
-                  }
-                 ]
-                },
-                {
-                 "blocks": [
-                  {
-                   "type": "paragraph",
-                   "children": [
-                    {
-                     "type": "text",
-                     "text": "间接竞品 5 家"
-                    }
-                   ]
-                  }
-                 ]
-                }
-               ]
-              }
-             ]
-            }
-           ]
-          }
-         ]
-        },
-        {
-         "blocks": [
-          {
-           "type": "paragraph",
-           "children": [
-            {
-             "type": "text",
-             "text": "第二阶段：原型设计"
-            }
-           ]
-          },
-          {
-           "type": "list",
-           "ordered": false,
-           "items": [
-            {
-             "blocks": [
-              {
-               "type": "paragraph",
-               "children": [
-                {
-                 "type": "text",
-                 "text": "低保真原型"
-                }
-               ]
-              }
-             ]
-            },
-            {
-             "blocks": [
-              {
-               "type": "paragraph",
-               "children": [
-                {
-                 "type": "text",
-                 "text": "可用性测试（2 轮）"
-                }
-               ]
-              }
-             ]
-            }
-           ]
-          }
-         ]
-        },
-        {
-         "blocks": [
-          {
-           "type": "paragraph",
-           "children": [
-            {
-             "type": "text",
-             "text": "第三阶段：开发上线"
-            }
-           ]
-          }
-         ]
-        }
-       ]
-      },
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "评审意见："
-        }
-       ]
-      },
-      {
-       "type": "quote",
-       "blocks": [
-        {
-         "type": "paragraph",
-         "children": [
-          {
-           "type": "text",
-           "text": "架构组反馈："
-          }
-         ]
-        },
-        {
-         "type": "list",
-         "ordered": false,
-         "items": [
-          {
-           "blocks": [
-            {
-             "type": "paragraph",
-             "children": [
-              {
-               "type": "text",
-               "text": "网关层需要支持限流"
-              }
-             ]
-            },
-            {
-             "type": "list",
-             "ordered": false,
-             "items": [
-              {
-               "blocks": [
-                {
-                 "type": "paragraph",
-                 "children": [
-                  {
-                   "type": "text",
-                   "text": "令牌桶算法"
-                  }
-                 ]
-                }
-               ]
-              },
-              {
-               "blocks": [
-                {
-                 "type": "paragraph",
-                 "children": [
-                  {
-                   "type": "text",
-                   "text": "滑动窗口计数"
-                  }
-                 ]
-                }
-               ]
-              }
-             ]
-            }
-           ]
-          },
-          {
-           "blocks": [
-            {
-             "type": "paragraph",
-             "children": [
-              {
-               "type": "text",
-               "text": "数据库分库分表方案待定"
-              }
-             ]
-            }
-           ]
-          }
-         ]
-        }
-       ]
-      },
-      {
-       "type": "paragraph",
-       "children": [
-        {
-         "type": "text",
-         "text": "以上计划已同步给各负责人。"
-        }
-       ]
-      }
-     ]
-    }
-   ]
+  "id": "04-nested-list-quote",
+  "title": "嵌套列表+引用",
+  "description": "三层嵌套列表、引用块内嵌套列表，用于检查缩进与嵌套渲染。",
+  "binaries": {},
+  "expect": {
+    "minPages": 1,
+    "phrases": [
+      "间接竞品 5 家",
+      "滑动窗口计数",
+      "数据库分库分表方案待定",
+      "可用性测试（2 轮）"
+    ],
+    "exactlyOnce": [
+      "间接竞品 5 家",
+      "滑动窗口计数"
+    ]
   },
-  "assets": [],
-  "citations": []
- },
- "binaries": {},
- "expect": {
-  "minPages": 1,
-  "phrases": [
-   "间接竞品 5 家",
-   "滑动窗口计数",
-   "数据库分库分表方案待定",
-   "可用性测试（2 轮）"
-  ],
-  "exactlyOnce": [
-   "间接竞品 5 家",
-   "滑动窗口计数"
-  ]
- }
+  "document": {
+    "schemaVersion": 2,
+    "header": {
+      "title": "项目计划",
+      "providerLabel": "gemini",
+      "date": "2026-09-26",
+      "messageCount": 2
+    },
+    "messages": [
+      {
+        "type": "message",
+        "id": "m1",
+        "anchor": "turn-user-0",
+        "variant": "bubble",
+        "label": "you",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "把项目计划整理成文档发我。"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "id": "m2",
+        "anchor": "turn-model-1",
+        "variant": "flow",
+        "label": "assistant",
+        "blocks": [
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "项目计划如下："
+              }
+            ]
+          },
+          {
+            "type": "list",
+            "ordered": false,
+            "items": [
+              {
+                "blocks": [
+                  {
+                    "type": "paragraph",
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "第一阶段：需求调研"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "list",
+                    "ordered": false,
+                    "items": [
+                      {
+                        "blocks": [
+                          {
+                            "type": "paragraph",
+                            "children": [
+                              {
+                                "type": "text",
+                                "text": "用户访谈（5 家客户）"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "blocks": [
+                          {
+                            "type": "paragraph",
+                            "children": [
+                              {
+                                "type": "text",
+                                "text": "竞品分析"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "list",
+                            "ordered": false,
+                            "items": [
+                              {
+                                "blocks": [
+                                  {
+                                    "type": "paragraph",
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "text": "直接竞品 3 家"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "blocks": [
+                                  {
+                                    "type": "paragraph",
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "text": "间接竞品 5 家"
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "blocks": [
+                  {
+                    "type": "paragraph",
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "第二阶段：原型设计"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "list",
+                    "ordered": false,
+                    "items": [
+                      {
+                        "blocks": [
+                          {
+                            "type": "paragraph",
+                            "children": [
+                              {
+                                "type": "text",
+                                "text": "低保真原型"
+                              }
+                            ]
+                          }
+                        ]
+                      },
+                      {
+                        "blocks": [
+                          {
+                            "type": "paragraph",
+                            "children": [
+                              {
+                                "type": "text",
+                                "text": "可用性测试（2 轮）"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "blocks": [
+                  {
+                    "type": "paragraph",
+                    "children": [
+                      {
+                        "type": "text",
+                        "text": "第三阶段：开发上线"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "评审意见："
+              }
+            ]
+          },
+          {
+            "type": "quote",
+            "blocks": [
+              {
+                "type": "paragraph",
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "架构组反馈："
+                  }
+                ]
+              },
+              {
+                "type": "list",
+                "ordered": false,
+                "items": [
+                  {
+                    "blocks": [
+                      {
+                        "type": "paragraph",
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "网关层需要支持限流"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "list",
+                        "ordered": false,
+                        "items": [
+                          {
+                            "blocks": [
+                              {
+                                "type": "paragraph",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "text": "令牌桶算法"
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "blocks": [
+                              {
+                                "type": "paragraph",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "text": "滑动窗口计数"
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "blocks": [
+                      {
+                        "type": "paragraph",
+                        "children": [
+                          {
+                            "type": "text",
+                            "text": "数据库分库分表方案待定"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "children": [
+              {
+                "type": "text",
+                "text": "以上计划已同步给各负责人。"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "resourceIds": []
 }

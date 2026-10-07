@@ -1,0 +1,103 @@
+{
+  "providerId": "example",
+  "id": "c",
+  "title": "A conversation",
+  "timestamp": null,
+  "createdAt": "2026-10-06T12:00:00Z",
+  "assets": [
+    {
+      "id": "img",
+      "kind": "image",
+      "name": "asset_987654.png"
+    }
+  ],
+  "messages": [
+    {
+      "id": "u",
+      "role": "user",
+      "content": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt Long prompt "
+            }
+          ]
+        }
+      ],
+      "citations": []
+    },
+    {
+      "id": "a",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "code",
+          "code": "<x>",
+          "language": "xml",
+          "filename": "sample.xml",
+          "meta": "example"
+        },
+        {
+          "type": "image",
+          "assetId": "img",
+          "caption": [
+            {
+              "type": "strong",
+              "children": [
+                {
+                  "type": "text",
+                  "text": "123"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "image",
+          "assetId": "img",
+          "alt": "Same image again"
+        },
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "citationRef",
+              "citationId": "c1"
+            },
+            {
+              "type": "image",
+              "assetId": "img",
+              "title": "inline"
+            }
+          ]
+        },
+        {
+          "type": "unknown",
+          "sourceType": "future",
+          "text": "Keep this"
+        }
+      ],
+      "citations": [
+        {
+          "id": "c1",
+          "kind": "web",
+          "title": "Source",
+          "url": "https://example.com"
+        }
+      ],
+      "reasoning": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "Thinking"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

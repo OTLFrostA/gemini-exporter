@@ -7,10 +7,6 @@ import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js'
 import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
 import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { normalizeGeminiConversation } from '../src/core/provider/gemini/exportCompatibilityAdapter.js';
-import { resolveAssets } from '../src/core/export/assets/resolver.js';
-import { toTypstPayload } from '../src/core/export/typst/payload.js';
-import { convertMathWithMitex } from '../src/core/export/typst/mathConverter.js';
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText, parseObjects, inflateIfNeeded } from './helpers/pdfTextExtract.js';
@@ -81,9 +77,7 @@ test('direct PDF keeps Typst layout and physical page content parity with the hi
     assert.ok(prepared.ok);
     const resolved = await resourceStage(prepared, ctx);
     const direct = await payloadStage({ document: prepared.document, pathMap: resolved.output.pathMap, locale: 'en' }, ctx);
-    const old = await normalizeGeminiConversation(raw);
-    const oldResources = await resolveAssets(old.bundle.assets, old.byteStore);
-    const reference = toTypstPayload(old.bundle, { locale: 'en', assetPath: asset => oldResources.pathMap.get(asset.id), convertMath: (source, display) => convertMathWithMitex(source, 'latex', display).typst }).payload;
+    const reference: TypstConversationRenderPayload = JSON.parse(readFileSync('tests/fixtures/pdf-domain-direct-reference.json', 'utf8'));
     // Engine transport should match independently of the source identity namespace.
     assert.deepEqual(direct.output.payload, reference);
     const host = new RealWasmSandboxHost(repoRoot());
