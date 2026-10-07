@@ -62,4 +62,3 @@ export function extractAttachmentInlineBytes(a: AttachmentByteInput): Uint8Array
     }
     return null;
 }
-

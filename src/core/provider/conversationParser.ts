@@ -178,4 +178,3 @@ export function parseProviderConversation(conversation: GeminiNormalizationInput
     assertDomainClosure(domain);
     return { conversation: domain, resourceHints: resources.resourceHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
 }
-
