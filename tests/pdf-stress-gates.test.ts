@@ -164,7 +164,7 @@ test('stress: 121-message conversation normalizes and converts well under budget
     const { payload } = toTypstPayload(bundle, TYPST_OPTS);
     const elapsedMs = Date.now() - t0;
 
-    assert.strictEqual(payload.messageCount, 121, 'payload must carry all 121 messages');
+    assert.strictEqual(payload.messages.length, 121, 'payload must carry all 121 messages');
     assert.strictEqual(payload.messages.length, 121);
     assert.ok(
         payload.messages.every((m: any) => Array.isArray(m.blocks) && m.blocks.length > 0),
@@ -192,7 +192,7 @@ test('stress: 100-conversation batch has bounded total preprocessing time', asyn
     for (const raw of batch) {
         const { bundle } = await normalizeGeminiConversation(raw);
         const { payload } = toTypstPayload(bundle, TYPST_OPTS);
-        totalMessages += payload.messageCount;
+        totalMessages += payload.messages.length;
     }
     const elapsedMs = Date.now() - t0;
 
@@ -225,7 +225,7 @@ test('memory: repeated normalize+payload shows no leak signal', async () => {
     for (let i = 0; i < 50; i++) {
         const { bundle } = await normalizeGeminiConversation(raw);
         const { payload } = toTypstPayload(bundle, TYPST_OPTS);
-        lastMessageCount = payload.messageCount;
+        lastMessageCount = payload.messages.length;
     }
     const after = process.memoryUsage().heapUsed;
     const growthBytes = after - before;

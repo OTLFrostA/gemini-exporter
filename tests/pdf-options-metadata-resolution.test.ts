@@ -38,7 +38,7 @@ function makeFullChat(id: string, title: string): any {
     return c;
 }
 
-/** Recursively collect plain text from canonical bundle inline/block nodes. */
+/** Recursively collect plain text from the prepared display transport inline/block nodes. */
 function flattenText(node: any): string {
     if (!node) return '';
     if (typeof node === 'string') return node;
@@ -50,8 +50,8 @@ function flattenText(node: any): string {
     return '';
 }
 
-function bundleBodyText(bundle: any, maxLen = 600): string {
-    const msgs = bundle?.conversation?.messages ?? [];
+function documentBodyText(document: any, maxLen = 600): string {
+    const msgs = document?.messages ?? [];
     const parts: string[] = [];
     for (const m of msgs) {
         for (const b of m?.blocks ?? []) parts.push(flattenText(b));
@@ -95,18 +95,15 @@ function buildTextPdf(title: string, body: string): Uint8Array {
     return enc.encode(bodyOut + xref + trailer);
 }
 
-/** Test-local compiler: captures the bundle, counts calls, emits a real PDF. */
-function makeCaptureCompiler(state: { calls: number; bundle: any }) {
+/** Test-local compiler: captures the display document, counts calls, emits a real PDF. */
+function makeCaptureCompiler(state: { calls: number; document: any }) {
     return new (class {
         readonly name = 'metadata-resolution-test-compiler';
         async compile(payload: any, _context: any) {
             state.calls++;
-            state.bundle = payload?.bundle ?? null;
-            const title =
-                payload?.document?.title ??
-                payload?.bundle?.conversation?.title ??
-                'untitled';
-            return { pdfBytes: buildTextPdf(String(title), bundleBodyText(payload?.bundle)), diagnostics: [] };
+            state.document = payload.document;
+            const title = payload.document.title;
+            return { pdfBytes: buildTextPdf(String(title), documentBodyText(payload.document)), diagnostics: [] };
         }
     })() as any;
 }
@@ -143,7 +140,7 @@ test('regression: metadata-only options.conversations item resolves full detail 
         return { success: true, results: [JSON.parse(JSON.stringify(fullChat))] };
     };
 
-    const compilerState = { calls: 0, bundle: null as any };
+    const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
     const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
     const exported: any[] = [];
@@ -164,8 +161,8 @@ test('regression: metadata-only options.conversations item resolves full detail 
     assert.strictEqual(fetchCalls[0].requestedItem.id, id);
     assert.strictEqual(fetchCalls[0].format, 'pdf');
 
-    // The normalized bundle must carry the real messages.
-    const bundleMsgCount = compilerState.bundle?.conversation?.messages?.length ?? 0;
+    // The composed document must carry the real messages.
+    const bundleMsgCount = compilerState.document?.messages?.length ?? 0;
     assert.ok(bundleMsgCount > 0, `bundle message count must be > 0, got ${bundleMsgCount}`);
 
     assert.strictEqual(result.total, 1);
@@ -204,7 +201,7 @@ test('regression: metadata-only selected (empty conversations) resolves full det
         return { success: true, results: [JSON.parse(JSON.stringify(fullChat))] };
     };
 
-    const compilerState = { calls: 0, bundle: null as any };
+    const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
     const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
     const exported: any[] = [];
@@ -221,7 +218,7 @@ test('regression: metadata-only selected (empty conversations) resolves full det
     );
 
     assert.strictEqual(fetchCalls.length, 1, 'fetchChatDetail must be called exactly once');
-    const bundleMsgCount = compilerState.bundle?.conversation?.messages?.length ?? 0;
+    const bundleMsgCount = compilerState.document?.messages?.length ?? 0;
     assert.ok(bundleMsgCount > 0, `bundle message count must be > 0, got ${bundleMsgCount}`);
 
     assert.strictEqual(result.total, 1);
@@ -248,7 +245,7 @@ test('fail-closed: metadata-only selected resolving to zero messages fails with 
         results: [{ id, title, messages: [] }],
     });
 
-    const compilerState = { calls: 0, bundle: null as any };
+    const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
     const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
     const exported: any[] = [];
@@ -287,7 +284,7 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
 
     const fetchChatDetail = async () => ({ success: false, error: 'network down' });
 
-    const compilerState = { calls: 0, bundle: null as any };
+    const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
     const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
     const exported: any[] = [];
@@ -329,7 +326,7 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
         results: [{ id, title, messages: [] }],
     });
 
-    const compilerState = { calls: 0, bundle: null as any };
+    const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
     const exporter = new PdfExporter(makeCaptureCompiler(compilerState));
     const exported: any[] = [];

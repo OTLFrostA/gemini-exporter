@@ -52,20 +52,19 @@ test('maps paragraph, heading, code and table blocks', async () => {
     assert.strictEqual(diagnostics.length, 0);
     assert.strictEqual(payload.schemaVersion, 1);
     assert.strictEqual(payload.title, 'Test convo');
-    assert.strictEqual(payload.provider, 'gemini');
-    assert.strictEqual(payload.date, '2026-09-20');
-    assert.strictEqual(payload.messageCount, 1);
+    assert.strictEqual(payload.metadata, 'gemini · 2026-09-20 · 1 messages');
+    assert.strictEqual(payload.messages.length, 1);
     const kinds = payload.messages[0].blocks.map((x: any) => x.type);
     assert.deepStrictEqual(kinds, ['heading', 'paragraph', 'code', 'table']);
     assert.strictEqual(payload.messages[0].blocks[0].level, 2);
     assert.strictEqual(payload.messages[0].blocks[2].text, 'print(1)');
-    assert.strictEqual(payload.messages[0].role, 'user');
+    assert.strictEqual(payload.messages[0].variant, 'bubble');
 });
 
 test('math without converter keeps latex only; with converter adds typst', async () => {
     const mathBlock = { type: 'math', source: '\\frac{1}{2}' };
     const noConv = toTypstPayload(bundle([msg('m1', 'assistant', [mathBlock])]), opts);
-    assert.deepStrictEqual(noConv.payload.messages[0].blocks[0], { type: 'math', latex: '\\frac{1}{2}', fallbackLabel: 'Could not typeset this formula; original LaTeX preserved:' });
+    assert.deepStrictEqual(noConv.payload.messages[0].blocks[0], { type: 'math', latex: '\\frac{1}{2}', fallbackLabel: 'Could not typeset this formula; original LaTeX preserved:', layout: { gapBeforePt: 0, keepWithNext: false, width: 'full' } });
     assert.ok(!('typst' in noConv.payload.messages[0].blocks[0]), 'no typst key without converter');
 
     const withConv = toTypstPayload(bundle([msg('m1', 'assistant', [mathBlock])]), {
@@ -113,7 +112,7 @@ test('present image asset maps to virtual path', async () => {
     });
     assert.strictEqual(diagnostics.length, 0);
     assert.deepStrictEqual(payload.messages[0].blocks[0], {
-        type: 'image', asset: 'assets/sha256/ab/a1.png', caption: 'pic',
+        type: 'image', asset: 'assets/sha256/ab/a1.png', caption: 'pic', layout: { gapBeforePt: 0, keepWithNext: false, width: 'full' },
     });
 });
 
@@ -272,7 +271,7 @@ test('system role becomes a visible note prefix', async () => {
         { type: 'paragraph', children: [{ type: 'text', text: 'be nice' }] },
     ])]);
     const { payload } = toTypstPayload(b, opts);
-    assert.strictEqual(payload.messages[0].role, 'assistant');
+    assert.strictEqual(payload.messages[0].variant, 'flow');
     assert.strictEqual((payload.messages[0].blocks[0] as any).type, 'note');
 });
 
@@ -281,10 +280,10 @@ test('system role becomes a visible note prefix', async () => {
 test('PDF date uses document timestamps and stays unknown without them', () => {
     const b: any = bundle([]);
     b.conversation.updatedAt = '2026-09-28T00:00:00Z';
-    assert.strictEqual(toTypstPayload(b, opts).payload.date, '2026-09-28');
+    assert.strictEqual(toTypstPayload(b, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages');
     delete b.conversation.updatedAt;
-    assert.strictEqual(toTypstPayload(b, opts).payload.date, '2026-09-20');
+    assert.strictEqual(toTypstPayload(b, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages');
     delete b.conversation.createdAt;
     const { getRendererStrings } = require('../src/core/export/canonical/rendererStrings.js');
-    assert.strictEqual(toTypstPayload(b, { ...opts, locale: 'en' }).payload.date, getRendererStrings('en').dateUnknown);
+    assert.strictEqual(toTypstPayload(b, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages`);
 });

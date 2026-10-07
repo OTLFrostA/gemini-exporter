@@ -3,18 +3,8 @@
 #import "render-inline.typ": render-inlines
 #import "mitex-scope.typ": mitex-scope
 
-#let block-gap(previous, current) = {
-  let a = previous.type
-  let b = current.type
-  if b == "heading" or b == "thematicBreak" or a == "thematicBreak" { sp-section }
-  else if a == "heading" { sp-paragraph }
-  else if a == "paragraph" and b == "paragraph" { sp-paragraph }
-  else if a == "list" and b == "paragraph" or a == "paragraph" and b == "list" { sp-paragraph }
-  else { sp-block }
-}
-
 #let in-flow(body, scope, sticky: false) = {
-  if scope == "user" { block(width: 100%, sticky: sticky)[#body] }
+  if scope == "container" or scope == "full" { block(width: 100%, sticky: sticky)[#body] }
   else { reading(body, sticky: sticky) }
 }
 
@@ -22,19 +12,17 @@
   #render-inlines(node.children)
 ], scope, sticky: sticky)
 
-#let render-heading(node, scope) = {
-  if scope == "user" {
-    block(width: 100%, sticky: true)[#heading(level: node.level)[#render-inlines(node.children)]]
-  } else {
-    reading(sticky: true)[#heading(level: node.level)[#render-inlines(node.children)]]
-  }
-}
+#let render-heading(node, scope) = in-flow(
+  heading(level: node.level)[#render-inlines(node.children)],
+  node.layout.width,
+  sticky: node.layout.keepWithNext,
+)
 
 #let render-list(node, scope, recurse) = {
   let items = node.items.map(item => {
     let body = {
       for (index, sub) in item.blocks.enumerate() {
-        if index > 0 { v(block-gap(item.blocks.at(index - 1), sub)) }
+        if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt) }
         recurse(sub, scope: scope)
       }
     }
@@ -43,20 +31,15 @@
   let body = if node.ordered {
     if "start" in node { [#enum(start: node.start, ..items)] } else { [#enum(..items)] }
   } else { [#list(..items)] }
-  in-flow(body, scope)
+  in-flow(body, node.layout.width)
 }
 
-#let render-code(node, scope) = code-surface(
-  node.language,
-  node.text,
-  filename: if "filename" in node { node.filename } else { none },
-  meta: if "meta" in node { node.meta } else { none },
-)
+#let render-code(node, scope) = code-surface(node.header, node.text, width: node.layout.width)
 
 #let render-math(node, scope) = {
   if "typst" in node {
     let math = eval(node.typst, mode: "math", scope: mitex-scope)
-    if scope == "user" { block(width: 100%)[#align(center)[#math]] } else { math-surface(math) }
+    if scope == "bubble" { block(width: 100%)[#align(center)[#math]] } else { math-surface(math, width: node.layout.width) }
   } else {
     quiet-note[
       #node.fallbackLabel#inline-code(node.latex)
@@ -72,8 +55,8 @@
   )
   let headers = node.headers.map(row => row.map(mk))
   let rows = node.rows.map(row => row.map(mk))
-  let aligns = if "aligns" in node { node.aligns } else { none }
-  let table = modern-table(headers, rows, aligns: aligns)
+  let aligns = node.aligns
+  let table = modern-table(headers, rows, node.columnCount, aligns, node.repeatHeader, width: node.layout.width)
   if "caption" in node and node.caption != "" {
     [
       #align(center)[#text(size: caption-size, fill: muted)[#node.caption]]
@@ -87,10 +70,11 @@
 
 #let render-image(node, scope) = image-surface(
   node.asset,
+  width: node.layout.width,
   caption: if "caption" in node { node.caption } else { none },
 )
 #let render-file(node, scope) = {
-  file-attachment(node.name, node.kind, node.size)
+  file-attachment(node.name, node.metadata, width: node.layout.width)
   if "description" in node and node.description != "" {
     v(3pt)
     text(size: caption-size, fill: muted)[#node.description]
@@ -100,14 +84,14 @@
 #let render-quote(node, scope, recurse) = {
   let body = {
     for (index, sub) in node.blocks.enumerate() {
-      if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
+      if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt) }
       recurse(sub, scope: scope)
     }
   }
-  if scope == "user" {
+  if node.layout.width == "container" {
     block(width: 100%, stroke: (left: 1pt + rule-strong), inset: (left: 7pt))[#body]
   } else {
-    quote-surface(body)
+    quote-surface(body, width: node.layout.width)
   }
 }
 
@@ -118,18 +102,18 @@
   if "blocks" in node {
     let body = {
       for (index, sub) in node.blocks.enumerate() {
-        if index > 0 { v(block-gap(node.blocks.at(index - 1), sub)) }
+        if sub.layout.gapBeforePt > 0 { v(sub.layout.gapBeforePt * 1pt) }
         recurse(sub, scope: scope)
       }
     }
-    quiet-note[#label#body]
+    quiet-note(width: node.layout.width)[#label#body]
   } else {
-    quiet-note[#label#render-inlines(node.children)]
+    quiet-note(width: node.layout.width)[#label#render-inlines(node.children)]
   }
 }
 
 #let render-unknown(node) = {
-  unknown-surface(node.label, node.fallback)
+  unknown-surface(node.label, node.fallback, width: node.layout.width)
 }
 
 #let render-thematic-break(node, scope) = {
@@ -137,12 +121,12 @@
     #v(2pt)
     #line(length: 100%, stroke: 0.6pt + muted)
     #v(2pt)
-  ], scope)
+  ], node.layout.width)
 }
 
-#let render-block(node, scope: "assistant", sticky: false) = {
+#let render-block(node, scope: "flow") = {
   let kind = node.type
-  if kind == "paragraph" { render-paragraph(node, scope, sticky: sticky) }
+  if kind == "paragraph" { render-paragraph(node, node.layout.width, sticky: node.layout.keepWithNext) }
   else if kind == "heading" { render-heading(node, scope) }
   else if kind == "list" { render-list(node, scope, render-block) }
   else if kind == "code" { render-code(node, scope) }
@@ -156,18 +140,9 @@
   else { render-unknown(node) }
 }
 
-#let should-keep-with-next(blocks, index) = {
-  if index >= blocks.len() - 1 { false }
-  else {
-    let current = blocks.at(index)
-    let next = blocks.at(index + 1)
-    current.type == "paragraph" and next.type in ("table", "image", "math", "code")
-  }
-}
-
-#let render-blocks(blocks, scope: "assistant") = {
-  for (index, node) in blocks.enumerate() {
-    if index > 0 { v(block-gap(blocks.at(index - 1), node)) }
-    render-block(node, scope: scope, sticky: should-keep-with-next(blocks, index))
+#let render-blocks(blocks, scope: "flow") = {
+  for node in blocks {
+    if node.layout.gapBeforePt > 0 { v(node.layout.gapBeforePt * 1pt) }
+    render-block(node, scope: scope)
   }
 }

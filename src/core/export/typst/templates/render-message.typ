@@ -2,39 +2,28 @@
 #import "components.typ": *
 #import "render-block.typ": render-blocks
 
-#let render-user-message(message) = context {
-  let file-widths = message.blocks.filter(node => node.type == "file").map(node => {
-    file-attachment-natural-width(node.name, node.kind, node.size)
-  })
+#let render-bubble-message(message) = context {
+  let file-widths = message.minWidthCards.map(card => file-attachment-natural-width(card.label, card.metadata))
   user-bubble(
-    render-blocks(message.blocks, scope: "user"),
+    render-blocks(message.blocks, scope: "bubble"),
     min-content-width: calc.max(0pt, ..file-widths),
     plain-text: if "plainText" in message { message.plainText } else { "" },
   )
 }
 
-#let render-assistant-message(message) = {
+#let render-flow-message(message) = {
   if "model" in message and message.model != "" { assistant-mark(model: message.model); v(sp-xs) }
   render-blocks(message.blocks)
 }
 
 #let render-message(message) = {
-  if message.role == "user" { render-user-message(message) }
-  else { render-assistant-message(message) }
+  if message.variant == "bubble" { render-bubble-message(message) }
+  else { render-flow-message(message) }
 }
 
 #let render-messages(messages) = {
-  for (index, message) in messages.enumerate() {
+  for message in messages {
     render-message(message)
-    if index < messages.len() - 1 {
-      let next = messages.at(index + 1)
-      if message.role == "user" and next.role == "assistant" {
-        user-to-assistant-gap()
-      } else if message.role == "assistant" and next.role == "user" {
-        assistant-to-user-gap()
-      } else {
-        v(sp-xl)
-      }
-    }
+    if message.gapAfterPt > 0 { v(message.gapAfterPt * 1pt) }
   }
 }

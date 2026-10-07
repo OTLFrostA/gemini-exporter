@@ -168,7 +168,7 @@ function collectAllStrings(o: any): string[] {
 
 test('P0 gate (a): math travels as TEXT in the payload, never an image placeholder', () => {
     const { payload, diagnostics } = toTypstPayload(gatesBundle(), opts);
-    assert.strictEqual(payload.messageCount, 2);
+    assert.strictEqual(payload.messages.length, 2);
 
     const maths = collectMathNodes(payload);
     assert.strictEqual(maths.length, 3, `expected 1 inline + 2 display math nodes, got ${maths.length}`);
@@ -207,7 +207,7 @@ test('P0 gate (a): math travels as TEXT in the payload, never an image placehold
 
 test('P0 gate (b): 2000+ char Chinese text survives byte-identical', () => {
     const { payload } = toTypstPayload(gatesBundle(), opts);
-    assert.strictEqual(payload.messageCount, 2);
+    assert.strictEqual(payload.messages.length, 2);
 
     // 用户消息段落: text 节点拼接必须与输入逐字相等。
     const para: any = payload.messages[0].blocks[1];

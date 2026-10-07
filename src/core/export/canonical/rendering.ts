@@ -1,6 +1,6 @@
 import type { Asset } from './assets.js';
 import type { CanonicalConversationBundle } from './conversation.js';
-import type { TypstConversationRenderPayload } from '../typst/payload.js';
+export type { TypstRenderPayload } from '../pdf/pdfCompiler.js';
 
 export interface RenderDiagnostic {
     severity: 'info' | 'warning' | 'error';
@@ -57,12 +57,4 @@ export interface ThoughtRenderOptions {
 export interface ConversationRenderer {
     readonly format: 'html' | 'markdown' | 'pdf' | string;
     render(context: RenderContext): Promise<ExportArtifact>;
-}
-
-export interface TypstRenderPayload {
-    rendererSchemaVersion: 1;
-    sourceSchemaVersion: 1;
-    bundle: CanonicalConversationBundle;
-    document: TypstConversationRenderPayload;
-    assetPaths: ReadonlyMap<string, string>;
 }

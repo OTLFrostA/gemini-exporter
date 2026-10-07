@@ -9,9 +9,7 @@
     "providerId": "gemini",
     "conversationId": "vc-05"
    },
-   "title": {
-    "value": "模型基准对比"
-   },
+   "title": "模型基准对比",
    "createdAt": "2026-09-26T10:00:00Z",
    "updatedAt": "2026-09-26T11:00:00Z",
    "messages": [

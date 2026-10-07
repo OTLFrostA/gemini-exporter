@@ -99,16 +99,22 @@ test.describe('Typst sandbox compile container (P1b smoke)', () => {
         const payload = {
           schemaVersion: 1,
           title: 'P1b sandbox smoke',
-          provider: 'gemini',
-          date: '2026-09-26',
-          messageCount: 1,
+          profile: { id: 'pdf', version: 1 },
+          metadata: 'gemini · 2026-09-26 · 1 messages',
+          layout: {
+            page: { widthMm: 210, heightMm: 297, topMm: 18.5, bottomMm: 18, sideMm: 22, contentWidthMm: 166, proseWidthMm: 166 * 720 / 880 },
+            bubble: { maxWidthRatio: 0.85, compactHeightPt: 120, minInnerWidthPt: 28, paddingXPt: 12.5, paddingYPt: 8.4 },
+            figure: { maxPageHeightRatio: 0.6, captionMaxWidthMm: 115 },
+            textLanguage: 'zh', headerGapPt: 4.5, bodyGapPt: 22.5,
+          },
           messages: [
             {
               id: 'm1',
-              role: 'user',
+              variant: 'bubble', minWidthCards: [], gapAfterPt: 0,
               blocks: [
                 {
                   type: 'paragraph',
+                  layout: { gapBeforePt: 0, keepWithNext: false, width: 'container' },
                   children: [{ type: 'text', text: 'hello from the sandbox smoke test' }],
                 },
               ],

@@ -394,7 +394,7 @@ test('compile: happy path returns PDF bytes and sandbox diagnostics', async () =
     assert.strictEqual(compileMsg.message.files[0].path, '/payload.json');
     const sentPayload = JSON.parse(compileMsg.message.files[0].text);
     assert.strictEqual(sentPayload.title, 'Test convo');
-    assert.strictEqual(sentPayload.messageCount, 2);
+    assert.strictEqual(sentPayload.messages.length, 2);
 
     const pdfBytes = new TextEncoder().encode('%PDF-1.7\n%fake\n');
     // The real sandbox ACKs the font install before compiling; the fake
@@ -619,4 +619,29 @@ test('math gate: no loaded font with a MATH table keeps the aggregate warning', 
     const result = await compileOnce(host, compiler);
     const codes = result.diagnostics.map((d: any) => d.code);
     assert.ok(codes.includes('TYPST_MATH_TABLE_MISSING'), `diagnostics: ${JSON.stringify(codes)}`);
+});
+
+test('compile: nested struck media mounts and math fallback never mutate the input tree', async () => {
+    const host = new FakeHost(undefined, fakeFontBytes(false));
+    const compiler = makeCompiler(host);
+    const bundle = makeBundle({ assets: [{ id: 'nested', kind: 'image', name: 'nested.png', status: 'available' }] });
+    bundle.conversation.messages[0].blocks = [{ type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'inlineMath', source: 'x' }, { type: 'image', assetId: 'nested' }] }] }];
+    const payload = makePayload(bundle, { convertMath: () => 'x' });
+    const before = JSON.stringify(payload.document);
+    const freeze = (value: unknown): void => {
+        if (!value || typeof value !== 'object') return;
+        Object.freeze(value); Object.values(value).forEach(freeze);
+    };
+    freeze(payload.document);
+    const promise = compiler.compile(payload, makeContext(new AbortController().signal, { resolve: async () => ({ bytes: new Uint8Array([1, 2, 3]) }) }));
+    try {
+        await driveInitHandshake(host); await tick();
+        const sent = host.frame!.lastSentType('typst/compile')!;
+        assert.strictEqual(sent.message.binaries.length, 1, 'strikethrough must not hide image placements');
+        const encoded = JSON.parse(sent.message.files[0].text);
+        assert.ok(!('typst' in encoded.messages[0].blocks[0].children[0].children[0]), 'font fallback covers strikethrough');
+        host.frame!.receive({ type: 'typst/compiled', jobId: sent.message.jobId, pdf: new TextEncoder().encode('%PDF-1.7\n').buffer, diagnostics: [] });
+        await promise;
+        assert.strictEqual(JSON.stringify(payload.document), before);
+    } finally { compiler.dispose(); }
 });

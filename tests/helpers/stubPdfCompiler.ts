@@ -6,11 +6,7 @@
  * import this file. Tests inject it through the IPdfCompiler contract; the
  * production PdfExporter default remains the real TypstSandboxCompiler.
  */
-import type {
-    RenderContext,
-    TypstRenderPayload,
-} from '../../src/core/export/canonical/rendering.js';
-import type { IPdfCompiler, PdfCompileResult } from '../../src/core/export/pdf/pdfCompiler.js';
+import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../../src/core/export/pdf/pdfCompiler.js';
 
 export const STUB_PDF_COMPILER_NAME = 'stub-pdf-compiler';
 
@@ -71,7 +67,7 @@ export class StubPdfCompiler implements IPdfCompiler {
 
     constructor(private readonly options: StubPdfCompilerOptions = {}) {}
 
-    async compile(payload: TypstRenderPayload, context: RenderContext): Promise<PdfCompileResult> {
+    async compile(payload: TypstRenderPayload, context: PdfCompileContext): Promise<PdfCompileResult> {
         context.reportProgress('stub-compile-start', 0, 1);
         await abortableSleep(this.options.delayMs ?? 0, context.signal);
         if (context.signal.aborted) {
@@ -80,7 +76,7 @@ export class StubPdfCompiler implements IPdfCompiler {
         if (this.options.failWith) {
             throw new Error(this.options.failWith);
         }
-        const messageCount = payload.bundle.conversation.messages.length;
+        const messageCount = payload.document.messages.length;
         context.reportProgress('stub-compile-done', 1, 1);
         return {
             pdfBytes: minimalPdfBytes(),

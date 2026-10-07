@@ -68,7 +68,7 @@ test('degraded math is diagnosed, never silent', async () => {
     assert.strictEqual(mathNodes.length, 1);
     assert.strictEqual(mathNodes[0].latex, '\\notarealcommand{x}{y}');
     assert.strictEqual(mathNodes[0].typst, undefined);
-    assert.strictEqual(output.payload.messageCount, 2);
+    assert.strictEqual(output.payload.messages.length, 2);
 });
 
 test('convertible math carries the Typst body with no diagnostic', async () => {
@@ -93,7 +93,7 @@ test('consumes bundle messages in source order', async () => {
         { bundle, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
-    assert.strictEqual(output.payload.messageCount, 3);
+    assert.strictEqual(output.payload.messages.length, 3);
     assert.deepStrictEqual(output.payload.messages.map((m: any) => m.id), ['m1', 'm2', 'm3']);
 });
 
@@ -142,7 +142,7 @@ test('MiTeX initialization failure emits single warning and preserves raw LaTeX 
 
         // Stage must not abort and produces payload
         assert.ok(output.payload, 'Payload must be produced');
-        assert.strictEqual(output.payload.messageCount, 2);
+        assert.strictEqual(output.payload.messages.length, 2);
 
         // Emits exactly ONE init failure warning diagnostic (no duplicate error per formula)
         const initWarnings = diagnostics.filter((d: any) => d.code === 'TYPST_MATH_INIT_FAILED');

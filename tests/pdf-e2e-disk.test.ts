@@ -65,7 +65,7 @@ function makeSample(idSuffix: string, title: string, marker?: string) {
     return c;
 }
 
-/** Recursively collect plain text from canonical bundle inline/block nodes. */
+/** Recursively collect plain text from the prepared display transport inline/block nodes. */
 function flattenText(node: any): string {
     if (!node) return '';
     if (typeof node === 'string') return node;
@@ -77,8 +77,8 @@ function flattenText(node: any): string {
     return '';
 }
 
-function bundleBodyText(bundle: any, maxLen = 600): string {
-    const msgs = bundle?.conversation?.messages ?? [];
+function documentBodyText(document: any, maxLen = 600): string {
+    const msgs = document?.messages ?? [];
     const parts: string[] = [];
     for (const m of msgs) {
         for (const b of m?.blocks ?? []) parts.push(flattenText(b));
@@ -130,11 +130,8 @@ function buildTextPdf(title: string, body: string): Uint8Array {
 class TitleTextPdfCompiler {
     readonly name = 'title-text-test-compiler';
     async compile(payload: any, _context: any) {
-        const title =
-            payload?.document?.title ??
-            payload?.bundle?.conversation?.title ??
-            'untitled';
-        const body = bundleBodyText(payload?.bundle);
+        const title = payload.document.title;
+        const body = documentBodyText(payload.document);
         return { pdfBytes: buildTextPdf(String(title), body), diagnostics: [] };
     }
 }

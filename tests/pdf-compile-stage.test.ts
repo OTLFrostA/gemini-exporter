@@ -117,7 +117,7 @@ function makeStub(options: {
     return { compiler, captured };
 }
 
-test('happy path: verified pdfBytes returned; compiler got bundle/locale/signal + prebuilt slots', async () => {
+test('happy path: verified pdfBytes returned; compiler gets display payload and bytes only', async () => {
     const { compiler, captured } = makeStub();
     const input = fakeInput({ compiler });
     const ctx = makeCtx();
@@ -127,15 +127,14 @@ test('happy path: verified pdfBytes returned; compiler got bundle/locale/signal 
     assert.ok(output.pdfBytes.length > 0);
     assert.strictEqual(String.fromCharCode(...output.pdfBytes.slice(0, 5)), '%PDF-');
 
-    // The frozen IPdfCompiler takes TypstRenderPayload: the stage re-wraps the
-    // bundle and carries the prebuilt payload + resource pathMap (M1c contract).
+    // Compiler boundary contains prepared presentation and resource bindings only.
     assert.strictEqual(captured.payload.rendererSchemaVersion, 1);
-    assert.strictEqual(captured.payload.sourceSchemaVersion, 1);
-    assert.strictEqual(captured.payload.bundle, input.bundle);
+    assert.ok(!('sourceSchemaVersion' in captured.payload));
+    assert.ok(!('bundle' in captured.payload));
     assert.strictEqual(captured.payload.document, input.payload);
     assert.strictEqual(captured.payload.assetPaths, input.pathMap);
-    assert.strictEqual(captured.context.bundle, input.bundle);
-    assert.strictEqual(captured.context.locale, 'zh');
+    assert.ok(!('bundle' in captured.context));
+    assert.ok(!('locale' in captured.context));
     assert.strictEqual(captured.context.signal, ctx.signal);
     assert.strictEqual(typeof captured.context.assets.resolve, 'function');
 
@@ -155,7 +154,7 @@ test('resolver: hash-shaped virtualPath resolves via pathMap', async () => {
     const { diagnostics } = await compileStage(input, makeCtx());
 
     assert.deepStrictEqual(captured.resolved['a1']?.bytes, mountBytes);
-    assert.strictEqual(captured.resolved['a1']?.asset.id, 'a1');
+    assert.ok(!('asset' in captured.resolved['a1']));
     assert.ok(!diagnostics.some((d: any) => d.code.startsWith('COMPILE_ASSET_')), 'no asset diagnostics expected');
 });
 

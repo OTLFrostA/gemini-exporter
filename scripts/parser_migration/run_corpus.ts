@@ -477,7 +477,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         schemaVersion: 1,
                         conversation: {
                             key: { providerId: 'gemini', conversationId: 'corpus-math-baseline-compile-gate' },
-                            title: { value: 'Corpus Math Baseline Compile Gate' },
+                            title: 'Corpus Math Baseline Compile Gate',
                             createdAt: '2026-09-28T00:00:00Z',
                             messages: [{
                                 id: 'm1',
@@ -501,14 +501,10 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
-                        sourceSchemaVersion: 1,
-                        bundle,
                         document,
                         assetPaths: new Map(),
                     }, {
-                        bundle: null,
                         assets: { resolve: async () => null },
-                        locale: 'zh',
                         signal: new AbortController().signal,
                         reportProgress: () => {},
                     });
@@ -539,7 +535,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         schemaVersion: 1,
                         conversation: {
                             key: { providerId: 'gemini', conversationId: 'corpus-math-candidate-compile-gate' },
-                            title: { value: 'Corpus Math Candidate Compile Gate' },
+                            title: 'Corpus Math Candidate Compile Gate',
                             createdAt: '2026-09-28T00:00:00Z',
                             messages: [{
                                 id: 'm1',
@@ -563,14 +559,10 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     const { payload: document } = toTypstPayload(bundle, { assetPath: (a: any) => `/assets/${a.id}`, convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
-                        sourceSchemaVersion: 1,
-                        bundle,
                         document,
                         assetPaths: new Map(),
                     }, {
-                        bundle: null,
                         assets: { resolve: async () => null },
-                        locale: 'zh',
                         signal: new AbortController().signal,
                         reportProgress: () => {},
                     });
