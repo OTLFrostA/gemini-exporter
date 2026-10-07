@@ -1,19 +1,19 @@
 {
-  "schemaVersion": 1,
-  "conversation": {
-    "key": {
-      "providerId": "gemini",
-      "accountId": "acct-parity-001",
-      "conversationId": "conv-image-attachment-001"
+  "document": {
+    "schemaVersion": 2,
+    "header": {
+      "title": "图片与附件占位",
+      "providerLabel": "gemini",
+      "date": "2026-09-26",
+      "messageCount": 2
     },
-    "title": "图片与附件占位",
-    "createdAt": "2026-09-26T13:00:00-07:00",
-    "updatedAt": "2026-09-26T13:02:00-07:00",
     "messages": [
       {
+        "type": "message",
         "id": "u1",
-        "role": "user",
-        "createdAt": "2026-09-26T13:00:00-07:00",
+        "anchor": "turn-user-0",
+        "variant": "bubble",
+        "label": "you",
         "blocks": [
           {
             "type": "paragraph",
@@ -26,13 +26,22 @@
           },
           {
             "type": "image",
-            "assetId": "asset-img-1",
-            "alt": "用户上传的架构图"
+            "resourceId": "asset-img-1",
+            "alt": "用户上传的架构图",
+            "caption": [
+              {
+                "type": "text",
+                "text": "用户上传的架构图"
+              }
+            ]
           },
           {
             "type": "file",
-            "assetId": "asset-file-1",
+            "resourceId": "asset-file-1",
             "label": "data_dictionary.xlsx",
+            "kind": "file",
+            "mediaType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "byteLength": 53248,
             "description": [
               {
                 "type": "text",
@@ -43,13 +52,11 @@
         ]
       },
       {
+        "type": "message",
         "id": "a1",
-        "role": "assistant",
-        "createdAt": "2026-09-26T13:02:00-07:00",
-        "author": {
-          "model": "Gemini 2.5 Pro",
-          "rawRole": "model"
-        },
+        "anchor": "turn-model-1",
+        "variant": "flow",
+        "label": "assistant",
         "blocks": [
           {
             "type": "paragraph",
@@ -60,7 +67,8 @@
               },
               {
                 "type": "image",
-                "assetId": "asset-img-1"
+                "resourceId": "asset-img-1",
+                "alt": ""
               },
               {
                 "type": "text",
@@ -70,7 +78,7 @@
           },
           {
             "type": "image",
-            "assetId": "asset-img-1",
+            "resourceId": "asset-img-1",
             "alt": "Block AST 到多格式 renderer 流程图",
             "caption": [
               {
@@ -105,29 +113,8 @@
       }
     ]
   },
-  "assets": [
-    {
-      "id": "asset-img-1",
-      "kind": "image",
-      "name": "architecture.png",
-      "mimeType": "image/png",
-      "sizeBytes": 245760,
-      "dimensions": {
-        "widthPx": 1600,
-        "heightPx": 900
-      },
-      "status": "missing",
-      "failureReason": "parity fixture placeholder: no bytes shipped"
-    },
-    {
-      "id": "asset-file-1",
-      "kind": "file",
-      "name": "data_dictionary.xlsx",
-      "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "sizeBytes": 53248,
-      "status": "missing",
-      "failureReason": "parity fixture placeholder: no bytes shipped"
-    }
-  ],
-  "citations": []
+  "resourceIds": [
+    "asset-img-1",
+    "asset-file-1"
+  ]
 }

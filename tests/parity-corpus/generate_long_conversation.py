@@ -58,7 +58,7 @@ def paragraph(*children):
 
 
 def build_message(idx, role, rng):
-    """idx is 1-based. Returns a MessageNode dict."""
+    """idx is 1-based. Returns a DisplayMessage dict."""
     mid = f"{'u' if role == 'user' else 'a'}{idx}"
     tpl = rng.choice(USER_TEMPLATES if role == "user" else ASSISTANT_TEMPLATES)
     n = (idx + 1) // 2  # round number
@@ -67,21 +67,21 @@ def build_message(idx, role, rng):
     # more than plain paragraphs.
     if role == "assistant" and idx % 10 == 0:
         blocks.append({
-            "type": "code", "language": "python",
+            "type": "code", "language": "python", "showHeader": True,
             "code": f"def round_{n}():\n    return 'parity-check-{n}'\n",
         })
     if role == "assistant" and idx % 15 == 0:
         blocks.append({
             "type": "table",
-            "columns": [{"align": "left"}, {"align": "right"}],
-            "headerRows": [{"cells": [
-                {"children": [text("指标")]},
-                {"children": [text("第 %d 轮" % n)]},
-            ]}],
-            "rows": [{"cells": [
-                {"children": [text("消息数")]},
-                {"children": [text(str(idx))]},
-            ]}],
+            "columnAlignments": ["left", "right"],
+            "headerRows": [[
+                {"children": [text("指标")], "column": 0, "colSpan": 1, "rowSpan": 1, "align": "left"},
+                {"children": [text("第 %d 轮" % n)], "column": 1, "colSpan": 1, "rowSpan": 1, "align": "right"},
+            ]],
+            "rows": [[
+                {"children": [text("消息数")], "column": 0, "colSpan": 1, "rowSpan": 1, "align": "left"},
+                {"children": [text(str(idx))], "column": 1, "colSpan": 1, "rowSpan": 1, "align": "right"},
+            ]],
         })
     if role == "assistant" and idx % 21 == 0:
         blocks.append({
@@ -96,8 +96,10 @@ def build_message(idx, role, rng):
         ))
     msg = {
         "id": mid,
-        "role": role,
-        "createdAt": "2026-09-26T14:%02d:%02d-07:00" % ((idx // 60) % 60, idx % 60),
+        "type": "message",
+        "label": "you" if role == "user" else "assistant",
+        "variant": "bubble" if role == "user" else "flow",
+        "anchor": f"turn-{'user' if role == 'user' else 'model'}-{2 * (idx - 1) + (role != 'user')}",
         "blocks": blocks,
     }
     return msg
@@ -125,30 +127,16 @@ def main():
         msg = build_message(idx, role, rng)
         messages.append(msg)
 
-    bundle = {
-        "schemaVersion": 1,
-        "conversation": {
-            "key": {
-                "providerId": "gemini",
-                "accountId": "acct-parity-001",
-                "conversationId": "conv-long-121-001",
-            },
-            "title": {
-                "value": "长会话：121 消息 parity 语料",
-                "source": "provider",
-                "candidates": [
-                    {"value": "长会话：121 消息 parity 语料", "source": "provider"}
-                ],
-            },
-            "createdAt": "2026-09-26T14:00:00-07:00",
-            "updatedAt": "2026-09-26T16:02:00-07:00",
+    fixture = {
+        "document": {
+            "schemaVersion": 2,
+            "header": {"title": "长会话：121 消息 parity 语料", "providerLabel": "gemini", "date": "2026-09-26", "messageCount": len(messages)},
             "messages": messages,
         },
-        "assets": [],
-        "citations": [],
+        "resourceIds": [],
     }
     with open(args.out, "w", encoding="utf-8") as f:
-        json.dump(bundle, f, ensure_ascii=False, indent=2)
+        json.dump(fixture, f, ensure_ascii=False, indent=2)
     print(f"wrote {args.out}: {len(messages)} messages, "
           f"{sum(len(m['blocks']) for m in messages)} blocks")
 

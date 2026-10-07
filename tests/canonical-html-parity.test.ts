@@ -22,8 +22,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const canonical = require('../src/core/export/canonical/index.js');
-const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
+const { parseFixture } = require('./helpers/documentFixture.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
 const chat: any = {
     id: 'parity_chat_001',
@@ -112,8 +112,8 @@ let newDiagnostics: Array<{ code: string }>;
 
 
 test('parity setup: canonical renderer produces output', async () => {
-    const { bundle } = await normalizeGeminiConversation(chat);
-    const res = renderCanonicalHtml(bundle);
+    const { document, resources } = await parseFixture(chat);
+    const res = renderDocumentHtml(document, resources);
     newHtml = res.html;
     newDiagnostics = res.diagnostics;
     assert.ok(newHtml.startsWith('<!DOCTYPE html>'), 'AST output is a document');
@@ -207,29 +207,45 @@ test('offline: no remote asset URLs leak into output', () => {
 });
 
 test('inline image (#555 contract): renders inline <img>, never dropped', () => {
-    const bundle: any = {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 't', conversationId: 'inline_img' },
-            title: 'Inline img',
-            messages: [
-                {
-                    id: 'm1', role: 'user',
-                    blocks: [{
-                        type: 'paragraph',
-                        children: [
-                            { type: 'text', text: 'see ' },
-                            { type: 'image', assetId: 'a-inline', alt: 'a diagram', title: 'fig 1' },
-                            { type: 'text', text: ' here' },
-                        ],
-                    }],
-                },
-            ],
+    const document = {
+        "schemaVersion": 2,
+        "header": {
+            "title": "Inline img",
+            "providerLabel": "gemini",
+            "messageCount": 1
         },
-        assets: [{ id: 'a-inline', kind: 'image', name: 'd.png', mimeType: 'image/png', storageRef: 'assets/d.png', status: 'available' }],
-        citations: [],
+        "messages": [
+            {
+                "type": "message",
+                "id": "m1",
+                "variant": "bubble",
+                "label": "you",
+                "blocks": [
+                    {
+                        "type": "paragraph",
+                        "children": [
+                            {
+                                "type": "text",
+                                "text": "see "
+                            },
+                            {
+                                "type": "image",
+                                "resourceId": "a-inline",
+                                "alt": "a diagram",
+                                "title": "fig 1"
+                            },
+                            {
+                                "type": "text",
+                                "text": " here"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     };
-    const res = renderCanonicalHtml(bundle);
+    const resources = {"a-inline":"assets/d.png"};
+    const res = renderDocumentHtml(document, resources);
     assert.ok(res.html.includes('class="gem-inline-img"'), 'inline image renders an inline <img>');
     assert.ok(res.html.includes('alt="a diagram"'), 'alt text preserved');
     assert.ok(res.html.includes('title="fig 1"'), 'title preserved');
@@ -237,28 +253,40 @@ test('inline image (#555 contract): renders inline <img>, never dropped', () => 
 });
 
 test('inline image with missing asset: visible placeholder + diagnostic', () => {
-    const bundle: any = {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 't', conversationId: 'inline_img_missing' },
-            title: 'Inline img missing',
-            messages: [
-                {
-                    id: 'm1', role: 'user',
-                    blocks: [{
-                        type: 'paragraph',
-                        children: [
-                            { type: 'text', text: 'see ' },
-                            { type: 'image', assetId: 'a-gone', alt: 'lost diagram' },
-                        ],
-                    }],
-                },
-            ],
+    const document = {
+        "schemaVersion": 2,
+        "header": {
+            "title": "Inline img missing",
+            "providerLabel": "gemini",
+            "messageCount": 1
         },
-        assets: [],
-        citations: [],
+        "messages": [
+            {
+                "type": "message",
+                "id": "m1",
+                "variant": "bubble",
+                "label": "you",
+                "blocks": [
+                    {
+                        "type": "paragraph",
+                        "children": [
+                            {
+                                "type": "text",
+                                "text": "see "
+                            },
+                            {
+                                "type": "image",
+                                "resourceId": "a-gone",
+                                "alt": "lost diagram"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
     };
-    const res = renderCanonicalHtml(bundle);
+    const resources = {};
+    const res = renderDocumentHtml(document, resources);
     assert.ok(res.html.includes('gem-missing-inline'), 'missing inline image renders a visible placeholder');
     assert.ok(res.html.includes('lost diagram'), 'alt text still visible in placeholder');
     assert.ok(res.diagnostics.some((d: any) => d.code === 'HTML_ASSET_UNRESOLVED'), 'diagnostic emitted, never silent');

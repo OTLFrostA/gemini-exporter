@@ -13,8 +13,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const canonical = require('../src/core/export/canonical/index.js');
-const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
+const { parseFixture } = require('./helpers/documentFixture.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
 test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and no companion cards', async () => {
     const raw: any = {
@@ -37,15 +37,15 @@ test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const msg = bundle.conversation.messages[0];
+    const { document, resources } = await parseFixture(raw);
+    const msg = document.messages[0];
 
     // Canonical AST check
     const imgBlock = msg.blocks.find((b: any) => b.type === 'image');
     assert.ok(imgBlock, 'ImageBlock must exist in canonical blocks');
 
     // HTML Rendering check
-    const { html, diagnostics } = renderCanonicalHtml(bundle);
+    const { html, diagnostics } = renderDocumentHtml(document, resources);
     assert.strictEqual(diagnostics.length, 0, 'Expected zero diagnostics for resolvable image');
 
     // 1 inline visual figure in model content
@@ -85,13 +85,13 @@ test('PR 3 - 2: Multiple generated images on model turn render N inline figures 
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const msg = bundle.conversation.messages[0];
+    const { document, resources } = await parseFixture(raw);
+    const msg = document.messages[0];
 
     const imgBlocks = msg.blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocks.length, 4, 'Expected 4 canonical ImageBlocks');
 
-    const { html, diagnostics } = renderCanonicalHtml(bundle);
+    const { html, diagnostics } = renderDocumentHtml(document, resources);
     assert.strictEqual(diagnostics.length, 0, 'Expected zero diagnostics');
 
     // N inline figures
@@ -137,14 +137,14 @@ test('PR 3 - 3: User uploaded image attachment renders 1 inline figure and no co
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const userMsg = bundle.conversation.messages[0];
+    const { document, resources } = await parseFixture(raw);
+    const userMsg = document.messages[0];
 
     // Canonical AST check
     const userImgBlock = userMsg.blocks.find((b: any) => b.type === 'image');
     assert.ok(userImgBlock, 'User image block must exist');
 
-    const { html } = renderCanonicalHtml(bundle);
+    const { html } = renderDocumentHtml(document, resources);
 
     const userTurn = html.slice(html.indexOf('<section class="gem-turn gem-turn-user"'), html.indexOf('<section class="gem-turn gem-turn-model"'));
     assert.ok(userTurn.includes('gem-image-block'), 'User prompt contains inline figure');
@@ -179,8 +179,8 @@ test('PR 3 - 4: Generated image with explicit markdown embed does not produce du
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const { html } = renderCanonicalHtml(bundle);
+    const { document, resources } = await parseFixture(raw);
+    const { html } = renderDocumentHtml(document, resources);
 
     // Markdown inline image rendered
     assert.ok(html.includes('gem-inline-img') || html.includes('gem-image-block'), 'Expected inline image to be rendered');
@@ -225,14 +225,14 @@ test('PR 3 - 5: Real-world 040ffd Imagen regression shape (model text + 6 genera
         ],
     };
 
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const modelMsg = bundle.conversation.messages[1];
+    const { document, resources } = await parseFixture(raw);
+    const modelMsg = document.messages[1];
 
     // Verify deduplication in normalizeMessage (rawImages passed in both images and attachments)
     const imgBlocks = modelMsg.blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocks.length, 6, 'Expected exactly 6 image blocks after attachment deduplication');
 
-    const { html, diagnostics } = renderCanonicalHtml(bundle);
+    const { html, diagnostics } = renderDocumentHtml(document, resources);
     assert.strictEqual(diagnostics.length, 0, 'Expected zero diagnostics');
 
     // Verify model content is NOT empty

@@ -1,25 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { CanonicalConversationBundle } from '../src/core/export/canonical/conversation.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { DocumentAst } from '../src/core/export/document/ast.js';
-import { composeDocument } from '../src/core/export/document/composeDocument.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
 
 const time = '2026-10-06T00:00:00Z';
-function fixture(): CanonicalConversationBundle {
-    return { schemaVersion: 1, conversation: { key: { providerId: 'example', accountId: 'a', conversationId: 'c' }, title: 'Title', messages: [{ id: 'm', role: 'system', citationIds: ['c'], blocks: [
-        { type: 'table', columns: [{ align: 'left' }, { align: 'right' }, { align: 'center' }], headerRows: [
-            { cells: [{ children: [{ type: 'text', text: 'A' }], colSpan: 2, rowSpan: 2 }, { children: [{ type: 'text', text: 'B' }] }] },
-            { cells: [{ children: [{ type: 'text', text: 'Second header' }] }] },
-        ], rows: [{ cells: [{ children: [{ type: 'text', text: 'Body' }], colSpan: 3 }] }] },
-        { type: 'image', assetId: 'a', caption: [{ type: 'strong', children: [{ type: 'text', text: '123' }] }] },
-        { type: 'image', assetId: 'a', alt: 'Again' },
-        { type: 'file', assetId: 'missing', description: [{ type: 'text', text: 'Preserved description' }] },
-        { type: 'thought', disclosure: 'providerExposed', kind: 'summary', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'reason' }] }] },
-    ] }] }, assets: [{ id: 'a', kind: 'image', name: 'asset_987654.png', status: 'available', storageRef: 'assets/a.png' }], citations: [{ id: 'c', kind: 'web', title: 'Source', url: 'https://example.com' }] };
+function fixture(): DomainConversationDetail {
+    return JSON.parse(readFileSync('tests/fixtures/document-domain/document-markdown.json', 'utf8'));
 }
+
 function freeze(value: unknown): void {
     if (!value || typeof value !== 'object') return;
     Object.freeze(value); Object.values(value).forEach(freeze);
@@ -27,8 +19,8 @@ function freeze(value: unknown): void {
 
 test('Markdown backend projects spans while the neutral tree retains all headers', () => {
     const input = fixture(); const before = JSON.stringify(input); freeze(input);
-    const composed = composeDocument(input);
-    assert.deepEqual(composeDocument(input), composed);
+    const composed = composeDomainDocument(input);
+    assert.deepEqual(composeDomainDocument(input), composed);
     assert.equal(JSON.stringify(input), before);
     const table = composed.document.messages[0].blocks[0]; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
@@ -40,7 +32,7 @@ test('Markdown backend projects spans while the neutral tree retains all headers
 });
 
 test('Markdown consumes only JSON display choices, explicit time and prepared paths', () => {
-    const { document } = composeDocument(fixture());
+    const { document } = composeDomainDocument(fixture());
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     const resources = { a: 'assets/a.png' };
     assert.equal(renderDocumentMarkdown(restored, resources), renderDocumentMarkdown(document, resources));
@@ -60,12 +52,12 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
 });
 
 test('Markdown composition owns unavailability and emits diagnostics without remote embedding', () => {
-    const { document, diagnostics } = composeDocument(fixture());
+    const { document, diagnostics } = composeDomainDocument(fixture());
     assert.equal(diagnostics.length, 0);
     const output = renderDocumentMarkdown(document, {});
     assert.ok(output.includes('[Image unavailable:')); assert.ok(output.includes('**123**'));
     assert.ok(!output.includes('https://remote'));
-    assert.deepEqual(composeDocument(fixture()).document, document);
+    assert.deepEqual(composeDomainDocument(fixture()).document, document);
 });
 
 test('Markdown backend cannot import semantic models, registries or clocks', () => {
@@ -75,7 +67,7 @@ test('Markdown backend cannot import semantic models, registries or clocks', () 
 });
 
 test('Markdown front matter preserves string scalars and rejects invalid keys', () => {
-    const { document } = composeDocument(fixture());
+    const { document } = composeDomainDocument(fixture());
     const frontMatter = [{ key: 'tags', value: ['true', 'null', 'yes', 'example-export'] }];
     assert.ok(renderDocumentMarkdown(document, {}, { frontMatter }).includes('tags:\n  - "true"\n  - "null"\n  - "yes"\n  - example-export'));
     const invalid = [{ key: 'bad\nkey', value: 'value' }];

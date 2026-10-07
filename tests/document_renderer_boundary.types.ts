@@ -1,5 +1,5 @@
 import type { DocumentAst } from '../src/core/export/document/ast.js';
-import type { CanonicalConversationBundle } from '../src/core/export/canonical/conversation.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
 
 import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
@@ -7,7 +7,7 @@ import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdo
 import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
 import type { PdfCompileContext, TypstRenderPayload } from '../src/core/export/pdf/pdfCompiler.js';
 
-function rendererBoundary(semantic: CanonicalConversationBundle): void {
+function rendererBoundary(semantic: DomainConversationDetail): void {
     // @ts-expect-error A semantic conversation cannot be sent to the rendering backend.
     renderDocumentHtml(semantic, {});
     // @ts-expect-error Markdown also requires the presentation tree.
@@ -44,7 +44,6 @@ function neutralContract(document: DocumentAst): void {
 void neutralContract;
 
 
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { ResourceStageInput, PayloadStageInput, CompileStageInput } from '../src/core/export/pdf/pipeline/types.js';
 function pdfPipelineBoundary(domain: DomainConversationDetail): void {
     // @ts-expect-error PDF resources must receive an already composed Document AST.

@@ -2,7 +2,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { convertMath } = require('../src/core/export/typst/mathConverter.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
@@ -11,26 +12,15 @@ const {
     repoRoot,
 } = require('./helpers/realWasmSandbox.js');
 
-function bundle(messages: any[], extra: any = {}) {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: 'Phase B',
-            createdAt: '2026-09-26T10:00:00Z',
-            messages,
-        },
-        assets: [],
-        citations: [],
-        ...extra,
-    };
+function domainFixture(messages: any[], assets: any[] = []) {
+    return { providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
-    return { id, role, blocks, ...extra };
+    return { id, role, content: blocks, ...extra };
 }
 
-const opts = { assetPath: (_a: any) => undefined };
+const opts = {};
 
 function cell(text: string) {
     return { children: [{ type: 'text', text }] };
@@ -41,11 +31,11 @@ function row(...texts: string[]) {
 }
 
 test('multi header rows all reach the transport with no collapse diagnostic', async () => {
-    const b = bundle([msg('m1', 'assistant', [{
+    const b = domainFixture([msg('m1', 'assistant', [{
         type: 'table', headerRows: [row('h1a', 'h1b'), row('h2a', 'h2b')],
         rows: [row('b1a', 'b1b')],
     }])]);
-    const { payload, diagnostics } = toTypstPayload(b, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'table');
     assert.strictEqual(node.headers.length, 2);
@@ -59,10 +49,10 @@ test('multi header rows all reach the transport with no collapse diagnostic', as
 test('colSpan/rowSpan map to native Typst table.cell spans with no warning', async () => {
     const spanned = { children: [{ type: 'text', text: 'wide' }], colSpan: 2 };
     const tall = { children: [{ type: 'text', text: 'tall' }], rowSpan: 2 };
-    const b = bundle([msg('m1', 'assistant', [{
+    const b = domainFixture([msg('m1', 'assistant', [{
         type: 'table', rows: [{ cells: [spanned, { children: [{ type: 'text', text: 'b' }] }] }, { cells: [tall, { children: [{ type: 'text', text: 'c' }] }] }],
     }])]);
-    const { payload, diagnostics } = toTypstPayload(b, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.rows[0].length, 2);
     assert.strictEqual(node.rows[0][0].colspan, 2);
@@ -72,12 +62,11 @@ test('colSpan/rowSpan map to native Typst table.cell spans with no warning', asy
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_TABLE_SPAN_IGNORED'));
 });
 
-test('message citationIds appends a note to blocks in Typst payload', async () => {
-    const b = bundle(
-        [msg('m1', 'assistant', [], { citationIds: ['c1'] })],
-        { citations: [{ id: 'c1', url: 'https://example.com/a' }] },
+test('message sources append a note to blocks in Typst payload', async () => {
+    const b = domainFixture(
+        [msg('m1', 'assistant', [], { citations: [{ id: 'c1', url: 'https://example.com/a' }] })],
     );
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
     assert.ok(!('label' in node));
@@ -85,15 +74,15 @@ test('message citationIds appends a note to blocks in Typst payload', async () =
 });
 
 test('file description reaches the transport', async () => {
-    const b = bundle(
+    const b = domainFixture(
         [msg('m1', 'assistant', [{
             type: 'file', assetId: 'fa',
             label: 'report.pdf',
             description: [{ type: 'text', text: 'Q3 summary deck' }],
         }])],
-        { assets: [{ id: 'fa', name: 'report.pdf', kind: 'document', mimeType: 'application/pdf', sizeBytes: 2048 }] },
+        [{ id: 'fa', name: 'report.pdf', kind: 'file', mediaType: 'application/pdf', byteLength: 2048 }],
     );
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'file');
     assert.strictEqual(node.description, 'Q3 summary deck');
@@ -107,11 +96,11 @@ test('thought kinds map to note labels', async () => {
         ['unknown', undefined],
     ];
     for (const [kind, label] of cases) {
-        const b = bundle([msg('m1', 'assistant', [{
+        const b = domainFixture([msg('m1', 'assistant', [{
             type: 'thought', disclosure: 'providerExposed', kind,
             blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hmm' }] }],
         }])]);
-        const { payload } = toTypstPayload(b, opts);
+        const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
         const node: any = payload.messages[0].blocks[0];
         assert.strictEqual(node.type, 'note');
         assert.strictEqual(node.label, label, `kind=${kind}`);
@@ -119,11 +108,11 @@ test('thought kinds map to note labels', async () => {
 });
 
 test('code filename and meta reach the transport', async () => {
-    const b = bundle([msg('m1', 'assistant', [{
+    const b = domainFixture([msg('m1', 'assistant', [{
         type: 'code', code: 'print(1)', language: 'python',
         filename: 'app.py', meta: 'runnable',
     }])]);
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'code');
     assert.strictEqual(node.header, 'app.py · python · runnable');
@@ -132,22 +121,22 @@ test('code filename and meta reach the transport', async () => {
 });
 
 test('code without filename has no filename field', async () => {
-    const b = bundle([msg('m1', 'assistant', [
+    const b = domainFixture([msg('m1', 'assistant', [
         { type: 'code', code: 'x', language: 'text' },
     ])]);
-    const { payload } = toTypstPayload(b, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.ok(!('filename' in node));
     assert.ok(!('meta' in node));
 });
 
-async function compileOnce(bundle: any) {
+async function compileOnce(domain: any) {
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const assetPath = (a: any) => `/assets/${a.id}.png`;
-    const { payload: document } = toTypstPayload(bundle, { assetPath, convertMath });
+    const resources = Object.fromEntries(domain.assets.map((asset: { id: string }) => [asset.id, `/assets/${asset.id}.png`]));
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, resources, { convertMath });
     const context = {
-        bundle,
+
         assets: {
             resolve: async (id: string) => null,
         },
@@ -159,10 +148,9 @@ async function compileOnce(bundle: any) {
         const result = await compiler.compile(
             {
                 rendererSchemaVersion: 1,
-                sourceSchemaVersion: 1,
-                bundle,
+
                 document,
-                assetPaths: new Map((bundle.assets ?? []).map((a: any) => [a.id, assetPath(a)])),
+                assetPaths: new Map(Object.entries(resources)),
             } as never,
             context as never,
         );
@@ -173,7 +161,7 @@ async function compileOnce(bundle: any) {
 }
 
 test('real WASM: phase B features compile with all text selectable', async () => {
-    const b = bundle(
+    const b = domainFixture(
         [msg('m1', 'assistant', [
             {
                 type: 'table', headerRows: [row('hdr-one', 'hdr-two'), row('sub-one', 'sub-two')],
@@ -195,11 +183,8 @@ test('real WASM: phase B features compile with all text selectable', async () =>
                 type: 'code', code: 'print(1)', language: 'python',
                 filename: 'app.py', meta: 'runnable',
             },
-        ], { citationIds: ['c1'] })],
-        {
-            assets: [{ id: 'fa', name: 'report.pdf', kind: 'document', mimeType: 'application/pdf', sizeBytes: 2048 }],
-            citations: [{ id: 'c1', url: 'https://example.com/a', title: 'Key sources' }],
-        },
+        ], { citations: [{ id: 'c1', url: 'https://example.com/a', title: 'Key sources' }] })],
+        [{ id: 'fa', name: 'report.pdf', kind: 'file', mediaType: 'application/pdf', byteLength: 2048 }],
     );
     const result = await compileOnce(b);
     assert.ok(result.pdfBytes && result.pdfBytes.length > 0, 'compile must produce PDF bytes');
