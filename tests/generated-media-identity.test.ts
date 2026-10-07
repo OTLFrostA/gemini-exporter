@@ -45,12 +45,12 @@ test('real Takeout fixture preserves event metadata through MediaIndex and dedup
         assert.equal((chat.messages[1] as any).generation.turnId, 'm1');
         const { bundle } = await normalizeGeminiConversation(chat);
         assert.equal(bundle.assets.filter((a: any) => a.kind === 'image').length, 1);
-        const { toDomainConversationDetail } = require('../src/core/domain/legacyConversationAdapter.js');
+        const { parseLegacyConversation } = require('../src/core/domain/legacyConversationAdapter.js');
         const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
-        const domain = toDomainConversationDetail(chat);
+        const { conversation: domain, resourceHints } = parseLegacyConversation(chat);
         assert.equal('generation' in domain.messages[1], false);
         assert.equal(domain.messages[1].attachmentIds.length, 1);
-        assert.deepEqual((await normalizeDomainConversation(domain)).bundle, bundle);
+        assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, bundle);
         // Dedupe retains the offline bytes under event identity even though names differ.
         const image = chat.messages[1].images[0];
         const bytes = await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', image.generation);

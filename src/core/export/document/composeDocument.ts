@@ -1,4 +1,5 @@
 import type { CanonicalConversationBundle } from '../canonical/conversation.js';
+import { isHumanMeaningfulFilename } from './resourcePresentation.js';
 import { contentComposer } from './composeContent.js';
 import { citationDisplayLabel } from '../canonical/citations.js';
 import type { DocumentAst, DocumentDiagnostic } from './ast.js';
@@ -13,7 +14,7 @@ export function composeDocument(bundle: CanonicalConversationBundle, options: Co
         const citation = citations.get(id);
         return { id, label: citation ? citationDisplayLabel(citation, citation.number, explicit) : explicit ?? id, ...(citation?.url ? { href: citation.url } : {}) };
     };
-    const blocks = contentComposer(new Map(bundle.assets.map(asset => [asset.id, { id: asset.id, kind: asset.kind, name: asset.name, mediaType: asset.mimeType, byteLength: asset.sizeBytes, source: { path: asset.storageRef } }])), source);
+    const blocks = contentComposer(new Map(bundle.assets.map(asset => [asset.id, { id: asset.id, kind: asset.kind, name: isHumanMeaningfulFilename(asset.name) ? asset.name : asset.kind === 'file' ? asset.storageRef?.split('/').pop() : asset.name, mediaType: asset.mimeType, byteLength: asset.sizeBytes }])), source);
     const messages = bundle.conversation.messages.map((message, index) => ({
         type: 'message' as const,
         id: message.id,

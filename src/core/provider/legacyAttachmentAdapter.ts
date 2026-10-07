@@ -52,8 +52,8 @@ export function normalizedResourceReference(ref: string): string {
     try { return decodeURIComponent(ref).replace(/^\.\//, '').replace(/^assets\//, ''); }
     catch { return ref.replace(/^\.\//, '').replace(/^assets\//, ''); }
 }
-function references(input: LegacyAttachmentRecord): Set<string> {
-    return new Set([input.localName, input.url, input.sourceUrl, input.resolvedUrl, input.src, input.chipUrl]
+function references(input: LegacyAttachmentRecord, semanticOnly = false): Set<string> {
+    return new Set([...(semanticOnly && !/^https?:\/\//i.test(input.localName ?? '') ? [] : [input.localName]), input.url, input.sourceUrl, input.resolvedUrl, input.src, input.chipUrl]
         .filter((ref): ref is string => typeof ref === 'string' && !!ref)
         .map(normalizedResourceReference));
 }
@@ -135,6 +135,7 @@ function mergeMetadata(target: LegacyAttachmentRecord, source: LegacyAttachmentR
 interface ResolvedAttachment {
     attachment: LegacyAttachmentRecord;
     refs: Set<string>;
+    lookupRefs: Set<string>;
     tokens: Set<string>;
     documentIds: Set<string>;
     aliases: Map<string, Set<number>>;
@@ -156,9 +157,10 @@ export interface LegacyAttachmentGroupResolution {
     attachments: LegacyAttachmentRecord[];
     attachmentIndexes: number[][];
     findReference(ref: string, groupIndex?: number): number | undefined;
+    isExportAlias(ref: string, groupIndex: number): boolean;
 }
 
-export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentGroup[]): LegacyAttachmentGroupResolution {
+export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentGroup[], options: { semanticOnly?: boolean } = {}): LegacyAttachmentGroupResolution {
     const resolved: ResolvedAttachment[] = [];
     groups.forEach(({ input, bodyAttachments = [] }, groupIndex) => {
         let occurrence = 0;
@@ -169,10 +171,11 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
                 if (!raw || typeof raw !== 'object') continue;
                 const ordinal = occurrence++;
                 const attachment = copyAttachment(raw, listIndex === 1 || listIndex === 3 ? 'image' : 'file');
-                const refs = references(attachment);
+                const refs = references(attachment, options.semanticOnly);
+                const lookupRefs = references(attachment);
                 const token = typeof raw.token === 'string' && raw.token ? raw.token : undefined;
                 const docId = attachment.type !== 'image' && attachment.id ? attachment.id : undefined;
-                const alias = !refs.size && !token && !docId ? fingerprint(attachment) : undefined;
+                const alias = !refs.size && !token && !docId ? fingerprint(options.semanticOnly ? { type: attachment.type, fileName: attachment.fileName || attachment.name || attachment.title, contentMarkdown: attachment.contentMarkdown } : attachment) : undefined;
                 const matches = resolved.filter(record => {
                     if (identityConflict(record.attachment, attachment)) return false;
                     return [...refs].some(ref => record.refs.has(ref))
@@ -187,7 +190,7 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
                     .some(other => identityConflict(record.attachment, other.attachment)));
                 const first = ambiguous ? undefined : matches[0];
                 if (!first) {
-                    resolved.push({ attachment, refs, tokens: new Set(token ? [token] : []),
+                    resolved.push({ attachment, refs, lookupRefs, tokens: new Set(token ? [token] : []),
                         documentIds: new Set(docId ? [docId] : []), aliases: new Map(alias ? [[alias, new Set([origin])]] : []), owners: new Map([[groupIndex, ordinal]]) });
                     continue;
                 }
@@ -195,6 +198,7 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
                 for (const duplicate of matches.slice(1)) {
                     mergeMetadata(first.attachment, duplicate.attachment, false);
                     duplicate.refs.forEach(ref => first.refs.add(ref));
+                    duplicate.lookupRefs.forEach(ref => first.lookupRefs.add(ref));
                     duplicate.tokens.forEach(value => first.tokens.add(value));
                     duplicate.documentIds.forEach(value => first.documentIds.add(value));
                     duplicate.aliases.forEach((origins, key) => {
@@ -208,6 +212,7 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
                 const resourceMatch = [...refs].some(ref => first.refs.has(ref));
                 mergeMetadata(first.attachment, attachment, !resourceMatch && !!token && first.tokens.has(token) && !!attachment.isGenerated && !first.attachment.isGenerated);
                 refs.forEach(ref => first.refs.add(ref));
+                lookupRefs.forEach(ref => first.lookupRefs.add(ref));
                 if (token) first.tokens.add(token);
                 if (docId) first.documentIds.add(docId);
                 first.owners.set(groupIndex, Math.min(ordinal, first.owners.get(groupIndex) ?? ordinal));
@@ -226,7 +231,7 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
     const unique = (indexes: number[]): number | undefined => indexes.length === 1 ? indexes[0] : undefined;
     const findReference = (ref: string, groupIndex?: number): number | undefined => {
         const key = normalizedResourceReference(ref);
-        const exact = resolved.flatMap((record, index) => record.refs.has(key) ? [index] : []);
+        const exact = resolved.flatMap((record, index) => record.lookupRefs.has(key) ? [index] : []);
         if (groupIndex !== undefined) {
             const owned = exact.filter(index => resolved[index].owners.has(groupIndex));
             if (owned.length) return unique(owned);
@@ -235,10 +240,14 @@ export function resolveLegacyAttachmentGroups(groups: readonly LegacyAttachmentG
         if (/^[a-z][a-z\d+.-]*:/i.test(key)) return undefined;
         const base = key.split('/').pop();
         const local = resolved.flatMap((record, index) => groupIndex !== undefined && record.owners.has(groupIndex)
-            && [...record.refs].some(value => !/^[a-z][a-z\d+.-]*:/i.test(value) && value.split('/').pop() === base) ? [index] : []);
+            && [...record.lookupRefs].some(value => !/^[a-z][a-z\d+.-]*:/i.test(value) && value.split('/').pop() === base) ? [index] : []);
         return unique(local);
     };
-    return { attachments: resolved.map(record => record.attachment), attachmentIndexes, findReference };
+    const isExportAlias = (ref: string, groupIndex: number): boolean => {
+        const key = normalizedResourceReference(ref);
+        return !/^[a-z][a-z\d+.-]*:/i.test(key) && resolved.some(record => record.owners.has(groupIndex) && record.lookupRefs.has(key) && !record.refs.has(key));
+    };
+    return { attachments: resolved.map(record => record.attachment), attachmentIndexes, findReference, isExportAlias };
 }
 
 export function resolveLegacyAttachments(input: LegacyAttachmentLists, bodyAttachments: readonly LegacyAttachmentInput[] = []): LegacyAttachmentResolution {

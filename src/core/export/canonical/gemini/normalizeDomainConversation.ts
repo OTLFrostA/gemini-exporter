@@ -1,3 +1,4 @@
+import type { LegacyResourceHints } from '../../assets/resourceHints.js';
 import { assertDomainClosure } from '../../../domain/closure.js';
 import { toCanonicalDomainMessage } from '../../../domain/canonicalInputAdapter.js';
 import type { DomainConversationDetail } from '../../../domain/conversationDetail.js';
@@ -10,7 +11,7 @@ import {
 /** Normalize Domain messages directly through shared canonical message and bundle logic. */
 export async function normalizeDomainConversation(
     conversation: DomainConversationDetail,
-    options: Omit<CanonicalNormalizationOptions, 'providerId'> = {},
+    options: Omit<CanonicalNormalizationOptions, 'providerId'> & { resourceHints?: LegacyResourceHints } = {},
 ): Promise<CanonicalNormalizationResult> {
     assertDomainClosure(conversation);
     const assets = new Map(conversation.assets.map(asset => [asset.id, asset]));
@@ -28,6 +29,6 @@ export async function normalizeDomainConversation(
         href: conversation.href,
     };
     const messages = conversation.messages.map((message, index) =>
-        toCanonicalDomainMessage(message, `messages[${index}]`, assets));
+        toCanonicalDomainMessage(message, `messages[${index}]`, assets, options.resourceHints));
     return normalizeCanonicalConversation(metadata, messages, { ...options, providerId: conversation.providerId });
 }

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
 import { normalizeLegacyAttachments } from '../src/core/provider/legacyAttachmentAdapter.js';
 import { structuredBodyAttachments } from '../src/core/provider/gemini/contentAdapter.js';
 import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
@@ -17,10 +17,10 @@ const generation = { chatId: metadata.id, providerRequestId: 'abcdef0123456789',
 
 async function assertRoundTrip(input: Conversation): Promise<DomainConversationDetail> {
     const original = structuredClone(input);
-    const domain = toDomainConversationDetail(input);
+    const { conversation: domain, resourceHints } = parseLegacyConversation(input);
     const serialized: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
     const [raw, semantic, restored] = await Promise.all([
-        normalizeGeminiConversation(input), normalizeDomainConversation(domain), normalizeDomainConversation(serialized),
+        normalizeGeminiConversation(input), normalizeDomainConversation(domain, { resourceHints }), normalizeDomainConversation(serialized, { resourceHints }),
     ]);
     assert.deepEqual(semantic.bundle, raw.bundle);
     assert.deepEqual(restored.bundle, semantic.bundle);
@@ -42,7 +42,7 @@ test('all legacy resource paths produce one Domain resource, with document and g
         contentMarkdown: '# Report', sections: ['Intro'], links: [{ title: 'Source', url: 'https://example.test/source' }],
         candidates: ['https://example.test/report', 'https://example.test/preview'], hasFabricatedText: false };
     const input: Conversation = { ...metadata, messages: [{ role: 'assistant', content: 'fallback', structuredContent,
-        attachments: [{ type: 'file', localName: document.localName }, { ...image, isGenerated: true, generation }],
+        attachments: [{ type: 'file', localName: document.localName, url: document.url }, { ...image, isGenerated: true, generation }],
         images: [{ type: 'image', url: image.sourceUrl, providerRequestId: generation.providerRequestId, imageOrdinal: 0 }],
         documents: [document, structuredClone(document)],
     }] };
@@ -50,7 +50,7 @@ test('all legacy resource paths produce one Domain resource, with document and g
     const resources = messageAssets(domain, 0)!;
     assert.equal(resources.length, 2);
     assert.equal(resources[0].name, 'Report');
-    assert.deepEqual(resources[0].source, { uri: document.url, path: document.localName });
+    assert.deepEqual(resources[0].source, { uri: document.url });
     assert.deepEqual(resources[0].document, {
         id: document.id, createdAt: null, chipUrl: document.chipUrl, contentMarkdown: document.contentMarkdown,
         sections: document.sections, links: document.links, candidates: document.candidates, hasFabricatedText: false,
@@ -138,7 +138,7 @@ test('reliable generation identity merges online/offline paths and preserves met
         images: [{ type: 'image', localName: 'offline.png', isGenerated: true, generation, dataBase64: 'AQID' }],
     }] });
     assert.equal(messageAssets(domain, 0)?.length, 1);
-    assert.equal(messageAssets(domain, 0)?.[0].source?.path, 'online.png');
+    assert.equal(messageAssets(domain, 0)?.[0].source, undefined);
     assert.deepEqual(messageAssets(domain, 0)?.[0].generation, generation);
     assert.equal(messageAssets(domain, 0)?.[0].generated, true);
 });

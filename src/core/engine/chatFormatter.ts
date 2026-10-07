@@ -1,5 +1,5 @@
 import type { Conversation } from '../../types/conversation.js';
-import { toDomainConversationDetail } from '../domain/legacyConversationAdapter.js';
+import { parseLegacyConversation } from '../domain/legacyConversationAdapter.js';
 import { exportDomainHtml, exportDomainMarkdown, type DomainHtmlExportOptions, type DomainMarkdownExportOptions } from '../export/document/exportDomainDocument.js';
 import { convertHtmlToMarkdown } from "./formatters/htmlConverter.js";
 import {
@@ -28,11 +28,13 @@ export type ChatExportInput = Omit<Conversation, 'timestamp'> & { timestamp?: nu
 export type CanonicalHtmlExportOptions = DomainHtmlExportOptions;
 
 export async function formatHtmlCanonical(chat: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
-    return { content: await exportDomainHtml(toDomainConversationDetail({ ...chat, timestamp: chat.timestamp ?? null }), opts), ext: 'html', mime: 'text/html' };
+    const { conversation, resourceHints } = parseLegacyConversation({ ...chat, timestamp: chat.timestamp ?? null });
+    return { content: await exportDomainHtml(conversation, { ...opts, resourceHints }), ext: 'html', mime: 'text/html' };
 }
 
 export async function formatMarkdownCanonical(chat: ChatExportInput, opts: DomainMarkdownExportOptions = {}): Promise<FormattedResult> {
-    return { content: await exportDomainMarkdown(toDomainConversationDetail({ ...chat, timestamp: chat.timestamp ?? null }), opts), ext: 'md', mime: 'text/markdown' };
+    const { conversation, resourceHints } = parseLegacyConversation({ ...chat, timestamp: chat.timestamp ?? null });
+    return { content: await exportDomainMarkdown(conversation, { ...opts, resourceHints }), ext: 'md', mime: 'text/markdown' };
 }
 
 export function formatContent(

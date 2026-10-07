@@ -160,7 +160,7 @@ test('user_file_attachment: ChatFormatter protects against accidentally leaked U
     const res = await ChatFormatter.formatMarkdownCanonical(mockChat);
     assert.ok(!res.content.includes('[https://'), 'Leaked URL must be sanitized out of link text');
     assert.ok(res.content.includes('files/273175_leaked.json'), 'Must keep localName path');
-    assert.ok(res.content.includes('[273175\\_leaked.json](files/273175_leaked.json)'), 'Must fallback to basename of localName');
+    assert.ok(res.content.includes('[Attachment](files/273175_leaked.json)'), 'Destination basename is not a semantic file label');
 });
 
 
