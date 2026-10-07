@@ -13,7 +13,7 @@ test('PDF successful empty online response recovers Takeout messages before norm
         takeoutEngine: { getTakeoutOfflineChat: () => ({ messages: [message('Recovered Takeout')] }) },
     });
     assert.equal(result.ok, true);
-    assert.match(JSON.stringify(result.bundle), /Recovered Takeout/);
+    assert.match(JSON.stringify(result.document), /Recovered Takeout/);
 });
 
 test('shared acquisition prefers online and uses cache only after unusable Takeout', async () => {
@@ -31,7 +31,7 @@ test('shared acquisition prefers online and uses cache only after unusable Takeo
             fetchChatDetail: async () => ({ success: false, error: 'offline' }),
         });
         assert.equal(pdf.ok, true);
-        assert.match(JSON.stringify(pdf.bundle), /cache/);
+        assert.match(JSON.stringify(pdf.document), /cache/);
     } finally { store.__clearMemoryStore(); }
 });
 
@@ -45,7 +45,7 @@ test('PDF reports no messages only after all sources fail', async () => {
     assert.match(result.error, new RegExp(PDF_NO_MESSAGES));
 });
 
-test('metadata-only selected item triggers detail fetch and prepares PDF bundle', async () => {
+test('metadata-only selected item triggers detail fetch and prepares PDF document', async () => {
     let fetched = false;
     const result = await preparePdfItem({ id: 'meta-only', title: 'Meta Only Title' }, {
         includeAssets: false,
@@ -64,7 +64,7 @@ test('metadata-only selected item triggers detail fetch and prepares PDF bundle'
     });
     assert.equal(fetched, true);
     assert.equal(result.ok, true);
-    assert.match(JSON.stringify(result.bundle), /Detail payload content/);
+    assert.match(JSON.stringify(result.document), /Detail payload content/);
     assert.equal(result.id, 'meta-only');
 });
 
@@ -90,6 +90,6 @@ test('extractChatFromDetailResult and preparePdfItem: results[0] wins over chat'
         }),
     });
     assert.equal(result.ok, true);
-    assert.match(JSON.stringify(result.bundle), /winner from results/);
-    assert.doesNotMatch(JSON.stringify(result.bundle), /loser from chat/);
+    assert.match(JSON.stringify(result.document), /winner from results/);
+    assert.doesNotMatch(JSON.stringify(result.document), /loser from chat/);
 });

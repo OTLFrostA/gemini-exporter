@@ -408,8 +408,8 @@ export class PdfExporter {
                 const itemInput: PipelineItemInput = {
                     conversationId: prep.id,
                     title: prep.title,
-                    bundle: prep.bundle,
-                    byteStore: prep.byteStore,
+                    document: prep.document,
+                    resources: prep.resources,
                     locale,
                     compiler,
                     fonts,

@@ -4,7 +4,9 @@ import type { BlockNode } from '../content/blocks.js';
 export type DomainMessageRole =
     | 'user'
     | 'assistant'
-    | 'system';
+    | 'system'
+    | 'developer'
+    | 'unknown';
 
 /** Semantic resource identity, shared across the conversation. No export destination or layout. */
 export type DomainAssetKind = 'image' | 'file' | 'audio' | 'video' | 'other';
@@ -58,6 +60,8 @@ export interface DomainCitation {
 
 /** Provider-originated metadata, never a Domain relationship key. */
 export interface DomainMessageProvenance {
+    /** Source-authored role when it cannot be normalized to a known role. */
+    rawRole?: string;
     /** Opaque provider metadata; preserve case and prefixes, and never infer relationships. */
     providerRequestId?: string;
 }

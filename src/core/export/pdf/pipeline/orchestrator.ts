@@ -40,14 +40,14 @@ export class PdfPipeline {
         try {
             ctx.reportProgress('resources', 0, PIPELINE_STAGE_ORDER.length);
             const resources = await runStage('resources', this.stages.resources, {
-                bundle: input.bundle,
-                byteStore: input.byteStore,
+                document: input.document,
+                resources: input.resources,
             }, ctx);
             diagnostics.push(...resources.diagnostics);
 
             ctx.reportProgress('payload', 1, PIPELINE_STAGE_ORDER.length);
             const payload = await runStage('payload', this.stages.payload, {
-                bundle: input.bundle,
+                document: input.document,
                 pathMap: resources.output.pathMap,
                 locale: input.locale,
             }, ctx);
@@ -56,12 +56,11 @@ export class PdfPipeline {
             ctx.reportProgress('compile', 2, PIPELINE_STAGE_ORDER.length);
             const compiled = await runStage('compile', this.stages.compile, {
                 payload: payload.output.payload,
-                bundle: input.bundle,
+                resourceIds: new Set(input.resources.keys()),
                 mounts: resources.output.mounts,
                 pathMap: resources.output.pathMap,
                 fonts: input.fonts,
                 compiler: input.compiler,
-                locale: input.locale,
             }, ctx);
             diagnostics.push(...compiled.diagnostics);
 

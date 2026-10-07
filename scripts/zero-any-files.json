@@ -37,5 +37,17 @@
   "src/core/export/document/backendPresentation.ts",
   "src/core/export/document/renderOptions.ts",
   "src/core/export/document/renderStrings.ts",
-  "src/core/export/typst/layout.ts"
+  "src/core/export/typst/layout.ts",
+  "src/core/content/unknownFallback.ts",
+  "src/core/export/assets/attachmentBytes.ts",
+  "src/core/export/assets/imageContent.ts",
+  "src/core/export/assets/preparedResources.ts",
+  "src/core/export/document/resourceReferences.ts",
+  "src/core/provider/conversationParser.ts",
+  "src/core/export/pdf/prepareItem.ts",
+  "src/core/export/pdf/pipeline/types.ts",
+  "src/core/export/pdf/pipeline/resourceStage.ts",
+  "src/core/export/pdf/pipeline/payloadStage.ts",
+  "src/core/export/pdf/pipeline/compileStage.ts",
+  "src/core/export/pdf/pipeline/orchestrator.ts"
 ]

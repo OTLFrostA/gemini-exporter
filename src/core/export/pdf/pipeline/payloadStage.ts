@@ -1,6 +1,5 @@
-import type { RenderDiagnostic } from '../../canonical/rendering.js';
-import type { TypstAdapterDiagnostic } from '../../typst/payload.js';
-import { composeDocument } from '../../document/composeDocument.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
+import type { DocumentDiagnostic as TypstAdapterDiagnostic } from '../../document/ast.js';
 import { renderDocumentTypst } from '../../document/renderTypst.js';
 import { convertMathWithMitex, initMitexWasm } from '../../typst/mathConverter.js';
 import { getErrorMessage } from '../../../utils/messaging.js';
@@ -40,8 +39,7 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
     // Capture math conversion diagnostics in the closure since the convertMath callback only returns string | undefined.
     const mathDiagnostics: TypstAdapterDiagnostic[] = [];
     const resources = Object.fromEntries(input.pathMap);
-    const composed = composeDocument(input.bundle);
-    const payload = renderDocumentTypst(composed.document, resources, { locale: input.locale, onDiagnostic: diagnostic => mathDiagnostics.push(diagnostic), convertMath: (source, display) => {
+    const payload = renderDocumentTypst(input.document, resources, { locale: input.locale, onDiagnostic: diagnostic => mathDiagnostics.push(diagnostic), convertMath: (source, display) => {
         if (!mitexAvailable) {
             return undefined;
         }
@@ -49,6 +47,6 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
         if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);
         return converted.typst;
     } });
-    const diagnostics = [...composed.diagnostics, ...initDiagnostics, ...mathDiagnostics].map(mapDiagnostic);
+    const diagnostics = [...initDiagnostics, ...mathDiagnostics].map(mapDiagnostic);
     return { output: { payload }, diagnostics };
 };

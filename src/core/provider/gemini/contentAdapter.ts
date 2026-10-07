@@ -1,4 +1,4 @@
-import { formatUnknownPayload } from '../../export/canonical/unknownFallback.js';
+import { formatUnknownPayload } from '../../content/unknownFallback.js';
 import type { BlockNode } from '../../content/blocks.js';
 import { parseMarkdownToBlocks, type MarkdownParseContext } from '../../content/markdown/index.js';
 import type { Attachment } from '../../../types/conversation.js';

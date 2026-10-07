@@ -6,7 +6,7 @@
  * - degraded math (unsupported LaTeX) keeps its raw latex in the payload
  *   AND produces a warning diagnostic — never silent;
  * - convertible math carries the Typst body with no diagnostic;
- * - the stage consumes the bundle messages in source order;
+ * - the stage consumes the document messages in source order;
  * - asset paths are read from the resource pathMap (no re-resolution);
  * - an aborted signal throws AbortError.
  */
@@ -28,16 +28,9 @@ function message(id: string, role: string, blocks: any[]): any {
     return { id, role, blocks };
 }
 
-function bundleWith(messages: any[], assets: any[] = []): any {
-    return {
-        conversation: {
-            key: { providerId: 'gemini', accountId: 't', conversationId: 'c1' },
-            title: 'T',
-            messages,
-        },
-        assets,
-        citations: [],
-    };
+function documentWith(messages: any[], _resources: any[] = []): any {
+    return { schemaVersion: 2, header: { title: 'T', providerLabel: 'gemini', messageCount: messages.length },
+        messages: messages.map(message => ({ ...message, type: 'message', anchor: message.id, variant: message.role === 'user' ? 'bubble' : 'flow', label: message.role === 'user' ? 'you' : 'assistant' })) };
 }
 
 function makeCtx() {
@@ -53,9 +46,9 @@ function makeCtx() {
 test('degraded math is diagnosed, never silent', async () => {
     const m1 = message('m1', 'user', [para('hello')]);
     const m2 = message('m2', 'assistant', [mathBlock('\\notarealcommand{x}{y}')]);
-    const bundle = bundleWith([m1, m2]);
+    const document = documentWith([m1, m2]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, pathMap: new Map(), locale: 'en' },
+        { document, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     // diagnostic channel carries the failure
@@ -73,9 +66,9 @@ test('degraded math is diagnosed, never silent', async () => {
 
 test('convertible math carries the Typst body with no diagnostic', async () => {
     const m1 = message('m1', 'user', [mathBlock('\\frac{a}{b}')]);
-    const bundle = bundleWith([m1]);
+    const document = documentWith([m1]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, pathMap: new Map(), locale: 'en' },
+        { document, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     const mathNodes = output.payload.messages[0].blocks.filter((b: any) => b.type === 'math');
@@ -84,13 +77,13 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
     assert.deepStrictEqual(diagnostics, []);
 });
 
-test('consumes bundle messages in source order', async () => {
+test('consumes document messages in source order', async () => {
     const m1 = message('m1', 'user', [para('q')]);
     const m2 = message('m2', 'assistant', [para('a2')]);
     const m3 = message('m3', 'assistant', [para('a3')]);
-    const bundle = bundleWith([m1, m2, m3]);
+    const document = documentWith([m1, m2, m3]);
     const { output } = await payloadStage(
-        { bundle, pathMap: new Map(), locale: 'en' },
+        { document, pathMap: new Map(), locale: 'en' },
         makeCtx(),
     );
     assert.strictEqual(output.payload.messages.length, 3);
@@ -98,13 +91,13 @@ test('consumes bundle messages in source order', async () => {
 });
 
 test('asset paths come from the resource pathMap without re-resolution', async () => {
-    const m1 = message('m1', 'user', [{ type: 'image', assetId: 'img1', alt: 'pic' }]);
-    const bundle = bundleWith([m1], [
+    const m1 = message('m1', 'user', [{ type: 'image', resourceId: 'img1', alt: 'pic' }]);
+    const document = documentWith([m1], [
         { id: 'img1', kind: 'image', status: 'available', mimeType: 'image/png', name: 'x.png' },
     ]);
     const pathMap = new Map([['img1', 'assets/sha256/ab/x.png']]);
     const { output, diagnostics } = await payloadStage(
-        { bundle, pathMap, locale: 'en' },
+        { document, pathMap, locale: 'en' },
         makeCtx(),
     );
     const images = output.payload.messages[0].blocks.filter((b: any) => b.type === 'image');
@@ -115,11 +108,11 @@ test('asset paths come from the resource pathMap without re-resolution', async (
 
 test('aborted signal throws AbortError', async () => {
     const m1 = message('m1', 'user', [para('hello')]);
-    const bundle = bundleWith([m1]);
+    const document = documentWith([m1]);
     const ctx = makeCtx();
     ctx.controller.abort();
     await assert.rejects(
-        payloadStage({ bundle, pathMap: new Map(), locale: 'en' }, ctx),
+        payloadStage({ document, pathMap: new Map(), locale: 'en' }, ctx),
         (e: any) => e instanceof DOMException && e.name === 'AbortError',
     );
 });
@@ -134,9 +127,9 @@ test('MiTeX initialization failure emits single warning and preserves raw LaTeX 
             mathBlock('\\int_0^1 x dx'),
             mathBlock('\\frac{a}{b}'),
         ]);
-        const bundle = bundleWith([m1, m2]);
+        const document = documentWith([m1, m2]);
         const { output, diagnostics } = await payloadStage(
-            { bundle, pathMap: new Map(), locale: 'en' },
+            { document, pathMap: new Map(), locale: 'en' },
             makeCtx(),
         );
 

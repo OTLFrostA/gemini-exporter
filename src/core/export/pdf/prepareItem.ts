@@ -24,15 +24,15 @@ import type {
 import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationTurn, GeminiNormalizationAttachment } from '../../provider/gemini/exportInput.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
-import type { CanonicalConversationBundle } from '../canonical/conversation.js';
-import type { Diagnostic } from '../canonical/diagnostics.js';
-import {
-    classifyAttachmentKind,
-    extractAttachmentInlineBytes,
-} from '../canonical/gemini/normalizeAssets.js';
-import { normalizeGeminiConversation } from '../canonical/index.js';
-import type { RenderDiagnostic } from '../canonical/rendering.js';
-import type { InlineByteStore } from '../assets/index.js';
+import { parseProviderConversation } from '../../provider/conversationParser.js';
+import { composeDomainDocument } from '../document/composeDomainDocument.js';
+import { collectDocumentResources } from '../document/resourceReferences.js';
+import type { DocumentAst, DocumentDiagnostic } from '../document/ast.js';
+import type { PreparedResource, PreparedResources } from '../assets/preparedResources.js';
+import { decodeDataUrl } from '../assets/dataUrl.js';
+import { MAX_ASSET_BYTES } from '../assets/imageContent.js';
+import { extractAttachmentInlineBytes } from '../assets/attachmentBytes.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
 
 declare global {
     interface Window {
@@ -130,7 +130,7 @@ type PdfTakeoutEngine =
     | AssetPipelineTakeoutEngine
     | PdfTakeoutFallbackEngine;
 
-export function toRenderDiagnostic(d: Diagnostic): RenderDiagnostic {
+export function toRenderDiagnostic(d: DocumentDiagnostic): RenderDiagnostic {
     return {
         severity: d.severity,
         code: d.code,
@@ -162,8 +162,7 @@ export function extractChatFromDetailResult(
         : (isObjectRecord(rawChat) ? [rawChat] : []);
     const chosen: unknown = chunkResults[0] || fallback;
     if (isObjectRecord(chosen)) {
-        chosen.id = nid;
-        return chosen;
+        return { ...chosen, id: nid };
     }
     return fallback;
 }
@@ -205,8 +204,8 @@ export interface PreparedPdfItemSuccess {
     ok: true;
     id: string;
     title: string;
-    bundle: CanonicalConversationBundle;
-    byteStore: InlineByteStore;
+    document: DocumentAst;
+    resources: PreparedResources;
     diagnostics: RenderDiagnostic[];
 }
 
@@ -290,13 +289,13 @@ function collectImageHydrationGroups(chat: PdfHydratableConversation): ImageHydr
             dataBuffer: normalizedBuf,
             type: forceImage ? (item.type || 'image') : (item.type ?? ''),
         };
-        if (!classifyAttachmentKind(candidate).isImage) return;
+        const authoredName = candidate.title || candidate.name || candidate.fileName || '';
+        if (!(forceImage || candidate.type === 'image' || candidate.isImage || (candidate.mimeType || candidate.mime || '').startsWith('image/') || /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i.test(authoredName))) return;
         const existingBytes = extractAttachmentInlineBytes(candidate);
         if (existingBytes && existingBytes.byteLength > 0) return;
 
-        const rawKey = item.localName || item.resolvedUrl || item.sourceUrl || item.url || item.src || item.fileName || item.name;
-        if (!rawKey || typeof rawKey !== 'string') return;
-        const key = rawKey;
+        const rawKey = item.resolvedUrl || item.sourceUrl || item.url || item.src;
+        const key = rawKey || `anonymous-${groups.size}`;
 
         let group = groups.get(key);
         if (!group) {
@@ -504,75 +503,61 @@ export async function preparePdfItem(
         }
     }
 
-    const { bundle, diagnostics: normDiags, byteStore } = await normalizeGeminiConversation(workingChat);
-    for (const d of normDiags) diagnostics.push(toRenderDiagnostic(d));
-    const integrityError = normDiags.find((d) => d.severity === 'error' && (d.code === 'MSG_BAD_ID' || d.code === 'MSG_DUP_ID'));
-    if (integrityError) {
-        return { ok: false, id, title, error: `[${integrityError.code}] ${integrityError.message}`, diagnostics };
+    // Parse all provider syntax before composing the sole logical document representation.
+    let parsed: ReturnType<typeof parseProviderConversation>;
+    let document: DocumentAst;
+    try {
+        for (const message of workingChat.messages ?? workingChat.turns?.flatMap(turn => turn.messages ?? []) ?? []) {
+            if (message.id !== undefined && !message.id.trim()) throw new TypeError('[MSG_BAD_ID] Empty message identity');
+        }
+        parsed = parseProviderConversation(workingChat);
+        diagnostics.push(...parsed.diagnostics);
+        const composed = composeDomainDocument(parsed.conversation);
+        document = composed.document;
+        diagnostics.push(...composed.diagnostics);
+    } catch (error) {
+        const message = getErrorMessage(error);
+        const code = message.match(/\[(MSG_BAD_ID|MSG_DUP_ID)\]/)?.[1] ?? 'PDF_INPUT_INVALID';
+        diagnostics.push({ severity: 'error', code, message });
+        return { ok: false, id, title, error: message, diagnostics };
     }
+    if (!document.messages.length) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`, diagnostics };
 
-    // Hydrate any standalone inline markdown remote images (not backed by m.attachments / m.images)
-    if (pipeline && typeof pipeline.acquireAssetBytes === 'function') {
-        for (const asset of bundle.assets) {
-            if (asset.kind !== 'image' || asset.status !== 'remote' || !asset.sourceUrl) continue;
-            if (signal.aborted) {
-                return { ok: false, id, title, error: 'aborted', diagnostics };
-            }
-            const acquired = await pipeline.acquireAssetBytes(
-                {
-                    url: asset.sourceUrl,
-                    sourceUrl: asset.sourceUrl,
-                    fileName: asset.name,
-                    localName: asset.storageRef || `assets/${asset.name || asset.id}`,
-                },
-                pipelineChat,
-                {
-                    isImage: true,
-                    listTitle: title,
-                    signal,
-                    ...(typeof maxRetries === 'number' ? { maxRetries } : {}),
-                },
-            );
-            if (signal.aborted || acquired.failReason === 'aborted') {
-                return { ok: false, id, title, error: 'aborted', diagnostics };
-            }
-            if (acquired.ok && acquired.bytes && acquired.bytes.byteLength > 0) {
-                const storageRef = asset.storageRef || `assets/inline-remote/${asset.id}`;
-                byteStore.put(storageRef, acquired.bytes);
-                asset.storageRef = storageRef;
-                asset.status = 'available';
-                asset.sizeBytes = acquired.bytes.byteLength;
-                if (acquired.mimeType && !asset.mimeType) {
-                    asset.mimeType = acquired.mimeType;
-                }
+    const resources = new Map<string, PreparedResource>();
+    const { imageIds } = collectDocumentResources(document);
+    for (const asset of parsed.conversation.assets) {
+        if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
+        const resource: PreparedResource = { name: asset.name, mediaType: asset.mediaType, failureReason: asset.failureReason };
+        resources.set(asset.id, resource);
+        // Metadata-only files never need decoding or acquisition for PDF.
+        if (!imageIds.has(asset.id)) continue;
+        const uri = asset.source?.uri;
+        if (asset.dataBase64 || /^data:/i.test(uri ?? '')) {
+            const raw = asset.dataBase64?.replace(/^data:[^,]*,/i, '').replace(/\s+/g, '');
+            const source = raw ? `data:${asset.mediaType ?? 'application/octet-stream'};base64,${raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')}` : uri!;
+            const decoded = asset.dataBase64 ? decodeDataUrl(source, MAX_ASSET_BYTES) : decodeDataUrl(source);
+            if (decoded.ok) {
+                resource.bytes = decoded.bytes;
+                resource.mediaType = decoded.mimeType;
+                resource.failureReason = undefined;
             } else {
-                const reason = acquired.failReason || 'image direct download failed';
-                asset.status = 'failed';
-                asset.failureReason = reason;
-                onLog(
-                    `[PDF] [${title || id}] 图片获取失败 (${acquired.localName}): ${reason}`,
-                    'warn',
-                );
+                resource.failureReason = decoded.reason;
+                diagnostics.push({ severity: 'warning', code: decoded.code, message: decoded.message, path: `asset:${asset.id}` });
             }
         }
+        // Standalone source images have no legacy list entry to hydrate above.
+        if (resource.bytes || resource.failureReason || !/^https?:\/\//i.test(uri ?? '') || !pipeline) continue;
+        const acquired = await pipeline.acquireAssetBytes({ url: uri, sourceUrl: uri, fileName: asset.name,
+            localName: parsed.resourceHints[asset.id]?.archivePath || `assets/${asset.name || asset.id}` }, pipelineChat,
+            { isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}) });
+        if (signal.aborted || acquired.failReason === 'aborted') return { ok: false, id, title, error: 'aborted', diagnostics };
+        if (acquired.ok && acquired.bytes?.byteLength) {
+            resource.bytes = acquired.bytes;
+            resource.mediaType = acquired.mimeType || resource.mediaType;
+        } else {
+            resource.failureReason = acquired.failReason || 'image direct download failed';
+            onLog(`[PDF] [${title || id}] 图片获取失败 (${acquired.localName}): ${resource.failureReason}`, 'warn');
+        }
     }
-
-    if ((bundle?.conversation?.messages?.length ?? 0) === 0) {
-        return {
-            ok: false,
-            id,
-            title,
-            error: `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`,
-            diagnostics,
-        };
-    }
-
-    return {
-        ok: true,
-        id,
-        title,
-        bundle,
-        byteStore,
-        diagnostics,
-    };
+    return { ok: true, id, title, document, resources, diagnostics };
 }

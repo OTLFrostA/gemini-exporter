@@ -1,5 +1,5 @@
 import { isAbortError } from '../errors.js';
-import type { RenderDiagnostic } from '../../canonical/rendering.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
 import type { PdfCompileContext, PdfResource, TypstRenderPayload } from '../pdfCompiler.js';
 import {
     StageError,
@@ -32,11 +32,10 @@ function makeMountAssetResolver(
 
     return {
         async resolve(assetId: string): Promise<PdfResource | null> {
-            const asset = input.bundle.assets.find((a) => a.id === assetId);
-            if (!asset) {
+            if (!input.resourceIds.has(assetId)) {
                 return miss(
                     'COMPILE_ASSET_UNKNOWN_ID',
-                    `Asset ${assetId} is not in the canonical bundle; returning null so the template renders its placeholder.`,
+                    `Asset ${assetId} is not registered in prepared resources; returning null so the template renders its placeholder.`,
                 );
             }
             const virtualPath = input.pathMap.get(assetId);

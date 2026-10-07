@@ -1,10 +1,14 @@
-/** Raw provider input accepted only by the legacy Gemini compatibility adapter. */
+/** Raw provider input accepted only at provider parsing/acquisition boundaries. */
+import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 import type { LegacyAttachmentInput as GeminiNormalizationAttachment } from '../legacyAttachmentAdapter.js';
 export type { LegacyAttachmentInput as GeminiNormalizationAttachment } from '../legacyAttachmentAdapter.js';
 
 export interface GeminiNormalizationMessage {
     id?: string;
     role?: string;
+    turnId?: string;
+    providerRequestId?: string;
+    generation?: GeneratedMediaIdentity;
     content?: unknown;
     timestamp?: unknown;
     thoughts?: unknown;

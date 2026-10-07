@@ -1,3 +1,4 @@
+import { extractAttachmentInlineBytes } from '../export/assets/attachmentBytes.js';
 import type { LegacyAttachmentRecord } from './legacyAttachmentRecord.js';
 import { sameGenerationEvent } from '../domain/legacyGeneratedMediaIdentity.js';
 
@@ -44,6 +45,10 @@ function copyAttachment(input: LegacyAttachmentInput, defaultType: string): Lega
     // Binary acquisition buffers otherwise turn into empty objects during JSON serialization.
     const encoded = portableBytes(input.dataBuffer);
     if (encoded) result.dataBase64 = encoded;
+    if (result.size === undefined) {
+        const bytes = extractAttachmentInlineBytes(input);
+        if (bytes) result.size = bytes.byteLength;
+    }
     return result;
 }
 

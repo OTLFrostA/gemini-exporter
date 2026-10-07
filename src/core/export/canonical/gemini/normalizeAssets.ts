@@ -1,3 +1,4 @@
+import { extractAttachmentInlineBytes } from '../../assets/attachmentBytes.js';
 import { normalizeArchiveResourceName } from '../../assets/archivePath.js';
 import type { AssetNormalizationInput } from '../assetInput.js';
 import type { Asset, AssetKind, AssetStatus } from '../assets.js';
@@ -231,62 +232,7 @@ export function normalizeLocalName(localName: string): string {
     return normalizeArchiveResourceName(localName);
 }
 
-function decodeBase64Payload(raw: string): Uint8Array | null {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    const b64 = trimmed.includes(',') && /^data:/i.test(trimmed)
-        ? trimmed.slice(trimmed.indexOf(',') + 1)
-        : trimmed;
-    const clean = b64.replace(/\s+/g, '');
-    if (!clean) return null;
-    try {
-        if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
-            const buf = Buffer.from(clean, 'base64');
-            return buf.byteLength > 0 ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) : null;
-        }
-        const binStr = atob(clean);
-        if (!binStr.length) return null;
-        const out = new Uint8Array(binStr.length);
-        for (let k = 0; k < binStr.length; k++) out[k] = binStr.charCodeAt(k);
-        return out;
-    } catch {
-        return null;
-    }
-}
-
-export function extractAttachmentInlineBytes(a: AssetNormalizationInput): Uint8Array | null {
-    const buf = a.dataBuffer;
-    if (buf) {
-        if (buf instanceof Uint8Array) {
-            return buf.byteLength > 0 ? buf : null;
-        }
-        if (typeof ArrayBuffer !== 'undefined' && buf instanceof ArrayBuffer) {
-            return buf.byteLength > 0 ? new Uint8Array(buf) : null;
-        }
-        if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(buf)) {
-            const view = buf as ArrayBufferView;
-            return view.byteLength > 0
-                ? new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
-                : null;
-        }
-        if (Array.isArray(buf) && buf.length > 0) {
-            return new Uint8Array(buf);
-        }
-    }
-    const rawB64 = typeof a.dataBase64 === 'string' && a.dataBase64
-        ? a.dataBase64
-        : (typeof a.blobBase64 === 'string' && a.blobBase64 ? a.blobBase64 : '');
-    if (rawB64) {
-        return decodeBase64Payload(rawB64);
-    }
-    if (typeof a.contentMarkdown === 'string') {
-        const mdText = a.contentMarkdown.trim();
-        if (mdText.length > 0) {
-            return new TextEncoder().encode(mdText);
-        }
-    }
-    return null;
-}
+export { extractAttachmentInlineBytes } from '../../assets/attachmentBytes.js';
 
 export interface AssetBuild {
     asset: Asset;

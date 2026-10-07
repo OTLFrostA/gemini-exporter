@@ -40,8 +40,8 @@ function fakeInput() {
     return {
         conversationId: 'c1',
         title: 'T',
-        bundle: { conversation: { messages: [] } },
-        byteStore: { get: () => undefined },
+        document: { schemaVersion: 2, header: { title: 'T', providerLabel: 'gemini', messageCount: 0 }, messages: [] },
+        resources: new Map(),
         locale: 'zh',
         compiler: { name: 'fake', compile: async () => ({ pdfBytes: new Uint8Array([1]), diagnostics: [] }) },
         fonts: { fonts: [], diagnostics: [], fallbackChain: [], localFontsAvailable: false },

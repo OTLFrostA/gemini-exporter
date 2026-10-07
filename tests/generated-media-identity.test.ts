@@ -71,9 +71,9 @@ test('real Takeout fixture preserves event metadata through MediaIndex and dedup
             fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0,
         });
         assert.equal(pdf.ok, true);
-        const pdfImages = pdf.bundle.assets.filter((asset: any) => asset.kind === 'image');
+        const pdfImages = [...pdf.resources.values()].filter((resource: any) => resource.bytes);
         assert.equal(pdfImages.length, 1);
-        assert.deepEqual(pdf.byteStore.get(pdfImages[0].storageRef), bytes);
+        assert.deepEqual(pdfImages[0].bytes, bytes);
 
         assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', {
             ...image.generation, generationOrdinal: 99, providerRequestId: 'nonexistent',
