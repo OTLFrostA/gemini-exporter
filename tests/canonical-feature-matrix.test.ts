@@ -90,7 +90,7 @@ test('matrix: quote keeps nested blocks in HTML and Typst', () => {
 
 test('matrix: thought keeps nested blocks and kind label in Typst', () => {
     const blocks = [{ type: 'thought', kind: 'reasoning', blocks: [para('hmm')] }];
-    assert.ok(htmlOf(blocks).includes('Thinking'), 'html shows thought label');
+    assert.ok(htmlOf(blocks, {}, { lang: 'en' }).includes('Thinking Process'), 'html shows thought label');
     const { node } = typstOf(blocks);
     assert.strictEqual(node.type, 'note');
     assert.strictEqual(node.label, 'Thinking Process');
@@ -130,7 +130,7 @@ test('matrix: colSpan/rowSpan are native in Typst with no degradation diagnostic
 
 test('matrix: unknown content renders as visible text in HTML and Typst', () => {
     const blocks = [{ type: 'unknown', sourceType: 'x.y', text: 'fb\npic' }];
-    const html = htmlOf(blocks);
+    const html = htmlOf(blocks, {}, { lang: 'en' });
     assert.ok(html.includes('fb\npic'));
     assert.ok(html.includes('Unsupported · x.y'));
     const { node } = typstOf(blocks);

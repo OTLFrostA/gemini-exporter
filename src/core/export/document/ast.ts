@@ -1,4 +1,4 @@
-/** Presentation tree. No provider data, semantic resource registry, or measured geometry. */
+/** Format-neutral logical presentation tree. Styles, output controls and geometry live in backends. */
 export type DisplayInline =
     | { type: 'text'; text: string }
     | { type: 'strong' | 'emphasis' | 'strikethrough'; children: DisplayInline[] }
@@ -6,7 +6,7 @@ export type DisplayInline =
     | { type: 'link'; href: string; title?: string; children: DisplayInline[] }
     | { type: 'citation'; id: string; label: string; href?: string }
     | { type: 'image'; resourceId: string; alt: string; title?: string }
-    | { type: 'placeholder'; enclosure?: 'brackets'; text: string }
+    | { type: 'placeholder'; resourceId?: string; kind: 'image' | 'file'; text: string }
     | { type: 'inlineMath'; source: string }
     | { type: 'lineBreak'; kind: 'soft' | 'hard' };
 
@@ -23,22 +23,22 @@ export type DisplayBlock = (
     | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: DisplayInline[] }
     | { type: 'list'; ordered: boolean; start?: number; items: Array<{ blocks: DisplayBlock[] }> }
     | { type: 'quote'; blocks: DisplayBlock[] }
-    | { type: 'code'; code: string; language: string; header: string; meta?: string; copy?: { label: string; title: string } }
+    | { type: 'code'; code: string; language?: string; filename?: string; meta?: string; showHeader: boolean }
     | { type: 'math'; source: string }
-    | { type: 'table'; caption?: DisplayInline[]; columnAlignments: DisplayCell['align'][]; repeatHeader?: boolean; headerRows: DisplayCell[][]; rows: DisplayCell[][] }
+    | { type: 'table'; caption?: DisplayInline[]; columnAlignments: DisplayCell['align'][]; headerRows: DisplayCell[][]; rows: DisplayCell[][] }
     | { type: 'image'; resourceId: string; alt: string; caption?: DisplayInline[] }
-    | { type: 'file'; resourceId: string; label: string; badge: string; size?: string; metadata?: string; openLabel: string; description?: DisplayInline[] }
-    | { type: 'disclosure'; title: string; initiallyCollapsed: boolean; blocks: DisplayBlock[] }
+    | { type: 'file'; resourceId: string; label: string; kind: string; mediaType?: string; byteLength?: number; description?: DisplayInline[] }
+    | { type: 'disclosure'; kind: string; title?: string; initiallyCollapsed?: boolean; blocks: DisplayBlock[] }
     | { type: 'thematicBreak' }
-    | { type: 'placeholder'; enclosure?: 'brackets'; text: string; badge: string; details?: DisplayInline[] }
-    | { type: 'unsupported'; sourceType: string; label: string; text: string }
+    | { type: 'placeholder'; resourceId?: string; kind: 'image' | 'file'; text: string; details?: DisplayInline[] }
+    | { type: 'unsupported'; sourceType: string; text: string }
     | { type: 'note'; title?: string; children?: DisplayInline[]; blocks?: DisplayBlock[] }
-) & { layout?: BlockLayout };
+);
 
 export interface SourceGroup {
     type: 'sources';
     heading?: DisplayInline[];
-    items: Array<{ id: string; label: string; href?: string; prefix?: string }>;
+    items: Array<{ id: string; label: string; href?: string; number?: number }>;
 }
 
 export interface DisplayMessage {
@@ -48,25 +48,17 @@ export interface DisplayMessage {
     variant: 'bubble' | 'flow';
     heading?: { level: 1 | 2 | 3 | 4 | 5 | 6; text: string };
     modelLabel?: string;
-    measurementText?: string;
-    minWidthCards?: Array<{ label: string; metadata: string }>;
-    gapAfterPt?: number;
+    label: 'you' | 'assistant' | 'system' | 'developer' | 'unknown';
     blocks: DisplayBlock[];
     sources?: SourceGroup;
-    folding?: { initiallyCollapsed: boolean; moreLabel: string; lessLabel: string };
 }
 
 export interface DocumentAst {
-    schemaVersion: 1;
-    profile: { id: 'html' | 'markdown' | 'pdf'; version: 1 };
-    language: 'zh-CN' | 'en';
-    theme: 'dark' | 'light';
-    header: { title: string; metadata: string };
-    pdfLayout?: PdfLayoutPolicy;
-    frontMatter?: Array<{ key: string; value: string | string[] }>;
-    mathFallbackLabel: string;
-    messages: DisplayMessage[];
+    schemaVersion: 2;
+    documentLanguage?: string;
+    header: { title: string; providerLabel: string; date?: string; messageCount: number };
     emptyNotice?: string;
+    messages: DisplayMessage[];
 }
 
 /** Output URLs are supplied by export preparation; bytes never enter the tree. */
@@ -77,19 +69,4 @@ export interface DocumentDiagnostic {
     code: string;
     message: string;
     path?: string;
-}
-
-/** Policies are resolved before measurement; numeric values are print units. */
-export interface BlockLayout {
-    gapBeforePt: number;
-    keepWithNext: boolean;
-    width: 'container' | 'reading' | 'full';
-}
-export interface PdfLayoutPolicy {
-    page: { widthMm: number; heightMm: number; topMm: number; bottomMm: number; sideMm: number; contentWidthMm: number; proseWidthMm: number };
-    bubble: { maxWidthRatio: number; compactHeightPt: number; minInnerWidthPt: number; paddingXPt: number; paddingYPt: number };
-    figure: { maxPageHeightRatio: number; captionMaxWidthMm: number };
-    textLanguage: string;
-    headerGapPt: number;
-    bodyGapPt: number;
 }

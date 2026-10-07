@@ -1,4 +1,11 @@
-import type { BlockLayout, PdfLayoutPolicy } from '../document/ast.js';
+/** PDF backend policy and transport; never part of the format-neutral document. */
+export interface BlockLayout { gapBeforePt: number; keepWithNext: boolean; width: 'container' | 'reading' | 'full' }
+export interface PdfLayoutPolicy {
+    page: { widthMm: number; heightMm: number; topMm: number; bottomMm: number; sideMm: number; contentWidthMm: number; proseWidthMm: number };
+    bubble: { maxWidthRatio: number; compactHeightPt: number; minInnerWidthPt: number; paddingXPt: number; paddingYPt: number };
+    figure: { maxPageHeightRatio: number; captionMaxWidthMm: number };
+    textLanguage: string; headerGapPt: number; bodyGapPt: number;
+}
 
 /** Output engine transport. Contains only composed display data and math code. */
 export type TypstInlineNode =

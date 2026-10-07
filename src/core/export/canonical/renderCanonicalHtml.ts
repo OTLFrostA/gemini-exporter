@@ -2,11 +2,13 @@ import type { Asset } from './assets.js';
 import type { CanonicalConversationBundle } from './conversation.js';
 import { collectReferencedAssetIds } from './assetReferences.js';
 import type { CompanionResourcePlan, ConversationRenderer, ExportArtifact, RenderContext, RenderDiagnostic } from './rendering.js';
-import { composeHtmlDocument, type HtmlCompositionOptions } from '../document/composeHtml.js';
+import { composeDocument, type CompositionOptions } from '../document/composeDocument.js';
+import type { HtmlRenderOptions } from '../document/renderOptions.js';
 import { renderDocumentHtml } from '../document/renderHtml.js';
 import { sanitizeUrl } from '../../engine/template/htmlTemplate.js';
 
-export interface CanonicalHtmlOptions extends HtmlCompositionOptions {
+export interface CanonicalHtmlOptions extends HtmlRenderOptions, CompositionOptions {
+    lang?: 'zh' | 'en';
     assetUrl?: (asset: Asset) => string | undefined;
 }
 export interface CanonicalHtmlResult { html: string; diagnostics: RenderDiagnostic[] }
@@ -17,8 +19,8 @@ export function renderCanonicalHtml(bundle: CanonicalConversationBundle, options
         const url = options.assetUrl ? options.assetUrl(asset) : asset.storageRef;
         return url ? [[asset.id, url]] : [];
     }));
-    const composed = composeHtmlDocument(bundle, resources, options);
-    const result = renderDocumentHtml(composed.document, resources);
+    const composed = composeDocument(bundle, options);
+    const result = renderDocumentHtml(composed.document, resources, { locale: options.locale ?? options.lang, theme: options.theme, thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, copyCode: options.copyCode, foldLongPrompts: options.foldLongPrompts });
     return { html: result.html, diagnostics: [...composed.diagnostics, ...result.diagnostics] };
 }
 
@@ -66,6 +68,7 @@ export class CanonicalHtmlRenderer implements ConversationRenderer {
 
         const { html, diagnostics } = renderCanonicalHtml(context.bundle, {
             ...this.options,
+            locale: context.locale,
             lang: context.locale,
             assetUrl: (asset) => urlByAssetId.get(asset.id),
         });
