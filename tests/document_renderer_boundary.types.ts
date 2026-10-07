@@ -1,3 +1,4 @@
+import type { DocumentAst } from '../src/core/export/document/ast.js';
 import type { CanonicalConversationBundle } from '../src/core/export/canonical/conversation.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
 
@@ -20,3 +21,18 @@ function rendererBoundary(semantic: CanonicalConversationBundle): void {
     void compilerPayload; void compilerContext;
 }
 void rendererBoundary;
+
+
+function neutralContract(document: DocumentAst): void {
+    // @ts-expect-error Physical print policies belong to PDF render options.
+    document.pdfLayout = {};
+    // @ts-expect-error UI locale cannot be mistaken for the content language.
+    document.locale = 'en';
+    // @ts-expect-error Theme changes do not require recomposing the logical document.
+    document.theme = 'light';
+    // @ts-expect-error GFM envelope is a Markdown backend option.
+    document.frontMatter = [];
+    // @ts-expect-error Common documents are not tied to an output format.
+    document.profile = { id: 'pdf', version: 1 };
+}
+void neutralContract;

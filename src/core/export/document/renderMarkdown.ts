@@ -1,3 +1,6 @@
+import { codeHeader, disclosureTitle, messageLabel } from './backendPresentation.js';
+import { getRendererStrings } from './renderStrings.js';
+import type { MarkdownRenderOptions } from './renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst, ResourceBindings } from './ast.js';
 
 function escapeText(text: string): string {
@@ -16,17 +19,19 @@ function codeSpan(value: string): string {
     return `${fence}${pad}${value}${pad}${fence}`;
 }
 
-/** Encodes an already composed Markdown profile; no semantic registry or clock. */
-export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings): string {
-    if (document.profile.id !== 'markdown') throw new TypeError('Expected a Markdown document profile');
+/** Projects and encodes a format-neutral document as GFM; no source registry or clock. */
+export function renderDocumentMarkdown(document: DocumentAst, resources: ResourceBindings, options: MarkdownRenderOptions = {}): string {
+    const locale = options.locale ?? 'en';
+    const strings = getRendererStrings(locale);
+    const available = (id: string) => Boolean(resources[id] && !/(^\/|\\|^[a-z][a-z\d+.-]*:|(^|\/)\.\.(\/|$))/i.test(resources[id]));
     const resource = (id: string): string => {
         const value = resources[id];
         const ref = value && destination(value);
         if (!ref) throw new TypeError(`Missing prepared resource binding: ${id}`);
         return ref;
     };
-    const placeholder = (node: { text: string; enclosure?: 'brackets' }): string => node.enclosure === 'brackets' ? `[${escapeText(node.text)}]` : escapeText(node.text);
-    const image = (id: string, alt: string): string => `![${escapeText(alt)}](${resource(id)})`;
+    const placeholder = (node: { text: string; kind: 'image' | 'file' }): string => `[${locale === 'zh' ? (node.kind === 'image' ? '图片不可用' : '附件不可用') : (node.kind === 'image' ? 'Image unavailable' : 'Attachment unavailable')}: ${escapeText(node.text)}]`;
+    const image = (id: string, alt: string): string => available(id) ? `![${escapeText(alt)}](${resource(id)})` : placeholder({ kind: 'image', text: alt || id });
     const citation = (node: { label: string; href?: string }): string => {
         const url = node.href && destination(node.href);
         return url ? `[${escapeText(node.label)}](${url})` : `[${escapeText(node.label)}]`;
@@ -71,7 +76,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             case 'quote': return blocks(node.blocks).split('\n').map((line) => `> ${line}`).join('\n');
             case 'code': {
                 const fence = '`'.repeat(Math.max(2, ...(node.code.match(/`+/g) ?? []).map((run) => run.length)) + 1);
-                const label = node.header;
+                const label = codeHeader(node, 'markdown');
                 const language = (node.language ?? '').replace(/[\r\n`]/g, '');
                 return `${label ? `**${escapeText(label)}**\n\n` : ''}${fence}${language}\n${node.code}\n${fence}`;
             }
@@ -79,20 +84,21 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             case 'table': {
                 const row = (cells: DisplayCell[]): string => `| ${cells.map(cell => inlines(cell.children, true).split('|').join('\\|').replace(/\r?\n/g, '<br>')).join(' | ')} |`;
                 const separator = `| ${node.columnAlignments.map(align => align === 'left' ? ':---' : align === 'center' ? ':---:' : align === 'right' ? '---:' : '---').join(' | ')} |`;
-                return [node.caption ? inlines(node.caption) + '\n' : undefined, ...node.headerRows.map(row), separator, ...node.rows.map(row)].filter(value => value !== undefined).join('\n');
+                const projected = projectedTable(node);
+                return [node.caption ? inlines(node.caption) + '\n' : undefined, row(projected[0]), separator, ...projected.slice(1).map(row)].filter(value => value !== undefined).join('\n');
             }
             case 'image': {
                 return [image(node.resourceId, node.alt), node.caption && inlines(node.caption)].filter(Boolean).join('\n\n');
             }
-            case 'file': return [`[${escapeText(node.label)}](${resource(node.resourceId)})`, node.description && inlines(node.description)].filter(Boolean).join('\n\n');
+            case 'file': return [available(node.resourceId) ? `[${escapeText(node.label)}](${resource(node.resourceId)})` : placeholder({ kind: 'file', text: node.label }), node.description && inlines(node.description)].filter(Boolean).join('\n\n');
             case 'note': return [node.title && escapeText(node.title), node.children && inlines(node.children), node.blocks && blocks(node.blocks)].filter(Boolean).join('\n\n');
-            case 'disclosure': return `<details${node.initiallyCollapsed ? '' : ' open'}>\n<summary>${escapeText(node.title)}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
+            case 'disclosure': return `<details${node.initiallyCollapsed ?? options.thoughtInitiallyCollapsed ?? true ? '' : ' open'}>\n<summary>${node.title ? escapeText(node.title) : '🧠 ' + escapeText(disclosureTitle(node, { ...options, locale }))}</summary>\n\n${blocks(node.blocks)}\n\n</details>`;
             case 'placeholder': return [placeholder(node), node.details && inlines(node.details)].filter(Boolean).join('\n\n');
             case 'thematicBreak': return '---';
-            case 'unsupported': return `${escapeText(node.label)}\n\n${escapeText(node.text)}`;
+            case 'unsupported': return `${escapeText(`${locale === 'en' ? 'Unsupported' : strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }
     };
-    const yaml = document.frontMatter?.map(entry => {
+    const yaml = options.frontMatter?.map(entry => {
         if (!/^[a-z][a-z\d_-]*$/i.test(entry.key)) throw new TypeError('Invalid front matter key');
         return Array.isArray(entry.value)
         ? `${entry.key}:\n${entry.value.map(value => `  - ${/^[a-z][a-z\d_-]*$/i.test(value) && !/^(?:null|true|false|yes|no|on|off)$/i.test(value) ? value : JSON.stringify(value)}`).join('\n')}`
@@ -100,9 +106,22 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
     }).join('\n');
     const header = [yaml !== undefined ? `---\n${yaml}\n---\n` : undefined, `# ${escapeText(document.header.title)}`].filter(value => value !== undefined).join('\n');
     const messages = document.messages.map(message => {
-        const heading = message.heading && `${'#'.repeat(message.heading.level)} ${escapeText(message.heading.text)}`;
-        const sources = message.sources && [message.sources.heading && `> ${inlines(message.sources.heading)}`, ...message.sources.items.map(item => `> ${item.prefix ? escapeText(item.prefix).replace(/\\([\[\]])/g, '$1') + ' ' : ''}${citation(item)}`)].filter(Boolean).join('\n');
+        const icons = { you: '👤', assistant: '🤖', system: '⚙️', developer: '🛠', unknown: '' };
+        const heading = message.heading ? `${'#'.repeat(message.heading.level)} ${escapeText(message.heading.text)}` : `## ${icons[message.label] ? icons[message.label] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
+        const sources = message.sources && [message.sources.heading ? `> ${inlines(message.sources.heading)}` : `> 🌐 **${strings.sources}:**`, ...message.sources.items.map(item => `> ${item.number !== undefined ? `[${item.number}] ` : ''}${citation(item)}`)].filter(Boolean).join('\n');
         return [heading, blocks(message.blocks), sources].filter(Boolean).join('\n\n');
     });
     return [header, ...messages].join('\n\n') + '\n';
+}
+
+/** GFM supports one header row and no spans; project without changing the shared tree. */
+function projectedTable(node: Extract<DisplayBlock, { type: 'table' }>): DisplayCell[][] {
+    const width = node.columnAlignments.length;
+    const blank = (column: number): DisplayCell => ({ column, colSpan: 1, rowSpan: 1, align: node.columnAlignments[column], children: [] });
+    const rows = [...node.headerRows, ...node.rows].map(row => {
+        const cells = Array.from({ length: width }, (_, column) => blank(column));
+        for (const cell of row) cells[cell.column] = { ...cell, colSpan: 1, rowSpan: 1 };
+        return cells;
+    });
+    return node.headerRows.length ? rows : [Array.from({ length: width }, (_, column) => blank(column)), ...rows];
 }

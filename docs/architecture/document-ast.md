@@ -1,73 +1,68 @@
 # Document AST and rendering boundary
 
-A semantic conversation describes facts and relationships. A Document AST describes what a particular export presents. The output engine measures, wraps, paginates and encodes that presentation.
+**A renderer must not reinterpret source semantics. A renderer may perform layout.**
+
+Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. Canonical is currently a temporary upstream input seam; D4 does not change Domain or delete Canonical.
 
 ```text
-provider / legacy adapter -> Domain -> Canonical (temporary compatibility seam)
-                                                  |
-resource preparation -> bindings/readiness -> composer
-                                                  |
-                                             Document AST
-                                                  |
-                                     backend + resource bindings
+provider / legacy adapter -> Domain -> Canonical (temporary seam)
+                                           |
+                                        composer
+                                           |
+                                     Document AST v2
+                                           |
+                 +-------------------------+-------------------------+
+                 |                         |                         |
+            HTML backend              Markdown backend           PDF backend
+            CSS / controls            GFM projection             Typst layout
+            responsive layout         escaping                   measurement / pagination
+                 ^                         ^                         ^
+                 +------ RenderOptions / prepared resources --------+
 ```
 
-## Ownership
+## Field ownership
 
-- Domain owns provider identity, content, reasoning, citations, stable asset identity and authored metadata. It owns no bubbles, disclosure state, captions inferred for display, CSS, output paths or page geometry.
-- The composer selects a versioned export profile, document metadata, message containers, folding, disclosure titles/states, code headers/actions, captions/labels, source groups/marker labels, missing-resource presentation and effective table alignment.
-- Resource preparation owns acquisition, bytes, output paths and verified availability. Bindings contain the paths the backend may use; they do not contain semantic assets. A rendering tree can repeat a resource reference many times without duplicating its semantic identity.
-- The backend consumes only Document AST and bindings. It emits markup, escapes unsafe values, executes declared controls/styles and typesets mathematics. Backend math failures remain backend diagnostics; source/caption/missing-resource diagnostics are produced by composition.
+Domain owns input facts and relationships: body content, reasoning, citations, stable asset identity and authored metadata. Authored headings, emphasis, table alignment and spans remain content facts. Intrinsic image pixel dimensions are resource facts; output positions and physical display sizes are not.
 
-The AST is plain JSON, with an explicit schema and profile version. No functions, Maps, Dates, source registry or pre-rendered HTML are stored in it. The profile id defines component styling; geometry is not stored. It is deliberately a presentation tree, rather than Canonical with more optional fields.
+The composer supplies message containers and author-label descriptors, source groups with bound citation labels/targets, code header intent, figures with associated rich captions, file labels/descriptions/raw metadata, and logical table occupancy/alignment. It filters the existing exact opaque transport-filename alias at this upstream seam. It never reads a target format, UI locale, theme, paper size, output paths or resource availability.
 
-## HTML presentation example
+Document AST v2 is plain JSON and contains no provider payload, source resource registry, output profile, theme, front matter, physical policy, copy button, measurement cache or repeated measurement text. One composed JSON tree is accepted by all three backends. Output capability degradation is performed inside a backend without mutating the shared tree.
 
-```json
-{
-  "type": "message",
-  "id": "m1",
-  "anchor": "turn-user-0",
-  "variant": "bubble",
-  "folding": { "initiallyCollapsed": true, "moreLabel": "Show more", "lessLabel": "Show less" },
-  "blocks": [
-    { "type": "paragraph", "children": [{ "type": "text", "text": "A long question" }] },
-    { "type": "image", "resourceId": "a1", "alt": "Diagram", "caption": [{ "type": "text", "text": "123" }] }
-  ],
-  "sources": { "type": "sources", "items": [{ "id": "c1", "label": "Reference", "href": "https://example.com" }] }
-}
-```
+| Shared document data | Backend decision |
+| --- | --- |
+| `documentLanguage?: string` | `RenderOptions.locale` selects UI text; engine maps content language to typography |
+| `code.language`, `filename`, `meta`, `showHeader` | Header formatting and HTML copy controls |
+| File `label`, `kind`, `mediaType`, `byteLength`, rich `description` | Badge, size units/precision and formatted metadata |
+| Rich figure/table captions | PDF plain-text degradation |
+| Table header/body rows, column index, spans and alignment | GFM rectangular/single-header projection; paged header repetition |
+| Message container, author label, source group, disclosure intent | Styles, default disclosure state, responsive prompt folding, message spacing |
+| Document header facts/title and optional authored empty notice | Header formatting and localized empty-state defaults |
 
-An unavailable image becomes an explicit placeholder during composition; the serializer cannot substitute a different fallback. Authored captions (including numeric captions) are content, not opaque filename candidates. The temporary compatibility seam filters only an exact opaque asset filename copied verbatim into a plain caption/alt. Domain provenance must eventually make that distinction explicit. Colspan/rowspan occupancy and effective cell alignment are resolved before HTML serialization.
+Content language is never inferred from the export UI locale. For example, a Chinese document can retain `documentLanguage: "zh-CN"` while English UI displays "Sources", "Copy" and "Thinking". When the content language is unknown, the document omits it; backends use their own fallback typography rather than invent a source-language fact.
 
-## Migration status and compatibility
+## Output context and resource preparation
 
-Phase D1 migrates every production HTML call through the existing `renderCanonicalHtml` / `CanonicalHtmlRenderer` orchestration facade to `composeHtmlDocument` and `renderDocumentHtml`. Those facade names remain for callers; they are not the pure backend contract. The production facade declares its archive paths through a resolver, while a resolver that returns null produces an unavailable placement. Companion plans and rendered paths now derive from the same resolution results.
+Resource preparation supplies resource IDs mapped to prepared paths/URLs and compiler byte/blob resolution. Resource identity is carried in display nodes; bytes and output paths remain outside the tree. A backend uses prepared readiness to show unavailable placements and report output diagnostics. It does not acquire resources or deduplicate semantic assets. PDF file cards may display metadata even when file bytes are absent, matching the existing export behavior.
 
-Canonical remains a temporary semantic input seam. Its reasoning insertion, attachment-tail placement, legacy adapters and citation binding are still upstream work. Domain is not yet declared frozen. Phase D2 also migrates Markdown through `composeMarkdownDocument` and `renderDocumentMarkdown`. HTML and Markdown share content composition and have explicit profile policies. Phase D3 migrates production Typst/PDF through the same shared display tree. JSON archive formats are not presentation exports and do not pass through this tree.
+Render options travel beside the document. HTML controls locale, theme, copying and prompt folding. Markdown accepts its export front-matter envelope from orchestration; its backend never reads the source conversation or a clock. PDF controls physical page/bubble/figure policy, table-header repetition, engine math conversion and output diagnostics.
 
-HTML's existing profile and CSS remain largely intact; caption preservation and logical table alignment deliberately improve content fidelity. PDF payloads, templates, fonts, acquisition and pagination are unchanged in D1. D3 keeps their style values while moving policy selection into the composer. Each subsequent profile should declare its capabilities and degradation policies rather than let a backend infer presentation from provider facts.
+The PDF backend derives spacing, width, automatic keep-with-next and measurement inputs from display nodes. Its private Typst transport may contain resolved print units and derived measurement caches. That transport is not the shared Document AST. Actual fonts, measurement, truncation, wrapping, scaling, positions and page breaks belong to Typst and the renderer. Existing CSS/Typst component styling and PDF default policy values are retained where possible.
 
-## Contract checks
+## Allowed and forbidden backend decisions
 
-Tests cover immutable input, deterministic composition, JSON roundtrip, repeated resource occurrences, nested content, missing resources, source groups, table occupancy, URL/text escaping, direct AST policy changes, type/import boundaries and production integration. The composer is the place to change presentation policy; the serializer is the place to change output syntax or backend mechanics.
+Backends may inspect node types, containers and adjacent display nodes to choose spacing, keep a heading with following content, repeat table headers, measure/truncate a card, scale a figure, perform font/math fallback, or implement a format's capability limits. An explicit author constraint, if supported later, must be distinguishable from these automatic defaults.
 
-## Markdown profile
+Backends must not read Domain, Canonical or provider payloads; parse message Markdown again; classify provider reasoning; merge legacy resource aliases; or rebind citations. Compatibility facades may receive Canonical to prepare resources, compose once and delegate, but they are orchestration rather than backend APIs.
 
-The composer supplies ordered front matter, an explicit export time, message headings, source headings/prefixes, disclosure state and visible missing-resource placements. The compatibility facade captures the clock once; composing and serializing a saved tree is deterministic. Only prepared archive-relative resources are eligible for embedding.
+## Practical placement questions
 
-GFM capability limits are resolved during composition: the table has exactly one header row, extra headers become body rows, spans become a complete rectangular grid with empty continuation cells, and effective column alignment is explicit. The backend encodes this declared grid and handles Markdown fences, escaping and GFM pipe/backslash syntax. It performs no semantic lookup or layout projection. Authored numeric/rich captions survive unchanged.
+1. Does this fact or relationship still hold when changing the output medium? Figure/caption association and heading level do; a 115mm caption cap does not.
+2. Should this value change when changing theme, fonts or paper size? If so, it belongs to renderer configuration or layout rather than the common document.
 
-## PDF profile and output transport
+Numeric values are not automatically geometry: logical column indices, spans, heading levels and raw byte lengths are legitimate document data. Replacing all physical numbers with generic style tokens would still leak renderer policy if those tokens merely encode the old backend algorithm.
 
-PDF uses the same Document AST, with explicit page/prose/bubble/figure policy values, message containers/model labels, measurement text and file-card width inputs, per-message spacing, per-block spacing/width/keep-with-next, table column count/alignment/header repetition and composed code/file metadata. No role, semantic asset, provider source or registry reaches the serializer. Role notes and source footers are already display nodes. Plain-text caption/description degradation is an explicit PDF capability applied during composition. Missing placements preserve authored labels/captions/descriptions.
+## Validation and migration status
 
-`payloadStage` prepares bindings, calls `composePdfDocument`, and lowers the tree with `renderDocumentTypst`. The latter only encodes the declared presentation into Typst's wire representation and converts math using the output engine. `toTypstPayload` remains an orchestration compatibility facade. Its former semantic mapping implementation has been removed. Typst templates no longer infer spacing/keep-with-next from adjacent kinds, select containers from roles, find file cards for width policy, format document/code/file metadata, or infer table width. They execute the supplied declarations. Component styles, measurements, filename truncation, font mechanics, math fallback, line breaking and actual pagination remain backend mechanics.
+Contract tests render the same frozen JSON document through all three backends, verify rich table/caption preservation, independent content language/UI locale, raw code/file metadata, backend policy changes without recomposition, JSON roundtrip, input immutability and source-model import/type boundaries. Existing export, real-WASM, stress and visual tests remain regression gates. Backend adjacency inference is explicitly permitted; tests prohibit source-model dependencies rather than physical layout decisions.
 
-The compiler API accepts only the prepared Typst transport, resource paths, byte/blob resolution, cancellation and progress. It receives no source conversation or semantic Asset. The compiler clones the transport before font-dependent math degradation, so reuse and JSON round-trip cannot be changed by compilation; recursive math/media traversal includes strikethrough.
-
-Current profile values deliberately preserve A4, 166mm content, the existing reading ratio, 85% bubble width cap, 120pt compact-bubble threshold, 60% image page-height cap and 115mm caption cap. A mixed 8-page real-WASM baseline has identical page/text/image content and all drawing/font/image streams before and after migration; only generated timestamp/document-ID metadata differs. Existing visual/parity/stress corpus and real-WASM tests remain the broader regression gate. Visual-corpus titles are upgraded to the current string contract. Its probe now honors binary stream lengths rather than trimming legitimate compressed CR/LF bytes; bounds/blank-page assertions are retained. Logical column alignment, authored numeric captions and unavailable description retention may improve edge-case output. This is not a guarantee of visual equivalence for every input.
-
-## Boundary after D3
-
-All production HTML, Markdown and PDF presentation exports compose a versioned display tree before backend rendering. Standard/Raw/OpenAI JSON remain data archives. Canonical/Domain construction and legacy producer cleanup remain upstream; their attachment placement, reasoning insertion and citation binding are separate work. The renderer boundary is now reviewable without freezing those semantic layers prematurely.
+D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. Next, Domain-to-document composition and Canonical removal can be tackled against this stable boundary. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
