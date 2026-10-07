@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type {
     ArtifactWriteReport,
 } from '../artifacts.js';

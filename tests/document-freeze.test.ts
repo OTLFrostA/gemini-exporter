@@ -9,7 +9,6 @@ import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
 import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
-import { collectPdfImageIds } from '../src/core/export/pdf/imageResources.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 
@@ -46,9 +45,9 @@ test('file badges use only supplied media type or kind, including misleading lab
     document.messages[0].blocks = [file, { ...file, mediaType: 'text/plain' }];
     const html = renderDocumentHtml(document, { f: 'assets/f' }).html;
     assert.match(html, /gem-att-badge">FILE<\/span>/);
-    assert.match(html, /gem-att-badge">PLAIN<\/span>/);
+    assert.match(html, /gem-att-badge">TXT<\/span>/);
     const pdf = renderDocumentTypst(document, {});
-    assert.deepEqual(pdf.messages[0].blocks.map(block => block.type === 'file' && block.kind), ['FILE', 'PLAIN']);
+    assert.deepEqual(pdf.messages[0].blocks.map(block => block.type === 'file' && block.kind), ['FILE', 'TXT']);
 });
 
 test('display date selects the first valid fact and normalizes to UTC at composition', () => {
@@ -67,8 +66,8 @@ test('display date selects the first valid fact and normalizes to UTC at composi
     source.updatedAt = 'invalid';
     const document = composeDomainDocument(parseProviderConversation(source).conversation).document;
     assert.equal(document.header.date, '2026-10-04');
-    assert.ok(!('modelLabel' in document.messages[0]));
-    assert.ok(!('model' in renderDocumentTypst(document, {}).messages[0]));
+    assert.equal(document.messages[0].modelLabel, 'provider only');
+    assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
 });
 
 test('parser removes math delimiters; HTML renders source verbatim and preserves malformed source', () => {
@@ -85,12 +84,12 @@ test('parser removes math delimiters; HTML renders source verbatim and preserves
     }
 });
 
-test('PDF acquires only rendered images; one frozen rich JSON AST serves all backends', async () => {
+test('PDF acquires every AST image; one frozen rich JSON AST serves all backends', async () => {
     const input = domain();
     const inline = (id: string) => ({ type: 'image' as const, assetId: id, alt: id });
     const rendered = ['main', 'inline', 'heading', 'header', 'cell', 'nested'];
-    const degraded = ['image-caption', 'table-caption', 'description'];
-    input.assets = [...rendered, ...degraded].map(id => ({ id, kind: 'image', source: { uri: `https://example.test/${id}` } }));
+    const rich = ['image-caption', 'table-caption', 'description', 'source-heading', 'details'];
+    input.assets = [...rendered, ...rich].map(id => ({ id, kind: 'image', source: { uri: `https://example.test/${id}` } }));
     input.assets.push({ id: 'file', kind: 'file' });
     input.messages[1].content = [
         { type: 'image', assetId: 'main', caption: [inline('image-caption')] },
@@ -107,22 +106,24 @@ test('PDF acquires only rendered images; one frozen rich JSON AST serves all bac
     document.messages[1].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'missing', text: 'Missing', details: [detail] });
     freeze(document);
     const before = JSON.stringify(document);
-    const imageIds = collectPdfImageIds(document);
-    assert.deepEqual([...imageIds].sort(), rendered.sort());
-    assert.equal(collectDocumentResources(document).imageIds.size, rendered.length + degraded.length + 3);
+    const imageIds = collectDocumentResources(document).imageIds;
+    assert.deepEqual([...imageIds].sort(), [...rendered, ...rich].sort());
+    assert.equal(collectDocumentResources(document).imageIds.size, rendered.length + rich.length);
     const acquired: string[] = [];
     const prepared = await preparePdfResources(input, imageIds, {}, { acquire: async id => {
         acquired.push(id);
         return { ok: true, bytes: new Uint8Array([1]), mimeType: 'image/png', failReason: '', recoveredFromTakeout: false, localName: `${id}.png` };
     } });
-    assert.deepEqual(acquired.sort(), rendered.sort());
-    for (const id of degraded) assert.equal(prepared.resources.get(id)?.bytes, undefined);
+    assert.deepEqual(acquired.sort(), [...rendered, ...rich].sort());
+    for (const id of rich) assert.equal(prepared.resources.get(id)?.bytes?.length, 1);
     const bindings = Object.fromEntries([...collectDocumentResources(document).referencedIds].map(id => [id, `assets/${id}.png`]));
     assert.ok(renderDocumentHtml(document, bindings).html.includes('src="assets/image-caption.png"'));
     assert.ok(renderDocumentMarkdown(document, bindings).includes('assets/image-caption.png'));
     const pdf = renderDocumentTypst(document, Object.fromEntries([...imageIds].map(id => [id, bindings[id]])));
-    assert.equal(pdf.messages[1].blocks[0].type === 'image' && pdf.messages[1].blocks[0].caption, 'image-caption');
-    assert.equal(pdf.messages[1].blocks[3].type === 'table' && pdf.messages[1].blocks[3].caption, 'table-caption');
-    assert.equal(pdf.messages[1].blocks[5].type === 'file' && pdf.messages[1].blocks[5].description, 'descriptioninline');
+    assert.deepEqual(pdf.messages[1].blocks[0].type === 'image' && pdf.messages[1].blocks[0].caption, [{ type: 'image', asset: bindings['image-caption'], alt: 'image-caption' }]);
+    assert.deepEqual(pdf.messages[1].blocks[3].type === 'table' && pdf.messages[1].blocks[3].caption, [{ type: 'image', asset: bindings['table-caption'], alt: 'table-caption' }]);
+    assert.deepEqual(pdf.messages[1].blocks[5].type === 'file' && pdf.messages[1].blocks[5].description, ['description', 'inline'].map(id => ({ type: 'image', asset: bindings[id], alt: id })));
+    assert.deepEqual(pdf.messages[1].blocks[6].type === 'unknown' && pdf.messages[1].blocks[6].details, [{ type: 'image', asset: bindings.details, alt: 'details' }]);
+    assert.ok(JSON.stringify(pdf.messages[1].blocks[7]).includes(bindings['source-heading']));
     assert.equal(JSON.stringify(document), before);
 });

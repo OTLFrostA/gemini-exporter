@@ -6,6 +6,8 @@ export type { LegacyAttachmentInput as GeminiNormalizationAttachment } from '../
 export interface GeminiNormalizationMessage {
     id?: string;
     role?: string;
+    model?: unknown;
+    author?: { model?: unknown };
     turnId?: string;
     providerRequestId?: string;
     generation?: GeneratedMediaIdentity;
@@ -27,6 +29,8 @@ export interface GeminiNormalizationTurn {
     timestamp?: unknown;
     userContent?: unknown;
     modelContent?: unknown;
+    model?: unknown;
+    author?: { model?: unknown };
     thoughts?: unknown;
     attachments?: GeminiNormalizationAttachment[];
     images?: GeminiNormalizationAttachment[];

@@ -25,11 +25,12 @@ import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
 import { parseProviderConversation } from '../../provider/conversationParser.js';
 import { composeDomainDocument } from '../document/composeDomainDocument.js';
-import { collectPdfImageIds } from './imageResources.js';
-import type { DocumentAst, DocumentDiagnostic } from '../document/ast.js';
+import { collectDocumentResources } from '../document/resourceReferences.js';
+import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { DocumentAst } from '../document/ast.js';
 import type { PreparedResources } from '../assets/preparedResources.js';
 import { preparePdfResources } from './prepareResources.js';
-import type { DocumentDiagnostic as RenderDiagnostic } from '../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 
 declare global {
     interface Window {
@@ -382,7 +383,7 @@ export async function preparePdfItem(
     if (!document.messages.length) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`, diagnostics };
 
     const pipelineChat: AssetPipelineChat = { id: parsed.conversation.id, title: parsed.conversation.title };
-    const imageIds = collectPdfImageIds(document);
+    const imageIds = collectDocumentResources(document).imageIds;
     const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
         signal,
         acquire: pipeline ? (_assetId, hint) => pipeline.acquireAssetBytes(hint, pipelineChat, {

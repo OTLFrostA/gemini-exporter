@@ -92,7 +92,7 @@ test('matrix: table caption survives in Typst', () => {
     const blocks = [{ type: 'table', caption: [txt('cap')], rows: [row('a', 'b')] }];
     const { node } = typstOf(blocks);
     assert.strictEqual(node.type, 'table');
-    assert.strictEqual(node.caption, 'cap');
+    assert.deepStrictEqual(node.caption, [txt('cap')]);
 });
 
 test('matrix: headerless table keeps body rows in Typst', () => {
@@ -135,7 +135,7 @@ test('matrix: file description reaches Typst transport', () => {
     const blocks = [{ type: 'file', assetId: 'f1', label: 'doc.pdf', description: [txt('desc')] }];
     const { node } = typstOf(blocks, { assets: [asset] });
     assert.strictEqual(node.type, 'file');
-    assert.strictEqual(node.description, 'desc');
+    assert.deepStrictEqual(node.description, [txt('desc')]);
 });
 
 test('matrix: message citations reach HTML and Typst transport', () => {

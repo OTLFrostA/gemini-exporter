@@ -1,5 +1,5 @@
 import { isAbortError } from '../errors.js';
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
 import type { PdfCompileContext, PdfResource, TypstRenderPayload } from '../pdfCompiler.js';
 import {
     StageError,

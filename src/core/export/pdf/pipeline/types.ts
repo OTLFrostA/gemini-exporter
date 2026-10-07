@@ -8,8 +8,8 @@ import type { LocalFontResolution } from '../../typst/fonts/localFontProvider.js
 import type { IPdfCompiler } from '../pdfCompiler.js';
 import type { IExportWriter } from '../../../engine/writers/writerInterface.js';
 
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
-export type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
+export type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
 
 export type PipelineStageName = 'resources' | 'payload' | 'compile' | 'deliver';
 

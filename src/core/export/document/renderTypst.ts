@@ -1,6 +1,6 @@
 import type { DisplayBlock, DisplayInline, DocumentAst, ResourceBindings } from './ast.js';
 import { visual } from '../visualContract.js';
-import { blockText, inlineText, codeHeader, fileBadge, humanBytes, disclosureTitle, headerMetadata } from './backendPresentation.js';
+import { blockText, codeHeader, fileBadge, humanBytes, disclosureTitle, headerMetadata } from './backendPresentation.js';
 import { getRendererStrings } from './renderStrings.js';
 import type { PdfRenderOptions } from './renderOptions.js';
 import { defaultPdfLayout, applyLayout } from '../typst/layout.js';
@@ -40,11 +40,9 @@ export function renderDocumentTypst(
             }
         }
     };
-    // Capability degradation is local to the PDF backend and never changes the tree.
-    const text = (nodes: DisplayInline[]): string => nodes.map(inlineText).join('');
     const missing = (kind: string, label: string, details?: DisplayInline[]): TypstBlockNode => {
         options.onDiagnostic?.({ severity: 'warning', code: 'TYPST_V8_IMAGE_MISSING', message: `Missing prepared ${kind} resource` });
-        return ({ type: 'unknown', sourceType: `missing-${kind}`, label: `${strings.unsupportedContent} · missing-${kind}`, fallback: [label, details && text(details)].filter(Boolean).join('\n\n'), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
+        return ({ type: 'unknown', sourceType: `missing-${kind}`, label: `${strings.unsupportedContent} · missing-${kind}`, fallback: label, ...(details?.length ? { details: details.map(inline) } : {}), layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
     };
     const block = (node: DisplayBlock): TypstBlockNode => {
         const layout = { gapBeforePt: 0, keepWithNext: false, width: 'full' as const };
@@ -60,12 +58,12 @@ export function renderDocumentTypst(
             }
             case 'table': {
                 const cell = (entry: typeof node.rows[number][number]): TypstTableCell => ({ children: entry.children.map(inline), ...(entry.colSpan > 1 ? { colspan: entry.colSpan } : {}), ...(entry.rowSpan > 1 ? { rowspan: entry.rowSpan } : {}) });
-                return { type: 'table', headers: node.headerRows.map(row => row.map(cell)), rows: node.rows.map(row => row.map(cell)), columnCount: node.columnAlignments.length, aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align), repeatHeader: options.repeatTableHeader ?? true, ...(node.caption?.length ? { caption: text(node.caption) } : {}), layout };
+                return { type: 'table', headers: node.headerRows.map(row => row.map(cell)), rows: node.rows.map(row => row.map(cell)), columnCount: node.columnAlignments.length, aligns: node.columnAlignments.map(align => align === 'default' ? 'left' : align), repeatHeader: options.repeatTableHeader ?? true, ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout };
             }
-            case 'image': return resources[node.resourceId] ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: text(node.caption) } : {}), layout } : missing('image', node.caption?.length ? text(node.caption) : node.alt);
+            case 'image': return resources[node.resourceId] ? { type: 'image', asset: resource(node.resourceId), ...(node.caption?.length ? { caption: node.caption.map(inline) } : {}), layout } : missing('image', node.caption?.length ? '' : node.alt, node.caption);
             case 'file': {
                 const kind = fileBadge(node), size = humanBytes(node.byteLength, strings.sizeUnknown);
-                return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: text(node.description) } : {}), layout };
+                return { type: 'file', name: node.label, kind, size, metadata: `${kind} · ${size}`, ...(node.description?.length ? { description: node.description.map(inline) } : {}), layout };
             }
             case 'unsupported': return { type: 'unknown', sourceType: node.sourceType, label: `${strings.unsupportedContent} · ${node.sourceType}`, fallback: node.text, layout };
             case 'thematicBreak': return { type: 'thematicBreak', layout };
@@ -80,10 +78,10 @@ export function renderDocumentTypst(
             const blocks = message.blocks.map(block);
             const prefix = message.label === 'system' ? strings.systemMessage : message.label === 'developer' ? strings.developerMessage : message.label === 'unknown' ? strings.unknownRole + (message.heading?.text ? `: ${message.heading.text}` : '') : undefined;
             if (prefix) blocks.unshift({ type: 'note', children: [{ type: 'text', text: prefix }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
-            if (message.sources?.items.length) blocks.push({ type: 'note', children: [{ type: 'text', text: message.sources.items.map(item => item.label).join(' · ') }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
+            if (message.sources && (message.sources.heading?.length || message.sources.items.length)) blocks.push({ type: 'note', children: [...(message.sources.heading?.map(inline) ?? []), ...(message.sources.heading?.length && message.sources.items.length ? [{ type: 'lineBreak' as const }] : []), { type: 'text', text: message.sources.items.map(item => item.label).join(' · ') }], layout: { gapBeforePt: 0, keepWithNext: false, width: 'reading' } });
             applyLayout(blocks, message.variant === 'bubble', false);
             const next = document.messages[index + 1];
-            return { id: message.id, variant: message.variant, plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (message.variant === 'flow' && next.variant === 'bubble' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };
+            return { id: message.id, variant: message.variant, ...(message.modelLabel ? { model: message.modelLabel } : {}), plainText: message.blocks.map(blockText).join('\n'), minWidthCards: blocks.flatMap(node => node.type === 'file' ? [{ label: node.name, metadata: node.metadata }] : []), gapAfterPt: next ? (message.variant === 'flow' && next.variant === 'bubble' ? visual.spacing.turn : visual.spacing.section) * 0.75 : 0, blocks };
         }),
     };
 }

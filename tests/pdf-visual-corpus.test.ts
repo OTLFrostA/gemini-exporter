@@ -38,6 +38,7 @@ const path = require('node:path');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { assertDocumentAsts } = require('./helpers/assertDocumentAst.js');
 const { convertMath } = require('../src/core/export/typst/mathConverter.js');
 const {
     RealWasmSandboxHost,
@@ -79,10 +80,12 @@ interface CorpusEntry {
 
 function loadCorpus(): CorpusEntry[] {
     const files = fs.readdirSync(CORPUS_DIR).filter((f: string) => f.endsWith('.json')).sort();
-    return files.map((f: string) => ({
+    const entries = files.map((f: string) => ({
         file: f,
         item: JSON.parse(fs.readFileSync(path.join(CORPUS_DIR, f), 'utf8')),
     }));
+    assertDocumentAsts(entries.map((entry: CorpusEntry) => ({ value: entry.item.document, context: entry.file })));
+    return entries;
 }
 
 test('visual corpus manifest: exactly the 12 fixed fixtures with stable ids', () => {

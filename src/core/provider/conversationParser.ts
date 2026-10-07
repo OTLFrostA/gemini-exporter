@@ -10,7 +10,7 @@ import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from
 import { supplementLegacyGeneratedMedia } from '../domain/legacyGeneratedMediaReconciliation.js';
 import type { GeneratedMediaIdentity } from '../../types/conversation.js';
 import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationAttachment } from './gemini/exportInput.js';
-import type { DocumentDiagnostic } from '../export/document/ast.js';
+import type { DocumentDiagnostic } from '../diagnostics/documentDiagnostic.js';
 import type { Diagnostic } from '../content/diagnostics.js';
 import { isObjectRecord } from '../utils/messageResponses.js';
 import type {
@@ -67,6 +67,7 @@ function copyMessage(value: GeminiNormalizationMessage, parseContent: (body: unk
     const { id, content, timestamp } = value;
     const role = value.role === 'model' ? 'assistant' : ['user', 'assistant', 'system', 'developer'].includes(value.role ?? '') ? value.role as 'user' | 'assistant' | 'system' | 'developer' : 'unknown';
     const provenance = { ...normalizeMessageProvenance(value.providerRequestId), ...(role === 'unknown' && value.role ? { rawRole: value.role } : {}) };
+    const model = [value.model, value.author?.model].find((name): name is string => typeof name === 'string' && Boolean(name.trim()))?.trim();
     const reasoningText = normalizeReasoning(value);
     const reasoning = reasoningText !== undefined ? parseReasoning(reasoningText) : undefined;
     const citations = normalizeCitations(value);
@@ -75,6 +76,7 @@ function copyMessage(value: GeminiNormalizationMessage, parseContent: (body: unk
         content: parseContent(content, value.structuredContent),
         ...copyTimestamp(timestamp),
         role,
+        ...(model ? { model } : {}),
         ...(Object.keys(provenance).length ? { provenance } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
@@ -101,6 +103,8 @@ function flattenLegacyTurns(conversation: GeminiNormalizationInput): GeminiNorma
         if (hasModel || turn.thoughts || turn.attachments?.length || turn.images?.length || turn.sources?.length || turn.structuredContent) {
             messages.push({
                 role: 'model',
+                model: turn.model,
+                author: turn.author,
                 content: typeof turn.modelContent === 'string' && turn.modelContent ? turn.modelContent : '',
                 ...copyTimestamp(turn.timestamp),
                 ...(turn.thoughts !== undefined ? { thoughts: Array.isArray(turn.thoughts) ? [...turn.thoughts] : turn.thoughts } : {}),

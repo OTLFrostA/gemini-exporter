@@ -4,7 +4,7 @@ import type { GeminiNormalizationInput } from '../src/core/provider/gemini/expor
 import type { AcquireAssetBytesResult } from '../src/core/engine/assetPipeline.js';
 import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { collectPdfImageIds } from '../src/core/export/pdf/imageResources.js';
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 
@@ -34,7 +34,7 @@ test('same URL with different generation/provider identities acquires separately
     assert.deepEqual(Object.keys(parsed.acquisitionHints), ids);
     const document = composeDomainDocument(parsed.conversation).document;
     const calls: string[] = [];
-    const prepared = await preparePdfResources(parsed.conversation, collectPdfImageIds(document), parsed.acquisitionHints, {
+    const prepared = await preparePdfResources(parsed.conversation, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async (id, hint) => {
             calls.push(id);
             assert.equal(hint.url, url);
@@ -68,7 +68,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
     const hintsJson = JSON.stringify(parsed.acquisitionHints);
     const document = composeDomainDocument(parsed.conversation).document;
     const astJson = JSON.stringify(document);
-    const imageIds = collectPdfImageIds(document);
+    const imageIds = collectDocumentResources(document).imageIds;
     for (const bytes of [firstBytes, null]) {
         const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
             acquire: async (_id, hint) => {
@@ -105,7 +105,7 @@ test('source-provided original bytes survive JSON round-trip and bypass runtime 
     assert.equal(parsed.conversation.assets[0].dataBase64, Buffer.from(firstBytes).toString('base64'));
     const domain = JSON.parse(JSON.stringify(parsed.conversation));
     const document = composeDomainDocument(domain).document;
-    const prepared = await preparePdfResources(domain, collectPdfImageIds(document), parsed.acquisitionHints, {
+    const prepared = await preparePdfResources(domain, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async () => { assert.fail('original inline bytes must skip acquisition'); },
     });
     assert.deepEqual(prepared.resources.get(domain.assets[0].id)?.bytes, firstBytes);

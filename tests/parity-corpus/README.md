@@ -1,6 +1,6 @@
 # Parity Corpus（HTML/PDF 文本对比语料）
 
-固定语料只保存共享 Document AST 和独立资源 ID。测试直接比较 HTML 与 PDF transport 的归一化可见文本，并验证 JSON 往返、消息顺序、资源引用和缺失资源诊断。
+固定语料只保存共享 Document AST 和独立资源 ID。测试直接比较 HTML 与 PDF transport 的归一化可见文本，并验证 JSON 往返、消息顺序、资源引用和缺失资源诊断。加载时将完整 JSON 作为新鲜字面量交给项目编译器，严格按当前 `DocumentAst` 定义验证所有层级；多余字段（如已废弃的 `anchor`）、缺失字段和错误类型均会失败。
 
 ## Fixture 一览
 

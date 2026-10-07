@@ -1,5 +1,5 @@
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
-import type { DocumentDiagnostic as TypstAdapterDiagnostic } from '../../document/ast.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
+import type { DocumentDiagnostic as TypstAdapterDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
 import { renderDocumentTypst } from '../../document/renderTypst.js';
 import { convertMathWithMitex, initMitexWasm } from '../../typst/mathConverter.js';
 import { getErrorMessage } from '../../../utils/messaging.js';

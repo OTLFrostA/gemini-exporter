@@ -108,7 +108,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
         const icons = { you: '👤', assistant: '🤖', system: '⚙️', developer: '🛠', unknown: '' };
         const heading = message.heading ? `${'#'.repeat(message.heading.level)} ${escapeText(message.heading.text)}` : `## ${icons[message.label] ? icons[message.label] + ' ' : ''}${escapeText(messageLabel(message, locale))}`;
         const sources = message.sources && [message.sources.heading ? `> ${inlines(message.sources.heading)}` : `> 🌐 **${strings.sources}:**`, ...message.sources.items.map(item => `> ${item.number !== undefined ? `[${item.number}] ` : ''}${citation(item)}`)].filter(Boolean).join('\n');
-        return [heading, blocks(message.blocks), sources].filter(Boolean).join('\n\n');
+        return [heading, message.modelLabel && `*${escapeText(message.modelLabel)}*`, blocks(message.blocks), sources].filter(Boolean).join('\n\n');
     });
     return [header, ...messages].join('\n\n') + '\n';
 }

@@ -7,6 +7,7 @@ const path = require('path');
 
 const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
+const { assertDocumentAst } = require('./helpers/assertDocumentAst.js');
 const { collectDocumentResources } = require('../src/core/export/document/resourceReferences.js');
 const corpusDir = path.join(__dirname, 'parity-corpus');
 const fixtureNames: string[] = fs
@@ -14,8 +15,15 @@ const fixtureNames: string[] = fs
     .filter((f: string) => f.endsWith('.json'))
     .sort();
 
-const loadFixture = (name: string): any =>
-    JSON.parse(fs.readFileSync(path.join(corpusDir, name), 'utf8'));
+const validatedFixtures = new Map<string, unknown>();
+const loadFixture = (name: string): any => {
+    if (!validatedFixtures.has(name)) {
+        const fixture = JSON.parse(fs.readFileSync(path.join(corpusDir, name), 'utf8'));
+        assertDocumentAst(fixture.document, name);
+        validatedFixtures.set(name, fixture);
+    }
+    return validatedFixtures.get(name);
+};
 
 test('parity corpus: every fixture is a closed JSON display tree', () => {
     assert.ok(fixtureNames.length >= 4);
@@ -175,19 +183,20 @@ function typstTextParts(payload: any, document: any): TextParts {
                 emit(isAsset, b.latex);
                 return;
             case 'table':
-                if (b.caption) emit(isAsset, b.caption);
+                if (b.caption) emit(isAsset, typstInlineText(b.caption));
                 for (const row of b.headers ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell.children));
                 for (const row of b.rows ?? []) for (const cell of row) emit(isAsset, typstInlineText(cell.children));
                 return;
             case 'image':
-                if (b.caption) emit(isAsset, b.caption);
+                if (b.caption) emit(isAsset, typstInlineText(b.caption));
                 return;
             case 'file':
                 emit(isAsset, b.name);
                 // The template renders authored descriptions below file cards.
-                if (b.description) emit(isAsset, b.description);
+                if (b.description) emit(isAsset, typstInlineText(b.description));
                 return;
             case 'unknown':
+                if (b.details) emit(isAsset, typstInlineText(b.details));
                 if (b.blocks) {
                     for (const sub of b.blocks) emitBlock(sub, displayType);
                 } else if (b.fallback) {

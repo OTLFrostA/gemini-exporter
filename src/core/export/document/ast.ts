@@ -46,6 +46,7 @@ export interface DisplayMessage {
     variant: 'bubble' | 'flow';
     heading?: { level: 1 | 2 | 3 | 4 | 5 | 6; text: string };
     label: 'you' | 'assistant' | 'system' | 'developer' | 'unknown';
+    modelLabel?: string;
     blocks: DisplayBlock[];
     sources?: SourceGroup;
 }
@@ -70,10 +71,3 @@ export interface DocumentAst {
 
 /** Output URLs are supplied by export preparation; bytes never enter the tree. */
 export type ResourceBindings = Readonly<Record<string, string>>;
-
-export interface DocumentDiagnostic {
-    severity: 'info' | 'warning' | 'error';
-    code: string;
-    message: string;
-    path?: string;
-}

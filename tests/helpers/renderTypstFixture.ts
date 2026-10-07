@@ -1,4 +1,5 @@
-import type { DocumentAst, DocumentDiagnostic, ResourceBindings } from '../../src/core/export/document/ast.js';
+import type { DocumentDiagnostic } from '../../src/core/diagnostics/documentDiagnostic.js';
+import type { DocumentAst, ResourceBindings } from '../../src/core/export/document/ast.js';
 import type { PdfRenderOptions } from '../../src/core/export/document/renderOptions.js';
 import { renderDocumentTypst } from '../../src/core/export/document/renderTypst.js';
 

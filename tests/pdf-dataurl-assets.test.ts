@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
 const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
 const { preparePdfResources } = require('../src/core/export/pdf/prepareResources.js');
-const { collectPdfImageIds } = require('../src/core/export/pdf/imageResources.js');
+const { collectDocumentResources } = require('../src/core/export/document/resourceReferences.js');
 const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
 const { decodeDataUrl, decodeDataUrlAsset } = require('../src/core/export/assets/dataUrl.js');
 const { assertDomainClosure } = require('../src/core/domain/closure.js');
@@ -20,7 +20,7 @@ async function prepare(content: string, id = 'dataurl') {
     assertDomainClosure(domain);
     const document = composeDomainDocument(domain).document;
     const semantic = JSON.stringify({ domain, document });
-    const prepared = await preparePdfResources(domain, collectPdfImageIds(document), parsed.acquisitionHints);
+    const prepared = await preparePdfResources(domain, collectDocumentResources(document).imageIds, parsed.acquisitionHints);
     const staged = await resourceStage({ document, resources: prepared.resources }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
     assert.equal(JSON.stringify({ domain, document }), semantic);
     assert.equal(JSON.stringify(input), before);

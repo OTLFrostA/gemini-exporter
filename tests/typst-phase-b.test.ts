@@ -85,7 +85,7 @@ test('file description reaches the transport', async () => {
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'file');
-    assert.strictEqual(node.description, 'Q3 summary deck');
+    assert.deepStrictEqual(node.description, [{ type: 'text', text: 'Q3 summary deck' }]);
 });
 
 test('thought kinds map to note labels', async () => {

@@ -1550,7 +1550,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "PDF acquires only rendered images; one frozen rich JSON AST serves all backends",
+          "name": "PDF acquires every AST image; one frozen rich JSON AST serves all backends",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1595,15 +1595,109 @@
       "domain": "document_ast",
       "provenanceSource": "Format-neutral Document AST and actual HTML, Markdown and PDF backend contracts",
       "notes": "Fixtures use Domain composition or frozen Document AST plus independent resource bindings; there is no conversation compatibility converter."
+    },
+    {
+      "file": "tests/document-ast-contract.test.ts",
+      "domain": "document_ast",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Provider model and exact Document AST contracts; explicit backend badges and real-WASM image rendering",
+      "notes": "Project semantic regressions; synthetic fixtures are not evidence of provider wire compatibility.",
+      "testCount": 2,
+      "tests": [
+        {
+          "name": "every visual/parity corpus fixture satisfies the exact current DocumentAst definition",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "contract rejects stale fields, nested extras, missing fields, wrong types and discriminants",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/document-file-badge.test.ts",
+      "domain": "document_ast",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Provider model and exact Document AST contracts; explicit backend badges and real-WASM image rendering",
+      "notes": "Project semantic regressions; synthetic fixtures are not evidence of provider wire compatibility.",
+      "testCount": 1,
+      "tests": [
+        {
+          "name": "file badge maps office/media types to short labels and safely falls back",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/document-model.test.ts",
+      "domain": "document_ast",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Provider model and exact Document AST contracts; explicit backend badges and real-WASM image rendering",
+      "notes": "Project semantic regressions; synthetic fixtures are not evidence of provider wire compatibility.",
+      "testCount": 5,
+      "tests": [
+        {
+          "name": "provider model survives Domain, JSON AST and all renderers: {\"role\":\"model\",\"model\":\"  Gemini 2.5 Pro  \",\"content\":\"Answer\"}",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "provider model survives Domain, JSON AST and all renderers: {\"role\":\"assistant\",\"author\":{\"model\":\"  Gemini 2.5 Pro  \"},\"content\":\"Answer\"}",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "turn models, absent/invalid models and escaped model names",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "compiled PDF visibly retains the model name",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "production export entrypoints preserve provider model names",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
+    },
+    {
+      "file": "tests/document-rich-pdf.test.ts",
+      "domain": "document_ast",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Provider model and exact Document AST contracts; explicit backend badges and real-WASM image rendering",
+      "notes": "Project semantic regressions; synthetic fixtures are not evidence of provider wire compatibility.",
+      "testCount": 2,
+      "tests": [
+        {
+          "name": "rich PDF fields render physical images, including captions of missing parents",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "font fallback visits converted math in all rich PDF fields",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 29,
-    "totalTests": 248,
+    "totalSuites": 33,
+    "totalTests": 258,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 228,
+      "P2": 238,
       "P3": 2,
       "P4": 0
     }

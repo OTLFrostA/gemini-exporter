@@ -30,7 +30,7 @@ test('image placements resolve bytes and content-addressed mounts; repeated byte
     assert.deepEqual(tree, original);
 });
 
-test('PDF mounts only rendered images while preserving rich metadata in the AST', async () => {
+test('PDF mounts all AST images, including every rich metadata field', async () => {
     const inline = (id: string) => ({ type: 'image' as const, resourceId: id, alt: '' });
     const tree = document([
         { ...image('main'), caption: [inline('caption')] } as DisplayBlock,
@@ -41,9 +41,9 @@ test('PDF mounts only rendered images while preserving rich metadata in the AST'
     tree.messages[0].sources = { type: 'sources', heading: [inline('source-heading')], items: [] };
     tree.messages[0].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'placeholder', text: 'missing', details: [inline('details')] });
     const original = JSON.stringify(tree);
-    const ids = ['main', 'header', 'cell', 'reasoning'];
-    const skipped = ['caption', 'table-caption', 'description', 'source-heading', 'placeholder', 'details'];
-    const result = await resourceStage({ document: tree, resources: new Map([...ids.map(id => [id, { bytes: png() }] as const), ...skipped.map(id => [id, { get bytes(): Uint8Array { return assert.fail(`Must not read degraded resource ${id}`); } }] as const)]) }, ctx());
+    const ids = ['main', 'header', 'cell', 'reasoning', 'caption', 'table-caption', 'description', 'source-heading', 'details'];
+    const skipped = ['file', 'placeholder'];
+    const result = await resourceStage({ document: tree, resources: new Map([...ids.map(id => [id, { bytes: png() }] as const), ...skipped.map(id => [id, { get bytes(): Uint8Array { return assert.fail(`Must not read metadata-only resource ${id}`); } }] as const)]) }, ctx());
     assert.deepEqual([...result.output.pathMap.keys()].sort(), ids.sort());
     assert.deepEqual(result.output.unresolved, []);
     assert.equal(JSON.stringify(tree), original);

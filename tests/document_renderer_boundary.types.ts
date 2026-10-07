@@ -26,10 +26,14 @@ void rendererBoundary;
 function neutralContract(document: DocumentAst): void {
     // @ts-expect-error DOM anchors belong to the HTML backend.
     document.messages[0].anchor = 'turn';
-    // @ts-expect-error Compatibility-only model labels are not in the production AST.
+    // Provider-authored model labels are format-neutral presentation facts.
     document.messages[0].modelLabel = 'model';
     // @ts-expect-error Notes have no production Domain composition source.
     document.messages[0].blocks.push({ type: 'note', title: 'note' });
+    // @ts-expect-error Diagnostics are side-channel results, never document facts.
+    document.diagnostics = [];
+    // @ts-expect-error Diagnostics are not message facts.
+    document.messages[0].diagnostics = [];
     // @ts-expect-error Physical print policies belong to PDF render options.
     document.pdfLayout = {};
     // @ts-expect-error UI locale cannot be mistaken for the content language.
@@ -55,3 +59,7 @@ function pdfPipelineBoundary(domain: DomainConversationDetail): void {
     void resources; void payload; void compile;
 }
 void pdfPipelineBoundary;
+
+// @ts-expect-error Diagnostic types live in the independent diagnostics module.
+import type { DocumentDiagnostic } from '../src/core/export/document/ast.js';
+void (null as unknown as DocumentDiagnostic);

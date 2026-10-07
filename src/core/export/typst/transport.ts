@@ -40,14 +40,14 @@ export type TypstBlockNode = (
         aligns: ('left' | 'center' | 'right')[];
         columnCount: number;
         repeatHeader: boolean;
-        caption?: string;
+        caption?: TypstInlineNode[];
     }
-    | { type: 'image'; asset: string; caption?: string }
-    | { type: 'file'; name: string; kind: string; size: string; metadata: string; description?: string }
+    | { type: 'image'; asset: string; caption?: TypstInlineNode[] }
+    | { type: 'file'; name: string; kind: string; size: string; metadata: string; description?: TypstInlineNode[] }
     | { type: 'quote'; blocks: TypstBlockNode[] }
     | { type: 'note'; label?: string; children?: TypstInlineNode[]; blocks?: TypstBlockNode[] }
     | { type: 'thematicBreak' }
-    | { type: 'unknown'; sourceType: string; label: string; fallback: string }
+    | { type: 'unknown'; sourceType: string; label: string; fallback: string; details?: TypstInlineNode[] }
 ) & { layout: BlockLayout };
 
 export interface TypstRenderMessage {
