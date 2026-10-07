@@ -6,6 +6,13 @@ export function assertDomainClosure(conversation: DomainConversationDetail): voi
     if (typeof conversation.providerId !== 'string' || !conversation.providerId.trim()) {
         throw new TypeError('Domain providerId must be a non-empty string');
     }
+    if (conversation.timestamp !== null && (typeof conversation.timestamp !== 'number' || !Number.isFinite(conversation.timestamp))) {
+        throw new TypeError('Domain timestamp must be finite epoch milliseconds or null');
+    }
+    if (conversation.completeness && (!['complete', 'partial', 'unknown'].includes(conversation.completeness.status) ||
+        (conversation.completeness.reason !== undefined && typeof conversation.completeness.reason !== 'string'))) {
+        throw new TypeError('Invalid Domain completeness');
+    }
     const assets = new Set<string>();
     for (const asset of conversation.assets) {
         if (typeof asset.id !== 'string' || !asset.id || assets.has(asset.id)) throw new TypeError(`Duplicate or empty Domain asset identity: ${asset.id}`);

@@ -58,7 +58,7 @@ test('display date selects the first valid fact and normalizes to UTC at composi
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
-        Object.assign(input, { [field]: field === 'timestamp' ? NaN : 'invalid' });
+        Object.assign(input, { [field]: field === 'timestamp' ? null : 'invalid' });
     }
     assert.equal(composeDomainDocument(input).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };

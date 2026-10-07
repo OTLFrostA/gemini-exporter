@@ -20,10 +20,11 @@ import type { TabServiceModule } from '../../../types/utils.js';
 import type {
     GeneratedMediaIdentity,
 } from '../../../types/conversation.js';
-import type { GeminiNormalizationInput, GeminiNormalizationMessage, GeminiNormalizationTurn, GeminiNormalizationAttachment } from '../../provider/gemini/exportInput.js';
+import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordTurn, ConversationRecordAttachment } from '../../provider/record/conversationRecord.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
-import { parseProviderConversation } from '../../provider/conversationParser.js';
+import { inferLegacyProviderId } from '../../provider/conversationParser.js';
+import { parseConversation } from '../../provider/parseConversation.js';
 import { composeDomainDocument } from '../document/composeDomainDocument.js';
 import { collectDocumentResources } from '../document/resourceReferences.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
@@ -41,7 +42,7 @@ declare global {
 export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
 export const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
 
-interface PdfProviderAsset extends GeminiNormalizationAttachment {
+interface PdfProviderAsset extends ConversationRecordAttachment {
     type?: string;
     isImage?: boolean;
     localName?: string;
@@ -64,7 +65,7 @@ interface PdfProviderAsset extends GeminiNormalizationAttachment {
     [key: string]: unknown;
 }
 
-interface PdfProviderMessage extends GeminiNormalizationMessage {
+interface PdfProviderMessage extends ConversationRecordMessage {
     id?: string;
     role?: string;
     content?: unknown;
@@ -78,7 +79,7 @@ interface PdfProviderMessage extends GeminiNormalizationMessage {
     [key: string]: unknown;
 }
 
-interface PdfProviderTurn extends GeminiNormalizationTurn {
+interface PdfProviderTurn extends ConversationRecordTurn {
     id?: string;
     timestamp?: number | null;
     messages?: PdfProviderMessage[];
@@ -87,7 +88,7 @@ interface PdfProviderTurn extends GeminiNormalizationTurn {
     [key: string]: unknown;
 }
 
-interface PdfProviderConversation extends GeminiNormalizationInput {
+interface PdfProviderConversation extends ConversationRecordInput {
     id?: string;
     title?: string;
     timestamp?: number | null;
@@ -363,13 +364,13 @@ export async function preparePdfItem(
         ? takeoutEngine.getTakeoutMediaForChat?.(id, currentSlot) : undefined;
 
     // Parse all provider syntax before composing the sole logical document representation.
-    let parsed: ReturnType<typeof parseProviderConversation>;
+    let parsed: ReturnType<typeof parseConversation>;
     let document: DocumentAst;
     try {
         for (const message of providerInput.messages ?? providerInput.turns?.flatMap(turn => turn.messages ?? []) ?? []) {
             if (message.id !== undefined && !message.id.trim()) throw new TypeError('[MSG_BAD_ID] Empty message identity');
         }
-        parsed = parseProviderConversation(providerInput, { generatedMedia });
+        parsed = parseConversation({ format: 'conversation-record', data: providerInput, providerId: inferLegacyProviderId(providerInput), generatedMedia });
         diagnostics.push(...parsed.diagnostics);
         const composed = composeDomainDocument(parsed.conversation);
         document = composed.document;

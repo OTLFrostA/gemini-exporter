@@ -89,7 +89,10 @@ test('direct PDF keeps Typst layout and physical page content parity with the hi
     try {
         const before = await compile(reference), after = await compile(direct.output.payload);
         assert.deepEqual(extractPdfText(after), extractPdfText(before));
-        const content = (bytes: Uint8Array) => [...parseObjects(Buffer.from(bytes)).values()].filter(object => object.stream).map(object => inflateIfNeeded(object)?.toString('base64'));
+        // XMP records wall-clock creation dates and derived instance IDs. They are not page content.
+        const content = (bytes: Uint8Array) => [...parseObjects(Buffer.from(bytes)).values()]
+            .filter(object => object.stream && !/\/Type\s*\/Metadata\b/.test(object.dict))
+            .map(object => inflateIfNeeded(object)?.toString('base64'));
         assert.deepEqual(content(after), content(before));
         assert.ok(extractPdfText(after).pageCount >= 3);
         const output = join(repoRoot(), 'tests/output/pdf-domain-direct'); mkdirSync(output, { recursive: true });

@@ -83,8 +83,23 @@ export interface DomainMessage {
     citations?: DomainCitation[];
 }
 
+/** Source evidence about the conversation, independent of its content provider. */
+export interface DomainConversationProvenance {
+    /** Opaque producer-authored origin label (for example takeout or openai-import). */
+    source?: string;
+}
+
+export interface DomainConversationCompleteness {
+    /** Missing coverage must not be mistaken for a complete conversation. Absence is also unknown. */
+    status: 'complete' | 'partial' | 'unknown';
+    /** Source-authored explanation; never a pagination cursor or parser diagnostic. */
+    reason?: string;
+}
+
 export interface DomainConversationDetail {
     providerId: string;
+    provenance?: DomainConversationProvenance;
+    completeness?: DomainConversationCompleteness;
     /** One record per semantic resource; body/reasoning assetId values refer to these IDs. */
     assets: DomainAsset[];
     id: string;
