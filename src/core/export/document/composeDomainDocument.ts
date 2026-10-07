@@ -1,7 +1,7 @@
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
 import { assertDomainClosure } from '../../domain/closure.js';
 import { collectReferencedAssetIds } from '../../content/collectAssetReferences.js';
-import { toIso } from '../../domain/time.js';
+import { selectDisplayDate } from './displayDate.js';
 import { contentComposer } from './composeContent.js';
 import type { DocumentAst, DocumentDiagnostic } from './ast.js';
 
@@ -32,7 +32,6 @@ export function composeDomainDocument(conversation: DomainConversationDetail, op
         });
         return {
             type: 'message' as const, id,
-            anchor: `turn-${message.role === 'user' ? 'user' : 'model'}-${index}`,
             variant: message.role === 'user' ? 'bubble' as const : 'flow' as const,
             label: message.role === 'user' ? 'you' as const : message.role,
             ...(message.role === 'unknown' && message.provenance?.rawRole ? { heading: { level: 2 as const, text: message.provenance.rawRole } } : {}),
@@ -40,12 +39,12 @@ export function composeDomainDocument(conversation: DomainConversationDetail, op
             ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map((ref, index) => ({ ...source(ref), number: index + 1 })) } } : {}),
         };
     });
-    const date = toIso(conversation.updatedAt ?? conversation.lastSeen) ?? toIso(conversation.createdAt ?? conversation.timestamp ?? conversation.chatTime);
+    const date = selectDisplayDate(conversation.updatedAt, conversation.lastSeen, conversation.createdAt, conversation.timestamp, conversation.chatTime);
     return { document: {
         schemaVersion: 2,
         ...(options.documentLanguage ? { documentLanguage: options.documentLanguage } : {}),
         header: { title: (conversation.title || 'Untitled conversation').replace(/[\r\n]+/g, ' ').trim(), providerLabel: conversation.providerId,
-            ...(date ? { date: date.slice(0, 10) } : {}), messageCount: messages.length },
+            ...(date ? { date } : {}), messageCount: messages.length },
         messages,
     }, diagnostics: [] };
 }

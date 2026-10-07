@@ -11,7 +11,7 @@ function png(seed = 1): Uint8Array {
 const image = (id: string): DisplayBlock => ({ type: 'image', resourceId: id, alt: id });
 function document(blocks: DisplayBlock[]): DocumentAst {
     return { schemaVersion: 2, header: { title: 'T', providerLabel: 'test', messageCount: 1 }, messages: [
-        { type: 'message', id: 'm', anchor: 'm', label: 'assistant', variant: 'flow', blocks },
+        { type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks },
     ] };
 }
 const ctx = (signal = new AbortController().signal): StageContext => ({ signal, log() {}, reportProgress() {} });
@@ -30,7 +30,7 @@ test('image placements resolve bytes and content-addressed mounts; repeated byte
     assert.deepEqual(tree, original);
 });
 
-test('resource walk includes rich captions, links, tables, disclosure and file descriptions', async () => {
+test('PDF mounts only rendered images while preserving rich metadata in the AST', async () => {
     const inline = (id: string) => ({ type: 'image' as const, resourceId: id, alt: '' });
     const tree = document([
         { ...image('main'), caption: [inline('caption')] } as DisplayBlock,
@@ -38,10 +38,15 @@ test('resource walk includes rich captions, links, tables, disclosure and file d
         { type: 'disclosure', kind: 'reasoning', blocks: [image('reasoning')] },
         { type: 'file', resourceId: 'file', kind: 'file', label: 'report', description: [inline('description')] },
     ]);
-    const ids = ['main', 'caption', 'table-caption', 'header', 'cell', 'reasoning', 'description'];
-    const result = await resourceStage({ document: tree, resources: new Map(ids.map(id => [id, { bytes: png() }])) }, ctx());
+    tree.messages[0].sources = { type: 'sources', heading: [inline('source-heading')], items: [] };
+    tree.messages[0].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'placeholder', text: 'missing', details: [inline('details')] });
+    const original = JSON.stringify(tree);
+    const ids = ['main', 'header', 'cell', 'reasoning'];
+    const skipped = ['caption', 'table-caption', 'description', 'source-heading', 'placeholder', 'details'];
+    const result = await resourceStage({ document: tree, resources: new Map([...ids.map(id => [id, { bytes: png() }] as const), ...skipped.map(id => [id, { get bytes(): Uint8Array { return assert.fail(`Must not read degraded resource ${id}`); } }] as const)]) }, ctx());
     assert.deepEqual([...result.output.pathMap.keys()].sort(), ids.sort());
     assert.deepEqual(result.output.unresolved, []);
+    assert.equal(JSON.stringify(tree), original);
 });
 
 test('missing, remote-unprepared and absent resources each carry warning diagnostics', async () => {

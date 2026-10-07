@@ -1,3 +1,4 @@
+import { collectPdfImageIds } from '../imageResources.js';
 import { collectDocumentResources } from '../../document/resourceReferences.js';
 import { checkImageContent, MAX_ASSET_BYTES, buildVirtualAssetPath } from '../../assets/imageContent.js';
 import { sha256Hex } from '../../assets/sha256.js';
@@ -10,7 +11,8 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     const unresolved: ResourceStageOutput['unresolved'] = [];
     const pathMap = new Map<string, string>();
     const mounts: ImageMount[] = [], mountedPaths = new Set<string>();
-    const { referencedIds, imageIds } = collectDocumentResources(input.document);
+    const { referencedIds } = collectDocumentResources(input.document);
+    const imageIds = collectPdfImageIds(input.document);
     const diag = (id: string, severity: RenderDiagnostic['severity'], code: string, message: string): void => {
         diagnostics.push({ severity, code, message, path: `asset:${id}` });
     };

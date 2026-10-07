@@ -34,15 +34,8 @@ export function renderMathHtml(
     display: boolean,
     fallbackLabel: string,
 ): RenderMathHtmlResult {
-    let cleanSource = (source ?? '').trim();
-    // Strip accidental boundary delimiters if present
-    if (cleanSource.startsWith('$$') && cleanSource.endsWith('$$') && cleanSource.length >= 4) {
-        cleanSource = cleanSource.slice(2, -2).trim();
-    } else if (cleanSource.startsWith('$') && cleanSource.endsWith('$') && cleanSource.length >= 2) {
-        cleanSource = cleanSource.slice(1, -1).trim();
-    }
-
-    if (!cleanSource) {
+    // Math source is already normalized at the parser/content boundary.
+    if (!source.trim()) {
         return {
             html: display ? '<div class="gem-math-block gem-math-empty"></div>' : '',
             diagnostic: {
@@ -54,9 +47,9 @@ export function renderMathHtml(
     }
 
     // Detect known unsupported environments such as TikZ diagrams
-    if (/\\begin\{(?:tikzpicture|pgfpicture)\}/i.test(cleanSource)) {
+    if (/\\begin\{(?:tikzpicture|pgfpicture)\}/i.test(source)) {
         return {
-            html: renderFallback(cleanSource, display, fallbackLabel),
+            html: renderFallback(source, display, fallbackLabel),
             diagnostic: {
                 severity: 'warning',
                 code: 'HTML_MATH_UNSUPPORTED_TIKZ',
@@ -66,7 +59,7 @@ export function renderMathHtml(
     }
 
     try {
-        const mathml = katex.renderToString(cleanSource, {
+        const mathml = katex.renderToString(source, {
             output: 'mathml',
             displayMode: display,
             throwOnError: true,
@@ -78,7 +71,7 @@ export function renderMathHtml(
     } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
         return {
-            html: renderFallback(cleanSource, display, fallbackLabel),
+            html: renderFallback(source, display, fallbackLabel),
             diagnostic: {
                 severity: 'warning',
                 code: 'HTML_MATH_RENDER_FAILED',
