@@ -18,21 +18,18 @@ export interface ChatFormatterModule {
     convertHtmlToMarkdown: (html?: string | null) => string;
     toOpenAIJson: (chat: any) => string;
     formatContent: (chat: any, formatType: string) => FormattedResult;
-    formatMarkdownCanonical: (chat: any, opts?: DomainMarkdownExportOptions) => Promise<FormattedResult>;
-    formatHtmlCanonical: (chat: any, opts?: CanonicalHtmlExportOptions) => Promise<FormattedResult>;
+    formatMarkdownDocument: (chat: any, opts?: DomainMarkdownExportOptions) => Promise<FormattedResult>;
+    formatHtmlDocument: (chat: any, opts?: DomainHtmlExportOptions) => Promise<FormattedResult>;
 }
 
 export type ChatExportInput = Omit<Conversation, 'timestamp'> & { timestamp?: number | null };
 
-/** Legacy public names retained for callers; both routes now use Domain -> Document AST. */
-export type CanonicalHtmlExportOptions = DomainHtmlExportOptions;
-
-export async function formatHtmlCanonical(chat: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
+export async function formatHtmlDocument(chat: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
     const { conversation, resourceHints } = parseLegacyConversation({ ...chat, timestamp: chat.timestamp ?? null });
     return { content: await exportDomainHtml(conversation, { ...opts, resourceHints }), ext: 'html', mime: 'text/html' };
 }
 
-export async function formatMarkdownCanonical(chat: ChatExportInput, opts: DomainMarkdownExportOptions = {}): Promise<FormattedResult> {
+export async function formatMarkdownDocument(chat: ChatExportInput, opts: DomainMarkdownExportOptions = {}): Promise<FormattedResult> {
     const { conversation, resourceHints } = parseLegacyConversation({ ...chat, timestamp: chat.timestamp ?? null });
     return { content: await exportDomainMarkdown(conversation, { ...opts, resourceHints }), ext: 'md', mime: 'text/markdown' };
 }
@@ -77,8 +74,8 @@ export const ChatFormatter: ChatFormatterModule = {
     convertHtmlToMarkdown,
     toOpenAIJson,
     formatContent,
-    formatHtmlCanonical,
-    formatMarkdownCanonical
+    formatHtmlDocument,
+    formatMarkdownDocument
 };
 
 export default ChatFormatter;

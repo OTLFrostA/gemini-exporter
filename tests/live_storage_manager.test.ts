@@ -176,7 +176,7 @@ test('non-Markdown formats suppress live save config and both write routes', asy
             let written = false;
             await assert.rejects(writeLiveSaveMarkdown({ writeFile: async () => { written = true; } },
                 { chat: {}, safeTitle: 'Test', nid: 'abcdef' },
-                { formatter: { formatMarkdownCanonical: async () => ({ content: '# Test' }) } }), /only supports Markdown/);
+                { formatter: { formatMarkdownDocument: async () => ({ content: '# Test' }) } }), /only supports Markdown/);
             assert.strictEqual(written, false);
         }
         data[STORAGE_KEYS.FORMAT] = 'markdown';

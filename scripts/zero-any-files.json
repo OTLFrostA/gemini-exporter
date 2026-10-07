@@ -28,11 +28,9 @@
   "src/core/export/document/ast.ts",
   "src/core/export/document/htmlMath.ts",
   "src/core/export/document/renderHtml.ts",
-  "src/core/export/document/composeDocument.ts",
   "src/core/export/document/renderMarkdown.ts",
   "src/core/export/document/renderTypst.ts",
   "src/core/export/typst/transport.ts",
-  "src/core/export/typst/payload.ts",
   "src/core/export/pdf/pdfCompiler.ts",
   "src/core/export/document/backendPresentation.ts",
   "src/core/export/document/renderOptions.ts",
@@ -55,5 +53,14 @@
   "src/core/utils/jsonTypes.ts",
   "src/core/content/sourceRef.ts",
   "src/core/content/diagnostics.ts",
-  "src/core/export/artifacts.ts"
+  "src/core/export/artifacts.ts",
+  "src/core/domain/conversationDetail.ts",
+  "src/core/domain/closure.ts",
+  "src/core/domain/titleAuthority.ts",
+  "src/core/export/document/composeDomainDocument.ts",
+  "src/core/export/document/composeContent.ts",
+  "src/core/export/document/displayDate.ts",
+  "src/core/export/document/prepareDomainResources.ts",
+  "src/core/export/document/exportDomainDocument.ts",
+  "src/core/export/pdf/imageResources.ts"
 ]

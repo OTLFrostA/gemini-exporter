@@ -1,21 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateBundle } from '../src/core/export/canonical/validate.js';
-
-test('nested content diagnostics identify their exact structural location', () => {
-    const bundle = {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'test', accountId: 'account', conversationId: 'conversation' },
-            messages: [{ id: 'message', role: 'assistant', blocks: [{
-                type: 'list', ordered: false, items: [{ blocks: [{
-                    type: 'quote', blocks: [{ type: 'image', assetId: 'missing' }],
-                }] }],
-            }] }],
-        },
-        assets: [], citations: [],
-    };
-    const unresolved = validateBundle(bundle).filter(d => d.code === 'ASSET_UNRESOLVED');
-    assert.equal(unresolved.length, 1);
-    assert.equal(unresolved[0].path, 'conversation.messages[0].blocks[0].items[0].blocks[0].blocks[0]');
+import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
+import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+test('nested resource references are checked before composition; unavailable bytes are backend diagnostics', () => {
+    const domain: DomainConversationDetail = { providerId: 'test', id: 'conversation', title: 'Nested', timestamp: null, assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] };
+    assert.throws(() => assertDomainClosure(domain), /Unregistered Domain asset 'missing' in messages\[0\]/);
+    domain.assets.push({ id: 'missing', kind: 'image' });
+    const document = composeDomainDocument(domain).document;
+    const html = renderDocumentHtml(document, {});
+    assert.equal(html.diagnostics.filter(d => d.code === 'HTML_ASSET_UNRESOLVED').length, 1);
+    assert.ok(html.html.includes('Nested figure'));
+    const diagnostics: string[] = [];
+    const pdf = renderDocumentTypst(document, {}, { onDiagnostic(d) { diagnostics.push(d.code); } });
+    assert.equal(diagnostics.filter(code => code === 'TYPST_V8_IMAGE_MISSING').length, 1);
+    assert.ok(JSON.stringify(pdf).includes('Nested figure'));
 });

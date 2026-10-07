@@ -20,8 +20,8 @@ const path = require('path');
 const { PdfExporter } = require('../src/core/export/pdf/index.js');
 const { StubPdfCompiler, buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
 
-const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
-const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
+const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
+const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
 
 function makeSample(idSuffix: string, title: string) {
     const c = JSON.parse(JSON.stringify(sample));

@@ -32,14 +32,14 @@ test('candidate search metadata does not become a phantom image in exported Mark
     assert.ok(answer);
     assert.equal(answer.images, undefined);
     assert.equal(answer.attachments, undefined);
-    const { formatMarkdownCanonical } = require('../src/core/engine/chatFormatter.js');
-    const markdown = await formatMarkdownCanonical(result);
+    const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js');
+    const markdown = await formatMarkdownDocument(result);
     assert.match(markdown.content, /Answer without pictures/);
     assert.doesNotMatch(markdown.content, /assets\/|Reference diagram|licensed-image/);
 });
 
 test('real wire answer image survives while unrelated search metadata is excluded', () => {
-    const wire = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/canonical/structured_rpc/wire-turn-3-12-b-stack.json'), 'utf8'));
+    const wire = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json'), 'utf8'));
     const result = parseWithMetadata(wire);
     const answer = result.messages.find((m: any) => m.role === 'model');
     assert.equal(answer.images.length, 1);
@@ -62,7 +62,7 @@ test('uploaded image tuples remain supported outside search-result metadata', ()
 });
 
 test('secondary candidates do not inherit primary candidate image nodes', () => {
-    const wire = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/canonical/structured_rpc/wire-turn-3-12-b-stack.json'), 'utf8'));
+    const wire = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json'), 'utf8'));
     const secondary: any[] = ['rc_secondary_images_test', ['Second answer without pictures'], 'en'];
     secondary[12] = [searchResult];
     const answers = parseWithMetadata(wire, secondary).messages.filter((m: any) => m.role === 'model');

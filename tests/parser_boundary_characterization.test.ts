@@ -220,7 +220,7 @@ test('cursor fallback scans extra slots and ignores malformed candidates', () =>
 });
 
 test('sanitized Tier-2 wire fixtures retain structured nodes and search images through detail parsing', () => {
-    const fixture = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, 'fixtures/canonical/structured_rpc', name), 'utf8'));
+    const fixture = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, 'fixtures/provider/structured_rpc', name), 'utf8'));
     const candidate = fixture('wire-case-b-cand.json');
     const document = fixture('wire-turn-3-12-b-stack.json');
     const decoded = decodeGeminiStructuredPayload(document);

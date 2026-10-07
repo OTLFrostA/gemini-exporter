@@ -62,7 +62,7 @@ test('dedup - formatLiveSaveMarkdown uses shared filename format and formatter',
     const seen: any[] = [];
     const deps = {
         buildFileName: (t: string, n: string, e: string) => { seen.push([t, n, e]); return `${t}_${n}.${e}`; },
-        formatter: { formatMarkdownCanonical: async (c: any) => ({ content: `#MOCK#${c.title}#${c.id}`, ext: 'md', mime: 'text/markdown' }) },
+        formatter: { formatMarkdownDocument: async (c: any) => ({ content: `#MOCK#${c.title}#${c.id}`, ext: 'md', mime: 'text/markdown' }) },
     };
     const { fileName, markdown } = await formatLiveSaveMarkdown(
         { chat: { messages: [{ role: 'user', content: 'hi' }] }, safeTitle: 'My Chat', nid: 'abc123' },
@@ -78,7 +78,7 @@ test('dedup - live-save formatting failures propagate without writing a fallback
     await assert.rejects(writeLiveSaveMarkdown(
         { init: async () => {}, writeFile: async () => { writes++; } },
         { chat: {}, safeTitle: 'T', nid: 'n1' },
-        { formatter: { formatMarkdownCanonical: async () => { throw new Error('formatting failed'); } } },
+        { formatter: { formatMarkdownDocument: async () => { throw new Error('formatting failed'); } } },
     ), /formatting failed/);
     assert.strictEqual(writes, 0);
 });
@@ -91,7 +91,7 @@ test('dedup - writeLiveSaveMarkdown writes via shared writer and honors fileName
     };
     const deps = {
         buildFileName: (t: string, n: string) => `built_${n}.md`,
-        formatter: { formatMarkdownCanonical: async () => ({ content: 'MD-BODY', ext: 'md', mime: 'text/markdown' }) },
+        formatter: { formatMarkdownDocument: async () => ({ content: 'MD-BODY', ext: 'md', mime: 'text/markdown' }) },
     };
 
     const target1 = await writeLiveSaveMarkdown(

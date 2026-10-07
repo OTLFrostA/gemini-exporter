@@ -22,8 +22,8 @@ const path = require('path');
 const { PdfExporter, PDF_NO_MESSAGES } = require('../src/core/export/pdf/index.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 
-const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
-const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
+const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
+const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
 
 const MARKER = 'REGRESSION-MARKER-9f2c71';
 

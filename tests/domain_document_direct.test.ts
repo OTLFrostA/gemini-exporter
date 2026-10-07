@@ -8,7 +8,7 @@ import { toDomainConversationDetail, parseLegacyConversation } from '../src/core
 import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
 import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/document/exportDomainDocument.js';
 import { prepareDomainResources } from '../src/core/export/document/prepareDomainResources.js';
-import { formatHtmlCanonical, formatMarkdownCanonical } from '../src/core/engine/chatFormatter.js';
+import { formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 
 const raw = {
     id: 'direct', title: 'Draft', titles: { rpc: 'Authoritative title' }, timestamp: 1700000000000,
@@ -63,8 +63,8 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceHints: parseLegacyConversation(raw).resourceHints };
     assert.equal(await exportDomainMarkdown(domain, options), await exportDomainMarkdown(restored, options));
     assert.equal(await exportDomainHtml(domain, options), await exportDomainHtml(restored, options));
-    assert.equal(await formatMarkdownCanonical(raw, options).then(result => result.content), await exportDomainMarkdown(domain, options));
-    assert.equal(await formatHtmlCanonical(raw, options).then(result => result.content), await exportDomainHtml(domain, options));
+    assert.equal(await formatMarkdownDocument(raw, options).then(result => result.content), await exportDomainMarkdown(domain, options));
+    assert.equal(await formatHtmlDocument(raw, options).then(result => result.content), await exportDomainHtml(domain, options));
 });
 
 test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {

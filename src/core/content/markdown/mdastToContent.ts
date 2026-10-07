@@ -7,8 +7,8 @@
  * - Maps MDAST Root/BlockContent nodes to shared BlockNode[].
  * - Maps MDAST PhrasingContent nodes to shared InlineNode[].
  * - Wires Gemini-specific asset linking via imageInline().
- * - Emits required Canonical diagnostics (MATH_FENCE_UNCLOSED, MATH_BLOCK_EMPTY).
- * - Preserves soft and hard line breaks according to Canonical schema.
+ * - Emits required Content diagnostics (MATH_FENCE_UNCLOSED, MATH_BLOCK_EMPTY).
+ * - Preserves soft and hard line breaks according to Content AST.
  */
 
 import type {
@@ -311,7 +311,7 @@ export function adaptInlines(
 }
 
 /**
- * Adapt a TableCell to Canonical { children: InlineNode[] }.
+ * Adapt a TableCell to Content AST { children: InlineNode[] }.
  */
 function adaptTableCell(cell: MdastTableCell, ctx: MarkdownParseContext): { children: InlineNode[] } {
     return {

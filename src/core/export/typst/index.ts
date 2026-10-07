@@ -1,4 +1,3 @@
-export * from './payload.js';
 export * from './fonts/localFontProvider.js';
 export * from './sandboxProtocol.js';
 export { TypstSandboxCompiler } from './typstSandboxCompiler.js';

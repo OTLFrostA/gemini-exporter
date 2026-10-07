@@ -5,7 +5,7 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 import type { DocumentAst } from '../src/core/export/document/ast.js';
 import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { formatHtmlCanonical } from '../src/core/engine/chatFormatter.js';
+import { formatHtmlDocument } from '../src/core/engine/chatFormatter.js';
 
 function fixture(): DomainConversationDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-html.json', 'utf8'));
@@ -117,7 +117,7 @@ test('actual HTML backend has no semantic model or presentation inference import
 });
 
 test('production HTML facade uses prepared archive paths consistently', async () => {
-    const result = await formatHtmlCanonical({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
+    const result = await formatHtmlDocument({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
     assert.ok(result.content.includes('assets/p.png'));
     assert.ok(!result.content.includes('gem-missing-asset">'));
 });

@@ -29,8 +29,8 @@ const { PdfExporter } = require('../src/core/export/pdf/index.js');
 const { buildMinimalValidPdf } = require('./helpers/stubPdfCompiler.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 
-const fixtureDir = path.join(__dirname, 'fixtures', 'canonical');
-const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'gemini-normalizer-sample.json'), 'utf8'));
+const fixtureDir = path.join(__dirname, 'fixtures', 'provider');
+const sample = JSON.parse(fs.readFileSync(path.join(fixtureDir, 'conversation-sample.json'), 'utf8'));
 
 /** Fake an extension page context so `new PdfExporter()` builds the real default compiler. */
 function fakeExtensionPageContext() {

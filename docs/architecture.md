@@ -24,16 +24,19 @@
 
 Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解耦为 **主世界网络嗅探层**、**隔离世界内容脚本层**、**后台服务工作线程 (Service Worker)**、**跨平台通用 Provider 与解析核心**、**领域导出/打包引擎**、**响应式持久化层** 以及 **用户界面展示层**。
 
-文档导出使用同一个 Canonical contract：
+文档导出的内部会话表示只有 Domain 和 Document AST 两层：
 
 ```text
-Provider / Gemini input → Normalization → Canonical Conversation Bundle
-                                         ├─ HTML renderer
-                                         ├─ Typst/PDF renderer
-                                         └─ Markdown renderer
+raw/provider input → parseProviderConversation → Domain
+                                               ↓ composeDomainDocument
+                                          Document AST
+                                               ├─ HTML backend
+                                               ├─ Markdown backend
+                                               └─ PDF backend → private Typst transport
+resource/acquisition hints → preparation → prepared bindings/bytes → backend
 ```
 
-popup、批量导出和 live-save 的 Markdown 均使用 `formatMarkdownCanonical()`。消息数组顺序是唯一权威顺序；Canonical 只保存文档语义，诊断与 raw evidence 留在 ingestion 层。JSON exports remain separate legacy/raw serialization paths where applicable，继续使用同步 `formatContent()`。
+popup、批量导出和 live-save 使用 `formatHtmlDocument()` / `formatMarkdownDocument()`。parser 负责外部输入、资源去重和引用关系；composer 负责逻辑文档组织；renderer 只接收 Document AST、RenderOptions 和 prepared resources，并负责输出格式、物理布局和能力降级。消息数组顺序是唯一权威顺序。旧 Canonical 数据模型和兼容入口已删除。Raw/Standard/OpenAI JSON 保持独立归档序列化，继续使用同步 `formatContent()`。
 
 ```mermaid
 graph TD
@@ -219,8 +222,8 @@ graph TD
 | `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
 | `src/core/engine/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
 | `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
-| `src/core/engine/template/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Canonical HTML renderer 使用的共享样式、交互脚本和安全输出 helpers。 | `renderCanonicalHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
-| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownCanonical` / `formatHtmlCanonical` / `toOpenAIJson` / `formatContent`） | Markdown / HTML 通过异步 Canonical normalizer 与 renderer 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
+| `src/core/engine/template/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Document HTML backend 使用的共享样式、交互脚本和安全输出 helpers。 | `renderHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
+| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownDocument` / `formatHtmlDocument` / `toOpenAIJson` / `formatContent`） | Markdown / HTML 通过 parser → Domain → Document AST → backend 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |

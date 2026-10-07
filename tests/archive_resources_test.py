@@ -68,7 +68,7 @@ class ArchiveResourcesTest(unittest.TestCase):
                     self.root, 'chat.md', formula + '\n[attachment](assets/files/foo.md)')), 1)
 
     def test_real_tier2_sta_excerpt(self):
-        content = (Path(__file__).parent / 'fixtures/canonical/math/tier2_sta_resource_oracle.md').read_text()
+        content = (Path(__file__).parent / 'fixtures/provider/math/tier2_sta_resource_oracle.md').read_text()
         self.assertEqual(resource_references(content), [])
         self.assertEqual(validate_archive_resources(self.root, 'chat.md', content), [])
         errors = validate_archive_resources(self.root, 'chat.md', content + '\n[attachment](files/missing.pdf)')

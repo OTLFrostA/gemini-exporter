@@ -35,7 +35,7 @@ async function assertRoundTrip(input: Conversation): Promise<DomainConversationD
 }
 
 test('all legacy resource paths produce one Domain resource, with document and generated metadata intact', async () => {
-    const structuredContent = JSON.parse(readFileSync(join(__dirname, 'fixtures/canonical/structured_rpc/b-stack-structured.json'), 'utf8'));
+    const structuredContent = JSON.parse(readFileSync(join(__dirname, 'fixtures/provider/structured_rpc/b-stack-structured.json'), 'utf8'));
     const [image] = structuredBodyAttachments({ structuredContent });
     assert.ok(image.sourceUrl);
     const document = { type: 'file', id: 'report-id', title: 'Report', createdAt: null,

@@ -289,9 +289,9 @@ function initPopupEvents(): void {
 
                     let formatted;
                     if (format === 'html') {
-                        formatted = await ChatFormatter.formatHtmlCanonical(chat);
+                        formatted = await ChatFormatter.formatHtmlDocument(chat);
                     } else if (format === 'markdown') {
-                        formatted = await ChatFormatter.formatMarkdownCanonical(chat);
+                        formatted = await ChatFormatter.formatMarkdownDocument(chat);
                     } else {
                         formatted = ChatFormatter.formatContent(chat, format);
                     }
