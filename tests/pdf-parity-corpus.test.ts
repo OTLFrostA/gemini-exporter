@@ -407,6 +407,8 @@ function typstTextParts(payload: any, bundle: any): TextParts {
                 return;
             case 'file':
                 emit(isAsset, b.name);
+                // The template renders authored descriptions below file cards.
+                if (b.description) emit(isAsset, b.description);
                 return;
             case 'unknown':
                 if (b.blocks) {

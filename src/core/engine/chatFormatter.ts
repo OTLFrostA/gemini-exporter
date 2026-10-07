@@ -33,7 +33,7 @@ export interface CanonicalHtmlExportOptions {
 
 /**
  * Production HTML export route:
- * Conversation -> normalizeGeminiConversation() -> CanonicalHtmlRenderer.
+ * Conversation -> normalizeGeminiConversation() -> HTML composer -> Document AST -> HTML backend.
  *
  * Asset URLs fall back to each asset's storageRef (the `assets/...` relative
  * layout the export pipeline already writes), so the renderer needs no
@@ -52,7 +52,10 @@ export async function formatHtmlCanonical(
     });
     const context: RenderContext = {
         bundle,
-        assets: { resolve: async () => null },
+        assets: { resolve: async (id) => {
+            const asset = bundle.assets.find((entry) => entry.id === id);
+            return asset?.storageRef ? { asset, renderUrl: asset.storageRef } : null;
+        } },
         locale: opts.lang === 'en' ? 'en' : 'zh',
         signal: AbortSignal.timeout(60000),
         reportProgress: () => { /* noop: chatFormatter facade has no progress sink */ },

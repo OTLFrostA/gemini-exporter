@@ -24,5 +24,9 @@
   "src/core/utils/messaging.ts",
   "src/core/utils/tabService.ts",
   "src/core/utils/messageResponses.ts",
-  "src/ui/controllers/syncController.ts"
+  "src/ui/controllers/syncController.ts",
+  "src/core/export/document/ast.ts",
+  "src/core/export/document/composeHtml.ts",
+  "src/core/export/document/htmlMath.ts",
+  "src/core/export/document/renderHtml.ts"
 ]

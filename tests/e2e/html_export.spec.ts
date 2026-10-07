@@ -33,7 +33,7 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
       [
         ["c_html_exp_001"],
         "turn_id_html_1",
-        [["请解释一下热膨胀系数突变引发的瞬态热激波。"]],
+        [["请解释一下热膨胀系数突变引发的瞬态热激波。".repeat(20)]],
         [
           [
             ["rc_cand_html_1", ["热膨胀系数 $\\alpha_T$ 突变会引发局部应力波与瞬态热激波，在极高加热速率下尤为显著。"]]
@@ -116,6 +116,19 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
     expect(htmlContent).toContain('热膨胀系数');
     expect(htmlContent).toContain('prefers-color-scheme');
     expect(htmlContent).not.toContain('gem-top-bar');
+
+    // Run the actual downloaded presentation, including AST-declared folding controls.
+    const exportedPage = await context.newPage();
+    await exportedPage.setContent(htmlContent);
+    const prompt = exportedPage.locator('.gem-prompt-content');
+    const toggle = exportedPage.locator('.gem-prompt-toggle');
+    await expect(prompt).toHaveClass(/collapsed/);
+    await toggle.click();
+    await expect(prompt).not.toHaveClass(/collapsed/);
+    await expect(toggle).toContainText(/收起|Show less/);
+    await toggle.click();
+    await expect(prompt).toHaveClass(/collapsed/);
+    await expect(toggle).toContainText(/展开|Show more/);
 
     // 6. Verify Workbench UI updated
     await expect(optionsPage.locator('[data-chat-id="html_exp_001"] .badge')).toContainText(/已导出|Exported/);
