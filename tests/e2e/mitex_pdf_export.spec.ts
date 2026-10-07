@@ -17,7 +17,8 @@
 import { test, expect } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
-import { toTypstPayload } from '../../src/core/export/typst/payload.js';
+import { composeDomainDocument } from '../../src/core/export/document/composeDomainDocument.js';
+import { renderDocumentTypst } from '../../src/core/export/document/renderTypst.js';
 import type { TypstConversationRenderPayload } from '../../src/core/export/typst/transport.js';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
@@ -48,19 +49,11 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
         String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`,
       ];
       // Exercise the production composition path rather than hand-maintaining its wire schema.
-      const { payload } = toTypstPayload({
-        schemaVersion: 1,
-        conversation: {
-          key: { providerId: 'gemini', accountId: 'test', conversationId: 'mitex-e2e' },
-          title: 'MiTeX Browser E2E Test',
-          createdAt: '2026-09-28T00:00:00Z',
-          messages: [{ id: 'm1', role: 'assistant', blocks: [
-            { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
-            ...formulas.map(source => ({ type: 'math' as const, source })),
-          ] }],
-        },
-        assets: [], citations: [],
-      }, { assetPath: () => undefined });
+      const ast = composeDomainDocument({ providerId: 'gemini', id: 'mitex-e2e', title: 'MiTeX Browser E2E Test', timestamp: null, createdAt: '2026-09-28T00:00:00Z', assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
+        { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
+        ...formulas.map(source => ({ type: 'math' as const, source })),
+      ] }] }).document;
+      const payload = renderDocumentTypst(ast, {});
 
       // 1. In-browser pipeline evaluation
       const pipelineResult = await page.evaluate(

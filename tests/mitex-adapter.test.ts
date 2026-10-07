@@ -23,7 +23,8 @@ const {
     mitexConvertMath,
     resetMitexForTesting,
 } = require('../src/core/export/typst/mitex/index.js');
-const { toTypstPayload } = require('../src/core/export/typst/payload.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { RealWasmSandboxHost, repoRoot } = require('./helpers/realWasmSandbox.js');
 
@@ -138,42 +139,19 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         display: true,
     }));
 
-    const bundle = {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', conversationId: 'mitex-compile-test' },
-            title: 'MiTeX WASM Compilation Test',
-            createdAt: '2026-09-28T00:00:00Z',
-            updatedAt: '2026-09-28T00:00:00Z',
-            source: { format: 'gemini-web', rawPayloadAvailable: false },
-            messages: [
-                {
-                    id: 'm1',
-                    role: 'user',
-                    createdAt: '2026-09-28T00:00:00Z',
-                    blocks: [{ type: 'paragraph', children: [{ id: 't0', type: 'text', text: 'Math test' }] }],
-                },
-                {
-                    id: 'm2',
-                    role: 'model',
-                    createdAt: '2026-09-28T00:00:00Z',
-                    blocks,
-                },
-            ],
-        },
-        assets: [],
-        citations: [],
-    };
+    const domain = { providerId: 'gemini', id: 'mitex-compile-test', title: 'MiTeX WASM Compilation Test', timestamp: null, createdAt: '2026-09-28T00:00:00Z', updatedAt: '2026-09-28T00:00:00Z', assets: [], messages: [
+        { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Math test' }] }] },
+        { id: 'm2', role: 'assistant', content: blocks },
+    ] };
 
-    const { payload } = toTypstPayload(bundle as any, {
-        assetPath: () => undefined,
-        convertMath: (source: string, notation: string, display: boolean) => {
-            return convertMathMitex(source, notation, display);
+    const { payload } = renderTypstFixture(composeDomainDocument(domain).document, {}, {
+        convertMath: (source: string, display: boolean) => {
+            return convertMathMitex(source, 'latex', display);
         },
     });
 
     const context = {
-        bundle: null,
+
         assets: { resolve: async () => null },
         locale: 'en',
         signal: new AbortController().signal,
@@ -184,8 +162,8 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         const result = await compiler.compile(
             {
                 rendererSchemaVersion: 1,
-                sourceSchemaVersion: 1,
-                bundle: bundle as any,
+
+
                 document: payload,
                 assetPaths: new Map(),
             },

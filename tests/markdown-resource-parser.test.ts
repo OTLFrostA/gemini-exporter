@@ -19,19 +19,18 @@ test('syntax helper emits external references for the archive resolver to classi
     ]);
 });
 
-import { renderCanonicalMarkdown } from '../src/core/export/canonical/renderCanonicalMarkdown.js';
-import type { CanonicalConversationBundle } from '../src/core/export/canonical/conversation.js';
+import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('serialized literal dollars round-trip as text while links and math retain their nodes', () => {
-    const bundle: CanonicalConversationBundle = {
-        schemaVersion: 1, assets: [], citations: [],
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test', conversationId: 'currency' },
-            messages: [{ id: 'message', role: 'assistant', blocks: [
+    const domain: DomainConversationDetail = {
+        providerId: 'gemini', id: 'currency', title: 'Currency', timestamp: null, assets: [],
+            messages: [{ id: 'message', role: 'assistant', content: [
                 { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },
                     { type: 'link', href: 'files/foo.pdf', children: [{ type: 'text', text: 'receipt' }] },
@@ -42,9 +41,8 @@ test('serialized literal dollars round-trip as text while links and math retain 
                 { type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
                 { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
             ] }],
-        },
     };
-    const markdown = renderCanonicalMarkdown(bundle);
+    const markdown = renderDocumentMarkdown(composeDomainDocument(domain).document, {});
     assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));
     const tree = parseMarkdownAst(markdown);

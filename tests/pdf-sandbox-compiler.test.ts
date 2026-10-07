@@ -30,9 +30,8 @@ const {
 
 const { createOfflineInitOptions } = require('../src/ui/sandbox/offlineInit.js');
 
-const {
-    toTypstPayload,
-} = require('../src/core/export/typst/payload.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 const {
     TypstSandboxCompiler,
@@ -196,22 +195,11 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
 // Fake sandbox host for compiler tests
 // ---------------------------------------------------------------------------
 
-function makeBundle(extra: any = {}) {
-    return {
-        schemaVersion: 1,
-        conversation: {
-            key: { providerId: 'gemini', accountId: 'test-account', conversationId: 'c1' },
-            title: 'Test convo',
-            createdAt: '2026-09-20T10:00:00Z',
-            messages: [
-                { id: 'm1', role: 'user', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
-                { id: 'm2', role: 'assistant', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
-            ],
-        },
-        assets: [],
-        citations: [],
-        ...extra,
-    };
+function makeDomain(extra: any = {}) {
+    return { providerId: 'gemini', id: 'c1', title: 'Test convo', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages: [
+        { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
+        { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
+    ], ...extra };
 }
 
 function assetPathFor(asset: any) {
@@ -221,23 +209,22 @@ function assetPathFor(asset: any) {
     return `assets/${asset.id}${ext}`;
 }
 
-function makePayload(bundle: any, opts: { convertMath?: (source: string, display: boolean) => string | undefined } = {}) {
-    const { payload: document } = toTypstPayload(bundle, {
-        assetPath: assetPathFor,
+function makePayload(domain: any, opts: { convertMath?: (source: string, display: boolean) => string | undefined } = {}) {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
         ...(opts.convertMath ? { convertMath: opts.convertMath } : {}),
     });
     return {
         rendererSchemaVersion: 1,
-        sourceSchemaVersion: 1,
-        bundle,
+
+
         document,
-        assetPaths: new Map((bundle.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
+        assetPaths: new Map((domain.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
     };
 }
 
 function makeContext(signal: AbortSignal, assets?: any) {
     return {
-        bundle: null as any, // replaced below; kept for shape clarity
+
         assets: assets ?? { resolve: async () => null },
         locale: 'en' as const,
         signal,
@@ -325,9 +312,9 @@ test('compile: pre-aborted signal rejects with AbortError before touching the sa
     const compiler = makeCompiler(host);
     const controller = new AbortController();
     controller.abort();
-    const context = { ...makeContext(controller.signal), bundle: makeBundle() };
+    const context = { ...makeContext(controller.signal) };
     await assert.rejects(
-        compiler.compile(makePayload(context.bundle), context),
+        compiler.compile(makePayload(makeDomain()), context),
         (e: any) => e instanceof DOMException && e.name === 'AbortError');
     assert.strictEqual(host.createdUrls.length, 0, 'no frame should be created after abort');
     compiler.dispose();
@@ -337,9 +324,9 @@ test('compile: mid-flight abort rejects with AbortError and notifies the sandbox
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
-    const context = { ...makeContext(controller.signal), bundle };
-    const promise = compiler.compile(makePayload(bundle), context);
+    const domain = makeDomain();
+    const context = { ...makeContext(controller.signal) };
+    const promise = compiler.compile(makePayload(domain), context);
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -357,15 +344,15 @@ test('compile: mid-flight abort rejects with AbortError and notifies the sandbox
 // Full fake-sandbox round trip
 // ---------------------------------------------------------------------------
 
-test('compile: missing document rejects loudly instead of converting the bundle internally', async () => {
+test('compile: missing document rejects loudly instead of converting the domain internally', async () => {
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
+    const domain = makeDomain();
     await assert.rejects(
         compiler.compile(
-            { rendererSchemaVersion: 1, sourceSchemaVersion: 1, bundle } as any,
-            { ...makeContext(controller.signal), bundle },
+            { rendererSchemaVersion: 1 } as any,
+            { ...makeContext(controller.signal) },
         ),
         /requires a prebuilt Typst document payload/,
     );
@@ -377,13 +364,13 @@ test('compile: happy path returns PDF bytes and sandbox diagnostics', async () =
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
+    const domain = makeDomain();
     const seen: string[] = [];
     const context = {
-        ...makeContext(controller.signal), bundle,
+        ...makeContext(controller.signal),
         reportProgress: (stage: string) => { seen.push(stage); },
     };
-    const promise = compiler.compile(makePayload(bundle), context);
+    const promise = compiler.compile(makePayload(domain), context);
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -415,7 +402,7 @@ test('compile: happy path returns PDF bytes and sandbox diagnostics', async () =
     assert.ok(seen.includes('typst-done'));
 
     // Second compile reuses the frame and skips the font install.
-    const promise2 = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const promise2 = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     await tick(10);
     const compileMsg2 = host.frame!.lastSentType('typst/compile')!;
     assert.strictEqual(compileMsg2.message.fonts.length, 0, 'fonts must be installed exactly once');
@@ -428,8 +415,8 @@ test('compile: non-PDF bytes are refused, never returned', async () => {
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const domain = makeDomain();
+    const promise = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -447,8 +434,8 @@ test('compile: sandbox error replies propagate as errors', async () => {
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const domain = makeDomain();
+    const promise = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -465,8 +452,8 @@ test('compile: messages with bad origin or unknown jobId are ignored', async () 
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const domain = makeDomain();
+    const promise = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     for (let i = 0; i < 50 && !host.frame; i += 1) await tick(1);
     assert.ok(host.frame, 'sandbox frame should be created');
     // Evil origin: the ready broadcast must not be accepted.
@@ -486,11 +473,11 @@ test('compile: without a MATH font, converted math is stripped with a diagnostic
     const host = new FakeHost(new Uint8Array([0, 1, 2, 3]), fakeFontBytes(false));
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
-    bundle.conversation.messages[0].blocks.push({ type: 'math', source: 'x^2' });
+    const domain = makeDomain();
+    domain.messages[0].content.push({ type: 'math', source: 'x^2' });
     const promise = compiler.compile(
-        makePayload(bundle, { convertMath: () => 'x^2' }),
-        { ...makeContext(controller.signal), bundle },
+        makePayload(domain, { convertMath: () => 'x^2' }),
+        { ...makeContext(controller.signal) },
     );
     await driveInitHandshake(host);
     await tick();
@@ -513,10 +500,10 @@ test('compile: inline image asset bytes are mounted as shadow files', async () =
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle({
-        assets: [{ id: 'a1', kind: 'image', name: 'pic.png', mimeType: 'image/png' }],
+    const domain = makeDomain({
+        assets: [{ id: 'a1', kind: 'image', name: 'pic.png', mediaType: 'image/png' }],
     });
-    bundle.conversation.messages[0].blocks = [{
+    domain.messages[0].content = [{
         type: 'paragraph',
         children: [
             { type: 'text', text: 'see ' },
@@ -526,7 +513,7 @@ test('compile: inline image asset bytes are mounted as shadow files', async () =
     }];
     const imageBytes = new Uint8Array([137, 80, 78, 71]);
     const assets = { resolve: async (id: any) => (id === 'a1' ? { bytes: imageBytes } : null) };
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal, assets), bundle });
+    const promise = compiler.compile(makePayload(domain), { ...makeContext(controller.signal, assets) });
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -552,8 +539,8 @@ test('compile: fonts are not resent after a failed compile once installed', asyn
     const host = new FakeHost();
     const compiler = makeCompiler(host);
     const controller = new AbortController();
-    const bundle = makeBundle();
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const domain = makeDomain();
+    const promise = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -569,7 +556,7 @@ test('compile: fonts are not resent after a failed compile once installed', asyn
     });
     await assert.rejects(promise, /file not found/);
     // Next compile must NOT resend fonts: the install was already ACKed.
-    const promise2 = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const promise2 = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     await tick(10);
     const compileMsg2 = host.frame!.lastSentType('typst/compile')!;
     assert.ok(compileMsg2, 'expected a second compile message');
@@ -582,9 +569,9 @@ test('compile: fonts are not resent after a failed compile once installed', asyn
 });
 
 async function compileOnce(host: FakeHost, compiler: any, compiledExtras: Record<string, unknown> = {}) {
-    const bundle = makeBundle();
+    const domain = makeDomain();
     const controller = new AbortController();
-    const promise = compiler.compile(makePayload(bundle), { ...makeContext(controller.signal), bundle });
+    const promise = compiler.compile(makePayload(domain), { ...makeContext(controller.signal) });
     await driveInitHandshake(host);
     await tick();
     const compileMsg = host.frame!.lastSentType('typst/compile')!;
@@ -624,9 +611,9 @@ test('math gate: no loaded font with a MATH table keeps the aggregate warning', 
 test('compile: nested struck media mounts and math fallback never mutate the input tree', async () => {
     const host = new FakeHost(undefined, fakeFontBytes(false));
     const compiler = makeCompiler(host);
-    const bundle = makeBundle({ assets: [{ id: 'nested', kind: 'image', name: 'nested.png', status: 'available' }] });
-    bundle.conversation.messages[0].blocks = [{ type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'inlineMath', source: 'x' }, { type: 'image', assetId: 'nested' }] }] }];
-    const payload = makePayload(bundle, { convertMath: () => 'x' });
+    const domain = makeDomain({ assets: [{ id: 'nested', kind: 'image', name: 'nested.png', }] });
+    domain.messages[0].content = [{ type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'inlineMath', source: 'x' }, { type: 'image', assetId: 'nested' }] }] }];
+    const payload = makePayload(domain, { convertMath: () => 'x' });
     const before = JSON.stringify(payload.document);
     const freeze = (value: unknown): void => {
         if (!value || typeof value !== 'object') return;

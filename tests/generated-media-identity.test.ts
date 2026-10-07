@@ -6,7 +6,8 @@ const path = require('node:path');
 const { messageAssets } = require('./helpers/domainAssets.js');
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
 const { supplementTakeoutGeneratedMedia } = require('../src/core/engine/export/batchWorker.js');
-const { normalizeGeminiConversation } = require('../src/core/export/canonical/index.js');
+const { parseFixture } = require('./helpers/documentFixture.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
 const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
 
 const id = '1bd028d5c5b0c0e2';
@@ -43,14 +44,13 @@ test('real Takeout fixture preserves event metadata through MediaIndex and dedup
         assert.equal(chat.messages[1].images.length, 1);
         assert.equal(chat.messages[1].images[0].fileName, jpg);
         assert.equal((chat.messages[1] as any).generation.turnId, 'm1');
-        const { bundle } = await normalizeGeminiConversation(chat);
-        assert.equal(bundle.assets.filter((a: any) => a.kind === 'image').length, 1);
+        const { domain, document, resources } = await parseFixture(chat);
+        assert.equal(domain.assets.filter((a: any) => a.kind === 'image').length, 1);
         const { parseLegacyConversation } = require('../src/core/domain/legacyConversationAdapter.js');
-        const { normalizeDomainConversation } = require('../src/core/export/canonical/gemini/normalizeDomainConversation.js');
-        const { conversation: domain, resourceHints } = parseLegacyConversation(chat);
-        assert.equal('generation' in domain.messages[1], false);
+        const { conversation: legacyDomain } = parseLegacyConversation(chat);
+        assert.equal('generation' in legacyDomain.messages[1], false);
         assert.equal(domain.messages[1].attachmentIds.length, 1);
-        assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, bundle);
+        assert.deepEqual(composeDomainDocument(legacyDomain).document, document);
         // Dedupe retains the offline bytes under event identity even though names differ.
         const image = chat.messages[1].images[0];
         const bytes = await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', image.generation);
@@ -129,8 +129,8 @@ test('RPC generated-media detector preserves generated status while inline image
 });
 
 test('regression: Online Martian Cat + Takeout yields exactly 1 image in Markdown, HTML, PDF without prefix heuristic', async () => {
-    const { renderCanonicalMarkdown } = require('../src/core/export/canonical/renderCanonicalMarkdown.js');
-    const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
+    const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
+    const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
     (global as any).JSZip = require('../lib/jszip.min.js');
     TakeoutEngine.clearTakeoutData('identity');
     try {
@@ -143,17 +143,17 @@ test('regression: Online Martian Cat + Takeout yields exactly 1 image in Markdow
         assert.equal(chat.messages[1].content, '');
 
         // 2. Canonical normalization
-        const { bundle } = await normalizeGeminiConversation(chat);
-        const imageAssets = bundle.assets.filter((a: any) => a.kind === 'image');
+        const { domain, document, resources } = await parseFixture(chat);
+        const imageAssets = domain.assets.filter((a: any) => a.kind === 'image');
         assert.equal(imageAssets.length, 1, 'Exactly 1 logical image asset');
 
         // 3. Markdown render
-        const md = renderCanonicalMarkdown(bundle);
+        const md = renderDocumentMarkdown(document, resources);
         const mdImageMatches = md.match(/!\[.*?\]\(.*?\)/g) || [];
         assert.equal(mdImageMatches.length, 1, 'Markdown has exactly 1 image reference');
 
         // 4. HTML render
-        const { html } = renderCanonicalHtml(bundle);
+        const { html } = renderDocumentHtml(document, resources);
         const htmlImageMatches = html.match(/<img\s+[^>]*>/gi) || [];
         assert.equal(htmlImageMatches.length, 1, 'HTML has exactly 1 img tag');
     } finally {
@@ -162,7 +162,7 @@ test('regression: Online Martian Cat + Takeout yields exactly 1 image in Markdow
 });
 
 test('regression: multi-image generation in same turn does NOT merge different images (ordinal 0 vs 1)', async () => {
-    const { renderCanonicalMarkdown } = require('../src/core/export/canonical/renderCanonicalMarkdown.js');
+    const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
     const reqId = '1c81efe352c9ef8a';
     const chat: any = {
         id,
@@ -213,11 +213,11 @@ test('regression: multi-image generation in same turn does NOT merge different i
     supplementTakeoutGeneratedMedia(chat, id, 'test_slot', engine);
     assert.equal(chat.messages[1].images.length, 2, 'Must not duplicate ordinal 0 or wipe ordinal 1');
 
-    const { bundle } = await normalizeGeminiConversation(chat);
-    const imageAssets = bundle.assets.filter((a: any) => a.kind === 'image');
+    const { domain, document, resources } = await parseFixture(chat);
+    const imageAssets = domain.assets.filter((a: any) => a.kind === 'image');
     assert.equal(imageAssets.length, 2, 'Both distinct images must be retained in canonical assets');
 
-    const md = renderCanonicalMarkdown(bundle);
+    const md = renderDocumentMarkdown(document, resources);
     const mdImageMatches = md.match(/!\[.*?\]\(.*?\)/g) || [];
     assert.equal(mdImageMatches.length, 2, 'Markdown has 2 distinct image references');
 });
@@ -317,8 +317,8 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
 });
 
 test('regression: model message with only ordinary inline/grounding image must NEVER suppress Takeout generated image (both preserved)', async () => {
-    const { renderCanonicalMarkdown } = require('../src/core/export/canonical/renderCanonicalMarkdown.js');
-    const { renderCanonicalHtml } = require('../src/core/export/canonical/renderCanonicalHtml.js');
+    const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
+    const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
     // Model message has only 1 normal inline image (NOT generated, no providerRequestId, no generation identity)
     const normalInlineImage = {
@@ -365,15 +365,15 @@ test('regression: model message with only ordinary inline/grounding image must N
     assert.ok(modelMsg.images.some((img: any) => img.fileName === png), 'Takeout generated image preserved');
 
     // Canonical normalization must retain both assets
-    const { bundle } = await normalizeGeminiConversation(chatWithInlineImage);
-    const imageAssets = bundle.assets.filter((a: any) => a.kind === 'image');
+    const { domain, document, resources } = await parseFixture(chatWithInlineImage);
+    const imageAssets = domain.assets.filter((a: any) => a.kind === 'image');
     assert.equal(imageAssets.length, 2, 'Canonical bundle must have exactly 2 image assets');
 
-    const md = renderCanonicalMarkdown(bundle);
+    const md = renderDocumentMarkdown(document, resources);
     const mdImgs = md.match(/!\[.*?\]\(.*?\)/g) || [];
     assert.equal(mdImgs.length, 2, 'Markdown has 2 image refs');
 
-    const { html } = renderCanonicalHtml(bundle);
+    const { html } = renderDocumentHtml(document, resources);
     const htmlImgs = html.match(/<img\s+[^>]*>/gi) || [];
     assert.equal(htmlImgs.length, 2, 'HTML has 2 img tags');
 });
