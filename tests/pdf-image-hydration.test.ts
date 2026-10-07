@@ -6,8 +6,8 @@
  *    attachment, and standalone inline Markdown remote image):
  *    - injected fetchAsset returns known PNG bytes
  *    - preparePdfItem succeeds without writing standalone assets/... files
- *    - canonical image asset has status === 'available' and resolvable storageRef
- *    - byteStore.get(storageRef) returns the exact PNG bytes
+ *    - prepared image resource contains the acquired bytes
+ *    - prepared resources return the exact PNG bytes
  *    - resourceStage mounts the image and payloadStage emits { type: 'image' }
  *      with zero 'missing-image' unsupported blocks
  * 2. Takeout fallback:
@@ -17,7 +17,7 @@
  * 3. Acquisition failure:
  *    - both network fetch and Takeout fallback fail
  *    - export does not crash and still writes the PDF
- *    - canonical asset is marked status === 'failed' with failureReason
+ *    - prepared resource carries failureReason without bytes
  *      (never PSEUDO_AVAILABLE even when localName was pre-populated by parseDetail)
  *    - resourceStage + payloadStage preserve the existing 'missing-image'
  *      fallback block and warning diagnostics
@@ -33,7 +33,6 @@ const { preparePdfItem } = require('../src/core/export/pdf/prepareItem.js');
 const { PdfExporter } = require('../src/core/export/pdf/index.js');
 const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
 const { payloadStage } = require('../src/core/export/pdf/pipeline/payloadStage.js');
-const { validateBundle } = require('../src/core/export/canonical/index.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { StubPdfCompiler } = require('./helpers/stubPdfCompiler.js');
 const { RealWasmSandboxHost, repoRoot } = require('./helpers/realWasmSandbox.js');
@@ -70,7 +69,7 @@ function makeFakeWriter() {
     };
 }
 
-test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes into byteStore, mounts in resourceStage, and produces zero missing-image blocks', async () => {
+test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes into prepared resources, mounts in resourceStage, and produces zero missing-image blocks', async () => {
     const remoteUrl = 'https://lh3.googleusercontent.com/gg-dl/AOI_d_test_martian_cat=s0-rj';
     const rawChat = {
         id: 'chat-martian-cat',
@@ -124,22 +123,19 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     // Caller's rawChat must not be mutated in place
     assert.strictEqual((rawChat.messages[1].attachments![0] as any).dataBuffer, undefined, 'caller conversation object must not be mutated');
 
-    const { bundle, byteStore } = prepared;
-    assert.strictEqual(bundle.assets.length, 1, 'bundle must contain 1 canonical image asset');
-    const imgAsset = bundle.assets[0];
-    assert.strictEqual(imgAsset.kind, 'image');
-    assert.strictEqual(imgAsset.status, 'available');
-    assert.strictEqual(imgAsset.storageRef, 'assets/040ffd_watermarked_img_1.png');
+    const { document, resources } = prepared;
+    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
+    assert.strictEqual(entries.length, 1, 'one prepared image resource is registered');
+    const imgAsset = entries[0];
+    assert.ok(imgAsset.bytes?.length);
+    assert.ok(!('storageRef' in imgAsset), 'prepared bytes do not inherit export paths');
 
-    const storedBytes = byteStore.get(imgAsset.storageRef!);
-    assert.ok(storedBytes instanceof Uint8Array, 'byteStore.get(storageRef) must return Uint8Array');
+    const storedBytes = imgAsset.bytes;
+    assert.ok(storedBytes instanceof Uint8Array, 'prepared resource must contain Uint8Array bytes');
     assert.deepStrictEqual(Buffer.from(storedBytes!), Buffer.from(PNG_BYTES), 'stored bytes must match fetched PNG bytes');
 
-    const bundleIssues = validateBundle(bundle);
-    assert.ok(!bundleIssues.some((d: any) => d.code === 'PSEUDO_AVAILABLE'), 'hydrated asset must not trigger PSEUDO_AVAILABLE');
-
     const ctx = makeStageCtx();
-    const s2 = await resourceStage({ bundle, byteStore }, ctx);
+    const s2 = await resourceStage({ document, resources }, ctx);
 
     assert.strictEqual(s2.output.unresolved.length, 0, 'no unresolved assets in resourceStage');
     assert.strictEqual(s2.output.mounts.length, 1, 'resourceStage must produce 1 mount');
@@ -151,7 +147,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     );
 
     const s3 = await payloadStage(
-        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
+        { document, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
@@ -168,7 +164,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     );
 });
 
-test('1b. Remote URL-only attachment and standalone Markdown remote image: content-addresses into byteStore and mounts without writing standalone assets/... files', async () => {
+test('1b. Remote URL-only attachment and standalone Markdown remote image: content-addresses into prepared resources and mounts without writing standalone assets/... files', async () => {
     const remoteAttUrl = 'https://lh3.googleusercontent.com/gg-dl/AOI_d_url_only=s0';
     const remoteInlineUrl = 'https://lh3.googleusercontent.com/gg-dl/AOI_d_inline_md=s0';
     const rawChat = {
@@ -297,23 +293,24 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     if (!prepared.ok) return;
     assert.strictEqual(takeoutFallbackCalls, 1, 'Takeout fallback must be consulted after network fetch fails');
 
-    const { bundle, byteStore } = prepared;
-    assert.strictEqual(bundle.assets.length, 1);
-    const imgAsset = bundle.assets[0];
-    assert.strictEqual(imgAsset.status, 'available');
-    assert.ok(imgAsset.storageRef);
+    const { document, resources } = prepared;
+    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
+    assert.strictEqual(entries.length, 1);
+    const imgAsset = entries[0];
+    assert.ok(imgAsset.bytes?.length);
+    assert.ok(imgAsset.bytes);
     assert.deepStrictEqual(
-        Buffer.from(byteStore.get(imgAsset.storageRef!)!),
+        Buffer.from(imgAsset.bytes!),
         Buffer.from(PNG_BYTES),
     );
 
     const ctx = makeStageCtx();
-    const s2 = await resourceStage({ bundle, byteStore }, ctx);
+    const s2 = await resourceStage({ document, resources }, ctx);
     assert.strictEqual(s2.output.mounts.length, 1, 'Takeout fallback image must be mounted');
     assert.strictEqual(s2.output.unresolved.length, 0);
 
     const s3 = await payloadStage(
-        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
+        { document, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
@@ -362,15 +359,16 @@ test('2b. Takeout generated-media supplementation via shared BatchWorker.supplem
     assert.strictEqual(prepared.ok, true);
     if (!prepared.ok) return;
 
-    const { bundle, byteStore } = prepared;
-    assert.strictEqual(bundle.assets.length, 1, 'only generated Takeout media is supplemented');
-    assert.strictEqual(bundle.assets[0].status, 'available');
-    assert.strictEqual(bundle.assets[0].storageRef, 'assets/watermarked_takeout_cat.png');
+    const { document, resources } = prepared;
+    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
+    assert.strictEqual(entries.length, 1, 'only generated Takeout media is supplemented');
+    assert.ok(entries[0].bytes);
+    assert.ok(!('storageRef' in entries[0]));
 
     const ctx = makeStageCtx();
-    const s2 = await resourceStage({ bundle, byteStore }, ctx);
+    const s2 = await resourceStage({ document, resources }, ctx);
     const s3 = await payloadStage(
-        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
+        { document, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
@@ -425,20 +423,15 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     assert.strictEqual(prepared.ok, true, 'preparePdfItem must not crash when image acquisition fails');
     if (!prepared.ok) return;
 
-    const { bundle, byteStore } = prepared;
-    assert.strictEqual(bundle.assets.length, 1);
-    const imgAsset = bundle.assets[0];
-    assert.strictEqual(imgAsset.status, 'failed', 'failed acquisition must set asset.status = failed');
+    const { document, resources } = prepared;
+    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
+    assert.strictEqual(entries.length, 1);
+    const imgAsset = entries[0];
+    assert.equal(imgAsset.bytes, undefined, 'failed acquisition cannot claim mountable bytes');
     assert.ok(imgAsset.failureReason && imgAsset.failureReason.includes('HTTP 404'), 'failureReason must record the acquisition error');
 
-    const bundleIssues = validateBundle(bundle);
-    assert.ok(
-        !bundleIssues.some((d: any) => d.code === 'PSEUDO_AVAILABLE'),
-        'failed asset with pre-populated localName must NOT be misclassified as PSEUDO_AVAILABLE',
-    );
-
     const ctx = makeStageCtx();
-    const s2 = await resourceStage({ bundle, byteStore }, ctx);
+    const s2 = await resourceStage({ document, resources }, ctx);
     assert.strictEqual(s2.output.mounts.length, 0);
     assert.strictEqual(s2.output.unresolved.length, 1);
     assert.ok(
@@ -447,7 +440,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     );
 
     const s3 = await payloadStage(
-        { bundle, pathMap: s2.output.pathMap, locale: 'zh' },
+        { document, pathMap: s2.output.pathMap, locale: 'zh' },
         ctx,
     );
     const blocks = s3.output.payload.messages[0].blocks;
@@ -701,11 +694,9 @@ test('two references with the same hydration key acquire once and hydrate all ta
 
     assert.strictEqual(result.ok, true);
     assert.strictEqual(acquireCalls, 1, 'acquireAssetBytes must be called only once for shared dedupe key');
-    assert.strictEqual(result.bundle.assets.length >= 1, true);
-    for (const asset of result.bundle.assets) {
-        if (asset.kind === 'image') {
-            assert.strictEqual(asset.status, 'available');
-        }
+    assert.strictEqual([...result.resources.values()].length >= 1, true);
+    for (const asset of [...result.resources.values()]) {
+        assert.ok(asset.bytes?.length);
     }
 });
 
@@ -748,7 +739,7 @@ test('inline bytes skip acquisition', async () => {
     assert.strictEqual(acquireCalls, 0, 'acquireAssetBytes must NOT be called when inline bytes exist');
 });
 
-test('dedupe key precedence follows localName > resolvedUrl > sourceUrl > url > src > fileName > name', async () => {
+test('acquisition keeps the legacy destination hint while source URI controls grouping', async () => {
     let capturedItem: { localName?: string } = {};
     const img = {
         localName: 'assets/key_local.png',

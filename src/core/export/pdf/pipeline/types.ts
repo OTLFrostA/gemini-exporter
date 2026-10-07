@@ -1,15 +1,15 @@
-import type { CanonicalConversationBundle } from '../../canonical/conversation.js';
+import type { DocumentAst } from '../../document/ast.js';
+import type { PreparedResources } from '../../assets/preparedResources.js';
 import type {
     ArtifactWriteReport,
-    RenderDiagnostic,
 } from '../../canonical/rendering.js';
-import type { InlineByteStore } from '../../assets/byteStore.js';
-import type { TypstConversationRenderPayload } from '../../typst/payload.js';
+import type { TypstConversationRenderPayload } from '../../typst/transport.js';
 import type { LocalFontResolution } from '../../typst/fonts/localFontProvider.js';
 import type { IPdfCompiler } from '../pdfCompiler.js';
 import type { IExportWriter } from '../../../engine/writers/writerInterface.js';
 
-export type { RenderDiagnostic } from '../../canonical/rendering.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
+export type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
 
 export type PipelineStageName = 'resources' | 'payload' | 'compile' | 'deliver';
 
@@ -59,8 +59,8 @@ export interface ImageMount {
 }
 
 export interface ResourceStageInput {
-    bundle: CanonicalConversationBundle;
-    byteStore: InlineByteStore;
+    document: DocumentAst;
+    resources: PreparedResources;
 }
 
 export interface ResourceStageOutput {
@@ -71,7 +71,7 @@ export interface ResourceStageOutput {
 }
 
 export interface PayloadStageInput {
-    bundle: CanonicalConversationBundle;
+    document: DocumentAst;
     pathMap: Map<string, string>;
     locale: 'zh' | 'en';
 }
@@ -82,12 +82,11 @@ export interface PayloadStageOutput {
 
 export interface CompileStageInput {
     payload: TypstConversationRenderPayload;
-    bundle: CanonicalConversationBundle;
+    resourceIds: ReadonlySet<string>;
     mounts: ImageMount[];
     pathMap: ReadonlyMap<string, string>;
     fonts: LocalFontResolution;
     compiler: IPdfCompiler;
-    locale: 'zh' | 'en';
 }
 
 export interface CompileStageOutput {
@@ -120,8 +119,8 @@ export interface PipelineStages {
 export interface PipelineItemInput {
     conversationId: string;
     title: string;
-    bundle: CanonicalConversationBundle;
-    byteStore: InlineByteStore;
+    document: DocumentAst;
+    resources: PreparedResources;
     locale: 'zh' | 'en';
     compiler: IPdfCompiler;
     fonts: LocalFontResolution;

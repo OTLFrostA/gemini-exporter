@@ -70,7 +70,7 @@ export function toCanonicalDomainMessage(message: DomainMessage, locator: string
         ...grounding.map(citation => ({ id: `${messageId}-gcit-${citation.number ?? 1}`, kind: 'attachment' as const })),
     ];
     return {
-        message: { id, role, content: remapCitations(content), timestamp, attachments },
+        message: { id, role: role === 'unknown' ? message.provenance?.rawRole ?? role : role, content: remapCitations(content), timestamp, attachments },
         locator,
         reasoningBlocks: reasoningBlocks && remapCitations(reasoningBlocks),
         inlineAssetSources,

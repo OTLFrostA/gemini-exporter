@@ -53,17 +53,10 @@ function makeCtx() {
     };
 }
 
-function fakeBundle(assets: any[] = []) {
-    return {
-        conversation: { messages: [] },
-        assets,
-    };
-}
-
 function fakeInput(overrides: any = {}) {
     return {
         payload: { schemaVersion: 1, title: 'T', provider: 'gemini', date: '2026-09-26', messageCount: 0, messages: [] },
-        bundle: fakeBundle([{ id: 'a1', kind: 'image', status: 'available' }]),
+        resourceIds: new Set(['a1']),
         mounts: [],
         pathMap: new Map<string, string>(),
         fonts: { fonts: [], diagnostics: [], fallbackChain: [], localFontsAvailable: false },
@@ -147,7 +140,7 @@ test('resolver: hash-shaped virtualPath resolves via pathMap', async () => {
     const { compiler, captured } = makeStub({ resolveIds: ['a1'] });
     const input = fakeInput({
         compiler,
-        bundle: fakeBundle([{ id: 'a1', kind: 'image', status: 'available' }]),
+        resourceIds: new Set(['a1']),
         pathMap: new Map([['a1', 'assets/sha256/deadbeef1234.png']]),
         mounts: [{ virtualPath: 'assets/sha256/deadbeef1234.png', bytes: mountBytes, mimeType: 'image/png' }],
     });

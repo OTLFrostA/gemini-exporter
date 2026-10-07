@@ -2,18 +2,12 @@
 
 **A renderer must not reinterpret source semantics. A renderer may perform layout.**
 
-Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. HTML and Markdown now compose directly from Domain. Canonical remains a temporary compatibility seam for PDF and the older canonical API; it is not part of the direct HTML/Markdown pipeline.
+Provider/legacy adapters parse and reconcile external inputs into Domain facts and relationships. The composer selects content, organizes the logical document and declares product presentation intent. A format-neutral Document AST is then rendered through HTML, Markdown or PDF backends. HTML, Markdown and PDF compose directly from Domain. Canonical remains only for historical compatibility APIs and fixtures; it is not part of the production presentation pipeline.
 
 ```text
 raw input -> provider / legacy parser -> Domain
                                           |
-                      +-------------------+-------------------+
-                      |                                       |
-              direct composer                       Canonical compatibility
-                      |                              (PDF migration pending)
-                      |                                       |
-                      |                                compatibility composer
-                      +-------------------+-------------------+
+                                   direct composer
                                           |
                                    Document AST v2
                                           |
@@ -71,7 +65,7 @@ Numeric values are not automatically geometry: logical column indices, spans, he
 
 Contract tests render the same frozen JSON document through all three backends, verify rich table/caption preservation, independent content language/UI locale, raw code/file metadata, backend policy changes without recomposition, JSON roundtrip, input immutability and source-model import/type boundaries. Existing export, real-WASM, stress and visual tests remain regression gates. Backend adjacency inference is explicitly permitted; tests prohibit source-model dependencies rather than physical layout decisions.
 
-D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. The next remaining production migration is PDF resource preparation and payload orchestration; after that, obsolete Canonical conversation APIs and input adapters can be removed. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
+D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. D6 migrates production PDF preparation and payload orchestration to the same direct path. Obsolete Canonical conversation APIs and input adapters can now be removed in a separate cleanup. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
 
 ## Direct Domain composition (D5)
 
@@ -79,10 +73,19 @@ D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoi
 
 Citation IDs are message-local Domain relationships. Textual web/grounding markers are resolved by input adapters (including reasoning and rich captions/descriptions); composers consume citation references and never scan text for provider marker syntax. Domain closure rejects duplicate citation IDs and unresolved references. Source UI strings remain backend-local. Authoritative title selection also happens at the legacy boundary rather than selecting raw title candidates during composition.
 
-The old Canonical composer delegates logical block composition to the same `contentComposer` while its remaining PDF/API callers migrate. That compatibility path may rename references for its historical schema, but the direct HTML/Markdown path never uses it. No additional conversation representation is introduced. Raw/Standard/OpenAI JSON remain archival serializers of input data and are outside the presentation pipeline.
+The old Canonical composer delegates logical block composition to the same `contentComposer` for its historical API callers. That compatibility path may rename references for its historical schema, but the direct production paths never use it. No additional conversation representation is introduced. Raw/Standard/OpenAI JSON remain archival serializers of input data and are outside the presentation pipeline.
 
 ## Resource identity and export destinations
 
 Domain resources carry authored names, provider/document/generation identity, acquisition URIs and intrinsic metadata. Legacy `localName` and export destinations are not semantic identity evidence and are never copied into `source.path` (the field is removed). Renaming or relocating an export cannot change the Domain graph. Destination-only unknown resources use distinct deterministic occurrence identities; they are not merged merely because a filename matches.
 
 `parseLegacyConversation` returns the Domain conversation plus separate resource preparation hints, keyed by Domain resource IDs. The input adapter may use old paths to bind body references, but those aliases do not survive in Domain. HTML/Markdown orchestration passes the transport hints beside Domain into resource preparation. Source URIs, provider tokens and document/generation identities still reconcile aliases before Domain.
+
+
+## Direct PDF composition (D6)
+
+`preparePdfItem` resolves detail/Takeout data and acquires legacy image bytes before parsing through `provider/conversationParser`. The parser resolves roles, raw/structured bodies, reasoning, citations and resource aliases into Domain; the strict application adapter remains a thin facade. Unknown authored roles survive as `unknown` plus `provenance.rawRole`, and the composer chooses their message heading. Intrinsic byte lengths are established from available input bytes before Domain.
+
+The shared composer returns the same format-neutral Document AST for all three formats. PDF preparation carries acquired bytes, media types and acquisition failures in a separate resource map keyed by Domain IDs. Standalone source acquisition updates only that map, never Domain or the AST. Export destinations do not determine acquisition grouping or semantic identity.
+
+PDF stages receive Document AST plus prepared resources/options: the resource stage walks AST image placements (including captions, descriptions, tables and reasoning), validates image bytes and prepares content-addressed mounts; the payload stage lowers the existing tree to private Typst transport; the compiler sees only transport and validated mount bindings. File placements remain metadata-only, and shared bytes mount once. The original Typst templates and physical layout policies remain unchanged. Prepared resources and engine wire payloads are transport contexts, not extra conversation representations.

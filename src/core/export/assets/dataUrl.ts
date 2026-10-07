@@ -87,14 +87,14 @@ function malformed(reason: string): DataUrlDecodeError {
     return { ok: false, code: 'DATA_URL_MALFORMED', reason, message: `inline data: image is malformed (${reason}); marked missing` };
 }
 
-function tooLarge(estimatedBytes: number): DataUrlDecodeError {
-    const limitMiB = INLINE_DATA_URL_MAX_BYTES / (1024 * 1024);
+function tooLarge(estimatedBytes: number, maxBytes: number): DataUrlDecodeError {
+    const limitMiB = maxBytes / (1024 * 1024);
     const reason = `data: URL payload decodes to ~${estimatedBytes} bytes, above the ${limitMiB} MiB inline decode limit`;
     return { ok: false, code: 'DATA_URL_TOO_LARGE', reason, message: `inline data: image exceeds the ${limitMiB} MiB inline decode limit; marked missing` };
 }
 
 /** Synchronous data: URL decode: bytes + mime only, no hashing. */
-export function decodeDataUrl(url: string): DataUrlBytesResult {
+export function decodeDataUrl(url: string, maxBytes = INLINE_DATA_URL_MAX_BYTES): DataUrlBytesResult {
     const comma = url.indexOf(',');
     if (comma < 0) return malformed('no comma separating the header from the payload');
     const header = url.slice(url.indexOf(':') + 1, comma);
@@ -109,7 +109,7 @@ export function decodeDataUrl(url: string): DataUrlBytesResult {
         const clean = payload.replace(/\s+/g, '');
         if (clean.length > 0) {
             const estimated = Math.floor((clean.length * 3) / 4);
-            if (estimated > INLINE_DATA_URL_MAX_BYTES) return tooLarge(estimated);
+            if (estimated > maxBytes) return tooLarge(estimated, maxBytes);
         }
         try {
             bytes = decodeBase64Strict(clean);
@@ -117,7 +117,7 @@ export function decodeDataUrl(url: string): DataUrlBytesResult {
             return malformed(`base64 payload is invalid (${err instanceof Error ? err.message : String(err)})`);
         }
     } else {
-        if (payload.length > INLINE_DATA_URL_MAX_BYTES) return tooLarge(payload.length);
+        if (payload.length > maxBytes) return tooLarge(payload.length, maxBytes);
         try {
             bytes = new TextEncoder().encode(decodeURIComponent(payload));
         } catch {

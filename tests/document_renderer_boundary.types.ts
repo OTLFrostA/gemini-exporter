@@ -36,3 +36,17 @@ function neutralContract(document: DocumentAst): void {
     document.profile = { id: 'pdf', version: 1 };
 }
 void neutralContract;
+
+
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { ResourceStageInput, PayloadStageInput, CompileStageInput } from '../src/core/export/pdf/pipeline/types.js';
+function pdfPipelineBoundary(domain: DomainConversationDetail): void {
+    // @ts-expect-error PDF resources must receive an already composed Document AST.
+    const resources: ResourceStageInput = { document: domain, resources: new Map() };
+    // @ts-expect-error PDF payload generation cannot reinterpret Domain content.
+    const payload: PayloadStageInput = { document: domain, pathMap: new Map(), locale: 'en' };
+    // @ts-expect-error Compile stage no longer accepts a source conversation.
+    const compile: CompileStageInput = { bundle: domain };
+    void resources; void payload; void compile;
+}
+void pdfPipelineBoundary;

@@ -1,5 +1,5 @@
 import { isAbortError } from '../errors.js';
-import type { RenderDiagnostic } from '../../canonical/rendering.js';
+import type { DocumentDiagnostic as RenderDiagnostic } from '../../document/ast.js';
 import {
     StageError,
     type PipelineStageName,
