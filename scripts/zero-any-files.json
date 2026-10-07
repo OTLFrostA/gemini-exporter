@@ -28,5 +28,8 @@
   "src/core/export/document/ast.ts",
   "src/core/export/document/composeHtml.ts",
   "src/core/export/document/htmlMath.ts",
-  "src/core/export/document/renderHtml.ts"
+  "src/core/export/document/renderHtml.ts",
+  "src/core/export/document/composeDocument.ts",
+  "src/core/export/document/composeMarkdown.ts",
+  "src/core/export/document/renderMarkdown.ts"
 ]
