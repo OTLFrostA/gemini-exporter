@@ -1,3 +1,4 @@
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,8 +9,8 @@ import { mapContentAssetReferences } from '../src/core/content/assetReferences.j
 import { parseMarkdownToBlocks } from '../src/core/content/markdown/index.js';
 import { parseGeminiBody } from '../src/core/provider/gemini/contentAdapter.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
+import { composeFixture } from './helpers/documentFixture.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 import type { Conversation } from '../src/types/conversation.js';
 
 const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children: [{ type: 'text', text }] }];
@@ -67,10 +68,10 @@ for (const content of [
         }] };
         const { conversation: domain, resourceHints } = parseLegacyConversation(legacy);
         const before = structuredClone(domain);
-        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain, { resourceHints })]);
-        assert.deepEqual(semantic.bundle, raw.bundle);
+        const [raw, semantic] = await Promise.all([composeFixture(parseProviderConversation(legacy).conversation, resourceHints), composeFixture(domain, resourceHints)]);
+        assert.deepEqual(semantic.document, raw.document);
         assert.deepEqual(domain, before, 'asset/citation reconciliation must not mutate Domain');
-        assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, semantic.bundle);
+        assert.deepEqual((await composeFixture(domain, resourceHints)).document, semantic.document);
     });
 }
 
@@ -122,13 +123,13 @@ test('Domain consumers use literal AST semantics even when raw provider syntax l
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
         reasoning: paragraph('Reasoning'), citations: [{ id: 'citation-0', url: 'https://example.test/source' }],
     };
-    const expected = await normalizeDomainConversation({ ...metadata, providerId: 'gemini', assets: [], messages: [message] });
+    const expected = await composeFixture({ ...metadata, providerId: 'gemini', assets: [], messages: [message] });
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
         thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
     };
-    const actual = await normalizeDomainConversation({ ...metadata, providerId: 'gemini', assets: [], messages: [leaked] });
-    assert.deepEqual(actual.bundle, expected.bundle);
-    const body = actual.bundle.conversation.messages[0].blocks.find(block => block.type === 'paragraph');
+    const actual = await composeFixture({ ...metadata, providerId: 'gemini', assets: [], messages: [leaked] });
+    assert.deepEqual(actual.document, expected.document);
+    const body = actual.document.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });
 
@@ -146,10 +147,10 @@ for (const document of [
         const { conversation: domain, resourceHints } = parseLegacyConversation(legacy);
         assert.equal('structuredContent' in domain.messages[0], false);
         assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['section']);
-        const [raw, semantic] = await Promise.all([normalizeGeminiConversation(legacy), normalizeDomainConversation(domain, { resourceHints })]);
-        assert.deepEqual(semantic.bundle, raw.bundle);
-        assert.deepEqual((await normalizeDomainConversation(JSON.parse(JSON.stringify(domain)), { resourceHints })).bundle, raw.bundle);
-        assert.deepEqual(semantic.bundle.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
+        const [raw, semantic] = await Promise.all([composeFixture(parseProviderConversation(legacy).conversation, resourceHints), composeFixture(domain, resourceHints)]);
+        assert.deepEqual(semantic.document, raw.document);
+        assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints)).document, raw.document);
+        assert.deepEqual(domain.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
         assert.deepEqual(legacy, original);
     });
 }

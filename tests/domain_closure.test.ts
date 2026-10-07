@@ -7,11 +7,12 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 import type { BlockNode } from '../src/core/content/blocks.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
-import { renderCanonicalHtml } from '../src/core/export/canonical/renderCanonicalHtml.js';
-import { renderCanonicalMarkdown } from '../src/core/export/canonical/renderCanonicalMarkdown.js';
-import { toTypstPayload } from '../src/core/export/typst/payload.js';
+import { composeFixture } from './helpers/documentFixture.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 import { mapContentAssetReferences } from '../src/core/content/assetReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 
@@ -47,8 +48,8 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
     assert.equal(asset.dataBase64, 'AQID');
     const restored: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(restored, domain);
-    const result = await normalizeDomainConversation(domain);
-    assert.deepEqual((await normalizeDomainConversation(restored)).bundle, result.bundle);
+    const result = await composeFixture(domain);
+    assert.deepEqual((await composeFixture(restored)).document, result.document);
     assert.equal(result.diagnostics.some(d => d.severity === 'error'), false);
     assert.deepEqual(input, original);
     assert.deepEqual(domain, restored, 'export must not mutate Domain');
@@ -68,8 +69,8 @@ test('body-only URI resources are unique across messages and reasoning, includin
         assert.equal(domain.messages.every(message => message.attachmentIds === undefined), true);
         assert.deepEqual(references(domain.messages[1].reasoning!), [domain.assets[0].id]);
         assert.deepEqual(references(domain.messages[1].content), [domain.assets[0].id]);
-        assert.deepEqual((await normalizeDomainConversation(JSON.parse(JSON.stringify(domain)))).bundle,
-            (await normalizeDomainConversation(domain)).bundle);
+        assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)))).document,
+            (await composeFixture(domain)).document);
     }
 });
 
@@ -93,7 +94,7 @@ test('document aliases merge across messages without losing metadata or byte pay
     assert.equal(messageAssets(domain, 0)[0], messageAssets(domain, 1)[0]);
     const restored: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(restored, domain);
-    assert.deepEqual((await normalizeDomainConversation(restored)).bundle, (await normalizeDomainConversation(domain)).bundle);
+    assert.deepEqual((await composeFixture(restored)).document, (await composeFixture(domain)).document);
     assert.deepEqual(input, original);
 });
 
@@ -125,11 +126,11 @@ test('downstream binding respects Domain identity even when two URIs have the sa
         { id: 'one', kind: 'image', name: 'Attachment', source: { uri: 'https://one.test/shared.png' } },
         { id: 'two', kind: 'image', source: { uri: 'https://two.test/shared.png' } },
     ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'two', alt: 'Inline' }], attachmentIds: ['one'] }] };
-    const result = await normalizeDomainConversation(domain);
-    assert.equal(result.bundle.assets.length, 2);
-    assert.deepEqual(result.bundle.assets.map(asset => asset.sourceUrl), ['https://one.test/shared.png', 'https://two.test/shared.png']);
-    assert.equal(result.bundle.conversation.messages[0].blocks[0].type, 'image');
-    assert.equal(result.bundle.conversation.messages[0].blocks[0].assetId, 'msg-0-img0');
+    const result = await composeFixture(domain);
+    assert.equal(collectDocumentResources(result.document).referencedIds.size, 2);
+    assert.deepEqual(domain.assets.map(asset => asset.source?.uri), ['https://one.test/shared.png', 'https://two.test/shared.png']);
+    assert.equal(result.document.messages[0].blocks[0].type, 'image');
+    assert.equal(result.document.messages[0].blocks[0].type === 'image' && result.document.messages[0].blocks[0].resourceId, 'two');
 });
 
 test('resource IDs never collide with export numbering or acquisition URI aliases', async () => {
@@ -138,8 +139,8 @@ test('resource IDs never collide with export numbering or acquisition URI aliase
         { id: 'second', kind: 'image', name: 'Second', source: { uri: 'msg-0-a1' } },
     ], messages: [{ role: 'assistant', attachmentIds: ['msg-0-a1', 'second'],
         content: [{ type: 'image', assetId: 'msg-0-a1' }, { type: 'image', assetId: 'second' }] }] };
-    const result = await normalizeDomainConversation(domain);
-    assert.deepEqual(result.bundle.conversation.messages[0].blocks.map(block => 'assetId' in block ? block.assetId : undefined), ['msg-0-a0', 'msg-0-a1']);
+    const result = await composeFixture(domain);
+    assert.deepEqual(result.document.messages[0].blocks.map(block => 'resourceId' in block ? block.resourceId : undefined), ['msg-0-a1', 'second']);
 });
 
 test('resource metadata and audio/video kinds survive neutral downstream adaptation', async () => {
@@ -148,13 +149,16 @@ test('resource metadata and audio/video kinds survive neutral downstream adaptat
         { id: 'image', kind: 'image', name: 'Shared', mediaType: 'image/png', dimensions: { width: 120, height: 80 },
             source: { uri: 'https://example.test/image' } },
     ], messages: [{ role: 'assistant', attachmentIds: ['audio', 'video'], content: [{ type: 'image', assetId: 'image' }] }] };
-    const result = await normalizeDomainConversation(domain);
-    assert.deepEqual(result.bundle.assets.map(asset => asset.kind), ['audio', 'video', 'image']);
-    const image = result.bundle.assets[2];
-    assert.equal(image.name, 'Shared');
-    assert.equal(image.mimeType, 'image/png');
-    assert.equal(image.dimensions?.widthPx, 120);
-    assert.equal(image.dimensions?.heightPx, 80);
+    const result = await composeFixture(domain);
+    const [image, audio, video] = result.document.messages[0].blocks;
+    assert.ok(image.type === 'image');
+    assert.equal(image.resourceId, 'image');
+    assert.equal(image.alt, 'Shared');
+    assert.ok(audio.type === 'file' && video.type === 'file');
+    assert.equal(audio.kind, 'audio');
+    assert.equal(video.kind, 'video');
+    assert.equal(domain.assets[2].mediaType, 'image/png');
+    assert.deepEqual(domain.assets[2].dimensions, { width: 120, height: 80 });
 });
 
 test('reasoning is parsed at the producer boundary and Domain reasoning text stays literal downstream', async () => {
@@ -167,24 +171,24 @@ test('reasoning is parsed at the producer boundary and Domain reasoning text sta
         role: 'assistant', content: text('Body'), reasoning: text('**literal** <b>HTML</b> ![image](url) $x$'),
     }] };
     const original = structuredClone(literal);
-    const result = await normalizeDomainConversation(literal);
-    const [thought] = result.bundle.conversation.messages[0].blocks;
-    assert.ok(thought.type === 'thought');
-    assert.equal(thought.blocks, literal.messages[0].reasoning);
-    assert.equal(result.bundle.assets.length, 0);
+    const result = await composeFixture(literal);
+    const [thought] = result.document.messages[0].blocks;
+    assert.ok(thought.type === 'disclosure');
+    assert.deepEqual(thought.blocks, literal.messages[0].reasoning);
+    assert.equal(collectDocumentResources(result.document).referencedIds.size, 0);
     assert.deepEqual(literal, original);
 });
 
 for (const providerId of ['openai', 'anthropic', 'custom-provider']) {
-    test(`Canonical trusts Domain provider ${providerId} for conversation and diagnostics`, async () => {
+    test(`Composer trusts Domain provider ${providerId} for conversation and diagnostics`, async () => {
         const domain = toDomainConversationDetail({ ...metadata, source: 'openai-import', messages: [{ role: 'assistant', content: '![missing](missing.png)' }] }, { providerId });
         assert.equal(domain.providerId, providerId);
-        const runtimeOverride = { providerId: 'gemini', accountId: 'account' };
-        const result = await normalizeDomainConversation(domain, runtimeOverride);
-        assert.equal(result.bundle.conversation.key.providerId, providerId);
-        assert.equal(result.bundle.conversation.key.accountId, 'account');
-        assert.ok(result.diagnostics.some(d => d.sourceRef));
-        assert.ok(result.diagnostics.every(d => !d.sourceRef || d.sourceRef.providerId === providerId));
+        const result = await composeFixture(domain);
+        assert.equal(result.document.header.providerLabel, providerId);
+        const parsed = parseProviderConversation({ ...metadata, messages: [{ role: 'tool', content: 42 }] }, { providerId });
+        assert.equal(parsed.conversation.providerId, providerId);
+        assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_ROLE'));
+        assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
     });
 }
 
@@ -209,14 +213,13 @@ test('Domain closure rejects invalid provider, repeated registry/message IDs and
     ];
     for (const input of invalid) {
         assert.throws(() => assertDomainClosure(input), TypeError);
-        await assert.rejects(normalizeDomainConversation(input), TypeError);
+        await assert.rejects(composeFixture(input), TypeError);
     }
 });
 
 test('Domain consumers never parse provider syntax or reconcile acquisition aliases', () => {
-    for (const file of ['src/core/domain/canonicalInputAdapter.ts', 'src/core/domain/closure.ts',
-        'src/core/export/canonical/gemini/normalizeDomainConversation.ts', 'src/core/export/canonical/normalizeMessage.ts',
-        'src/core/export/canonical/normalizeConversation.ts', 'src/core/export/canonical/gemini/normalizeAssets.ts']) {
+    for (const file of ['src/core/domain/closure.ts', 'src/core/export/document/composeDomainDocument.ts',
+        'src/core/export/document/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /parseGemini|parseImported|parseLegacyReasoning|preprocessGemini|convertHtmlToMarkdown|structuredBodyAttachments|resolveLegacyAttachment/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:provider\/|api\/parser)[^'"]*['"]/);
@@ -229,7 +232,7 @@ test('Domain consumers never parse provider syntax or reconcile acquisition alia
     assert.equal('attachments' in domain.messages[0], false);
 });
 
-test('existing canonical corpus preserves AST, HTML, Markdown and Typst parity through Domain and JSON', async () => {
+test('existing raw corpus preserves Domain, AST and all backend outputs across JSON round trips', async () => {
     const fixtureDir = join(__dirname, 'fixtures/canonical');
     const inputs: Conversation[] = [];
     for (const file of ['gemini-normalizer-sample.json', 'gemini-normalizer-turns.json']) {
@@ -254,16 +257,16 @@ test('existing canonical corpus preserves AST, HTML, Markdown and Typst parity t
     for (const input of inputs) {
         const original = structuredClone(input);
         const { conversation: domain, resourceHints } = parseLegacyConversation(input);
-        const [legacy, semantic, restored] = await Promise.all([
-            normalizeGeminiConversation(input), normalizeDomainConversation(domain, { resourceHints }), normalizeDomainConversation(JSON.parse(JSON.stringify(domain)), { resourceHints }),
-        ]);
-        assert.deepEqual(semantic.bundle, legacy.bundle, input.id);
-        assert.deepEqual(restored.bundle, semantic.bundle, input.id);
-        assert.deepEqual(renderCanonicalHtml(semantic.bundle), renderCanonicalHtml(legacy.bundle), input.id);
-        const stableMarkdown = (value: string) => value.replace(/^exported:.*$/m, 'exported: fixed');
-        assert.equal(stableMarkdown(renderCanonicalMarkdown(semantic.bundle)), stableMarkdown(renderCanonicalMarkdown(legacy.bundle)), input.id);
-        const typstOptions = { assetPath: (asset: { id: string }) => `assets/${asset.id}` };
-        assert.deepEqual(toTypstPayload(semantic.bundle, typstOptions).payload, toTypstPayload(legacy.bundle, typstOptions).payload, input.id);
+        const semantic = await composeFixture(domain, resourceHints);
+        const restored = await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints);
+        const parsed = parseProviderConversation(input);
+        const direct = await composeFixture(parsed.conversation, parsed.resourceHints);
+        assert.deepEqual(domain, parsed.conversation, input.id);
+        assert.deepEqual(direct.document, semantic.document, input.id);
+        assert.deepEqual(restored, semantic, input.id);
+        assert.deepEqual(renderDocumentHtml(semantic.document, semantic.resources), renderDocumentHtml(restored.document, restored.resources), input.id);
+        assert.equal(renderDocumentMarkdown(semantic.document, semantic.resources), renderDocumentMarkdown(restored.document, restored.resources), input.id);
+        assert.deepEqual(renderDocumentTypst(semantic.document, semantic.resources), renderDocumentTypst(restored.document, restored.resources), input.id);
         assert.deepEqual(input, original, input.id);
     }
 });

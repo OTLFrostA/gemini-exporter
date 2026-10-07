@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 import type { GeminiNormalizationInput } from '../src/core/provider/gemini/exportInput.js';
 
 for (const layout of ['messages', 'turns'] as const) {
@@ -31,15 +31,15 @@ for (const layout of ['messages', 'turns'] as const) {
     });
 }
 
-test('canonical raw contract accepts missing metadata and historical aliases without coercing input', async () => {
+test('provider parser contract accepts missing metadata and historical aliases without coercing input', async () => {
     const raw: GeminiNormalizationInput = {
         messages: [{ role: 'tool', content: 17, images: [{ src: 'https://example.com/generated', fileName: 'historical' }] }],
     };
     const snapshot = structuredClone(raw);
-    const { bundle, diagnostics } = await normalizeGeminiConversation(raw);
-    assert.equal(bundle.assets[0].kind, 'image');
-    assert.equal(bundle.assets[0].name, 'historical');
-    assert.equal(bundle.conversation.messages[0].author?.rawRole, 'tool');
+    const { conversation: domain, diagnostics } = await parseProviderConversation(raw);
+    assert.equal(domain.assets[0].kind, 'image');
+    assert.equal(domain.assets[0].name, 'historical');
+    assert.equal(domain.messages[0].provenance?.rawRole, 'tool');
     assert.ok(diagnostics.some((d) => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
     assert.deepEqual(raw, snapshot);
 });

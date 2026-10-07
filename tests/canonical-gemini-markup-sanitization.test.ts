@@ -9,17 +9,18 @@
  * - <GenerateWidget id="..." />
  *
  * is intercepted and sanitized at the Provider Normalization boundary,
- * preventing any proprietary metadata syntax from leaking into Canonical AST
+ * preventing any proprietary metadata syntax from leaking into Domain content
  * or final HTML / Markdown exports.
  */
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const canonical = require('../src/core/export/canonical/index.js');
-const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
+const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
-test('Gemini structured markup is sanitized at normalization boundary and never reaches Canonical AST or HTML', async () => {
+test('Gemini structured markup is sanitized at normalization boundary and never reaches Domain content or HTML', async () => {
     const rawContent = [
         '经典比特（Bit）与量子比特（Qubit）有着本质区别：',
         '',
@@ -50,22 +51,22 @@ test('Gemini structured markup is sanitized at normalization boundary and never 
         }],
     };
 
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const msg = bundle.conversation.messages[0];
+    const { conversation: domain } = await parseProviderConversation(raw);
+    const msg = domain.messages[0];
 
-    // Canonical AST assertions
-    const allText = JSON.stringify(msg.blocks);
-    assert.strictEqual(allText.includes('ElicitationsGroup'), false, 'Canonical AST blocks must not contain ElicitationsGroup');
-    assert.strictEqual(allText.includes('Elicitation'), false, 'Canonical AST blocks must not contain Elicitation');
-    assert.strictEqual(allText.includes('FollowUp'), false, 'Canonical AST blocks must not contain FollowUp');
-    assert.strictEqual(allText.includes('GenerateWidget'), false, 'Canonical AST blocks must not contain GenerateWidget');
+    // Domain content assertions
+    const allText = JSON.stringify(msg.content);
+    assert.strictEqual(allText.includes('ElicitationsGroup'), false, 'Domain content blocks must not contain ElicitationsGroup');
+    assert.strictEqual(allText.includes('Elicitation'), false, 'Domain content blocks must not contain Elicitation');
+    assert.strictEqual(allText.includes('FollowUp'), false, 'Domain content blocks must not contain FollowUp');
+    assert.strictEqual(allText.includes('GenerateWidget'), false, 'Domain content blocks must not contain GenerateWidget');
 
     // Valid user content is preserved
     assert.ok(allText.includes('经典比特（Bit）与量子比特（Qubit）'));
     assert.ok(allText.includes('量子比特具备指数级并行潜力。'));
 
     // HTML export assertions
-    const { html } = renderCanonicalHtml(bundle);
+    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
     assert.strictEqual(html.includes('ElicitationsGroup'), false, 'HTML output must not contain ElicitationsGroup');
     assert.strictEqual(html.includes('Elicitation'), false, 'HTML output must not contain Elicitation');
     assert.strictEqual(html.includes('FollowUp'), false, 'HTML output must not contain FollowUp');

@@ -3,22 +3,21 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
-import { toCanonicalDomainMessage } from '../src/core/domain/canonicalInputAdapter.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
-import { normalizeCanonicalConversation } from '../src/core/export/canonical/normalizeConversation.js';
+import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 
 const metadata = { id: 'semantic', title: 'Semantic input', timestamp: null, providerId: 'other', assets: [] };
 
-test('shared Canonical construction contains no body parsing or provider-format decisions', () => {
-    for (const file of ['normalizeMessage.ts', 'normalizeConversation.ts', 'messageInput.ts', 'gemini/normalizeAssets.ts']) {
-        const source = readFileSync(join(__dirname, '../src/core/export/canonical', file), 'utf8');
+test('Document composition contains no body parsing or provider-format decisions', () => {
+    for (const file of ['composeDomainDocument.ts', 'composeContent.ts']) {
+        const source = readFileSync(join(__dirname, '../src/core/export/document', file), 'utf8');
         assert.doesNotMatch(source, /parseMarkdown|parseGemini|preprocessGemini|structuredContent|geminiStructuredTo/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:api\/parser|provider\/gemini)[^'"]*['"]/);
     }
 });
 
-test('Domain semantic nodes are reused by Canonical and raw Markdown-looking text remains literal', async () => {
+test('Domain semantic nodes are composed without reparsing and raw Markdown-looking text remains literal', async () => {
     const domain: DomainConversationDetail = { ...metadata, messages: [{
         id: 'message', role: 'assistant', content: [
             { type: 'paragraph', children: [{ type: 'text', text: '**literal** $x$ ![not an image](file.png)' }] },
@@ -26,12 +25,10 @@ test('Domain semantic nodes are reused by Canonical and raw Markdown-looking tex
         ],
     }] };
     const original = structuredClone(domain);
-    const input = toCanonicalDomainMessage(domain.messages[0], 'messages[0]', new Map());
-    assert.equal(input.message.content, domain.messages[0].content);
-    const result = await normalizeCanonicalConversation(domain, [input], { providerId: 'other' });
-    assert.equal(result.bundle.conversation.messages[0].blocks[0], domain.messages[0].content[0]);
-    assert.equal(result.bundle.conversation.messages[0].blocks[1], domain.messages[0].content[1]);
-    assert.equal(result.bundle.assets.length, 0);
+    const { document } = composeDomainDocument(domain);
+    assert.deepEqual(document.messages[0].blocks[0], domain.messages[0].content[0]);
+    assert.deepEqual(document.messages[0].blocks[1], { type: 'unsupported', sourceType: 'semantic-extension', text: 'visible unknown' });
+    assert.equal(collectDocumentResources(document).referencedIds.size, 0);
     assert.deepEqual(domain, original);
 });
 
@@ -40,20 +37,24 @@ test('separate reasoning presentation does not reinterpret the Domain body', asy
         role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal body**' }] }],
         reasoning: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'formatted reasoning' }] }] }],
     }] };
-    const result = await normalizeDomainConversation(domain);
-    const [reasoning, body] = result.bundle.conversation.messages[0].blocks;
-    assert.ok(reasoning.type === 'thought' && reasoning.blocks[0].type === 'paragraph');
+    const result = composeDomainDocument(domain);
+    const [reasoning, body] = result.document.messages[0].blocks;
+    assert.ok(reasoning.type === 'disclosure' && reasoning.blocks[0].type === 'paragraph');
     assert.equal(reasoning.blocks[0].children[0].type, 'strong');
-    assert.equal(body, domain.messages[0].content[0]);
-    assert.equal(reasoning.blocks, domain.messages[0].reasoning);
+    assert.deepEqual(body, domain.messages[0].content[0]);
+    assert.deepEqual(reasoning.blocks, domain.messages[0].reasoning);
 });
 
-test('legacy compatibility preserves source positional identity after rejecting malformed entries', async () => {
-    const result = await normalizeGeminiConversation({ id: 'legacy', messages: [
+test('provider parsing diagnoses malformed entries at their source position without mutating input', async () => {
+    const raw = { id: 'legacy', messages: [
         null as never,
         { role: 'assistant', content: { unsupported: 'visible fallback' } },
-    ] });
-    assert.equal(result.bundle.conversation.messages[0].id, 'msg-1');
-    assert.equal(result.bundle.conversation.messages[0].blocks[0].type, 'unknown');
+    ] };
+    const original = structuredClone(raw);
+    const result = parseProviderConversation(raw);
+    assert.equal(result.conversation.messages.length, 1);
+    assert.deepEqual(raw, original);
+    assert.equal(result.diagnostics.find(d => d.code === 'BAD_MESSAGE_SHAPE')?.path, 'messages[0]');
+    assert.equal(result.conversation.messages[0].content[0].type, 'unknown');
     assert.equal(result.diagnostics.filter(d => d.code === 'BAD_MESSAGE_SHAPE').length, 1);
 });

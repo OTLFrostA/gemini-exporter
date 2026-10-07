@@ -11,18 +11,17 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const canonical = require('../src/core/export/canonical/index.js');
-const { normalizeGeminiConversation } = canonical;
+const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
 
 async function inlineNodes(content: string): Promise<any[]> {
     const raw: any = {
         id: 'c1',
         messages: [{ id: 'm1', role: 'user', content }],
     };
-    const { bundle } = await normalizeGeminiConversation(raw);
-    const msg = bundle.conversation.messages[0];
+    const { conversation: domain } = await parseProviderConversation(raw);
+    const msg = domain.messages[0];
     const out: any[] = [];
-    for (const b of msg.blocks) {
+    for (const b of msg.content) {
         if (b.children) out.push(...b.children);
     }
     return out;

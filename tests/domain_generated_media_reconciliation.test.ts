@@ -1,11 +1,12 @@
+import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatMessage, Conversation, GeneratedMediaIdentity } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
+import { composeFixture } from './helpers/documentFixture.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
 import { supplementLegacyGeneratedMedia } from '../src/core/domain/legacyGeneratedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
@@ -48,7 +49,7 @@ for (const [evidence, userFields, assistantFields] of [
         assert.deepEqual(media, originalMedia);
         const compat = structuredClone(conversation);
         supplementLegacyGeneratedMedia(compat, metadata.id, media, { appendMarkdownRef: false });
-        assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, (await normalizeGeminiConversation(compat)).bundle);
+        assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(parseProviderConversation(compat).conversation, resourceHints)).document);
     });
 }
 
@@ -93,7 +94,7 @@ test('Domain construction reconciles flattened legacy turns before evidence is d
     assert.equal('turnId' in domain.messages[0], false);
 });
 
-test('Domain construction deduplicates provider representations while Canonical uses explicit media only', async () => {
+test('Domain construction deduplicates provider representations while Composer uses explicit media only', async () => {
     const first = { type: 'image', isGenerated: true, providerRequestId: requestId, imageOrdinal: 0, localName: 'online.jpg', dataBase64: 'AQID' };
     const duplicate = { ...first, localName: 'offline.png', generation };
     const second = { ...first, imageOrdinal: 1, localName: 'second.jpg' };
@@ -101,11 +102,11 @@ test('Domain construction deduplicates provider representations while Canonical 
     const original = structuredClone(conversation);
     const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
     assert.ok(messageAssets(domain, 0)?.every(asset => !('path' in (asset.source ?? {}))));
-    assert.deepEqual((await normalizeDomainConversation(domain, { resourceHints })).bundle, (await normalizeGeminiConversation(conversation)).bundle);
+    assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(parseProviderConversation(conversation).conversation, resourceHints)).document);
     assert.deepEqual(conversation, original);
     const explicitDomain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] };
-    assert.equal((await normalizeDomainConversation(explicitDomain)).bundle.assets.length, 3,
-        'Canonical must not collapse explicit attachments using provider IDs');
+    assert.equal(collectDocumentResources((await composeFixture(explicitDomain)).document).referencedIds.size, 3,
+        'Composer must not collapse explicit attachments using provider IDs');
 });
 
 test('Explicit message attachment ownership is authoritative downstream', async () => {
@@ -114,9 +115,9 @@ test('Explicit message attachment ownership is authoritative downstream', async 
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachmentIds: ['cat'] },
     ] };
     const original = structuredClone(domain);
-    const result = await normalizeDomainConversation(domain);
-    assert.equal(result.bundle.conversation.messages[0].blocks.some(b => b.type === 'image'), false);
-    assert.equal(result.bundle.conversation.messages[1].blocks.some(b => b.type === 'image'), true);
+    const result = await composeFixture(domain);
+    assert.equal(result.document.messages[0].blocks.some(b => b.type === 'image'), false);
+    assert.equal(result.document.messages[1].blocks.some(b => b.type === 'image'), true);
     assert.deepEqual(domain, original);
 });
 
@@ -161,6 +162,6 @@ test('Unknown multi-image ordinals cannot suppress detached media using request 
     assert.equal(domain.messages.length, 1);
     assert.deepEqual(messageAssets(domain, 0)?.map(a => a.name), ['offline-a.png', 'offline-b.png', 'online.jpg']);
     assert.equal('generation' in domain.messages[0], false);
-    assert.equal((await normalizeDomainConversation(domain)).bundle.assets.length, 3);
+    assert.equal(collectDocumentResources((await composeFixture(domain)).document).referencedIds.size, 3);
     assert.deepEqual(conversation, original);
 });

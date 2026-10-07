@@ -14,8 +14,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const canonical = require('../src/core/export/canonical/index.js');
-const { normalizeGeminiConversation, renderCanonicalHtml } = canonical;
+const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
 async function normAndRender(content: string, options: any = {}) {
     const raw: any = {
@@ -23,17 +24,17 @@ async function normAndRender(content: string, options: any = {}) {
         title: 'Fidelity Test',
         messages: [{ id: 'm1', role: 'model', content }],
     };
-    const { bundle, diagnostics } = await normalizeGeminiConversation(raw, options);
-    const { html } = renderCanonicalHtml(bundle);
-    const msg = bundle.conversation.messages[0];
-    return { bundle, msg, html, diagnostics };
+    const { conversation: domain, diagnostics } = await parseProviderConversation(raw, options);
+    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
+    const msg = domain.messages[0];
+    return { domain, msg, html, diagnostics };
 }
 
 test('Fidelity 1: Table cell bold renders as <strong> and does not leak **', async () => {
     const md = '| Dimension |\n| :--- |\n| **bold text** |\n';
     const { msg, html } = await normAndRender(md);
 
-    const table = msg.blocks.find((b: any) => b.type === 'table');
+    const table = msg.content.find((b: any) => b.type === 'table');
     assert.ok(table, 'table block found');
     const cellChildren = table.rows[0].cells[0].children;
     assert.strictEqual(cellChildren.length, 1);
@@ -49,11 +50,11 @@ test('Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not l
     const md = '| 对比维度 | 经典比特 (Bit) |\n| :--- | :--- |\n| **叠加态** | **确定状态**<br>任意时刻只能处于确定的 $0$ 或 $1$ 状态。 |\n';
     const { msg, html } = await normAndRender(md);
 
-    const table = msg.blocks.find((b: any) => b.type === 'table');
+    const table = msg.content.find((b: any) => b.type === 'table');
     assert.ok(table, 'table block found');
     const cellChildren = table.rows[0].cells[1].children;
 
-    // Check canonical AST structure
+    // Check Domain content structure
     assert.strictEqual(cellChildren[0].type, 'strong');
     assert.strictEqual(cellChildren[0].children[0].text, '确定状态');
     assert.strictEqual(cellChildren[1].type, 'lineBreak');
@@ -69,7 +70,7 @@ test('Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) rend
     const md = '**State**<br>`code` and *italic*';
     const { msg, html } = await normAndRender(md);
 
-    const p = msg.blocks[0];
+    const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
     const types = p.children.map((c: any) => c.type);
     assert.deepStrictEqual(types, ['strong', 'lineBreak', 'inlineCode', 'text', 'emphasis']);
@@ -90,7 +91,7 @@ test('Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting 
     const md = '**bold `code` bold** and *italic `code` italic* and **bold $x$ bold**';
     const { msg, html } = await normAndRender(md);
 
-    const p = msg.blocks[0];
+    const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
 
     // First node is strong
@@ -115,7 +116,7 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
     const md = '**[bold link](https://example.com/1)** and [**nested bold**](https://example.com/2)';
     const { msg, html } = await normAndRender(md);
 
-    const p = msg.blocks[0];
+    const p = msg.content[0];
     // First: strong containing link
     assert.strictEqual(p.children[0].type, 'strong');
     const link1 = p.children[0].children[0];
@@ -140,7 +141,7 @@ test('Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in 
     const md = 'line1<br>line2<br/>line3<br />line4';
     const { msg, html } = await normAndRender(md);
 
-    const p = msg.blocks[0];
+    const p = msg.content[0];
     const breakCount = p.children.filter((c: any) => c.type === 'lineBreak').length;
     assert.strictEqual(breakCount, 3, 'all 3 breaks recognized');
 

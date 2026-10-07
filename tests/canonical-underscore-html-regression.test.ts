@@ -1,7 +1,7 @@
 /**
  * tests/canonical-underscore-html-regression.test.ts
  * Production regression: Tier-2-class inputs must survive the full
- * normalizeGeminiConversation -> CanonicalHtmlRenderer pipeline without
+ * parseProviderConversation -> composeDomainDocument -> renderDocumentHtml pipeline without
  * <em> being injected into LaTeX-like underscores or file names.
  *
  * Reuses the #636 Tier 2 gate assertions locally (the gate itself,
@@ -12,17 +12,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { normalizeGeminiConversation, CanonicalHtmlRenderer } = require('../src/core/export/canonical/index.js');
-
-function makeContext(bundle: any): any {
-    return {
-        bundle,
-        assets: { resolve: async () => null },
-        locale: 'zh',
-        signal: AbortSignal.timeout(10000),
-        reportProgress: () => {},
-    };
-}
+const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
 
 // Mirrors the #636 Tier 2 gate: LaTeX macro followed by <em> means the parser
 // shattered a formula (e.g. \hat{H}<em>{JC}, \omega<em>a).
@@ -42,10 +34,8 @@ test('full pipeline keeps LaTeX-like underscores and file names intact', async (
         title: 'Underscore regression',
         messages: [{ id: 'm1', role: 'user', content }],
     };
-    const { bundle } = await normalizeGeminiConversation(chat);
-    const renderer = new CanonicalHtmlRenderer();
-    const artifact = await renderer.render(makeContext(bundle));
-    const html = String(artifact.content);
+    const { conversation: domain } = await parseProviderConversation(chat);
+    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
 
     for (const c of CASES) {
         assert.ok(html.includes(c), `expected verbatim output to contain ${JSON.stringify(c)}`);
@@ -65,10 +55,8 @@ test('legit underscore emphasis still renders in HTML', async () => {
         title: 'Underscore legit',
         messages: [{ id: 'm1', role: 'user', content: 'word _italic_ word and __strong__ here' }],
     };
-    const { bundle } = await normalizeGeminiConversation(chat);
-    const renderer = new CanonicalHtmlRenderer();
-    const artifact = await renderer.render(makeContext(bundle));
-    const html = String(artifact.content);
+    const { conversation: domain } = await parseProviderConversation(chat);
+    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
     assert.ok(html.includes('<em>italic</em>'), 'legit _italic_ renders');
     assert.ok(html.includes('<strong>strong</strong>'), 'legit __strong__ renders');
 });

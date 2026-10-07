@@ -3,25 +3,25 @@ import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { normalizeGeminiConversation } from '../src/core/export/canonical/gemini/normalizeConversation.js';
-import { normalizeDomainConversation } from '../src/core/export/canonical/gemini/normalizeDomainConversation.js';
+import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { composeFixture } from './helpers/documentFixture.js';
 
 async function assertDomainParity(conversation: Conversation): Promise<void> {
     const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
     const [legacyResult, domainResult] = await Promise.all([
-        normalizeGeminiConversation(conversation),
-        normalizeDomainConversation(domain, { resourceHints }),
+        composeFixture(parseProviderConversation(conversation).conversation, resourceHints),
+        composeFixture(domain, resourceHints),
     ]);
-    assert.deepEqual(domainResult.bundle, legacyResult.bundle);
+    assert.deepEqual(domainResult.document, legacyResult.document);
 }
 
 const metadata = {
     id: 'd2-conversation',
-    title: 'Canonical parity',
+    title: 'Document parity',
     timestamp: 1_700_000_000_000,
 };
 
-test('Domain normalization matches legacy normalization for an RPC conversation', async () => {
+test('Domain composition preserves provider parsing for an RPC conversation', async () => {
     const conversation: Conversation = {
         ...metadata,
         updatedAt: 1_700_000_001_000,
@@ -34,7 +34,7 @@ test('Domain normalization matches legacy normalization for an RPC conversation'
     await assertDomainParity(conversation);
 });
 
-test('Domain normalization matches legacy normalization for attachments and generated media', async () => {
+test('Domain composition preserves provider parsing for attachments and generated media', async () => {
     const conversation: Conversation = {
         ...metadata,
         messages: [{
@@ -51,7 +51,7 @@ test('Domain normalization matches legacy normalization for attachments and gene
     await assertDomainParity(conversation);
 });
 
-test('Domain normalization matches legacy normalization for citations and documents', async () => {
+test('Domain composition preserves provider parsing for citations and documents', async () => {
     const conversation: Conversation = {
         ...metadata,
         messages: [{
@@ -67,7 +67,7 @@ test('Domain normalization matches legacy normalization for citations and docume
     await assertDomainParity(conversation);
 });
 
-test('Domain normalization matches legacy normalization after flattening turns-only input', async () => {
+test('Domain composition preserves provider parsing after flattening turns-only input', async () => {
     const conversation: Conversation = {
         ...metadata,
         source: 'takeout',
@@ -82,7 +82,7 @@ test('Domain normalization matches legacy normalization after flattening turns-o
     await assertDomainParity(conversation);
 });
 
-test('Domain Canonical output does not depend on message request provenance', async () => {
+test('Domain Document output does not depend on message request provenance', async () => {
     const domain: DomainConversationDetail = {
         ...metadata,
         providerId: 'gemini', assets: [{ id: 'image', kind: 'image', source: { uri: 'https://example.test/image.png' } }],
@@ -92,14 +92,14 @@ test('Domain Canonical output does not depend on message request provenance', as
         }],
     };
     const original = structuredClone(domain);
-    const baseline = await normalizeDomainConversation(domain);
+    const baseline = await composeFixture(domain);
     for (const providerRequestId of ['abcd1234', 'different-request', 'r_R_MixedCase-XyZ', 'OpenAI:AbC']) {
         const withProvenance: DomainConversationDetail = {
             ...domain,
             messages: domain.messages.map((message) => ({ ...message, provenance: { providerRequestId } })),
         };
-        const normalized = await normalizeDomainConversation(withProvenance);
-        assert.deepEqual(normalized.bundle, baseline.bundle);
+        const normalized = await composeFixture(withProvenance);
+        assert.deepEqual(normalized.document, baseline.document);
         assert.deepEqual(normalized.diagnostics, baseline.diagnostics);
     }
     assert.deepEqual(domain, original);
