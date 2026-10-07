@@ -1,7 +1,7 @@
 import type { Conversation } from '../../types/conversation.js';
-import { parseLegacyConversation } from '../domain/legacyConversationAdapter.js';
-import { exportDomainHtml, exportDomainMarkdown, type DomainHtmlExportOptions, type DomainMarkdownExportOptions } from '../export/document/exportDomainDocument.js';
-import { convertHtmlToMarkdown } from "./formatters/htmlConverter.js";
+import { parseLegacyConversation } from '../compatibility/legacyConversationAdapter.js';
+import { exportDomainHtml, exportDomainMarkdown, type DomainHtmlExportOptions, type DomainMarkdownExportOptions } from '../export/exportDomainDocument.js';
+import { convertHtmlToMarkdown } from "../parsers/shared/html/htmlToMarkdown.js";
 import {
     toOpenAIJson,
     toJsonStandard,

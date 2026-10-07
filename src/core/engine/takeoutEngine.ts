@@ -21,11 +21,11 @@ import {
     getStore,
     __slotTakeouts,
     type TakeoutStore
-} from "./takeout/mediaIndex.js";
+} from "../compatibility/takeout/mediaIndex.js";
 import {
     parseTakeoutZip,
     type TakeoutParseResult
-} from "./takeout/takeoutParser.js";
+} from "../compatibility/takeout/takeoutParser.js";
 
 export type { TakeoutStore, TakeoutParseResult };
 

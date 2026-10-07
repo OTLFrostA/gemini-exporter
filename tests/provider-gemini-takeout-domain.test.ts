@@ -1,17 +1,17 @@
-import { parseGeminiTakeoutZipArchive } from '../src/core/provider/gemini/takeoutZipParser.js';
+import { parseGeminiTakeoutZipArchive } from '../src/core/parsers/gemini/takeout/parseZip.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/core/provider/parseConversation.js';
-import { parseGeminiTakeoutArchive, type GeminiTakeoutRaw } from '../src/core/provider/gemini/takeoutConversationParser.js';
-import { decodeTakeoutHtml } from '../src/core/engine/takeout/takeoutEvidence.js';
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseGeminiTakeoutArchive, type GeminiTakeoutRaw } from '../src/core/parsers/gemini/takeout/parseConversation.js';
+import { decodeTakeoutHtml } from '../src/core/parsers/gemini/takeout/decodeHtml.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import { extractBlockText } from '../src/core/content/unknownFallback.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
 
 const ID = 'CaseSensitive_99';
 function activity(prompt = 'Question', answer = '<p><strong>Answer</strong></p>', date = '2026-09-02T12:00:00Z', id = ID, extra = ''): string {
@@ -125,12 +125,12 @@ test('long report HTML becomes authored Content AST without synthetic document I
 });
 
 test('Takeout extraction has no export naming and native parsing does not call compatibility constructors', () => {
-    const old = require('../src/core/engine/takeout/takeoutHtmlParser.js') as { parseTakeoutHtmlBlocks: unknown };
+    const old = require('../src/core/compatibility/takeout/takeoutHtmlParser.js') as { parseTakeoutHtmlBlocks: unknown };
     const saved = old.parseTakeoutHtmlBlocks;
     old.parseTakeoutHtmlBlocks = () => { throw new Error('Compatibility constructor must not run'); };
     try { assert.equal(native({ htmlText: activity() }).conversation.messages.length, 2); }
     finally { old.parseTakeoutHtmlBlocks = saved; }
-    const source = readFileSync(join(__dirname, '../src/core/provider/gemini/takeoutConversationParser.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/takeout/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseTakeoutHtmlBlocks|correlateGeneratedImages|parseConversationRecord|Date\.now|sanitizeFileName|localName/);
     assert.equal(decodeTakeoutHtml(activity())[0].conversationIds[0], ID);
     assert.throws(() => native({ htmlText: 'unsupported format' }), /Unsupported Takeout/);
@@ -159,7 +159,7 @@ test('ZIP parsing rejects malformed inventories, unverifiable HTML sizes and amb
     const data = new Uint8Array([1]);
     await assert.rejects(parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: async () => ({}) }), /inventory/);
     await assert.rejects(parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data,
-        readArchive: async () => ({ files: { 'MyActivity.html': { async: async () => activity() } } }) }), /size/);
+        readArchive: async () => ({ files: { 'MyActivity.html': { async: async () => activity() } } }) }), /size|大小/);
     await assert.rejects(parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data,
         readArchive: async () => ({ files: { 'a/MyActivity.html': { _data: { uncompressedSize: 0 } }, 'b/MyActivity.html': { _data: { uncompressedSize: 0 } } } }) }), /activityPath/);
 });

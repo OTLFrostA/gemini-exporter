@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import type { DocumentAst } from '../src/core/export/document/ast.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
+import type { DocumentAst } from '../src/core/document/ast/ast.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { formatHtmlDocument } from '../src/core/engine/chatFormatter.js';
 
 function fixture(): DomainConversationDetail {
@@ -111,7 +111,7 @@ test('empty state is composed and locale is explicit', () => {
 });
 
 test('actual HTML backend has no semantic model or presentation inference imports', () => {
-    const source = readFileSync('src/core/export/document/renderHtml.ts', 'utf8');
+    const source = readFileSync('src/core/renderers/html/renderHtml.ts', 'utf8');
     assert.doesNotMatch(source, /CanonicalConversationBundle|MessageRole|assetPresentation|citationDisplayLabel|extractBlockText|\.role\b|new Date\(/);
     assert.doesNotMatch(source, /from ['"][^'"]*(?:domain|provider|canonical)/);
 });

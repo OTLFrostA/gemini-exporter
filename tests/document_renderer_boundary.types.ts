@@ -1,10 +1,10 @@
-import type { DocumentAst } from '../src/core/export/document/ast.js';
+import type { DocumentAst } from '../src/core/document/ast/ast.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import type { PdfCompileContext, TypstRenderPayload } from '../src/core/export/pdf/pdfCompiler.js';
 
 function rendererBoundary(semantic: DomainConversationDetail): void {
@@ -61,5 +61,5 @@ function pdfPipelineBoundary(domain: DomainConversationDetail): void {
 void pdfPipelineBoundary;
 
 // @ts-expect-error Diagnostic types live in the independent diagnostics module.
-import type { DocumentDiagnostic } from '../src/core/export/document/ast.js';
+import type { DocumentDiagnostic } from '../src/core/document/ast/ast.js';
 void (null as unknown as DocumentDiagnostic);

@@ -1,4 +1,4 @@
-import type { BlockNode } from '../content/blocks.js';
+import type { BlockNode } from './content/blocks.js';
 
 /** Provider-neutral description of a complete conversation detail. */
 export type DomainMessageRole =

@@ -7,7 +7,7 @@
  * 拉字体/WASM, 不允许任何遥测外发。
  *
  * 用法 (Phase D sandbox 落地后一行接入):
- *   import { withNetworkGate, assertZeroExternalRequests } from '../helpers/compileNetworkGate.js';
+ *   import { withNetworkGate, assertZeroExternalRequests } from './compileNetworkGate.js';
  *   const gated = await withNetworkGate(() => sandboxCompiler.compile(payload));
  *   assertZeroExternalRequests(gated, 'typst-sandbox-compile');
  *   const pdfBytes = gated.result;

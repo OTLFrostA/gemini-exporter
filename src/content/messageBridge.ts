@@ -1,5 +1,5 @@
 import { contentContext } from './contentContext.js';
-import { GeminiResponseParserClass } from '../core/api/geminiParser.js';
+import { GeminiResponseParserClass } from '../core/compatibility/gemini/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { LiveSaveObserver } from './liveSaveObserver.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';

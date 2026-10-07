@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DocumentAst, DisplayInline } from '../src/core/export/document/ast.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import type { DocumentAst, DisplayInline } from '../src/core/document/ast/ast.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import { TypstSandboxCompiler, stripConvertedMath } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';

@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const {
     resolveLocalFonts,

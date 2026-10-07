@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getAllConversations, getConversationDetail, isPaginationExhaustive } from '../src/core/api/client/pagination.js';
 import type { GeminiPaginationListClient, GeminiPaginationDetailClient, PaginationOptions, PaginationResult, PaginationProgressInfo, PaginatedDetailResult, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
-import type { ConversationListItem, ListParseResult, DetailParseResult } from '../src/core/api/geminiParser.js';
-import { parseList } from '../src/core/api/parser/parseList.js';
-import type { ListParseDiagnostics } from '../src/core/api/parser/parseList.js';
+import type { ConversationListItem, ListParseResult, DetailParseResult } from '../src/core/compatibility/gemini/geminiParser.js';
+import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
+import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
 import type { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
 function item(id: string): ConversationListItem {

@@ -1,7 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const OpenAiParser = require('../src/core/engine/takeout/openaiParser.js');
+const OpenAiParser = require('../src/core/compatibility/openai/openaiParser.js');
 
 function node(id: string, parent: string | null, message: any, children: string[] = []) {
     return { id, parent, children, message };

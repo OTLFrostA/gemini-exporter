@@ -17,7 +17,7 @@ test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corr
 });
 
 test('assetFetcher & attachments - bare /gg/ and /rd-gg/ URLs normalize to authoritative =s0 rendition', () => {
-    const { highResVariant } = require('../src/core/api/parser/attachments.js');
+    const { highResVariant } = require('../src/core/compatibility/gemini/attachments.js');
     const bareGg = 'https://lh3.googleusercontent.com/gg/AN-53XYZ1234567890';
     assert.strictEqual(highResVariant(bareGg), `${bareGg}=s0`, 'highResVariant appends =s0 to bare /gg/');
     assert.strictEqual(highResVariant(`${bareGg}?authuser=0`), `${bareGg}=s0?authuser=0`, 'highResVariant preserves queries on bare /gg/');

@@ -125,7 +125,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
 // 3. JSPB Schema Constants in extractors.ts
 // =========================================================================
 test('Batch 4 - extractors.ts hasTurnContentMarkers uses GEMINI_JSPB_SCHEMA constants', () => {
-    const extractorsPath = path.join(__dirname, '../src/core/api/parser/extractors.ts');
+    const extractorsPath = path.join(__dirname, '../src/core/parsers/gemini/rpc/extractors.ts');
     const src = fs.readFileSync(extractorsPath, 'utf-8');
     const fnMatch = src.match(/function hasTurnContentMarkers[\s\S]*?return false;\s*\}/);
     assert.ok(fnMatch, 'hasTurnContentMarkers must exist in extractors.ts');

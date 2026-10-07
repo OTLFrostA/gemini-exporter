@@ -1,7 +1,7 @@
 import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
 import type { DocumentDiagnostic as TypstAdapterDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
-import { renderDocumentTypst } from '../../document/renderTypst.js';
-import { convertMathWithMitex, initMitexWasm } from '../../typst/mathConverter.js';
+import { renderDocumentTypst } from '../../../renderers/typst/renderTypst.js';
+import { convertMathWithMitex, initMitexWasm } from '../../../renderers/typst/mathConverter.js';
 import { getErrorMessage } from '../../../utils/messaging.js';
 import {
     type PayloadStageInput,

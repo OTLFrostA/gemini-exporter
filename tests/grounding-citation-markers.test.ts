@@ -4,13 +4,13 @@ const assert = require('node:assert/strict');
 
 const {
     extractGroundingCitationMarkers,
-} = require('../src/core/api/parser/extractors.js');
+} = require('../src/core/parsers/gemini/rpc/extractors.js');
 const {
     parseDetail,
-} = require('../src/core/api/parser/parseDetail.js');
+} = require('../src/core/compatibility/gemini/parseDetail.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 test('extractGroundingCitationMarkers extracts declared markers from JSPB candidate metadata', () => {

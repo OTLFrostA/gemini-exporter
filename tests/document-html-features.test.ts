@@ -2,8 +2,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
     return { providerId: 'gemini', id: 'c1', title: 't', timestamp: null, assets, messages };

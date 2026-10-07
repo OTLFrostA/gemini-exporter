@@ -48,39 +48,44 @@ src/
       gemini/                  Gemini platform adapter
         geminiProvider.ts      batchexecute RPC provider implementation
 
-    api/                       Protocol Communication & Deserialization
-      geminiClient.ts          batchexecute RPC client facade (abort, retry, token refresh)
-      geminiParser.ts          Protocol parsing, turns, attachments & title extraction facade
-      client/                  Granular RPC & Credential Sub-modules
-        credentialManager.ts   SNlM0e token, session slot & credential resolution
-        pagination.ts          batchexecute pagination & list/detail cursor fetching
-        retryPolicy.ts         Exponential backoff, 400 XSRF auto-refresh & 429 backoff
-        rpcClient.ts           batchexecute payload construction & envelope parsing
-        credStorage.ts         Credential cache storage helper
-      parser/                  Granular Wire Format Parsing Sub-modules
-        parseList.ts           batchexecute conversation list item extraction
-        parseDetail.ts         Multi-turn conversation recursion & schema drift detection
-        extractors.ts          Thought blocks, candidate text, citations & title extractors
-        attachments.ts         Image, user file, and Deep Research document attachments
-        payload.ts             Low-level JSPB payload unpackers
+    api/                       Network clients, credentials, pagination and retries
+      geminiClient.ts          Existing client; persisted result stays unchanged
+      client/                  RPC transport and credential submodules
 
-    engine/                    Export, Conversion & Packaging Engines
-      exportEngine.ts          Export pipeline coordinator facade (delegates to ExportOrchestrator)
-      export/                  Export Execution Sub-modules
-        exportOrchestrator.ts  Batch export orchestration & AsyncQueue worker pool
-        batchWorker.ts         Individual conversation worker (fetch -> parse)
-        parseDrift.ts          Schema drift telemetry & diagnostic warning tracker
-        rateLimiter.ts         Adaptive rate limiting & circuit breaker state machine
-        progressReporter.ts    Real-time progress, ETA, and throughput calculation
-        sessionRecovery.ts     Session recovery persistence & crash resumption
-      takeoutEngine.ts         Google Takeout archive parser facade
-      takeout/                 Takeout Sub-modules
-        takeoutParser.ts       Takeout ZIP archive parser & entry iterator (in-memory JSZip)
-        takeoutHtmlParser.ts   Offline HTML stripper & prompt title extractor
-        mediaIndex.ts          C2PA metadata timestamp extraction & media pool mapping
-        zipBombGuard.ts        ZIP bomb security validation (entry count, archive & uncompressed bounds)
-      template/                Standalone HTML Rendering Templates
-        htmlTemplate.ts        Shared Document HTML styles/scripts and escaping/URL helpers
+    parsers/                   Raw source decoding and direct Domain construction
+      contracts.ts             Source parser context/result contracts (diagnostics beside Domain)
+      parseConversation.ts     Explicit format dispatcher; conversation-record is a migration bridge
+      gemini/rpc/              Wire extraction, source media and raw RPC → Domain
+      gemini/takeout/           Activity HTML and ZIP bytes → Domain
+      gemini/shared/            Gemini structured content and Markdown interpretation
+      shared/                  Markdown/HTML, archive validation and resource/citation closure
+
+    domain/                    Long-term semantic conversation contract and closure checks
+      content/                 Content AST nodes, source references and semantic tree visitors
+
+    document/
+      ast/                     Format-neutral Document AST and resource reference visitors
+      compose/                 Domain → Document AST composition
+
+    renderers/                 Document AST + prepared resources → format output
+      html/                    HTML renderer, template and math presentation
+      markdown/                Markdown renderer
+      typst/                   Typst renderer, templates, layout, math and private payload
+      shared/                  Renderer options, strings and shared presentation policy
+
+    compatibility/             Existing record/output behavior until producers migrate
+      gemini/                  RPC facade, legacy filenames/paths and persisted detail projection
+      takeout/                 Existing Takeout importer and inferred media correlation
+      openai/                  Prototype archive importer; native Domain parser still pending
+      record/                  Existing application record → Domain bridge
+      archive/                 Existing localized ZIP guard errors
+
+    diagnostics/               Parsing, composition and rendering problem records
+
+    engine/                    Application export/import orchestration and writers
+      exportEngine.ts          Batch export coordinator facade
+      export/                  Workers, rate limiting, progress, recovery and completion
+      takeoutEngine.ts         Existing Takeout import/cache facade
       chatFormatter.ts         Async Domain → Document AST Markdown/HTML facade; synchronous JSON & OpenAI serialization
       liveSaveWriter.ts        Async Document Markdown live-save formatting and FileSystem disk writes
       assetPipeline.ts         Media asset downloading & relative-path archive packaging
@@ -89,15 +94,11 @@ src/
         zipWriter.ts           JSZip in-memory zip packaging writer (STORE mode for binary media)
         fsWriter.ts            FileSystem Access API directory tree writer
 
-    export/                    Domain-to-document composition & backend orchestration
-      document/                Format-neutral Document AST and direct Domain composer
-        composeDomainDocument.ts Logical message, resource, reasoning and source organization
-        renderHtml.ts          HTML backend (CSS, controls, escaping)
-        renderMarkdown.ts      Markdown backend (GFM projection, escaping)
-        renderTypst.ts         PDF backend lowering to private Typst transport
-      assets/                  Preparation hints, prepared bytes and image validation
-      typst/                   Private transport, physical layout and sandbox compiler
-      pdf/pipeline/            Resource mounts, payload, compile & delivery stages
+    export/                    Resource preparation, compilation and delivery orchestration
+      exportDomainDocument.ts  Coordinates composition, resource preparation and rendering
+      assets/                  Acquisition bytes and export/archive path naming
+      pdf/                     PDF preparation and pipeline
+      typst/                   Sandbox compiler, protocol and local font acquisition
 
     storage/                   Storage Abstraction & Persistence Layer
       storageService.ts        Multi-account slot chrome.storage.local abstraction & two-tier storage coordinator
@@ -197,7 +198,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 
 1. **Zero DOM Dependencies in Core (Zero DOM Baseline & Layered Browser API Policy)**:
    `src/core/` organizes modules by domain responsibility with a strict boundary on browser API usage:
-   - **Strict Zero-DOM / Zero-Browser-API Layer (Pure Logic)**: Response parsers (`api/parser/*`), formatters (`chatFormatter.ts`, `template/htmlTemplate.ts`), pure utilities (`titleUtils.ts`, `mergeUtils.ts`, `pathUtils.ts`, `progressUtils.ts`, `chipUtils.ts`), protocol constants (`protocol/*`), and provider interfaces (`aiProvider.ts`). These modules never touch `document`, `HTMLElement`, or `window`, running identically in Node.js unit tests, Service Workers, and UI pages.
+   - **Strict Zero-DOM / Zero-Browser-API Layer (Pure Logic)**: Response parsers (`parsers/*`), formatters (`chatFormatter.ts`, `renderers/html/htmlTemplate.ts`), pure utilities (`titleUtils.ts`, `mergeUtils.ts`, `pathUtils.ts`, `progressUtils.ts`, `chipUtils.ts`), protocol constants (`protocol/*`), and provider interfaces (`aiProvider.ts`). These modules never touch `document`, `HTMLElement`, or `window`, running identically in Node.js unit tests, Service Workers, and UI pages.
    - **Runtime Infrastructure Layer (Standard Browser APIs Allowed, Zero DOM Rendering)**: API client (`api/client/*`), storage (`storage/*`), writers (`writers/*`), tab routing (`tabService.ts`), and export orchestration (`exportOrchestrator.ts`). These may use standard runtime APIs (`fetch`, `chrome.*`, `IndexedDB`, `FileSystem Access API`, plus read-only `querySelectorAll("script")` in `credentialManager.ts` and legacy `(window as any).__gemExporterAborted` fallback in `geminiClient.ts`/`pagination.ts`), but **never perform DOM rendering or mutation**, which belongs exclusively to `src/ui/` (including `src/ui/utils/domI18n.ts`) and `src/content/`.
 2. **Strict UI Separation of Concerns**:
    - `state/`: Unidirectional data flow and reactive conversation state machine;
@@ -233,3 +234,9 @@ In protected production core code, `as any`, explicit `any`, `any[]`, and
 `Record<string, any>` are forbidden. `unknown` is allowed; type narrowing is
 preferred. Double-cast bypasses such as `as unknown as SomeType` and lint
 suppression comments are forbidden by review.
+
+## Semantic dependency boundaries
+
+The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Domain and Document AST do not import parsers or output backends. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. The unified dispatcher has an explicit, limited dependency on the existing conversation-record bridge.
+
+The storage directory, persisted conversation shape, storage keys and serializers are unchanged. A directory move does not mean the corresponding production caller has migrated to raw → Domain. See [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).

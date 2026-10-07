@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 
 import * as GeminiUtils from '../src/core/utils/utils.js';
-import * as GeminiParser from '../src/core/api/geminiParser.js';
+import * as GeminiParser from '../src/core/compatibility/gemini/geminiParser.js';
 
 
 test('GeminiUtils.getEffectiveTimestamp - hierarchy and type safety', () => {

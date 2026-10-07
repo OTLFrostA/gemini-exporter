@@ -1,11 +1,11 @@
-import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/provider/gemini/takeoutConversationParser.js';
-import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/provider/gemini/takeoutZipParser.js';
-import type { ConversationParser, ConversationParseResult } from '../src/core/domain/parsing.js';
+import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
+import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/parsers/gemini/takeout/parseZip.js';
+import type { ConversationParser, ConversationParseResult } from '../src/core/parsers/contracts.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { parseConversation } from '../src/core/provider/parseConversation.js';
-import { parseConversationRecord } from '../src/core/provider/record/parseConversationRecord.js';
-import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/core/provider/gemini/rpcConversationParser.js';
-import type { ConversationRecordInput } from '../src/core/provider/record/conversationRecord.js';
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseConversationRecord } from '../src/core/compatibility/record/parseConversationRecord.js';
+import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import type { ConversationRecordInput } from '../src/core/compatibility/record/conversationRecord.js';
 
 // Raw decoders need no legacy Conversation, export hints, storage schema or Gemini input type.
 const syncRawParser: ConversationParser<{ text: string }> = (raw, context) => ({

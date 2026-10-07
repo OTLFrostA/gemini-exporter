@@ -17,9 +17,9 @@
 import { test, expect } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
-import { composeDomainDocument } from '../../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentTypst } from '../../src/core/export/document/renderTypst.js';
-import type { TypstConversationRenderPayload } from '../../src/core/export/typst/transport.js';
+import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
+import type { TypstConversationRenderPayload } from '../../src/core/renderers/typst/transport.js';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 

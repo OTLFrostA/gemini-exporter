@@ -1,4 +1,4 @@
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,11 +6,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { normalizeLegacyAttachments } from '../src/core/provider/legacyAttachmentAdapter.js';
-import { structuredBodyAttachments } from '../src/core/provider/gemini/contentAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
+import { structuredBodyAttachments } from '../src/core/compatibility/gemini/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 
 const metadata = { id: 'resources', title: 'Resources', timestamp: null };
 const generation = { chatId: metadata.id, providerRequestId: 'abcdef0123456789', time: 1700000000123,
@@ -218,8 +218,8 @@ test('Composer trusts explicit Domain resources and ignores runtime legacy alias
 });
 
 test('shared Composer and Domain consumption have no legacy resource alias reconciliation', () => {
-    for (const file of ['src/core/domain/closure.ts', 'src/core/export/document/composeDomainDocument.ts',
-        'src/core/export/document/composeContent.ts']) {
+    for (const file of ['src/core/domain/closure.ts', 'src/core/document/compose/composeDomainDocument.ts',
+        'src/core/document/compose/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /mergeMessageAttachments|reconcileLegacyMediaLists|structuredBodyAttachments|attachments\.includes|\bimages\??:|\bdocuments\??:/);
     }

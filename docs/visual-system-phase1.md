@@ -1,6 +1,6 @@
 # Visual system Phase 1
 
-The shared contract is `src/core/export/visualContract.ts`. HTML consumes it directly; the sandbox mounts its serialized JSON for Typst. Print uses native units, while retaining the same content/prose ratio, type hierarchy, and spacing order.
+The shared contract is `src/core/renderers/shared/visualContract.ts`. HTML consumes it directly; the sandbox mounts its serialized JSON for Typst. Print uses native units, while retaining the same content/prose ratio, type hierarchy, and spacing order.
 
 - Content 880px / prose 720px; PDF content166mm and proportionally narrower prose. Paragraphs/headings/lists/quotes use prose; code/table/media/display math retain content measure.
 - Five gaps: inline6 < paragraph12 < block18 < section30 < turn40. Print converts gaps to pt; keep-together rules remain separate.

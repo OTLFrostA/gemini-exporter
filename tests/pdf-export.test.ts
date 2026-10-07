@@ -96,9 +96,9 @@ function makeValidPdf(padBytes: number): Uint8Array {
 
 test('stub compiler returns a parseable minimal PDF', async () => {
     const compiler = new StubPdfCompiler();
-    const { conversation } = require('../src/core/provider/conversationParser.js').parseProviderConversation(sample);
-    const ast = require('../src/core/export/document/composeDomainDocument.js').composeDomainDocument(conversation).document;
-    const document = require('../src/core/export/document/renderTypst.js').renderDocumentTypst(ast, {});
+    const { conversation } = require('../src/core/compatibility/conversationParser.js').parseProviderConversation(sample);
+    const ast = require('../src/core/document/compose/composeDomainDocument.js').composeDomainDocument(conversation).document;
+    const document = require('../src/core/renderers/typst/renderTypst.js').renderDocumentTypst(ast, {});
     const ctx: any = {
         assets: { resolve: async () => null },
         signal: new AbortController().signal,

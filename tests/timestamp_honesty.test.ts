@@ -12,8 +12,8 @@ const assert = require('node:assert');
 // readers (getEffectiveTimestamp, checkIsUpdated, pagination) already treat
 // null as unknown via toTimestampMs(...) ?? 0.
 
-const { parseDetail } = require('../src/core/api/parser/parseDetail.js');
-const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+const { parseDetail } = require('../src/core/compatibility/gemini/parseDetail.js');
+const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
 
 // --- parseDetail: a turn whose payload carries NO timestamp candidates ---
 // extractTurnTimestamp reads turn[1], turn[4], turn[5], turn[last]; all are

@@ -8,7 +8,7 @@ import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/m
 import type { GeminiProviderContract, GeminiProviderConversationItem, GeminiProviderPageResult, GeminiProviderListOptions } from '../src/core/provider/gemini/geminiContracts.js';
 import { getAllConversations } from '../src/core/api/client/pagination.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
-import type { ListParseResult } from '../src/core/api/parser/parseList.js';
+import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
 import type { PaginationCompletionReason, PaginationStopDecision, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
 import type { Conversation } from '../src/types/conversation.js';
 import { GeminiProtocol } from '../src/core/protocol/protocol.js';

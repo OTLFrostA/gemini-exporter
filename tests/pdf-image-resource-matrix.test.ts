@@ -6,7 +6,7 @@ import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js'
 import { MAX_ASSET_BYTES, buildVirtualAssetPath } from '../src/core/export/assets/imageContent.js';
 import { sha256Hex } from '../src/core/export/assets/sha256.js';
 import type { PreparedResource } from '../src/core/export/assets/preparedResources.js';
-import type { DocumentAst } from '../src/core/export/document/ast.js';
+import type { DocumentAst } from '../src/core/document/ast/ast.js';
 function sha256hex(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
 const PATH_RE = /^assets\/sha256\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{64}\.[a-z0-9]+$/;
 async function mount(resources: Record<string, PreparedResource>, ids = Object.keys(resources)) {

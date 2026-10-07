@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { parseMarkdownAst } from '../src/core/content/markdown/parseMarkdown.js';
+import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
 import assert from 'node:assert/strict';
 import { extractMarkdownResourceReferences } from '../scripts/extract_markdown_resource_refs.js';
 
@@ -19,8 +19,8 @@ test('syntax helper emits external references for the archive resolver to classi
     ]);
 });
 
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';

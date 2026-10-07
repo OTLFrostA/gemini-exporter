@@ -2,10 +2,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { getRendererStrings } = require('../src/core/export/document/renderStrings.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 function domainFixture(messages: any[], extra: any = {}) { return { providerId: 'gemini', id: 'c1', title: 't', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages, ...extra }; }
 

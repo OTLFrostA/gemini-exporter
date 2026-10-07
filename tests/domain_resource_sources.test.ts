@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Conversation } from '../src/types/conversation.js';
-import { parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { prepareDomainResources } from '../src/core/export/document/prepareDomainResources.js';
+import { parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
 
 const base = { id: 'resource-sources', title: '', timestamp: null };
 

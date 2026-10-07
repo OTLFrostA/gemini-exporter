@@ -24,10 +24,15 @@
 
 Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解耦为 **主世界网络嗅探层**、**隔离世界内容脚本层**、**后台服务工作线程 (Service Worker)**、**跨平台通用 Provider 与解析核心**、**领域导出/打包引擎**、**响应式持久化层** 以及 **用户界面展示层**。
 
+语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，现有数据格式的转换属于 `compatibility/`，问题记录属于 `diagnostics/`。目录移动不改变 storage 或用户升级数据格式，也不表示生产 parser 迁移已经完成。
+
+依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有统一解析入口可显式调用现有 `conversation-record` 兼容桥。具体目录见 [Source Directory Guide](../src/README.md)。
+
 文档导出的内部会话表示只有 Domain 和 Document AST 两层：
 
 ```text
-raw/provider input → parseProviderConversation → Domain
+raw input → parsers/parseConversation → Domain
+existing record → compatibility/record ────────┘
                                                ↓ composeDomainDocument
                                           Document AST
                                                ├─ HTML backend
@@ -88,9 +93,9 @@ graph TD
             PROV_Gemini["GeminiProvider<br/>(Gemini batchexecute 协议适配)"]
         end
 
-        subgraph ApiParserLayer ["协议通信与反序列化层 (src/core/api/)"]
+        subgraph ApiParserLayer ["协议通信 (api/) 与来源解析 (parsers/)"]
             API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager / credStorage (严格单向隔离)"]
-            API_Parser["GeminiParser (facade)<br/>parseList / parseDetail / extractors / attachments / payload"]
+            API_Parser["parsers/gemini/rpc & takeout<br/>兼容输出 facade 位于 compatibility/gemini"]
         end
 
         subgraph ExportEngines ["导出、转换与打包引擎 (src/core/engine/)"]
@@ -199,17 +204,17 @@ graph TD
 | `src/core/provider/gemini/geminiProvider.ts` | Core: Provider | `GeminiProvider` (实现 `AIProvider`) | Gemini 平台适配器，封装 batchexecute RPC 调用与多账号 Slot 映射。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. | `providerRegistry.ts` | `geminiClient`, `geminiParser` | `PROV_Gemini` |
 | `src/core/provider/index.ts` | Core: Provider | `export *` (Barrel) | 统一导出多模型提供商契约、具体适配器与注册表单例。 | 业务消费方 | Provider 子模块 | `PROV_Registry` |
 | `src/core/api/geminiClient.ts` | Core: API | `GeminiAPIClient` (Facade) | 统一客户端入口，封装身份认证、分页抓取、指数退避重试与 AbortSignal 控制。 | `geminiProvider`, `syncEngine`, `exportWorker` | `client/*` 子模块 | `API_Client` |
-| `src/core/api/geminiParser.ts` | Core: API | `GeminiParser`（含 `GeminiResponseParserClass` facade） | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |
+| `src/core/compatibility/gemini/geminiParser.ts` | Core: API | `GeminiParser`（含 `GeminiResponseParserClass` facade） | 统一反序列化入口，解析 Protobuf/JSPB 复杂嵌套数组，提取轮次、思维链与附件。 | `geminiClient`, `messageBridge` | `parser/*` 子模块 | `API_Parser` |
 | `src/core/api/client/credentialManager.ts` | Core: API Client | `resolveCred`, `getAtFromPage`, `detectSlot` | 统一管理 SNlM0e、at、sid 等鉴权凭据；严格按账号 Slot 单向解析，严禁跨账号借调偷用 Token。 | `geminiClient.ts` | `credStorage.ts` | `API_Client` |
 | `src/core/api/client/credStorage.ts` | Core: API Client | `getCredStorage`, `markCredSessionAccessFailed` | 统一管理凭据在 `chrome.storage.session` 与内存降级回退模式之间的安全存取。 | `credentialManager.ts` | `chrome.storage.session` / 内存 | `API_Client` |
 | `src/core/api/client/pagination.ts` | Core: API Client | `getAllConversations`, `getConversationDetail` | 封装 batchexecute 游标翻页机制与超时控制；默认最多翻 2000 页（`maxPages = 2000`），超限时标记 stoppedEarly 阻止 reconcile 误删。 | `geminiClient.ts` | `rpcClient.ts` | `API_Client` |
 | `src/core/api/client/retryPolicy.ts` | Core: API Client | `handleHttp400` / `handleHttp401` / `handleHttp429` / `interruptibleSleep` / `parseRetryAfterMs` | 处理 HTTP 400（XSRF 过期刷新）、401（凭证失效）、429（频率限制）的指数退避与重试策略。 | `geminiClient.ts` | 网络请求调用 | `API_Client` |
 | `src/core/api/client/rpcClient.ts` | Core: API Client | `postBatchexecute`, `getApiUrl` | 构造 batchexecute 原始 POST 请求负载、组装 RPC 封包并处理响应转义。 | `geminiClient.ts` | `window.fetch` | `API_Client` |
-| `src/core/api/parser/parseList.ts` | Core: API Parser | `parseList`, `extractListItemTimestamp` | 从 batchexecute 响应中提取会话列表项（ID、标题、修改时间）。 | `geminiParser.ts` | 原始数组 -> 会话摘要列表 | `API_Parser` |
-| `src/core/api/parser/parseDetail.ts` | Core: API Parser | `parseDetail`, `detectTurnSchemaDrift` | 递归遍历多轮对话数组，提取提问/回复角色、时间戳并检测 Schema 漂移。 | `geminiParser.ts` | 原始数组 -> 轮次列表 (`ChatMessage[]`) | `API_Parser` |
-| `src/core/api/parser/extractors.ts` | Core: API Parser | `extractCandidateText`, `extractThoughts`, `extractCitations` | 提取模型思考推理过程（Thought Blocks）、候选回答文本与网络引用链接。 | `parseDetail.ts` | 候选数据块 -> 纯文本与引用元数据 | `API_Parser` |
-| `src/core/api/parser/attachments.ts` | Core: API Parser | `extractImages`, `extractUserFiles`, `extractDocumentsMeta` | 提取图片附件（含 Imagen 生成图与用户上传图）、文件与 Deep Research 报告。 | `parseDetail.ts` | 附件原始元数据 -> `Attachment[]` | `API_Parser` |
-| `src/core/api/parser/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `parseDetail.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |
+| `src/core/parsers/gemini/rpc/parseList.ts` | Core: API Parser | `parseList`, `extractListItemTimestamp` | 从 batchexecute 响应中提取会话列表项（ID、标题、修改时间）。 | `geminiParser.ts` | 原始数组 -> 会话摘要列表 | `API_Parser` |
+| `src/core/compatibility/gemini/parseDetail.ts` | Core: API Parser | `parseDetail`, `detectTurnSchemaDrift` | 递归遍历多轮对话数组，提取提问/回复角色、时间戳并检测 Schema 漂移。 | `geminiParser.ts` | 原始数组 -> 轮次列表 (`ChatMessage[]`) | `API_Parser` |
+| `src/core/parsers/gemini/rpc/extractors.ts` | Core: API Parser | `extractCandidateText`, `extractThoughts`, `extractCitations` | 提取模型思考推理过程（Thought Blocks）、候选回答文本与网络引用链接。 | `parseDetail.ts` | 候选数据块 -> 纯文本与引用元数据 | `API_Parser` |
+| `src/core/compatibility/gemini/attachments.ts` | Core: API Parser | `extractImages`, `extractUserFiles`, `extractDocumentsMeta` | 提取图片附件（含 Imagen 生成图与用户上传图）、文件与 Deep Research 报告。 | `parseDetail.ts` | 附件原始元数据 -> `Attachment[]` | `API_Parser` |
+| `src/core/parsers/gemini/rpc/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `parseDetail.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
 | `src/core/engine/export/batchWorker.ts` | Core: Engine | `fetchChatDetail` / `resolveChat` | 独立执行单条会话详情抓取与解析（RPC 请求与详情解析），实际导出装配由 `exportOrchestrator` 协调。 | `exportOrchestrator.ts` | `geminiClient`, `conversationDetailStore` | `ENG_Worker` |
@@ -218,11 +223,11 @@ graph TD
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
 | `src/core/engine/takeoutEngine.ts` | Core: Engine | `TakeoutEngine` (Facade) | Google Takeout 历史导入与脱机解析统一门面。 | UI 控制器、测试用例 | `takeout/*` 子模块 | `ENG_Takeout` |
-| `src/core/engine/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 解析官方 Takeout ZIP 归档（JSZip 全量载入，非流式），提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
-| `src/core/engine/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
-| `src/core/engine/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
-| `src/core/engine/takeout/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
-| `src/core/engine/template/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Document HTML backend 使用的共享样式、交互脚本和安全输出 helpers。 | `renderHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
+| `src/core/compatibility/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 解析官方 Takeout ZIP 归档（JSZip 全量载入，非流式），提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | `takeoutHtmlParser.ts`, `mediaIndex.ts` | `ENG_Takeout` |
+| `src/core/compatibility/takeout/takeoutHtmlParser.ts` | Core: Engine | `parseTakeoutHtmlBlocks` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 针对 Takeout 离线 HTML 文本进行结构化清洗，提取提问时间戳与前缀临时标题。 | `takeoutParser.ts` | HTML 文本 -> 结构化会话对象 | `ENG_Takeout` |
+| `src/core/compatibility/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
+| `src/core/parsers/shared/archive/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
+| `src/core/renderers/html/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Document HTML backend 使用的共享样式、交互脚本和安全输出 helpers。 | `renderHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
 | `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownDocument` / `formatHtmlDocument` / `toOpenAIJson` / `formatContent`） | Markdown / HTML 通过 parser → Domain → Document AST → backend 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |

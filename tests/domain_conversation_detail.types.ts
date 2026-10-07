@@ -1,6 +1,6 @@
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainAsset, DomainConversationDetail, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail } from '../src/core/compatibility/legacyConversationAdapter.js';
 
 const legacyConversation: Conversation = {
     id: 'typed-conversation',
@@ -17,7 +17,7 @@ const typedDomainResult: DomainConversationDetail = domainConversation;
 void acceptedLegacyInput;
 void typedDomainResult;
 
-import type { BlockNode } from '../src/core/content/blocks.js';
+import type { BlockNode } from '../src/core/domain/content/blocks.js';
 const body = (text: string): BlockNode[] => text ? [{ type: 'paragraph', children: [{ type: 'text', text }] }] : [];
 
 // The Domain boundary accepts provider-neutral roles only.

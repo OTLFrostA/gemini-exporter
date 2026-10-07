@@ -2,9 +2,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 function domainFixture(blocks: any[], extra: any = {}) {
     return { providerId: 'gemini', id: 'c1', title: 'Matrix', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] };

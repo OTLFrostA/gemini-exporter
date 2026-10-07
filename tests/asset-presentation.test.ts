@@ -1,10 +1,10 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { assetPresentation, isHumanMeaningfulFilename } = require('../src/core/export/document/resourcePresentation.js');
-const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { assetPresentation, isHumanMeaningfulFilename } = require('../src/core/document/compose/resourcePresentation.js');
+const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 test('asset labels suppress opaque storage names and preserve meaningful multilingual names', () => {

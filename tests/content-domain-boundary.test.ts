@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 
 const metadata = { id: 'semantic', title: 'Semantic input', timestamp: null, providerId: 'other', assets: [] };
 
 test('Document composition contains no body parsing or provider-format decisions', () => {
     for (const file of ['composeDomainDocument.ts', 'composeContent.ts']) {
-        const source = readFileSync(join(__dirname, '../src/core/export/document', file), 'utf8');
+        const source = readFileSync(join(__dirname, '../src/core/document/compose', file), 'utf8');
         assert.doesNotMatch(source, /parseMarkdown|parseGemini|preprocessGemini|structuredContent|geminiStructuredTo/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:api\/parser|provider\/gemini)[^'"]*['"]/);
     }

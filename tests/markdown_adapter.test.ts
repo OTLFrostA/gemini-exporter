@@ -17,9 +17,9 @@ const {
     mdastRootToBlocks,
     adaptInlines,
     mergeAdjacentTextNodes,
-} = require('../src/core/content/markdown/index.js');
+} = require('../src/core/parsers/shared/markdown/index.js');
 
-const { preprocessGeminiMarkdown } = require('../src/core/provider/gemini/markdownCompatibility.js');
+const { preprocessGeminiMarkdown } = require('../src/core/parsers/gemini/shared/markdownCompatibility.js');
 // This corpus includes captured Gemini compatibility evidence; preprocess at its input boundary.
 function parseMarkdownToBlocks(text: string, prefix: string, ctx: any) {
     return parseGenericMarkdownToBlocks(preprocessGeminiMarkdown(text), prefix, ctx);

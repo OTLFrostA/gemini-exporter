@@ -173,7 +173,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
 });
 
 test('takeout_engine - extractC2PATimestamp extracts ISO timestamp from C2PA binary block', () => {
-    const MediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
+    const MediaIndex = require('../src/core/compatibility/takeout/mediaIndex.js');
     assert.strictEqual(MediaIndex.extractC2PATimestamp(null), null);
     assert.strictEqual(MediaIndex.extractC2PATimestamp(Buffer.from('hello world')), null);
 
@@ -200,7 +200,7 @@ test('takeout_engine - extractC2PATimestamp extracts ISO timestamp from C2PA bin
 });
 
 test('takeout_engine - slot isolation ensures multi-account takeouts do not leak', () => {
-    const MediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
+    const MediaIndex = require('../src/core/compatibility/takeout/mediaIndex.js');
     MediaIndex.clearTakeoutData();
 
     MediaIndex.commitTakeoutData('u0', {
@@ -232,7 +232,7 @@ test('takeout_engine - slot isolation ensures multi-account takeouts do not leak
 });
 
 test('takeout_engine - stripHtmlTags removes nested HTML and script injections safely', () => {
-    const TakeoutParser = require('../src/core/engine/takeout/takeoutParser.js');
+    const TakeoutParser = require('../src/core/compatibility/takeout/takeoutParser.js');
     assert.strictEqual(TakeoutParser.stripHtmlTags(''), '');
     assert.strictEqual(TakeoutParser.stripHtmlTags(null), '');
     assert.strictEqual(TakeoutParser.stripHtmlTags(12345), '');
@@ -277,7 +277,7 @@ test('takeout_engine - parseTakeoutZip detects structure drift and throws descri
 });
 
 test('takeout_engine - takeoutHtmlParser parsing helpers', () => {
-    const TakeoutHtmlParser = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+    const TakeoutHtmlParser = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
     assert.strictEqual(typeof TakeoutHtmlParser.parseTakeoutPrompt, 'function');
     assert.strictEqual(typeof TakeoutHtmlParser.parseTakeoutTimestamp, 'function');
 
@@ -305,7 +305,7 @@ test('takeout_engine - parseTakeoutZip S-4 memory guardrail on oversized MyActiv
         f._data = { uncompressedSize: 300 * 1024 * 1024 }; // 300MB > 250MB limit
     }
 
-    const TakeoutParser = require('../src/core/engine/takeout/takeoutParser.js');
+    const TakeoutParser = require('../src/core/compatibility/takeout/takeoutParser.js');
     await assert.rejects(
         async () => {
             await TakeoutParser.parseTakeoutZip(zip);

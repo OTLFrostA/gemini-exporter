@@ -2,16 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/core/provider/parseConversation.js';
-import { parseGeminiRpcConversation } from '../src/core/provider/gemini/rpcConversationParser.js';
-import { parseDetail, decodeGeminiDetail } from '../src/core/api/parser/parseDetail.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import { parseDetail } from '../src/core/compatibility/gemini/parseDetail.js';
+import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import { extractBlockText } from '../src/core/content/unknownFallback.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
 
 const ID = 'c_native12345678';
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
@@ -36,13 +37,13 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
 });
 
 test('native parsing never calls the historical persisted detail parser', () => {
-    const module = require('../src/core/api/parser/parseDetail.js') as { parseDetail: typeof parseDetail };
+    const module = require('../src/core/compatibility/gemini/parseDetail.js') as { parseDetail: typeof parseDetail };
     const old = module.parseDetail;
     module.parseDetail = () => { throw new Error('Historical parser must not run'); };
     try {
         assert.equal(native(rpc([[turn()]])).conversation.messages.length, 2);
     } finally { module.parseDetail = old; }
-    const source = readFileSync(join(__dirname, '../src/core/provider/gemini/rpcConversationParser.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseConversationRecord|parseProviderConversation|parseLegacyConversation|types\/conversation|core\/storage/);
 });
 

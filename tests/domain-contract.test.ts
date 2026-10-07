@@ -3,11 +3,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveTitle, titleAuthorityRank, TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import { normalizeArchiveResourceName } from '../src/core/export/assets/archivePath.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 function domain(): DomainConversationDetail {

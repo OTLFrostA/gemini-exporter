@@ -1,6 +1,6 @@
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
 import type { AcquireAssetBytesResult } from '../../engine/assetPipeline.js';
-import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../assets/resourceAcquisitionHints.js';
+import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 import type { PreparedResource, PreparedResources } from '../assets/preparedResources.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import { decodeDataUrl } from '../assets/dataUrl.js';

@@ -118,7 +118,7 @@ test('aborted signal throws AbortError', async () => {
 });
 
 test('MiTeX initialization failure emits single warning and preserves raw LaTeX fallback without aborting', async () => {
-    const { simulateMitexInitFailureForTesting } = require('../src/core/export/typst/mathConverter.js');
+    const { simulateMitexInitFailureForTesting } = require('../src/core/renderers/typst/mathConverter.js');
     simulateMitexInitFailureForTesting(() => new Error('Simulated WebAssembly compile failure'));
 
     try {

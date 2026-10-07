@@ -1,4 +1,4 @@
-import { supplementLegacyGeneratedMedia } from '../../domain/legacyGeneratedMediaReconciliation.js';
+import { supplementLegacyGeneratedMedia } from '../../compatibility/legacyGeneratedMediaReconciliation.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
 import type {
     ChatMessage,

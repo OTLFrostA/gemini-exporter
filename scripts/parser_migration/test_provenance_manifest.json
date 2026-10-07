@@ -1902,15 +1902,46 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/arch/semantic-layer-boundary.test.ts",
+      "domain": "architecture",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Physical layer ownership, erased type references and shared runtime dependency closure",
+      "notes": "Architecture contracts verify import boundaries and naming responsibility; they do not establish provider wire fidelity or live Tier 2 coverage.",
+      "testCount": 4,
+      "tests": [
+        {
+          "name": "semantic layers own their files and obey dependency direction, including type-only references",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native parsers and renderers cannot acquire forbidden dependencies through a shared runtime helper",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "boundary reader detects re-export, type-only, dynamic import and require escape routes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native parsing does not allocate export paths or sanitized filenames",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 36,
-    "totalTests": 294,
+    "totalSuites": 37,
+    "totalTests": 298,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 274,
+      "P2": 278,
       "P3": 2,
       "P4": 0
     }

@@ -2,9 +2,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { normalizeArchiveResourceName: normalizeLocalName } = require('../src/core/export/assets/archivePath.js');
-const { extractAttachmentInlineBytes } = require('../src/core/export/assets/attachmentBytes.js');
+const { extractAttachmentInlineBytes } = require('../src/core/utils/attachmentBytes.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 
 

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { fileBadge } from '../src/core/export/document/backendPresentation.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import type { DocumentAst, DisplayBlock } from '../src/core/export/document/ast.js';
+import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import type { DocumentAst, DisplayBlock } from '../src/core/document/ast/ast.js';
 
 test('file badge maps office/media types to short labels and safely falls back', () => {
     const cases = [

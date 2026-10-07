@@ -2,8 +2,8 @@ const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { toDomainConversationDetail, parseLegacyConversation } = require('../src/core/domain/legacyConversationAdapter.js');
-const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { toDomainConversationDetail, parseLegacyConversation } = require('../src/core/compatibility/legacyConversationAdapter.js');
+const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeFixture } = require('./helpers/documentFixture.js');
 
 // Explicit plain-text AST expectations for the metadata-focused fixtures below.

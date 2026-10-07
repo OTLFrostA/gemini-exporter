@@ -1,7 +1,7 @@
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode, getErrorMessage } from "../utils/utils.js";
 import { extractConversationIdFromUrl } from "../utils/pathUtils.js";
-import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "./geminiParser.js";
+import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "../compatibility/gemini/geminiParser.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,
@@ -23,8 +23,8 @@ import GeminiClientPagination, {
     type GeminiDetailRequestOptions,
     type PaginatedDetailResult
 } from "./client/pagination.js";
-import type { ListParseResult } from "./parser/parseList.js";
-import type { DetailParseResult } from "./parser/parseDetail.js";
+import type { ListParseResult } from "../parsers/gemini/rpc/parseList.js";
+import type { DetailParseResult } from "../compatibility/gemini/parseDetail.js";
 
 export interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;

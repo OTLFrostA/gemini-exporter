@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractResponseImages, extractImages } = require('../src/core/api/parser/attachments.js');
-const { parseDetail } = require('../src/core/api/parser/parseDetail.js');
+const { extractResponseImages, extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+const { parseDetail } = require('../src/core/compatibility/gemini/parseDetail.js');
 
 // Same media tuple shape as the false detections in the user's diagnostics.
 const searchUrl = 'https://encrypted-tbn2.gstatic.com/licensed-image?q=example';

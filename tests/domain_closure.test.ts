@@ -4,16 +4,16 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import type { BlockNode } from '../src/core/content/blocks.js';
+import type { BlockNode } from '../src/core/domain/content/blocks.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
-import { mapContentAssetReferences } from '../src/core/content/assetReferences.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
+import { mapContentAssetReferences } from '../src/core/domain/content/assetReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 
 const metadata = { id: 'closed', title: 'Closed Domain', timestamp: null };
@@ -218,8 +218,8 @@ test('Domain closure rejects invalid provider, repeated registry/message IDs and
 });
 
 test('Domain consumers never parse provider syntax or reconcile acquisition aliases', () => {
-    for (const file of ['src/core/domain/closure.ts', 'src/core/export/document/composeDomainDocument.ts',
-        'src/core/export/document/composeContent.ts']) {
+    for (const file of ['src/core/domain/closure.ts', 'src/core/document/compose/composeDomainDocument.ts',
+        'src/core/document/compose/composeContent.ts']) {
         const source = readFileSync(join(__dirname, '..', file), 'utf8');
         assert.doesNotMatch(source, /parseGemini|parseImported|parseLegacyReasoning|preprocessGemini|convertHtmlToMarkdown|structuredBodyAttachments|resolveLegacyAttachment/);
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:provider\/|api\/parser)[^'"]*['"]/);

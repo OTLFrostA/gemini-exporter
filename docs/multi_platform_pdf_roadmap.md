@@ -48,7 +48,7 @@ S4 的搜索索引是归档的可重建派生数据，不是第二份事实来�
 | [Provider 接口](../src/core/provider/aiProvider.ts) | 注册表、Gemini 实现。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. | 接口中的任意类型和网站内部请求未形成稳定契约 |
 | [会话类型](../src/types/conversation.ts) | 共享的 Conversation、Message、Attachment 类型 | 正文仍以字符串为主；平台字段混入通用模型；缺少可保留未知块的 AST |
 | [存储服务](../src/core/storage/storageService.ts) 与 [明细库](../src/core/storage/conversationDetailStore.ts) | 元数据与详情分层，已有迁移框架 | Gemini 风格键和裸 ID 尚不能保证跨平台、跨账户隔离 |
-| [HTML 模板](../src/core/engine/template/htmlTemplate.ts) | 离线 HTML 与打印 CSS | 直接解析 Markdown 字符串，含交互和懒加载资源；不能直接作为 PDF 事实来源 |
+| [HTML 模板](../src/core/renderers/html/htmlTemplate.ts) | 离线 HTML 与打印 CSS | 直接解析 Markdown 字符串，含交互和懒加载资源；不能直接作为 PDF 事实来源 |
 | [格式入口](../src/core/engine/chatFormatter.ts) 与 [Writer](../src/core/engine/writers/writerInterface.ts) | 现有 MD/HTML/JSON；Writer 已接受 Blob 等二进制 | Formatter 返回字符串；PDF 需要异步渲染产物；导出状态要按格式和内容版本记录 |
 | [打包脚本](../build.js) 与 [manifest](../manifest.json) | 五个生产 IIFE bundle | PDF 的 Worker、WASM、字体必须进入构建与商店包，并验证 MV3 CSP |
 | [Tier 2 DAG](../scripts/framework/cases/base.py) 与 [Tier 3 Agent](../scripts/visual_agent/agent.py) | 真实环境与纯视觉测试基础 | 必测项与跳过语义、Agent DONE 独立验收尚需修正 |

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import type { DocumentAst } from '../../src/core/export/document/ast.js';
+import type { DocumentAst } from '../../src/core/document/ast/ast.js';
 
 const root = resolve(__dirname, '../..');
 const compiler = join(dirname(require.resolve('typescript/package.json')), 'bin/tsc');
@@ -20,7 +20,7 @@ export function assertDocumentAsts(entries: Array<{ value: unknown; context: str
             if (json === undefined) throw new TypeError(`${context}: expected JSON document`);
             return `// ${context.replace(/[\r\n]/g, ' ')}\nconst fixture${index}: DocumentAst = ${json};`;
         });
-        writeFileSync(file, `import type { DocumentAst } from '../../../src/core/export/document/ast.js';\n${literals.join('\n')}\n`);
+        writeFileSync(file, `import type { DocumentAst } from '../../../src/core/document/ast/ast.js';\n${literals.join('\n')}\n`);
         const result = spawnSync(process.execPath, [compiler, '--ignoreConfig', '--noEmit', '--strict', '--skipLibCheck', '--target', 'ES2022', '--module', 'ESNext', '--moduleResolution', 'bundler', '--types', 'node', '--pretty', 'false', file], { cwd: root, encoding: 'utf8' });
         if (result.error) throw result.error;
         if (result.status !== 0) throw new TypeError(`DocumentAst contract failed (${entries.map(entry => entry.context).join(', ')}):\n${result.stdout}${result.stderr}`);

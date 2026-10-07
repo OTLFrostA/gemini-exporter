@@ -5,10 +5,10 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { assertDocumentAst } = require('./helpers/assertDocumentAst.js');
-const { collectDocumentResources } = require('../src/core/export/document/resourceReferences.js');
+const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
 const corpusDir = path.join(__dirname, 'parity-corpus');
 const fixtureNames: string[] = fs
     .readdirSync(corpusDir)

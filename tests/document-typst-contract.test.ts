@@ -11,9 +11,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { collectReferencedAssetIds } = require('../src/core/content/collectAssetReferences.js');
+const { collectReferencedAssetIds } = require('../src/core/domain/content/collectAssetReferences.js');
 
 function domainFixture(messages: any[], extra: any = {}) { return { providerId: 'gemini', id: 'c1', title: 'Test convo', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages, ...extra }; }
 
@@ -272,6 +272,6 @@ test('PDF date uses document timestamps and stays unknown without them', () => {
     delete b.updatedAt;
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b).document, {}, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages');
     delete b.createdAt;
-    const { getRendererStrings } = require('../src/core/export/document/renderStrings.js');
+    const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b).document, {}, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages`);
 });

@@ -28,7 +28,7 @@
  */
 
 export {};
-const { visual } = require('../../src/core/export/visualContract');
+const { visual } = require('../../src/core/renderers/shared/visualContract');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -87,7 +87,7 @@ export class RealWasmSandboxFrame {
         private readonly stats: FrameStats,
         repo: string,
     ) {
-        const dir = path.join(repo, 'src/core/export/typst/templates');
+        const dir = path.join(repo, 'src/core/renderers/typst/templates');
         this.templates = TEMPLATE_FILES.map(([vpath, name]) => {
             return [vpath, fs.readFileSync(path.join(dir, name), 'utf8')] as [string, string];
         });

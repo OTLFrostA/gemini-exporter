@@ -1,7 +1,7 @@
 import type {
     AIProvider, ProviderReadiness
 } from "../aiProvider.js";
-import type { ConversationListItem } from "../../api/parser/parseList.js";
+import type { ConversationListItem } from "../../parsers/gemini/rpc/parseList.js";
 import type { PaginationOptions, PaginationResult, PaginatedDetailResult } from "../../api/client/pagination.js";
 
 /** Full parser/pagination evidence retained for current Gemini consumers. */

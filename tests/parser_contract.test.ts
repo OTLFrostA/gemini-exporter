@@ -1,15 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { GeminiResponseParserFacade, ListParseResult, DetailParseResult, ParserMessage } from '../src/core/api/geminiParser.js';
-import type { GeminiParserAttachmentsModule } from '../src/core/api/parser/attachments.js';
-import type { GeminiParserExtractorsModule } from '../src/core/api/parser/extractors.js';
-import type { ListParseDiagnostics } from '../src/core/api/parser/parseList.js';
-import type { DetailParseDiagnostics, ParserDocument, ParserAttachment } from '../src/core/api/parser/parseDetail.js';
-import type { Citation } from '../src/core/api/parser/extractors.js';
+import type { GeminiResponseParserFacade, ListParseResult, DetailParseResult, ParserMessage } from '../src/core/compatibility/gemini/geminiParser.js';
+import type { GeminiParserAttachmentsModule } from '../src/core/compatibility/gemini/attachments.js';
+import type { GeminiParserExtractorsModule } from '../src/core/parsers/gemini/rpc/extractors.js';
+import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
+import type { DetailParseDiagnostics, ParserDocument, ParserAttachment } from '../src/core/compatibility/gemini/parseDetail.js';
+import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
 import type { GeminiUtilsModule } from '../src/core/utils/utils.js';
-import { parseList } from '../src/core/api/parser/parseList.js';
-import { parseDetail } from '../src/core/api/parser/parseDetail.js';
+import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
+import { parseDetail } from '../src/core/compatibility/gemini/parseDetail.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 
 // Compile-time regression: the facade must preserve module contracts rather

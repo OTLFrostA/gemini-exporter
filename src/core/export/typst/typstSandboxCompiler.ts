@@ -17,7 +17,7 @@ import {
     type TypstBlockNode,
     type TypstConversationRenderPayload,
     type TypstInlineNode,
-} from './transport.js';
+} from '../../renderers/typst/transport.js';
 
 const PDF_MAGIC = '%PDF-';
 

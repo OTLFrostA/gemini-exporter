@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseConversation } from '../src/core/provider/parseConversation.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import type { ConversationRecordInput } from '../src/core/provider/record/conversationRecord.js';
-import type { ConversationParseResult } from '../src/core/domain/parsing.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import type { ConversationRecordInput } from '../src/core/compatibility/record/conversationRecord.js';
+import type { ConversationParseResult } from '../src/core/parsers/contracts.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 
 const parse = (data: ConversationRecordInput) => parseConversation({ format: 'conversation-record', providerId: 'gemini', data });
 

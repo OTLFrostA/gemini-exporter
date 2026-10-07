@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { payloadToMs, extractInnerPayload } = require('../src/core/api/parser/payload.js');
+const { payloadToMs, extractInnerPayload } = require('../src/core/parsers/gemini/rpc/payload.js');
 const { resolveDetailTitle } = require('../src/core/utils/titleUtils.js');
 
 test('payloadToMs - converts JSPB timestamp representations to milliseconds', () => {

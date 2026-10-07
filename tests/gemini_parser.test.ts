@@ -1,7 +1,7 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { GeminiResponseParserClass, isRealTitle } = require('../src/core/api/geminiParser.js');
+const { GeminiResponseParserClass, isRealTitle } = require('../src/core/compatibility/gemini/geminiParser.js');
 const { cleanTitle } = require('../src/core/utils/utils.js');
 
 test('gemini_parser - isRealTitle', () => {
@@ -259,9 +259,9 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
 });
 
 test('gemini_parser - sub-modules and unified deepWalk verification', () => {
-    const extractors = require('../src/core/api/parser/extractors.js');
-    const attachments = require('../src/core/api/parser/attachments.js');
-    const parseListMod = require('../src/core/api/parser/parseList.js');
+    const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
+    const attachments = require('../src/core/compatibility/gemini/attachments.js');
+    const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
 
     // 1. deepWalk unified tree walker
     const visited: string[] = [];
@@ -322,7 +322,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
 });
 
 test('gemini_parser - isTurn accepts r_ prefixed turn IDs in addition to c_ prefixed turn IDs', () => {
-    const parseDetailMod = require('../src/core/api/parser/parseDetail.js');
+    const parseDetailMod = require('../src/core/compatibility/gemini/parseDetail.js');
     const turnWithR = [
         ["r_testturn123", "rc_candidate1"],
         [1700000000, 0],

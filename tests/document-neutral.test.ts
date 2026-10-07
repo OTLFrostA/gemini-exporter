@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst, defaultPdfLayout } from '../src/core/export/document/renderTypst.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst, defaultPdfLayout } from '../src/core/renderers/typst/renderTypst.js';
 
 function fixture(): DomainConversationDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-neutral.json', 'utf8'));
@@ -55,10 +55,10 @@ test('neutral contract carries no units, output formats, UI controls or source-m
     const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'metadata', 'openLabel']);
     function check(value: unknown): void { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), key); check(child); } }
     check(document);
-    for (const name of ['renderHtml', 'renderMarkdown', 'renderTypst', 'backendPresentation', 'renderOptions', 'renderStrings']) {
-        assert.doesNotMatch(readFileSync(`src/core/export/document/${name}.ts`, 'utf8'), /from ['"].*(?:canonical|domain|provider|content)\//);
+    for (const name of ['html/renderHtml', 'markdown/renderMarkdown', 'typst/renderTypst', 'shared/backendPresentation', 'shared/renderOptions', 'shared/renderStrings']) {
+        assert.doesNotMatch(readFileSync(`src/core/renderers/${name}.ts`, 'utf8'), /from ['"].*(?:canonical|domain|provider|content)\//);
     }
-    assert.doesNotMatch(readFileSync('src/core/export/document/composeDomainDocument.ts', 'utf8'), /visualContract|getRendererStrings|RenderOptions|isMarkdown|isPdf|\.75|gapBeforePt/);
+    assert.doesNotMatch(readFileSync('src/core/document/compose/composeDomainDocument.ts', 'utf8'), /visualContract|getRendererStrings|RenderOptions|isMarkdown|isPdf|\.75|gapBeforePt/);
 });
 
 
