@@ -9,14 +9,13 @@ import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.j
 import { parseGeminiBody } from '../shared/contentAdapter.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
 
-/** Archive entries are source acquisition context; file handles never enter Domain. */
-export interface TakeoutSourceFile {
-    dir?: boolean;
-    _data?: { uncompressedSize?: number };
-    async?: (type: string) => Promise<unknown>;
-}
+import { createTakeoutResourceResolver, decodeTakeoutReference, takeoutBaseName, type TakeoutSourceFile } from './archiveResources.js';
+export type { TakeoutSourceFile } from './archiveResources.js';
+
 export interface GeminiTakeoutRaw {
     htmlText: string;
+    /** Actual HTML entry path, used to resolve relative source references. */
+    activityPath?: string;
     archiveFiles?: Readonly<Record<string, TakeoutSourceFile>>;
 }
 export interface GeminiTakeoutParseContext extends ConversationParseContext { targetConvId?: string }
@@ -24,12 +23,6 @@ export interface GeminiTakeoutParseResult extends ResourceConversationParseResul
     archiveResources: Readonly<Record<string, { path: string; entry: TakeoutSourceFile }>>;
 }
 
-function archivePath(uri: string): string {
-    let decoded: string;
-    try { decoded = decodeURIComponent(uri); } catch { decoded = uri; }
-    return decoded.replace(/\\/g, '/').replace(/^\.\//, '');
-}
-function baseName(uri: string): string { return archivePath(uri).split('/').pop() ?? ''; }
 const isImage = (name: string): boolean => /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(name);
 
 /** One selected source conversation. Multi-conversation archives require explicit selection. */
@@ -39,7 +32,7 @@ export function parseGeminiTakeoutConversation(raw: GeminiTakeoutRaw, context: G
     const ids = [...new Set(activities.flatMap(activity => activity.conversationIds))];
     const id = context.targetConvId?.replace(/^c_/, '') ?? (ids.length === 1 ? ids[0] : undefined);
     if (!id || !ids.includes(id)) throw new TypeError('Takeout requires an existing targetConvId when no single conversation can be selected');
-    return buildConversation(id, activities, raw.archiveFiles ?? {});
+    return buildConversation(id, activities, createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath));
 }
 
 /** Batch decoding shares the same source evidence and per-conversation Domain construction. */
@@ -48,37 +41,30 @@ export function parseGeminiTakeoutArchive(raw: GeminiTakeoutRaw, context: Conver
     const activities = decodeTakeoutHtml(raw.htmlText);
     const ids = [...new Set(activities.flatMap(activity => activity.conversationIds))];
     if (!ids.length) throw new TypeError('Takeout has no recognized conversation identities');
-    return ids.map(id => buildConversation(id, activities, raw.archiveFiles ?? {}));
+    const resolveResource = createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath);
+    return ids.map(id => buildConversation(id, activities, resolveResource));
 }
 
-function buildConversation(id: string, activities: TakeoutActivityEvidence[], files: Readonly<Record<string, TakeoutSourceFile>>): GeminiTakeoutParseResult {
+function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>): GeminiTakeoutParseResult {
     const diagnostics: DocumentDiagnostic[] = [];
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = [];
     const groups: Array<{ input: { attachments: ResourceEvidence[] } }> = [];
-    const entries = Object.entries(files).filter(([, entry]) => entry && typeof entry === 'object' && !entry.dir);
-    const exact = new Map<string, Array<{ path: string; entry: TakeoutSourceFile }>>();
-    const byName = new Map<string, Array<{ path: string; entry: TakeoutSourceFile }>>();
-    for (const [path, entry] of entries) {
-        for (const [index, key] of [[exact, archivePath(path)], [byName, baseName(path)]] as const) {
-            const matches = index.get(key) ?? [];
-            matches.push({ path, entry }); index.set(key, matches);
-        }
-    }
     const boundFiles = new Map<string, { path: string; entry: TakeoutSourceFile }>();
     const unowned: ResourceEvidence[] = [];
     const attachmentOf = (ref: { uri: string }, generation?: { chatId: string; time: number | null; prompt: string; generationOrdinal: number; imageCount: number }): ResourceEvidence => {
-        const sourcePath = archivePath(ref.uri);
-        const matches = exact.get(sourcePath) ?? byName.get(baseName(sourcePath)) ?? [];
-        const match = matches.length === 1 ? matches[0] : undefined;
-        if (!match) diagnostics.push({ severity: 'warning', code: matches.length > 1 ? 'TAKEOUT_AMBIGUOUS_RESOURCE' : 'TAKEOUT_MISSING_RESOURCE', message: `Archive resource could not be resolved: ${ref.uri}` });
+        const resolution = resolveResource(ref.uri);
+        const match = resolution.status === 'resolved' ? resolution.resource : undefined;
+        if (!match) diagnostics.push({ severity: 'warning', code: resolution.status === 'ambiguous' ? 'TAKEOUT_AMBIGUOUS_RESOURCE' : 'TAKEOUT_MISSING_RESOURCE', message: `Archive resource could not be resolved: ${ref.uri}` });
+        else if (resolution.status === 'resolved' && ['stem', 'normalized-name', 'normalized-stem'].includes(resolution.method)) diagnostics.push({ severity: 'info', code: 'TAKEOUT_RESOURCE_NAME_FALLBACK', message: `Archive resource resolved by ${resolution.method}: ${ref.uri}` });
         const sourceUrl = match?.path ?? ref.uri;
         if (match) boundFiles.set(sourceUrl, match);
         const size = match?.entry._data?.uncompressedSize;
-        return { type: isImage(sourceUrl) ? 'image' : 'file', url: ref.uri, sourceUrl, name: baseName(sourceUrl), source: 'takeout',
+        const image = isImage(sourceUrl) || isImage(decodeTakeoutReference(ref.uri));
+        return { type: image ? 'image' : 'file', url: ref.uri, sourceUrl, name: takeoutBaseName(match ? sourceUrl : decodeTakeoutReference(sourceUrl)), source: 'takeout',
             ...(typeof size === 'number' && Number.isFinite(size) && size >= 0 ? { size } : {}),
-            ...(!match ? { failureReason: matches.length > 1 ? 'Ambiguous archive reference' : 'Missing archive entry' } : {}),
-            ...(generation && isImage(sourceUrl) ? { isGenerated: true, generation: { ...generation,
+            ...(!match ? { failureReason: resolution.status === 'ambiguous' ? 'Ambiguous archive reference' : 'Missing archive entry' } : {}),
+            ...(generation && image ? { isGenerated: true, generation: { ...generation,
                 ...(generation.imageCount === 1 ? { imageOrdinal: 0 } : {}) } } : {}) };
     };
     const selected = activities.filter(activity => activity.conversationIds.includes(id));

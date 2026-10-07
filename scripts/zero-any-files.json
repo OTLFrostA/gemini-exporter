@@ -81,5 +81,7 @@
   "src/core/parsers/gemini/rpc/sourceAttachments.ts",
   "src/core/parsers/shared/resources/generationEvent.ts",
   "src/core/compatibility/archive/zipBombGuard.ts",
-  "src/core/utils/latexCompatibility.ts"
+  "src/core/utils/latexCompatibility.ts",
+  "src/core/parsers/gemini/takeout/archiveResources.ts",
+  "tests/takeout-archive-resources.test.ts"
 ]

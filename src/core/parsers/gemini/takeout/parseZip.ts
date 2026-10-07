@@ -27,7 +27,7 @@ async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZ
         files[path] = entry as TakeoutSourceFile;
     }
     const candidates = Object.keys(files).filter(path => !files[path].dir && /(?:My\s?Activity|我的活动).*\.html$/i.test(path));
-    const gemini = candidates.filter(path => /(?:^|\/)(?:Gemini|Bard)\//i.test(path));
+    const gemini = candidates.filter(path => /(?:^|\/)(?:Gemini(?: Apps)?|Bard)\//i.test(path));
     const supported = gemini.length ? gemini : candidates;
     const activityPath = context.activityPath ?? (supported.length === 1 ? supported[0] : undefined);
     if (!activityPath || !files[activityPath] || files[activityPath].dir) throw new TypeError('Takeout ZIP requires an unambiguous activityPath');
@@ -37,7 +37,7 @@ async function decodeArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZ
     if (typeof activity.async !== 'function') throw new TypeError('Takeout activity entry cannot be read');
     const htmlText = await activity.async('text');
     if (typeof htmlText !== 'string') throw new TypeError('Takeout activity entry must decode to HTML text');
-    return { htmlText, archiveFiles: files };
+    return { htmlText, activityPath, archiveFiles: files };
 }
 
 /** Raw ZIP bytes -> selected Domain conversation; extraction stays inside the parser. */

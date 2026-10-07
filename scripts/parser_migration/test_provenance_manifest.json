@@ -1933,15 +1933,66 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/takeout-archive-resources.test.ts",
+      "domain": "takeout",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Anonymized filename mismatch shapes observed in a local Google Takeout export plus synthetic ambiguity and ZIP lookup contracts",
+      "notes": "Only filename shapes are retained; source titles, timestamps and hashes are replaced. These contracts do not establish full provider payload fidelity or live Tier 2 coverage.",
+      "testCount": 8,
+      "tests": [
+        {
+          "name": "relative activity paths outrank root paths and duplicate basenames",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "real Takeout filename mismatch shapes recover all eighteen resources uniquely",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "stem and normalization collisions are ambiguous regardless of inventory order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "an ambiguous stronger tier cannot be bypassed by a unique weaker match",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "fallback preserves complete hashes and does not infer unrelated suffixes or case changes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "URI decoding applies only to source references and archive filenames remain literal",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "extensionless image resolution retains generation facts and a separate acquisition handle",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ZIP selected and batch parsing retain the Gemini Apps activity directory in multi-product archives",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 37,
-    "totalTests": 298,
+    "totalSuites": 38,
+    "totalTests": 306,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 278,
+      "P2": 286,
       "P3": 2,
       "P4": 0
     }
