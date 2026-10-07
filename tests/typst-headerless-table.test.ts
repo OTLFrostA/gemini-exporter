@@ -3,9 +3,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { convertMath } = require('../src/core/export/typst/mathConverter.js');
+const { convertMath } = require('../src/core/renderers/typst/mathConverter.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
 const {
     RealWasmSandboxHost,

@@ -1,5 +1,5 @@
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
-import type { TypstConversationRenderPayload } from '../typst/transport.js';
+import type { TypstConversationRenderPayload } from '../../renderers/typst/transport.js';
 
 /** Prepared output bytes, never a semantic Asset or source conversation. */
 export interface PdfResource { blob?: Blob; bytes?: Uint8Array }

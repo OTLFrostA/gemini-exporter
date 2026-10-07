@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { closeLegacyCitations } from '../src/core/provider/domainCitationAdapter.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/document/exportDomainDocument.js';
-import { prepareDomainResources } from '../src/core/export/document/prepareDomainResources.js';
+import { closeLegacyCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
+import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
 import { formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 
 const raw = {

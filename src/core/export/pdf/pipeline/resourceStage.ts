@@ -1,4 +1,4 @@
-import { collectDocumentResources } from '../../document/resourceReferences.js';
+import { collectDocumentResources } from '../../../document/ast/resourceReferences.js';
 import { checkImageContent, MAX_ASSET_BYTES, buildVirtualAssetPath } from '../../assets/imageContent.js';
 import { sha256Hex } from '../../assets/sha256.js';
 import type { ImageMount, RenderDiagnostic, ResourceStageInput, ResourceStageOutput, StageFn } from './types.js';

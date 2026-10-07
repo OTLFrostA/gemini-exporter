@@ -11,8 +11,8 @@ import type {
     TourStep, UIExportCallbacks, UIExportOptions, UIExportResult
 } from '../src/types/ui.js';
 import type { ConversationExportState } from '../src/core/utils/titleUtils.js';
-import type { ParserMessage, ParserDocument } from '../src/core/api/parser/parseDetail.js';
-import type { Citation } from '../src/core/api/parser/extractors.js';
+import type { ParserMessage, ParserDocument } from '../src/core/compatibility/gemini/parseDetail.js';
+import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { PdfExportResult } from '../src/core/export/pdf/pdfExporter.js';
 import { getAccountSlots } from '../src/ui/state/conversationsStore.js';
 import { renderExportBanner, getLastFailedChats } from '../src/ui/views/dialogView.js';

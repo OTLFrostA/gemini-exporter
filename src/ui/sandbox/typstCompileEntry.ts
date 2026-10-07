@@ -14,16 +14,16 @@ import {
     sandboxExpectedHostOrigin,
 } from '../../core/export/typst/sandboxProtocol.js';
 
-import themeTyp from '../../core/export/typst/templates/theme.typ';
-import documentTyp from '../../core/export/typst/templates/document.typ';
-import componentsTyp from '../../core/export/typst/templates/components.typ';
-import renderBlockTyp from '../../core/export/typst/templates/render-block.typ';
-import renderInlineTyp from '../../core/export/typst/templates/render-inline.typ';
-import renderMessageTyp from '../../core/export/typst/templates/render-message.typ';
-import mitexScopeTyp from '../../core/export/typst/templates/mitex-scope.typ';
-import syntaxTheme from '../../core/export/typst/templates/quiet-light.tmTheme';
+import themeTyp from '../../core/renderers/typst/templates/theme.typ';
+import documentTyp from '../../core/renderers/typst/templates/document.typ';
+import componentsTyp from '../../core/renderers/typst/templates/components.typ';
+import renderBlockTyp from '../../core/renderers/typst/templates/render-block.typ';
+import renderInlineTyp from '../../core/renderers/typst/templates/render-inline.typ';
+import renderMessageTyp from '../../core/renderers/typst/templates/render-message.typ';
+import mitexScopeTyp from '../../core/renderers/typst/templates/mitex-scope.typ';
+import syntaxTheme from '../../core/renderers/typst/templates/quiet-light.tmTheme';
 
-import { visual } from '../../core/export/visualContract';
+import { visual } from '../../core/renderers/shared/visualContract.js';
 
 const TEMPLATE_FILES: ReadonlyArray<readonly [string, string]> = [
     ['/visual-contract.json', JSON.stringify(visual)],

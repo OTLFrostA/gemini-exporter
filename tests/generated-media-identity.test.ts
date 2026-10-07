@@ -7,8 +7,8 @@ const { messageAssets } = require('./helpers/domainAssets.js');
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
 const { supplementTakeoutGeneratedMedia } = require('../src/core/engine/export/batchWorker.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
-const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
 
 const id = '1bd028d5c5b0c0e2';
 const prompt = 'Generate an image of a cute futuristic astronaut cat drinking coffee on Mars with high detail';
@@ -46,7 +46,7 @@ test('real Takeout fixture preserves event metadata through MediaIndex and dedup
         assert.equal((chat.messages[1] as any).generation.turnId, 'm1');
         const { domain, document, resources } = await parseFixture(chat);
         assert.equal(domain.assets.filter((a: any) => a.kind === 'image').length, 1);
-        const { parseLegacyConversation } = require('../src/core/domain/legacyConversationAdapter.js');
+        const { parseLegacyConversation } = require('../src/core/compatibility/legacyConversationAdapter.js');
         const { conversation: legacyDomain } = parseLegacyConversation(chat);
         assert.equal('generation' in legacyDomain.messages[1], false);
         assert.equal(domain.messages[1].attachmentIds.length, 1);
@@ -118,7 +118,7 @@ test('ambiguous same-second repeated prompts do not dedupe', () => {
 
 
 test('RPC generated-media detector preserves generated status while inline images remain unmarked', () => {
-    const { extractImages } = require('../src/core/api/parser/attachments.js');
+    const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
     const generated: any[] = Array(16).fill(null);
     generated[2] = jpg;
     generated[3] = 'https://lh3.googleusercontent.com/generated';
@@ -129,8 +129,8 @@ test('RPC generated-media detector preserves generated status while inline image
 });
 
 test('regression: Online Martian Cat + Takeout yields exactly 1 image in Markdown, HTML, PDF without prefix heuristic', async () => {
-    const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
-    const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+    const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
+    const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
     (global as any).JSZip = require('../lib/jszip.min.js');
     TakeoutEngine.clearTakeoutData('identity');
     try {
@@ -162,7 +162,7 @@ test('regression: Online Martian Cat + Takeout yields exactly 1 image in Markdow
 });
 
 test('regression: multi-image generation in same turn does NOT merge different images (ordinal 0 vs 1)', async () => {
-    const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
+    const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
     const reqId = '1c81efe352c9ef8a';
     const chat: any = {
         id,
@@ -263,7 +263,7 @@ test('regression: different provider request IDs are never deduped', async () =>
 });
 
 test('regression: extractImages suppresses 2x inline tuple duplicate sharing token with generated media', () => {
-    const { extractImages } = require('../src/core/api/parser/attachments.js');
+    const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
     const token = '8815680899422160530';
     const inlineTuple = ['https://lh3.googleusercontent.com/inline-2x', 2816, 1536, token];
     const generatedNode: any[] = Array(16).fill(null);
@@ -291,7 +291,7 @@ test('regression: extractImages suppresses 2x inline tuple duplicate sharing tok
 });
 
 test('regression: extractImages suppresses 2x upscale derivative rendition (slot 8 === 2) and retains authoritative 1x watermarked image', () => {
-    const { extractImages } = require('../src/core/api/parser/attachments.js');
+    const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
     const baseNode: any[] = Array(16).fill(null);
     baseNode[2] = 'watermarked_img_4528137010801751197.jpg';
     baseNode[3] = 'https://lh3.googleusercontent.com/gg/original';
@@ -317,8 +317,8 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
 });
 
 test('regression: model message with only ordinary inline/grounding image must NEVER suppress Takeout generated image (both preserved)', async () => {
-    const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
-    const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+    const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
+    const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
     // Model message has only 1 normal inline image (NOT generated, no providerRequestId, no generation identity)
     const normalInlineImage = {
@@ -431,8 +431,8 @@ test('regression: sameGenerationEvent requires matching chatId (cross-conversati
 });
 
 test('regression: extractTurnRequestId schema slot evidence and fallback boundaries', () => {
-    const { extractTurnRequestId } = require('../src/core/api/parser/parseDetail.js');
-    const { GEMINI_JSPB_SCHEMA } = require('../src/core/api/parser/extractors.js');
+    const { extractTurnRequestId } = require('../src/core/compatibility/gemini/parseDetail.js');
+    const { GEMINI_JSPB_SCHEMA } = require('../src/core/parsers/gemini/rpc/extractors.js');
 
     // Verify schema constant
     assert.equal(GEMINI_JSPB_SCHEMA.TURN.REQUEST_ID_SLOT, 1, 'REQUEST_ID_SLOT must be index 1 in ID_META');

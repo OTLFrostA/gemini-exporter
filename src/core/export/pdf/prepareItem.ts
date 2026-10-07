@@ -20,15 +20,15 @@ import type { TabServiceModule } from '../../../types/utils.js';
 import type {
     GeneratedMediaIdentity,
 } from '../../../types/conversation.js';
-import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordTurn, ConversationRecordAttachment } from '../../provider/record/conversationRecord.js';
+import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordTurn, ConversationRecordAttachment } from '../../compatibility/record/conversationRecord.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
-import { inferLegacyProviderId } from '../../provider/conversationParser.js';
-import { parseConversation } from '../../provider/parseConversation.js';
-import { composeDomainDocument } from '../document/composeDomainDocument.js';
-import { collectDocumentResources } from '../document/resourceReferences.js';
+import { inferLegacyProviderId } from '../../compatibility/conversationParser.js';
+import { parseConversation } from '../../parsers/parseConversation.js';
+import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../../document/ast/resourceReferences.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
-import type { DocumentAst } from '../document/ast.js';
+import type { DocumentAst } from '../../document/ast/ast.js';
 import type { PreparedResources } from '../assets/preparedResources.js';
 import { preparePdfResources } from './prepareResources.js';
 import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';

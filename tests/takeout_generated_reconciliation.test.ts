@@ -1,12 +1,12 @@
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { correlateGeneratedImages, type GenerationBlock, type TakeoutWatermarkedImage, type ParseTakeoutHtmlOutput } from '../src/core/engine/takeout/takeoutHtmlParser.js';
-import { parseTakeoutZip } from '../src/core/engine/takeout/takeoutParser.js';
-import { clearTakeoutData } from '../src/core/engine/takeout/mediaIndex.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import { correlateGeneratedImages, type GenerationBlock, type TakeoutWatermarkedImage, type ParseTakeoutHtmlOutput } from '../src/core/compatibility/takeout/takeoutHtmlParser.js';
+import { parseTakeoutZip } from '../src/core/compatibility/takeout/takeoutParser.js';
+import { clearTakeoutData } from '../src/core/compatibility/takeout/mediaIndex.js';
+import { toDomainConversationDetail } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 
 const time = 1700000000000;
 function event(chatId: string, offset: number, imageCount = 1): GenerationBlock {

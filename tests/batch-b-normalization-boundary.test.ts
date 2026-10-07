@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import type { GeminiNormalizationInput } from '../src/core/provider/gemini/exportInput.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import type { GeminiNormalizationInput } from '../src/core/compatibility/gemini/exportInput.js';
 
 for (const layout of ['messages', 'turns'] as const) {
     test(`PDF ${layout}: typeless historical image, unknown content and role survive normalization`, async () => {

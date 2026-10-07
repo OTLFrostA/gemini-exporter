@@ -29,7 +29,7 @@
 | 现有位置 | 当前行为 | 本方案要改的边界 |
 | --- | --- | --- |
 | `src/types/conversation.ts` | 消息正文主要是 `content: string`；附件又分布在 `attachments/images/documents` | 保留旧字段兼容读取；增加来源格式标记和导出时生成的语义结构，不在第一批 PR 中重写全部旧库 |
-| `src/core/engine/template/htmlTemplate.ts` | 自己解析 Markdown 并生成 HTML | 渐进改为消费共享 Block AST；保留现有 HTML 视觉与交互合同 |
+| `src/core/renderers/html/htmlTemplate.ts` | 自己解析 Markdown 并生成 HTML | 渐进改为消费共享 Block AST；保留现有 HTML 视觉与交互合同 |
 | `src/core/engine/chatFormatter.ts` | `formatContent` 同步返回字符串 | 为 HTML/PDF 提供异步二进制 `ExportArtifact` 路径；旧格式可由适配器继续工作 |
 | `src/core/engine/assetPipeline.ts` | 下载后直接写入 Writer | 提炼可复用的资源字节获取能力；PDF 编译前即可取得图片，同一资源不重复抓取 |
 | `src/core/engine/export/exportOrchestrator.ts` | 主文件先写，附件随后异步排队 | PDF 分支须先准备待嵌入资源、再编译、再写入、最后更新记录 |

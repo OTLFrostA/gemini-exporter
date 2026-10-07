@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
-import { parseTakeoutHtmlBlocks } from '../src/core/engine/takeout/takeoutHtmlParser.js';
-import { validateZipFile } from '../src/core/engine/takeout/zipBombGuard.js';
+import { parseTakeoutHtmlBlocks } from '../src/core/compatibility/takeout/takeoutHtmlParser.js';
+import { validateZipFile } from '../src/core/compatibility/archive/zipBombGuard.js';
 
 test('batch A asset no-response keeps the historical default failure reason', async () => {
     const pipeline = new AssetPipeline({

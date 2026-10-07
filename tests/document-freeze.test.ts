@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/export/document/ast.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { fileBadge } from '../src/core/export/document/backendPresentation.js';
-import { renderMathHtml } from '../src/core/export/document/htmlMath.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/document/ast/ast.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
+import { renderMathHtml } from '../src/core/renderers/html/htmlMath.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 
 function domain(): DomainConversationDetail {
     return { providerId: 'custom', id: 'freeze', title: 'Boundary', timestamp: null, assets: [], messages: [

@@ -26,7 +26,7 @@ import { SyncController } from '../controllers/syncController.js';
 import { ExportController } from '../controllers/exportController.js';
 import { TourGuide } from '../tour/tourGuide.js';
 import { t } from '../uiCommon.js';
-import { initMitexWasm, isMitexReady, convertMathWithMitex } from '../../core/export/typst/mathConverter.js';
+import { initMitexWasm, isMitexReady, convertMathWithMitex } from '../../core/renderers/typst/mathConverter.js';
 
 export function log(msg: string, level: 'info' | 'warn' | 'error' = 'info'): void {
     if (OptionsInit && OptionsInit.log) OptionsInit.log(msg, level);

@@ -23,7 +23,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 const chat: any = {
     id: 'parity_chat_001',

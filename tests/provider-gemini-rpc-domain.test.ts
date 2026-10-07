@@ -2,16 +2,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { parseConversation } from '../src/core/provider/parseConversation.js';
-import { parseGeminiRpcConversation } from '../src/core/provider/gemini/rpcConversationParser.js';
-import { parseDetail, decodeGeminiDetail } from '../src/core/api/parser/parseDetail.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
+import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import { parseDetail } from '../src/core/compatibility/gemini/parseDetail.js';
+import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
-import { extractBlockText } from '../src/core/content/unknownFallback.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
+import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
 
 const ID = 'c_native12345678';
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
@@ -36,13 +37,13 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
 });
 
 test('native parsing never calls the historical persisted detail parser', () => {
-    const module = require('../src/core/api/parser/parseDetail.js') as { parseDetail: typeof parseDetail };
+    const module = require('../src/core/compatibility/gemini/parseDetail.js') as { parseDetail: typeof parseDetail };
     const old = module.parseDetail;
     module.parseDetail = () => { throw new Error('Historical parser must not run'); };
     try {
         assert.equal(native(rpc([[turn()]])).conversation.messages.length, 2);
     } finally { module.parseDetail = old; }
-    const source = readFileSync(join(__dirname, '../src/core/provider/gemini/rpcConversationParser.ts'), 'utf8');
+    const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseConversationRecord|parseProviderConversation|parseLegacyConversation|types\/conversation|core\/storage/);
 });
 
@@ -130,8 +131,17 @@ test('sanitized existing wire evidence retains structured content and closed ima
     const result = native(raw);
     assert.ok(result.conversation.assets.some(a => a.kind === 'image'));
     assertDomainClosure(result.conversation);
-    assert.deepEqual(composeDomainDocument(result.conversation).document,
-        composeDomainDocument(parseProviderConversation(parseDetail(raw)).conversation).document);
+    const document = composeDomainDocument(result.conversation).document;
+    const legacyDocument = composeDomainDocument(parseProviderConversation(parseDetail(raw)).conversation).document;
+    const image = document.messages[1].blocks.find(block => block.type === 'image');
+    const oldImage = legacyDocument.messages[1].blocks.find(block => block.type === 'image');
+    assert.ok(image?.type === 'image' && oldImage?.type === 'image');
+    assert.equal(image.alt, '贝尔不等式实验示意图');
+    assert.equal(oldImage.alt, `${image.alt}.png`);
+    // Only the old fabricated filename extension differs from the authored caption.
+    oldImage.alt = image.alt;
+    oldImage.caption = image.caption;
+    assert.deepEqual(document, legacyDocument);
     for (const asset of result.conversation.assets) assert.equal('sourceEvidence' in asset, false);
 });
 
@@ -147,7 +157,7 @@ test('generated resources retain their authored request token independently of a
     const generated = result.conversation.assets.find(asset => asset.generated);
     assert.ok(generated);
     assert.equal(generated.generation?.providerRequestId, 'r_Ab12');
-    assert.ok(result.resourceHints[generated.id]?.archivePath);
+    assert.equal(result.resourceHints[generated.id]?.archivePath, undefined);
     for (const field of ['localName', 'subDir', 'rawProviderRequestId']) assert.equal(field in generated, false);
     assertDomainClosure(result.conversation);
 });
@@ -159,4 +169,39 @@ test('raw format validation rejects wrong providers and malformed envelopes', ()
     const empty = parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: rpc([]), targetConvId: ID });
     assert.equal(empty.conversation.id, ID);
     assert.equal(empty.conversation.messages.length, 0);
+});
+
+
+test('source extraction has no export paths and retains unsanitized source filenames', () => {
+    const image: unknown[] = [];
+    image[2] = 'source:photo?.png'; image[3] = 'https://lh3.googleusercontent.com/source-photo';
+    image[11] = 'image/png'; image[15] = [640, 480, 100];
+    const raw = rpc([[turn('Draw', null, [['rc_image', [['Image'], image]]])]]);
+    const evidence = decodeGeminiDetail(raw);
+    const source = evidence.messages[1].images![0];
+    assert.equal(source.fileName, 'source:photo?.png');
+    for (const message of evidence.messages) {
+        for (const resource of [...message.images ?? [], ...message.documents ?? [], ...message.attachments ?? []]) {
+            assert.equal('localName' in resource, false);
+            assert.equal('resolvedUrl' in resource, false);
+        }
+    }
+    assert.equal(parseDetail(raw).messages[1].images![0].localName, 'assets/345678_source_photo.png');
+    const bare = decodeGeminiDetail(rpc([[turn('Draw', null, [['rc_inline', [['Image'], ['https://lh3.googleusercontent.com/inline', 1, 1]]]])]]));
+    assert.equal(bare.messages[1].images![0].fileName, undefined);
+    assert.equal(native(raw).conversation.assets.find(a => a.generated)?.name, 'source:photo?.png');
+});
+
+
+test('raw decoding never substitutes conversation or request IDs for absent message identities', () => {
+    const rawTurn = [[ID], null, [['Question']], [[['', [['Answer']]]]]];
+    const raw = rpc([[rawTurn, rawTurn]]);
+    const result = native(raw);
+    assert.equal(result.conversation.messages.length, 4);
+    for (const message of result.conversation.messages) assert.equal(message.id, undefined);
+    assert.doesNotThrow(() => composeDomainDocument(result.conversation));
+    assert.equal(parseDetail(raw).messages[0].id, ID);
+    const request = rpc([[turn('Question', null, undefined, 'r_Ab12')]]);
+    assert.equal(decodeGeminiDetail(request).messages[0].providerRequestId, 'r_Ab12');
+    assert.equal(parseDetail(request).messages[0].providerRequestId, 'ab12');
 });

@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 test('nested resource references are checked before composition; unavailable bytes are backend diagnostics', () => {
     const domain: DomainConversationDetail = { providerId: 'test', id: 'conversation', title: 'Nested', timestamp: null, assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] };

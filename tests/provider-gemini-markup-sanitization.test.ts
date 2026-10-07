@@ -16,9 +16,9 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 test('Gemini structured markup is sanitized at normalization boundary and never reaches Domain content or HTML', async () => {
     const rawContent = [

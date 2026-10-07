@@ -14,7 +14,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 test('PR 3 - 1: Single generated image on model turn renders 1 inline figure and no companion cards', async () => {
     const raw: any = {

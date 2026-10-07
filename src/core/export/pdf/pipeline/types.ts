@@ -1,9 +1,9 @@
-import type { DocumentAst } from '../../document/ast.js';
+import type { DocumentAst } from '../../../document/ast/ast.js';
 import type { PreparedResources } from '../../assets/preparedResources.js';
 import type {
     ArtifactWriteReport,
 } from '../../artifacts.js';
-import type { TypstConversationRenderPayload } from '../../typst/transport.js';
+import type { TypstConversationRenderPayload } from '../../../renderers/typst/transport.js';
 import type { LocalFontResolution } from '../../typst/fonts/localFontProvider.js';
 import type { IPdfCompiler } from '../pdfCompiler.js';
 import type { IExportWriter } from '../../../engine/writers/writerInterface.js';

@@ -1,6 +1,6 @@
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainAsset, DomainConversationDetail, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail } from '../src/core/compatibility/legacyConversationAdapter.js';
 
 const legacyConversation: Conversation = {
     id: 'typed-conversation',
@@ -17,7 +17,7 @@ const typedDomainResult: DomainConversationDetail = domainConversation;
 void acceptedLegacyInput;
 void typedDomainResult;
 
-import type { BlockNode } from '../src/core/content/blocks.js';
+import type { BlockNode } from '../src/core/domain/content/blocks.js';
 const body = (text: string): BlockNode[] => text ? [{ type: 'paragraph', children: [{ type: 'text', text }] }] : [];
 
 // The Domain boundary accepts provider-neutral roles only.
@@ -47,7 +47,7 @@ void provenanceDomainMessage;
 void rejectedTurnId;
 void rejectedTopLevelRequestId;
 
-// @ts-expect-error Message-level provider generation evidence must be reconciled before Domain.
+// @ts-expect-error Legacy resource generation identity is not a message generation event.
 const rejectedMessageGeneration: DomainMessage = { role: 'assistant', content: body('x'), generation: { chatId: 'chat', generationOrdinal: 0 } };
 void rejectedMessageGeneration;
 
@@ -107,3 +107,6 @@ void rejectedExportPath;
 void rejectedExportStatus;
 void rejectedMissingProvider;
 void rejectedMissingAssets;
+
+const generationEvent: DomainMessage = { role: 'assistant', content: body(''), generation: { mediaKind: 'image', outputCount: 2 } };
+void generationEvent;

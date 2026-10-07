@@ -5,7 +5,7 @@ import credentials from '../src/core/api/client/credentialManager.js';
 import { getAllConversations, getConversationDetail } from '../src/core/api/client/pagination.js';
 import type { PaginatedDetailResult, PaginationResult } from '../src/core/api/client/pagination.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
-import type { DetailParseResult } from '../src/core/api/parser/parseDetail.js';
+import type { DetailParseResult } from '../src/core/compatibility/gemini/parseDetail.js';
 
 // If the upstream companion gains a field, adapter coverage must be revisited.
 const detailFields = ['id', 'title', 'messages', 'url', 'createdAt', 'updatedAt', 'messageCount', 'titleSource', 'titles', 'timestamp', 'chatTime', 'nextPageToken', 'attachmentCount', 'schemaDrift', 'turnsRejected', 'truncated', 'isTruncated', 'truncateReason', '_raw', '_debug'] as const satisfies readonly (keyof PaginatedDetailResult)[];

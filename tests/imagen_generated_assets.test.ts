@@ -2,7 +2,7 @@ export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
+const { GeminiResponseParserClass } = require('../src/core/compatibility/gemini/geminiParser.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 test('geminiParser - extracts Imagen generated image node (Pattern 2)', () => {

@@ -1,16 +1,16 @@
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { BlockNode } from '../src/core/content/blocks.js';
-import { mapContentAssetReferences } from '../src/core/content/assetReferences.js';
-import { parseMarkdownToBlocks } from '../src/core/content/markdown/index.js';
-import { parseGeminiBody } from '../src/core/provider/gemini/contentAdapter.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
+import type { BlockNode } from '../src/core/domain/content/blocks.js';
+import { mapContentAssetReferences } from '../src/core/domain/content/assetReferences.js';
+import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/index.js';
+import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import type { Conversation } from '../src/types/conversation.js';
 
 const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children: [{ type: 'text', text }] }];
@@ -49,7 +49,7 @@ test('generic Markdown parses images through a caller hook and has no Gemini imp
         type: 'paragraph', children: [{ type: 'image', assetId: 'resolved:image.png', alt: 'diagram' }],
     }]);
     for (const file of ['parseMarkdown.ts', 'mdastToContent.ts', 'index.ts']) {
-        const source = readFileSync(join(__dirname, '../src/core/content/markdown', file), 'utf8');
+        const source = readFileSync(join(__dirname, '../src/core/parsers/shared/markdown', file), 'utf8');
         assert.doesNotMatch(source, /from\s+['"][^'"]*(?:gemini|compat)[^'"]*['"]/i);
         assert.doesNotMatch(source, /preprocessGemini/);
     }

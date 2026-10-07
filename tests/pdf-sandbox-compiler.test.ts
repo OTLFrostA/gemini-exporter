@@ -30,7 +30,7 @@ const {
 
 const { createOfflineInitOptions } = require('../src/ui/sandbox/offlineInit.js');
 
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 const {

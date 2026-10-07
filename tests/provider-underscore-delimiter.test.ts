@@ -11,7 +11,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 
 async function inlineNodes(content: string): Promise<any[]> {
     const raw: any = {

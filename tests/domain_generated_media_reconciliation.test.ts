@@ -1,13 +1,13 @@
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ChatMessage, Conversation, GeneratedMediaIdentity } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { supplementLegacyGeneratedMedia } from '../src/core/domain/legacyGeneratedMediaReconciliation.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { supplementLegacyGeneratedMedia } from '../src/core/compatibility/legacyGeneratedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
 const requestId = 'abcd1234abcd1234';

@@ -22,21 +22,21 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
+const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { assertDomainClosure } = require('../src/core/domain/closure.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 const {
     convertGeminiInlines,
-} = require('../src/core/provider/gemini/structuredContentAdapter.js');
+} = require('../src/core/parsers/gemini/shared/structuredContentAdapter.js');
 const {
     decodeGeminiAnnotation,
     decodeGeminiStructuredNode,
     decodeGeminiStructuredPayload,
     extractStructuredContent,
-} = require('../src/core/api/parser/structuredContent.js');
-const { parseDetail } = require('../src/core/api/parser/parseDetail.js');
-const { extractImages } = require('../src/core/api/parser/attachments.js');
+} = require('../src/core/parsers/gemini/rpc/structuredContent.js');
+const { parseDetail } = require('../src/core/compatibility/gemini/parseDetail.js');
+const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
 
 const fixturesDir = path.join(__dirname, 'fixtures', 'provider', 'structured_rpc');
 

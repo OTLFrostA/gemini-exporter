@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/domain/legacyConversationAdapter.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
+import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
 async function assertDomainParity(conversation: Conversation): Promise<void> {

@@ -5,11 +5,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/export/document/renderTypst.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 test('each Domain fixture is closed and JSON round-trip preserves every backend output', () => {
     const dir = join(__dirname, 'fixtures', 'document-domain');
     const files = readdirSync(dir).filter(file => file.endsWith('.json'));

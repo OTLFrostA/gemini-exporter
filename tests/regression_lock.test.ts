@@ -25,8 +25,8 @@ const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/
 
 const SRC = path.join(__dirname, '..', 'src');
 const Proto = require('../src/core/protocol/protocol.js');
-const { GeminiResponseParserClass, isRealTitle } = require('../src/core/api/geminiParser.js');
-const Extractors = require('../src/core/api/parser/extractors.js');
+const { GeminiResponseParserClass, isRealTitle } = require('../src/core/compatibility/gemini/geminiParser.js');
+const Extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
 const StorageService = require('../src/core/storage/storageService.js');
 const TabService = require('../src/core/utils/tabService.js');
 const GeminiUtils = require('../src/core/utils/utils.js');

@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
-const zipBombGuard = require('../src/core/engine/takeout/zipBombGuard.js');
-const mediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
+const zipBombGuard = require('../src/core/compatibility/archive/zipBombGuard.js');
+const mediaIndex = require('../src/core/compatibility/takeout/mediaIndex.js');
 
 // ---------- P1-112: no substring cross-file matching ----------
 test('p1_h1 - P1-112: fallback media never returns an unrelated file via substring', async () => {
@@ -83,7 +83,7 @@ test('p1_h1 - P1-117: C2PA needs a trust marker and a valid calendar date', () =
 test('p1_h1 - P1-111: takeoutHtmlParser uses a prebuilt index, not a triple loop', () => {
     const fs = require('node:fs');
     const path = require('node:path');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/engine/takeout/takeoutHtmlParser.ts'), 'utf8');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/compatibility/takeout/takeoutHtmlParser.ts'), 'utf8');
     assert.ok(src.includes('__zipExact'), 'prebuilt exact-match index missing');
     assert.ok(src.includes('__zipEntries'), 'flat ZIP entry index missing');
 });
@@ -97,7 +97,7 @@ test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
 });
 
 test('p1_h1 - parseTakeoutTimestamp CST and numeric offset handling', () => {
-    const { parseTakeoutTimestamp } = require('../src/core/engine/takeout/takeoutHtmlParser.js');
+    const { parseTakeoutTimestamp } = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
     const blockCjkCst = '<div class="content-cell">Prompted 介绍木星<br>Jul 15, 2024, 2:30:00 PM CST</div>';
     const tsCst = parseTakeoutTimestamp(blockCjkCst);
     assert.ok(tsCst !== null);

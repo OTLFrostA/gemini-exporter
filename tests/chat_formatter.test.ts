@@ -67,7 +67,7 @@ test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () 
 });
 
 test('htmlConverter preserves emphasis on strong and em tags with attributes', () => {
-    const { convertHtmlToMarkdown } = require('../src/core/engine/formatters/htmlConverter.js');
+    const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
     assert.strictEqual(convertHtmlToMarkdown('<strong class="x">bold</strong>'), '**bold**');
     assert.strictEqual(convertHtmlToMarkdown('<em data-x="1">italics</em>'), '*italics*');
 });
@@ -201,7 +201,7 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
 
 test('chat_formatter - decoupled formatters export valid focused functions', async () => {
     const { toOpenAIJson, toJsonStandard, toJsonRaw } = require('../src/core/engine/formatters/jsonFormatter.js');
-    const { convertHtmlToMarkdown } = require('../src/core/engine/formatters/htmlConverter.js');
+    const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
 
     assert.strictEqual(typeof toOpenAIJson, 'function');
     assert.strictEqual(typeof toJsonStandard, 'function');

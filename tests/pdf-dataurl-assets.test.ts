@@ -2,10 +2,10 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseProviderConversation } = require('../src/core/provider/conversationParser.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { preparePdfResources } = require('../src/core/export/pdf/prepareResources.js');
-const { collectDocumentResources } = require('../src/core/export/document/resourceReferences.js');
+const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
 const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
 const { decodeDataUrl, decodeDataUrlAsset } = require('../src/core/export/assets/dataUrl.js');
 const { assertDomainClosure } = require('../src/core/domain/closure.js');

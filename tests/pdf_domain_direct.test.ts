@@ -5,12 +5,12 @@ import { join } from 'node:path';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText, parseObjects, inflateIfNeeded } from './helpers/pdfTextExtract.js';
-import type { TypstConversationRenderPayload } from '../src/core/export/typst/transport.js';
+import type { TypstConversationRenderPayload } from '../src/core/renderers/typst/transport.js';
 
 const ctx = { signal: new AbortController().signal, log() {}, reportProgress() {} };
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';

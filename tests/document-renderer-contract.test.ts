@@ -17,8 +17,8 @@ const assert = require('node:assert');
 const path = require('path');
 const { execSync } = require('node:child_process');
 
-const { renderDocumentHtml } = require('../src/core/export/document/renderHtml.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -249,7 +249,7 @@ test('shared collectReferencedAssetIds sees inline images everywhere', () => {
         },
         { type: 'image', assetId: 'img-block', alt: 'b' },
     ];
-    const ids = require('../src/core/content/collectAssetReferences.js').collectReferencedAssetIds(blocks);
+    const ids = require('../src/core/domain/content/collectAssetReferences.js').collectReferencedAssetIds(blocks);
     assert.deepStrictEqual(
         [...ids].sort(),
         ['img-block', 'img-cell', 'img-heading', 'img-para'],
@@ -259,7 +259,7 @@ test('shared collectReferencedAssetIds sees inline images everywhere', () => {
 test('inline HTML resource references are collected from the Document AST and use supplied bindings', () => {
     const domain = domainFixture([{ type: 'paragraph', children: [txt('diagram: '), { type: 'image', assetId: 'img-1', alt: 'architecture' }] }], { assets: [imgAsset('img-1', 'diagram.png')] });
     const document = composeDomainDocument(domain).document;
-    const { collectDocumentResources } = require('../src/core/export/document/resourceReferences.js');
+    const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
     assert.deepEqual([...collectDocumentResources(document).referencedIds], ['img-1']);
     const result = renderDocumentHtml(document, { 'img-1': 'assets/img-1.png' });
     assert.ok(result.html.includes('<img'));

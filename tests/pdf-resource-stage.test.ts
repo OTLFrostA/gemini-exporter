@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import type { StageContext } from '../src/core/export/pdf/pipeline/types.js';
 import type { PreparedResource } from '../src/core/export/assets/preparedResources.js';
-import type { DocumentAst, DisplayBlock } from '../src/core/export/document/ast.js';
+import type { DocumentAst, DisplayBlock } from '../src/core/document/ast/ast.js';
 
 function png(seed = 1): Uint8Array {
     return new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, seed]);

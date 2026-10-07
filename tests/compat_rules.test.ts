@@ -21,7 +21,7 @@ const {
     GM_MD_001_FENCE_NORMALIZATION,
     preprocessGeminiMarkdown,
     preprocessGeminiLatex,
-} = require('../src/core/provider/gemini/markdownCompatibility.js');
+} = require('../src/core/parsers/gemini/shared/markdownCompatibility.js');
 
 test('Compatibility Rules: GM-MD-001 is admitted with full provenance metadata', () => {
     assert.strictEqual(Array.isArray(GEMINI_MARKDOWN_COMPAT_RULES), true);

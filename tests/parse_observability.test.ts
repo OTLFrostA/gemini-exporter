@@ -8,8 +8,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const parseDetailMod = require('../src/core/api/parser/parseDetail.js');
-const attachments = require('../src/core/api/parser/attachments.js');
+const parseDetailMod = require('../src/core/compatibility/gemini/parseDetail.js');
+const attachments = require('../src/core/compatibility/gemini/attachments.js');
 const pagination = require('../src/core/api/client/pagination.js');
 const parseDrift = require('../src/core/engine/export/parseDrift.js');
 

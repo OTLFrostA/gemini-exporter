@@ -69,7 +69,7 @@ test('storageService: IDB failure aborts write and prevents chrome.storage.local
 
 // 2. Takeout MediaIndex Strict Slot Isolation Verification
 test('mediaIndex: strict slot isolation prevents cross-account data corruption', () => {
-    const MediaIndex = require('../src/core/engine/takeout/mediaIndex.js');
+    const MediaIndex = require('../src/core/compatibility/takeout/mediaIndex.js');
 
     // Commit takeout data for Slot u0
     MediaIndex.commitTakeoutData('u0', {

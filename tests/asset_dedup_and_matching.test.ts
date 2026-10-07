@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-const { GeminiResponseParserClass } = require('../src/core/api/geminiParser.js');
+const { GeminiResponseParserClass } = require('../src/core/compatibility/gemini/geminiParser.js');
 const { BatchWorker } = require('../src/core/engine/export/batchWorker.js');
 
 test('asset_dedup - Takeout getTakeoutFallbackMedia retrieves exact image among multiple image-*.png files', async () => {

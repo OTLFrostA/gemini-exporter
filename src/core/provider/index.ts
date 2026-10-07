@@ -5,7 +5,3 @@ export * from "./providerRegistry.js";
 // Domain contracts live in core/domain; lifecycle contracts still serve the legacy sync/storage path.
 export * from "./gemini/geminiProvider.js";
 export type * from "./gemini/geminiContracts.js";
-
-export { parseConversation } from './parseConversation.js';
-export type { ConversationParseInput } from './parseConversation.js';
-export type { ConversationParseContext, ConversationParseResult, ConversationParser } from '../domain/parsing.js';

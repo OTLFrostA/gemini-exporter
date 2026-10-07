@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import type { DocumentAst } from '../src/core/export/document/ast.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/export/document/renderMarkdown.js';
-import { renderDocumentHtml } from '../src/core/export/document/renderHtml.js';
+import type { DocumentAst } from '../src/core/document/ast/ast.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 
 const time = '2026-10-06T00:00:00Z';
 function fixture(): DomainConversationDetail {
@@ -61,7 +61,7 @@ test('Markdown composition owns unavailability and emits diagnostics without rem
 });
 
 test('Markdown backend cannot import semantic models, registries or clocks', () => {
-    const code = readFileSync('src/core/export/document/renderMarkdown.ts', 'utf8');
+    const code = readFileSync('src/core/renderers/markdown/renderMarkdown.ts', 'utf8');
     assert.doesNotMatch(code, /canonical\/|content\/|provider\/|Domain|Canonical|assetPresentation|citationDisplayLabel|new Date|\.role\b|\.storageRef\b/);
     assert.match(code, /function projectedTable/);
 });

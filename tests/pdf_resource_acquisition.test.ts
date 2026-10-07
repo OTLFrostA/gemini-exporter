@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { GeminiNormalizationInput } from '../src/core/provider/gemini/exportInput.js';
+import type { GeminiNormalizationInput } from '../src/core/compatibility/gemini/exportInput.js';
 import type { AcquireAssetBytesResult } from '../src/core/engine/assetPipeline.js';
-import { parseProviderConversation } from '../src/core/provider/conversationParser.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { collectDocumentResources } from '../src/core/export/document/resourceReferences.js';
+import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 

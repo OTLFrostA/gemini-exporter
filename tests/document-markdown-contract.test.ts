@@ -1,9 +1,9 @@
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { renderDocumentMarkdown } = require('../src/core/export/document/renderMarkdown.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
-const { exportDomainMarkdown } = require('../src/core/export/document/exportDomainDocument.js');
+const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { exportDomainMarkdown } = require('../src/core/export/exportDomainDocument.js');
 const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js');
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });

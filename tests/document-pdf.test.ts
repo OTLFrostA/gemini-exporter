@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import type { DocumentAst } from '../src/core/export/document/ast.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
-import { renderDocumentTypst, defaultPdfLayout } from '../src/core/export/document/renderTypst.js';
+import type { DocumentAst } from '../src/core/document/ast/ast.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentTypst, defaultPdfLayout } from '../src/core/renderers/typst/renderTypst.js';
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
@@ -50,7 +50,7 @@ test('real PDF engine changes page policy without recomposing the document', asy
 });
 
 test('PDF backend/compiler have no source-model imports; backend may infer layout from display neighbors', () => {
-    for (const file of ['src/core/export/document/renderTypst.ts', 'src/core/export/typst/transport.ts', 'src/core/export/typst/layout.ts', 'src/core/export/pdf/pdfCompiler.ts', 'src/core/export/typst/typstSandboxCompiler.ts']) {
+    for (const file of ['src/core/renderers/typst/renderTypst.ts', 'src/core/renderers/typst/transport.ts', 'src/core/renderers/typst/layout.ts', 'src/core/export/pdf/pdfCompiler.ts', 'src/core/export/typst/typstSandboxCompiler.ts']) {
         const code = readFileSync(file, 'utf8');
         assert.doesNotMatch(code, /from ['"].*canonical\/|from ['"].*content\/|from ['"].*provider\/|\.bundle\b|\.role\b|assetPresentation|citationDisplayLabel/);
     }

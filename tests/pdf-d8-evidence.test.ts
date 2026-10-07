@@ -29,9 +29,9 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
-const { composeDomainDocument } = require('../src/core/export/document/composeDomainDocument.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
-const { convertMath: convertLatex } = require('../src/core/export/typst/mathConverter.js');
+const { convertMath: convertLatex } = require('../src/core/renderers/typst/mathConverter.js');
 const convertMath = (source: string, display: boolean) => convertLatex(source, 'latex', display);
 const { withNetworkGate, assertZeroExternalRequests } = require('./helpers/compileNetworkGate.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');

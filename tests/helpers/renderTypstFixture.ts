@@ -1,7 +1,7 @@
 import type { DocumentDiagnostic } from '../../src/core/diagnostics/documentDiagnostic.js';
-import type { DocumentAst, ResourceBindings } from '../../src/core/export/document/ast.js';
-import type { PdfRenderOptions } from '../../src/core/export/document/renderOptions.js';
-import { renderDocumentTypst } from '../../src/core/export/document/renderTypst.js';
+import type { DocumentAst, ResourceBindings } from '../../src/core/document/ast/ast.js';
+import type { PdfRenderOptions } from '../../src/core/renderers/shared/renderOptions.js';
+import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
 
 /** Collect backend diagnostics without carrying a semantic conversation to the renderer. */
 export function renderTypstFixture(document: DocumentAst, resources: ResourceBindings = {}, options: PdfRenderOptions = {}) {

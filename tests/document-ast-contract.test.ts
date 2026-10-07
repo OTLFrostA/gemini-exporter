@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentAst.js';
-import { composeDomainDocument } from '../src/core/export/document/composeDomainDocument.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 
 const valid = () => ({ schemaVersion: 2, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
