@@ -76,7 +76,6 @@ src/
     compatibility/             Existing record/output behavior until producers migrate
       gemini/                  RPC facade, legacy filenames/paths and persisted detail projection
       takeout/                 Existing Takeout importer and inferred media correlation
-      openai/                  Prototype archive importer; native Domain parser still pending
       record/                  Existing application record → Domain bridge
       archive/                 Existing localized ZIP guard errors
 
