@@ -12,7 +12,16 @@ function utcDate(date) {
 }
 
 export function getQueryRange(today = new Date()) {
-  const yesterday = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Los_Angeles',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(today);
+  const datePart = (type) => parts.find((part) => part.type === type)?.value;
+  const localToday = `${datePart('year')}-${datePart('month')}-${datePart('day')}`;
+  const yesterday = new Date(`${localToday}T00:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const rangeStart = new Date(yesterday);
   rangeStart.setUTCDate(rangeStart.getUTCDate() - 59);
   return { startDate: utcDate(rangeStart), endDate: utcDate(yesterday) };

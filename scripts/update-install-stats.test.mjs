@@ -16,6 +16,13 @@ test('GA query always covers exactly the latest 60 days through yesterday', () =
   });
 });
 
+test('Pacific evening manual run ends on the last complete GA property day', () => {
+  assert.deepEqual(getQueryRange(new Date('2026-10-08T03:25:00Z')), {
+    startDate: '2026-08-08',
+    endDate: '2026-10-06',
+  });
+});
+
 test('bootstrap history boundary is August 30, 2026', () => {
   assert.equal(BOOTSTRAP_START_DATE, '2026-08-30');
   assert.deepEqual(getHistoryRange({ startDate: '2026-08-08', endDate: '2026-10-06' }), {
