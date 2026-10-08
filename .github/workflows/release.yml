@@ -4,27 +4,6 @@ on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
-    inputs:
-      action:
-        description: '发布方式 (Release Mode)'
-        required: true
-        default: 'release_current_main'
-        type: choice
-        options:
-          - 'release_current_main'
-          - 'bump_patch_and_release'
-          - 'bump_minor_and_release'
-          - 'custom_tag'
-      custom_tag:
-        description: '自定义版本号 (仅在选择 custom_tag 时生效，例如 v1.4.0)'
-        required: false
-        default: ''
-      publish_to_store:
-        description: '发布到 Chrome Web Store 商店审查 (false = 仅生成 GitHub Release)'
-        required: true
-        default: false
-        type: boolean
 
 jobs:
   build-and-release:
@@ -33,105 +12,42 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout release source
+      - name: Checkout tagged source
         uses: actions/checkout@v4
         with:
-          # A tag push must build the tagged commit. Manual releases start at main.
-          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
+          # GITHUB_SHA is the commit selected by the pushed tag.
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
-      - name: Determine version and lock source commit
+      - name: Validate tag and source versions
         id: release
         env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_TAG: ${{ github.ref_name }}
-          ACTION: ${{ inputs.action }}
-          CUSTOM_TAG: ${{ inputs.custom_tag }}
+          TAG: ${{ github.ref_name }}
+          EVENT_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            TAG="$EVENT_TAG"
-          else
-            CURRENT_VER=$(jq -er '.version' manifest.json)
-            PACKAGE_VER=$(jq -er '.version' package.json)
-            if [[ ! "$CURRENT_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ || "$PACKAGE_VER" != "$CURRENT_VER" ]]; then
-              echo "manifest.json and package.json must have the same stable x.y.z version before release." >&2
-              exit 1
-            fi
-            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VER"
-
-            case "$ACTION" in
-              bump_patch_and_release)
-                VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
-                TAG="v${VERSION}"
-                jq --arg v "$VERSION" '.version = $v' manifest.json > manifest.tmp
-                mv manifest.tmp manifest.json
-                jq --arg v "$VERSION" '.version = $v' package.json > package.tmp
-                mv package.tmp package.json
-                jq --arg v "$VERSION" '.version = $v | .packages[""].version = $v' package-lock.json > package-lock.tmp
-                mv package-lock.tmp package-lock.json
-                node scripts/release-prepare.js
-                git add manifest.json package.json package-lock.json README.md README_zh.md
-                git commit -m "chore(release): bump version to v${VERSION} [skip ci]"
-                ;;
-              bump_minor_and_release)
-                VERSION="${MAJOR}.$((MINOR + 1)).0"
-                TAG="v${VERSION}"
-                jq --arg v "$VERSION" '.version = $v' manifest.json > manifest.tmp
-                mv manifest.tmp manifest.json
-                jq --arg v "$VERSION" '.version = $v' package.json > package.tmp
-                mv package.tmp package.json
-                jq --arg v "$VERSION" '.version = $v | .packages[""].version = $v' package-lock.json > package-lock.tmp
-                mv package-lock.tmp package-lock.json
-                node scripts/release-prepare.js
-                git add manifest.json package.json package-lock.json README.md README_zh.md
-                git commit -m "chore(release): bump version to v${VERSION} [skip ci]"
-                ;;
-              custom_tag)
-                TAG="$CUSTOM_TAG"
-                ;;
-              release_current_main)
-                TAG="v${CURRENT_VER}"
-                ;;
-              *)
-                echo "Unsupported release action: $ACTION" >&2
-                exit 1
-                ;;
-            esac
-          fi
-
           if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             echo "Release tag must have the form vX.Y.Z: $TAG" >&2
             exit 1
           fi
           VERSION="${BASH_REMATCH[1]}"
-          MANIFEST_VER=$(jq -er '.version' manifest.json)
-          PACKAGE_VER=$(jq -er '.version' package.json)
-          if [[ "$VERSION" != "$MANIFEST_VER" || "$VERSION" != "$PACKAGE_VER" ]]; then
-            echo "Tag ($VERSION), manifest.json ($MANIFEST_VER), and package.json ($PACKAGE_VER) versions must match." >&2
+          MANIFEST_VERSION=$(jq -er '.version' manifest.json)
+          PACKAGE_VERSION=$(jq -er '.version' package.json)
+          if [[ "$VERSION" != "$MANIFEST_VERSION" || "$VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "Tag ($VERSION), manifest.json ($MANIFEST_VERSION), and package.json ($PACKAGE_VERSION) versions must match." >&2
             exit 1
           fi
 
-          LOCKED_SHA=$(git rev-parse HEAD)
-          # Refuse to reuse any existing tag that points at a different source commit.
-          if git show-ref --verify --quiet "refs/tags/${TAG}"; then
-            EXISTING_SHA=$(git rev-parse "refs/tags/${TAG}^{commit}")
-            if [[ "$EXISTING_SHA" != "$LOCKED_SHA" ]]; then
-              echo "Tag $TAG already points to $EXISTING_SHA, expected $LOCKED_SHA." >&2
-              exit 1
-            fi
-          else
-            git tag -a "$TAG" -m "Release $TAG"
+          SOURCE_SHA=$(git rev-parse HEAD)
+          if [[ "$SOURCE_SHA" != "$EVENT_SHA" ]]; then
+            echo "Checked out $SOURCE_SHA, but the tag event points to $EVENT_SHA." >&2
+            exit 1
           fi
-
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "sha=$LOCKED_SHA" >> "$GITHUB_OUTPUT"
-          echo "Locked release source: $LOCKED_SHA ($TAG)"
+          echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "Validated $TAG at $SOURCE_SHA (version $VERSION)"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -141,6 +57,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install Playwright Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
 
       - name: Run release test gates
         env:
@@ -188,29 +107,6 @@ jobs:
             echo "- SHA-256: \`$ZIP_SHA256\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Push release commit and tag
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          TAG: ${{ steps.release.outputs.tag }}
-          LOCKED_SHA: ${{ steps.release.outputs.sha }}
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "$LOCKED_SHA"
-          git push origin "${LOCKED_SHA}:refs/heads/main"
-          REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/${TAG}^{}" | awk 'NR == 1 {print $1}')
-          if [[ -z "$REMOTE_TAG_SHA" ]]; then
-            REMOTE_TAG_SHA=$(git ls-remote origin "refs/tags/${TAG}" | awk 'NR == 1 {print $1}')
-          fi
-          if [[ -n "$REMOTE_TAG_SHA" ]]; then
-            if [[ "$REMOTE_TAG_SHA" != "$LOCKED_SHA" ]]; then
-              echo "Remote tag $TAG already points to $REMOTE_TAG_SHA, expected $LOCKED_SHA." >&2
-              exit 1
-            fi
-            echo "Remote tag $TAG already points to the locked release commit."
-          else
-            git push origin "refs/tags/${TAG}"
-          fi
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -223,8 +119,6 @@ jobs:
           prerelease: false
 
       - name: Check Chrome Web Store credentials
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_store == true
-        id: check_cws
         env:
           CWS_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
           CWS_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
@@ -233,12 +127,11 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$CWS_CLIENT_ID" || -z "$CWS_CLIENT_SECRET" || -z "$CWS_REFRESH_TOKEN" || -z "$CWS_EXT_ID" ]]; then
-            echo "Chrome Web Store publishing was requested, but credentials are incomplete." >&2
+            echo "Chrome Web Store credentials are incomplete; refusing to finish the release." >&2
             exit 1
           fi
 
-      - name: Verify Chrome Web Store artifact
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_store == true
+      - name: Verify ZIP before Chrome Web Store upload
         env:
           ZIP_NAME: ${{ steps.package.outputs.name }}
           EXPECTED_SHA256: ${{ steps.package.outputs.sha256 }}
@@ -247,8 +140,7 @@ jobs:
           ACTUAL_SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
           test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
 
-      - name: Upload to Chrome Web Store
-        if: github.event_name == 'workflow_dispatch' && inputs.publish_to_store == true
+      - name: Upload and publish to Chrome Web Store
         uses: mnao305/chrome-extension-upload@v5.0.0
         with:
           file-path: ${{ steps.package.outputs.name }}

@@ -914,15 +914,29 @@ test('release workflow - release package excludes TypeScript source and sourcema
 
     // release.yml delegates packaging to npm run package SSoT
     assert.ok(workflowContent.includes('npm run package'), 'release.yml must delegate packaging to npm run package');
-    assert.ok(workflowContent.includes("github.event_name == 'push' && github.sha || 'main'"), 'tag pushes must checkout the event commit');
+    assert.ok(workflowContent.includes("      - 'v*'"), 'release workflow must trigger only from version tags');
+    assert.ok(workflowContent.includes('ref: ${{ github.sha }}'), 'tag pushes must checkout the event commit');
+    assert.ok(!workflowContent.includes('workflow_dispatch'), 'release must not expose manual version-management modes');
+    assert.ok(!workflowContent.includes('bump_patch') && !workflowContent.includes('bump_minor') && !workflowContent.includes('custom_tag'), 'release workflow must not manage versions or tags');
+    assert.ok(!workflowContent.includes('git push') && !workflowContent.includes('git tag'), 'release workflow must not modify or push main or tags');
     assert.ok(workflowContent.includes('run: npm ci'), 'release dependencies must install with npm ci only');
+    const browserInstall = workflowContent.indexOf('npx playwright install --with-deps chromium');
+    const testGate = workflowContent.indexOf('npm test');
+    assert.ok(browserInstall >= 0 && browserInstall < testGate, 'Chromium and system dependencies must install before npm test');
     assert.ok(workflowContent.includes('npm test'), 'the full test gate must run before packaging');
-    assert.ok(workflowContent.includes('Tag ($VERSION), manifest.json ($MANIFEST_VER), and package.json ($PACKAGE_VER) versions must match.'), 'tag and source versions must be validated');
-    assert.ok(workflowContent.includes('TAG="v${VERSION}"'), 'version bump modes must derive the release tag from the committed version');
+    assert.ok(workflowContent.includes('Tag ($VERSION), manifest.json ($MANIFEST_VERSION), and package.json ($PACKAGE_VERSION) versions must match.'), 'tag and source versions must be validated');
     assert.ok(workflowContent.includes('ZIP_SHA256=$(sha256sum "$ZIP_NAME"'), 'the verified release ZIP must have a recorded SHA-256');
-    assert.ok(workflowContent.includes("if: github.event_name == 'workflow_dispatch' && inputs.publish_to_store == true"), 'store actions must require explicit manual authorization');
+    assert.ok(workflowContent.includes('uses: softprops/action-gh-release@v2'), 'the validated ZIP must be attached to a GitHub Release');
+    const githubRelease = workflowContent.indexOf('uses: softprops/action-gh-release@v2');
+    const storeCredentials = workflowContent.indexOf('name: Check Chrome Web Store credentials');
+    const storeUpload = workflowContent.indexOf('uses: mnao305/chrome-extension-upload@v5.0.0');
+    assert.ok(githubRelease >= 0 && storeCredentials > githubRelease && storeUpload > storeCredentials, 'store publishing must run after the GitHub Release and credential check');
+    assert.ok(workflowContent.includes('Chrome Web Store credentials are incomplete; refusing to finish the release.'), 'missing store credentials must fail the workflow');
+    assert.ok(workflowContent.includes('file-path: ${{ steps.package.outputs.name }}'), 'the store must upload the verified release ZIP');
+    assert.ok(workflowContent.includes('files: ${{ steps.package.outputs.name }}'), 'GitHub Release must use the same verified ZIP as the store');
+    assert.ok(workflowContent.includes('name: Verify ZIP before Chrome Web Store upload'), 'the artifact digest must be rechecked before store upload');
+    assert.ok(workflowContent.includes('          publish: true'), 'store upload must submit a publish request');
     assert.ok(!workflowContent.includes('continue-on-error: true'), 'store upload failures must fail the workflow');
-    assert.ok(!workflowContent.includes('publish: ${{ github.event.inputs.publish_to_store || true }}'), 'store publish must not default to true');
 });
 
 test('architecture doc - all referenced src/ file paths must exist on disk', () => {
