@@ -30,7 +30,7 @@ function parsedForExport(chat: ChatExportInput): ResourceConversationParseResult
     const native = readParsedConversation(chat);
     if (native) return { ...native, conversation: { ...native.conversation, id: chat.id, title: chat.title,
         ...(chat.titleSource ? { titleSource: chat.titleSource } : {}), ...(chat.titles ? { titles: { ...chat.titles } } : {}) } };
-    // Existing stored records remain readable until the independent storage migration.
+    // Historical records remain readable through the explicit legacy compatibility entry.
     const parsed = parseLegacyConversation({ ...chat, timestamp: chat.timestamp ?? null });
     return { ...parsed, diagnostics: [], acquisitionHints: {} };
 }

@@ -199,7 +199,7 @@ test('PR-B: Legacy storage is upgraded strictly through migration boundary, then
         await SchemaMigration.ensureStorageReady();
 
         // Migration must have populated canonical keys and removed legacy keys
-        assert.strictEqual(env.localStore['gemini_schema_version'], 1);
+        assert.strictEqual(env.localStore['gemini_schema_version'], 2);
         assert.strictEqual(env.localStore['gemini_conversations_u0'], undefined, 'Legacy u0 conv key removed');
         assert.strictEqual(env.localStore['gemini_exported_u0'], undefined, 'Legacy u0 export key removed');
         assert.strictEqual(env.sessionStore['gemini_credentials'], undefined, 'Legacy single cred key removed');

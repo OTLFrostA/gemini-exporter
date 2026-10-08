@@ -2,7 +2,7 @@
 
 Domain is the provider-neutral semantic conversation we intend to remember over time. It owns source facts and relationships, independently of the current exporter or storage implementation. The target producer pipeline is `raw input → source parser → Domain`. Consumers then use `Domain → Document AST → Renderer`.
 
-Production conversation detail inputs now follow raw source → native parser → Domain: RPC pages, Takeout archives and DOM observations. Runtime application envelopes carry the native result in a `parsed` sidecar. Storage/JSON receive a one-way string-record projection; the historical record parser remains only for existing cached/stored inputs.
+Production conversation detail inputs now follow raw source → native parser → Domain: RPC pages, Takeout archives and DOM observations. Runtime application envelopes carry the native result in a `parsed` sidecar. Versioned storage receives Domain directly. JSON/application consumers receive a one-way string-record projection; a dedicated legacy-storage parser interprets historical persisted records.
 
 ## Shared parser contract
 
@@ -93,11 +93,18 @@ The currently linear message list is not a complete branching/tool execution mod
 
 Each migration needs source-specific fidelity tests, stable identities, closure checks, JSON round trips, diagnostics outside Domain, and unchanged downstream export semantics. Synthetic contracts do not establish provider wire compatibility.
 
-## Storage boundary for this work
+## Durable storage boundary
 
-No storage implementation, persisted `src/types/conversation.ts` shape, key, serializer, version or migration is changed. Existing fetch/sync/import flows still deliver their historical records to storage. The native result travels through fetch/export paths, and `compatibility/record/projectDomainRecord.ts` creates the existing string record only after native parsing. Takeout import collection writes remain metadata-only, excluding both message bodies and the runtime sidecar; they cannot overwrite a fuller stored detail. Its full native result and string view remain in the existing runtime offline cache. Choosing Domain as the future durable semantic model does not authorize writing it into today's storage.
+The separately authorized storage upgrade adopts a versioned Domain repository.
+Native captures write structured Domain directly; old chrome/IndexedDB records
+are explicit legacy-storage parser inputs, backed up before interpretation and
+transfer. The lightweight conversation index and independent settings/account/
+export APIs retain their existing keys. Runtime string projections are not the
+new durable body. See [Domain storage contract and upgrade behavior](domain-storage.md).
 
-Storage adoption will be handled separately with an explicit versioned compatibility design and upgrade tests. Raw parser migrations must not opportunistically change existing storage callers or reinterpret old persisted records.
+Raw source parsers remain independent of storage. Only the legacy-storage parser
+uses the characterized historical record grammar; migration I/O belongs to the
+storage layer. Ambiguous account ownership is preserved and reported, not guessed.
 
 ## Physical ownership and verification
 
@@ -109,7 +116,7 @@ Takeout does not associate unreferenced watermarked files with a conversation me
 
 Live image saving can change prepared archive destinations after byte sniffing; it updates asset-keyed resource hints without rewriting the native content or source URI. High-resolution URL preparation also stays outside the source parser.
 
-Storage files, persisted Conversation types, keys, serialization and migration behavior are not modified. The existing storage layer continues to receive the same compatibility outputs.
+The parser migration acceptance above predates the separate storage upgrade. Current durable storage and its upgrade validation are documented in [Domain storage](domain-storage.md).
 
 ## Takeout archive resource resolution
 

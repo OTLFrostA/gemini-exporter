@@ -1,3 +1,4 @@
+import { handleDomainStorageMessage } from './domainStorageHandler.js';
 import type { BackgroundMessage } from '../types/entrypoints.js';
 import type { AbortSyncMessage, DeepScanMessage, StopDeepScanMessage } from '../types/messages.js';
 import { initSessionAccessLevel, initUninstallUrl, initLifecycleListeners } from './lifecycle.js';
@@ -37,6 +38,7 @@ void ensureStorageReady().catch((err) => {
 });
 
 chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.runtime.MessageSender, sendResponse: (response?: unknown) => void) => {
+    if (handleDomainStorageMessage(msg, sender, sendResponse)) return true;
     if (msg.action === 'openOptions') {
         void chrome.runtime.openOptionsPage();
         sendResponse({ ok: true });

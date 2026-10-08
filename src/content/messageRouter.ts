@@ -1,3 +1,4 @@
+import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
 import type { ContentConversationDetail, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { normalizeReliableTitleSource, TitleResolutionInput } from '../core/utils/titleUtils.js';
@@ -146,6 +147,7 @@ export function init({
             void (async () => {
                 async function persistDetailTitle(chatObj: ContentConversationDetail): Promise<void> {
                     if (!chatObj) return;
+                    await persistNativeConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj);
                     const nid = normId(cid || chatObj.id);
                     chatObj.title = cleanTitle(chatObj.title);
                     let detectedSource = chatObj.titleSource || 'rpc';
@@ -212,6 +214,7 @@ export function init({
                         const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                         try {
                             if (Storage && typeof Storage.removeConversation === 'function') {
+                                Sync?.markConfirmedDeleted?.(slot, cid);
                                 await Storage.removeConversation(slot, cid);
                                 const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
                                     ? await Storage.getLastSync(slot)
@@ -269,7 +272,8 @@ export function init({
                                 const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                                 try {
                                     if (Storage && typeof Storage.removeConversation === 'function') {
-                                        await Storage.removeConversation(slot, cid);
+                                        Sync?.markConfirmedDeleted?.(slot, cid);
+                                await Storage.removeConversation(slot, cid);
                                         const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
                                             ? await Storage.getLastSync(slot)
                                             : { count: (await Storage.getConversations!(slot)).length };

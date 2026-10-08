@@ -1,3 +1,4 @@
+import { parseLegacyStorageConversation, type LegacyStorageRaw } from './legacyStorage/parseConversation.js';
 import { parseGeminiDomConversation, type GeminiDomRaw, type GeminiDomParseResult } from './gemini/dom/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw, type GeminiTakeoutZipContext } from './gemini/takeout/parseZip.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult } from './gemini/takeout/parseConversation.js';
@@ -24,8 +25,10 @@ export interface GeminiTakeoutZipParseInput extends GeminiTakeoutZipContext {
 }
 export interface GeminiDomParseInput { format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
 /** Only formats with implemented Domain parsers belong here. */
-export type ConversationParseInput = ConversationRecordParseInput | GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
+export interface LegacyStorageParseInput { format: 'legacy-storage'; providerId: string; data: LegacyStorageRaw }
+export type ConversationParseInput = LegacyStorageParseInput | ConversationRecordParseInput | GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
 
+export function parseConversation(input: LegacyStorageParseInput): ResourceConversationParseResult;
 export function parseConversation(input: GeminiDomParseInput): GeminiDomParseResult;
 export function parseConversation(input: ConversationRecordParseInput): ConversationRecordParseResult;
 export function parseConversation(input: GeminiRpcParseInput): GeminiRpcParseResult;
@@ -35,6 +38,7 @@ export function parseConversation(input: ConversationParseInput): ResourceConver
 /** Unified Domain entry; source-specific raw decoders never pass through conversation-record. */
 export function parseConversation(input: ConversationParseInput): ResourceConversationParseResult | Promise<ResourceConversationParseResult> {
     switch (input.format) {
+        case 'legacy-storage': return parseLegacyStorageConversation(input.data, input);
         case 'gemini-dom': return parseGeminiDomConversation(input.data, input);
         case 'conversation-record': return parseConversationRecord(input.data, input);
         case 'gemini-takeout-zip': return parseGeminiTakeoutZip(input.data, input);

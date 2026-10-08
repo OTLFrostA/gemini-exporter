@@ -1,3 +1,4 @@
+import { getDomainResource, cacheDomainResource, storageIdentity } from '../storage/domain/domainStore.js';
 import type { IExportWriter } from "./writers/writerInterface.js";
 import type { GeneratedMediaIdentity } from "../../types/conversation.js";
 import type { TakeoutEngineModule } from "./takeoutEngine.js";
@@ -62,6 +63,7 @@ export interface AssetPipelineChat {
 }
 
 export interface AssetPipelineItem {
+    assetId?: string;
     url?: string;
     sourceUrl?: string;
     resolvedUrl?: string;
@@ -502,6 +504,11 @@ class AssetPipeline implements AssetPipelineInstance {
             };
         }
 
+        if (item.assetId) {
+            const stored = await getDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId);
+            if (stored?.byteLength) return { ok: true, bytes: stored, base64: null, fromBuffer: true, failReason: '', recoveredFromTakeout: false, localName };
+        }
+
         if (canAttemptRemote && targetUrl) {
             try {
                 let attempt = 0;
@@ -511,6 +518,10 @@ class AssetPipeline implements AssetPipelineInstance {
                     if (signal && signal.aborted) { failReason = 'aborted'; break; }
                     const extracted = this.extractDownloadPayload(r, isImage);
                     if (extracted.ok && extracted.bytes && extracted.bytes.length > 0) {
+                        if (item.assetId && (sourceUrl || url || src)) {
+                            try { await cacheDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId, sourceUrl || url || src || '', extracted.bytes); }
+                            catch (error) { this.onLog(`[${chat.title || chat.id}] Resource downloaded but durable cache write failed: ${getErrorMessage(error)}`, 'warn'); }
+                        }
                         return {
                             ok: true,
                             bytes: extracted.bytes,

@@ -57,7 +57,7 @@ function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset
 export function projectDomainRecord(domain: DomainConversationDetail, paths: Readonly<Record<string, string>> = {}, acquisitionHints: ResourceAcquisitionHints = {}): Conversation {
     assertDomainClosure(domain);
     const assets = new Map(domain.assets.map(asset => [asset.id, asset]));
-    const attachment = (asset: DomainAsset): Attachment => ({ type: asset.kind === 'image' ? 'image' : 'file',
+    const attachment = (asset: DomainAsset): Attachment => ({ assetId: asset.id, type: asset.kind === 'image' ? 'image' : 'file',
         ...(asset.source?.uri ? { url: asset.source.uri, sourceUrl: asset.source.uri, src: asset.source.uri } : {}),
         ...(asset.name ? { name: asset.name, fileName: asset.name } : {}),
         ...(paths[asset.id] ? { localName: paths[asset.id] } : {}),
@@ -101,7 +101,7 @@ export function createParsedConversationView(result: ResourceConversationParseRe
     const resourceHints = { ...result.resourceHints };
     for (const [id, archivePath] of Object.entries(paths)) resourceHints[id] = { ...resourceHints[id], archivePath };
     const acquisitionHints = { ...result.acquisitionHints };
-    for (const asset of result.conversation.assets) acquisitionHints[asset.id] = { ...acquisitionHints[asset.id], ...(asset.kind === 'image' && /^https?:/.test(asset.source?.uri ?? '') ? { resolvedUrl: acquisitionHints[asset.id]?.resolvedUrl || highResVariant(asset.source!.uri) } : {}), localName: paths[asset.id], fileName: paths[asset.id].split('/').pop(), ...(asset.name ? { name: asset.name } : {}) };
+    for (const asset of result.conversation.assets) acquisitionHints[asset.id] = { ...acquisitionHints[asset.id], assetId: asset.id, ...(asset.kind === 'image' && /^https?:/.test(asset.source?.uri ?? '') ? { resolvedUrl: acquisitionHints[asset.id]?.resolvedUrl || highResVariant(asset.source!.uri) } : {}), localName: paths[asset.id], fileName: paths[asset.id].split('/').pop(), ...(asset.name ? { name: asset.name } : {}) };
     const parsed: ResourceConversationParseResult = { conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints, resourceHints };
     const record = projectDomainRecord(result.conversation, paths, acquisitionHints);
     return { ...record, messages: record.messages ?? [], createdAt: typeof record.createdAt === 'number' ? record.createdAt : null, updatedAt: typeof record.updatedAt === 'number' ? record.updatedAt : null, chatTime: result.conversation.timestamp ?? undefined, parsed };

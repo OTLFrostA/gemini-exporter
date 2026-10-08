@@ -102,11 +102,16 @@ src/
       typst/                   Sandbox compiler, protocol and local font acquisition
 
     storage/                   Storage Abstraction & Persistence Layer
-      storageService.ts        Multi-account slot chrome.storage.local abstraction & two-tier storage coordinator
-      conversationDetailStore.ts IndexedDB heavy turn & message body detail store for two-tier storage architecture
+      storageService.ts        Multi-account metadata index and native Domain persistence coordinator
+      conversationDetailStore.ts Historical IndexedDB string body store retained for migration/compatibility
       liveStorageManager.ts    Live auto-save configuration and FileSystem Directory Handle proxy
       idbHandleStore.ts        FileSystemDirectoryHandle IndexedDB persistence across sessions
-      schemaMigration.ts       Storage schema version migration & legacy key upgrade runner
+      schemaMigration.ts       Versioned startup readiness and recoverable legacy upgrades
+      schemaState.ts           Dependency-free future-schema write guard
+      domain/                  Account/provider-scoped Domain repository, validation, migration and byte acquisition
+        contracts.ts           Independent storage/Domain versions and durable envelope
+        domainStore.ts         Transactional snapshots, history, bytes and deletion markers
+        transport.ts           Content-script routing to the extension-origin repository
       sessionStore.ts          In-memory and chrome.storage.session recovery cache
       formatStore.ts           Export format preferences & template persistence
 
@@ -215,7 +220,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 6. **MV3 Service Worker Keepalive Resilience**:
    Regular lightweight heartbeat pings keep the MV3 Service Worker alive during lengthy deep scans and multi-megabyte media packaging tasks, preventing unexpected background worker termination by Chromium.
 7. **Two-Tier Storage & Quota Isolation**:
-   `chrome.storage.local` strictly stores lightweight conversation metadata index (`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`), maintaining memory well below Chrome's 10MB quota ceiling. Heavy conversation turns, full messages, and media references are persisted in IndexedDB via `conversationDetailStore.ts`, completely eliminating storage quota exhaustion and data truncation.
+   `chrome.storage.local` strictly stores lightweight conversation metadata index (`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`), maintaining memory well below Chrome's 10MB quota ceiling. Structured conversation Domain and resource bytes are persisted in extension-origin IndexedDB via `storage/domain/`. The old `conversationDetailStore.ts` remains a legacy migration input. Native body writes commit before metadata index writes.
 8. **Headless FileSystem Permission Resilience**:
    When Service Worker executes in headless background and directory handle permissions drop to `prompt` upon browser restart (where Chromium forbids headless permission prompting), the system safely returns `permission_prompt_needed` and records `dirError` in live config, allowing 1-click reauthorization via user gesture (`reauthorizeDirHandle()`).
 9. **Multi-Account Strict Isolation & Zero Token Stealing**:
@@ -240,4 +245,4 @@ suppression comments are forbidden by review.
 
 The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Domain and Document AST do not import parsers or output backends. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. The unified dispatcher has an explicit, limited dependency on the existing conversation-record bridge.
 
-The storage directory, persisted conversation shape, storage keys and serializers are unchanged. A directory move does not mean the corresponding production caller has migrated to raw → Domain. See [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).
+Native conversation inputs now persist Domain in the versioned repository; the old record format has an explicit parser and recoverable migration. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).

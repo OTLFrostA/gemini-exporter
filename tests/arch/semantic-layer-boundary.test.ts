@@ -87,8 +87,9 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
     if (owner.startsWith('renderers/')) return /^(parsers\/|compatibility\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
     if (owner.startsWith('parsers/')) {
-        // The dispatcher explicitly selects the existing record bridge; raw source parsers never reach it.
-        if (owner === 'parsers/parseConversation.ts' && /^compatibility\/record\/(?:conversationRecord|parseConversationRecord)\.ts$/.test(target)) return false;
+        // The dispatcher and legacy-storage source decoder may explicitly reuse the historical record grammar.
+        // Native RPC/Takeout/DOM parsers cannot reach this bridge.
+        if ((owner === 'parsers/parseConversation.ts' || owner === 'parsers/legacyStorage/parseConversation.ts') && /^compatibility\/record\/(?:conversationRecord|parseConversationRecord)\.ts$/.test(target)) return false;
         return /^(compatibility\/|document\/|renderers\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
     }
     return false;
