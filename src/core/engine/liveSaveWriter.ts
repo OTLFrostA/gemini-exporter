@@ -1,3 +1,4 @@
+import type { ResourceResult, ResourceDelivery } from '../resources/resourceResult.js';
 // src/core/engine/liveSaveWriter.ts
 // Shared "format chat -> write markdown file via FsWriter" used by live-save.
 //
@@ -14,13 +15,14 @@ import { isLiveSaveFormatSupported } from '../storage/liveStorageManager.js';
 import { FsWriter } from './writers/fsWriter.js';
 import { ChatFormatter } from './chatFormatter.js';
 import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
-import { buildExportFileName } from '../utils/pathUtils.js';
+import { buildExportFileName, sanitizeRelativePath } from '../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../utils/constants.js';
 
 export interface LiveSaveWriteInput {
     chat: ResourceConversationParseResult;
     safeTitle: string;
     nid: string;
+    resourceResults?: readonly ResourceResult<ResourceDelivery>[];
 }
 
 export interface LiveSaveWriterDeps {
@@ -31,7 +33,7 @@ export interface LiveSaveWriterDeps {
 
 export interface LiveSaveWriter {
     init(): Promise<void>;
-    writeFile(subDir: string, fileName: string, data: string | Uint8Array): Promise<void>;
+    writeFile(subDir: string, fileName: string, data: string | Uint8Array): Promise<string | void>;
 }
 
 const LIVE_SAVE_ROOT_DIR = DEFAULT_EXPORT_FOLDER_NAME;
@@ -49,8 +51,8 @@ export async function createLiveSaveWriter(
     // relying on the removed overload dispatch (previously via an unsafe cast).
     return {
         init: () => writer.init(),
-        writeFile: (subDir: string, fileName: string, data: string | Uint8Array): Promise<void> =>
-            writer.writeFile(subDir ? `${subDir}/${fileName}` : fileName, data).then(() => undefined),
+        writeFile: (subDir: string, fileName: string, data: string | Uint8Array): Promise<string> =>
+            writer.writeFile(subDir ? `${subDir}/${fileName}` : fileName, data),
     };
 }
 
@@ -62,7 +64,7 @@ export async function formatLiveSaveMarkdown(
     const formatter = deps.formatter ?? ChatFormatter;
     const fileName = buildFileName(input.safeTitle, input.nid, 'md');
     const shaped = { ...input.chat, conversation: { ...input.chat.conversation, title: input.safeTitle, id: input.nid } };
-    const { content: markdown } = await formatter.formatMarkdownDocument(shaped);
+    const { content: markdown } = await formatter.formatMarkdownDocument(shaped, { resourceResults: input.resourceResults });
     return { fileName, markdown };
 }
 
@@ -75,6 +77,6 @@ export async function writeLiveSaveMarkdown(
     const { fileName, markdown } = await formatLiveSaveMarkdown(input, deps);
     const targetFile = opts.fileName || fileName;
     if (!await isLiveSaveFormatSupported()) throw new Error('Live save only supports Markdown');
-    await writer.writeFile('', targetFile, markdown);
-    return targetFile;
+    const written = await writer.writeFile('', targetFile, markdown);
+    return typeof written === 'string' && written ? written : sanitizeRelativePath(targetFile);
 }

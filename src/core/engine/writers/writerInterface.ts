@@ -3,6 +3,7 @@ import type { DirectoryHandle } from './directoryHandle.js';
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
 export interface IExportWriter {
+    /** Resolves to the actual relative path accepted by the writer. */
     writeFile(relativePath: string, content: WriteFileContent, options?: any): Promise<string> | string;
     generateBlob?(onUpdate?: (pct: number) => void): Promise<Blob>;
     generateAsync?(options: { type: 'blob' }, onUpdate?: (metadata: { percent: number }) => void): Promise<Blob>;

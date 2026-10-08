@@ -1,3 +1,4 @@
+import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
@@ -132,7 +133,7 @@ test('user_file_attachment: ChatFormatter renders clean attachment link without 
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
+    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat), { resourceResults: await fixtureResourceResults(historicalFixture(mockChat).conversation, historicalFixture(mockChat).resourceHints) });
     assert.ok(res.content.includes('[architecture.md](files/273175_architecture.md)'), 'Must render clean Markdown link for architecture.md');
     assert.ok(res.content.includes('[custom\\_data.xyz](files/273175_custom_data.xyz)'), 'Must render clean Markdown link for custom_data.xyz');
     assert.ok(!res.content.includes('https___contribution'), 'Must NOT contain sanitized URL artifacts in Markdown');
@@ -158,7 +159,7 @@ test('user_file_attachment: ChatFormatter protects against accidentally leaked U
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
+    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat), { resourceResults: await fixtureResourceResults(historicalFixture(mockChat).conversation, historicalFixture(mockChat).resourceHints) });
     assert.ok(!res.content.includes('[https://'), 'Leaked URL must be sanitized out of link text');
     assert.ok(res.content.includes('files/273175_leaked.json'), 'Must keep localName path');
     assert.ok(res.content.includes('[Attachment](files/273175_leaked.json)'), 'Destination basename is not a semantic file label');

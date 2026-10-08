@@ -1,3 +1,4 @@
+import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
@@ -163,11 +164,12 @@ test('live image renaming updates export hints without modifying native source f
     init({ assetFetcher: { fetchImageBuffer: async () => ({ buffer: new Uint8Array([1, 2, 3]), ext: 'jpg' }) } });
     try {
         const written: string[] = [];
-        await processAndSaveImages(view, 'native', { async writeFile(subdir: string, filename: string) { written.push(`${subdir}/${filename}`); } });
+        const deliveries: ResourceResult<ResourceDelivery>[] = [];
+        await processAndSaveImages(view, 'native', { async writeFile(subdir: string, filename: string) { written.push(`${subdir}/${filename}`); } }, [], deliveries);
         assert.equal(written.length, 1);
         assert.equal(view.resourceHints.image.archivePath, written[0]);
         assert.deepEqual(native.conversation, source);
-        assert.match((await formatMarkdownDocument(view)).content, new RegExp(written[0].replace(/\./g, '\\.')));
+        assert.match((await formatMarkdownDocument(view, { resourceResults: deliveries })).content, new RegExp(written[0].replace(/\./g, '\\.')));
     } finally { init(); }
 });
 

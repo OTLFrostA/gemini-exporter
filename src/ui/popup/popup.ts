@@ -1,3 +1,4 @@
+import { missingResource, resourceDiagnostics } from '../../core/resources/resourceResult.js';
 import { isStoredObject, type StoredValue } from '../../core/storage/storageCompatibility.js';
 import { GeminiUtils, cleanTitle } from '../../core/utils/utils.js';
 import { StorageService } from '../../core/storage/storageService.js';
@@ -287,13 +288,18 @@ function initPopupEvents(): void {
                     if (!chat.conversation.id) chat.conversation.id = _activeConvId || chat.conversation.id;
                     chat.conversation.title = cleanTitle(chat.conversation.title || _activeChatTitle);
 
+                    // This action delivers one body file. It has no companion-file writer.
+                    const missing = chat.conversation.assets.filter(asset => format === 'html' || format === 'markdown'
+                        || format === 'json_openai' && !/^(?:https?:|data:)/i.test(asset.source?.uri ?? ''))
+                        .map(asset => missingResource(asset.id, i18n.t('popupAttachmentsNotDelivered')));
+                    const diagnostics = resourceDiagnostics(missing);
                     let formatted;
                     if (format === 'html') {
-                        formatted = await ChatFormatter.formatHtmlDocument(chat);
+                        formatted = await ChatFormatter.formatHtmlDocument(chat, { resourceResults: missing });
                     } else if (format === 'markdown') {
-                        formatted = await ChatFormatter.formatMarkdownDocument(chat);
+                        formatted = await ChatFormatter.formatMarkdownDocument(chat, { resourceResults: missing });
                     } else {
-                        formatted = ChatFormatter.formatContent(chat, format);
+                        formatted = ChatFormatter.formatContent(chat, format, missing);
                     }
                     const fileName = buildExportFileName(chat.conversation.title || chat.conversation.id, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
@@ -306,6 +312,7 @@ function initPopupEvents(): void {
 
                     ProgressView.complete();
                     log(i18n.t('popupExported', fileName, chat.conversation.messages.length || 0));
+                    if (diagnostics.length) log(i18n.t('popupAttachmentsNotDelivered'));
                 } finally {
                     __releaseExportGuard();
                 }

@@ -1,3 +1,4 @@
+import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Conversation } from '../src/types/conversation.js';
@@ -21,11 +22,11 @@ test('renaming export paths changes prepared bindings but not Domain facts or id
     const asset = first.conversation.assets[0];
     assert.deepEqual(asset.source, { uri: 'https://example.test/photo' });
     assert.equal(asset.name, 'Authored photo');
-    assert.equal((await prepareDomainResources(first.conversation, first.resourceHints))[asset.id], 'assets/old/photo.png');
-    assert.equal((await prepareDomainResources(second.conversation, second.resourceHints))[asset.id], 'assets/new/photo.webp');
+    assert.equal((await prepareDomainResources(await fixtureResourceResults(first.conversation, first.resourceHints)))[asset.id], 'assets/old/photo.png');
+    assert.equal((await prepareDomainResources(await fixtureResourceResults(second.conversation, second.resourceHints)))[asset.id], 'assets/new/photo.webp');
     const restored = JSON.parse(JSON.stringify(first.conversation));
     assert.deepEqual(restored, first.conversation);
-    assert.deepEqual(await prepareDomainResources(restored, first.resourceHints), await prepareDomainResources(first.conversation, first.resourceHints));
+    assert.deepEqual(await prepareDomainResources(await fixtureResourceResults(restored, first.resourceHints)), await prepareDomainResources(await fixtureResourceResults(first.conversation, first.resourceHints)));
 });
 
 test('same export destination cannot collapse resources from different sources', () => {

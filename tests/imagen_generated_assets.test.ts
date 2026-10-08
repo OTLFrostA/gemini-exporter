@@ -1,3 +1,4 @@
+import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
 export {};
@@ -120,7 +121,7 @@ test('chatFormatter - formats generated image as markdown and cleans placeholder
         ]
     };
 
-    const { content: res } = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
+    const { content: res } = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat), { resourceResults: await fixtureResourceResults(historicalFixture(mockChat).conversation, historicalFixture(mockChat).resourceHints) });
     // 必须包含 Markdown 图片引用 ![]
     assert.ok(res.includes('!['));
     assert.ok(res.includes('assets/b800f3_watermarked_img_16704480932994645752.jpg'));

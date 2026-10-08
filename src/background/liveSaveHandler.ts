@@ -1,3 +1,4 @@
+import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
@@ -115,12 +116,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         const { targetFile, failedAssets } = await withLiveSaveLock(fileLockKey, async () => {
             const writer = await createLiveSaveWriter(handle);
 
-            const target = await writeLiveSaveMarkdown(
-                writer,
-                { chat, safeTitle, nid },
-                {},
-                { fileName }
-            );
+            const resourceResults: ResourceResult<ResourceDelivery>[] = [];
 
             const failures: Array<{ file: string; error: string }> = Array.isArray(upstreamFailures)
                 ? upstreamFailures.filter(f => typeof f?.file === 'string' && typeof f?.error === 'string').map(f => ({ file: f.file, error: f.error }))
@@ -148,21 +144,28 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                         if (!fileData || fileData.byteLength === 0) {
                             console.warn('[Background:liveSave] Skipping asset with no valid binary data:', asset.fileName);
                             failures.push({ file: asset.fileName, error: 'no valid binary data' });
+                            if (asset.assetId) resourceResults.push(missingResource(asset.assetId, 'no valid binary data'));
                             continue;
                         }
 
                         try {
                             const safeSubDir = sanitizeRelativePath(asset.subDir || 'assets', 'assets');
                             const safeAssetFileName = sanitizeFileName(asset.fileName, 'attachment');
-                            await writer.writeFile(safeSubDir, safeAssetFileName, fileData);
+                            const written = await writer.writeFile(safeSubDir, safeAssetFileName, fileData);
+                            if (asset.assetId && chat.conversation.assets.some((item: { id: string }) => item.id === asset.assetId)) {
+                                resourceResults.push({ ok: true, resourceId: asset.assetId, value: { path: typeof written === 'string' && written ? written : `${safeSubDir}/${safeAssetFileName}` } });
+                            }
                         } catch (assetErr) {
                             const msg = assetErr instanceof Error ? assetErr.message : String(assetErr);
                             console.warn('[Background:liveSave] Failed to write asset:', asset.fileName, assetErr);
                             failures.push({ file: asset.fileName, error: msg });
+                            if (asset.assetId) resourceResults.push(missingResource(asset.assetId, msg));
                         }
                     }
                 }
             }
+            const target = await writeLiveSaveMarkdown(writer,
+                { chat, safeTitle, nid, resourceResults }, {}, { fileName });
             return { targetFile: target, failedAssets: failures };
         });
 

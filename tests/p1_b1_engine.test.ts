@@ -40,15 +40,4 @@ test('p1_b1 - P1-015: updateSessionStatus serialized via chain', () => {
     assert.ok(src.includes('sessionStatusWriteChain'), 'write chain exists');
 });
 
-// ---------- P1-016: attachment consumer safety net ----------
-test('p1_b1 - P1-016: tasks carry __assetMeta', () => {
-    const src = SRC('core/engine/export/exportOrchestrator.ts');
-    assert.ok(src.includes('__assetMeta'), 'metadata attached to tasks');
-});
-
-test('p1_b1 - P1-016: consumer catch decrements pending and records failure', () => {
-    const src = SRC('core/engine/export/exportOrchestrator.ts');
-    assert.ok(/const meta = task\.__assetMeta/.test(src), 'consumer reads typed task metadata');
-    assert.ok(src.includes('pendingAssetsPerChat.set(meta.nid, left)'), 'pending count decremented on throw');
-    assert.ok(src.includes('failedAttachments.push({'), 'failure recorded');
-});
+// Attachment exception settlement and cancellation now have runtime coverage in resource-delivery.test.ts.

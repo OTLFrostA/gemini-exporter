@@ -188,3 +188,28 @@ test('popup rejects malformed transport replies without download, releases guard
   expect(downloads).toBe(1);
   await expect(page.locator('#btnCurrent')).toBeEnabled();
 });
+
+for (const format of ['html', 'markdown', 'json_openai']) test(`popup ${format} single-file export preserves body, reports missing attachments and emits no planned local reference`, async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+        Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{ id: 999, active: true,
+            url: 'https://gemini.google.com/app/abcdef0123456789', title: 'Resource boundary - Gemini' }] });
+        Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value: (message: { action?: string }, callback: (value: unknown) => void) => callback(message.action === 'fetchChat' ? {
+            success: true, data: { diagnostics: [], acquisitionHints: {}, resourceHints: { image: { archivePath: 'assets/never-delivered.png' } },
+                conversation: { providerId: 'gemini', id: 'abcdef0123456789', title: 'Resource boundary', timestamp: null,
+                    assets: [{ id: 'image', kind: 'image', name: 'photo.png', source: { uri: 'photo.png' } }],
+                    messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body survives' }] }, { type: 'image', assetId: 'image' }] }] } },
+        } : { ok: true }) });
+    });
+    await page.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
+    await expect(page.locator('#currentChatTitle')).toHaveText('Resource boundary');
+    await page.click(`#formatTabs .tab-btn[data-value="${format}"]`);
+    const pending = page.waitForEvent('download'); await page.click('#btnCurrent');
+    const download = await pending, file = await download.path();
+    if (!file) throw new Error('Single-file export was not delivered');
+    const body = await readFile(file, 'utf8');
+    expect(body).toContain('Body survives'); expect(body).not.toContain('assets/never-delivered.png');
+    expect(body).toMatch(/unavailable|gem-missing-asset/);
+    await expect(page.locator('#log')).toContainText('Use the console');
+    await expect(page.locator('#btnCurrent')).toBeEnabled();
+});

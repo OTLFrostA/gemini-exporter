@@ -49,7 +49,8 @@ test('fsWriter - disk layout uses cid6 filenames under gemini_export folder', as
     await writer.writeFile(fileName, '# Quantum Computing\n\nContent');
 
     // Write asset into assets/
-    await writer.writeFile(`assets/${cid6}_t1_img1.png`, new Uint8Array([1, 2, 3]));
+    const assetPath = await writer.writeFile(`assets/${cid6}_t1_img1.png`, new Uint8Array([1, 2, 3]));
+    assert.strictEqual(assetPath, `assets/${cid6}_t1_img1.png`, 'delivery receipt includes its actual directory');
 
     assert.strictEqual(cid6, 'abcdef');
     assert.strictEqual(fileName, 'Quantum Computing_abcdef.md');

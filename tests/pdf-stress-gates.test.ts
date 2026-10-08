@@ -347,7 +347,7 @@ test('attachment gate spec: set budget boundary at exactly 50MiB', async () => {
 // 门（全量口径）：
 //   a) 0 crash：exporter.run() 不抛异常；
 //   b) 0 blank PDF：每份 PDF 有 %PDF- 魔数、pageCount ≥ 1、可提取文本非空；
-//   c) 0 false success：failed 列表为空；每条 exported 记录 status=ok 且
+//   c) 0 false success：failed 列表为空；每条 exported 记录 status=partial（注入缺失图片） 且
 //      1:1 对应一份已写入的非空 PDF（fileName / bytesWritten 对得上）；
 //   d) all conversations accounted for：succeeded + failed == N，输入 id
 //      在 exported + failed 中恰好出现一次；
@@ -523,7 +523,7 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
     );
     const filesByName = new Map(files.map((f) => [f.name, f.bytes]));
     for (const { id, record } of exported) {
-        assert.strictEqual(record.status, 'ok', `record ${id} must be ok`);
+        assert.strictEqual(record.status, 'partial', `record ${id} must report unavailable image resources`);
         const bytes = filesByName.get(record.fileName);
         if (bytes === undefined) {
             // assert.ok 在此仓库的 @types/node 下不收窄类型，用 throw 保证类型安全；

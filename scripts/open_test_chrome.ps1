@@ -70,6 +70,7 @@ $ChromeArgs = @(
     "--disable-extensions-except=$RepoDir",
     "--load-extension=$RepoDir",
     "--remote-debugging-port=9222",
+    "--enable-unsafe-extension-debugging",
     "--no-first-run",
     "--no-default-browser-check",
     "https://gemini.google.com"

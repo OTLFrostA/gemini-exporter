@@ -17,9 +17,10 @@ const native: ResourceConversationParseResult = {
     resourceHints: { image: { archivePath: 'assets/image.png' }, file: { archivePath: 'files/report.pdf' } },
     acquisitionHints: { image: { url: 'https://example.test/image.png' } },
 };
+const delivered = Object.entries(native.resourceHints).map(([resourceId, hint]) => ({ ok: true as const, resourceId, value: { path: hint.archivePath! } }));
 test('complete JSON preserves the full native Domain and versioned resource destinations', () => {
     const before = structuredClone(native);
-    const archive = JSON.parse(formatContent(native, 'json').content);
+    const archive = JSON.parse(formatContent(native, 'json', delivered).content);
     assert.equal(archive.format, 'gemini-exporter-domain'); assert.equal(archive.version, 1);
     assert.deepEqual(archive.conversation, native.conversation); assertDomainClosure(archive.conversation);
     assert.deepEqual(archive.resources, { image: { path: 'assets/image.png' }, file: { path: 'files/report.pdf' } });
@@ -28,7 +29,7 @@ test('complete JSON preserves the full native Domain and versioned resource dest
 });
 test('OpenAI JSON converts roles, multimodal images and reasoning only at the output boundary', () => {
     const before = structuredClone(native);
-    const archive = JSON.parse(formatContent(native, 'json_openai').content);
+    const archive = JSON.parse(formatContent(native, 'json_openai', delivered).content);
     assert.equal(archive.created_at, '1970-01-01T00:00:00.000Z');
     assert.deepEqual(archive.messages.map((m: { role: string }) => m.role), ['system', 'assistant']);
     assert.ok(archive.messages[1].content.some((part: { type: string; image_url?: { url: string } }) => part.type === 'image_url' && part.image_url?.url === 'assets/image.png'));

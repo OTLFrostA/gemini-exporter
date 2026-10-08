@@ -144,7 +144,7 @@ test('success is only marked after the Writer actually wrote the file', async ()
     assert.ok(writer.files[0].bytes.length > 0, 'bytes are non-empty');
     // Exported record only exists because the write resolved.
     assert.strictEqual(exported.length, 1);
-    assert.strictEqual(exported[0].record.status, 'ok');
+    assert.strictEqual(exported[0].record.status, 'partial', 'body is delivered with a reported unavailable image');
     assert.strictEqual(exported[0].record.fileName, writer.files[0].name);
     assert.strictEqual(exported[0].record.bytesWritten, writer.files[0].bytes.length);
 });

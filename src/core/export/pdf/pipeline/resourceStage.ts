@@ -1,3 +1,4 @@
+import { missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../../resources/resourceResult.js';
 import { collectDocumentResources } from '../../../document/ast/resourceReferences.js';
 import { checkImageContent, MAX_ASSET_BYTES, buildVirtualAssetPath } from '../../assets/imageContent.js';
 import { sha256Hex } from '../../assets/sha256.js';
@@ -7,6 +8,7 @@ import type { ImageMount, RenderDiagnostic, ResourceStageInput, ResourceStageOut
 export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = async (input, ctx) => {
     ctx.signal.throwIfAborted();
     const diagnostics: RenderDiagnostic[] = [];
+    const resourceResults: ResourceResult<ResourceDelivery>[] = [];
     const unresolved: ResourceStageOutput['unresolved'] = [];
     const pathMap = new Map<string, string>();
     const mounts: ImageMount[] = [], mountedPaths = new Set<string>();
@@ -34,6 +36,7 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
                 try {
                     const path = buildVirtualAssetPath(await sha256Hex(bytes), verdict.ext);
                     ctx.signal.throwIfAborted();
+                    resourceResults.push({ ok: true, resourceId: id, value: { path } });
                     pathMap.set(id, path);
                     if (!mountedPaths.has(path)) {
                         mountedPaths.add(path);
@@ -47,11 +50,14 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
             }
         }
         if (reason) {
+            resourceResults.push(missingResource(id, reason));
             unresolved.push({ assetId: id, reason });
-            if (!diagnostics.some(d => d.path === `asset:${id}` && d.severity !== 'info')) diag(id, 'warning', 'RESOURCE_ASSET_UNRESOLVED', reason);
+            if (!diagnostics.some(d => d.path === `asset:${id}` && d.severity !== 'info')) {
+                diagnostics.push(...resourceDiagnostics([missingResource(id, reason, 'RESOURCE_ASSET_UNRESOLVED')]));
+            }
         }
     }
     ctx.log(`[resources] ${referencedIds.size} references, ${pathMap.size} resolved, ${mounts.length} mounts, ${unresolved.length} unresolved, ${referencedIds.size - imageIds.size} metadata-only skipped`);
     ctx.reportProgress('resources', 1, 1);
-    return { output: { pathMap, mounts, unresolved }, diagnostics };
+    return { output: { pathMap, mounts, unresolved, resourceResults }, diagnostics };
 };

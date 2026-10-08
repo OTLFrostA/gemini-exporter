@@ -584,7 +584,7 @@ class AssetPipeline implements AssetPipelineInstance {
     async processAsset(item: AssetPipelineItem, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
         const isImage = !!opts.isImage;
         const acquired = await this.acquireAssetBytes(item, chat, opts);
-        const localName = acquired.localName;
+        let localName = sanitizeZipPath(acquired.localName);
         if (!acquired.ok || !acquired.bytes || acquired.bytes.length === 0) {
             return {
                 saved: false,
@@ -599,10 +599,12 @@ class AssetPipeline implements AssetPipelineInstance {
         if (this.writer) {
             try {
                 if (acquired.fromBuffer || !acquired.base64) {
-                    await this.writer.writeFile(sanitizeZipPath(localName), acquired.bytes);
+                    const written = await this.writer.writeFile(localName, acquired.bytes);
+                    if (typeof written === 'string' && written) localName = written;
                     saved = true;
                 } else {
-                    await this.writer.writeFile(sanitizeZipPath(localName), acquired.base64, { base64: true });
+                    const written = await this.writer.writeFile(localName, acquired.base64, { base64: true });
+                    if (typeof written === 'string' && written) localName = written;
                     saved = true;
                 }
             } catch (e) {

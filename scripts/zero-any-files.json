@@ -105,5 +105,6 @@
   "src/core/engine/chatFormatter.ts",
   "src/core/engine/formatters/jsonFormatter.ts",
   "src/core/engine/export/batchWorker.ts",
-  "src/core/engine/export/parseDrift.ts"
+  "src/core/engine/export/parseDrift.ts",
+  "src/core/resources/resourceResult.ts"
 ]

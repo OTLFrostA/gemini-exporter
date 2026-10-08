@@ -1,4 +1,4 @@
-import type { LegacyResourceHints } from '../parsers/shared/resources/resourceHints.js';
+import type { ResourceResult, ResourceDelivery } from '../resources/resourceResult.js';
 import type { DomainConversationDetail } from '../domain/conversationDetail.js';
 import { toIso } from '../domain/time.js';
 import { composeDomainDocument, type DomainCompositionOptions } from '../document/compose/composeDomainDocument.js';
@@ -7,13 +7,13 @@ import { renderDocumentHtml } from '../renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../renderers/markdown/renderMarkdown.js';
 import type { HtmlRenderOptions, MarkdownRenderOptions } from '../renderers/shared/renderOptions.js';
 
-export interface DomainHtmlExportOptions extends HtmlRenderOptions, DomainCompositionOptions { lang?: 'zh' | 'en'; resourceHints?: LegacyResourceHints }
-export interface DomainMarkdownExportOptions extends MarkdownRenderOptions, DomainCompositionOptions { lang?: 'zh' | 'en'; exportedAt?: string; resourceHints?: LegacyResourceHints }
+export interface DomainHtmlExportOptions extends HtmlRenderOptions, DomainCompositionOptions { lang?: 'zh' | 'en'; resourceResults?: readonly ResourceResult<ResourceDelivery>[] }
+export interface DomainMarkdownExportOptions extends MarkdownRenderOptions, DomainCompositionOptions { lang?: 'zh' | 'en'; exportedAt?: string; resourceResults?: readonly ResourceResult<ResourceDelivery>[] }
 
 /** Orchestrate composition, resources and UI options without an intermediate conversation model. */
 export async function exportDomainHtml(conversation: DomainConversationDetail, options: DomainHtmlExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
-    const resources = await prepareDomainResources(conversation, options.resourceHints);
+    const resources = await prepareDomainResources(options.resourceResults);
     return renderDocumentHtml(document, resources, {
         locale: options.locale ?? options.lang ?? 'zh', theme: options.theme ?? 'dark',
         copyCode: options.copyCode, foldLongPrompts: options.foldLongPrompts, thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed,
@@ -22,7 +22,7 @@ export async function exportDomainHtml(conversation: DomainConversationDetail, o
 
 export async function exportDomainMarkdown(conversation: DomainConversationDetail, options: DomainMarkdownExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
-    const resources = await prepareDomainResources(conversation, options.resourceHints);
+    const resources = await prepareDomainResources(options.resourceResults);
     const createdAt = toIso(conversation.createdAt ?? conversation.timestamp ?? conversation.chatTime);
     const updatedAt = toIso(conversation.updatedAt ?? conversation.lastSeen);
     return renderDocumentMarkdown(document, resources, { locale: options.locale ?? options.lang,

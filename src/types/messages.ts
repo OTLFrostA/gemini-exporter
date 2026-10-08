@@ -94,6 +94,7 @@ export interface ExportProgressMessage extends BaseMessage {
 }
 
 export interface LiveSaveAsset {
+    assetId?: string;
     fileName: string;
     subDir?: string;
     base64?: string;
