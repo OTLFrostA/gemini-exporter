@@ -89,7 +89,16 @@ selected record, its native revisions and acquired bytes while preserving other
 accounts. `removed_conversations` markers prevent late migration/retry from
 restoring removed bodies; an explicit fresh source capture can restore them.
 Confirmed remote deletion also suppresses stale page observations in that tab.
-Original migration backups are retained for recovery.
+Conversation deletion first records account-scoped intent in
+`gemini_pending_deletions_uN`, before removing list metadata. Single deletion
+cleans by ID even when the list entry is already absent; reconciliation and clear
+also replay pending IDs. An ID is retired only after Domain current/history/bytes
+and its tombstone commit, legacy detail deletion commits, and export-record
+cleanup succeeds. Disk failures propagate instead of reporting memory fallback
+as success, so restart/retry can finish a partial deletion. `removeConversation`
+still returns whether list metadata changed; a successful cleanup retry may
+therefore return `false`. Reconciliation includes recovered pending IDs in its
+`removedIds` result. Original migration backups are retained for recovery.
 
 ## Verification
 

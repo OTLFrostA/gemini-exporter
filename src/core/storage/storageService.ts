@@ -1,3 +1,4 @@
+import { assertSchemaWritable } from './schemaState.js';
 import { readParsedConversation } from '../compatibility/record/projectDomainRecord.js';
 import { getDomainConversationView } from './domain/nativePersistence.js';
 import { saveDomainConversation, removeStoredDomain, storageIdentity } from './domain/domainStore.js';
@@ -318,29 +319,45 @@ async function updateConversation(
     });
 }
 
+// Durable intent outlives list metadata and every partial cleanup. These helpers
+// run under the conversation lock; retire IDs only after all stores commit.
+function pendingDeletionKey(slot: string | null | undefined): string {
+    return `gemini_pending_deletions_${normSlot(slot)}`;
+}
+
+async function pendingDeletions(slot: string | null | undefined): Promise<string[]> {
+    const key = pendingDeletionKey(slot);
+    const data = await chrome.storage.local.get<Record<string, unknown>>([key]);
+    const value = data[key];
+    return Array.isArray(value)
+        ? [...new Set(value.filter((id): id is string => typeof id === 'string').map(normId).filter(Boolean))]
+        : [];
+}
+
+async function finishConversationDeletions(slot: string | null | undefined, ids: string[], pending: string[]): Promise<void> {
+    for (const id of ids) await removeStoredDomain(storageIdentity('gemini', normSlot(slot), id));
+    await removeConversationDetails(ids);
+    await removeExportRecords(slot, ids);
+    const completed = new Set(ids);
+    await chrome.storage.local.set({ [pendingDeletionKey(slot)]: pending.filter(id => !completed.has(id)) });
+}
+
 async function removeConversation(slot: string | null | undefined, conversationId: string): Promise<boolean> {
     return withConversationLock(async () => {
-        if (!conversationId) return false;
         const targetId = normId(conversationId);
+        if (!targetId) return false;
+        await assertSchemaWritable();
+        const pending = [...new Set([...await pendingDeletions(slot), targetId])];
+        // Persist before removing the last discoverable list entry.
+        await chrome.storage.local.set({ [pendingDeletionKey(slot)]: pending });
         const list = await getConversations(slot);
-        const initialLen = list.length;
-        const filtered = list.filter(c => {
-            if (!c || !fields(c).id) return false;
-            return normalizedConversationId(c) !== targetId;
-        });
-        if (filtered.length !== initialLen) {
-            const { convKey, countKey } = getStorageKeys(slot);
-            await chrome.storage.local.set({
-                [convKey]: filtered,
-                [countKey]: filtered.length
-            });
-            await updateAccountSlot(slot, { count: filtered.length });
-            await removeExportRecords(slot, [conversationId]);
-            await removeStoredDomain(storageIdentity('gemini', normSlot(slot), targetId));
-            await removeConversationDetails([conversationId]);
-            return true;
-        }
-        return false;
+        const filtered = list.filter(c => c && fields(c).id && normalizedConversationId(c) !== targetId);
+        const { convKey, countKey } = getStorageKeys(slot);
+        await chrome.storage.local.set({ [convKey]: filtered, [countKey]: filtered.length });
+        await updateAccountSlot(slot, { count: filtered.length });
+        // An absent list entry is not proof that its body or export records are gone.
+        await finishConversationDeletions(slot, [targetId], pending);
+        return filtered.length !== list.length;
     });
 }
 
@@ -348,10 +365,11 @@ async function clearConversations(slot?: string | null): Promise<void> {
     await withConversationLock(async () => {
         const { convKey, countKey, checkpointKey, expKey } = getStorageKeys(slot);
         const existing = await getConversations(slot);
-        const ids = (existing || []).map(c => normalizedConversationId(c)).filter(Boolean);
+        await assertSchemaWritable();
+        const ids = [...new Set([...await pendingDeletions(slot), ...(existing || []).map(c => normalizedConversationId(c)).filter(Boolean)])];
         if (ids.length > 0) {
-            for (const id of ids) await removeStoredDomain(storageIdentity('gemini', normSlot(slot), id));
-            await removeConversationDetails(ids);
+            await chrome.storage.local.set({ [pendingDeletionKey(slot)]: ids });
+            await finishConversationDeletions(slot, ids, ids);
         }
         const toSet: Record<string, unknown> = {
             [convKey]: [],
@@ -372,9 +390,7 @@ async function reconcileConversations(
     return withConversationLock(async () => {
         const keepTakeout = options.keepTakeout !== false;
         const existing = await getConversations(slot);
-        if (!Array.isArray(existing) || existing.length === 0) {
-            return { kept: 0, removed: 0, removedIds: [] };
-        }
+        const pending = await pendingDeletions(slot);
 
         const activeIdSet = new Set<string>();
         (activeCloudList || []).forEach(c => {
@@ -384,36 +400,37 @@ async function reconcileConversations(
         });
 
         const kept: unknown[] = [];
-        const removedIds: string[] = [];
+        const removedIds = new Set(pending);
 
         for (const conv of existing) {
             if (!conv || !fields(conv).id) continue;
             const nid = normalizedConversationId(conv);
             const isTakeout = keepTakeout && isTakeoutConversation(fields(conv));
 
-            if (activeIdSet.has(nid) || isTakeout) {
+            if (!removedIds.has(nid) && (activeIdSet.has(nid) || isTakeout)) {
                 kept.push(conv);
             } else {
-                removedIds.push(nid);
+                removedIds.add(nid);
             }
         }
 
-        if (removedIds.length > 0) {
+        const deletionIds = [...removedIds];
+        if (deletionIds.length > 0) {
+            await assertSchemaWritable();
+            await chrome.storage.local.set({ [pendingDeletionKey(slot)]: deletionIds });
             const { convKey, countKey } = getStorageKeys(slot);
             await chrome.storage.local.set({
                 [convKey]: kept,
                 [countKey]: kept.length
             });
             await updateAccountSlot(slot, { count: kept.length });
-            await removeExportRecords(slot, removedIds);
-            for (const id of removedIds) await removeStoredDomain(storageIdentity('gemini', normSlot(slot), id));
-            await removeConversationDetails(removedIds);
+            await finishConversationDeletions(slot, deletionIds, deletionIds);
         }
 
         return {
             kept: kept.length,
-            removed: removedIds.length,
-            removedIds
+            removed: deletionIds.length,
+            removedIds: deletionIds
         };
     });
 }
