@@ -929,8 +929,11 @@ test('release workflow - release package excludes TypeScript source and sourcema
     assert.ok(workflowContent.includes('uses: softprops/action-gh-release@v2'), 'the validated ZIP must be attached to a GitHub Release');
     const githubRelease = workflowContent.indexOf('uses: softprops/action-gh-release@v2');
     const storeCredentials = workflowContent.indexOf('name: Check Chrome Web Store credentials');
-    const storeUpload = workflowContent.indexOf('uses: mnao305/chrome-extension-upload@v5.0.0');
+    const storeUpload = workflowContent.indexOf('uses: mnao305/chrome-extension-upload@v7.0.0');
     assert.ok(githubRelease >= 0 && storeCredentials > githubRelease && storeUpload > storeCredentials, 'store publishing must run after the GitHub Release and credential check');
+    assert.ok(workflowContent.includes('CWS_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}'), 'publisher ID must be required by the credential check');
+    assert.ok(workflowContent.includes('|| -z "$CWS_PUBLISHER_ID"'), 'missing publisher ID must fail the credential check');
+    assert.ok(workflowContent.includes('publisher-id: ${{ secrets.CHROME_PUBLISHER_ID }}'), 'the v7 upload action must receive the publisher ID');
     assert.ok(workflowContent.includes('Chrome Web Store credentials are incomplete; refusing to finish the release.'), 'missing store credentials must fail the workflow');
     assert.ok(workflowContent.includes('file-path: ${{ steps.package.outputs.name }}'), 'the store must upload the verified release ZIP');
     assert.ok(workflowContent.includes('files: ${{ steps.package.outputs.name }}'), 'GitHub Release must use the same verified ZIP as the store');

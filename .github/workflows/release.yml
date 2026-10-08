@@ -124,9 +124,10 @@ jobs:
           CWS_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
           CWS_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
           CWS_EXT_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
         run: |
           set -euo pipefail
-          if [[ -z "$CWS_CLIENT_ID" || -z "$CWS_CLIENT_SECRET" || -z "$CWS_REFRESH_TOKEN" || -z "$CWS_EXT_ID" ]]; then
+          if [[ -z "$CWS_CLIENT_ID" || -z "$CWS_CLIENT_SECRET" || -z "$CWS_REFRESH_TOKEN" || -z "$CWS_EXT_ID" || -z "$CWS_PUBLISHER_ID" ]]; then
             echo "Chrome Web Store credentials are incomplete; refusing to finish the release." >&2
             exit 1
           fi
@@ -141,10 +142,11 @@ jobs:
           test "$ACTUAL_SHA256" = "$EXPECTED_SHA256"
 
       - name: Upload and publish to Chrome Web Store
-        uses: mnao305/chrome-extension-upload@v5.0.0
+        uses: mnao305/chrome-extension-upload@v7.0.0
         with:
           file-path: ${{ steps.package.outputs.name }}
           extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          publisher-id: ${{ secrets.CHROME_PUBLISHER_ID }}
           client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
