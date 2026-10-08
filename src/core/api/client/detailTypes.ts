@@ -68,4 +68,3 @@ export interface DetailParseResult {
     _raw?: unknown;
     _debug?: DetailParseDiagnostics | null;
 }
-
