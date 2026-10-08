@@ -1,3 +1,6 @@
+import { normalizeArchivePath } from '../../export/assets/archivePath.js';
+import { attemptResource, missingResource, resourceDiagnostics, waitForResources, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
+import { prepareDomainResources } from '../../export/assets/prepareDomainResources.js';
 import { planExportResources } from '../../export/assets/planExportResources.js';
 
 import type {
@@ -84,19 +87,9 @@ interface ExportSessionContext {
     abortSignal: AbortSignal | null;
 }
 
-interface AssetTaskMeta {
-    nid: string;
-    chatId: string;
-    listTitle?: string;
-    fileName: string;
-}
+type AssetTask = () => Promise<void>;
 
-interface AssetTask {
-    (): Promise<void>;
-    __assetMeta?: AssetTaskMeta;
-}
-
-type WriteFileDirectFn = (localName: string | null | undefined, data: WriteFileContent) => Promise<void>;
+type WriteExportFileFn = (localName: string | null | undefined, data: WriteFileContent) => Promise<string>;
 
 interface ExportWriterContext {
     zip: JSZipLike | null;
@@ -105,7 +98,7 @@ interface ExportWriterContext {
     batchDirHandle: DirectoryHandle | null;
     fsWriter: IExportWriter | null;
     writer: IExportWriter;
-    writeFileDirect: WriteFileDirectFn;
+    writeExportFile: WriteExportFileFn;
 }
 
 interface JSZipAsyncMetadata {
@@ -155,7 +148,6 @@ import {
     AssetPipeline as AssetPipelineStatic,
     type AssetPipelineClass,
     type AssetPipelineInstance,
-    type ProcessAssetResult
 } from "../assetPipeline.js";
 import GeminiUtils, {
     type GeminiUtilsModule,
@@ -177,7 +169,6 @@ import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
     type BatchWorkerModule,
-    type WorkerMessageAttachment,
     type WorkerChatResolveInput
 } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
@@ -559,14 +550,15 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 }
             }
 
-            const writeFileDirect: WriteFileDirectFn = async (localName: string | null | undefined, data: WriteFileContent): Promise<void> => {
+            const writeExportFile: WriteExportFileFn = async (localName: string | null | undefined, data: WriteFileContent): Promise<string> => {
                 if (this.aborted) throw new DOMException('Export aborted', 'AbortError');
                 const cleanPath = sanitizeZipPath(localName);
                 if (!writer) {
                     throw new ExportPipelineError(`无可用写入器，无法保存 (${localName})`, undefined, 'write');
                 }
                 try {
-                    await writer.writeFile(cleanPath, data);
+                    const written = await writer.writeFile(cleanPath, data);
+                    return typeof written === 'string' && written ? written : cleanPath;
                 } catch (e: unknown) {
                     const errMsg = getErrorMessage(e);
                     const isPermissionRevoked = isNotAllowedError(e, errMsg);
@@ -581,7 +573,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 }
             };
 
-            return { zip, folder, zipWriter, batchDirHandle, fsWriter, writer, writeFileDirect };
+            return { zip, folder, zipWriter, batchDirHandle, fsWriter, writer, writeExportFile };
         }
 
         async _packageAndDownload(
@@ -672,14 +664,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 takeoutEngine = null
             } = options;
 
-            const { zip, zipWriter, batchDirHandle, writer, writeFileDirect } = await this._initWriter(options, onLog);
+            const { zip, zipWriter, batchDirHandle, writer, writeExportFile } = await this._initWriter(options, onLog);
 
             const AssetPipelineClass = getAssetPipelineClass();
             const assetPipeline: AssetPipelineInstance | null = AssetPipelineClass ? new AssetPipelineClass({
                 currentSlot,
                 useZip,
                 writer,
-                writeFileDirect,
+                writeFileDirect: async (path, bytes) => { await writeExportFile(path, bytes); },
                 takeoutEngine,
                 getGeminiTab,
                 sendToGeminiTab,
@@ -733,32 +725,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 while (!this.aborted && !(abortSignal && abortSignal.aborted)) {
                     const task = await attachmentQueue.pop(abortSignal);
                     if (!task) break;
-                    try {
-                        await task();
-                    } catch (e: unknown) {
-                        const meta = task.__assetMeta;
-                        if (meta) {
-                            const errMsg = getThrownMessage(e);
-                            chatFailedAssetsSet.add(meta.nid);
-                            failedAttachments.push({
-                                chatId: meta.chatId,
-                                chatTitle: meta.listTitle,
-                                file: meta.fileName,
-                                error: errMsg || 'asset task threw'
-                            });
-                            if (!this.aborted && !(abortSignal && abortSignal.aborted)) {
-                                onLog(`[${meta.listTitle || meta.chatId}] 附件任务异常，已记为失败: ${errMsg}`, 'warn');
-                            }
-                            const left = (pendingAssetsPerChat.get(meta.nid) || 1) - 1;
-                            pendingAssetsPerChat.set(meta.nid, left);
-                            if (left === 0) {
-                                try { await finalizeChatExport(meta.chatId); } catch (_) { /* intentional */ }
-                            }
-                        } else if (typeof console !== 'undefined' && console.warn) {
-                            console.warn('[GemExporter:exportOrchestrator.ts] attachment task threw without metadata', e);
-                        }
-                        if (abortSignal && abortSignal.aborted) break;
-                    }
+                    await task();
                 }
             };
 
@@ -767,7 +734,6 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 consumerPool.push(processAttachmentWorker());
             }
 
-            const pendingAssetsPerChat = new Map<string, number>();
             const chatRecordsMap = new Map<string, FinalizeChatRecordEntry>();
             const chatFailedAssetsSet = new Set<string>();
             const finalizedChatsSet = new Set<string>();
@@ -888,7 +854,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         const planned = await planExportResources(resolvedRes.chat);
-                        const exportResult = planned.result;
+                        let exportResult = planned.result;
                         const chat = exportResult.conversation;
                         const listTitle = resolvedRes.listTitle;
                         chat.title = listTitle;
@@ -924,18 +890,63 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             }
                         }
 
+                        // Resource writes finish before rendering, so a failed write can never leave a dangling binding.
+                        const queuedAssetsForThisChat = includeAssets ? planned.assets.length + planned.failures.length : 0;
+                        const resourceResults: ResourceResult<ResourceDelivery>[] = includeAssets ? [...planned.failures] : [];
+                        if (queuedAssetsForThisChat) { try { onItemPendingAssets(chatId, queuedAssetsForThisChat); } catch (_) { /* best-effort UI notification */ } }
+                        const deliveries = includeAssets ? planned.assets.map(asset => new Promise<ResourceResult<ResourceDelivery>>(resolve => {
+                            totalAssets++;
+                            updateProgress();
+                            const task: AssetTask = async () => {
+                                let outcome: ResourceResult<ResourceDelivery>;
+                                try {
+                                    outcome = await attemptResource(asset.assetId, async () => {
+                                        if (asset.content !== undefined) {
+                                            if (!asset.content.length) throw new Error('Resource contains zero bytes');
+                                            const path = await writeExportFile(asset.item.localName, asset.content);
+                                            return { path: normalizeArchivePath(path) };
+                                        }
+                                        if (!assetPipeline) throw new Error('Resource acquisition is unavailable');
+                                        const saved = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal });
+                                        if (saved.failReason === 'aborted') throw new DOMException('Resource acquisition aborted', 'AbortError');
+                                        if (!saved.saved) throw new Error(saved.failReason || 'Resource could not be delivered');
+                                        return { path: normalizeArchivePath(saved.localName) };
+                                    }, abortSignal);
+                                } catch (error) {
+                                    if (isNamedError(error, 'AbortError')) this.abort();
+                                    outcome = missingResource(asset.assetId, getErrorMessage(error), 'RESOURCE_CANCELLED');
+                                }
+                                resolve(outcome);
+                            };
+                            if (!attachmentQueue.push(task)) resolve(missingResource(asset.assetId, 'Export queue closed', 'RESOURCE_CANCELLED'));
+                        })) : [];
+                        resourceResults.push(...await waitForResources(Promise.all(deliveries), abortSignal));
+                        totalAssets += includeAssets ? planned.failures.length : 0;
+                        for (const result of resourceResults) {
+                            if (result.ok) { downloadedAssets++; continue; }
+                            chatFailedAssetsSet.add(nid);
+                            const asset = planned.assets.find(item => item.assetId === result.resourceId);
+                            const source = chat.assets.find(item => item.id === result.resourceId);
+                            failedAttachments.push({ chatId, chatTitle: listTitle,
+                                file: asset?.item.localName || source?.name || result.resourceId,
+                                error: result.reason, sourceUrl: source?.source?.uri });
+                            onLog(`[${listTitle}] Resource unavailable: ${result.reason}`, 'warn');
+                        }
+                        updateProgress();
+                        const bindings = await prepareDomainResources(resourceResults);
+                        exportResult = { ...exportResult,
+                            resourceHints: Object.fromEntries(Object.entries(bindings).map(([id, path]) => [id, { archivePath: path }])),
+                            diagnostics: [...exportResult.diagnostics, ...resourceDiagnostics(resourceResults)] };
                         let formatted: FormattedResult;
                         if (format === 'html') {
-                            formatted = await ChatFormatter.formatHtmlDocument(exportResult);
+                            formatted = await ChatFormatter.formatHtmlDocument(exportResult, { resourceResults });
                         } else if (format === 'markdown') {
-                            formatted = await ChatFormatter.formatMarkdownDocument(exportResult);
+                            formatted = await ChatFormatter.formatMarkdownDocument(exportResult, { resourceResults });
                         } else {
-                            formatted = ChatFormatter.formatContent(exportResult, format);
+                            formatted = ChatFormatter.formatContent(exportResult, format, resourceResults);
                         }
-
                         const content = formatted.content;
                         const ext = formatted.ext;
-                        const safeBase = sanitizeFileName(listTitle, chatId);
                         const resolveName = ((getUtils()?.resolveExportFileName) || utilsResolveExportFileName);
                         const fileName = useZip
                             ? buildExportFileName(listTitle, chatId, ext)
@@ -944,79 +955,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     if (!batchDirHandle || typeof batchDirHandle.getFileHandle !== 'function') return false;
                                     await batchDirHandle.getFileHandle(n, { create: false });
                                     return true;
-                                } catch {
-                                    return false;
-                                }
+                                } catch { return false; }
                             });
-
                         let mainWriteError: unknown = null;
-                        try {
-                            await writeFileDirect(fileName, content);
-                        } catch (e: unknown) {
-                            mainWriteError = e;
-                        }
-
-                        let queuedAssetsForThisChat = 0;
-                        const chatAssetTasks: AssetTask[] = [];
-                        const assetChatTitle = chat.title || chatId;
-                        const queueAsset = (item: WorkerMessageAttachment, isImage: boolean, content?: string | Uint8Array) => {
-                            totalAssets++;
-                            queuedAssetsForThisChat++;
-                            updateProgress();
-                            const assetTask: AssetTask = async () => {
-                                const itemLocalName = item.localName;
-                                const itemFileName = item.fileName;
-                                let assetRes: ProcessAssetResult = {
-                                    saved: false,
-                                    failReason: '',
-                                    localName: itemLocalName || itemFileName || (isImage ? 'image.jpg' : 'file.bin'),
-                                    recoveredFromTakeout: false
-                                };
-                                if (content !== undefined) {
-                                    await writeFileDirect(assetRes.localName, content);
-                                    assetRes.saved = true;
-                                } else if (assetPipeline) {
-                                    assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
-                                }
-                                if (assetRes.saved) {
-                                    downloadedAssets++;
-                                    updateProgress();
-                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                    pendingAssetsPerChat.set(nid, left);
-                                    if (left === 0) await finalizeChatExport(chatId);
-                                } else {
-                                    chatFailedAssetsSet.add(nid);
-                                    // decrement 紧跟 add(nid)：regression lock 要求失败分支必须
-                                    // decrement pendingAssetsPerChat，否则 finalize 永远等不到 left===0。
-                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                    pendingAssetsPerChat.set(nid, left);
-                                    failedAttachments.push({
-                                        chatId,
-                                        chatTitle: listTitle || assetChatTitle,
-                                        file: assetRes.localName,
-                                        error: assetRes.failReason || 'CDN auth expired',
-                                        sourceUrl: item.sourceUrl
-                                            || item.src
-                                            || item.url,
-                                        sourceEvidence: item.sourceEvidence
-                                    });
-                                    const logKey = isImage ? 'logImageFailed' : 'logAssetFailed';
-                                    onLog(getI18n().t(logKey, assetChatTitle, assetRes.localName, assetRes.failReason || 'CDN auth expired'), 'warn');
-                                    if (left === 0) await finalizeChatExport(chatId);
-                                }
-                            };
-                            assetTask.__assetMeta = {
-                                nid,
-                                chatId,
-                                listTitle,
-                                fileName: item.localName || item.fileName || (isImage ? 'image.jpg' : 'file.bin')
-                            };
-                            chatAssetTasks.push(assetTask);
-                        };
-
-                        if (includeAssets && !mainWriteError) {
-                            for (const asset of planned.assets) queueAsset(asset.item, asset.isImage, asset.content);
-                        }
+                        try { await writeExportFile(fileName, content); }
+                        catch (error) { mainWriteError = error; }
 
                         // P1-8/P1-9: parser 诊断随 chat 透出，不在生产环境静默
                         const chatDrift = extractChatParseDrift(exportResult);
@@ -1083,38 +1026,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     conversationUpdate: completion.conversationUpdate,
                                     targetId: completion.targetId
                                 });
-                                if (queuedAssetsForThisChat === 0) {
-                                    await finalizeChatExport(chatId);
-                                } else {
-                                    pendingAssetsPerChat.set(nid, queuedAssetsForThisChat);
-                                    try {
-                                        onItemPendingAssets(chatId, queuedAssetsForThisChat);
-                                    } catch { /* intentional */ }
-                                    for (const task of chatAssetTasks) {
-                                        const enqueued = attachmentQueue.push(task);
-                                        if (!enqueued) {
-                                            chatFailedAssetsSet.add(nid);
-                                            const meta = task.__assetMeta;
-                                            if (meta) {
-                                                failedAttachments.push({
-                                                    chatId: meta.chatId,
-                                                    chatTitle: meta.listTitle,
-                                                    file: meta.fileName,
-                                                    error: 'Queue closed / export cancelled'
-                                                });
-                                            }
-                                            const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                            pendingAssetsPerChat.set(nid, left);
-                                            if (left === 0) {
-                                                await finalizeChatExport(chatId);
-                                            }
-                                        }
-                                    }
-                                }
+                                await finalizeChatExport(chatId);
                             }
                         } else {
                             // B3: 区分用户取消 vs 权限被收回 —— 取消是用户意图，不记失败；
-                            // 权限被收回是真实失败（writeFileDirect 已 abort 并记日志），保留失败记录。
+                            // 权限被收回是真实失败（writeExportFile 已 abort 并记日志），保留失败记录。
                             const userCancelled = isNamedError(mainWriteError, 'AbortError');
                             if (userCancelled) {
                                 onLog(`[${listTitle}] 导出已取消`, 'warn');
@@ -1140,7 +1056,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             messageCount: computeExportMessageCount(chat),
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,
-                            status: mainWriteError ? 'failed' : 'success',
+                            status: mainWriteError ? 'failed' : chatFailedAssetsSet.has(nid) ? 'partial' : 'success',
                             ...(driftNotable ? {
                                 parseStatus: chatRecordStatusWithDrift('ok', chatDrift),
                                 schemaDrift: chatDrift.schemaDrift,
@@ -1211,7 +1127,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
             attachmentQueue.close();
             try {
-                await Promise.all(consumerPool);
+                await waitForResources(Promise.all(consumerPool), abortSignal);
             } catch (e: unknown) {
                 if (this.aborted) onLog(getI18n().t('logAssetsAborted'), 'warn');
             }

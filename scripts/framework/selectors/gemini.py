@@ -10,7 +10,9 @@ class GeminiSelectors:
     """Gemini 网页端 (gemini.google.com) DOM 选择器中央注册表 — 单点修改，全局生效"""
 
     # ─── 输入与发帖区域 ───
-    EDITOR: str = 'rich-textarea div.ql-editor, div[contenteditable="true"]'
+    # Canvas documents and Quill clipboard buffers are also editable. Only the
+    # prompt textbox may receive automated messages.
+    EDITOR: str = 'rich-textarea [role="textbox"][contenteditable="true"]'
     FILE_PREVIEW: str = 'uploader-file-preview-container, uploader-file-preview, gem-attachment, .uploader-file-preview'
     SEND_BTN: str = 'button[aria-label*="Send" i], button[aria-label*="发送"], gem-icon-button.send-button button, button.send-button'
     SEND_BTN_NOT_STOP: str = 'button[aria-label*="Send"]:not(.stop), gem-icon-button.send-button:not(.stop)'

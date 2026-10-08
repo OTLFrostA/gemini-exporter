@@ -1,3 +1,4 @@
+import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -59,8 +60,8 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
     const domain = freeze(historicalFixtureDomain(structuredClone(raw)));
     const restored = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(composeDomainDocument(domain), composeDomainDocument(restored));
-    assert.deepEqual(await prepareDomainResources(domain), await prepareDomainResources(restored));
-    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceHints: historicalFixture(raw).resourceHints };
+    assert.deepEqual(await prepareDomainResources(await fixtureResourceResults(domain)), await prepareDomainResources(await fixtureResourceResults(restored)));
+    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceResults: await fixtureResourceResults(domain, historicalFixture(raw).resourceHints) };
     assert.equal(await exportDomainMarkdown(domain, options), await exportDomainMarkdown(restored, options));
     assert.equal(await exportDomainHtml(domain, options), await exportDomainHtml(restored, options));
     assert.equal(await formatMarkdownDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainMarkdown(domain, options));
@@ -130,7 +131,7 @@ test('prepared paths retain archive namespaces, hash inline bytes and omit faile
         { id: 'failed', kind: 'file',  failureReason: 'missing' },
         { id: 'remote', kind: 'image', source: { uri: 'https://example.test/image.png' } },
     ] };
-    const prepared = await prepareDomainResources(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { archivePath: 'files/missing.pdf' } });
+    const prepared = await prepareDomainResources(await fixtureResourceResults(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { archivePath: 'files/missing.pdf' } }));
     assert.equal(prepared.path, 'files/report.pdf');
     assert.match(prepared.bytes, /^assets\/sha256\/\w{2}\/\w{2}\/\w{64}\.png$/);
     assert.equal(prepared.bytes, prepared.uri);

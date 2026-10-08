@@ -1,3 +1,4 @@
+import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { persistNativeConversation } from '../../storage/domain/nativePersistence.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
 import { ZipBombGuard } from '../archive/zipBombGuard.js';
@@ -14,6 +15,8 @@ export interface TakeoutParseResult extends TakeoutStore {
     conversations: Conversation[];
     totalMediaCount: number;
     diagnostics: DocumentDiagnostic[];
+    resourceResults: ResourceResult<ResourceDelivery>[];
+    status: 'ok' | 'partial';
 }
 export interface TakeoutParserModule {
     stripHtmlTags: typeof stripHtmlTags;
@@ -50,6 +53,8 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     });
     const store: TakeoutStore = { convCache: {}, mediaMap: {}, globalMedia: {} };
     const conversations: Conversation[] = [];
+    const resourceResults: ResourceResult<ResourceDelivery>[] = [];
+    const diagnostics: DocumentDiagnostic[] = [];
     const basenames = new Map<string, unknown[]>();
     for (const [path, entry] of Object.entries(inventory)) {
         if (!entry || typeof entry !== 'object' || ('dir' in entry && entry.dir)) continue;
@@ -63,19 +68,37 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         const hasExplicitPrompt = result.conversation.messages.some(message => message.role === 'user');
         const durableResources: StoredDomainResource[] = [];
         const native = { conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints: result.acquisitionHints,
-            resourceHints: Object.fromEntries(Object.entries(result.archiveResources).map(([assetId, bound]) => [assetId, { archivePath: bound.path }])) };
+            resourceHints: {} as Record<string, { archivePath: string }> };
         store.convCache[id] = native;
         // Only source-bound resources are available to native consumers. An unresolved
         // or ambiguous reference cannot fall through to a second filename heuristic.
         for (const [assetId, bound] of Object.entries(result.archiveResources)) {
-            const bytes = await readTakeoutBytes(bound.entry);
-            if (!bytes) throw new Error(`Cannot persist Takeout resource: ${bound.path}`);
-            durableResources.push({ assetId, bytes, sourcePath: bound.path });
-            const path = bound.path;
+            const acquired = await attemptResource(assetId, async () => {
+                const bytes = await readTakeoutBytes(bound.entry);
+                if (!bytes?.byteLength) throw new Error(`Takeout resource is empty or unreadable: ${bound.path}`);
+                return bytes;
+            });
+            if (!acquired.ok) {
+                resourceResults.push(acquired);
+                native.diagnostics = [...native.diagnostics, ...resourceDiagnostics([acquired])];
+                continue;
+            }
+            durableResources.push({ assetId, bytes: acquired.value, sourcePath: bound.path });
+        }
+        await persistNativeConversation(slot || 'u0', native, durableResources);
+        // The repository write is the delivery boundary; it stays fatal if the store itself fails.
+        for (const resource of durableResources) {
+            const path = resource.sourcePath!;
+            resourceResults.push({ ok: true, resourceId: resource.assetId, value: { path } });
+            native.resourceHints[resource.assetId] = { archivePath: path };
+            const bound = result.archiveResources[resource.assetId];
             store.globalMedia[path] = bound.entry;
             (store.mediaMap[id] ??= []).push({ filename: path, fileObj: bound.entry });
         }
-        await persistNativeConversation(slot || 'u0', native, durableResources);
+        for (const asset of native.conversation.assets) {
+            if (asset.failureReason && !result.archiveResources[asset.id]) resourceResults.push(missingResource(asset.id, asset.failureReason));
+        }
+        diagnostics.push(...native.diagnostics);
         // Preserve metadata-only import writes: Takeout fragments must never replace
         // a fuller detail already in storage. The runtime cache owns parsed bodies.
         const domain = result.conversation;
@@ -88,7 +111,8 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     const totalMediaCount = Object.entries(inventory).filter(([path, entry]) => entry && typeof entry === 'object' && !('dir' in entry && entry.dir) && !/\.(html|json)$/i.test(path)).length;
     MediaIndex.commitTakeoutData(slot, store);
     onProgress?.(100, i18n.t('takeoutSuccessSummary', conversations.length, totalMediaCount));
-    return { ...store, conversations, totalMediaCount, diagnostics: results.flatMap(result => result.diagnostics) };
+    return { ...store, conversations, totalMediaCount, resourceResults, status: resourceResults.some(result => !result.ok) ? 'partial' : 'ok',
+        diagnostics: [...diagnostics, ...resourceDiagnostics(resourceResults).filter(d => !diagnostics.some(existing => existing.path === d.path && existing.code === d.code))] };
 }
 export const TakeoutParser: TakeoutParserModule = { stripHtmlTags, parseTakeoutZip };
 export default TakeoutParser;

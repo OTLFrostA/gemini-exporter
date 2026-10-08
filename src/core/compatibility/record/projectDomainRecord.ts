@@ -6,8 +6,15 @@ import { assertDomainClosure } from '../../domain/closure.js';
 import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 
 /** External record serialization converts native blocks into message strings. */
-function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset>, blocks = message.content): string {
-    const assetUri = (id: string): string => assets.get(id)?.source?.uri ?? '';
+function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset>, blocks = message.content, paths: Readonly<Record<string, string>> = {}, unavailable: ReadonlySet<string> = new Set()): string {
+    const assetUri = (id: string): string => {
+        if (unavailable.has(id)) return '';
+        const uri = assets.get(id)?.source?.uri ?? '';
+        return paths[id] || (/^(?:https?:|data:)/i.test(uri) ? uri : '');
+    };
+    const assetLink = (id: string, label: string, image = false): string => assetUri(id)
+        ? `${image ? '!' : ''}[${label}](<${assetUri(id)}>)`
+        : `[${image ? 'Image' : 'Attachment'} unavailable: ${label || assets.get(id)?.name || id}]`;
     const inline = (nodes: InlineNode[], tableCell = false): string => nodes.map(node => {
         switch (node.type) {
             case 'text': return node.text.replace(/[\\`*_\[\]<>$#]/g, character => `\\${character}`);
@@ -22,7 +29,7 @@ function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset
                 return `${fence}${node.code}${fence}`;
             }
             case 'link': return `[${inline(node.children, tableCell)}](<${node.href}>)`;
-            case 'image': return `![${node.alt ?? ''}](<${assetUri(node.assetId)}>)`;
+            case 'image': return assetLink(node.assetId, node.alt ?? '', true);
             case 'inlineMath': return `$${node.source}$`;
             case 'citationRef': { const citation = message.citations?.find(c => c.id === node.citationId); return citation?.url ? `[${node.label ?? citation.title ?? citation.number ?? node.citationId}](<${citation.url}>)` : node.label ?? `[${node.citationId}]`; }
             case 'lineBreak': return node.kind === 'hard' ? '  \n' : '\n';
@@ -38,8 +45,8 @@ function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset
             case 'quote': return node.blocks.map(block).join('\n\n').split('\n').map(line => `> ${line}`).join('\n');
             case 'thought': return node.blocks.map(block).join('\n\n');
             case 'table': { const rows = [...(node.headerRows ?? []), ...node.rows].map(row => `| ${row.cells.map(cell => inline(cell.children, true).split('|').join('\\|').replace(/\n/g, '<br>')).join(' | ')} |`); const columns = (node.headerRows?.[0] ?? node.rows[0])?.cells.length ?? 0; rows.splice(node.headerRows?.length ?? 1, 0, `| ${Array.from({ length: columns }, (_, i) => node.columns?.[i]?.align === 'center' ? ':---:' : node.columns?.[i]?.align === 'right' ? '---:' : '---').join(' | ')} |`); return [node.caption ? inline(node.caption) : '', ...rows].filter(Boolean).join('\n'); }
-            case 'image': return `![${node.alt ?? ''}](<${assetUri(node.assetId)}>)${node.caption ? `\n\n${inline(node.caption)}` : ''}`;
-            case 'file': return `[${node.label ?? assets.get(node.assetId)?.name ?? 'File'}](<${assetUri(node.assetId)}>)${node.description ? `\n\n${inline(node.description)}` : ''}`;
+            case 'image': return `${assetLink(node.assetId, node.alt ?? '', true)}${node.caption ? `\n\n${inline(node.caption)}` : ''}`;
+            case 'file': return `${assetLink(node.assetId, node.label ?? assets.get(node.assetId)?.name ?? 'File')}${node.description ? `\n\n${inline(node.description)}` : ''}`;
             case 'thematicBreak': return '---';
             case 'unknown': return node.text;
         }
@@ -48,7 +55,7 @@ function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset
 }
 
 /** One-way output projection for the final OpenAI JSON serializer. It never parses source syntax. */
-export function projectDomainRecord(domain: DomainConversationDetail, paths: Readonly<Record<string, string>> = {}, acquisitionHints: ResourceAcquisitionHints = {}): Conversation {
+export function projectDomainRecord(domain: DomainConversationDetail, paths: Readonly<Record<string, string>> = {}, acquisitionHints: ResourceAcquisitionHints = {}, unavailable: ReadonlySet<string> = new Set()): Conversation {
     assertDomainClosure(domain);
     const assets = new Map(domain.assets.map(asset => [asset.id, asset]));
     const attachment = (asset: DomainAsset): Attachment => ({ assetId: asset.id, type: asset.kind === 'image' ? 'image' : 'file',
@@ -67,10 +74,10 @@ export function projectDomainRecord(domain: DomainConversationDetail, paths: Rea
         const scan = (value: unknown): void => { if (!value || typeof value !== 'object') return; if (Array.isArray(value)) { value.forEach(scan); return; } for (const [key, child] of Object.entries(value)) { if (key === 'assetId' && typeof child === 'string') refs.add(child); else scan(child); } };
         scan(message.content); scan(message.reasoning);
         const attachments = [...refs].map(id => attachment(assets.get(id)!));
-        return { ...(message.id ? { id: message.id } : {}), role: message.role === 'assistant' ? 'model' : message.role === 'system' ? 'system' : 'user', content: messageMarkdown(message, assets),
+        return { ...(message.id ? { id: message.id } : {}), role: message.role === 'assistant' ? 'model' : message.role === 'system' ? 'system' : 'user', content: messageMarkdown(message, assets, message.content, paths, unavailable),
             ...(message.model ? { model: message.model } : {}), ...(message.timestamp !== undefined ? { timestamp: message.timestamp } : {}),
             ...(message.provenance?.providerRequestId ? { providerRequestId: message.provenance.providerRequestId } : {}),
-            ...(message.reasoning ? { thoughts: messageMarkdown(message, assets, message.reasoning) } : {}),
+            ...(message.reasoning ? { thoughts: messageMarkdown(message, assets, message.reasoning, paths, unavailable) } : {}),
             ...(message.citations ? { citations: message.citations.flatMap(c => c.url ? [{ url: c.url, ...(c.title ? { title: c.title } : {}) }] : []) } : {}),
             ...(attachments.length ? { attachments, images: attachments.filter(a => a.type === 'image'), attachmentCount: attachments.length } : {}) };
     });

@@ -149,6 +149,7 @@ const __zhFactory = (): LocaleDictionary => {
             popupFoundChat: "找到对话 ID: {0}，正在抓取内容…",
             popupFetchFailed: "抓取失败: {0}",
             popupExported: "已导出: {0} ({1} 条消息)",
+            popupAttachmentsNotDelivered: "正文已导出，附件显示为不可用。请在控制台导出正文和附件。",
             popupExportError: "导出异常: {0}",
             progPreparing: "准备中…",
             progExporting: "进度 {0}/{1} ({2}%)",

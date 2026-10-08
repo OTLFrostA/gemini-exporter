@@ -1,4 +1,6 @@
-import { isAbortError } from '../errors.js';
+import type { ResourceResult, ResourceDelivery } from '../../../resources/resourceResult.js';
+import { isAbortError, PdfResourceError } from '../errors.js';
+import { resourceDiagnostics } from '../../../resources/resourceResult.js';
 import { runStage } from './runner.js';
 import {
     PIPELINE_STAGE_ORDER,
@@ -17,6 +19,7 @@ export class PdfPipeline {
 
     async runOne(input: PipelineItemInput, pctx: PipelineContext): Promise<PipelineItemResult> {
         const diagnostics: RenderDiagnostic[] = [];
+        const resourceResults: ResourceResult<ResourceDelivery>[] = [];
         const ctx: StageContext = {
             signal: pctx.signal,
             reportProgress: pctx.reportProgress,
@@ -34,7 +37,7 @@ export class PdfPipeline {
             title,
             status: 'failed',
             error: { stage, code, message, retryable },
-            diagnostics,
+            diagnostics, resourceResults,
         });
 
         try {
@@ -44,9 +47,10 @@ export class PdfPipeline {
                 resources: input.resources,
             }, ctx);
             diagnostics.push(...resources.diagnostics);
+            resourceResults.push(...resources.output.resourceResults);
 
             ctx.reportProgress('payload', 1, PIPELINE_STAGE_ORDER.length);
-            const payload = await runStage('payload', this.stages.payload, {
+            let payload = await runStage('payload', this.stages.payload, {
                 document: input.document,
                 pathMap: resources.output.pathMap,
                 locale: input.locale,
@@ -54,7 +58,7 @@ export class PdfPipeline {
             diagnostics.push(...payload.diagnostics);
 
             ctx.reportProgress('compile', 2, PIPELINE_STAGE_ORDER.length);
-            const compiled = await runStage('compile', this.stages.compile, {
+            const compile = () => runStage('compile', this.stages.compile, {
                 payload: payload.output.payload,
                 resourceIds: new Set(input.resources.keys()),
                 mounts: resources.output.mounts,
@@ -62,6 +66,25 @@ export class PdfPipeline {
                 fonts: input.fonts,
                 compiler: input.compiler,
             }, ctx);
+            let compiled;
+            try { compiled = await compile(); }
+            catch (error) {
+                const failure = error instanceof StageError ? error.cause : error;
+                if (!(failure instanceof PdfResourceError) || !failure.failures.length
+                    || failure.failures.some(result => !resources.output.pathMap.has(result.resourceId))) throw error;
+                for (const result of failure.failures) {
+                    resources.output.pathMap.delete(result.resourceId);
+                    const index = resourceResults.findIndex(existing => existing.resourceId === result.resourceId);
+                    if (index >= 0) resourceResults[index] = result;
+                }
+                diagnostics.push(...resourceDiagnostics(failure.failures));
+                payload = await runStage('payload', this.stages.payload, {
+                    document: input.document, pathMap: resources.output.pathMap, locale: input.locale,
+                }, ctx);
+                diagnostics.push(...payload.diagnostics);
+                // One recovery pass; persistent or unrelated compile failures remain fatal.
+                compiled = await compile();
+            }
             diagnostics.push(...compiled.diagnostics);
 
             ctx.reportProgress('deliver', 3, PIPELINE_STAGE_ORDER.length);
@@ -83,7 +106,7 @@ export class PdfPipeline {
                     title,
                     status: 'delivered',
                     writeReport: delivered.output.writeReport,
-                    diagnostics,
+                    diagnostics, resourceResults,
                 };
             }
             return {
@@ -94,11 +117,11 @@ export class PdfPipeline {
                     fileName: delivered.output.writeReport.fileName,
                     bytesWritten: delivered.output.writeReport.bytesWritten,
                 },
-                diagnostics,
+                diagnostics, resourceResults,
             };
         } catch (e) {
             if (isAbortError(e)) {
-                return { conversationId, title, status: 'aborted', diagnostics };
+                return { conversationId, title, status: 'aborted', diagnostics, resourceResults };
             }
             if (e instanceof StageError) {
                 ctx.log(

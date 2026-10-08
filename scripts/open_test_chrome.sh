@@ -50,6 +50,7 @@ exec "$CHROME_BIN" \
   --user-data-dir="$PROFILE_DIR" \
   --load-extension="$REPO_DIR" \
   --remote-debugging-port=9222 \
+  --enable-unsafe-extension-debugging \
   --no-first-run \
   --no-default-browser-check \
   "https://gemini.google.com" "$@"

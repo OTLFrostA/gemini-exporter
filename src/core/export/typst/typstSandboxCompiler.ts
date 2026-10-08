@@ -1,3 +1,5 @@
+import { PdfResourceError, isAbortError } from '../pdf/errors.js';
+import { missingResource, type ResourceFailure } from '../../resources/resourceResult.js';
 import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../pdf/pdfCompiler.js';
 
@@ -303,6 +305,8 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             });
         }
 
+        const resourceFailures: ResourceFailure[] = [];
+        const imageBytes = new Map<string, Uint8Array>();
         const binaries: Array<{ path: string; buf: ArrayBuffer }> = [];
         const transfer: ArrayBuffer[] = [];
         const pathToAssetId = new Map<string, string>();
@@ -320,34 +324,28 @@ export class TypstSandboxCompiler implements IPdfCompiler {
                 });
                 continue;
             }
-            let resolved: { bytes?: Uint8Array; blob?: Blob } | null = null;
+            let bytes: Uint8Array | undefined;
             try {
-                resolved = await context.assets.resolve(assetId);
+                const resolved = await context.assets.resolve(assetId);
+                bytes = resolved?.bytes;
+                if (!bytes && resolved?.blob) bytes = new Uint8Array(await resolved.blob.arrayBuffer());
             } catch (error) {
-                diagnostics.push({
-                    severity: 'warning',
-                    code: 'TYPST_ASSET_RESOLVE_FAILED',
-                    message: `Image asset ${assetId} failed to resolve (${error instanceof Error ? error.message : String(error)}); the template calls image() on its path, so the compile will fail on the missing file.`,
-                });
+                context.signal.throwIfAborted();
+                if (isAbortError(error)) throw error;
+                resourceFailures.push(missingResource(assetId, `Image resolution failed: ${error instanceof Error ? error.message : String(error)}`, 'TYPST_ASSET_RESOLVE_FAILED'));
                 continue;
             }
-            let bytes = resolved?.bytes;
-            if (!bytes && resolved?.blob) {
-                bytes = new Uint8Array(await resolved.blob.arrayBuffer());
-            }
-            if (!bytes || bytes.length === 0) {
-                diagnostics.push({
-                    severity: 'warning',
-                    code: 'TYPST_ASSET_EMPTY',
-                    message: `Image asset ${assetId} resolved to no bytes; the template calls image() on its path, so the compile will fail on the missing file.`,
-                });
+            if (!bytes?.length) {
+                resourceFailures.push(missingResource(assetId, 'Image resolved to no bytes', 'TYPST_ASSET_EMPTY'));
                 continue;
             }
+            imageBytes.set(imagePath, bytes);
             // Copy into a fresh ArrayBuffer so transferring neuters only our copy.
             const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
             binaries.push({ path: imagePath, buf });
             transfer.push(buf);
         }
+        if (resourceFailures.length) throw new PdfResourceError(resourceFailures);
         context.reportProgress('typst-assets', 3, 4);
         context.signal.throwIfAborted();
 
@@ -384,6 +382,25 @@ export class TypstSandboxCompiler implements IPdfCompiler {
             });
         }
         if (result.pdf === null) {
+            // Probe only after a failed compile. An isolated image failure identifies the
+            // resource precisely; successful images and unrelated compiler errors stay intact.
+            for (const [imagePath, bytes] of imageBytes) {
+                context.signal.throwIfAborted();
+                const probeJobId = newJobId();
+                const buf = new Uint8Array(bytes).buffer;
+                const probe = await this.roundTrip(probeJobId, {
+                    type: HOST_TO_SANDBOX.COMPILE, jobId: probeJobId,
+                    files: [{ path: '/main.typ', text: `#image(${JSON.stringify(imagePath)})` }],
+                    binaries: [{ path: imagePath, buf }], fonts: [],
+                }, [buf], this.compileTimeoutMs, context.signal);
+                if (probe.kind === 'compiled' && probe.pdf === null) {
+                    const reason = probe.diagnostics.map(d => d.message).join('; ') || 'Image decoder rejected bytes';
+                    for (const [assetId, path] of payload.assetPaths) {
+                        if (path === imagePath) resourceFailures.push(missingResource(assetId, reason, 'TYPST_ASSET_DECODE_FAILED'));
+                    }
+                }
+            }
+            if (resourceFailures.length) throw new PdfResourceError(resourceFailures);
             throw new Error(
                 `Typst compile failed for ${doc.title}: sandbox returned no PDF bytes`,
             );

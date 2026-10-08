@@ -1,3 +1,4 @@
+import type { ResourceResult, ResourceDelivery } from '../../../resources/resourceResult.js';
 import type { DocumentAst } from '../../../document/ast/ast.js';
 import type { PreparedResources } from '../../assets/preparedResources.js';
 import type {
@@ -68,6 +69,7 @@ export interface ResourceStageOutput {
     pathMap: Map<string, string>;
     mounts: ImageMount[];
     unresolved: Array<{ assetId: string; reason: string }>;
+    resourceResults: ResourceResult<ResourceDelivery>[];
 }
 
 export interface PayloadStageInput {
@@ -139,6 +141,7 @@ export interface PipelineContext {
 export type PipelineItemStatus = 'delivered' | 'staged' | 'failed' | 'aborted';
 
 interface PipelineItemResultBase {
+    resourceResults: ResourceResult<ResourceDelivery>[];
     conversationId: string;
     title: string;
     diagnostics: RenderDiagnostic[];

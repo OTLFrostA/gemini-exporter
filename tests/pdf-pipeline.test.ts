@@ -53,7 +53,7 @@ function fakeInput() {
 
 function fakeStages(seen: string[], overrides: any = {}) {
     return {
-        resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [] }, [], seen),
+        resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [], resourceResults: [] }, [], seen),
         payload: okStage('payload', { payload: { schemaVersion: 1 } }, [], seen),
         compile: okStage('compile', { pdfBytes: new Uint8Array([0x25, 0x50]) }, [], seen),
         deliver: okStage('deliver', { writeReport: { fileName: 'a.pdf', target: 'zip', bytesWritten: 2, writtenAt: 't' }, finalized: true }, [], seen),
@@ -140,7 +140,7 @@ test('StageError diagnostics are preserved on failure, exactly once', async () =
     const seen: string[] = [];
     const d = (code: string) => ({ severity: 'warning' as const, code, message: code });
     const stages = fakeStages(seen, {
-        resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [] }, [d('R')], seen),
+        resources: okStage('resources', { pathMap: new Map(), mounts: [], unresolved: [], resourceResults: [] }, [d('R')], seen),
         payload: async () => {
             throw new StageError('payload', 'ASSET_CORRUPT', 'bad bytes', {
                 retryable: true,

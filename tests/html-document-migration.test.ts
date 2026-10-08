@@ -1,3 +1,4 @@
+import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
@@ -79,7 +80,8 @@ function turnRoles(html: string): string[] {
 let newHtml: string;
 
 test('migration setup: production entry returns a valid HTML FormattedResult', async () => {
-    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(chat));
+    const native = historicalFixture(chat);
+    const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
     assert.strictEqual(res.ext, 'html');
     assert.strictEqual(res.mime, 'text/html');
     assert.ok(String(res.content).startsWith('<!DOCTYPE html>'), 'must be a full HTML document');

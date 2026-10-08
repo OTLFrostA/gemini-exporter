@@ -1,3 +1,4 @@
+import type { ResourceResult, ResourceDelivery } from '../resources/resourceResult.js';
 import { isResourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { DomainConversationDetail } from '../domain/conversationDetail.js';
@@ -14,17 +15,17 @@ export function nativeExportInput(input: ChatExportInput): ResourceConversationP
     return { conversation: input, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
 export async function formatHtmlDocument(input: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
-    const { conversation, resourceHints } = nativeExportInput(input);
-    return { content: await exportDomainHtml(conversation, { ...opts, resourceHints }), ext: 'html', mime: 'text/html' };
+    const { conversation } = nativeExportInput(input);
+    return { content: await exportDomainHtml(conversation, opts), ext: 'html', mime: 'text/html' };
 }
 export async function formatMarkdownDocument(input: ChatExportInput, opts: DomainMarkdownExportOptions = {}): Promise<FormattedResult> {
-    const { conversation, resourceHints } = nativeExportInput(input);
-    return { content: await exportDomainMarkdown(conversation, { ...opts, resourceHints }), ext: 'md', mime: 'text/markdown' };
+    const { conversation } = nativeExportInput(input);
+    return { content: await exportDomainMarkdown(conversation, opts), ext: 'md', mime: 'text/markdown' };
 }
-export function formatContent(input: ChatExportInput, formatType: string): FormattedResult {
+export function formatContent(input: ChatExportInput, formatType: string, resources: readonly ResourceResult<ResourceDelivery>[] = []): FormattedResult {
     const result = nativeExportInput(input);
-    const content = formatType === 'json_openai' ? toOpenAIJson(result)
-        : formatType === 'json' ? toJsonStandard(result)
+    const content = formatType === 'json_openai' ? toOpenAIJson(result, resources)
+        : formatType === 'json' ? toJsonStandard(result, resources)
         : formatType === 'json_raw' ? toJsonRaw(result)
         : undefined;
     if (content === undefined) throw new Error(`[chatFormatter] unsupported format: ${formatType}`);

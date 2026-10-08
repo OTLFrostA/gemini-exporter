@@ -317,7 +317,7 @@ test('liveSaveCoordinator - processAndSaveImages saves to assets/ with cid6 and 
     const mockWriter = {
         writeFile: async (subDir: string, fileName: string, buffer: any) => {
             savedAssets.push({ subDir, fileName, buffer });
-            return fileName;
+            return `${subDir}/${fileName}`;
         }
     };
 

@@ -1,16 +1,19 @@
+import { prepareDomainResources } from '../../export/assets/prepareDomainResources.js';
+import type { ResourceResult, ResourceDelivery } from '../../resources/resourceResult.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { assertDomainClosure } from '../../domain/closure.js';
 import { projectDomainRecord } from '../../compatibility/record/projectDomainRecord.js';
 
 /** The historical string projection exists only at the external serialization boundary. */
-export function toOpenAIJson(result: ResourceConversationParseResult): string {
+export function toOpenAIJson(result: ResourceConversationParseResult, resources: readonly ResourceResult<ResourceDelivery>[] = []): string {
     const domain = result.conversation;
     assertDomainClosure(domain);
-    const paths = Object.fromEntries(Object.entries(result.resourceHints).flatMap(([id, hint]) => hint.archivePath ? [[id, hint.archivePath]] : []));
-    const record = projectDomainRecord(domain, paths, result.acquisitionHints);
+    const paths = prepareDomainResources(resources);
+    const unavailable = new Set(resources.filter(result => !result.ok).map(result => result.resourceId));
+    const record = projectDomainRecord(domain, paths, result.acquisitionHints, unavailable);
     const messages = (record.messages ?? []).map((message, index) => {
         const source = domain.messages[index];
-        const images = (message.attachments ?? []).filter(asset => asset.type === 'image');
+        const images = (message.attachments ?? []).filter(asset => asset.type === 'image' && !unavailable.has(asset.assetId ?? '') && (asset.localName || /^(?:https?:|data:)/i.test(asset.src || asset.url || '')));
         const content = images.length ? [
             ...(message.content ? [{ type: 'text', text: message.content }] : []),
             ...images.map(asset => ({ type: 'image_url', image_url: { url: asset.localName || asset.src || asset.url || '' } }))
@@ -24,9 +27,9 @@ export function toOpenAIJson(result: ResourceConversationParseResult): string {
 }
 
 /** A versioned semantic archive, independent of storage and transport implementations. */
-export function toJsonStandard(result: ResourceConversationParseResult): string {
+export function toJsonStandard(result: ResourceConversationParseResult, deliveries: readonly ResourceResult<ResourceDelivery>[] = []): string {
     assertDomainClosure(result.conversation);
-    const resources = Object.fromEntries(Object.entries(result.resourceHints).flatMap(([id, hint]) => hint.archivePath ? [[id, { path: hint.archivePath }]] : []));
+    const resources = Object.fromEntries(Object.entries(prepareDomainResources(deliveries)).map(([id, path]) => [id, { path }]));
     return JSON.stringify({ format: 'gemini-exporter-domain', version: 1, conversation: result.conversation,
         ...(Object.keys(resources).length ? { resources } : {}) }, null, 2);
 }

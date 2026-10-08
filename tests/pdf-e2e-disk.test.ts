@@ -254,7 +254,7 @@ test('e2e-disk: single PDF export lands a real, parseable file on disk', async (
 
         // The export record points at the file that actually landed.
         assert.strictEqual(exported.length, 1);
-        assert.strictEqual(exported[0].record.status, 'ok');
+        assert.strictEqual(exported[0].record.status, 'partial');
         assert.ok(
             (exported[0].record.fileName as string).endsWith('.pdf'),
             'record names the delivered PDF'

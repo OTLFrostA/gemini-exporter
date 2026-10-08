@@ -179,7 +179,7 @@ test('regression: metadata-only options.conversations item resolves full detail 
     assert.ok(extracted.text.includes(MARKER), 'PDF must contain the expected body text');
 
     assert.strictEqual(exported.length, 1, 'success record must be emitted');
-    assert.strictEqual(exported[0].record.status, 'ok');
+    assert.strictEqual(exported[0].record.status, 'partial');
 });
 
 // ---------------------------------------------------------------------------
@@ -233,7 +233,7 @@ test('regression: metadata-only selected (empty conversations) resolves full det
     assert.ok(extracted.text.includes(MARKER), 'PDF must contain the expected body text');
 
     assert.strictEqual(exported.length, 1, 'success record must be emitted');
-    assert.strictEqual(exported[0].record.status, 'ok');
+    assert.strictEqual(exported[0].record.status, 'partial');
 });
 
 test('fail-closed: metadata-only selected resolving to zero messages fails with PDF_NO_MESSAGES', async () => {

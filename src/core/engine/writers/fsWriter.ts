@@ -129,7 +129,7 @@ class FsWriter implements IExportWriter {
                 this.__writeChains.delete(chainKey);
             }
         }
-        return cleanName;
+        return actualSubDir ? `${actualSubDir}/${cleanName}` : cleanName;
     }
 }
 

@@ -1,68 +1,5 @@
 [
   {
-    "id": "cryo_em_single_particle_ab_initio_reconstruction",
-    "domain": "cryo_em_single_particle_ab_initio_reconstruction",
-    "title": "冷冻电镜单颗粒技术：从头三维重构投影切片定理与贝叶斯优化",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "physics"
-    ],
-    "description": "测试冷冻电镜傅里叶中心投影截面定理推导、CTF调谐对比度传递函数反卷积、Python CTF曲线生成与现代结构生物学方法综合对比",
-    "turns": [
-      "严格证明三维投影切片定理（Fourier Projection-Slice Theorem）：推导沿三维密度势场 \\rho(\\mathbf{r}) 在任意欧拉角 (\\phi, \\theta, \\psi) 投影方向的二维透射投影图像 p(x, y) 其二维连续傅里叶变换 P(k_x, k_y)，精确等于 \\rho(\\mathbf{r}) 的三维傅里叶变换 \\hat{\\rho}(\\mathbf{k}) 穿过原点且平行于探测器平面的中心二维切面，并阐明其在单颗粒从头三维角重构中的基本几何意义。",
-      "根据部分相干像差理论，推导透射电子显微镜中对比度传递函数（Contrast Transfer Function, CTF）的数学形式 CTF(k) = -A(k) \\sin(\\chi(k)) - Q(k) \\cos(\\chi(k))，其中波差函数 \\chi(k) = \\pi \\lambda k^2 \\Delta z + \\frac{1}{2} \\pi C_s \\lambda^3 k^4，解释散焦量 \\Delta z、球差系数 C_s 与振幅对比度占比 Q 对 CTF 零点振荡及高频包络衰减（B-factor 阻尼）的调制机理。",
-      "请使用 Python 编写计算并绘制 300 kV 冷冻透镜 (波长 \\lambda \\approx 0.01968 \\text{ Å}, C_s = 2.7 \\text{ mm}) 在指定欠焦量 \\Delta z = 1.5 \\,\\mu\\text{m} 和 \\text{B-factor} = 80 \\text{ Å}^2 条件下，径向空间频率 k 从 0 到 0.5 \\text{ Å}^{-1} (即对应 2 \\text{ Å} 分辨率) 的一维理论 CTF 响应曲线函数，并打印前三个零点对应的实空间分辨率。",
-      "设计一个结构化 Markdown 表格，横向系统对比单颗粒冷冻电镜 (SPA Cryo-EM)、冷冻电子断层扫描与亚断层平均 (Cryo-ET / STA)、微晶电子衍射 (MicroED) 以及 X 射线自由电子激光 (XFEL) 在样品制备要求、辐射损伤容限、最高理论空间分辨率、适用的生物大分子质量范围 (kDa) 及动态构象异质性解析能力。",
-      "推导基于经验贝叶斯最大后验概率估计（Empirical Bayes MAP / Expectation-Maximization）的冷冻电镜三维分类迭代算法目标函数，详细阐述 RELION 算法如何在未知单颗粒颗粒取向分布函数 P(\\phi, \\theta, \\psi, \\mathbf{t}) 存在强高斯白噪声与局部对比度掩蔽条件下，结合正则化先验平滑滤波实现抗过拟合的金标准黄金傅里叶壳层相关 (Gold-Standard FSC = 0.143) 独立半数据集真实分辨率评估。"
-    ]
-  },
-  {
-    "id": "seismology_planetary_core_mantle_boundary_ultralow_velocity_zone",
-    "domain": "seismology_planetary_core_mantle_boundary_ultralow_velocity_zone",
-    "title": "行星地球物理学：核幔边界超低速带 (ULVZ) 走时异常与剪切波全波形反演",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试核幔边界 PcP/ScS 走时残差敏感核推导、伴随波动方程全波形反演渐近分析、反射率法合成地震图 Python 求解器与下地幔热化学非均匀性对比",
-    "turns": [
-      "在球对称各向同性参考地球模型 (PREM) 背景下，推导核幔边界 (Core-Mantle Boundary, CMB, 深度 2891 km) 反射震相 PcP 与 ScS 相对于震中距 \\Delta 的走时射线积分方程，并使用 Born 散射近似推导局部超低速带 (ULVZ) 产生的初至延迟 \\delta t 与波形前后尾波畸变的 Fréchet 敏感核核函数 K_{\\alpha}(\\mathbf{x}), K_{\\beta}(\\mathbf{x})。",
-      "详细推导弹性波动方程全波形反演 (Full Waveform Inversion, FWI) 中的伴随状态法 (Adjoint State Method)：构造目标波形 L2 范数残差能量泛函 E = \\frac{1}{2} \\int \\| u(t) - d(t) \\|^2 dt，推导反向传播的伴随波场 \\mathbf{u}^\\dagger(\\mathbf{x}, t) 所满足的无源波动偏微分方程，并给出核幔边界介质密度 \\rho 与拉梅参数 \\lambda, \\mu 的梯度更新算子。",
-      "使用 Python 编写基于一维层状介质反射率法 (Kennett Reflectivity Method) 或频散波慢度求和法的小型数值仿真脚本，合成高频震相 SPdKS 在经过具有 15 km 厚度、-10% P波降速与 -30% S波降速的核幔边界 ULVZ 介质时的合成三分量地震位移记录图。",
-      "设计结构化 Markdown 表格，系统对比下地幔底部 D\" 层四大核心构造：大剪切波低速省 (LLVP)、超低速带 (ULVZ)、俯冲板块残余巨型石板 (Subducted Slab Graveyard) 以及全地幔柱根 (Mantle Plume Root) 在横波波速异常 \\delta V_s、纵横波波速比 \\delta \\ln V_s / \\delta \\ln V_p、密度异常 \\delta \\rho、空间分布尺度与富铁硅酸盐部分熔融热力学状态。",
-      "从高压凝聚态物理矿物相变角度，推导后钙钛矿 (Post-Perovskite, pPv, (Mg,Fe)SiO3) 相变与富铁方镁铁矿 ((Mg,Fe)O) 在 CMB 强剪切流动下的晶格择优取向 (LPO)，分析晶体声学各向异性导致横波沿不同偏振方向产生剪切波分裂 (SKS/SKKS Splitting) 的相变微观动力学机制。"
-    ]
-  },
-  {
-    "id": "quantum_error_correction_surface_code_mwpm_decoder",
-    "domain": "quantum_error_correction_surface_code_mwpm_decoder",
-    "title": "量子纠错与容错量子计算：表面码伴随式测量与最小权重完美匹配译码推导",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试二维旋转表面码稳定子测量与伴随式代数推导、时空三维译码图构建、MWPM 最小权重匹配译码器 Python 实现与纠错阈值 Ising 映射严格证明",
-    "turns": [
-      "针对二维旋转表面码（Rotated Surface Code, 码距 d），从泡利稳定子群 \\mathcal{S} 与逻辑算符 \\bar{X}, \\bar{Z} 的代数定义出发，推导数据比特与测量辅助比特构成的 X 稳定子与 Z 稳定子伴随式（Syndrome）测量本征方程，严格说明独立相位翻转噪声与比特翻转噪声如何退化为对偶晶格上的点激发缺陷对。",
-      "推导随测量轮次 T 进行的伴随式提取过程中的时空三维译码图（Spatiotemporal Decoding Graph \\mathcal{G} = (V, E)）：详细定义顶点集合 V（测量差分激发点）与边集合 E 的权重计算法则 w_e = \\ln((1 - p)/p)，说明测量误差与数据比特物理错误如何在时空图中形成类空（Spacelike）与类时（Timelike）边。",
-      "使用 Python 编写一个最小权重完美匹配（Minimum-Weight Perfect Matching, MWPM）译码器的核心算法实现，基于无向图的 Dijkstra 或 Floyd-Warshall 算法计算激发缺陷点之间的最短曼哈顿/测地距离矩阵，并调用网络匹配启发式算法寻找最佳配对并返回纠错恢复算符序列。",
-      "使用 Markdown 表格，横向对比最小权重完美匹配译码器 (MWPM, 如 PyMatching)、并查集快速译码器 (Union-Find Decoder)、神经网络置信度译码器 (NN/Transformer Decoder) 以及张量网络最大似然译码器 (Tensor Network MLD) 在时间复杂度渐进阶、逻辑错误率下界阈值、GPU/FPGA 流水线实时延迟 (ns) 以及长距离表面码扩展性四个维度的关键工程指标。",
-      "严格推导表面码阈值定理（Threshold Theorem）：使用统计物理二维 Ising/自旋玻璃无序随机键模型映射（Random-Bond Ising Model, RBIM），证明 Nishimori 线上相变临界温度对应的物理纠错理论容错阈值 p_{th} \\approx 10.9\\%（唯象无损测量下），并推导逻辑错误率随码距 d 增长的指数压制标度律 P_L \\propto C (p/p_{th})^{(d+1)/2}。"
-    ]
-  },
-  {
     "id": "gravitational_waves_post_newtonian_inspiral_matched_filtering",
     "domain": "gravitational_waves_post_newtonian",
     "title": "引力波天文学：后牛顿展开致密双星旋近波形推导与匹配滤波搜索",
@@ -208,29 +145,6 @@
     ]
   },
   {
-    "id": "bioreactor_gas_liquid_mass_transfer_scaleup",
-    "domain": "bioprocess_bioreactor_mass_transfer",
-    "title": "工业发酵反应器：气液传质、氧平衡与放大准则",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "使用假想非医用发酵体系，覆盖生成装置示意图、传质与耗氧微分方程、参数拟合和尺度放大对比",
-    "turns": [
-      "请实际生成一张搅拌式气液发酵反应器的剖面科学示意图，清楚显示搅拌桨、挡板、底部气体分布器、气泡、液面及溶氧传感器。生成后说明每个部件如何影响氧传递，使用假想工业体系。",
-      "建立气液传质与微生物耗氧耦合模型，用 LaTeX 写出 k_L a、氧传递速率 OTR 和耗氧速率 OUR 的关系，说明亨利定律、准稳态假设以及量纲一致性。",
-      "用 Python 编写可运行示例，生成一组固定随机种子的动态充氧数据，并拟合体积传质系数 k_L a，输出参数置信区间、残差和单位校验。",
-      "推导由小型反应器放大到大型设备时，保持单位体积搅拌功率、叶尖速度或体积传质系数三种准则之间的冲突，说明雷诺数与气含率对结论的限制。",
-      "用 Markdown 表格对比搅拌式、气升式和鼓泡塔反应器在传质、剪切、能耗、温度控制与尺度放大上的取舍，再给出一套假想数据的灵敏度分析流程。"
-    ]
-  },
-  {
     "id": "structural_vibration_tuned_mass_damper_robustness",
     "domain": "mechanical_tuned_mass_damper_dynamics",
     "title": "结构振动：调谐质量阻尼器与鲁棒参数设计",
@@ -252,29 +166,6 @@
     ]
   },
   {
-    "id": "food_engineering_freeze_drying_heat_mass_transfer",
-    "domain": "food_engineering_freeze_drying_heat_mass_transfer",
-    "title": "食品冻干工程：升华界面、传热传质与品质保留",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "用假设的食品冻干系统覆盖多孔介质升华、热质耦合、示意图和参数计算",
-    "turns": [
-      "以假设的一维水果薄片为例，推导真空冻干中升华界面的能量守恒和水蒸气通量，明确各符号、单位与边界条件，用 LaTeX 表达。",
-      "请生成一张原创食品冻干设备的剖面示意图，清楚展示加热搁板、冻结薄片、后退的升华界面、水蒸气通道和冷阱，以简短英文标注部件。",
-      "用 Python 写一个可运行的简化移动界面模型，给出明确假设参数，计算干燥层厚度随时间的变化，并检查质量和能量收支。",
-      "用 Markdown 表格比较搁板温度、腔室压力、初始厚度和干燥层渗透率对冻干速率、塌陷风险与能耗的影响，区分模型推断和已知约束。",
-      "提出一套用称重曲线和温度测点辨识传热系数、有效扩散系数的算法，写出目标函数、参数约束、交叉验证与不确定性报告方案。"
-    ]
-  },
-  {
     "id": "maritime_port_crane_berth_robust_scheduling",
     "domain": "maritime_port_crane_berth_robust_scheduling",
     "title": "港口调度：泊位分配、岸桥干涉与鲁棒优化",
@@ -292,30 +183,6 @@
       "用 Python 标准库写一个可直接运行的六艘船小样本排程示例，打印分配结果，并验证每条资源约束与到港时间约束。",
       "用 Markdown 表格比较先到先服务、滚动时域启发式、混合整数规划和情景鲁棒优化的目标质量、计算预算、稳定性与适用条件。",
       "为到港时间和装卸速度存在不确定性的情况设计滚动重排策略，写出情景生成、重排惩罚、机会约束和留出情景验收的方法。"
-    ]
-  },
-  {
-    "id": "acoustics_porous_absorber_impedance_design",
-    "domain": "acoustics_porous_absorber_impedance_design",
-    "title": "建筑声学：多孔吸声层的阻抗匹配与频带设计",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖分层声阻抗、吸声系数、虚构材料示意图及频率扫描计算",
-    "turns": [
-      "请生成一张原创教学剖面示意图，展示假设房间中的多孔吸声层、背后空气间隙和刚性墙面，用英文短标签标明入射声、反射声和材料层。",
-      "为法向入射的一维分层吸声模型推导复声阻抗、反射系数和吸声系数，用 LaTeX 写出公式，并明确无源性和能量守恒检查。",
-      "用 Python 给出可直接运行的假设材料频率扫描示例，比较两种厚度和两种背后空气间隙，输出吸声系数表并检查数值范围。",
-      "使用 Markdown 表格比较多孔吸声、微穿孔板、薄膜共振和扩散体的机制、有效频带、安装约束与常见误用，区分吸声与隔声。",
-      "建立覆盖目标频带的设计优化目标，讨论测量阻抗管误差、材料参数不确定性和不同入射角对验收结果的影响，给出稳健比较流程。"
     ]
   },
   {
@@ -421,6 +288,134 @@
       "Write runnable Python to fit log-transformed shape and scale parameters to an explicitly invented small censored dataset. Show convergence diagnostics and reject negative or zero lifetimes.",
       "Use a Markdown table to compare Kaplan-Meier estimates, exponential and Weibull parametric models, and accelerated lifetime testing. Cover assumptions, uncertainty and extrapolation limitations.",
       "Design a parametric bootstrap for the reliability at a fixed mission duration. Explain confidence intervals, model misspecification and how a monitoring plan should detect departures from the fitted hazard."
+    ]
+  },
+  {
+    "id": "desalination_reverse_osmosis_energy_recovery",
+    "domain": "water_engineering_membrane_desalination",
+    "title": "Reverse osmosis: membrane transport and energy recovery",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "tables",
+      "code",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original engineering cutaway image of a seawater reverse osmosis system showing the membrane vessel, feed pump, brine stream and pressure energy recovery device. Then explain the flow in prose.",
+      "Derive a simple membrane water flux model J = A (delta P - delta pi), state units, and use inline and display LaTeX to explain osmotic pressure, recovery and concentration polarization.",
+      "Write a complete Python script to sweep feed pressure, membrane area and salt concentration. Print a compact numerical table and handle nonpositive net driving pressure explicitly.",
+      "Create a Markdown comparison table for reverse osmosis, thermal distillation and electrodialysis, comparing energy demand, feed salinity, fouling modes and achievable product quality.",
+      "Develop a monitoring and troubleshooting plan for a desalination plant with intermittent feed pressure and growing salt passage. Include a worked mass balance, assumptions, uncertainty and operational tradeoffs."
+    ]
+  },
+  {
+    "id": "airport_queueing_staffing_uncertainty",
+    "domain": "operations_research_airport_queueing",
+    "title": "Airport screening: queueing capacity and staffing uncertainty",
+    "features": [
+      "math",
+      "latex",
+      "tables",
+      "code",
+      "algorithms",
+      "statistics"
+    ],
+    "turns": [
+      "Derive an M/M/c queueing model for airport security screening using inline and display LaTeX. Define arrival rate, service rate, utilization and steady state assumptions, and explain instability.",
+      "Show a worked example comparing two staffing levels at the same passenger arrival rate. Calculate a waiting probability and expected queue delay and interpret the result.",
+      "Write a complete Python discrete event simulation using only the standard library. Use a fixed seed, multiple replications and report mean delay and a confidence interval.",
+      "Create a Markdown table comparing fixed staffing, threshold based flex staffing and scheduled staffing under peaky demand, including model limitations, costs and service outcomes.",
+      "Explain how to assess bursty arrival data and choose staffing when the Poisson assumption fails. Include sensitivity analysis, a quantitative service target and a practical deployment checklist."
+    ]
+  },
+  {
+    "id": "airborne_wind_tethered_kite_power",
+    "domain": "energy_engineering_airborne_wind",
+    "title": "Airborne wind power: tether tension and crosswind flight",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "tables",
+      "code",
+      "algorithms",
+      "physics"
+    ],
+    "turns": [
+      "Generate an original explanatory image of a tethered kite wind energy system with wind direction, lift, drag, tether tension and ground generator clearly visible. Explain the energy flow.",
+      "Derive a simplified crosswind power model with inline and display LaTeX. State assumptions, aerodynamic coefficients, tether drag and operating limits.",
+      "Write a complete Python example that sweeps wind speed and lift to drag ratio, prints a numerical power table and checks physical bounds.",
+      "Build a Markdown comparison table for airborne wind, fixed offshore wind and floating offshore wind, comparing deployment, control, weather exposure and maintenance.",
+      "Develop a quantitative safety and control strategy for a kite power system during gusts. Include tension limits, sensor uncertainty, graceful shutdown and parameter sensitivity."
+    ]
+  },
+  {
+    "id": "urban_bus_headway_bunching_control",
+    "domain": "transport_operations_bus_headway_control",
+    "title": "Bus headway control: passenger queues and service regularity",
+    "features": [
+      "math",
+      "latex",
+      "tables",
+      "code",
+      "algorithms",
+      "statistics"
+    ],
+    "turns": [
+      "Derive a simple model for bus headway evolution and passenger waiting time using inline and display LaTeX. Explain the feedback that causes bus bunching.",
+      "Give a worked quantitative example with uneven headways, boarding rates and stop dwell times. Compare mean passenger waiting time before and after a holding intervention.",
+      "Write a complete Python simulation with fixed random seed for passenger arrivals and bus service. Report a waiting time summary and regularity metrics across replications.",
+      "Create a Markdown comparison table for schedule based control, headway based holding, limited stop service and dispatch intervention, including benefits and operational constraints.",
+      "Design an evaluation plan for deploying headway control on an urban route. Include demand uncertainty, fairness between on board and waiting passengers, monitoring and failure recovery."
+    ]
+  },
+  {
+    "id": "green_roof_stormwater_retention",
+    "domain": "urban_hydrology_green_roof",
+    "title": "Green roof stormwater retention and overflow",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "tables",
+      "code",
+      "algorithms",
+      "physics"
+    ],
+    "turns": [
+      "Generate an original labeled sectional image of a hypothetical green roof showing vegetation, substrate, drainage layer, storage tank and overflow. Explain how rainfall flows through the system.",
+      "Derive a conceptual water balance and storage routing model with inline and display LaTeX. State units and assumptions for infiltration, evaporation, drainage and overflow.",
+      "Write a complete Python simulation with a fixed rainfall time series, conservation checks and a numerical table comparing substrate depth and storage capacity.",
+      "Create a Markdown comparison table for green roofs, permeable paving, rain gardens and underground detention, including storage, maintenance, peak flow reduction and constraints.",
+      "Give a detailed sensitivity and uncertainty analysis for a hypothetical catchment. Include drought conditions, clogged drainage, intense storms and monitoring design; label all assumed parameters."
+    ]
+  },
+  {
+    "id": "warehouse_order_batching_walk_distance",
+    "domain": "logistics_order_batching",
+    "title": "Warehouse picking batches and walking distance",
+    "features": [
+      "math",
+      "latex",
+      "tables",
+      "code",
+      "algorithms",
+      "statistics"
+    ],
+    "turns": [
+      "Derive a model for warehouse order batching that minimizes walking distance under cart capacity and due time constraints, using inline and display LaTeX.",
+      "Work through a small numerical example with six orders, three aisles and explicit quantities. Show feasible batches and compare sequential picking with combined routes.",
+      "Write complete Python code with a fixed random seed comparing greedy batching and a small exact search. Print a numerical table and verify capacity and order coverage.",
+      "Create a Markdown table comparing single order picking, wave picking, zone picking and dynamic batching, including workload, latency and coordination costs.",
+      "Design an evaluation plan for a hypothetical warehouse with uncertain demand. Include confidence intervals, congestion, ergonomic constraints, fairness and fallback operations."
     ]
   }
 ]

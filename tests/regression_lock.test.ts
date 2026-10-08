@@ -276,14 +276,7 @@ test('p0-lock: staged image asset finalizes exactly once via the queue (no dupli
     );
 });
 
-test('regression lock: asset-failure branch must decrement pendingAssetsPerChat (pendingAssets leak fix)', () => {
-    const code = readSrc('../src/core/engine/export/exportOrchestrator.js');
-    // 锁的本意不变：add(nid) 之后必须有 decrement，删掉即泄漏。
-    // assetTask 失败分支里 decrement 紧跟 add(nid)（failedAttachments.push 在后），
-    // 300 窗口足够；不要放宽窗口去迁就代码重排。
-    const failureBlocks = [...code.matchAll(/chatFailedAssetsSet\.add\(nid\)[\s\S]{0,300}pendingAssetsPerChat/g)];
-    assert.ok(failureBlocks.length >= 1, 'failure branch must decrement pendingAssetsPerChat after chatFailedAssetsSet.add(nid); a regression would reintroduce the pendingAssets leak that blocks finalize');
-});
+// Failed resource settlement and finalization are exercised against real ZIPs in resource-delivery.test.ts.
 
 test('regression: export_engine sanitizeZipPath must sanitize .. and preserve segments', () => {
     assert.strictEqual(typeof ExportEngineMod.sanitizeZipPath, 'function', 'sanitizeZipPath should be exported');

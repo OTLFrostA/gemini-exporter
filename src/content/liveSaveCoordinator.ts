@@ -1,3 +1,4 @@
+import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import { decodeDataUrlAsset } from '../core/export/assets/dataUrl.js';
@@ -62,6 +63,7 @@ interface LiveSaveCoordinatorDeps {
 }
 
 interface CollectedLiveSaveAsset {
+    assetId: string;
     fileName: string;
     subDir: string;
     buffer?: ArrayBuffer;
@@ -322,6 +324,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             collectedAssets = await processAndSaveImages(chat, nid, null, failedAssets);
                         }
                         const assetsPayload: LiveSaveAsset[] = collectedAssets.map((a) => ({
+                            assetId: a.assetId,
                             fileName: a.fileName,
                             subDir: a.subDir || 'assets',
                             base64: a.base64 || (a.buffer ? arrayBufferToBase64(a.buffer) : '')
@@ -504,7 +507,8 @@ export async function processAndSaveImages(
     chat: ResourceConversationParseResult | null | undefined,
     nid: string,
     writer?: LiveSaveImageWriter | null,
-    failures: Array<{ file: string; error: string }> = []
+    failures: Array<{ file: string; error: string }> = [],
+    resourceResults: ResourceResult<ResourceDelivery>[] = []
 ): Promise<CollectedLiveSaveAsset[]> {
     if (!chat || !Array.isArray(chat.conversation.messages) || chat.conversation.messages.length === 0) return [];
 
@@ -537,14 +541,16 @@ export async function processAndSaveImages(
             finalName = `${cid6}_t${turnIndex + 1}_img${imgCounter}_${hash4}.${ext}`;
         }
 
+        finalName = sanitizeFileName(finalName);
         if (allocatedNames.has(finalName)) {
             const dotIdx = finalName.lastIndexOf('.');
             const base = dotIdx !== -1 ? finalName.slice(0, dotIdx) : finalName;
             const fileExt = dotIdx !== -1 ? finalName.slice(dotIdx) : '';
-            finalName = `${base}_${hash4}${fileExt}`;
+            finalName = `${Array.from(base).slice(0, 69 - hash4.length).join('')}_${hash4}${fileExt}`;
             let dedupeIdx = 1;
             while (allocatedNames.has(finalName)) {
-                finalName = `${base}_${dedupeIdx}${fileExt}`;
+                const suffix = `_${dedupeIdx}`;
+                finalName = `${Array.from(base).slice(0, 70 - suffix.length).join('')}${suffix}${fileExt}`;
                 dedupeIdx++;
             }
         }
@@ -611,7 +617,9 @@ export async function processAndSaveImages(
                     ? res.buffer
                     : new Uint8Array(res.buffer);
                 if (writer && typeof writer.writeFile === 'function') {
-                    await writer.writeFile('assets', target.fileName, fileBytes);
+                    const written = await writer.writeFile('assets', target.fileName, fileBytes);
+                    if (typeof written === 'string' && written) target.localName = written;
+                    resourceResults.push({ ok: true, resourceId: target.assetId, value: { path: target.localName } });
                 }
                 let b64 = '';
                 if ('base64' in res && typeof res.base64 === 'string' && res.base64) {
@@ -620,6 +628,7 @@ export async function processAndSaveImages(
                     b64 = arrayBufferToBase64(res.buffer);
                 }
                 collectedAssets.push({
+                    assetId: target.assetId,
                     fileName: target.fileName,
                     subDir: 'assets',
                     buffer: res.buffer instanceof ArrayBuffer ? res.buffer : undefined,
@@ -631,10 +640,13 @@ export async function processAndSaveImages(
                 }
             } else {
                 failures.push({ file: target.fileName, error: 'image download returned no bytes' });
+                resourceResults.push(missingResource(target.assetId, 'image download returned no bytes'));
                 console.warn('[LiveSaveCoordinator] Failed to fetch image asset, skipping relative rewrite:', target.fileName);
             }
         } catch (err) {
-            failures.push({ file: target.fileName, error: err instanceof Error ? err.message : String(err) });
+            const reason = err instanceof Error ? err.message : String(err);
+            failures.push({ file: target.fileName, error: reason });
+            resourceResults.push(missingResource(target.assetId, reason));
             if (isDev()) {
                 console.warn('[LiveSaveCoordinator] Error saving image asset:', target.url, err);
             }
@@ -677,13 +689,14 @@ async function writeConversationToDisk(
 
     const writer = await createLiveSaveWriter(dirHandle, { fsWriterClass: getFsWriterClass() });
 
+    const resourceResults: ResourceResult<ResourceDelivery>[] = [];
     if (config.includeAssets !== false) {
-        await processAndSaveImages(chat, nid, writer, failures);
+        await processAndSaveImages(chat, nid, writer, failures, resourceResults);
     }
 
     await writeLiveSaveMarkdown(
         writer,
-        { chat, safeTitle, nid },
+        { chat, safeTitle, nid, resourceResults },
         { formatter: getFormatter(), buildFileName: Utils?.buildExportFileName || buildExportFileName }
     );
     return failures;

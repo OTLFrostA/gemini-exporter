@@ -149,6 +149,7 @@ const __enFactory = (): LocaleDictionary => {
             popupFoundChat: "Found conversation ID: {0}, fetching content...",
             popupFetchFailed: "Fetch failed: {0}",
             popupExported: "Exported: {0} ({1} messages)",
+            popupAttachmentsNotDelivered: "Body exported with unavailable attachment placeholders. Use the console to export the body and attachments together.",
             popupExportError: "Export error: {0}",
             progPreparing: "Preparing...",
             progExporting: "Progress {0}/{1} ({2}%)",
