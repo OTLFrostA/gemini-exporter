@@ -125,7 +125,7 @@ test('takeout_engine - parseTakeoutZip never assigns unreferenced watermarked fi
     }
     assert.strictEqual(res.diagnostics.filter((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED').length, 2);
     assert.deepStrictEqual(await res.globalMedia['watermarked_img_1111-aaaa.png'].async('uint8array'), new Uint8Array(imgABuffer));
-    assert.strictEqual(await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', 'watermarked_img_1111-aaaa.png'), null);
+    assert.strictEqual(await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', { assetId: '', sourceUri: 'watermarked_img_1111-aaaa.png' }), null);
 
 });
 

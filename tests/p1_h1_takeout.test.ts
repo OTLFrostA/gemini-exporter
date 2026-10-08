@@ -19,10 +19,10 @@ test('p1_h1 - P1-112: fallback media never returns an unrelated file via substri
         convCache: {}
     });
     // 'sunset-cat-photo' merely CONTAINS 'cat-photo' — must not match.
-    const hit = await mediaIndex.getTakeoutFallbackMedia('c_1', 'sunset-cat-photo.png');
+    const hit = await mediaIndex.getTakeoutFallbackMedia('c_1', { assetId: '', sourceUri: 'sunset-cat-photo.png' });
     assert.strictEqual(hit, null, 'substring match must not return another file\'s bytes');
     // Exact stem still matches.
-    const exact = await mediaIndex.getTakeoutFallbackMedia('c_1', 'cat-photo.png');
+    const exact = await mediaIndex.getTakeoutFallbackMedia('c_1', { assetId: '', sourceUri: 'cat-photo.png' });
     assert.ok(exact && exact.length === 3, 'exact match must still work');
     mediaIndex.clearTakeoutData();
 });

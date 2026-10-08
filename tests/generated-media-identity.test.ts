@@ -35,7 +35,7 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
         assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, 'identity'), []);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
         assert.ok((await result.globalMedia[png].async('uint8array')).length > 0, 'unowned archive bytes remain available as acquisition evidence');
-        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, png, 'identity'), null, 'an archive file does not establish message ownership');
+        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: '', sourceUri: png }, 'identity'), null, 'an archive file does not establish message ownership');
         for (const record of result.conversations) {
             assert.equal('parsed' in record, false);
             assert.equal('messages' in record, false, 'imports remain metadata-only and cannot overwrite stored detail');

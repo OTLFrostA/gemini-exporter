@@ -57,15 +57,15 @@ test('takeout_engine - prevents cross-chat media hijacking for generic image nam
     await TakeoutEngine.parseTakeoutZip(zipBuffer);
 
     // Chat B owns image_01.png -> should find it
-    const mediaB = await TakeoutEngine.getTakeoutFallbackMedia('chat_B_123456', 'image_01.png');
+    const mediaB = await TakeoutEngine.getTakeoutFallbackMedia('chat_B_123456', { assetId: '', sourceUri: 'image_01.png' });
     assert.ok(mediaB && mediaB.length > 0, 'Chat B should retrieve its own image');
 
     // Chat A does NOT own image_01.png -> generic name should NOT be hijacked from globalMedia!
-    const mediaA = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', 'image_01.png');
+    const mediaA = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', { assetId: '', sourceUri: 'image_01.png' });
     assert.strictEqual(mediaA, null, 'Chat A must NOT hijack Chat B image with generic name');
 
     // Another generic attempt 'image.png'
-    const mediaAGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', 'image.png');
+    const mediaAGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', { assetId: '', sourceUri: 'image.png' });
     assert.strictEqual(mediaAGeneric, null, 'Chat A must NOT match image.png against Chat B image');
 });
 

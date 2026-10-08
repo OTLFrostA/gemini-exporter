@@ -49,20 +49,20 @@ test('asset_dedup - Takeout getTakeoutFallbackMedia retrieves exact image among 
     await TakeoutEngine.parseTakeoutZip(zipBuffer);
 
     // 1. Exact requests must return respective distinct byte buffers
-    const res1 = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', 'image-adb659a48f83024b.png');
+    const res1 = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', { assetId: '', sourceUri: 'image-adb659a48f83024b.png' });
     assert.ok(res1, 'Should find image-adb659a48f83024b.png');
     assert.deepStrictEqual(Array.from(res1), [10, 20, 30]);
 
-    const res2 = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', 'image-088981d4885e6166.png');
+    const res2 = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', { assetId: '', sourceUri: 'image-088981d4885e6166.png' });
     assert.ok(res2, 'Should find image-088981d4885e6166.png');
     assert.deepStrictEqual(Array.from(res2), [40, 50, 60], 'Should NOT return data of first image');
 
-    const res3 = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', 'image-b70178f36ab8ed17.png');
+    const res3 = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', { assetId: '', sourceUri: 'image-b70178f36ab8ed17.png' });
     assert.ok(res3, 'Should find image-b70178f36ab8ed17.png');
     assert.deepStrictEqual(Array.from(res3), [70, 80, 90], 'Should NOT return data of first image');
 
     // 2. Ambiguous generic request 'image.png' when multiple media exist must return null (not hijack first image)
-    const resGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', 'image.png');
+    const resGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', { assetId: '', sourceUri: 'image.png' });
     assert.strictEqual(resGeneric, null, 'Must NOT arbitrarily pick first image when multiple exist');
 });
 

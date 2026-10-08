@@ -1,7 +1,7 @@
 import { getDomainResource, cacheDomainResource, storageIdentity } from '../storage/domain/domainStore.js';
 import type { IExportWriter } from "./writers/writerInterface.js";
 import type { GeneratedMediaIdentity } from "../../types/conversation.js";
-import type { TakeoutEngineModule } from "./takeoutEngine.js";
+import type { TakeoutEngineModule, TakeoutResourceLookup } from "./takeoutEngine.js";
 import type { DownloadAssetDirectMessage } from "../../types/messages.js";
 
 export interface ProcessAssetOptions {
@@ -96,9 +96,8 @@ export interface FetchAssetParams {
 export interface AssetPipelineTakeoutEngine {
     getTakeoutFallbackMedia?: (
         chatId: string,
-        filenameOrId: string,
-        slot?: string | null,
-        generation?: GeneratedMediaIdentity
+        lookup: TakeoutResourceLookup,
+        slot?: string | null
     ) => Promise<Uint8Array | null>;
 }
 
@@ -549,7 +548,11 @@ class AssetPipeline implements AssetPipelineInstance {
 
         if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {
             try {
-                const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, localName, this.currentSlot, item.generation);
+                const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, {
+                    assetId: item.assetId ?? '',
+                    sourceUri: sourceUrl ?? url ?? src,
+                    generation: item.generation,
+                }, this.currentSlot);
                 if (offlineBin && offlineBin.length > 0) {
                     const bytes = offlineBin;
                     if (!this.writer && !this.writeFileDirect) {
