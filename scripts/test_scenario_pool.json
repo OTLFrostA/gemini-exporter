@@ -1,26 +1,5 @@
 [
   {
-    "id": "gravitational_waves_post_newtonian_inspiral_matched_filtering",
-    "domain": "gravitational_waves_post_newtonian",
-    "title": "引力波天文学：后牛顿展开致密双星旋近波形推导与匹配滤波搜索",
-    "features": [
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 3.5PN 致密双星旋近相位演化推导、稳相近似频域 TaylorF2 波形、频域维纳匹配滤波 Python 算法与波形模板族横向对比",
-    "turns": [
-      "在广义相对论爱因斯坦微扰弱场四极辐射理论框架下，针对致密双星（质量 m_1, m_2，总质量 M，啁啾质量 \\mathcal{M} = (m_1 m_2)^{3/5} / M^{1/5}）的准圆轨道旋近过程，推导引力波能量辐射率 dE/dt 与角动量损失率 dJ/dt。证明引力波轨道频率漂移满足 \\dot{f}_{GW} = \frac{96}{5} \\pi^{8/3} (\frac{G \\mathcal{M}}{c^3})^{5/3} f_{GW}^{11/3}，并阐明为什么通过观测频率与频率一阶导数即可独立测定双星系统的绝对啁啾质量。",
-      "采用后牛顿 (Post-Newtonian, PN) 逐阶展开方法，推导引力波频域波形在稳相近似 (Stationary Phase Approximation, SPA) 下的 TaylorF2 闭合解析形式 \tilde{h}(f) = \\mathcal{A} f^{-7/6} e^{i \\Psi(f)}。写出包含 1PN、1.5PN 尾项 (Tail Effect)、2PN、2.5PN 以及 3.5PN 高阶修正的频域相位 \\Psi(f) 级数展开式，并推导自旋-轨道耦合 (Spin-Orbit Coupling) 对双星进动与相位累积演化的特征修正项。",
-      "使用 Python 编写致密双星引力波频域匹配滤波 (Matched Filtering) 核心检测脚本：构建模拟 Advanced LIGO 探测器噪声功率谱密度 (PSD) S_n(f)，在频域对注入高斯白噪声的引力波时域应变信号进行反卷积加权求和，计算最优化匹配信噪比 (Optimal SNR) 与时间序列最大化检验统计量 \rho(t)，并输出检测峰值到达时间与有效距离估计。",
-      "分析地基引力波探测器在低频端 (f < 10 Hz) 由地球重力梯度噪声 (Newtonian Noise) 与悬丝热噪声构成的物理敏感度墙，推导由基准质量局部质量密度波动引发的引力扰动谱密度；进而对比天基引力波探测器（如 LISA），推导基于光不等臂迈克尔逊干涉仪的时延干涉测量技术 (Time-Delay Interferometry, TDI) 如何通过代数消除精确抵消超前 8 个数量级的激光相位波动噪声。",
-      "使用 Markdown 表格，对比后牛顿 TaylorF2 频域波形、时域 TaylorT4 积分波形、有效单体数值相对论波形 (SEOBNR) 以及唯象拟合波形 (IMRPhenomXPH) 在旋近-合并-准简正振荡全时程物理完备性、高阶多极辐射矩 (h_{lm}) 覆盖能力、双星自旋进动动力学支持、计算吞吐速度以及 MCMC 贝叶斯后验参数推断兼容性等关键性能维度的差异。"
-    ]
-  },
-  {
     "id": "quantum_chemistry_dmrg_active_space",
     "domain": "quantum_chemistry_dmrg_active_space",
     "title": "量子化学：多参考态强关联体系矩阵乘积态 (MPS) 与 DMRG 算法推导",
@@ -204,30 +183,6 @@
       "用 Python 编写可运行的合成谱线反演示例，设置明确的假设参数与随机种子，生成带噪数据，拟合中心位置和宽度并打印误差。",
       "用 Markdown 表格比较高斯、洛伦兹、Voigt 和旋转展宽线型的物理假设、参数耦合、残差特征与适用边界。",
       "设计一套用留出谱线、残差自相关和注入恢复实验验收径向速度反演的方法，明确哪些不确定性来自模型，哪些来自观测。"
-    ]
-  },
-  {
-    "id": "oceanography_internal_wave_stratification_tank",
-    "domain": "oceanography_stratified_internal_waves",
-    "title": "Stratified internal waves: laboratory tanks and modal inference",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Fictional teaching tank, dispersion equations, executable Python, generated illustration and comparison tables.",
-    "turns": [
-      "Model a two-layer incompressible teaching tank. Derive the small-amplitude long-wave interface speed using LaTeX, stating density, layer depth, gravity, units, boundary conditions and validity limits.",
-      "Generate a high-quality scientific teaching illustration showing a transparent stratified tank, colored fluid layers, an oscillating interface, a wavemaker and measurement sensors. Explain the visual in Chinese and English.",
-      "Provide runnable standard-library Python analyzing a fictional interface displacement time series with frequency estimation and damped-oscillation fitting. Explain sampling aliasing, noise and confidence intervals.",
-      "Use a Markdown table to compare video interface tracking, pressure probes, particle image velocimetry and density profiling across observables, resolution, error and cost.",
-      "Write a long teaching report with modal dispersion formulas, parameter tables and analysis pseudocode. Discuss finite-tank reflections, nonlinear breaking, model uncertainty and energy flux estimation."
     ]
   },
   {
@@ -416,6 +371,51 @@
       "Write complete Python code with a fixed random seed comparing greedy batching and a small exact search. Print a numerical table and verify capacity and order coverage.",
       "Create a Markdown table comparing single order picking, wave picking, zone picking and dynamic batching, including workload, latency and coordination costs.",
       "Design an evaluation plan for a hypothetical warehouse with uncertain demand. Include confidence intervals, congestion, ergonomic constraints, fairness and fallback operations."
+    ]
+  },
+  {
+    "id": "acoustics_anechoic_chamber_impulse_response",
+    "domain": "acoustics_anechoic_room_calibration",
+    "title": "Acoustics: anechoic chamber impulse-response calibration",
+    "description": "Fictional teaching chamber, a generated acoustic layout, measured impulse-response inference, executable Python and bilingual tables.",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive a linear time-invariant acoustic impulse-response model for a fictional anechoic teaching chamber. Define pressure, sound speed, units, boundary assumptions and limits using LaTeX.",
+      "Use image generation to create one realistic annotated illustration of the teaching chamber with a loudspeaker, microphone grid, absorber wedges and a calibration signal path. Also include a concise Markdown table explaining each component.",
+      "Explain how a logarithmic sine sweep estimates the impulse response. Derive the regularized frequency-domain inverse filter in LaTeX and discuss noise and conditioning.",
+      "Provide runnable Python using NumPy and Matplotlib to simulate a delayed impulse response plus noise, estimate it, and compare recovered delay and frequency response. Include code blocks and an input/output table.",
+      "Compare swept-sine, MLS and direct impulse calibration in a Markdown table. Give a bilingual English/Chinese limitations section with inline and display equations, then a concise reproducible lab checklist."
+    ]
+  },
+  {
+    "id": "statistics_conformal_time_series_block_calibration",
+    "domain": "statistics_conformal_time_series",
+    "title": "Statistics: conformal prediction under temporal dependence",
+    "description": "Time-series coverage assumptions, blocked calibration, runnable simulation, mathematical derivations and multilingual comparison tables.",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "statistics"
+    ],
+    "turns": [
+      "Explain split conformal prediction for a fictional stationary scalar time series. Define the conformity scores and finite-sample quantile using LaTeX, separating exchangeability from temporal dependence assumptions.",
+      "Derive a blocked calibration scheme and carefully distinguish guarantees under stated assumptions from empirical coverage. Show how block length, calibration size and drift affect the interval.",
+      "Provide complete runnable Python with NumPy to generate an AR(1) process, fit a rolling forecast, calibrate blocked residual intervals and report coverage and interval width. Include Markdown tables of configurations.",
+      "Compare ordinary split conformal, rolling residual quantiles and blocked calibration in a Markdown table, including assumptions, failure modes and computational cost. Add an English/Chinese glossary.",
+      "Design a reproducible sensitivity experiment over autocorrelation, drift and block length. Include precise pseudo-code, LaTeX formulas for conditional and marginal empirical coverage, and a detailed interpretation of failures without claiming guarantees from simulation."
     ]
   }
 ]

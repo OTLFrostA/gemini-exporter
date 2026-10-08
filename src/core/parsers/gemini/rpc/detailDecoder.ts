@@ -435,21 +435,25 @@ function parseCandidateResponse(
     }
 
     const providerRequestId = media.sourceOnly ? extractRawTurnRequestId(turn) : extractTurnRequestId(turn);
-    let genOrdinal = 0;
+    const generatedCount = candImages.filter(img => img.isGenerated).length;
+    const generationPrompt = extractUserTextFromPayload(turn?.[GEMINI_JSPB_SCHEMA.TURN.USER_PAYLOAD]);
     const formattedImages = filteredImages.length ? filteredImages.map((img: ImageAttachment) => {
         const isGen = !!img.isGenerated;
-        const ordinal = isGen ? genOrdinal++ : undefined;
+        const ordinal = isGen ? (img.imageOrdinal ?? (generatedCount === 1 ? 0 : undefined)) : undefined;
         return {
             ...img,
             type: "image",
             providerRequestId: isGen ? providerRequestId : undefined,
             imageOrdinal: ordinal,
-            ...(isGen && providerRequestId ? {
+            ...(isGen ? {
                 generation: {
                     chatId: String(convId || '').replace(/^c_/, ''),
                     providerRequestId,
                     imageOrdinal: ordinal,
                     generationOrdinal: 0,
+                    imageCount: generatedCount,
+                    ...(ts !== null ? { time: ts } : {}),
+                    ...(generationPrompt.trim() ? { prompt: generationPrompt } : {}),
                 }
             } : {})
         };

@@ -1,3 +1,4 @@
+import { matchResourceSets, resourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
 import { needsDomainBroker, callDomainBroker, encodeBytes, decodeBytes, decodeDomainRecord } from './transport.js';
 import { assertSchemaWritable } from '../schemaState.js';
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
@@ -58,16 +59,16 @@ export function openDomainDB(): Promise<IDBDatabase> {
     });
 }
 /** Resolve only on transaction commit, never on a put request's success. */
-async function transaction<T>(mode: IDBTransactionMode, run: (current: IDBObjectStore, revisions: IDBObjectStore, result: (value: T) => void, removed: IDBObjectStore) => void): Promise<T> {
+async function transaction<T>(mode: IDBTransactionMode, run: (current: IDBObjectStore, revisions: IDBObjectStore, result: (value: T) => void, removed: IDBObjectStore, byteCache: IDBObjectStore) => void): Promise<T> {
     const db = await openDomainDB();
     try {
         return await new Promise<T>((resolve, reject) => {
-            const tx = db.transaction([CURRENT, HISTORY, REMOVED], mode);
+            const tx = db.transaction([CURRENT, HISTORY, REMOVED, BYTE_CACHE], mode);
             let result: T;
             tx.oncomplete = () => resolve(result);
             tx.onabort = () => reject(tx.error || new Error('Domain storage transaction aborted'));
             tx.onerror = () => reject(tx.error || new Error('Domain storage transaction failed'));
-            try { run(tx.objectStore(CURRENT), tx.objectStore(HISTORY), value => { result = value; }, tx.objectStore(REMOVED)); }
+            try { run(tx.objectStore(CURRENT), tx.objectStore(HISTORY), value => { result = value; }, tx.objectStore(REMOVED), tx.objectStore(BYTE_CACHE)); }
             catch (error) { tx.abort(); reject(error); }
         });
     } finally { db.close(); }
@@ -94,7 +95,12 @@ function prefer(existing: DomainStorageRecord, incoming: DomainStorageRecord, mi
 function carryResources(existing: DomainStorageRecord | null, incoming: DomainStorageRecord): void {
     if (!existing) return;
     const supplied = new Set(incoming.resources.map(r => r.assetId));
-    incoming.resources.push(...existing.resources.filter(r => !supplied.has(r.assetId) && incoming.conversation.assets.some(a => a.id === r.assetId && a.source?.uri === existing.conversation.assets.find(old => old.id === r.assetId)?.source?.uri)));
+    for (const match of matchResourceSets(incoming.identity.conversationId, incoming.conversation.assets.map(resourceIdentity), existing.conversation.assets.map(resourceIdentity))) {
+        const next = incoming.conversation.assets[match.target], old = existing.conversation.assets[match.source];
+        const resource = existing.resources.find(r => r.assetId === old.id);
+        if (resource && !supplied.has(next.id) && next.id === old.id && next.source?.uri === old.source?.uri)
+            incoming.resources.push(structuredClone(resource));
+    }
 }
 function sameSnapshot(existing: DomainStorageRecord, incoming: DomainStorageRecord): boolean {
     return existing.origin === incoming.origin
@@ -106,6 +112,41 @@ function sameSnapshot(existing: DomainStorageRecord, incoming: DomainStorageReco
             return old?.sourcePath === resource.sourcePath && old?.bytes.byteLength === resource.bytes.byteLength
                 && (old.bytes === resource.bytes || old.bytes.every((byte, i) => byte === resource.bytes[i]));
         });
+}
+interface ByteCacheRow { key: string; conversationKey: string; assetId: string; sourceUri: string; bytes: Uint8Array }
+function byteCacheKey(record: DomainStorageRecord, assetId: string, uri: string): string {
+    return JSON.stringify([record.key, assetId, uri]);
+}
+function memoryBytes(record: DomainStorageRecord | null): ByteCacheRow[] {
+    return record ? record.conversation.assets.flatMap(asset => {
+        const uri = asset.source?.uri;
+        const key = uri ? byteCacheKey(record, asset.id, uri) : '';
+        const bytes = byteMemory.get(key);
+        return uri && bytes ? [{ key, conversationKey: record.key, assetId: asset.id, sourceUri: uri, bytes }] : [];
+    }) : [];
+}
+/** Rebind bytes only to the chosen snapshot's own identity; no Domain relationship is rewritten. */
+function selectedBytes(selected: DomainStorageRecord, sources: readonly DomainStorageRecord[], cached: readonly ByteCacheRow[], cacheOwner: DomainStorageRecord | null): ByteCacheRow[] {
+    const result = new Map<string, ByteCacheRow>();
+    const targets = selected.conversation.assets.map(resourceIdentity);
+    for (const source of new Set([selected, ...sources])) {
+        const bytes = new Map(source.resources.map(resource => [resource.assetId, resource.bytes]));
+        // Cache rows contain no event evidence. Only their current owner can validate
+        // them before the shared matcher rebinds them to a different snapshot.
+        for (const row of source === cacheOwner ? cached : []) {
+            const uri = source.conversation.assets.find(asset => asset.id === row.assetId)?.source?.uri;
+            if (uri && row.conversationKey === source.key && row.sourceUri === uri && row.key === byteCacheKey(source, row.assetId, uri)
+                && row.bytes instanceof Uint8Array && row.bytes.byteLength && !bytes.has(row.assetId)) bytes.set(row.assetId, row.bytes);
+        }
+        for (const match of matchResourceSets(selected.identity.conversationId, targets, source.conversation.assets.map(resourceIdentity))) {
+            const asset = selected.conversation.assets[match.target];
+            const acquired = bytes.get(source.conversation.assets[match.source].id);
+            const uri = asset.source?.uri;
+            if (uri && acquired && !result.has(asset.id)) result.set(asset.id, { key: byteCacheKey(selected, asset.id, uri),
+                conversationKey: selected.key, assetId: asset.id, sourceUri: uri, bytes: acquired.slice() });
+        }
+    }
+    return [...result.values()];
 }
 export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources?: readonly StoredDomainResource[], migration?: false): Promise<DomainStorageRecord>;
 export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean): Promise<DomainStorageRecord | null>;
@@ -122,16 +163,25 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
     const incoming: DomainStorageRecord = checked({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: crypto.randomUUID(), savedAt: Date.now(), conversation, acquisitionHints, resources: resources.map(r => structuredClone(r)) });
     if (typeof indexedDB === 'undefined') {
         if (migration && removedMemory.has(incoming.key)) return null;
-        if (!migration) removedMemory.delete(incoming.key);
         const existing = memory.get(incoming.key) ?? null;
         if (existing && migration && !prefer(existing, incoming, true)) return checked(existing);
         carryResources(existing, incoming);
-        if (existing && sameSnapshot(existing, incoming)) return checked(existing);
-        history.set(incoming.revision, structuredClone(incoming));
-        if (!existing || prefer(existing, incoming, migration)) memory.set(incoming.key, structuredClone(incoming));
-        return checked(memory.get(incoming.key)!);
+        const unchanged = existing && sameSnapshot(existing, incoming);
+        const selected = unchanged ? existing : !existing || prefer(existing, incoming, migration) ? incoming : existing;
+        const cached = selectedBytes(selected, existing ? [existing, incoming] : [incoming], memoryBytes(existing), existing);
+        const result = checked(selected);
+        const revision = !unchanged && ![...history.values()].some(row => row.key === incoming.key && sameSnapshot(row, incoming))
+            ? structuredClone(incoming) : null;
+        // Compute/validate everything before committing any memory state.
+        if (!migration) removedMemory.delete(incoming.key);
+        if (revision) history.set(incoming.revision, revision);
+        if (selected === incoming) memory.set(incoming.key, structuredClone(selected));
+        const reachable = new Set(cached.map(row => row.key));
+        for (const key of byteMemory.keys()) if (JSON.parse(key)[0] === incoming.key && !reachable.has(key)) byteMemory.delete(key);
+        for (const row of cached) byteMemory.set(row.key, row.bytes);
+        return result;
     }
-    return transaction<DomainStorageRecord | null>('readwrite', (store, revisions, result, removed) => {
+    return transaction<DomainStorageRecord | null>('readwrite', (store, revisions, result, removed, byteCache) => {
         const req = removed.get(incoming.key);
         req.onsuccess = () => {
             try {
@@ -139,21 +189,36 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
                 if (!migration) removed.delete(incoming.key);
                 const current = store.get(incoming.key);
                 current.onsuccess = () => {
-                try {
-                const existing = current.result ? checked(current.result) : null;
-                if (existing && migration && !prefer(existing, incoming, true)) { result(existing); return; }
-                carryResources(existing, incoming);
-                if (existing && sameSnapshot(existing, incoming)) { result(existing); return; }
-                revisions.put(incoming);
-                const selected = !existing || prefer(existing, incoming, migration) ? incoming : existing;
-                if (selected === incoming) store.put(incoming);
-                result(selected);
-                } catch { store.transaction.abort(); }
+                    try {
+                        const existing = current.result ? checked(current.result) : null;
+                        if (existing && migration && !prefer(existing, incoming, true)) { result(existing); return; }
+                        carryResources(existing, incoming);
+                        const unchanged = existing && sameSnapshot(existing, incoming);
+                        const selected = unchanged ? existing : !existing || prefer(existing, incoming, migration) ? incoming : existing;
+                        const bytes = byteCache.index('conversation').getAll(incoming.key);
+                        bytes.onsuccess = () => {
+                            try {
+                                const entries = selectedBytes(selected, existing ? [existing, incoming] : [incoming], bytes.result as ByteCacheRow[], existing);
+                                const prior = revisions.index('conversation').getAll(incoming.key);
+                                prior.onsuccess = () => {
+                                    try {
+                                        if (!unchanged && !(prior.result as DomainStorageRecord[]).some(row => sameSnapshot(row, incoming))) revisions.put(incoming);
+                                        if (selected === incoming) store.put(incoming);
+                                        const reachable = new Set(entries.map(row => row.key));
+                                        for (const row of bytes.result as ByteCacheRow[]) if (!reachable.has(row.key)) byteCache.delete(row.key);
+                                        for (const row of entries) byteCache.put(row);
+                                        result(selected);
+                                    } catch { store.transaction.abort(); }
+                                };
+                            } catch { store.transaction.abort(); }
+                        };
+                    } catch { store.transaction.abort(); }
                 };
-            } catch (error) { (req.source as IDBObjectStore).transaction.abort(); }
+            } catch { store.transaction.abort(); }
         };
     });
 }
+
 export function storedParseResult(record: DomainStorageRecord): ResourceConversationParseResult {
     const valid = checked(record);
     return { conversation: valid.conversation, diagnostics: [], resourceHints: {}, acquisitionHints: valid.acquisitionHints };
@@ -226,17 +291,21 @@ export async function cacheDomainResource(identity: DomainStorageIdentity, asset
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
     if (!bytes.byteLength) throw new TypeError('Empty acquired resource');
     if (needsDomainBroker()) { await callDomainBroker('cache', { identity, assetId, sourceUri, bytes: encodeBytes(bytes) }); return; }
-    const record = await getStoredDomain(identity);
-    if (!record || record.conversation.assets.find(a => a.id === assetId)?.source?.uri !== sourceUri) return;
-    const key = JSON.stringify([record.key, assetId, sourceUri]);
-    if (typeof indexedDB === 'undefined') { byteMemory.set(key, bytes.slice()); return; }
-    const db = await openDomainDB();
-    try {
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(BYTE_CACHE, 'readwrite');
-            tx.oncomplete = () => resolve();
-            tx.onabort = tx.onerror = () => reject(tx.error || new Error('Resource cache write failed'));
-            tx.objectStore(BYTE_CACHE).put({ key, conversationKey: record.key, assetId, sourceUri, bytes });
-        });
-    } finally { db.close(); }
+    if (typeof indexedDB === 'undefined') {
+        const record = memory.get(domainStorageKey(identity));
+        if (record?.conversation.assets.find(a => a.id === assetId)?.source?.uri === sourceUri)
+            byteMemory.set(byteCacheKey(record, assetId, sourceUri), bytes.slice());
+        return;
+    }
+    await transaction<void>('readwrite', (store, _revisions, result, _removed, byteCache) => {
+        const req = store.get(domainStorageKey(identity));
+        req.onsuccess = () => {
+            try {
+                const record = req.result ? checked(req.result) : null;
+                if (record?.conversation.assets.find(a => a.id === assetId)?.source?.uri === sourceUri)
+                    byteCache.put({ key: byteCacheKey(record, assetId, sourceUri), conversationKey: record.key, assetId, sourceUri, bytes: bytes.slice() });
+                result(undefined);
+            } catch { store.transaction.abort(); }
+        };
+    });
 }

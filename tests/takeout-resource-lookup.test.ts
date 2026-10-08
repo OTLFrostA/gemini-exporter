@@ -109,8 +109,8 @@ test('Takeout lookup through AssetPipeline requires a unique event before select
 
 test('Takeout lookup through AssetPipeline allows exact identity without inferring an unknown image ordinal', async () => {
     const asset = source('takeout-id');
-    const recovered = await recover([asset], { assetId: asset.id, sourceUrl: 'https://offline.test/image.png',
-        localName: 'assets/diagram.png', generation });
+    const recovered = await recover([asset], { assetId: asset.id, sourceUrl: asset.source!.uri,
+        resolvedUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png', generation });
     assert.equal(recovered.result.saved, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
 });

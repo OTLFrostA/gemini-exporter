@@ -221,7 +221,7 @@ for (const method of ['remove', 'reconcile'] as const) {
             // Only the other account survives in current, history and online bytes.
             expect(cleaned.stores.conversations).toHaveLength(1);
             expect(cleaned.stores.revisions).toHaveLength(1);
-            expect(cleaned.stores.resource_bytes).toHaveLength(1);
+            expect(cleaned.stores.resource_bytes).toHaveLength(2); // imported and downloaded bytes both live in the selected account cache
             expect(cleaned.stores.removed_conversations).toHaveLength(1);
             expect(cleaned.stores.removed_conversations[0]).toMatchObject({ key: JSON.stringify(['gemini', 'u0', 'retry-delete']) });
             expect(cleaned.otherArchive).toEqual([4, 5]);
