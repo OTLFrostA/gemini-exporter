@@ -1,26 +1,5 @@
 [
   {
-    "id": "spintronics_magnetic_skyrmion_racetrack_memory",
-    "domain": "spintronics_magnetic_skyrmions",
-    "title": "自旋电子学：拓扑磁斯格明子 Thiele 动力学方程与赛道内存推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试 Dzyaloshinskii-Moriya 相互作用 (DMI) 手性自旋纹理推导、Thiele 稳态漂移方程拓扑 Magnus 力分析、斯格明子霍尔效应 (THE) 偏转 Python 模拟与超高密度存储技术对比",
-    "turns": [
-      "在空间反演对称性破缺的铁磁/重金属超薄多层膜异质结（如 Pt/Co/AlOx）中，推导海森堡交换作用常数 J 与界面 Dzyaloshinskii-Moriya 相互作用 (iDMI) 矢量 \\mathbf{D}_{ij} 协同竞争下的自旋哈密顿量连续统极限，导出奈尔型 (Néel-type) 磁斯格明子能量泛函并推导形成稳定二维孤子解的临界 DMI 阈值 D_c = \\frac{4\\sqrt{A K_{eff}}}{\\pi}。",
-      "当施加面内自旋极化电流驱动自旋轨道转矩 (SOT) 时，将微磁学 Landau-Lifshitz-Gilbert (LLG) 方程对刚体斯格明子自旋轮廓积分，严格推导稳态漂移运动的 Thiele 方程 \\mathbf{G} \\times \\mathbf{v} - \\alpha \\mathcal{D} \\cdot \\mathbf{v} + 4\\pi \\mathcal{B} \\cdot \\mathbf{j} = 0。证明拓扑荷 Q = \\frac{1}{4\\pi} \\int \\mathbf{m} \\cdot \\left( \\frac{\\partial \\mathbf{m}}{\\partial x} \\times \\frac{\\partial \\mathbf{m}}{\\partial y} \\right) dx dy = \\pm 1 产生的回转张量 \\mathbf{G} = -4\\pi Q \\hat{z} 为拓扑 Magnus 力的物理本质，并导出导致斯格明子撞壁湮灭的斯格明子霍尔角 \\theta_{SkHE} = \\arctan\\left(\\frac{4\\pi Q}{\\alpha \\mathcal{D}_{xx}}\\right)。",
-      "使用 Python 编写脚本，基于 Runge-Kutta (RK4) 数值求解包含边缘排斥势垒、随机钉扎杂质点 (Pinning Sites) 以及脉冲驱动电流的二维 Thiele 动力学微分方程，模拟斯格明子在限制赛道 (Confined Racetrack) 内部的纵向行进轨迹，展示随电流密度增加从蠕变 (Creep) 到退钉扎解卡 (Depinning) 的非线性速度响应曲线。",
-      "推导反铁磁斯格明子 (Antiferromagnetic Skyrmion) 或合成反铁磁 (SAF) 双层耦合系统抵消拓扑 Magnus 力的微观配对机制，证明由两个具有相反拓扑荷 Q_1 = -Q_2 的亚点阵耦合构成的复合斯格明子如何实现严格为零的斯格明子霍尔角 \\theta_{SkHE} = 0，从而根除赛道侧壁碰撞湮灭瓶颈。",
-      "使用 Markdown 表格，对比拓扑磁斯格明子赛道内存 (Skyrmion Racetrack)、传统磁畴壁内存 (Domain Wall Memory)、自旋转移力矩磁阻随机存取存储器 (STT-MRAM) 以及相变存储器 (PCRAM) 在位单元尺寸 (nm)、写入/擦除能耗 (fJ/bit)、读写速度 (ns)、抗外磁场干扰能力以及室温热稳定性因子 \\Delta = E_b / (k_B T) 维度的核心技术指标。"
-    ]
-  },
-  {
     "id": "archaeometry_ancient_glass_isotope_provenance",
     "domain": "archaeometry_ancient_glass_isotope_provenance",
     "title": "考古材料科学：古玻璃同位素溯源与贝叶斯产地归属",
@@ -204,29 +183,6 @@
       "推导单中心与双中心密度矩阵重整化群（DMRG）的扫场更新（Sweep Optimization）算法。从变分能量极小化 \\min \\langle \\Psi | \\hat{H} | \\Psi \\rangle / \\langle \\Psi | \\Psi \\rangle 出发，推导有效哈密顿量矩阵 \\mathcal{H}_{eff} 的投影构造形式，并说明利用 Davidson 迭代算法求解局部张量基态能级的收敛加速机制。",
       "使用 Python 编写一个教学版 DMRG 变分优化程序框架，针对简化的 1D 强关联 Hubbard/Heisenberg 自旋链模型（L=8），在固定键维 M=16 下执行左右各 2 次扫场，输出每次扫场后计算基态能量的单调收敛演化过程，并验证截断概率和总纠缠熵。",
       "使用 Markdown 表格，对比完全活性空间自洽场（CASSCF）、完全活性空间二级微扰论（CASPT2）、密度矩阵重整化群（DMRG-CASSCF）以及辅助场量子蒙特卡洛（AFQMC）在最大活性空间轨道容量（Active Space Orbitals）、动态/静态电子关联处理能力、计算标度律与侵入态（Intruder State）敏感度四个核心维度的对比。"
-    ]
-  },
-  {
-    "id": "hydrology_urban_sponge_city_stormwater",
-    "title": "城市水文与海绵城市：暴雨径流、绿色基础设施和韧性设计",
-    "domain": "hydrology_urban_stormwater_green_infrastructure",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖城市雨洪水量平衡、设施设计、Python 径流模拟、工程对比表及真实 AI 示意图附件。",
-    "turns": [
-      "针对一个面积 2 平方公里、不透水率 65% 的城市街区，建立设计暴雨下的降雨-入渗-径流-蓄滞水量平衡。用 LaTeX 推导 Horton 入渗模型 f(t)=f_c+(f_0-f_c)e^{-kt} 与线性水库 dS/dt=I-Q 的耦合，明确所有变量单位和适用边界。",
-      "用 Python 编写可运行的逐分钟雨洪模拟，比较现状街区与加入透水铺装、雨水花园、地下调蓄池后的峰值流量。给出质量守恒误差、参数表和对两种雨型的敏感性分析。",
-      "请实际调用 AI 图像生成，制作一幅海绵城市街区的等距剖面示意图：展示屋顶集水、透水铺装、植草沟、雨水花园、调蓄池和溢流路径，用不同颜色区分地表径流与地下渗流，并在文字中解释每条水流路径。",
-      "用 Markdown 表格比较雨水花园、透水铺装、绿色屋顶和地下调蓄池的容量、维护要求、地质约束、污染物去除机制与不确定性。不要把所有成本当成真实报价，区分示例假设和工程资料。",
-      "基于前面的模型与示意图，撰写包含中英术语、设计公式、伪代码、风险清单和监测计划的工程方案，讨论连续暴雨、入渗衰减与极端事件下的安全溢流设计。"
     ]
   },
   {
@@ -420,6 +376,50 @@
       "用 Python 编写可运行代码，生成三种耦合状态下的带噪声透射光谱，使用 scipy.optimize 拟合共振频率和总衰减率，输出参数估计与残差，并给出合成数据的固定随机种子。",
       "讨论背向散射引起顺时针与逆时针模式耦合的双峰分裂，写出二模耦合矩阵及本征值，说明拟合单峰模型会如何偏置品质因数估计。",
       "用 Markdown 表格对比硅、氮化硅和薄膜铌酸锂环形谐振器在材料吸收、热光响应、电光调制、制造误差敏感性方面的定性差异，并设计同时采集幅度与相位以改善参数可辨识性的实验方案。"
+    ]
+  },
+  {
+    "id": "bioreactor_gas_liquid_mass_transfer_scaleup",
+    "domain": "bioprocess_bioreactor_mass_transfer",
+    "title": "工业发酵反应器：气液传质、氧平衡与放大准则",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "使用假想非医用发酵体系，覆盖生成装置示意图、传质与耗氧微分方程、参数拟合和尺度放大对比",
+    "turns": [
+      "请实际生成一张搅拌式气液发酵反应器的剖面科学示意图，清楚显示搅拌桨、挡板、底部气体分布器、气泡、液面及溶氧传感器。生成后说明每个部件如何影响氧传递，使用假想工业体系。",
+      "建立气液传质与微生物耗氧耦合模型，用 LaTeX 写出 k_L a、氧传递速率 OTR 和耗氧速率 OUR 的关系，说明亨利定律、准稳态假设以及量纲一致性。",
+      "用 Python 编写可运行示例，生成一组固定随机种子的动态充氧数据，并拟合体积传质系数 k_L a，输出参数置信区间、残差和单位校验。",
+      "推导由小型反应器放大到大型设备时，保持单位体积搅拌功率、叶尖速度或体积传质系数三种准则之间的冲突，说明雷诺数与气含率对结论的限制。",
+      "用 Markdown 表格对比搅拌式、气升式和鼓泡塔反应器在传质、剪切、能耗、温度控制与尺度放大上的取舍，再给出一套假想数据的灵敏度分析流程。"
+    ]
+  },
+  {
+    "id": "structural_vibration_tuned_mass_damper_robustness",
+    "domain": "mechanical_tuned_mass_damper_dynamics",
+    "title": "结构振动：调谐质量阻尼器与鲁棒参数设计",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖二自由度动力学、频响、Python 优化、阻尼器比较和不确定性分析，使用假想系统参数",
+    "turns": [
+      "对一个主结构与附加调谐质量阻尼器组成的二自由度系统，推导质量、阻尼和刚度矩阵以及受迫振动方程，用 LaTeX 明确所有参数并给出无量纲质量比与调谐比。",
+      "推导谐波外力下主结构位移的复频响函数，说明反共振、双峰分裂和阻尼变化的影响，比较最小峰值与最小均方响应两种优化目标。",
+      "用 Python 编写可运行示例，基于假想参数扫描调谐比和阻尼比，绘制主结构频响并寻找最小最大幅值的组合，输出对照表和固定网格参数。",
+      "当主结构频率存在百分之十的不确定性时，构造鲁棒优化目标并比较单一调谐阻尼器与两个分散调谐阻尼器，说明为什么名义最优未必是鲁棒最优。",
+      "用 Markdown 表格对比调谐质量阻尼器、黏滞阻尼器、隔振支座和半主动装置在参数敏感性、适用频段、功耗与维护需求方面的定性差异，并列出验证模型的实验测量量。"
     ]
   }
 ]
