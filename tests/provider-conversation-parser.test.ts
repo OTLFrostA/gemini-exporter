@@ -1,3 +1,4 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /** Provider parsing, Domain closure and composed attachment-placement regressions. */
 export {};
 const test = require('node:test');
@@ -6,7 +7,6 @@ const fs = require('fs');
 const path = require('path');
 
 const { parseFixture } = require('./helpers/documentFixture.js');
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { assertDomainClosure } = require('../src/core/domain/closure.js');
 const { extractBlockText, extractInlineText } = require('../src/core/domain/content/unknownFallback.js');

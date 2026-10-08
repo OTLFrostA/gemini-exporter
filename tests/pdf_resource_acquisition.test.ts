@@ -1,8 +1,8 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { GeminiNormalizationInput } from '../src/core/compatibility/gemini/exportInput.js';
+import type { ConversationRecordInput } from '../src/core/compatibility/record/conversationRecord.js';
 import type { AcquireAssetBytesResult } from '../src/core/engine/assetPipeline.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
@@ -27,7 +27,7 @@ function input() {
 
 test('same URL with different generation/provider identities acquires separately by Domain asset ID', async () => {
     const raw = input(), original = structuredClone(raw);
-    const parsed = parseProviderConversation(raw);
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     assert.equal(parsed.conversation.assets.length, 2);
     const ids = parsed.conversation.assets.map(asset => asset.id);
     assert.notEqual(ids[0], ids[1]);
@@ -63,7 +63,7 @@ test('same URL with different generation/provider identities acquires separately
 
 test('acquired bytes, MIME and failure outcomes never enter Domain JSON or change Domain/AST', async () => {
     const raw = input(), original = structuredClone(raw);
-    const parsed = parseProviderConversation(raw);
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     const domainJson = JSON.stringify(parsed.conversation);
     const hintsJson = JSON.stringify(parsed.acquisitionHints);
     const document = composeDomainDocument(parsed.conversation).document;
@@ -82,7 +82,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         assert.equal(JSON.stringify(parsed.acquisitionHints), hintsJson);
         assert.equal(JSON.stringify(document), astJson);
         assert.equal(JSON.stringify(composeDomainDocument(parsed.conversation).document), astJson);
-        assert.equal(JSON.stringify(parseProviderConversation(raw).conversation), domainJson);
+        assert.equal(JSON.stringify(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw }).conversation), domainJson);
         assert.ok(!domainJson.includes('dataBase64'));
         assert.ok(!domainJson.includes(Buffer.from(firstBytes).toString('base64')));
         for (const resource of prepared.resources.values()) {
@@ -99,9 +99,9 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
 });
 
 test('source-provided original bytes survive JSON round-trip and bypass runtime acquisition', async () => {
-    const raw: GeminiNormalizationInput = { id: 'inline-fact', messages: [{ role: 'model', content: '',
+    const raw: ConversationRecordInput = { id: 'inline-fact', messages: [{ role: 'model', content: '',
         images: [{ type: 'image', dataBuffer: firstBytes, mimeType: 'image/png' }] }] };
-    const parsed = parseProviderConversation(raw);
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     assert.equal(parsed.conversation.assets[0].dataBase64, Buffer.from(firstBytes).toString('base64'));
     const domain = JSON.parse(JSON.stringify(parsed.conversation));
     const document = composeDomainDocument(domain).document;

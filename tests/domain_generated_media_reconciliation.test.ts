@@ -1,3 +1,4 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
@@ -6,7 +7,6 @@ import type { ChatMessage, Conversation, GeneratedMediaIdentity } from '../src/t
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { supplementLegacyGeneratedMedia } from '../src/core/compatibility/legacyGeneratedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
@@ -49,7 +49,7 @@ for (const [evidence, userFields, assistantFields] of [
         assert.deepEqual(media, originalMedia);
         const compat = structuredClone(conversation);
         supplementLegacyGeneratedMedia(compat, metadata.id, media, { appendMarkdownRef: false });
-        assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(parseProviderConversation(compat).conversation, resourceHints)).document);
+        assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: compat }).conversation, resourceHints)).document);
     });
 }
 
@@ -102,7 +102,7 @@ test('Domain construction deduplicates provider representations while Composer u
     const original = structuredClone(conversation);
     const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
     assert.ok(messageAssets(domain, 0)?.every(asset => !('path' in (asset.source ?? {}))));
-    assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(parseProviderConversation(conversation).conversation, resourceHints)).document);
+    assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conversation }).conversation, resourceHints)).document);
     assert.deepEqual(conversation, original);
     const explicitDomain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] };
     assert.equal(collectDocumentResources((await composeFixture(explicitDomain)).document).referencedIds.size, 3,

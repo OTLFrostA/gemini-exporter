@@ -2,7 +2,7 @@ import { persistNativeConversation } from '../core/storage/domain/nativePersiste
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import { createNativeDetailView } from '../core/compatibility/gemini/nativeDetailView.js';
 import { contentContext } from './contentContext.js';
-import { GeminiResponseParserClass } from '../core/compatibility/gemini/geminiParser.js';
+import { parseList } from '../core/parsers/gemini/rpc/parseList.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { LiveSaveObserver } from './liveSaveObserver.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
@@ -69,14 +69,12 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         const { text, slot } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
         if (!text) return;
         try {
-            const parser = GeminiResponseParserClass;
-            if (!parser) return;
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
             if (!Proto) return;
 
             if (text.includes(Proto.RPCS.LIST)) {
                 try {
-                    const listRes = parser.parseList(text);
+                    const listRes = parseList(text);
                     if (listRes && listRes.conversations && listRes.conversations.length) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
                         // Phase A (P1-3): 嗅探是数据面 —— 直写存储，不进 scan slice、不推进

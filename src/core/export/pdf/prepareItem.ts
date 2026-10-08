@@ -24,7 +24,7 @@ import type {
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordTurn, ConversationRecordAttachment } from '../../compatibility/record/conversationRecord.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
-import { inferLegacyProviderId } from '../../compatibility/conversationParser.js';
+import { inferLegacyProviderId } from '../../compatibility/record/legacyProvider.js';
 import { parseConversation } from '../../parsers/parseConversation.js';
 import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../document/ast/resourceReferences.js';

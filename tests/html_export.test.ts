@@ -1,7 +1,8 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/html_export.test.ts
  * HTML export via the production canonical path
- * (ChatFormatter.formatHtmlDocument: parseProviderConversation -> Domain -> Document AST -> HTML backend).
+ * (ChatFormatter.formatHtmlDocument: parseConversation -> Domain -> Document AST -> HTML backend).
  *
  * Item 2 (P0): the legacy sync toHtml() / formatContent(chat, 'html') path
  * was removed; these tests now exercise the canonical renderer, which

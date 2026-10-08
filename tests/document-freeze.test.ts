@@ -1,3 +1,4 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
@@ -10,7 +11,6 @@ import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMar
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 
 function domain(): DomainConversationDetail {
     return { providerId: 'custom', id: 'freeze', title: 'Boundary', timestamp: null, assets: [], messages: [
@@ -62,16 +62,16 @@ test('display date selects the first valid fact and normalizes to UTC at composi
     }
     assert.equal(composeDomainDocument(input).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(parseProviderConversation(source).conversation).document.header.date, '2026-10-07');
+    assert.equal(composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: source }).conversation).document.header.date, '2026-10-07');
     source.updatedAt = 'invalid';
-    const document = composeDomainDocument(parseProviderConversation(source).conversation).document;
+    const document = composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: source }).conversation).document;
     assert.equal(document.header.date, '2026-10-04');
     assert.equal(document.messages[0].modelLabel, 'provider only');
     assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
 });
 
 test('parser removes math delimiters; HTML renders source verbatim and preserves malformed source', () => {
-    const parsed = parseProviderConversation({ id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] });
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] } });
     const document = composeDomainDocument(parsed.conversation).document;
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'paragraph', children: [{ type: 'inlineMath', source: 'x^2' }] }, { type: 'math', source: 'y^2' },

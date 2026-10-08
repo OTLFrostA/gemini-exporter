@@ -6,8 +6,8 @@ const {
     extractGroundingCitationMarkers,
 } = require('../src/core/parsers/gemini/rpc/extractors.js');
 const {
-    parseDetail,
-} = require('../src/core/compatibility/gemini/parseDetail.js');
+    decodeGeminiDetail,
+} = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
 const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
@@ -343,7 +343,7 @@ test('Markdown, HTML, and Typst payload renderers contain 0 metadata-confirmed c
     assert.ok(typstJson.includes('[1]'), `Typst payload should contain [1], got: ${typstJson}`);
 });
 
-test('end-to-end: wire batchexecute response -> parseDetail -> Domain -> Document AST -> renderers zero leak', async () => {
+test('end-to-end: wire batchexecute response -> decodeGeminiDetail -> Domain -> Document AST -> renderers zero leak', async () => {
     // Construct wire JSPB detail structure mimicking Google Gemini server
     const mockDetailInner = [
         [
@@ -393,7 +393,7 @@ test('end-to-end: wire batchexecute response -> parseDetail -> Domain -> Documen
     ])}`;
 
     // 1. Parser stage
-    const parsed = parseDetail(rawEnvelope, '533ac8ca2ecb8bd7');
+    const parsed = decodeGeminiDetail(rawEnvelope, '533ac8ca2ecb8bd7');
     assert.strictEqual(parsed.messages.length, 2);
 
     const modelMsg = parsed.messages.find((m: any) => m.role === 'model');

@@ -1,4 +1,3 @@
-import type { GeminiResponseParserFacade } from "../../compatibility/gemini/geminiParser.js";
 import type { GeminiProtocolModule } from "../../protocol/protocol.js";
 
 const GEMINI_API_URL = "https://gemini.google.com/_/BardChatUi/data/batchexecute";
@@ -17,7 +16,6 @@ export interface GeminiClientRpcClientModule {
     GEMINI_API_URL: string;
     getProtocol: () => GeminiProtocolModule;
     getUtils: () => any;
-    getParser: () => GeminiResponseParserFacade;
     getApiUrl: (slot?: string | null) => string;
     nextReqid: () => string;
     generateFallbackSid: () => string;
@@ -27,7 +25,6 @@ export interface GeminiClientRpcClientModule {
 
 import { GeminiProtocol } from "../../protocol/protocol.js";
 import { GeminiUtils } from "../../utils/utils.js";
-import { GeminiResponseParserClass } from "../../compatibility/gemini/geminiParser.js";
 import { generateFallbackSid } from "./credentialManager.js";
 
 function getProtocol(): GeminiProtocolModule {
@@ -38,10 +35,6 @@ const nextReqid = GeminiProtocol.createReqidGenerator();
 
 function getUtils(): any {
     return GeminiUtils;
-}
-
-function getParser(): GeminiResponseParserFacade {
-    return GeminiResponseParserClass;
 }
 
     function getApiUrl(slot?: string | null): string {
@@ -115,7 +108,6 @@ export {
     GEMINI_API_URL,
     getProtocol,
     getUtils,
-    getParser,
     getApiUrl,
     nextReqid,
     generateFallbackSid,
@@ -127,7 +119,6 @@ export const GeminiClientRpcClient: GeminiClientRpcClientModule = {
     GEMINI_API_URL,
     getProtocol,
     getUtils,
-    getParser,
     getApiUrl,
     nextReqid,
     generateFallbackSid,

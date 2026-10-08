@@ -1,7 +1,8 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-underscore-html-regression.test.ts
  * Production regression: Tier-2-class inputs must survive the full
- * parseProviderConversation -> composeDomainDocument -> renderDocumentHtml pipeline without
+ * parseConversation -> composeDomainDocument -> renderDocumentHtml pipeline without
  * <em> being injected into LaTeX-like underscores or file names.
  *
  * Reuses the #636 Tier 2 gate assertions locally (the gate itself,
@@ -12,7 +13,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
@@ -34,7 +34,7 @@ test('full pipeline keeps LaTeX-like underscores and file names intact', async (
         title: 'Underscore regression',
         messages: [{ id: 'm1', role: 'user', content }],
     };
-    const { conversation: domain } = await parseProviderConversation(chat);
+    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: chat });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
 
     for (const c of CASES) {
@@ -55,7 +55,7 @@ test('legit underscore emphasis still renders in HTML', async () => {
         title: 'Underscore legit',
         messages: [{ id: 'm1', role: 'user', content: 'word _italic_ word and __strong__ here' }],
     };
-    const { conversation: domain } = await parseProviderConversation(chat);
+    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: chat });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
     assert.ok(html.includes('<em>italic</em>'), 'legit _italic_ renders');
     assert.ok(html.includes('<strong>strong</strong>'), 'legit __strong__ renders');

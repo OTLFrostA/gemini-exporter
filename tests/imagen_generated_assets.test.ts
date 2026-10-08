@@ -1,8 +1,8 @@
+const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
 export {};
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { GeminiResponseParserClass } = require('../src/core/compatibility/gemini/geminiParser.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 test('geminiParser - extracts Imagen generated image node (Pattern 2)', () => {
@@ -51,7 +51,7 @@ test('geminiParser - extracts Imagen generated image node (Pattern 2)', () => {
         ]
     ];
 
-    const images = GeminiResponseParserClass.extractImages(candidateBlock);
+    const images = extractImages(candidateBlock);
     assert.strictEqual(images.length, 1);
     assert.strictEqual(images[0].fileName, "watermarked_img_16704480932994645752.jpg");
     assert.strictEqual(images[0].mimeType, "image/jpeg");
@@ -81,7 +81,7 @@ test('geminiParser - extracts Python plot generated asset (Pattern 2)', () => {
         [900, 700, 93650]
     ];
 
-    const images = GeminiResponseParserClass.extractImages(plotNode);
+    const images = extractImages(plotNode);
     assert.strictEqual(images.length, 1);
     assert.strictEqual(images[0].fileName, "ekf_fusion_result.png");
     assert.strictEqual(images[0].mimeType, "image/png");

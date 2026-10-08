@@ -1,5 +1,5 @@
 import type { GeminiRpcParseResult } from '../../parsers/gemini/rpc/parseConversation.js';
-import type { DetailParseResult, ParserMessage } from './parseDetail.js';
+import type { DetailParseResult, ParserMessage } from '../../api/client/detailTypes.js';
 import { createParsedConversationView } from '../record/projectDomainRecord.js';
 
 /** Existing application envelope is a one-way view of the already parsed Domain. */

@@ -1,15 +1,15 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
 async function assertDomainParity(conversation: Conversation): Promise<void> {
     const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
     const [legacyResult, domainResult] = await Promise.all([
-        composeFixture(parseProviderConversation(conversation).conversation, resourceHints),
+        composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conversation }).conversation, resourceHints),
         composeFixture(domain, resourceHints),
     ]);
     assert.deepEqual(domainResult.document, legacyResult.document);

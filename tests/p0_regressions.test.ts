@@ -136,7 +136,7 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
 
 // ---------------------------------------------------------------- P0-4
 test('P0-4: doc title-fallback regex must match a real markdown H1 heading', () => {
-    const { DOC_TITLE_FALLBACK_RE } = require('../src/core/compatibility/gemini/parseDetail.js');
+    const { DOC_TITLE_FALLBACK_RE } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
     assert.ok(DOC_TITLE_FALLBACK_RE instanceof RegExp, 'DOC_TITLE_FALLBACK_RE must be exported as RegExp');
     assert.strictEqual(
         DOC_TITLE_FALLBACK_RE.test('# 真实标题'), true,

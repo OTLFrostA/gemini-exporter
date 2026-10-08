@@ -2,7 +2,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const attachments = require('../src/core/compatibility/gemini/attachments.js');
-const parseDetail = require('../src/core/compatibility/gemini/parseDetail.js');
+const decodeGeminiDetail = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 test('user_file_attachment: itemMatchesFilename correctly identifies valid filenames and rejects URLs', () => {

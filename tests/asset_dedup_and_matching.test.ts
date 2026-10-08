@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-const { GeminiResponseParserClass } = require('../src/core/compatibility/gemini/geminiParser.js');
 const { BatchWorker } = require('../src/core/engine/export/batchWorker.js');
 
 test('asset_dedup - Takeout getTakeoutFallbackMedia retrieves exact image among multiple image-*.png files', async () => {
@@ -64,47 +63,6 @@ test('asset_dedup - Takeout getTakeoutFallbackMedia retrieves exact image among 
     // 2. Ambiguous generic request 'image.png' when multiple media exist must return null (not hijack first image)
     const resGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_multi_img_123', 'image.png');
     assert.strictEqual(resGeneric, null, 'Must NOT arbitrarily pick first image when multiple exist');
-});
-
-test('asset_dedup - parseDetail across multiple turns with same rawFileName assigns distinct unique localNames', () => {
-    // 3 turns where each turn has user image with rawFileName "image.png"
-    const turns = [
-        [
-            ['c_testchat998877', 'r1'],
-            null,
-            [['Question 1', null, null, null, null, [null, 1, 'image.png', 'https://lh3.googleusercontent.com/user_img_1', null, 'tok1']]],
-            [[['rc1', [['Answer 1']]]]]
-        ],
-        [
-            ['c_testchat998877', 'r2'],
-            null,
-            [['Question 2', null, null, null, null, [null, 1, 'image.png', 'https://lh3.googleusercontent.com/user_img_2', null, 'tok2']]],
-            [[['rc2', [['Answer 2']]]]]
-        ],
-        [
-            ['c_testchat998877', 'r3'],
-            null,
-            [['Question 3', null, null, null, null, [null, 1, 'image.png', 'https://lh3.googleusercontent.com/user_img_3', null, 'tok3']]],
-            [[['rc3', [['Answer 3']]]]]
-        ]
-    ];
-
-    const inner = [turns, null, 'Multi-Turn Sudoku'];
-    const top = [['wrb.fr', 'hNvQHb', JSON.stringify(inner)]];
-    const text = `)]}'\n\n${JSON.stringify(top)}`;
-
-    const parsed = GeminiResponseParserClass.parseDetail(text, 'testchat998877');
-    assert.ok(parsed && parsed.messages, 'parseDetail should return messages');
-
-    const userMsgs = parsed.messages.filter((m: any) => m.role === 'user');
-    assert.strictEqual(userMsgs.length, 3);
-
-    const localNames = userMsgs.map((m: any) => m.images[0].localName);
-    assert.strictEqual(localNames.length, 3);
-
-    // All localNames must be distinct
-    const nameSet = new Set(localNames);
-    assert.strictEqual(nameSet.size, 3, `Expected 3 unique localNames, got ${JSON.stringify(localNames)}`);
 });
 
 test('asset_dedup - batchWorker resolveChat only supplements genuine AI generated media', async () => {

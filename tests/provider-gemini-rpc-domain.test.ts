@@ -4,9 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
-import { parseDetail } from '../src/core/compatibility/gemini/parseDetail.js';
 import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
@@ -36,24 +34,17 @@ test('raw RPC input constructs Domain content, reasoning and citations directly'
     assertDomainClosure(result.conversation);
 });
 
-test('native parsing never calls the historical persisted detail parser', () => {
-    const module = require('../src/core/compatibility/gemini/parseDetail.js') as { parseDetail: typeof parseDetail };
-    const old = module.parseDetail;
-    module.parseDetail = () => { throw new Error('Historical parser must not run'); };
-    try {
-        assert.equal(native(rpc([[turn()]])).conversation.messages.length, 2);
-    } finally { module.parseDetail = old; }
+test('native parsing imports no historical persisted detail parser', () => {
+    assert.equal(native(rpc([[turn()]])).conversation.messages.length, 2);
     const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/rpc/parseConversation.ts'), 'utf8');
-    assert.doesNotMatch(source, /parseConversationRecord|parseProviderConversation|parseLegacyConversation|types\/conversation|core\/storage/);
+    assert.doesNotMatch(source, /parseConversationRecord|parseConversation|parseLegacyConversation|types\/conversation|core\/storage/);
 });
 
-test('source request tokens survive intact while the persisted parser keeps normalized keys', () => {
+test('source request tokens survive intact in source evidence and Domain', () => {
     const raw = rpc([[turn('Question', null, undefined, 'r_AbCd12')]]);
     assert.equal(decodeGeminiDetail(raw).messages[0].rawProviderRequestId, 'r_AbCd12');
     assert.equal(native(raw).conversation.messages[0].provenance?.providerRequestId, 'r_AbCd12');
-    const legacy = parseDetail(raw);
-    assert.equal(legacy.messages[0].providerRequestId, 'abcd12');
-    for (const message of legacy.messages) assert.equal('rawProviderRequestId' in message, false);
+
 });
 
 test('wire chronology, multiple candidates and source dates remain explicit', () => {
@@ -98,18 +89,16 @@ test('metadata-only pages preserve title evidence without claiming a complete co
     assert.equal(result.conversation.title, 'Metadata title');
     assert.equal(result.conversation.id, ID);
     assert.equal(result.conversation.titleSource, 'rpc');
-    assert.equal('metadataConversation' in parseDetail(rpc([null, null, [[ID, 'Metadata title']]])), false);
+    assert.equal(decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]])).metadataConversation?.title, 'Metadata title');
     assert.equal(result.conversation.messages.length, 0);
     assert.equal(result.conversation.completeness?.status, 'unknown');
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT'));
 });
 
-test('native Domain composition matches the existing route without moving transport into the graph', () => {
+test('native Domain composition round-trips without moving transport into the graph', () => {
     const raw = rpc([[turn('**Question**', 1700000000, [['rc_answer', [['# Answer\n\n```ts\nconst value = 1;\n```']]]])], null, 'Title']);
     const result = native(raw);
-    const legacy = parseProviderConversation(parseDetail(raw));
     const document = composeDomainDocument(result.conversation).document;
-    assert.deepEqual(document, composeDomainDocument(legacy.conversation).document);
     const restored = JSON.parse(JSON.stringify(result.conversation));
     assertDomainClosure(restored);
     assert.deepEqual(composeDomainDocument(restored).document, document);
@@ -132,16 +121,10 @@ test('sanitized existing wire evidence retains structured content and closed ima
     assert.ok(result.conversation.assets.some(a => a.kind === 'image'));
     assertDomainClosure(result.conversation);
     const document = composeDomainDocument(result.conversation).document;
-    const legacyDocument = composeDomainDocument(parseProviderConversation(parseDetail(raw)).conversation).document;
     const image = document.messages[1].blocks.find(block => block.type === 'image');
-    const oldImage = legacyDocument.messages[1].blocks.find(block => block.type === 'image');
-    assert.ok(image?.type === 'image' && oldImage?.type === 'image');
+    assert.ok(image?.type === 'image');
     assert.equal(image.alt, '贝尔不等式实验示意图');
-    assert.equal(oldImage.alt, `${image.alt}.png`);
-    // Only the old fabricated filename extension differs from the authored caption.
-    oldImage.alt = image.alt;
-    oldImage.caption = image.caption;
-    assert.deepEqual(document, legacyDocument);
+    assert.deepEqual(document, composeDomainDocument(JSON.parse(JSON.stringify(result.conversation))).document);
     for (const asset of result.conversation.assets) assert.equal('sourceEvidence' in asset, false);
 });
 
@@ -171,7 +154,6 @@ test('raw format validation rejects wrong providers and malformed envelopes', ()
     assert.equal(empty.conversation.messages.length, 0);
 });
 
-
 test('source extraction has no export paths and retains unsanitized source filenames', () => {
     const image: unknown[] = [];
     image[2] = 'source:photo?.png'; image[3] = 'https://lh3.googleusercontent.com/source-photo';
@@ -186,12 +168,10 @@ test('source extraction has no export paths and retains unsanitized source filen
             assert.equal('resolvedUrl' in resource, false);
         }
     }
-    assert.equal(parseDetail(raw).messages[1].images![0].localName, 'assets/345678_source_photo.png');
     const bare = decodeGeminiDetail(rpc([[turn('Draw', null, [['rc_inline', [['Image'], ['https://lh3.googleusercontent.com/inline', 1, 1]]]])]]));
     assert.equal(bare.messages[1].images![0].fileName, undefined);
     assert.equal(native(raw).conversation.assets.find(a => a.generated)?.name, 'source:photo?.png');
 });
-
 
 test('raw decoding never substitutes conversation or request IDs for absent message identities', () => {
     const rawTurn = [[ID], null, [['Question']], [[['', [['Answer']]]]]];
@@ -200,8 +180,7 @@ test('raw decoding never substitutes conversation or request IDs for absent mess
     assert.equal(result.conversation.messages.length, 4);
     for (const message of result.conversation.messages) assert.equal(message.id, undefined);
     assert.doesNotThrow(() => composeDomainDocument(result.conversation));
-    assert.equal(parseDetail(raw).messages[0].id, ID);
+    assert.equal(decodeGeminiDetail(raw).messages[0].id, '');
     const request = rpc([[turn('Question', null, undefined, 'r_Ab12')]]);
     assert.equal(decodeGeminiDetail(request).messages[0].providerRequestId, 'r_Ab12');
-    assert.equal(parseDetail(request).messages[0].providerRequestId, 'ab12');
 });

@@ -1,3 +1,4 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-nested-inline-fidelity.test.ts
  * Tier 1 unit tests for HTML export fidelity & nested inline Markdown semantics.
@@ -14,7 +15,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
@@ -24,7 +24,7 @@ async function normAndRender(content: string, options: any = {}) {
         title: 'Fidelity Test',
         messages: [{ id: 'm1', role: 'model', content }],
     };
-    const { conversation: domain, diagnostics } = await parseProviderConversation(raw, options);
+    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw, ...options });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
     const msg = domain.messages[0];
     return { domain, msg, html, diagnostics };

@@ -1,3 +1,4 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Runtime closure and JSON portability of actual Domain and Document AST fixtures. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +7,6 @@ import { join } from 'node:path';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
@@ -31,7 +31,7 @@ test('each Domain fixture is closed and JSON round-trip preserves every backend 
 test('provider-only state and malformed title data cannot become document context', () => {
     const raw = { id: 'state', title: { text: 'not a title' }, theme: 'dark', messages: [{ role: 'model', content: 'Authored content', initiallyCollapsed: false }] };
     const original = structuredClone(raw);
-    const { conversation } = parseProviderConversation(raw as never);
+    const { conversation } = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw as never });
     assert.equal(typeof conversation.title, 'string');
     const document = composeDomainDocument(conversation).document;
     assert.ok(!JSON.stringify(document).includes('initiallyCollapsed'));

@@ -3,7 +3,7 @@ import { createNativeDetailView } from '../compatibility/gemini/nativeDetailView
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode, getErrorMessage } from "../utils/utils.js";
 import { extractConversationIdFromUrl } from "../utils/pathUtils.js";
-import { GeminiResponseParserClass, type GeminiResponseParserFacade } from "../compatibility/gemini/geminiParser.js";
+import { parseList } from "../parsers/gemini/rpc/parseList.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
 import GeminiClientCredentialManager, {
     getBlFromPage,
@@ -26,7 +26,7 @@ import GeminiClientPagination, {
     type PaginatedDetailResult
 } from "./client/pagination.js";
 import type { ListParseResult } from "../parsers/gemini/rpc/parseList.js";
-import type { DetailParseResult } from "../compatibility/gemini/parseDetail.js";
+import type { DetailParseResult } from "./client/detailTypes.js";
 
 export interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;
@@ -35,10 +35,6 @@ export interface GeminiAPIClientOptions {
 
 function getProtocol(): GeminiProtocolModule {
     return __resolveModule('GeminiProtocol', GeminiProtocol);
-}
-
-function getParser(): GeminiResponseParserFacade {
-    return GeminiResponseParserClass;
 }
 
 const credentialManager = GeminiClientCredentialManager;
@@ -161,7 +157,7 @@ const pagination = GeminiClientPagination;
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
             let txt = await resp.text();
-            return getParser().parseList(txt);
+            return parseList(txt);
         }
 
         // Note: If all.length >= 500 or pagination flags hitGoogleLimit / 429 errors,

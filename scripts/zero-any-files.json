@@ -1,7 +1,6 @@
 [
   "src/core/utils/titleUtils.ts",
   "src/core/utils/mergeUtils.ts",
-  "src/core/compatibility/gemini/geminiParser.ts",
   "src/core/parsers/gemini/rpc/payload.ts",
   "src/core/compatibility/gemini/attachments.ts",
   "src/core/parsers/gemini/rpc/extractors.ts",
@@ -41,7 +40,6 @@
   "src/core/export/assets/imageContent.ts",
   "src/core/export/assets/preparedResources.ts",
   "src/core/document/ast/resourceReferences.ts",
-  "src/core/compatibility/conversationParser.ts",
   "src/core/export/pdf/prepareItem.ts",
   "src/core/export/pdf/pipeline/types.ts",
   "src/core/export/pdf/pipeline/resourceStage.ts",
@@ -73,7 +71,6 @@
   "src/core/parsers/parsingResult.ts",
   "src/core/parsers/gemini/rpc/parseConversation.ts",
   "tests/provider-gemini-rpc-domain.test.ts",
-  "src/core/compatibility/gemini/legacyDetailProjection.ts",
   "src/core/parsers/gemini/takeout/decodeHtml.ts",
   "src/core/parsers/gemini/takeout/parseConversation.ts",
   "src/core/parsers/gemini/takeout/parseZip.ts",
@@ -100,5 +97,7 @@
   "tests/domain-storage.test.ts",
   "src/core/storage/schemaState.ts",
   "src/core/storage/domain/transport.ts",
-  "src/background/domainStorageHandler.ts"
+  "src/background/domainStorageHandler.ts",
+  "src/core/api/client/detailTypes.ts",
+  "src/core/compatibility/record/legacyProvider.ts"
 ]

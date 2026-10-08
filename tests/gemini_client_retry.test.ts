@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
-const { GeminiResponseParserClass } = require('../src/core/compatibility/gemini/geminiParser.js');
 const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
 const { isRateLimited, withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
 

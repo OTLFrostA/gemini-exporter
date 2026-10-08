@@ -1,3 +1,4 @@
+import { parseConversation } from '../../src/core/parsers/parseConversation.js';
 import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
 import type { LegacyResourceHints } from '../../src/core/parsers/shared/resources/resourceHints.js';
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
@@ -8,12 +9,11 @@ export async function composeFixture(domain: DomainConversationDetail, resourceH
     return { ...composeDomainDocument(domain), resources: await prepareDomainResources(domain, resourceHints) };
 }
 
-import type { GeminiNormalizationInput } from '../../src/core/compatibility/gemini/exportInput.js';
-import { parseProviderConversation } from '../../src/core/compatibility/conversationParser.js';
+import type { ConversationRecordInput } from '../../src/core/compatibility/record/conversationRecord.js';
 
 /** Raw fixture input follows the same parser, composer and preparation APIs as production. */
-export async function parseFixture(raw: GeminiNormalizationInput) {
-    const parsed = parseProviderConversation(raw);
+export async function parseFixture(raw: ConversationRecordInput) {
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     const composed = await composeFixture(parsed.conversation, parsed.resourceHints);
     return { ...composed, domain: parsed.conversation, diagnostics: [...parsed.diagnostics, ...composed.diagnostics] };
 }

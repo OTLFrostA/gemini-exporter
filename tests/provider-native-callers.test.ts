@@ -145,19 +145,17 @@ test('ambiguous Takeout resources cannot be recovered later by permissive legacy
 test('production RPC client parses raw responses without invoking the legacy detail facade', async () => {
     const credentials = require('../src/core/api/client/credentialManager.js') as typeof import('../src/core/api/client/credentialManager.js');
     const transport = require('../src/core/api/client/rpcClient.js') as typeof import('../src/core/api/client/rpcClient.js');
-    const parser = require('../src/core/compatibility/gemini/geminiParser.js') as typeof import('../src/core/compatibility/gemini/geminiParser.js');
-    const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute, originalParser = parser.GeminiResponseParserClass.parseDetail;
+    const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute;
     credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: 'u0', fSid: 'test' });
     const rawTurn = [['c_native', 'r_one'], [1700000000, 0], [['Question']], [[['rc_one', [['Answer']]]]]];
     transport.postBatchexecute = async () => new Response(rpc([[rawTurn], null, 'Native title']));
-    parser.GeminiResponseParserClass.parseDetail = () => { throw new Error('Legacy parser must not run'); };
     try {
         const { GeminiAPIClient } = require('../src/core/api/geminiClient.js') as typeof import('../src/core/api/geminiClient.js');
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, 'u0');
         assert.equal(detail.title, 'Native title');
         assert.equal(detail.parsed!.conversation.messages.length, 2);
         assert.equal(detail.parsed!.conversation.messages[0].provenance?.providerRequestId, 'r_one');
-    } finally { credentials.resolveCred = originalCred; transport.postBatchexecute = originalPost; parser.GeminiResponseParserClass.parseDetail = originalParser; }
+    } finally { credentials.resolveCred = originalCred; transport.postBatchexecute = originalPost; }
 });
 
 test('live image renaming updates export hints without modifying native source facts', async () => {

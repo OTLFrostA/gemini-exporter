@@ -4,7 +4,7 @@ import type { ResourceConversationParseResult } from '../../parsers/parsingResul
 import { getErrorMessage, isDevMode } from "../../utils/utils.js";
 import { isRateLimited } from "../../engine/export/rateLimiter.js";
 import type { ConversationListItem, ListParseResult, ListParseDiagnostics } from "../../parsers/gemini/rpc/parseList.js";
-import type { DetailParseResult, ParserMessage } from "../../compatibility/gemini/parseDetail.js";
+import type { DetailParseResult, ParserMessage } from "./detailTypes.js";
 
 export interface PaginationProgressInfo {
     page: number;

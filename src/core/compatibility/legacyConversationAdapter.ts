@@ -1,11 +1,11 @@
 import type { Conversation } from '../../types/conversation.js';
 import type { DomainConversationDetail } from '../domain/conversationDetail.js';
 import type { LegacyResourceHints } from '../parsers/shared/resources/resourceHints.js';
-import { inferLegacyProviderId, type LegacyDomainConstructionOptions } from './conversationParser.js';
+import { inferLegacyProviderId, type LegacyDomainConstructionOptions } from './record/legacyProvider.js';
 import { parseConversation } from '../parsers/parseConversation.js';
-export type { LegacyDomainConstructionOptions } from './conversationParser.js';
+export type { LegacyDomainConstructionOptions } from './record/legacyProvider.js';
 
-/** Strict application input contract; provider exports can preserve unknown raw bodies through parseProviderConversation. */
+/** Strict application input contract; provider exports can preserve unknown raw bodies through the explicit conversation-record parser. */
 export function parseLegacyConversation(conversation: Conversation, options: LegacyDomainConstructionOptions = {}): { conversation: DomainConversationDetail; resourceHints: LegacyResourceHints } {
     const messages = conversation.messages?.length ? conversation.messages : conversation.turns?.flatMap(turn => turn.messages ?? []) ?? [];
     if (messages.some(message => typeof message.content !== 'string') || (!conversation.messages?.length && conversation.turns?.some(turn =>
