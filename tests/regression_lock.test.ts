@@ -914,6 +914,15 @@ test('release workflow - release package excludes TypeScript source and sourcema
 
     // release.yml delegates packaging to npm run package SSoT
     assert.ok(workflowContent.includes('npm run package'), 'release.yml must delegate packaging to npm run package');
+    assert.ok(workflowContent.includes("github.event_name == 'push' && github.sha || 'main'"), 'tag pushes must checkout the event commit');
+    assert.ok(workflowContent.includes('run: npm ci'), 'release dependencies must install with npm ci only');
+    assert.ok(workflowContent.includes('npm test'), 'the full test gate must run before packaging');
+    assert.ok(workflowContent.includes('Tag ($VERSION), manifest.json ($MANIFEST_VER), and package.json ($PACKAGE_VER) versions must match.'), 'tag and source versions must be validated');
+    assert.ok(workflowContent.includes('TAG="v${VERSION}"'), 'version bump modes must derive the release tag from the committed version');
+    assert.ok(workflowContent.includes('ZIP_SHA256=$(sha256sum "$ZIP_NAME"'), 'the verified release ZIP must have a recorded SHA-256');
+    assert.ok(workflowContent.includes("if: github.event_name == 'workflow_dispatch' && inputs.publish_to_store == true"), 'store actions must require explicit manual authorization');
+    assert.ok(!workflowContent.includes('continue-on-error: true'), 'store upload failures must fail the workflow');
+    assert.ok(!workflowContent.includes('publish: ${{ github.event.inputs.publish_to_store || true }}'), 'store publish must not default to true');
 });
 
 test('architecture doc - all referenced src/ file paths must exist on disk', () => {
