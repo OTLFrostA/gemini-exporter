@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "Gemini Exporter - 保存所有对话",
+    "message": "Gemini Exporter - 批量导出对话备份",
     "description": "扩展程序名称。"
   },
   "extDesc": {

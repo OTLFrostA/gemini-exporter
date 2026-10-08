@@ -788,6 +788,7 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sUnexp.state, 'unexported');
     assert.strictEqual(sUnexp.isUnexported, true);
     assert.strictEqual(sUnexp.needsIncrementalExport, true);
+    assert.strictEqual(sUnexp.shouldAutoSelect, true);
     assert.strictEqual(sUnexp.badge.kind, 'none');
 
     // 2. exporting_assets
@@ -795,12 +796,14 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sPending.state, 'exporting_assets');
     assert.strictEqual(sPending.badge.kind, 'exporting_assets');
     assert.strictEqual(sPending.badge.className, 'badge badge-exporting-assets');
+    assert.strictEqual(sPending.shouldAutoSelect, false);
 
     // 3. exported_ok
     const sOk = resolveState(chat, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, status: 'ok', messageCount: 2 });
     assert.strictEqual(sOk.state, 'exported_ok');
     assert.strictEqual(sOk.isExportedClean, true);
     assert.strictEqual(sOk.needsIncrementalExport, false);
+    assert.strictEqual(sOk.shouldAutoSelect, false);
     assert.strictEqual(sOk.badge.kind, 'exported_ok');
 
     // 4. exported_partial (needs incremental retry, renders partial badge, not updated badge)
@@ -808,6 +811,7 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sPartial.state, 'exported_partial');
     assert.strictEqual(sPartial.hasNewerActivity, false);
     assert.strictEqual(sPartial.needsIncrementalExport, true);
+    assert.strictEqual(sPartial.shouldAutoSelect, false);
     assert.strictEqual(sPartial.isFailed, true);
     assert.strictEqual(sPartial.badge.kind, 'exported_partial');
 
@@ -816,6 +820,7 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sUpdated.state, 'updated');
     assert.strictEqual(sUpdated.hasNewerActivity, true);
     assert.strictEqual(sUpdated.needsIncrementalExport, true);
+    assert.strictEqual(sUpdated.shouldAutoSelect, true);
     assert.strictEqual(sUpdated.badge.kind, 'updated');
 
     // 6. failed in session
@@ -824,12 +829,32 @@ test('listView - resolveConversationExportState provides unified SSoT across all
     assert.strictEqual(sFailed.isFailed, true);
     assert.strictEqual(sFailed.isUnexported, false);
     assert.strictEqual(sFailed.badge.kind, 'failed');
+    assert.strictEqual(sFailed.shouldAutoSelect, true);
 
     // 7. failed record
     const sFailedRec = resolveState(chat, { exportedAt: new Date(t0 + 5000).toISOString(), status: 'failed' });
     assert.strictEqual(sFailedRec.state, 'failed');
     assert.strictEqual(sFailedRec.isFailed, true);
     assert.strictEqual(sFailedRec.badge.kind, 'failed');
+    assert.strictEqual(sFailedRec.shouldAutoSelect, true);
+});
+
+test('listView - default selection accepts partial delivery while keeping explicit retries available', () => {
+    const t0 = 1700000000000;
+    const chat = { id: 'c_partial', updatedAt: t0, messageCount: 2 };
+    const record = { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, messageCount: 2 };
+    for (const failure of [{ status: 'partial' }, { hasFailedAssets: true }]) {
+        const partial = { ...record, ...failure };
+        const state = ListView.resolveConversationExportState(chat, partial);
+        assert.strictEqual(state.shouldAutoSelect, false);
+        assert.strictEqual(state.needsIncrementalExport, true, 'manual incremental export can retry missing resources');
+        assert.strictEqual(state.badge.kind, 'exported_partial');
+        assert.strictEqual(ListView.resolveConversationExportState(chat, partial, { isFailedInSession: true }).shouldAutoSelect, false);
+        assert.strictEqual(ListView.resolveConversationExportState({ ...chat, updatedAt: t0 + 60000 }, partial).shouldAutoSelect, true);
+    }
+    assert.strictEqual(ListView.resolveConversationExportState(chat, { ...record, status: 'failed', hasFailedAssets: true }).shouldAutoSelect, true);
+    assert.strictEqual(ListView.resolveConversationExportState(chat, record, { isFailedInSession: true }).shouldAutoSelect, true);
+    assert.strictEqual(ListView.resolveConversationExportState(chat, { ...record, status: 'empty', messageCount: 0 }).shouldAutoSelect, true);
 });
 
 test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select buttons, and list selection without blocking scrolling', () => {
@@ -871,4 +896,3 @@ test('uiCommon - setWorkbenchControlsDisabled toggles all action buttons, select
         (globalThis as any).document = origDoc;
     }
 });
-
