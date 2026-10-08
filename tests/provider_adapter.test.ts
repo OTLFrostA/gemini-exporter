@@ -8,7 +8,7 @@ import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiCon
 import type { DetailParseResult } from '../src/core/compatibility/gemini/parseDetail.js';
 
 // If the upstream companion gains a field, adapter coverage must be revisited.
-const detailFields = ['id', 'title', 'messages', 'url', 'createdAt', 'updatedAt', 'messageCount', 'titleSource', 'titles', 'timestamp', 'chatTime', 'nextPageToken', 'attachmentCount', 'schemaDrift', 'turnsRejected', 'truncated', 'isTruncated', 'truncateReason', '_raw', '_debug'] as const satisfies readonly (keyof PaginatedDetailResult)[];
+const detailFields = ['parsed', 'id', 'title', 'messages', 'url', 'createdAt', 'updatedAt', 'messageCount', 'titleSource', 'titles', 'timestamp', 'chatTime', 'nextPageToken', 'attachmentCount', 'schemaDrift', 'turnsRejected', 'truncated', 'isTruncated', 'truncateReason', '_raw', '_debug'] as const satisfies readonly (keyof PaginatedDetailResult)[];
 const listFields = ['conversations', 'total', 'stoppedEarly', 'exhaustive', 'completionReason', 'diagnostics', 'hitGoogleLimit'] as const satisfies readonly (keyof PaginationResult)[];
 type Assert<T extends true> = T;
 const completeDetailCoverage: Assert<Exclude<keyof PaginatedDetailResult, typeof detailFields[number]> extends never ? true : false> = true;

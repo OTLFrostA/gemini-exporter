@@ -1,3 +1,6 @@
+import { createParsedConversationView } from '../../compatibility/record/projectDomainRecord.js';
+import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
+import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { getErrorMessage, isDevMode } from "../../utils/utils.js";
 import { isRateLimited } from "../../engine/export/rateLimiter.js";
 import type { ConversationListItem, ListParseResult, ListParseDiagnostics } from "../../parsers/gemini/rpc/parseList.js";
@@ -351,6 +354,8 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
 
     async function getConversationDetail(client: GeminiPaginationDetailClient, conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult> {
         let msgs: ParserMessage[] = [];
+        const nativePages: ResourceConversationParseResult[] = [];
+        let legacyMessagesObserved = false;
         let token: string | null = null;
         let first: DetailParseResult | null = null;
         let attempts = 0;
@@ -375,6 +380,8 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             let page: DetailParseResult = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!first) first = page;
             accPageDrift(page);
+            if (page.parsed) nativePages.push(page.parsed);
+            else if (page.messages?.length) legacyMessagesObserved = true;
             const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: ParserMessage) => {
                 const mid = m ? m.id : null;
                 if (mid === null || mid === undefined || mid === '') return true;
@@ -427,6 +434,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                         const primaryTitles = first.titles;
                         const primarySource = first.titleSource;
                         msgs = retry.messages;
+                        if (retry.parsed) nativePages.push(retry.parsed);
                         accPageDrift(retry);
                         first = retry;
                         if (primarySource === "rpc" && primaryTitle && primaryTitle !== "未命名对话" && first.titleSource !== "rpc") {
@@ -448,16 +456,23 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : (first.updatedAt || minTs || null);
         let attachmentCount = msgs.reduce((a: number, m: ParserMessage) => a + (m.attachmentCount || 0), 0);
         let cleanId = String(conversationId).replace(/^c_/, "").trim();
+        if (nativePages.length && legacyMessagesObserved) throw new TypeError('Cannot merge native and legacy conversation messages');
+        const parsed = nativePages.length ? mergeConversationPages(nativePages, detailTruncated ? truncateReason : undefined) : undefined;
+        if (parsed) {
+            parsed.conversation = { ...parsed.conversation, id: cleanId, title: first.title, titleSource: first.titleSource, titles: { ...first.titles } };
+        }
+        const nativeView = parsed ? createParsedConversationView(parsed) : undefined;
         return {
             ...first,
+            ...(nativeView ? { parsed: nativeView.parsed } : {}),
             id: cleanId,
-            messages: msgs,
-            messageCount: msgs.length,
-            timestamp: maxTs,
-            createdAt: minTs,
-            chatTime: maxTs,
-            updatedAt: maxTs,
-            attachmentCount,
+            messages: nativeView ? nativeView.messages as ParserMessage[] : msgs,
+            messageCount: nativeView ? nativeView.messages.length : msgs.length,
+            timestamp: nativeView ? nativeView.timestamp : maxTs,
+            createdAt: nativeView ? nativeView.createdAt : minTs,
+            chatTime: nativeView ? nativeView.chatTime ?? null : maxTs,
+            updatedAt: nativeView ? nativeView.updatedAt : maxTs,
+            attachmentCount: nativeView ? nativeView.attachmentCount ?? 0 : attachmentCount,
             turnsRejected: mergedTurnsRejected > 0 ? mergedTurnsRejected : void 0,
             schemaDrift: mergedSchemaDrift.length ? mergedSchemaDrift : void 0,
             truncated: detailTruncated || undefined,

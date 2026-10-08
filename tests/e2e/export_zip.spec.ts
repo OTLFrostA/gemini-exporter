@@ -44,7 +44,7 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
     ];
     const mockDetailInner = JSON.stringify([
       turns,
-      "tC_sample_token",
+      null, // This fixture is a terminal detail page.
       "深度学习反向传播算法详解"
     ]);
     const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
@@ -110,8 +110,8 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
     const mdContent = await zip.files[mdFileName!].async('text');
     // Verify real markdown structure, title, user query, and model response
     expect(mdContent).toContain('深度学习反向传播算法详解');
-    expect(mdContent).toContain('请解释一下深度学习中的反向传播算法');
-    expect(mdContent).toContain('反向传播（Backpropagation）是训练神经网络的核心算法');
+    expect(mdContent.split('请解释一下深度学习中的反向传播算法')).toHaveLength(2);
+    expect(mdContent.split('反向传播（Backpropagation）是训练神经网络的核心算法')).toHaveLength(2);
 
     // 6. Verify Workbench UI updated to show Exported Badge and Storage is updated
     await expect(optionsPage.locator('[data-chat-id="real_exp_001"] .badge')).toContainText(/已导出|Exported/);

@@ -1,3 +1,5 @@
+import { readParsedConversation } from '../record/projectDomainRecord.js';
+import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { sameGenerationEvent } from '../../engine/generatedMediaIdentity.js';
 import type {
     GeneratedMediaIdentity
@@ -47,6 +49,7 @@ interface TakeoutCachedMessage {
 }
 
 export interface TakeoutCachedConversation {
+    parsed?: ResourceConversationParseResult;
     id?: string;
     title?: string;
     timestamp?: number | null;
@@ -167,6 +170,22 @@ async function getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slo
     if (!filenameOrId) return null;
     const nid = normId(chatId);
     const store = getStore(slot);
+    if (!store.convCache[nid] && Object.values(store.convCache).some(chat => chat.parsed)) return null;
+    const native = readParsedConversation(store.convCache[nid]);
+    if (native) {
+        const matches = native.conversation.assets.filter(asset => {
+            const path = native.resourceHints[asset.id]?.archivePath;
+            return filenameOrId === asset.id || filenameOrId === asset.source?.uri || filenameOrId === asset.source?.uri?.split('/').pop() || filenameOrId === path || (path && filenameOrId === path.split('/').pop());
+        });
+        if (matches.length !== 1) return null;
+        const asset = matches[0];
+        if (generation && (!asset.generation?.chatId || asset.generation.generationOrdinal === undefined || !sameGenerationEvent({ ...asset.generation, chatId: asset.generation.chatId, generationOrdinal: asset.generation.generationOrdinal }, generation))) return null;
+        const requestedOrdinal = generation?.imageOrdinal ?? (generation?.imageCount === 1 ? 0 : undefined);
+        const sourceOrdinal = asset.generation?.imageOrdinal ?? (asset.generation?.imageCount === 1 ? 0 : undefined);
+        if (requestedOrdinal !== undefined && requestedOrdinal !== sourceOrdinal) return null;
+        const path = native.resourceHints[asset.id]?.archivePath;
+        try { return await readTakeoutBytes(path ? store.globalMedia[path] : undefined); } catch { return null; }
+    }
     const mediaMap = store.mediaMap;
     const globalMedia = store.globalMedia;
     if (generation) {

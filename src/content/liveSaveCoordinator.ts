@@ -1,3 +1,4 @@
+import { readParsedConversation } from '../core/compatibility/record/projectDomainRecord.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { AIProvider } from "../core/provider/aiProvider.js";
 import { StorageService } from '../core/storage/storageService.js';
@@ -719,6 +720,14 @@ export async function processAndSaveImages(
     }
 
     if (savedMap.size === 0) return collectedAssets;
+    const native = readParsedConversation(chat);
+    if (native) {
+        for (const asset of native.conversation.assets) {
+            const uri = asset.source?.uri;
+            const local = uri && savedMap.get(uri);
+            if (local) native.resourceHints = { ...native.resourceHints, [asset.id]: { ...native.resourceHints[asset.id], archivePath: local } };
+        }
+    }
 
     for (const m of chat.messages) {
         if (!m) continue;

@@ -1,3 +1,4 @@
+import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import type { GeminiDetailEvidence } from '../../parsers/gemini/rpc/detailEvidence.js';
 import type { Message, TitleSources, Attachment, MessageDocument } from '../../../types/index.js';
 import type { Citation, TitleResult } from '../../parsers/gemini/rpc/extractors.js';
@@ -47,6 +48,8 @@ export interface ParserMessage extends Omit<Message, "documents" | "citations" |
 }
 
 export interface DetailParseResult {
+    /** Native result travels beside the old application view, never inside stored records. */
+    parsed?: ResourceConversationParseResult;
     id: string;
     title: string;
     titleSource: TitleResult["source"];

@@ -1,3 +1,4 @@
+import { readParsedConversation, type ParsedConversationView } from '../../compatibility/record/projectDomainRecord.js';
 import {
     BatchWorker,
     resolveConversationData,
@@ -105,7 +106,7 @@ interface PdfSelectedItemObject {
     [key: string]: unknown;
 }
 
-type PdfSelectedItem = string | PdfSelectedItemObject;
+type PdfSelectedItem = string | PdfSelectedItemObject | ParsedConversationView;
 
 type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
 type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
@@ -319,9 +320,10 @@ export async function preparePdfItem(
     const listChat = Array.isArray(context.conversations)
         ? context.conversations.find((c) => normId(c.id) === id) ?? null
         : null;
+    const selectedRecord: Record<string, unknown> = typeof selectedItem !== 'string' ? { ...selectedItem } : {};
     const selectedChat: PdfProviderConversation = typeof selectedItem !== 'string' && isObjectRecord(selectedItem)
         ? {
-            ...selectedItem,
+            ...selectedRecord,
             id: typeof selectedItem.id === 'string' ? selectedItem.id : id,
             title: typeof selectedItem.title === 'string' ? selectedItem.title : title,
         }
@@ -370,7 +372,8 @@ export async function preparePdfItem(
         for (const message of providerInput.messages ?? providerInput.turns?.flatMap(turn => turn.messages ?? []) ?? []) {
             if (message.id !== undefined && !message.id.trim()) throw new TypeError('[MSG_BAD_ID] Empty message identity');
         }
-        parsed = parseConversation({ format: 'conversation-record', data: providerInput, providerId: inferLegacyProviderId(providerInput), generatedMedia });
+        const native = readParsedConversation(chat);
+        parsed = native ? { ...native, conversation: { ...native.conversation, id: typeof providerInput.id === 'string' ? providerInput.id : id, title: typeof chat.title === 'string' ? chat.title : native.conversation.title } } : parseConversation({ format: 'conversation-record', data: providerInput, providerId: inferLegacyProviderId(providerInput), generatedMedia });
         diagnostics.push(...parsed.diagnostics);
         const composed = composeDomainDocument(parsed.conversation);
         document = composed.document;

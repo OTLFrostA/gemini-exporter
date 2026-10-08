@@ -1,3 +1,4 @@
+import { parseGeminiDomConversation, type GeminiDomRaw, type GeminiDomParseResult } from './gemini/dom/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw, type GeminiTakeoutZipContext } from './gemini/takeout/parseZip.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult } from './gemini/takeout/parseConversation.js';
 import type { ConversationRecordInput } from '../compatibility/record/conversationRecord.js';
@@ -21,9 +22,11 @@ export interface GeminiTakeoutZipParseInput extends GeminiTakeoutZipContext {
     format: 'gemini-takeout-zip';
     data: GeminiTakeoutZipRaw;
 }
+export interface GeminiDomParseInput { format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
 /** Only formats with implemented Domain parsers belong here. */
-export type ConversationParseInput = ConversationRecordParseInput | GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput;
+export type ConversationParseInput = ConversationRecordParseInput | GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
 
+export function parseConversation(input: GeminiDomParseInput): GeminiDomParseResult;
 export function parseConversation(input: ConversationRecordParseInput): ConversationRecordParseResult;
 export function parseConversation(input: GeminiRpcParseInput): GeminiRpcParseResult;
 export function parseConversation(input: GeminiTakeoutParseInput): GeminiTakeoutParseResult;
@@ -32,6 +35,7 @@ export function parseConversation(input: ConversationParseInput): ResourceConver
 /** Unified Domain entry; source-specific raw decoders never pass through conversation-record. */
 export function parseConversation(input: ConversationParseInput): ResourceConversationParseResult | Promise<ResourceConversationParseResult> {
     switch (input.format) {
+        case 'gemini-dom': return parseGeminiDomConversation(input.data, input);
         case 'conversation-record': return parseConversationRecord(input.data, input);
         case 'gemini-takeout-zip': return parseGeminiTakeoutZip(input.data, input);
         case 'gemini-takeout': return parseGeminiTakeoutConversation(input.data, input);

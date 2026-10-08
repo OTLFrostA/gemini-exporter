@@ -30,7 +30,7 @@ src/
     liveSaveObserver.ts        Gemini generation completion & DOM mutation debounced observer
     liveSaveCoordinator.ts     Real-time live auto-save coordinator (RPC/DOM -> IndexedDB & Disk)
     syncEngine.ts              Incremental & deep history scan coordinator
-    domScraper.ts              DOM fallback scraper when RPC payloads are unavailable
+    domScraper.ts              DOM acquisition adapter; native parsing lives in core/parsers/gemini/dom
     badgeView.ts               Floating sync & live save feedback badge in Gemini web UI
     assetFetcher.ts            Media, images, and blob streaming fetcher
     bootstrap.ts               Page token & initial credential bootstrap
@@ -39,7 +39,7 @@ src/
     messageRouter.ts           Message routing between background/options and content script
     pageObserver.ts            SPA URL change and sidebar DOM mutation observer
 
-  core/                        Pure Domain Logic & Engine (Strictly Decoupled from DOM)
+  core/                        Semantic contracts, source parsers and application orchestration
     provider/                  Universal AI Provider Abstraction Layer
       aiProvider.ts            Universal AI provider interface, capabilities & data contract
       providerRegistry.ts      Provider registry with URL matching & auto-registration
@@ -49,14 +49,15 @@ src/
         geminiProvider.ts      batchexecute RPC provider implementation
 
     api/                       Network clients, credentials, pagination and retries
-      geminiClient.ts          Existing client; persisted result stays unchanged
+      geminiClient.ts          Raw RPC → Domain with the existing application envelope
       client/                  RPC transport and credential submodules
 
     parsers/                   Raw source decoding and direct Domain construction
       contracts.ts             Source parser context/result contracts (diagnostics beside Domain)
       parseConversation.ts     Explicit format dispatcher; conversation-record is a migration bridge
       gemini/rpc/              Wire extraction, source media and raw RPC → Domain
-      gemini/takeout/           Activity HTML and ZIP bytes → Domain
+      gemini/takeout/           Activity HTML and cooperative ZIP parsing → Domain
+      gemini/dom/               Authored DOM trees → Domain; observed coverage stays partial
       gemini/shared/            Gemini structured content and Markdown interpretation
       shared/                  Markdown/HTML, archive validation and resource/citation closure
 
@@ -73,10 +74,11 @@ src/
       typst/                   Typst renderer, templates, layout, math and private payload
       shared/                  Renderer options, strings and shared presentation policy
 
-    compatibility/             Existing record/output behavior until producers migrate
+    compatibility/             One-way legacy output views and historical record bridges
       gemini/                  RPC facade, legacy filenames/paths and persisted detail projection
-      takeout/                 Existing Takeout importer and inferred media correlation
-      record/                  Existing application record → Domain bridge
+      takeout/                 Native import/cache and source-bound offline acquisition adapters
+      record/                  Domain → existing string record views; historical record → Domain
+        projectDomainRecord.ts One-way storage/JSON projection and native runtime sidecar
       archive/                 Existing localized ZIP guard errors
 
     diagnostics/               Parsing, composition and rendering problem records

@@ -1,3 +1,4 @@
+import { readParsedConversation } from '../../compatibility/record/projectDomainRecord.js';
 import { supplementLegacyGeneratedMedia } from '../../compatibility/legacyGeneratedMediaReconciliation.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
 import type {
@@ -483,6 +484,7 @@ function supplementTakeoutGeneratedMedia(
     takeoutEngine?: TakeoutExportSource | TakeoutEngineSourceLike | null,
     options: SupplementTakeoutMediaOptions = {}
 ): void {
+    if (readParsedConversation(chat)) return;
     if (!takeoutEngine?.getTakeoutMediaForChat || !Array.isArray(chat.messages) || !chat.messages.length) return;
     const media = takeoutEngine.getTakeoutMediaForChat(nid, slot);
     if (Array.isArray(media)) supplementLegacyGeneratedMedia(chat, nid, media, options);
@@ -533,6 +535,7 @@ export async function resolveConversationData(
                         ...(listConversation || {}),
                         id: nid,
                         title: isRealTitle(chatTitle, nid) ? chatTitle : (listConversation?.title || nid),
+                        ...('parsed' in detail ? { parsed: detail.parsed } : {}),
                         messages: detail.messages,
                         turns: detail.turns,
                         url: (listConversation && listConversation.url) || `https://gemini.google.com/app/${nid}`
@@ -570,7 +573,7 @@ async function resolveChat(
 
     supplementTakeoutGeneratedMedia(chat, nid, slot, takeoutEngine);
 
-    if (Array.isArray(chat.messages) && chat.messages.length > 0) {
+    if (!readParsedConversation(chat) && Array.isArray(chat.messages) && chat.messages.length > 0) {
         const scope = shortScope(nid);
         for (let mi = 0; mi < chat.messages.length; mi++) {
             const m = chat.messages[mi];

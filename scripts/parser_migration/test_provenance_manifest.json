@@ -1984,15 +1984,90 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/provider-native-callers.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "provenanceSource": "Synthetic production caller, native pagination/export and ZIP acquisition contracts; not evidence of live provider compatibility",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "testCount": 13,
+      "tests": [
+        {
+          "name": "production pagination merges native pages chronologically and closes renamed resources",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "page merge dedupes stable messages and shared source images without collapsing anonymous assets",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native token loops retain diagnostics and explicitly mark incomplete coverage",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native exports use Domain despite a deliberately corrupted compatibility body",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "storage projection and JSON exports keep string records without runtime Domain sidecars",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "malformed native sidecars fail rather than silently using the legacy parser",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "production Takeout binds extension variations once and carries native Domain to PDF acquisition",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ambiguous Takeout resources cannot be recovered later by permissive legacy guessing",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "production RPC client parses raw responses without invoking the legacy detail facade",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "live image renaming updates export hints without modifying native source facts",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "native pagination rejects mixed legacy message pages instead of dropping their bodies",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Takeout prompt-cell attachments and audio stay user-owned while response references remain assistant-owned",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 38,
-    "totalTests": 306,
+    "totalSuites": 39,
+    "totalTests": 319,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 286,
+      "P2": 299,
       "P3": 2,
       "P4": 0
     }

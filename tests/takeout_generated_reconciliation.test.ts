@@ -112,7 +112,7 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
         assert.equal(parsed.mediaMap[chatId]?.length ?? 0, 0);
         assert.ok(parsed.convCache[chatId].messages?.every((m: { attachments?: unknown[] }) => !m.attachments?.length));
         const stored = parsed.globalMedia[filename];
-        assert.deepEqual(await stored.async('uint8array'), bytes);
+        assert.deepEqual(await stored.async!('uint8array'), bytes);
     } finally {
         clearTakeoutData(slot);
         Reflect.set(globalThis, 'JSZip', previousJSZip);

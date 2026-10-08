@@ -134,28 +134,56 @@ function activityContentCell(block: string): string {
     return block.slice(start);
 }
 
-/** Decode the supported MyActivity block grammar without storage records or export paths. */
-export function decodeTakeoutHtml(htmlText: string): TakeoutActivityEvidence[] {
+function activityBlocks(htmlText: string): string[] {
     if (typeof htmlText !== 'string') throw new TypeError('Takeout input must be HTML text');
     const blocks = htmlText.split('<div class="outer-cell');
     if (blocks.length <= 1) throw new TypeError('Unsupported Takeout MyActivity block format');
-    return blocks.slice(1).map((block, index) => {
-        const conversationIds = [...new Set(Array.from(block.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g), m => m[1].replace(/^c_/, '')))];
-        const { promptText, hasExplicitPrompt } = parseTakeoutPrompt(block);
-        const generated = /(?:(\d+)\s*generated images?|(\d+)\s*张生成的图片)/i.exec(block);
-        const rawCell = activityContentCell(block);
-        const parts = rawCell.split(/<br\s*\/?>|\n/);
-        const start = parts.findIndex(part => !/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)/i.test(part) && /<(?:p|pre|table|h[1-6]|ul|ol|strong|em|code|img)\b/i.test(part));
-        const responseHtml = start === -1 ? '' : parts.slice(start).join('\n').trim();
-        const media: TakeoutActivityEvidence['media'] = [];
-        for (const match of block.matchAll(/(?:src|href)=["']([^#"'>]+?)["']/gi)) {
-            const uri = unescapeHtmlEntities(match[1]).trim();
-            if (/^(?:https?:|\/\/|javascript:|mailto:|data:)/i.test(uri) || /\.html?$/i.test(uri)) continue;
-            const owner = responseHtml.includes(match[0]) ? 'assistant' : hasExplicitPrompt && parts[0]?.includes(match[0]) ? 'user' : 'unknown';
-            if (!media.some(m => m.uri === uri && m.owner === owner)) media.push({ uri, owner });
+    return blocks.slice(1);
+}
+
+function decodeActivityBlock(block: string, index: number): TakeoutActivityEvidence {
+    const conversationIds = [...new Set(Array.from(block.matchAll(/https:\/\/(?:gemini|bard)\.google\.com\/(?:u\/\d+\/)?(?:app|chat)\/([a-zA-Z0-9_-]{8,64})/g), m => m[1].replace(/^c_/, '')))];
+    const { promptText, hasExplicitPrompt } = parseTakeoutPrompt(block);
+    const generated = /(?:(\d+)\s*generated images?|(\d+)\s*张生成的图片)/i.exec(block);
+    const rawCell = activityContentCell(block);
+    const parts = rawCell.split(/<br\s*\/?>|\n/);
+    const start = parts.findIndex(part => !/(?:Prompted|已提示|提示|プロンプト|Demande|Preguntado)/i.test(part) && /<(?:p|pre|table|h[1-6]|ul|ol|strong|em|code|img)\b/i.test(part));
+    const responseHtml = start === -1 ? '' : parts.slice(start).join('\n').trim();
+    const cellOffset = rawCell ? block.indexOf(rawCell) : -1;
+    const responseOffset = start === -1 ? rawCell.length : rawCell.indexOf(parts[start]);
+    const responseStart = cellOffset < 0 ? block.length : cellOffset + responseOffset;
+    const cellEnd = cellOffset + rawCell.length;
+    const media: TakeoutActivityEvidence['media'] = [];
+    for (const match of block.matchAll(/(?:src|href)=["']([^#"'>]+?)["']/gi)) {
+        const uri = unescapeHtmlEntities(match[1]).trim();
+        if (/^(?:https?:|\/\/|javascript:|mailto:|data:)/i.test(uri) || /\.html?$/i.test(uri)) continue;
+        const position = match.index!;
+        const inPromptCell = hasExplicitPrompt && cellOffset >= 0 && position >= cellOffset && position < responseStart;
+        const inAttachedSection = /Attached\s+\d+\s+files?/i.test(block.slice(0, position)) && position < responseStart;
+        const inResponse = start !== -1 && cellOffset >= 0 && position >= responseStart && position < cellEnd;
+        const owner = inPromptCell || inAttachedSection ? 'user' : inResponse ? 'assistant' : 'unknown';
+        if (!media.some(m => m.uri === uri && m.owner === owner)) media.push({ uri, owner });
+    }
+    return { blockIndex: index + 1, conversationIds, promptText, hasExplicitPrompt,
+        timestamp: parseTakeoutTimestamp(block), responseHtml,
+        ...(generated ? { generatedImageCount: Number(generated[1] || generated[2]) } : {}), media };
+}
+
+/** One grammar is shared by synchronous HTML and cooperative asynchronous ZIP parsing. */
+export function decodeTakeoutHtml(htmlText: string): TakeoutActivityEvidence[] {
+    return activityBlocks(htmlText).map(decodeActivityBlock);
+}
+
+export async function decodeTakeoutHtmlAsync(htmlText: string, onProgress?: (completed: number, total: number) => void): Promise<TakeoutActivityEvidence[]> {
+    const blocks = activityBlocks(htmlText);
+    const activities: TakeoutActivityEvidence[] = [];
+    for (let index = 0; index < blocks.length; index++) {
+        activities.push(decodeActivityBlock(blocks[index], index));
+        if ((index + 1) % 50 === 0) {
+            await new Promise<void>(resolve => setTimeout(resolve, 0));
+            if ((index + 1) % 100 === 0) onProgress?.(index + 1, blocks.length);
         }
-        return { blockIndex: index + 1, conversationIds, promptText, hasExplicitPrompt,
-            timestamp: parseTakeoutTimestamp(block), responseHtml,
-            ...(generated ? { generatedImageCount: Number(generated[1] || generated[2]) } : {}), media };
-    });
+    }
+    onProgress?.(blocks.length, blocks.length);
+    return activities;
 }

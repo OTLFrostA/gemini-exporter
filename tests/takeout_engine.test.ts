@@ -55,7 +55,7 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
     assert.ok(offlineChat1, 'Should find offline chat by exact ID');
     assert.strictEqual(offlineChat1.title, '什么是量子物理？');
     assert.strictEqual(offlineChat1.titles.takeout, '什么是量子物理？');
-    assert.strictEqual(offlineChat1.messages.length, 4); // 2 turns * (1 user + 1 model)
+    assert.strictEqual(offlineChat1.messages.length, 3); // Response-only activity must not fabricate a user prompt
 
     const offlineChat2 = TakeoutEngine.getTakeoutOfflineChat('c_CaseSensitive_99');
     assert.ok(offlineChat2, 'Should find offline chat with c_ prefix');
@@ -76,7 +76,7 @@ test('takeout_engine - extractC2PATimestamp extracts UTC timestamp from binary',
     assert.strictEqual(TakeoutEngine.extractC2PATimestamp(null), null);
 });
 
-test('takeout_engine - parseTakeoutZip associates watermarked images via C2PA time correlation and monopolistic fallback', async () => {
+test('takeout_engine - parseTakeoutZip never assigns unreferenced watermarked files by timestamp proximity', async () => {
     (global as any).JSZip = require('../lib/jszip.min.js');
     const zip = new (global as any).JSZip();
 
@@ -118,29 +118,15 @@ test('takeout_engine - parseTakeoutZip associates watermarked images via C2PA ti
 
     assert.strictEqual(res.conversations.length, 2);
 
-    // Chat A media must be watermarked_img_1111-aaaa.png
-    const mediaA = TakeoutEngine.getTakeoutMediaForChat('chat_A_12345678');
-    assert.strictEqual(mediaA.length, 1);
-    assert.strictEqual(mediaA[0].filename, 'watermarked_img_1111-aaaa.png');
-    assert.strictEqual(mediaA[0].isGenerated, true);
+    for (const id of ['chat_A_12345678', 'chat_B_87654321']) {
+        assert.deepStrictEqual(TakeoutEngine.getTakeoutMediaForChat(id), []);
+        const chat = TakeoutEngine.getTakeoutOfflineChat(id);
+        assert.deepStrictEqual(chat.parsed.conversation.messages.find((m: any) => m.role === 'assistant').generation, { mediaKind: 'image', outputCount: 1 });
+    }
+    assert.strictEqual(res.diagnostics.filter((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED').length, 2);
+    assert.deepStrictEqual(await res.globalMedia['watermarked_img_1111-aaaa.png'].async('uint8array'), new Uint8Array(imgABuffer));
+    assert.strictEqual(await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', 'watermarked_img_1111-aaaa.png'), null);
 
-    // Chat B media must be watermarked_img_2222-bbbb.png
-    const mediaB = TakeoutEngine.getTakeoutMediaForChat('chat_B_87654321');
-    assert.strictEqual(mediaB.length, 1);
-    assert.strictEqual(mediaB[0].filename, 'watermarked_img_2222-bbbb.png');
-    assert.strictEqual(mediaB[0].isGenerated, true);
-
-    // Offline chat model turn must contain ![Generated Image](assets/...)
-    const chatAOffline = TakeoutEngine.getTakeoutOfflineChat('chat_A_12345678');
-    assert.ok(chatAOffline);
-    const modelTurnA = chatAOffline.messages.find((m: any) => m.role === 'model');
-    assert.ok(modelTurnA.content.includes('![Generated Image](assets/watermarked_img_1111-aaaa.png)'));
-    assert.strictEqual(modelTurnA.images.length, 1);
-    assert.strictEqual(modelTurnA.images[0].fileName, 'watermarked_img_1111-aaaa.png');
-
-    // getTakeoutFallbackMedia should return binary buffer for watermarked image
-    const binA = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', 'watermarked_img_1111-aaaa.png');
-    assert.ok(binA && binA.length > 0);
 });
 
 test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
@@ -163,8 +149,8 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.ok(catChat.title.includes('astronaut cat') || catChat.title.includes('Cat'));
 
     const catMedia = TakeoutEngine.getTakeoutMediaForChat('1bd028d5c5b0c0e2');
-    assert.strictEqual(catMedia.length, 1);
-    assert.ok(catMedia[0].filename.startsWith('watermarked_img_45281370108017511'));
+    assert.strictEqual(catMedia.length, 0, 'ZIP inventory and C2PA dates cannot prove conversation ownership');
+    assert.ok(res.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
 
     // Verify Python decorator conversation
     const pyChat = res.conversations.find((c: any) => c.id === '1cea7e48cc166b57');

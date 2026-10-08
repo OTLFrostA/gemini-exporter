@@ -1,3 +1,5 @@
+import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
+import { createNativeDetailView } from '../core/compatibility/gemini/nativeDetailView.js';
 import { contentContext } from './contentContext.js';
 import { GeminiResponseParserClass } from '../core/compatibility/gemini/geminiParser.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
@@ -89,7 +91,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
             if (text.includes(Proto.RPCS.DETAIL) && typeof upsertConversations === 'function') {
                 try {
-                    const detailRes = parser.parseDetail(text);
+                    const detailRes = createNativeDetailView(parseGeminiRpcConversation(text, { providerId: 'gemini' }));
                     if (detailRes && detailRes.id) {
                         const nid = normId(detailRes.id);
                         let title = cleanTitle(detailRes.title);
