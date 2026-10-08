@@ -21,7 +21,8 @@ startup already completed v2. The original databases are retained.
 is 2 and its Domain contract version is 1; those are independent of IndexedDB's
 physical database version. Identity is the tuple `(providerId, accountSlot,
 conversationId)`. Only Gemini's historical `c_` alias is normalized; other
-providers' IDs remain opaque. Account slots retain the application's existing
+providers' IDs remain opaque. Gemini's `default` account transport alias maps to
+`u0`; other providers' account identities remain opaque. Account slots retain the application's existing
 account mapping and are not invented provider account IDs.
 
 The `conversations` object store holds the selected `DomainStorageRecord`:

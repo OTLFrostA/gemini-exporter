@@ -28,7 +28,10 @@ test('v2 stores structured Domain intact and excludes render/parse transport sta
     assert.deepEqual(storedParseResult((await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!), { conversation: parsed.conversation, diagnostics: [], resourceHints: {}, acquisitionHints: { asset: { url: 'source.png' } } });
 });
 test('accounts and providers isolate identical IDs; non-Gemini IDs remain opaque', async () => {
-    await saveDomainConversation('u0', source());
+    assert.deepEqual(storageIdentity('gemini', 'default', 'c_chat'), storageIdentity('gemini', 'u0', 'chat'));
+    assert.equal(storageIdentity('future', 'default', 'c_chat').accountSlot, 'default');
+    await saveDomainConversation('default', source());
+    assert.equal((await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.identity.accountSlot, 'u0');
     const second = source(); second.conversation.title = 'Other account';
     await saveDomainConversation('u1', second);
     const other = source('c_chat'); other.conversation.providerId = 'future';

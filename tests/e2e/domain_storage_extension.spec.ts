@@ -42,7 +42,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
     await source.goto('https://gemini.google.com/app/cross_origin_native');
     const response = await options.evaluate(async () => {
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
-        return chrome.tabs.sendMessage(tabs[0].id!, { action: 'getConversationDetail', conversationId: 'cross_origin_native', accountSlot: 'u0' });
+        return chrome.tabs.sendMessage(tabs[0].id!, { action: 'getConversationDetail', conversationId: 'cross_origin_native', accountSlot: 'default' });
     });
     expect(response.success).toBe(true);
     expect(response.data.parsed.conversation.messages).toHaveLength(2);
@@ -60,8 +60,9 @@ test('content-script native detail is committed in extension IndexedDB and remai
                 tx.onerror = () => reject(tx.error);
             });
         } finally { db.close(); }
-    }) as { conversation: { messages: Array<{ model?: string; content: unknown[] }> }; storageVersion: number };
+    }) as { conversation: { messages: Array<{ model?: string; content: unknown[] }> }; storageVersion: number; identity: { accountSlot: string } };
     expect(stored.storageVersion).toBe(2);
+    expect(stored.identity.accountSlot).toBe('u0');
     expect(stored.conversation.messages).toHaveLength(2);
     expect(stored.conversation.messages[1].model).toBe('Cross origin model');
     expect(JSON.stringify(stored.conversation)).toContain('Persist this answer');

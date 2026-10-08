@@ -20,7 +20,7 @@ export function __domainRevisions(): DomainStorageRecord[] { return [...history.
 
 export function storageIdentity(providerId: string, accountSlot: string, conversationId: string): DomainStorageIdentity {
     if (!providerId.trim() || !accountSlot.trim() || !conversationId.trim()) throw new TypeError('Invalid Domain storage identity');
-    return { providerId, accountSlot, conversationId: providerId === 'gemini' ? normId(conversationId) : conversationId };
+    return { providerId, accountSlot: providerId === 'gemini' && accountSlot === 'default' ? 'u0' : accountSlot, conversationId: providerId === 'gemini' ? normId(conversationId) : conversationId };
 }
 export function domainStorageKey(identity: DomainStorageIdentity): string {
     const valid = storageIdentity(identity.providerId, identity.accountSlot, identity.conversationId);
