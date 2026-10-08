@@ -1,6 +1,6 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
@@ -16,7 +16,7 @@ for (const messages of [
     [{ role: 'assistant', author: { model: '  Gemini 2.5 Pro  ' }, content: 'Answer' }],
 ]) test('provider model survives Domain, JSON AST and all renderers: ' + JSON.stringify(messages[0]), () => {
     const raw = { id: 'model', messages }; const before = JSON.stringify(raw);
-    const domain = parseProviderConversation(raw).conversation;
+    const domain = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw }).conversation;
     assert.equal(domain.messages[0].model, 'Gemini 2.5 Pro');
     const document = JSON.parse(JSON.stringify(composeDomainDocument(domain).document));
     assert.equal(document.messages[0].modelLabel, 'Gemini 2.5 Pro');
@@ -27,19 +27,19 @@ for (const messages of [
 });
 
 test('turn models, absent/invalid models and escaped model names', () => {
-    const domain = parseProviderConversation({ id: 'turn', turns: [{ userContent: 'Question', modelContent: 'Answer', model: 'GPT-5' }] }).conversation;
+    const domain = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { id: 'turn', turns: [{ userContent: 'Question', modelContent: 'Answer', model: 'GPT-5' }] } }).conversation;
     assert.equal(domain.messages[0].model, undefined);
     assert.equal(domain.messages[1].model, 'GPT-5');
     for (const model of [undefined, null, '', '  ', 42, {}]) {
-        assert.ok(!('model' in parseProviderConversation({ messages: [{ role: 'model', model, content: '' }] }).conversation.messages[0]));
+        assert.ok(!('model' in parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { messages: [{ role: 'model', model, content: '' }] } }).conversation.messages[0]));
     }
-    const document = composeDomainDocument(parseProviderConversation({ messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] }).conversation).document;
+    const document = composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] } }).conversation).document;
     assert.match(renderDocumentHtml(document, {}).html, /&lt;script&gt;\*\*x\*\*&lt;\/script&gt;/);
     assert.match(renderDocumentMarkdown(document, {}), /&lt;script&gt;\\\*\\\*x\\\*\\\*&lt;\/script&gt;/);
 });
 
 test('compiled PDF visibly retains the model name', async () => {
-    const document = composeDomainDocument(parseProviderConversation({ messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] }).conversation).document;
+    const document = composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] } }).conversation).document;
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     try {
         const result = await compiler.compile({ rendererSchemaVersion: 1, document: renderDocumentTypst(document, {}), assetPaths: new Map() }, {

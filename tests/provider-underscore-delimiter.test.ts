@@ -1,3 +1,4 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-underscore-delimiter.test.ts
  * Parser-level regression for parseEmphasis() underscore delimiter rules.
@@ -11,14 +12,13 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 
 async function inlineNodes(content: string): Promise<any[]> {
     const raw: any = {
         id: 'c1',
         messages: [{ id: 'm1', role: 'user', content }],
     };
-    const { conversation: domain } = await parseProviderConversation(raw);
+    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     const msg = domain.messages[0];
     const out: any[] = [];
     for (const b of msg.content) {

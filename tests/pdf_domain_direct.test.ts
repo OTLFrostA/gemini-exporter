@@ -1,3 +1,4 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -5,7 +6,6 @@ import { join } from 'node:path';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
@@ -23,7 +23,7 @@ const fixture = () => ({ id: 'direct-pdf', title: 'Direct PDF boundary', timesta
 
 test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips preserve meaning', async () => {
     const raw = fixture(), before = structuredClone(raw);
-    const parsed = parseProviderConversation(raw);
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     const domain = structuredClone(parsed.conversation);
     const roundTrip = JSON.parse(JSON.stringify(domain)) as typeof domain;
     assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
@@ -38,7 +38,7 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
 
 test('intrinsic file size and unknown role survive parser and JSON without output formatting', () => {
     const raw = { id: 'file', messages: [{ role: 'historical-tool', content: 'Answer', attachments: [{ type: 'file', name: 'note.txt', dataBuffer: new Uint8Array([65, 66, 67]) }] }] };
-    const parsed = parseProviderConversation(raw).conversation;
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw }).conversation;
     assert.equal(parsed.assets[0].byteLength, 3);
     assert.equal(parsed.messages[0].role, 'unknown');
     assert.equal(parsed.messages[0].provenance?.rawRole, 'historical-tool');
@@ -67,7 +67,7 @@ test('production PDF pipeline only consumes Document AST and prepared resources'
     for (const name of ['prepareItem.ts', 'pdfExporter.ts', 'pipeline/types.ts', 'pipeline/orchestrator.ts', 'pipeline/resourceStage.ts', 'pipeline/payloadStage.ts', 'pipeline/compileStage.ts']) {
         const source = readFileSync(join(__dirname, '../src/core/export/pdf', name), 'utf8');
         assert.doesNotMatch(source, /CanonicalConversationBundle|normalizeGeminiConversation|composeDocument\(|\.bundle\b|\.byteStore\b/);
-        if (name.startsWith('pipeline/')) assert.doesNotMatch(source, /parseProviderConversation|provider\/|domain\//);
+        if (name.startsWith('pipeline/')) assert.doesNotMatch(source, /parseConversation|provider\/|domain\//);
     }
 });
 

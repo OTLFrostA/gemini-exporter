@@ -1,3 +1,4 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -8,7 +9,6 @@ import type { BlockNode } from '../src/core/domain/content/blocks.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
@@ -185,7 +185,7 @@ for (const providerId of ['openai', 'anthropic', 'custom-provider']) {
         assert.equal(domain.providerId, providerId);
         const result = await composeFixture(domain);
         assert.equal(result.document.header.providerLabel, providerId);
-        const parsed = parseProviderConversation({ ...metadata, messages: [{ role: 'tool', content: 42 }] }, { providerId });
+        const parsed = parseConversation({ format: 'conversation-record', providerId, data: { ...metadata, messages: [{ role: 'tool', content: 42 }] } });
         assert.equal(parsed.conversation.providerId, providerId);
         assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_ROLE'));
         assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
@@ -259,7 +259,7 @@ test('existing raw corpus preserves Domain, AST and all backend outputs across J
         const { conversation: domain, resourceHints } = parseLegacyConversation(input);
         const semantic = await composeFixture(domain, resourceHints);
         const restored = await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints);
-        const parsed = parseProviderConversation(input);
+        const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: input });
         const direct = await composeFixture(parsed.conversation, parsed.resourceHints);
         assert.deepEqual(domain, parsed.conversation, input.id);
         assert.deepEqual(direct.document, semantic.document, input.id);

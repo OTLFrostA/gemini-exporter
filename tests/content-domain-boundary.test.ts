@@ -1,10 +1,10 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 
 const metadata = { id: 'semantic', title: 'Semantic input', timestamp: null, providerId: 'other', assets: [] };
@@ -51,7 +51,7 @@ test('provider parsing diagnoses malformed entries at their source position with
         { role: 'assistant', content: { unsupported: 'visible fallback' } },
     ] };
     const original = structuredClone(raw);
-    const result = parseProviderConversation(raw);
+    const result = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     assert.equal(result.conversation.messages.length, 1);
     assert.deepEqual(raw, original);
     assert.equal(result.diagnostics.find(d => d.code === 'BAD_MESSAGE_SHAPE')?.path, 'messages[0]');

@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { AIProvider, ProviderConversationDetail, ProviderConversationItem, ProviderMessage, ProviderPageResult, ProviderListOptions, ProviderReadiness } from '../src/core/provider/aiProvider.js';
 import type { GeminiProviderClient, GeminiProviderListOptions, GeminiProviderConversationDetail, GeminiProviderPageResult } from '../src/core/provider/gemini/geminiContracts.js';
-import type { ParserDocument } from '../src/core/compatibility/gemini/parseDetail.js';
+import type { ParserDocument } from '../src/core/api/client/detailTypes.js';
 import credentials from '../src/core/api/client/credentialManager.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { ProviderRegistryClass } from '../src/core/provider/providerRegistry.js';

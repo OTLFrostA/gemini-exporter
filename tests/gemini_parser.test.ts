@@ -1,7 +1,10 @@
+const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+const { parseList } = require('../src/core/parsers/gemini/rpc/parseList.js');
+const { highResVariant } = require('../src/core/compatibility/gemini/attachments.js');
+const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/core/parsers/gemini/rpc/extractors.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const { GeminiResponseParserClass, isRealTitle } = require('../src/core/compatibility/gemini/geminiParser.js');
 const { cleanTitle } = require('../src/core/utils/utils.js');
 
 test('gemini_parser - isRealTitle', () => {
@@ -36,19 +39,19 @@ test('utils - cleanTitle brand suffix and prefix stripping', () => {
 
 test('gemini_parser - highResVariant', () => {
     const orig = 'https://lh3.googleusercontent.com/abc=s256';
-    const high = GeminiResponseParserClass.highResVariant(orig);
+    const high = highResVariant(orig);
     assert.strictEqual(high, 'https://lh3.googleusercontent.com/abc=s0');
 
     // Never mutate Google Places / Maps photo CDN signatures
     const places = 'https://lh3.googleusercontent.com/places/v1/media/xyz';
-    assert.strictEqual(GeminiResponseParserClass.highResVariant(places), places);
+    assert.strictEqual(highResVariant(places), places);
 });
 
 test('gemini_parser - parseList with valid batchexecute RPC text', () => {
     const inner = JSON.stringify([null, [["c_1234567890abcdef","Test Title",[1700000000,0],[1700000000,0],5]], "tC_token123"]);
     const outer = JSON.stringify([["wrb.fr","MaZiqc",inner]]);
     const mockRpc = `)]}'\n\n${outer}`;
-    const res = GeminiResponseParserClass.parseList(mockRpc);
+    const res = parseList(mockRpc);
     assert.strictEqual(res.conversations.length, 1);
     assert.strictEqual(res.conversations[0].id, '1234567890abcdef');
     assert.strictEqual(res.conversations[0].title, 'Test Title');
@@ -99,7 +102,7 @@ test('utils - resolveTitle multi-tier source priority arbitration', () => {
     assert.strictEqual(resLegacy.source, 'legacy');
 });
 
-test('gemini_parser - parseDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {
+test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extracts official RPC title', () => {
     const mockDetailInner = [
         [
             [
@@ -124,7 +127,7 @@ test('gemini_parser - parseDetail with bundled MaZiqc metadata RPC extracts offi
     ];
     const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
 
-    const parsed = GeminiResponseParserClass.parseDetail(rawText, 'd3226d9a046c1116');
+    const parsed = decodeGeminiDetail(rawText, 'd3226d9a046c1116');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'd3226d9a046c1116');
     assert.strictEqual(parsed.title, '杀戮尖塔存档删除Mod风险');
     assert.strictEqual(parsed.titleSource, 'rpc');
@@ -132,7 +135,7 @@ test('gemini_parser - parseDetail with bundled MaZiqc metadata RPC extracts offi
     assert.strictEqual(parsed.messages.length, 2);
 });
 
-test('gemini_parser - parseDetail with hNvQHb only falls back gracefully', () => {
+test('gemini_parser - decodeGeminiDetail with hNvQHb only falls back gracefully', () => {
     const mockDetailInner = [
         [
             [
@@ -151,14 +154,14 @@ test('gemini_parser - parseDetail with hNvQHb only falls back gracefully', () =>
     ];
     const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
 
-    const parsed = GeminiResponseParserClass.parseDetail(rawText, 'fallback_123');
+    const parsed = decodeGeminiDetail(rawText, 'fallback_123');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'fallback_123');
     assert.strictEqual(parsed.title, 'Rust WebAssembly 开发实战');
     assert.strictEqual(parsed.titleSource, 'rpc');
     assert.strictEqual(parsed.messages.length, 2);
 });
 
-test('gemini_parser - parseDetail with metadata-only payload returns empty messages and retains raw', () => {
+test('gemini_parser - decodeGeminiDetail with metadata-only payload returns empty messages and retains raw', () => {
     const mockMetaOnlyInner = [
         null,
         null,
@@ -169,7 +172,7 @@ test('gemini_parser - parseDetail with metadata-only payload returns empty messa
     ];
     const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
 
-    const parsed = GeminiResponseParserClass.parseDetail(rawText, 'meta_only_456');
+    const parsed = decodeGeminiDetail(rawText, 'meta_only_456');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'meta_only_456');
     assert.strictEqual(parsed.messages.length, 0);
     assert.ok(parsed._raw);
@@ -177,7 +180,7 @@ test('gemini_parser - parseDetail with metadata-only payload returns empty messa
 });
 
 test('gemini_parser - JSPB schema and candidate extraction filters telemetry and language code', () => {
-    const { GEMINI_JSPB_SCHEMA, detectTurnSchemaDrift } = GeminiResponseParserClass;
+    const { GEMINI_JSPB_SCHEMA, detectTurnSchemaDrift } = require('../src/core/parsers/gemini/rpc/extractors.js');
     assert.ok(GEMINI_JSPB_SCHEMA, 'GEMINI_JSPB_SCHEMA should be exported');
     assert.strictEqual(typeof detectTurnSchemaDrift, 'function', 'detectTurnSchemaDrift should be function');
 
@@ -212,7 +215,7 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
     const topPayload = [["wrb.fr", "hNvQHb", JSON.stringify(mockDetailInner)]];
     const rawText = `)]}'\n\n${JSON.stringify(topPayload)}`;
 
-    const parsed = GeminiResponseParserClass.parseDetail(rawText, '024c7ad5d90f4db8');
+    const parsed = decodeGeminiDetail(rawText, '024c7ad5d90f4db8');
 
     // MUST be exactly 2 messages (1 user, 1 model), NOT 8 or 9!
     assert.strictEqual(parsed.messages.length, 2, `Expected exactly 2 messages, got ${parsed.messages.length}`);
@@ -235,7 +238,7 @@ test('gemini_parser - JSPB schema and candidate extraction filters telemetry and
 });
 
 test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns', () => {
-    const { detectTurnSchemaDrift } = GeminiResponseParserClass;
+    const { detectTurnSchemaDrift } = require('../src/core/parsers/gemini/rpc/extractors.js');
 
     // Healthy turn
     const healthyTurn = [
@@ -307,22 +310,11 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     const ts = parseListMod.extractListItemTimestamp(mockItem);
     assert.strictEqual(ts, 1720000000500);
 
-    // 5. Facade 26 methods presence
-    const expectedMethods = [
-        'GEMINI_JSPB_SCHEMA', 'detectTurnSchemaDrift', 'extractModelCandidates', 'extractCandidateText',
-        'robustFirstPayload', 'extractTurnTimestamp', 'extractImageSelectionIndex', 'getImageDedupKey',
-        'filterNewImages', 'highResVariant', 'extractImages', 'extractUserFiles', 'extractDocumentsMeta',
-        'findDocContentById', 'parseDocSections', 'findDocMarkdownByClues', 'extractThoughts',
-        'extractCitations', 'extractConversationId', 'extractConversationTitle', 'isRealTitle',
-        'cleanTitle', 'normId', 'extractListItemTimestamp', 'parseList', 'parseDetail'
-    ];
-    for (const m of expectedMethods) {
-        assert.ok(GeminiResponseParserClass[m] !== undefined, `Missing method on GeminiResponseParserClass: ${m}`);
-    }
+
 });
 
 test('gemini_parser - isTurn accepts r_ prefixed turn IDs in addition to c_ prefixed turn IDs', () => {
-    const parseDetailMod = require('../src/core/compatibility/gemini/parseDetail.js');
+    const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
     const turnWithR = [
         ["r_testturn123", "rc_candidate1"],
         [1700000000, 0],
@@ -330,7 +322,7 @@ test('gemini_parser - isTurn accepts r_ prefixed turn IDs in addition to c_ pref
         [[["rc_response1", [["Model response text"]]]]]
     ];
     assert.strictEqual(
-        parseDetailMod.isTurn(turnWithR),
+        detailDecoder.isTurn(turnWithR),
         true,
         "isTurn must recognize turns with r_ prefix as valid turns"
     );
@@ -342,7 +334,7 @@ test('gemini_parser - detectTurnSchemaDrift returns structured drift diagnosis',
         [1700000000, 0],
         "not an array payload"
     ];
-    const drift = GeminiResponseParserClass.detectTurnSchemaDrift(corruptedTurn, "test_conv");
+    const drift = detectTurnSchemaDrift(corruptedTurn, "test_conv");
     assert.strictEqual(typeof drift.isDrifted, "boolean");
     assert.strictEqual(drift.isDrifted, true);
     assert.ok(Array.isArray(drift.warnings) && drift.warnings.length > 0);
@@ -353,7 +345,7 @@ test('gemini_parser - robustFirstPayload parses nested JSON strings with bracket
         ["wrb.fr", "hNvQHb", JSON.stringify([["c_123", "Title with [brackets] inside", "data"]])]
     ]);
     const rpcText = `)]}'\n\n${jsonWithBracketsInString}`;
-    const parsed = GeminiResponseParserClass.robustFirstPayload(rpcText) as any[][];
+    const parsed = robustFirstPayload(rpcText) as any[][];
     assert.ok(Array.isArray(parsed));
     assert.strictEqual(parsed.length, 1);
     assert.strictEqual(parsed[0][0], "wrb.fr");

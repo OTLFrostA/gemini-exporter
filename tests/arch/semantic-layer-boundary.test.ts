@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { transformSync } from 'esbuild';
 
@@ -81,6 +81,23 @@ function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
     });
 }
 const graph = new Map([...sources].map(([name, file]) => [name, dependencies(file)]));
+
+test('retired compatibility modules are absent and no production source imports them', () => {
+    const retired = new Set([
+        'compatibility/gemini/exportInput.ts',
+        'compatibility/gemini/geminiParser.ts',
+        'compatibility/gemini/parseDetail.ts',
+        'compatibility/gemini/legacyDetailProjection.ts',
+        'compatibility/takeout/takeoutHtmlParser.ts',
+        'compatibility/conversationParser.ts'
+    ]);
+    for (const name of retired) assert.equal(existsSync(resolve(core, name)), false, `retired module exists: ${name}`);
+    for (const file of files(resolve(root, 'src'))) {
+        for (const edge of dependencies(file)) {
+            assert.ok(!retired.has(edge.target), `${relative(root, file)} imports retired ${edge.target}`);
+        }
+    }
+});
 function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('domain/')) return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
     if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');

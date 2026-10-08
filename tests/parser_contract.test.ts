@@ -1,18 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { GeminiResponseParserFacade, ListParseResult, DetailParseResult, ParserMessage } from '../src/core/compatibility/gemini/geminiParser.js';
-import type { GeminiParserAttachmentsModule } from '../src/core/compatibility/gemini/attachments.js';
+import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
+import type { DetailParseResult, ParserMessage } from '../src/core/api/client/detailTypes.js';
+import type { GeminiDetailEvidence } from '../src/core/parsers/gemini/rpc/detailEvidence.js';
+import { createNativeDetailView } from '../src/core/compatibility/gemini/nativeDetailView.js';
 import type { GeminiParserExtractorsModule } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { DetailParseDiagnostics, ParserDocument, ParserAttachment } from '../src/core/compatibility/gemini/parseDetail.js';
+import type { DetailParseDiagnostics, ParserDocument, ParserAttachment } from '../src/core/api/client/detailTypes.js';
 import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
 import type { GeminiUtilsModule } from '../src/core/utils/utils.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { parseDetail } from '../src/core/compatibility/gemini/parseDetail.js';
+import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 
-// Compile-time regression: the facade must preserve module contracts rather
+// Compile-time regression: native evidence and application views preserve contracts rather
 // than widening media/results/dependencies back to an unchecked escape.
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type Assert<T extends true> = T;
@@ -25,18 +27,14 @@ type OutputContracts = [
     Assert<Equal<ParserMessage['documents'], ParserDocument[] | undefined>>,
     Assert<Equal<ParserMessage['citations'], Citation[] | undefined>>,
     Assert<Equal<ParserMessage['attachments'], ParserAttachment[] | undefined>>,
-    Assert<Equal<GeminiResponseParserFacade['extractImages'], GeminiParserAttachmentsModule['extractImages']>>,
-    Assert<Equal<GeminiResponseParserFacade['parseDocSections'], GeminiParserAttachmentsModule['parseDocSections']>>,
-    Assert<Equal<GeminiResponseParserFacade['deepWalk'], GeminiParserExtractorsModule['deepWalk']>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getProtocol']>, GeminiProtocolModule>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, GeminiUtilsModule>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
-    Assert<Equal<ReturnType<typeof parseDetail>, DetailParseResult>>,
-    Assert<Equal<ReturnType<GeminiResponseParserFacade['parseList']>, ListParseResult>>,
-    Assert<Equal<ReturnType<GeminiResponseParserFacade['parseDetail']>, DetailParseResult>>
+    Assert<Equal<ReturnType<typeof createNativeDetailView>, DetailParseResult>>,
+    Assert<Equal<ReturnType<typeof decodeGeminiDetail>, GeminiDetailEvidence>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true];
-test('parser output and facade contracts remain explicitly typed', () => {
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true];
+test('native parser evidence and application transport contracts remain explicitly typed', () => {
     assert.ok(contracts.every(Boolean));
 });
 
@@ -49,12 +47,12 @@ test('detail error narrowing preserves Error and non-Error diagnostic text', () 
             ['primitive failure', 'detail parse fail: undefined']
         ] as const) {
             __setModuleOverride('GeminiUtils', { isDevMode() { throw thrown; } });
-            assert.throws(() => parseDetail('[]'), { message: expected });
+            assert.throws(() => decodeGeminiDetail('[]'), { message: expected });
         }
         // Legacy null/undefined throws fail at the property read itself.
         for (const thrown of [null, undefined]) {
             __setModuleOverride('GeminiUtils', { isDevMode() { throw thrown; } });
-            assert.throws(() => parseDetail('[]'), TypeError);
+            assert.throws(() => decodeGeminiDetail('[]'), TypeError);
         }
     } finally {
         __clearModuleOverrides();

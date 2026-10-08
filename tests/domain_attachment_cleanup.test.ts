@@ -1,3 +1,4 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
@@ -10,7 +11,6 @@ import { toDomainConversationDetail, parseLegacyConversation } from '../src/core
 import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
 import { structuredBodyAttachments } from '../src/core/compatibility/gemini/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 
 const metadata = { id: 'resources', title: 'Resources', timestamp: null };
 const generation = { chatId: metadata.id, providerRequestId: 'abcdef0123456789', time: 1700000000123,
@@ -21,7 +21,7 @@ async function assertRoundTrip(input: Conversation): Promise<DomainConversationD
     const { conversation: domain, resourceHints } = parseLegacyConversation(input);
     const serialized: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
     const [raw, semantic, restored] = await Promise.all([
-        composeFixture(parseProviderConversation(input).conversation, resourceHints), composeFixture(domain, resourceHints), composeFixture(serialized, resourceHints),
+        composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: input }).conversation, resourceHints), composeFixture(domain, resourceHints), composeFixture(serialized, resourceHints),
     ]);
     assert.deepEqual(semantic.document, raw.document);
     assert.deepEqual(restored.document, semantic.document);

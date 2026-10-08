@@ -1,9 +1,9 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 const { messageAssets } = require('./helpers/domainAssets.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { toDomainConversationDetail, parseLegacyConversation } = require('../src/core/compatibility/legacyConversationAdapter.js');
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeFixture } = require('./helpers/documentFixture.js');
 
 // Explicit plain-text AST expectations for the metadata-focused fixtures below.
@@ -32,7 +32,7 @@ function assertDomainMessages(actual: Array<Record<string, unknown>>, expected: 
 async function assertExportEquivalent(legacy: Record<string, unknown>): Promise<void> {
     const { conversation: domain, resourceHints } = parseLegacyConversation(legacy as never);
     const [before, after] = await Promise.all([
-        composeFixture(parseProviderConversation(legacy as never).conversation, resourceHints),
+        composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: legacy as never }).conversation, resourceHints),
         composeFixture(domain, resourceHints),
     ]);
     assert.deepEqual(after.document, before.document);
@@ -395,7 +395,7 @@ for (const role of ['model', 'assistant']) {
                 assert.equal('reasoning' in domain.messages[0], expected !== undefined);
                 for (const alias of ['thoughts', 'thinking', 'sources']) assert.equal(alias in domain.messages[0], false);
                 assert.deepEqual(legacy, original);
-                const before = await composeFixture(parseProviderConversation(legacy).conversation);
+                const before = await composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: legacy }).conversation);
                 const after = await composeFixture(domain);
                 const thoughts = (result: typeof after) => result.document.messages[0].blocks.filter((block: { type: string }) => block.type === 'disclosure');
                 assert.deepEqual(thoughts(after), thoughts(before));

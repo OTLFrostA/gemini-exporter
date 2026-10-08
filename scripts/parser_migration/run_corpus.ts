@@ -1,3 +1,4 @@
+import { parseConversation } from '../../src/core/parsers/parseConversation.js';
 /**
  * scripts/parser_migration/run_corpus.ts
  *
@@ -16,7 +17,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parseProviderConversation } from '../../src/core/compatibility/conversationParser.js';
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
 import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
 import type { DocumentDiagnostic } from '../../src/core/diagnostics/documentDiagnostic.js';
@@ -120,10 +120,10 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     // Default baseline parser & converter if not injected
     const defaultBaselineParser: MarkdownParserFn = async (content, id) => {
-        return parseProviderConversation({
+        return parseConversation({ format: 'conversation-record', providerId: 'gemini', data: {
             id,
             messages: [{ id: 'm1', role: 'user', content }],
-        });
+        } });
     };
 
     const activeBaselineParser = options.baselineParser || defaultBaselineParser;

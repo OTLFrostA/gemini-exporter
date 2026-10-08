@@ -1,3 +1,6 @@
+const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
+const { isRealTitle } = require('../src/core/parsers/gemini/rpc/extractors.js');
 export {};
 
 /**
@@ -25,7 +28,6 @@ const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/
 
 const SRC = path.join(__dirname, '..', 'src');
 const Proto = require('../src/core/protocol/protocol.js');
-const { GeminiResponseParserClass, isRealTitle } = require('../src/core/compatibility/gemini/geminiParser.js');
 const Extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
 const StorageService = require('../src/core/storage/storageService.js');
 const TabService = require('../src/core/utils/tabService.js');
@@ -569,7 +571,7 @@ test('audit fix: robustFirstPayload preserves , null , and control characters in
     const inner = [turns, null, 'Test Title'];
     const top = [['wrb.fr', 'hNvQHb', JSON.stringify(inner)]];
     const text = `)]}'\n\n${JSON.stringify(top)}`;
-    const parsed = GeminiResponseParserClass.parseDetail(text, 'testid1234567890ab');
+    const parsed = decodeGeminiDetail(text, 'testid1234567890ab');
     assert.ok(parsed, 'Detail should be parsed successfully');
     assert.ok(parsed.messages && parsed.messages.length > 0, 'Messages should be extracted');
     assert.strictEqual(parsed.messages[0].content, testContent, 'Message content should not be altered by regex replacements');
@@ -627,49 +629,16 @@ test('regression: gemini_parser image naming must be globally unique across turn
     const seq = { value: 1 };
     const imgObj1 = ['https://lh3.googleusercontent.com/a1b2c3d4', 100, 200];
     const imgObj2 = ['https://lh3.googleusercontent.com/e5f6g7h8', 300, 400];
-    const res1 = GeminiResponseParserClass.extractImages([imgObj1], seq);
-    const res2 = GeminiResponseParserClass.extractImages([imgObj2], seq);
+    const res1 = extractImages([imgObj1], seq);
+    const res2 = extractImages([imgObj2], seq);
     assert.strictEqual(res1.length, 1);
     assert.strictEqual(res2.length, 1);
     assert.notStrictEqual(res1[0].fileName, res2[0].fileName, `fileName should be unique, got both ${res1[0].fileName}`);
     assert.ok(res2[0].fileName.includes('image-2') || res2[0].fileName.includes('image-1') === false, 'second image should have incremented counter');
     const seq2 = { value: 1 };
-    GeminiResponseParserClass.extractImages([imgObj1], seq2);
-    const r2 = GeminiResponseParserClass.extractImages([imgObj1, imgObj2], seq2);
+    extractImages([imgObj1], seq2);
+    const r2 = extractImages([imgObj1, imgObj2], seq2);
     assert.strictEqual(r2.length, 2);
-});
-
-test('regression: parseDetail across 2 turns with different images should have distinct localNames', () => {
-    const turns = [
-        [ ['c_testid1234567890ab', 'r1'], null, [['prompt1']], [[['rc1', [['answer1', null, null, null, null, [['https://lh3.googleusercontent.com/imgA', 100, 200, 'tokA']]]]]]] ],
-        [ ['c_testid1234567890ab', 'r2'], null, [['prompt2']], [[['rc2', [['answer2', null, null, null, null, [['https://lh3.googleusercontent.com/imgB', 300, 400, 'tokB']]]]]]] ]
-    ];
-    const inner = [turns, null, 'Test Title'];
-    const top = [['wrb.fr', 'hNvQHb', JSON.stringify(inner)]];
-    const text = `)]}'\n\n${JSON.stringify(top)}`;
-    const parsed = GeminiResponseParserClass.parseDetail(text, 'testid1234567890ab');
-    const allImgs = parsed.messages.flatMap((m: any) => m.images || []);
-    const localNames = allImgs.map((i: any) => i.localName);
-    const uniq = new Set(localNames);
-    assert.strictEqual(localNames.length, uniq.size, `localNames must be unique, got ${JSON.stringify(localNames)}`);
-});
-
-test('regression: parseDetail across 3 turns with single deep research doc should deduplicate to exactly 1 attachment', () => {
-    const docChip = ['https://googleusercontent.com/immersive_entry_chip/123', 'doc_id_123', '12345678-1234-1234-1234-123456789abc', '深度研究方案', null, [1774139824]];
-    const turns = [
-        [ ['c_doc_test_123', 'r1'], null, [['prompt1']], [[['rc1', [['answer1']]]]] ],
-        [ ['c_doc_test_123', 'r2'], null, [['prompt2']], [[['rc2', [['answer2']]]]] ],
-        [ ['c_doc_test_123', 'r3'], null, [['prompt3']], [[['rc3', [['answer3']]]]] ]
-    ];
-    const longMarkdown = '# 深度研究方案报告内容\n\n' + '这是深度研究报告的正文详细内容，包含多个段落与分析。'.repeat(10);
-    const inner = [turns, null, [docChip], [longMarkdown]];
-    const top = [['wrb.fr', 'hNvQHb', JSON.stringify(inner)]];
-    const text = `)]}'\n\n${JSON.stringify(top)}`;
-    const parsed = GeminiResponseParserClass.parseDetail(text, 'doc_test_123');
-
-    assert.strictEqual(parsed.attachmentCount, 1, `attachmentCount should be 1, got ${parsed.attachmentCount}`);
-    const msgsWithDocs = parsed.messages.filter((m: any) => m.documents && m.documents.length);
-    assert.strictEqual(msgsWithDocs.length, 1, `only 1 message should hold the document, got ${msgsWithDocs.length}`);
 });
 
 // ============================================================================

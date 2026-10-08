@@ -1,8 +1,8 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /** Original data URI facts are parsed into Domain; decoded bytes belong to PreparedResources. */
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { preparePdfResources } = require('../src/core/export/pdf/prepareResources.js');
 const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
@@ -15,7 +15,7 @@ const PNG_REF = `assets/sha256/c4/14/${PNG_SHA256}.png`;
 async function prepare(content: string, id = 'dataurl') {
     const input = { id, title: 'data url assets', messages: [{ id: 'm1', role: 'user', content }] };
     const before = JSON.stringify(input);
-    const parsed = parseProviderConversation(input);
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: input });
     const domain = parsed.conversation;
     assertDomainClosure(domain);
     const document = composeDomainDocument(domain).document;

@@ -262,8 +262,8 @@ test('takeout_engine - parseTakeoutZip detects structure drift and throws descri
     );
 });
 
-test('takeout_engine - takeoutHtmlParser parsing helpers', () => {
-    const TakeoutHtmlParser = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
+test('takeout_engine - native Takeout decoding helpers', () => {
+    const TakeoutHtmlParser = require('../src/core/parsers/gemini/takeout/decodeHtml.js');
     assert.strictEqual(typeof TakeoutHtmlParser.parseTakeoutPrompt, 'function');
     assert.strictEqual(typeof TakeoutHtmlParser.parseTakeoutTimestamp, 'function');
 

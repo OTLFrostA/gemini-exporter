@@ -1,3 +1,4 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-parser-hardening.test.ts
  * Tier 1 tests for the F2 canonical Markdown parser hardening:
@@ -10,7 +11,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { assertDomainClosure } = require('../src/core/domain/closure.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
@@ -20,7 +20,7 @@ async function norm(content: string, extra?: Record<string, unknown>) {
         id: 'c1',
         messages: [{ id: 'm1', role: 'user', content, ...(extra || {}) }],
     };
-    const { conversation: domain, diagnostics } = await parseProviderConversation(raw);
+    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     return { domain, diagnostics, msg: domain.messages[0] };
 }
 

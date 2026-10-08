@@ -1747,7 +1747,7 @@
       "classification": "P2",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "provenanceSource": "Direct Gemini RPC to Domain boundary, closed semantic facts, compatibility outputs and side-channel transport evidence",
-      "notes": "Synthetic envelopes and sanitized existing wire fixtures verify project semantics; they do not establish live provider compatibility. Tier 2 remains required.",
+      "notes": "Native RPC evidence preserves Domain closure, source request IDs and explicit resource ownership without the retired record facade.",
       "testCount": 13,
       "tests": [
         {
@@ -1756,12 +1756,12 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "native parsing never calls the historical persisted detail parser",
+          "name": "native parsing imports no historical persisted detail parser",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "source request tokens survive intact while the persisted parser keeps normalized keys",
+          "name": "source request tokens survive intact in source evidence and Domain",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1786,7 +1786,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "native Domain composition matches the existing route without moving transport into the graph",
+          "name": "native Domain composition round-trips without moving transport into the graph",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1823,7 +1823,7 @@
       "classification": "P2",
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "provenanceSource": "Direct raw HTML and actual ZIP byte decoding into closed Domain, source chronology and generation events, archive lookup ambiguity and transport separation",
-      "notes": "Synthetic activity records and generated ZIP archives verify project contracts; live Tier 2 and production caller migration remain pending.",
+      "notes": "Native Takeout Domain contracts use explicit archive references and source timestamps; no dependency on the retired HTML facade.",
       "testCount": 15,
       "tests": [
         {
@@ -1910,8 +1910,13 @@
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "provenanceSource": "Physical layer ownership, erased type references and shared runtime dependency closure",
       "notes": "Architecture contracts verify import boundaries and naming responsibility; they do not establish provider wire fidelity or live Tier 2 coverage.",
-      "testCount": 4,
+      "testCount": 5,
       "tests": [
+        {
+          "name": "retired compatibility modules are absent and no production source imports them",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
         {
           "name": "semantic layers own their files and obey dependency direction, including type-only references",
           "classification": "P2",
@@ -2139,11 +2144,11 @@
   ],
   "summary": {
     "totalSuites": 40,
-    "totalTests": 332,
+    "totalTests": 333,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 312,
+      "P2": 313,
       "P3": 2,
       "P4": 0
     }

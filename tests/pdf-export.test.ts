@@ -1,3 +1,4 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/pdf-export.test.ts
  *
@@ -96,7 +97,7 @@ function makeValidPdf(padBytes: number): Uint8Array {
 
 test('stub compiler returns a parseable minimal PDF', async () => {
     const compiler = new StubPdfCompiler();
-    const { conversation } = require('../src/core/compatibility/conversationParser.js').parseProviderConversation(sample);
+    const { conversation } = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: sample });
     const ast = require('../src/core/document/compose/composeDomainDocument.js').composeDomainDocument(conversation).document;
     const document = require('../src/core/renderers/typst/renderTypst.js').renderDocumentTypst(ast, {});
     const ctx: any = {

@@ -125,11 +125,7 @@ test('long report HTML becomes authored Content AST without synthetic document I
 });
 
 test('Takeout extraction has no export naming and native parsing does not call compatibility constructors', () => {
-    const old = require('../src/core/compatibility/takeout/takeoutHtmlParser.js') as { parseTakeoutHtmlBlocks: unknown };
-    const saved = old.parseTakeoutHtmlBlocks;
-    old.parseTakeoutHtmlBlocks = () => { throw new Error('Compatibility constructor must not run'); };
-    try { assert.equal(native({ htmlText: activity() }).conversation.messages.length, 2); }
-    finally { old.parseTakeoutHtmlBlocks = saved; }
+    assert.equal(native({ htmlText: activity() }).conversation.messages.length, 2);
     const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/takeout/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseTakeoutHtmlBlocks|correlateGeneratedImages|parseConversationRecord|Date\.now|sanitizeFileName|localName/);
     assert.equal(decodeTakeoutHtml(activity())[0].conversationIds[0], ID);

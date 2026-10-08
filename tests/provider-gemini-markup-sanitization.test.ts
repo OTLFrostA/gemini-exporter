@@ -1,3 +1,4 @@
+const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-gemini-markup-sanitization.test.ts
  * Tier 1 test for PR 2: Gemini Structured Content Sanitization.
@@ -16,7 +17,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { parseProviderConversation } = require('../src/core/compatibility/conversationParser.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
@@ -51,7 +51,7 @@ test('Gemini structured markup is sanitized at normalization boundary and never 
         }],
     };
 
-    const { conversation: domain } = await parseProviderConversation(raw);
+    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     const msg = domain.messages[0];
 
     // Domain content assertions

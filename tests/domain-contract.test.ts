@@ -1,9 +1,9 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Domain/composer contracts, including the shared title authority rules. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveTitle, titleAuthorityRank, TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
@@ -54,7 +54,7 @@ test('archive preparation rejects traversal and absolute destinations', () => {
 test('unknown provider bodies have a bounded deterministic fallback, and raw input stays intact', () => {
     const raw = { id: 'unknown', messages: [{ role: 'widget', content: { message: 'x'.repeat(5000) } }] };
     const original = structuredClone(raw);
-    const parsed = parseProviderConversation(raw);
+    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     const content = parsed.conversation.messages[0].content[0];
     assert.equal(content.type, 'unknown');
     if (content.type === 'unknown') { assert.ok(content.text.length <= 2001); assert.ok(content.text.endsWith('…')); assert.ok(content.sourceType); }

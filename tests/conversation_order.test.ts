@@ -1,8 +1,9 @@
+import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
+import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
 import * as GeminiUtils from '../src/core/utils/utils.js';
-import * as GeminiParser from '../src/core/compatibility/gemini/geminiParser.js';
 
 
 test('GeminiUtils.getEffectiveTimestamp - hierarchy and type safety', () => {
@@ -45,8 +46,6 @@ test('GeminiUtils.getEffectiveTimestamp - hierarchy and type safety', () => {
 });
 
 test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as maxTs', () => {
-    const ParserClass = GeminiParser.GeminiResponseParserClass || GeminiParser;
-    assert.ok(ParserClass, 'GeminiResponseParserClass should be present');
 
     const mockDetailInner = [
         [
@@ -73,7 +72,7 @@ test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as max
     ];
     const mockEnvelope = `)]}'\n\n${JSON.stringify(topPayload)}`;
 
-    const detail = ParserClass.parseDetail(mockEnvelope, "c_test123");
+    const detail = decodeGeminiDetail(mockEnvelope, "c_test123");
     assert.ok(detail, 'Detail should be parsed');
     assert.strictEqual(detail.id, 'c_test123');
 
@@ -211,13 +210,11 @@ test('Conversation merge - updates updatedAt when conversation becomes active ag
 });
 
 test('GeminiParser.parseList - accurately extracts server timestamp from index 5 and orders pages correctly', () => {
-    const ParserClass = GeminiParser.GeminiResponseParserClass || GeminiParser;
-    assert.ok(ParserClass, 'GeminiResponseParserClass must be present');
 
     // Realistic Google MaZiqc response
     // Page 1: Newer conversation (updated at 1788464818.885831 -> 1788464818885 ms)
     const page1Raw = `)]}'\n\n[["wrb.fr","MaZiqc","[null,null,[[\\"c_page1\\",\\"Page 1 Conversation\\",null,null,null,[1788464818,885831000],null,null,null,1]]]"]]`;
-    const res1 = ParserClass.parseList(page1Raw);
+    const res1 = parseList(page1Raw);
     assert.strictEqual(res1.conversations.length, 1);
     const conv1 = res1.conversations[0];
     assert.strictEqual(conv1.id, 'page1');
@@ -227,7 +224,7 @@ test('GeminiParser.parseList - accurately extracts server timestamp from index 5
 
     // Page 2: Older conversation (updated 1 day ago: 1788378418.000000 -> 1788378418000 ms)
     const page2Raw = `)]}'\n\n[["wrb.fr","MaZiqc","[null,null,[[\\"c_page2\\",\\"Page 2 Older Conversation\\",null,null,null,[1788378418,0],null,null,null,1]]]"]]`;
-    const res2 = ParserClass.parseList(page2Raw);
+    const res2 = parseList(page2Raw);
     assert.strictEqual(res2.conversations.length, 1);
     const conv2 = res2.conversations[0];
     assert.strictEqual(conv2.id, 'page2');

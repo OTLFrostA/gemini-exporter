@@ -1,8 +1,8 @@
+import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
-import type { GeminiNormalizationInput } from '../src/core/compatibility/gemini/exportInput.js';
+import type { ConversationRecordInput } from '../src/core/compatibility/record/conversationRecord.js';
 
 for (const layout of ['messages', 'turns'] as const) {
     test(`PDF ${layout}: typeless historical image, unknown content and role survive normalization`, async () => {
@@ -32,11 +32,11 @@ for (const layout of ['messages', 'turns'] as const) {
 }
 
 test('provider parser contract accepts missing metadata and historical aliases without coercing input', async () => {
-    const raw: GeminiNormalizationInput = {
+    const raw: ConversationRecordInput = {
         messages: [{ role: 'tool', content: 17, images: [{ src: 'https://example.com/generated', fileName: 'historical' }] }],
     };
     const snapshot = structuredClone(raw);
-    const { conversation: domain, diagnostics } = await parseProviderConversation(raw);
+    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
     assert.equal(domain.assets[0].kind, 'image');
     assert.equal(domain.assets[0].name, 'historical');
     assert.equal(domain.messages[0].provenance?.rawRole, 'tool');

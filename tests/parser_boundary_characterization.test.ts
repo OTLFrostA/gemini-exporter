@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { parseDetail, findTurnsDeep } from '../src/core/compatibility/gemini/parseDetail.js';
+import { decodeGeminiDetail, findTurnsDeep } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
 import { robustFirstPayload, extractModelCandidates, extractCandidateText, extractThoughts, extractCitations } from '../src/core/parsers/gemini/rpc/extractors.js';
 import { extractInnerPayload, extractNextPageToken } from '../src/core/parsers/gemini/rpc/payload.js';
 import { extractImages, extractUserFiles, extractDocumentsMeta } from '../src/core/compatibility/gemini/attachments.js';
@@ -75,8 +75,8 @@ test('missing or malformed envelopes distinguish list diagnostics from detail fa
         assert.equal(list.nextPageToken, null);
         assert.equal(list._debug!.error, 'NO_INNER_STR');
     }
-    for (const text of ['', '[]', rpc(null), rpc(false)]) assert.throws(() => parseDetail(text), /detail parse fail: invalid/);
-    const empty = parseDetail(rpc([]), ID);
+    for (const text of ['', '[]', rpc(null), rpc(false)]) assert.throws(() => decodeGeminiDetail(text), /detail parse fail: invalid/);
+    const empty = decodeGeminiDetail(rpc([]), ID);
     assert.equal(empty.id, ID);
     assert.deepEqual(empty.messages, []);
     assert.equal(empty.titleSource, 'default');
@@ -92,12 +92,12 @@ test('missing or malformed envelopes distinguish list diagnostics from detail fa
 test('detail: reverse wire ordering, candidates and authoritative timestamps remain stable', () => {
     const newest = turn('Newest prompt', 1700000010, [['rc_new_a', [['First variant']]], ['rc_new_b', 'Second variant']]);
     const oldest = turn('Oldest prompt', 1700000000, [['rc_old', [['Old answer']]]]);
-    const parsed = parseDetail(rpc([[newest, oldest], 'tC_detail_cursor', 'Official detail title', { extra: true }]));
+    const parsed = decodeGeminiDetail(rpc([[newest, oldest], 'tC_detail_cursor', 'Official detail title', { extra: true }]));
     assert.equal(parsed.id, ID);
     assert.deepEqual(parsed.messages.map(m => [m.role, m.content]), [
         ['user', 'Oldest prompt'], ['model', 'Old answer'], ['user', 'Newest prompt'], ['model', 'First variant'], ['model', 'Second variant']
     ]);
-    assert.equal(parsed.messages[0].providerRequestId, 'ab12');
+    assert.equal(parsed.messages[0].providerRequestId, 'r_AB12');
     assert.equal(parsed.messages[1].id, 'rc_old');
     assert.equal(parsed.createdAt, 1700000000500);
     assert.equal(parsed.updatedAt, 1700000010500);
@@ -111,7 +111,7 @@ test('detail: absent optional fields and truncated candidates do not fabricate m
     const userOnly = [[ID], null, [['User only prompt']]];
     const modelOnly = [[ID], null, null, [[['rc_model_only', [['Model only answer']]]]]];
     for (const [wireTurn, expected] of [[userOnly, ['User only prompt']], [modelOnly, ['Model only answer']]] as const) {
-        const parsed = parseDetail(rpc([[wireTurn]]));
+        const parsed = decodeGeminiDetail(rpc([[wireTurn]]));
         assert.deepEqual(parsed.messages.map(m => m.content), expected);
         assert.equal(parsed.timestamp, null);
         assert.equal(parsed.createdAt, null);
@@ -124,7 +124,7 @@ test('detail: extra wrapping and renamed envelope use the existing fallback and 
     const wireTurn = turn();
     const wrapped = { additional: { layers: [[[wireTurn]]] }, extra: true };
     assert.deepEqual(findTurnsDeep(wrapped), [wireTurn]);
-    const parsed = parseDetail(rpc(wrapped, 'renamedRpc', 'renamedEnvelope'));
+    const parsed = decodeGeminiDetail(rpc(wrapped, 'renamedRpc', 'renamedEnvelope'));
     assert.deepEqual(parsed.messages.map(m => m.content), ['Boundary user prompt', 'Boundary model answer']);
     assert.ok(parsed.schemaDrift?.some(w => w.startsWith('Envelope drift:')));
     assert.deepEqual(parsed._debug!.schemaDriftWarnings, parsed.schemaDrift);
@@ -137,7 +137,7 @@ test('detail: extra wrapping and renamed envelope use the existing fallback and 
 test('detail: alternate envelope chunks are searched when the matching RPC has no turns', () => {
     const wireTurn = turn();
     const text = JSON.stringify([['wrb.fr', 'hNvQHb', '[null]'], ['wrb.fr', 'otherRpc', JSON.stringify([[wireTurn]])]]);
-    const parsed = parseDetail(text);
+    const parsed = decodeGeminiDetail(text);
     assert.equal(parsed.messages.length, 2);
     assert.deepEqual(parsed._raw, [[wireTurn]]);
     assert.equal(parsed.schemaDrift, undefined);
@@ -145,22 +145,22 @@ test('detail: alternate envelope chunks are searched when the matching RPC has n
 
 test('detail: missing or malformed titles keep the existing newest-wire-prompt fallback', () => {
     for (const title of [undefined, null, [], { title: 'wrong shape' }, '', '  ', 'Google Gemini']) {
-        const parsed = parseDetail(rpc([[turn('Newest prompt title'), turn('Oldest prompt title')], null, title]));
+        const parsed = decodeGeminiDetail(rpc([[turn('Newest prompt title'), turn('Oldest prompt title')], null, title]));
         assert.equal(parsed.title, 'Newest prompt title');
         assert.equal(parsed.titleSource, 'sniff');
         assert.deepEqual(parsed.titles, { sniff: parsed.title });
     }
     const flatUser = turn();
     flatUser[2] = ['Flat user prompt title'];
-    assert.equal(parseDetail(rpc([[flatUser]])).title, 'Flat user prompt title');
+    assert.equal(decodeGeminiDetail(rpc([[flatUser]])).title, 'Flat user prompt title');
 });
 
 test('detail: metadata-only and undiscoverable-turn payloads retain distinct drift diagnostics', () => {
-    const metadata = parseDetail(rpc([null, null, [[ID, 'Metadata title']]]));
+    const metadata = decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]]));
     assert.deepEqual(metadata.messages, []);
     assert.ok(metadata.schemaDrift?.some(w => w.startsWith('metadata-only payload:')));
     assert.deepEqual(metadata._debug!.schemaDriftWarnings, metadata.schemaDrift);
-    const missingTurns = parseDetail(rpc([null, { extra: true }]));
+    const missingTurns = decodeGeminiDetail(rpc([null, { extra: true }]));
     assert.deepEqual(missingTurns.messages, []);
     assert.ok(missingTurns.schemaDrift?.some(w => w.startsWith('Payload drift:')));
 });
@@ -169,7 +169,7 @@ test('known behavior: rejected turn with a user payload still emits a user messa
     // Known mismatch: turnsRejected counts rejected recognizers, but the message
     // loop does not skip them. Characterize here; fix separately from typing.
     const rejected = [['x_not_a_turn'], null, [['Rejected recognizer prompt']]];
-    const parsed = parseDetail(rpc([[turn(), rejected]]));
+    const parsed = decodeGeminiDetail(rpc([[turn(), rejected]]));
     assert.equal(parsed.turnsRejected, 1);
     assert.equal(parsed.messages[0].content, 'Rejected recognizer prompt');
     assert.equal(parsed.messages[0].role, 'user');
@@ -189,7 +189,7 @@ test('thinking and citation helpers ignore malformed nodes, deduplicate URLs and
         ['https://example.com/malformed', 42], ['https://googleusercontent.com/immersive_entry_chip/a', 'Internal chip']];
     assert.equal(extractThoughts(body), 'First thought\n\nSecond thought');
     assert.deepEqual(extractCitations(body), [{ url: 'https://example.com/source', title: 'First source title' }]);
-    const parsed = parseDetail(rpc([[turn('Cited prompt', null, [['rc_cited', body]])]]));
+    const parsed = decodeGeminiDetail(rpc([[turn('Cited prompt', null, [['rc_cited', body]])]]));
     const model = parsed.messages.find(m => m.role === 'model');
     assert.equal(model?.content, 'Visible answer');
     assert.equal(model?.thoughts, 'First thought\n\nSecond thought');
@@ -204,12 +204,12 @@ test('attachment helpers ignore null, empty and malformed shapes; valid response
     }
     const url = 'https://lh3.googleusercontent.com/boundary-image';
     const image = [url, 640, 480, 'boundary-token'];
-    const parsed = parseDetail(rpc([[turn('Look at the image', null, [['rc_image', [[`![Image](${url})`], image, null, ['broken.png']]]])]]));
+    const parsed = decodeGeminiDetail(rpc([[turn('Look at the image', null, [['rc_image', [[`![Image](${url})`], image, null, ['broken.png']]]])]]));
     assert.equal(parsed.attachmentCount, 1);
     const model = parsed.messages.find(m => m.role === 'model');
     assert.equal(model?.images?.[0].sourceUrl, url);
     assert.equal(model?.attachments?.[0].type, 'image');
-    assert.ok(model?.attachments?.[0].localName?.startsWith('assets/'));
+    assert.equal('localName' in model!.attachments![0], false);
     assert.equal(model?.documents, undefined);
 });
 
@@ -230,7 +230,7 @@ test('sanitized Tier-2 wire fixtures retain structured nodes and search images t
     const wireTurn = turn('Explain Bell inequalities', null, [candidate]);
     assert.ok(Array.isArray(wireTurn[3]));
     wireTurn[3][12] = document;
-    const parsed = parseDetail(rpc([[wireTurn]]));
+    const parsed = decodeGeminiDetail(rpc([[wireTurn]]));
     const model = parsed.messages.find(m => m.role === 'model');
     assert.deepEqual(model?.structuredContent, decoded);
     assert.ok(model?.content.includes('CHSH'));
@@ -238,7 +238,7 @@ test('sanitized Tier-2 wire fixtures retain structured nodes and search images t
     assert.equal(parsed.schemaDrift, undefined);
     // A truncated field-12 tree must fall back, retaining the raw answer.
     wireTurn[3][12] = [[[null]]];
-    const fallback = parseDetail(rpc([[wireTurn]])).messages.find(m => m.role === 'model');
+    const fallback = decodeGeminiDetail(rpc([[wireTurn]])).messages.find(m => m.role === 'model');
     assert.equal(fallback?.structuredContent, undefined);
     assert.equal(fallback?.content, model?.content);
 });
@@ -247,7 +247,7 @@ test('sanitized Tier-2 wire fixtures retain structured nodes and search images t
 test('known behavior: an ID-only candidate becomes model content through the single-element fallback', () => {
     // Existing fallback treats a one-element candidate as its text body.
     assert.equal(extractCandidateText(['rc_missing']), 'rc_missing');
-    const parsed = parseDetail(rpc([[turn('Missing body prompt', null, [['rc_missing']])]]));
+    const parsed = decodeGeminiDetail(rpc([[turn('Missing body prompt', null, [['rc_missing']])]]));
     assert.equal(parsed.messages.find(m => m.role === 'model')?.content, 'rc_missing');
 });
 

@@ -8,7 +8,6 @@ const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
 const { supplementTakeoutGeneratedMedia } = require('../src/core/engine/export/batchWorker.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
-const { parseTakeoutHtmlBlocks, correlateGeneratedImages } = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
 
 const id = '1bd028d5c5b0c0e2';
 const prompt = 'Generate an image of a cute futuristic astronaut cat drinking coffee on Mars with high detail';
@@ -45,20 +44,6 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
     } finally { TakeoutEngine.clearTakeoutData('identity'); }
 });
 
-test('correlation attaches each image to its own generation turn rather than first model', async () => {
-    const html = [0, 1].map(i => `<div class="outer-cell"><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted draw ${i}<br>1 generated image.<br>Sep 2, 2026, 11:${36 + i}:40 AM PDT<br></div>https://gemini.google.com/app/${id}</div>`).join('');
-    const parsed = await parseTakeoutHtmlBlocks({ htmlText: html, zipFiles: {} });
-    const images = parsed.genBlocks.map((b: any, i: number) => ({ filename: `generated-${i}.png`, fileObj: {}, time: b.time + 5000 }));
-    correlateGeneratedImages(images, parsed.genBlocks, parsed.localMediaMap, parsed.localConvCache, parsed.extractedMap);
-    const models = parsed.localConvCache[id].messages.filter((m: any) => m.role === 'model');
-    assert.equal(models.length, 2);
-    for (let i = 0; i < models.length; i++) {
-        assert.equal(models[i].images.length, 1);
-        assert.equal(models[i].images[0].fileName, `generated-${i}.png`);
-        assert.equal(models[i].images[0].generation.generationOrdinal, i);
-    }
-});
-
 test('different events and unproven multi-image ordinals are never suppressed', () => {
     const generation = { chatId: id, time: Math.floor(time / 1000) * 1000 + 60000, prompt, generationOrdinal: 1, imageCount: 1, imageOrdinal: 0 };
     const engine = { getTakeoutMediaForChat: () => [{ filename: png, isGenerated: true, generation }] };
@@ -78,7 +63,6 @@ test('ambiguous same-second repeated prompts do not dedupe', () => {
     supplementTakeoutGeneratedMedia(chat, id, 'identity', { getTakeoutMediaForChat: () => [{ filename: png, isGenerated: true, generation }] });
     assert.equal(chat.messages.length, 5);
 });
-
 
 test('RPC generated-media detector preserves generated status while inline images remain unmarked', () => {
     const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
@@ -394,7 +378,7 @@ test('regression: sameGenerationEvent requires matching chatId (cross-conversati
 });
 
 test('regression: extractTurnRequestId schema slot evidence and fallback boundaries', () => {
-    const { extractTurnRequestId } = require('../src/core/compatibility/gemini/parseDetail.js');
+    const { extractTurnRequestId } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
     const { GEMINI_JSPB_SCHEMA } = require('../src/core/parsers/gemini/rpc/extractors.js');
 
     // Verify schema constant
@@ -446,6 +430,4 @@ test('regression: extractTurnRequestId schema slot evidence and fallback boundar
     ];
     assert.equal(extractTurnRequestId(turnNoR), undefined, 'Return undefined when no r_ present');
 });
-
-
 

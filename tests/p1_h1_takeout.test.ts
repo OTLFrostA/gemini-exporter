@@ -79,15 +79,6 @@ test('p1_h1 - P1-117: C2PA needs a trust marker and a valid calendar date', () =
     assert.strictEqual(f(new ArrayBuffer(16)), null);
 });
 
-// ---------- P1-111: takeoutHtmlParser builds a one-time ZIP index ----------
-test('p1_h1 - P1-111: takeoutHtmlParser uses a prebuilt index, not a triple loop', () => {
-    const fs = require('node:fs');
-    const path = require('node:path');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/compatibility/takeout/takeoutHtmlParser.ts'), 'utf8');
-    assert.ok(src.includes('__zipExact'), 'prebuilt exact-match index missing');
-    assert.ok(src.includes('__zipEntries'), 'flat ZIP entry index missing');
-});
-
 // ---------- takeoutHtmlSizeUnknown i18n key ----------
 test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
     const en = require('../src/core/utils/locales/en.js');
@@ -97,7 +88,7 @@ test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
 });
 
 test('p1_h1 - parseTakeoutTimestamp CST and numeric offset handling', () => {
-    const { parseTakeoutTimestamp } = require('../src/core/compatibility/takeout/takeoutHtmlParser.js');
+    const { parseTakeoutTimestamp } = require('../src/core/parsers/gemini/takeout/decodeHtml.js');
     const blockCjkCst = '<div class="content-cell">Prompted 介绍木星<br>Jul 15, 2024, 2:30:00 PM CST</div>';
     const tsCst = parseTakeoutTimestamp(blockCjkCst);
     assert.ok(tsCst !== null);

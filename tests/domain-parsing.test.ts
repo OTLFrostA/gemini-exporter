@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseProviderConversation } from '../src/core/compatibility/conversationParser.js';
 import { parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import type { ConversationRecordInput } from '../src/core/compatibility/record/conversationRecord.js';
@@ -26,7 +25,7 @@ test('legacy application callers retain provider inference and use the unified D
         const data = { id: 'chat', title: 'Title', timestamp: null, source, messages: [{ role: 'assistant' as const, content: '**Answer**' }] };
         const providerId = source === 'takeout' ? 'gemini' : 'openai';
         const result = parseConversation({ format: 'conversation-record', providerId, data });
-        assert.deepEqual(parseProviderConversation(data), result);
+        assert.deepEqual(parseConversation({ format: 'conversation-record', providerId, data }), result);
         assert.deepEqual(parseLegacyConversation(data), { conversation: result.conversation, resourceHints: result.resourceHints });
         assert.deepEqual(data.messages[0].content, '**Answer**');
     }

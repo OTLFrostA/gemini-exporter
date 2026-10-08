@@ -15,7 +15,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const parseDetailMod = require('../src/core/compatibility/gemini/parseDetail.js');
+const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
 const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
 const attachments = require('../src/core/compatibility/gemini/attachments.js');
@@ -68,7 +68,7 @@ test('P1-061a: rc_ 清洗正则使用真正的 \\s（源码级锁定，旧正则
 
 test('P1-061b: chip URL 整行被清理（保留段落换行）', () => {
     const turn = makeTurn({ candText: "第一行\nhttps://googleusercontent.com/immersive_entry_chip/abc123\n第三行" });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(model, '应产出 model 消息');
     assert.strictEqual(model.content, "第一行\n\n第三行");
@@ -79,7 +79,7 @@ test('P1-061c: 生成图片 URL 整行被清理（保留段落换行，有图片
         candText: "看这张图\nhttps://googleusercontent.com/image_generation_content/tok999\n结束",
         extraCand: [["https://lh3.googleusercontent.com/img=w100", 100, 100]]
     });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(model, '应产出 model 消息');
     assert.strictEqual(model.content, "看这张图\n\n结束");
@@ -88,8 +88,8 @@ test('P1-061c: 生成图片 URL 整行被清理（保留段落换行，有图片
 // ---------------------------------------------------------------- P1-062
 test('P1-062a: isTurn 对标准 turn 返回 true（快速路径，多次调用结果一致）', () => {
     const turn = makeTurn();
-    assert.strictEqual(parseDetailMod.isTurn(turn), true);
-    assert.strictEqual(parseDetailMod.isTurn(turn), true, '缓存命中结果应一致');
+    assert.strictEqual(detailDecoder.isTurn(turn), true);
+    assert.strictEqual(detailDecoder.isTurn(turn), true, '缓存命中结果应一致');
 });
 
 test('P1-062b: isTurn 经 candidate rc_ 前缀结构化识别（user payload 非数组时）', () => {
@@ -99,20 +99,20 @@ test('P1-062b: isTurn 经 candidate rc_ 前缀结构化识别（user payload 非
         "非数组形态的 user payload",
         [[["rc_resp0001", ["text"], "en"]]]
     ];
-    assert.strictEqual(parseDetailMod.isTurn(turn), true);
+    assert.strictEqual(detailDecoder.isTurn(turn), true);
 });
 
 test('P1-062c/d: 非 turn（坏 id 前缀；仅靠 "r_" 子串的假 turn）返回 false', () => {
-    assert.strictEqual(parseDetailMod.isTurn([["x_123"], [1, 0], [["u"]]]), false, 'id 无 c_/r_ 前缀');
+    assert.strictEqual(detailDecoder.isTurn([["x_123"], [1, 0], [["u"]]]), false, 'id 无 c_/r_ 前缀');
     // 旧代码 s.includes("r_") 近乎恒真，会把这种假 turn 判为真
     const fake: unknown[] = [["c_r_123", [1, 2], "music_tv", ["error_r_broken"]]];
-    assert.strictEqual(parseDetailMod.isTurn(fake), false, '仅含 "r_" 子串、无真实形态标记');
+    assert.strictEqual(detailDecoder.isTurn(fake), false, '仅含 "r_" 子串、无真实形态标记');
 });
 
 // ---------------------------------------------------------------- P1-063
 test('P1-063: metadata-only 载荷产出可见的 schemaDrift 警告（非 dev 也不静默）', () => {
     const inner = [null, null, [["c_meta1234567890", "元数据标题", "x"]]];
-    const res = parseDetailMod.parseDetail(makeDetailRpc(inner));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc(inner));
     assert.strictEqual(res.messages.length, 0, '无 turns 时消息为空');
     assert.ok(Array.isArray(res.schemaDrift), 'schemaDrift 不应缺席');
     assert.ok(res.schemaDrift.some((w: string) => /metadata-only/i.test(w)), '应包含 metadata-only 警告');
@@ -121,7 +121,7 @@ test('P1-063: metadata-only 载荷产出可见的 schemaDrift 警告（非 dev �
 // ---------------------------------------------------------------- P1-064
 test('P1-064a: user payload[0] 为字符串时提取全文而非首字符', () => {
     const turn = makeTurn({ userPayload: ["hello world from user"] });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     const user = userMessageOf(res);
     assert.ok(user, '应产出 user 消息');
     assert.strictEqual(user.content, "hello world from user");
@@ -129,12 +129,12 @@ test('P1-064a: user payload[0] 为字符串时提取全文而非首字符', () =
 
 test('P1-064b: 标准 [[text]] 形态的用户文本提取不变', () => {
     const turn = makeTurn({ userPayload: [["标准形态文本"]] });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     assert.strictEqual(userMessageOf(res).content, "标准形态文本");
 });
 
 // ---------------------------------------------------------------- P1-065
-test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（parseDetail）', () => {
+test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（decodeGeminiDetail）', () => {
     // 触发条件：无标准 WRB 信封；错误 chunk 排在正确 chunk 之前；
     // 错误 chunk 含 "c_" 子串（music_）但无完整会话 ID 格式，且内藏假 turn。
     const junkStr = JSON.stringify({ data: [[["c_r_12345", [1, 2], "music_tv talk", null]]] });
@@ -143,7 +143,7 @@ test('P1-065a: 启发式跳过仅含 "c_" 子串的错误 chunk（parseDetail）
         ["x.fr", "junk", junkStr],
         ["y.fr", "data", goodInnerStr]
     ]);
-    const res = parseDetailMod.parseDetail(`)]}'\n\n${outer}`);
+    const res = detailDecoder.decodeGeminiDetail(`)]}'\n\n${outer}`);
     assert.strictEqual(res.messages.length, 2, '应解析出正确 chunk 的 user+model 两条消息');
     assert.strictEqual(userMessageOf(res).content, "hello");
     assert.strictEqual(modelMessageOf(res).content, "world");

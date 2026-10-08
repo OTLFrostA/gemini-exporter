@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { extractResponseImages, extractImages } = require('../src/core/compatibility/gemini/attachments.js');
-const { parseDetail } = require('../src/core/compatibility/gemini/parseDetail.js');
+const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 
 // Same media tuple shape as the false detections in the user's diagnostics.
 const searchUrl = 'https://encrypted-tbn2.gstatic.com/licensed-image?q=example';
@@ -22,7 +22,7 @@ function parseWithMetadata(document?: unknown, secondCandidate?: any): any {
     if (document) model[12] = document;
     const turn = [['c_visible_images_test'], [1700000000, 0], [['Question']], model];
     const rpc = ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
-    return parseDetail(rpc, 'c_visible_images_test');
+    return decodeGeminiDetail(rpc, 'c_visible_images_test');
 }
 
 test('candidate search metadata does not become a phantom image in exported Markdown', async () => {

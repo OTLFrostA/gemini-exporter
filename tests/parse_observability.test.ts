@@ -8,7 +8,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const parseDetailMod = require('../src/core/compatibility/gemini/parseDetail.js');
+const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const attachments = require('../src/core/compatibility/gemini/attachments.js');
 const pagination = require('../src/core/api/client/pagination.js');
 const parseDrift = require('../src/core/engine/export/parseDrift.js');
@@ -45,20 +45,20 @@ function modelMessageOf(res: any): any {
 test('P1-8a: 漂移夹具产出 turnsRejected=1 且 schemaDrift 非空', () => {
     const junk = [["x_123"], [1, 0], [["u"]]]; // isTurn 拒绝
     const oddTurn = makeTurn({ userPayload: "非数组形态的 user payload", convId: "c_odd000000000001" });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[makeTurn(), oddTurn, junk]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), oddTurn, junk]]));
     assert.strictEqual(res.turnsRejected, 1, 'junk 元素应被计数为拒识');
     assert.ok(Array.isArray(res.schemaDrift) && res.schemaDrift.length > 0, 'schemaDrift 应非空');
 });
 
 test('P1-8b: 正常 payload 无拒识、无漂移', () => {
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[makeTurn(), makeTurn({ convId: "c_abc123def457" })]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), makeTurn({ convId: "c_abc123def457" })]]));
     assert.strictEqual(res.turnsRejected || 0, 0, '正常 turn 不应被拒识');
     assert.ok(!res.schemaDrift || res.schemaDrift.length === 0, '正常 payload 不应有 schemaDrift');
 });
 
 test('P1-8c: extractChatParseDrift 抽取诊断，turnsRejected>0 判 partial', () => {
     const junk = [["x_123"], [1, 0], [["u"]]];
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[makeTurn(), junk]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), junk]]));
     const drift = parseDrift.extractChatParseDrift(res);
     assert.strictEqual(drift.turnsRejected, 1);
     assert.ok(drift.schemaDrift.length >= 0);
@@ -190,20 +190,20 @@ test('P1-9j: heuristic 链的文档最终标 hasFabricatedText=true', () => {
     const clueText = "## Doc Body\n\n" + "正文".repeat(100); // >200 字符，供 findDocMarkdownByClues
     assert.ok(clueText.length > 200);
     const turn = makeTurn({ extraCand: [[flatItem], clueText] });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(model && model.documents && model.documents.length > 0, '应产出 documents');
     const doc = model.documents[0];
     assert.strictEqual(doc.hasFabricatedText, true, 'heuristic 链文档必须标 hasFabricatedText');
 });
 
-test('parseDetail: strips immersive_entry_chip from document contentMarkdown and extracts heading title', () => {
+test('decodeGeminiDetail: strips immersive_entry_chip from document contentMarkdown and extracts heading title', () => {
     const docId = UUID;
     const flatItem = ["https://y/immersive_entry_chip/0", docId, "Document"];
     const rawDocText = "http://googleusercontent.com/immersive_entry_chip/0\n# 虚构城市水力建模分析\n\n" + "正文详细内容".repeat(20);
     const docContent = [docId, [[rawDocText]]];
     const turn = makeTurn({ extraCand: [[flatItem], docContent] });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(model && model.documents && model.documents.length > 0, '应产出 documents');
     const doc = model.documents[0];
@@ -211,13 +211,13 @@ test('parseDetail: strips immersive_entry_chip from document contentMarkdown and
     assert.strictEqual(doc.title, '虚构城市水力建模分析', 'title 应提取 markdown 首行标题，而非 Document');
 });
 
-test('parseDetail: ignores document when contentMarkdown contains only chip URL', () => {
+test('decodeGeminiDetail: ignores document when contentMarkdown contains only chip URL', () => {
     const docId = UUID;
     const flatItem = ["https://y/immersive_entry_chip/0", docId, "Document"];
     const rawDocText = "http://googleusercontent.com/immersive_entry_chip/0\n";
     const docContent = [docId, [[rawDocText]]];
     const turn = makeTurn({ extraCand: [[flatItem], docContent] });
-    const res = parseDetailMod.parseDetail(makeDetailRpc([[turn]]));
+    const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[turn]]));
     const model = modelMessageOf(res);
     assert.ok(!model || !model.documents || model.documents.length === 0, '仅包含 chip 的空文档不应产出');
 });
