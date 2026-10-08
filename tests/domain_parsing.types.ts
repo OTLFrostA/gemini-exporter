@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/parsers/gemini/takeout/parseZip.js';
 import type { ConversationParser, ConversationParseResult } from '../src/core/parsers/contracts.js';
@@ -15,7 +16,7 @@ const syncRawParser: ConversationParser<{ text: string }> = (raw, context) => ({
 });
 const asyncRawParser: ConversationParser<{ text: string }> = async (raw, context) => syncRawParser(raw, context);
 const recordParser: ConversationParser<ConversationRecordInput> = parseConversationRecord;
-const sharedResult: ConversationParseResult = parseConversation({ format: 'conversation-record', providerId: 'provider', data: {} });
+const sharedResult: ConversationParseResult = historicalFixture({}, { providerId: 'provider' });
 void asyncRawParser;
 void recordParser;
 void sharedResult;
@@ -26,7 +27,7 @@ void rpcParser;
 void cursor;
 
 // @ts-expect-error Every new entry point requires an explicit provider.
-parseConversation({ format: 'conversation-record', data: {} });
+parseConversation({ format: 'gemini-rpc', data: '[]' });
 // @ts-expect-error Raw RPC parsing requires response text rather than a record.
 parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: {} });
 // @ts-expect-error Problems remain outside the semantic conversation.

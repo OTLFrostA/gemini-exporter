@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import type { FetchAssetParams } from '../src/core/engine/assetPipeline.js';
 import { makeTestWorker } from './helpers/makeTestWorker.js';
 const test = require('node:test');
@@ -148,14 +149,14 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
             }
             return {
                 success: true,
-                chat: {
+                chat: historicalFixture({
                     id: requestedItem.id,
                     title: requestedItem.title,
                     messages: [
                         { role: 'user', content: 'Hello' },
                         { role: 'model', content: 'Hi there!' }
                     ]
-                },
+                }),
                 listTitle: requestedItem.title
             };
         }
@@ -199,11 +200,11 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
             fetchCount++;
             return {
                 success: true,
-                chat: {
+                chat: historicalFixture({
                     id: requestedItem.id,
                     title: requestedItem.title,
                     messages: [{ role: 'user', content: 'test' }]
-                },
+                }),
                 listTitle: requestedItem.title
             };
         }
@@ -273,11 +274,11 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
             fetchedIds.push(requestedItem.id);
             return {
                 success: true,
-                chat: {
+                chat: historicalFixture({
                     id: requestedItem.id,
                     title: requestedItem.title,
                     messages: [{ role: 'user', content: 'test' }]
-                },
+                }),
                 listTitle: requestedItem.title
             };
         }
@@ -381,7 +382,7 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
             fetchCalls++;
             return {
                 success: true,
-                chat: { id: item.id, title: item.title, messages: [] },
+                chat: historicalFixture({ id: item.id, title: item.title, messages: [{ role: 'user', content: 'Body' }] }),
                 listTitle: item.title
             };
         }
@@ -430,7 +431,7 @@ test('formatDebugInfo - formats debug info cleanly without [object Object]', () 
 // ---------------------------------------------------------------------------
 // BatchWorker.resolveChat - Empty Chat and Deleted Chat handling
 // ---------------------------------------------------------------------------
-test('BatchWorker.resolveChat - resolves empty chat as valid exportable conversation instead of error', async () => {
+test('BatchWorker.resolveChat - reports unavailable bodies without fabricating an empty conversation', async () => {
     const logs: string[] = [];
     const chat = {
         id: 'empty-chat-123',
@@ -452,13 +453,10 @@ test('BatchWorker.resolveChat - resolves empty chat as valid exportable conversa
         (msg: string) => logs.push(msg)
     );
 
-    assert.strictEqual(res.isError, false, 'Empty chat should not be treated as fatal error');
-    assert.strictEqual(res.isConfirmedDeleted, false, 'Empty chat is not confirmed deleted');
-    assert.strictEqual(res.chat.isEmpty, true, 'Chat should be marked as isEmpty');
-    assert.strictEqual(res.chat.error, undefined, 'Error property should be removed');
-    assert.strictEqual(res.chat._empty, undefined, '_empty property should be removed');
-    assert.ok(Array.isArray(res.chat.messages) && res.chat.messages.length === 0, 'Messages should be empty array');
-    assert.ok(logs.some(l => l.includes('会话内容为空') || l.includes('empty')), 'Should log empty chat notice');
+    assert.strictEqual(res.isError, true);
+    assert.strictEqual(res.isConfirmedDeleted, false);
+    assert.equal(res.errMsg, chat.error);
+    assert.equal('chat' in res, false);
 });
 
 test('BatchWorker.resolveChat - detects cloud-deleted chat with BardErrorInfo: 1167', async () => {
@@ -497,18 +495,18 @@ test('Canonical Markdown preserves the header for empty chats', async () => {
         isEmpty: true
     };
 
-    const { content: mdZh } = await ChatFormatter.formatMarkdownDocument(emptyChat, { lang: 'zh' });
+    const { content: mdZh } = await ChatFormatter.formatMarkdownDocument(historicalFixture(emptyChat), { lang: 'zh' });
     assert.ok(mdZh.includes('title: "Used an Assistant feature"'), 'Frontmatter title');
     assert.ok(!mdZh.includes('## 👤'), 'empty chat has no fabricated messages');
 
-    const { content: mdEn } = await ChatFormatter.formatMarkdownDocument(emptyChat, { lang: 'en' });
+    const { content: mdEn } = await ChatFormatter.formatMarkdownDocument(historicalFixture(emptyChat), { lang: 'en' });
     assert.ok(mdEn.includes('# Used an Assistant feature'), 'empty chat retains title');
 });
 
 // ---------------------------------------------------------------------------
 // ExportOrchestrator - Empty Chat end-to-end export without deadlock
 // ---------------------------------------------------------------------------
-test('ExportOrchestrator - empty chat exports successfully into archive with status empty and zero failures', async () => {
+test('ExportOrchestrator - unavailable body remains retryable and is not marked exported', async () => {
     setupMockJSZip();
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
@@ -520,13 +518,11 @@ test('ExportOrchestrator - empty chat exports successfully into archive with sta
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
             success: true,
-            chat: {
+            chat: historicalFixture({
                 id: 'cca63136d0630930',
                 title: 'Used an Assistant feature',
                 messages: [],
-                error: 'DOM 返回内容为空',
-                _empty: true
-            }
+            })
         }),
         resolveChat: BatchWorker.resolveChat
     });
@@ -550,9 +546,9 @@ test('ExportOrchestrator - empty chat exports successfully into archive with sta
         onLog: (msg: string) => logs.push(msg)
     });
 
-    assert.strictEqual(result.landedChats, 1, 'Empty chat should land successfully');
-    assert.strictEqual(result.failedChats.length, 0, 'No failed chats');
-    assert.ok(exportedIds['cca63136d0630930'], 'Empty chat must be finalized in exportedIds to prevent deadlock');
+    assert.strictEqual(result.landedChats, 0);
+    assert.strictEqual(result.failedChats.length, 1);
+    assert.equal(exportedIds['cca63136d0630930'], undefined);
 });
 
 test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime and fires onItemPendingAssets for queued assets', async () => {
@@ -569,7 +565,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
             success: true,
-            chat: {
+            chat: historicalFixture({
                 id: 'chat_with_img',
                 title: 'Image Chat',
                 timestamp: tCreate,
@@ -581,7 +577,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
                         images: [{ url: 'https://lh3.googleusercontent.com/fake_img', localName: 'assets/img.png', fileName: 'img.png' }]
                     }
                 ]
-            }
+            })
         }),
         resolveChat: BatchWorker.resolveChat
     });
@@ -630,7 +626,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     }
 });
 
-test('ExportOrchestrator - canonicalizes and resolves the original first candidate without skipping later results', async () => {
+test('ExportOrchestrator - resolves the original first candidate without changing its source identity without skipping later results', async () => {
     setupMockJSZip();
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
@@ -644,7 +640,7 @@ test('ExportOrchestrator - canonicalizes and resolves the original first candida
         useZip: true,
         includeAssets: false,
         worker: makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, validSecond], chat: validSecond }),
+            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) }),
             resolveChat: async (chat: any) => {
                 receivedChat = chat;
                 return {
@@ -661,13 +657,13 @@ test('ExportOrchestrator - canonicalizes and resolves the original first candida
     });
 
     assert.strictEqual(receivedChat, malformedFirst, 'The original first candidate object must be passed to resolveChat');
-    assert.strictEqual(malformedFirst.id, 'candidate_first', 'The selected candidate id must be canonicalized before resolveChat');
+    assert.strictEqual(malformedFirst.id, 42, 'Source data must remain unchanged');
     assert.notStrictEqual(receivedChat, validSecond, 'A later valid candidate must not be selected');
     assert.strictEqual(result.landedChats, 0, 'The mocked resolver reports the first candidate as a failure');
     assert.strictEqual(result.failedChats.length, 1, 'The first candidate must follow the existing per-chat failure path');
 });
 
-test('ExportOrchestrator - preserves strict assignment failure for a truthy primitive first candidate', async () => {
+test('ExportOrchestrator - rejects a primitive first candidate without choosing a later result', async () => {
     setupMockJSZip();
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
@@ -679,29 +675,21 @@ test('ExportOrchestrator - preserves strict assignment failure for a truthy prim
         useZip: true,
         includeAssets: false,
         worker: makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: [42, validSecond] }),
-            resolveChat: async () => {
+            fetchChatDetail: async () => ({ success: true, results: [42, historicalFixture(validSecond)] }),
+            resolveChat: async (value, ...args) => {
                 resolveCalls++;
-                return {
-                    isError: false,
-                    chat: validSecond,
-                    listTitle: validSecond.title,
-                    displayTitle: validSecond.title,
-                    isConfirmedDeleted: false,
-                    errMsg: null,
-                    convsNeedSave: false
-                };
+                return BatchWorker.resolveChat(value, ...args);
             }
         })
     });
 
-    assert.strictEqual(resolveCalls, 0, 'A truthy primitive cannot reach resolveChat');
+    assert.strictEqual(resolveCalls, 1, 'The native boundary validates the selected source');
     assert.strictEqual(result.landedChats, 0, 'A truthy primitive first candidate must fail');
     assert.strictEqual(result.failedChats.length, 1, 'The primitive failure must be isolated to its chat');
-    assert.match(result.failedChats[0].error || '', /Cannot create property 'id' on number '42'/);
+    assert.match(result.failedChats[0].error || '', /body is unavailable/);
 });
 
-test('ExportOrchestrator - passes the original attachment and resolved chat to AssetPipeline', async () => {
+test('ExportOrchestrator - prepares asset destinations while retaining Domain asset identity', async () => {
     setupMockJSZip();
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
@@ -733,9 +721,9 @@ test('ExportOrchestrator - passes the original attachment and resolved chat to A
             useZip: true,
             includeAssets: true,
             worker: makeTestWorker({
-                fetchChatDetail: async () => ({ success: true, chat: fetchedChat }),
+                fetchChatDetail: async () => ({ success: true, chat: historicalFixture(fetchedChat) }),
                 resolveChat: async () => ({
-                    chat: resolvedChat,
+                    chat: historicalFixture(resolvedChat),
                     listTitle: 'Resolved chat',
                     displayTitle: 'Resolved chat',
                     isConfirmedDeleted: false,
@@ -747,14 +735,17 @@ test('ExportOrchestrator - passes the original attachment and resolved chat to A
         });
 
         assert.strictEqual(result.landedChats, 1);
-        assert.strictEqual(receivedItem, attachment, 'AssetPipeline must receive the original attachment object');
-        assert.strictEqual(receivedChat, resolvedChat, 'AssetPipeline must receive the original resolved chat object');
+        assert.equal((receivedItem as any).url, attachment.url);
+        assert.equal((receivedItem as any).localName, attachment.localName);
+        assert.ok((receivedItem as any).assetId);
+        assert.equal((receivedChat as any).id, resolvedChat.id);
+        assert.equal((receivedChat as any).title, resolvedChat.title);
     } finally {
         __setModuleOverride('AssetPipeline', origPipeline);
     }
 });
 
-test('ExportOrchestrator - exports document attachments containing immersive_entry_chip by writing cleaned markdown without dropping file', async () => {
+test('ExportOrchestrator - writes native document content without reinterpreting it at runtime', async () => {
     const mockZips = setupMockJSZip();
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
@@ -766,7 +757,7 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
             success: true,
-            chat: {
+            chat: historicalFixture({
                 id: 'chat_doc_1',
                 title: 'Doc Analysis',
                 timestamp: 1700000000000,
@@ -794,7 +785,7 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
                         ]
                     }
                 ]
-            }
+            })
         }),
         resolveChat: BatchWorker.resolveChat
     });
@@ -820,62 +811,39 @@ test('ExportOrchestrator - exports document attachments containing immersive_ent
     // 1. Cleaned document must be written
     assert.ok(zipInstance.files['files/chat_doc_1_pipe_analysis.md'], 'Document file must be written to archive');
     const writtenContent = zipInstance.files['files/chat_doc_1_pipe_analysis.md'];
-    assert.strictEqual(writtenContent.includes('immersive_entry_chip'), false, 'Written document must not contain telemetry chip URL');
+    assert.strictEqual(writtenContent.includes('immersive_entry_chip'), true, 'Export preparation preserves the supplied native document content');
     assert.ok(writtenContent.includes('# 城市供水管网水力建模分析'), 'Written document must contain document title and content');
     assert.ok(writtenContent.includes('连续性方程与水头损失计算'), 'Written document must contain document body');
 
     // 2. Pure chip telemetry document (empty after cleaning) must NOT be written
-    assert.strictEqual(zipInstance.files['files/chat_doc_1_empty_chip.md'], undefined, 'Empty-after-cleaning chip document must not be written');
+    assert.ok(zipInstance.files['files/chat_doc_1_empty_chip.md'], 'Every supplied native document is written');
 });
 
-test('BatchWorker - validates attachment fields at the resolver boundary without changing identities', async () => {
+test('BatchWorker - validates native closure and refuses historical runtime records', async () => {
     const { isWorkerChat } = require('../src/core/engine/export/batchWorker.js');
-    const generation = { chatId: 'boundary', generationOrdinal: 0, imageOrdinal: 0 };
-    const attachment = {
-        type: 'image', url: 'https://example.com/image.png', sourceUrl: 'https://example.com/source.png',
-        resolvedUrl: 'https://example.com/resolved.png', src: 'https://example.com/src.png',
-        localName: 'assets/image.png', fileName: 'image.png', name: 'image', title: 'Image',
-        mimeType: 'image/png', mime: 'image/png', candidates: ['https://example.com/image.png'], generation
-    };
-    const message = { role: 'model', content: 'Image', images: [attachment] };
-    const chat = { id: 'boundary', title: 'Boundary validation', messages: [message] };
-    const result = await BatchWorker.resolveChat(chat, { id: 'boundary' });
-    assert.strictEqual(result.isError, false);
-    assert.strictEqual(result.chat, chat);
-    assert.strictEqual(result.chat.messages[0], message);
-    assert.strictEqual(result.chat.messages[0].images[0], attachment);
-    assert.strictEqual(result.chat.messages[0].images[0].generation, generation);
-
-    for (const key of ['url', 'sourceUrl', 'resolvedUrl', 'src', 'name', 'title', 'mimeType', 'mime', 'fileName', 'localName', 'type']) {
-        assert.strictEqual(isWorkerChat({ messages: [{ images: [{ [key]: 42 }] }] }), false, `${key} must be a string`);
-    }
-    for (const invalid of [
-        { candidates: ['valid', 42] }, { candidates: 'invalid' },
-        { generation: { chatId: 'boundary', generationOrdinal: 'invalid' } },
-    ]) {
-        const malformed = { id: 'boundary', messages: [{ role: 'model', images: [invalid] }] };
-        await assert.rejects(BatchWorker.resolveChat(malformed, { id: 'boundary' }), {
-            name: 'TypeError', message: 'Malformed conversation for BatchWorker processing'
-        });
-    }
-    await assert.rejects(BatchWorker.resolveChat({ id: 'boundary', messages: { length: 1 } }, { id: 'boundary' }), {
-        name: 'TypeError', message: 'Malformed conversation for BatchWorker processing'
-    });
+    const record = { id: 'boundary', title: 'Boundary', messages: [{ role: 'user', content: 'Question' }] };
+    const native = historicalFixture(record);
+    assert.equal(isWorkerChat(record), false);
+    assert.equal((await BatchWorker.resolveChat(record, { id: 'boundary' })).isError, true);
+    assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' })).isError, false);
+    const invalid = structuredClone(native);
+    invalid.conversation.messages[0].attachmentIds = ['missing'];
+    await assert.rejects(BatchWorker.resolveChat(invalid, { id: 'boundary' }), /asset|missing|reference/i);
 });
 
-test('ExportOrchestrator - uses envelope chat or the requested fallback without cloning the candidate', async () => {
+test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
     for (const mode of ['envelope', 'missing', 'falsy-first']) {
         const useEnvelopeChat = mode === 'envelope';
         setupMockJSZip();
         setupMockStorage();
-        const candidate = { title: 'Envelope chat' };
+        const candidate = historicalFixture({ id: 'fallback', title: 'Envelope chat', messages: [{ role: 'user', content: 'Question' }] });
         let received: unknown;
         const worker = makeTestWorker({
             fetchChatDetail: async () => ({ success: true, results: mode === 'falsy-first' ? [null] : [], ...(mode !== 'missing' ? { chat: candidate } : {}) }),
             resolveChat: async (chat, ...args) => {
                 received = chat;
-                assert.strictEqual(chat.id, 'fallback');
-                assert.strictEqual(chat.title, useEnvelopeChat ? 'Envelope chat' : 'Requested title');
+                assert.ok(chat == null || typeof chat === 'object');
+
                 return BatchWorker.resolveChat(chat, ...args);
             }
         });
@@ -883,8 +851,8 @@ test('ExportOrchestrator - uses envelope chat or the requested fallback without 
             selected: [{ id: 'fallback', title: 'Requested title' }], useZip: true, includeAssets: false, worker
         });
         if (useEnvelopeChat) assert.strictEqual(received, candidate);
-        assert.strictEqual(result.landedChats, 1);
-        assert.strictEqual(result.failedChats.length, 0);
+        assert.strictEqual(result.landedChats, useEnvelopeChat ? 1 : 0);
+        assert.strictEqual(result.failedChats.length, useEnvelopeChat ? 0 : 1);
     }
 });
 
@@ -940,8 +908,7 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
     const chat = {
         id: 'mixed_assets', title: 'Mixed assets', messages: [{
             role: 'model', content: 'Assets', images: [image], attachments: [
-                image, file, { type: 'grounding', url: 'https://example.com/citation' },
-                { type: 'file', url: 'https://example.com/immersive_entry_chip' }
+                image, file
             ]
         }]
     };
@@ -949,7 +916,7 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
     const origPipeline = __getModuleOverride('AssetPipeline');
     __setModuleOverride('AssetPipeline', class {
         async processAsset(item: { localName?: string }, receivedChat: unknown, options: { isImage: boolean }) {
-            assert.strictEqual(receivedChat, chat);
+            assert.equal((receivedChat as any).id, chat.id);
             received.push({ item, isImage: options.isImage });
             return { saved: true, localName: item.localName };
         }
@@ -957,13 +924,13 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
     try {
         const result = await new ExportOrchestrator().run({
             selected: [{ id: 'mixed_assets', title: 'Mixed assets' }], useZip: true, includeAssets: true,
-            worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat }) })
+            worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: historicalFixture(chat) }) })
         });
         assert.strictEqual(result.failedChats.length, 0);
         assert.strictEqual(result.totalAssets, 2);
         assert.strictEqual(received.length, 2);
-        assert.strictEqual(received.find(entry => entry.item === image)?.isImage, true);
-        assert.strictEqual(received.find(entry => entry.item === file)?.isImage, false);
+        assert.strictEqual(received.find(entry => (entry.item as any).url === image.url)?.isImage, true);
+        assert.strictEqual(received.find(entry => (entry.item as any).url === file.url)?.isImage, false);
     } finally {
         __setModuleOverride('AssetPipeline', origPipeline);
     }

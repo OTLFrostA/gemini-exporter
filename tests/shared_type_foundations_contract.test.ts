@@ -11,7 +11,7 @@ import type {
     TourStep, UIExportCallbacks, UIExportOptions, UIExportResult
 } from '../src/types/ui.js';
 import type { ConversationExportState } from '../src/core/utils/titleUtils.js';
-import type { ParserMessage, ParserDocument } from '../src/core/api/client/detailTypes.js';
+import type { DomainMessage, DomainAsset } from '../src/core/domain/conversationDetail.js';
 import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { PdfExportResult } from '../src/core/export/pdf/pdfExporter.js';
 import { getAccountSlots } from '../src/ui/state/conversationsStore.js';
@@ -55,8 +55,8 @@ type Contracts = [
     Assert<Equal<Awaited<ReturnType<TabServiceModule['sendToGeminiTab']>>, unknown>>,
     Assert<Equal<TabStatusResult['response'], unknown>>,
     Assert<Equal<Parameters<I18nModule['t']>, [string, ...unknown[]]>>,
-    Assert<ParserMessage extends ChatMessage ? true : false>,
-    Assert<ParserDocument extends MessageDocument ? true : false>,
+    Assert<Equal<DomainMessage['content'][number]['type'] extends string ? true : false, true>>,
+    Assert<Equal<DomainAsset['document'] extends object | undefined ? true : false, true>>,
     Assert<Citation extends MessageCitation ? true : false>,
     Assert<PdfExportResult extends UIExportResult ? true : false>,
     // Negative relationships catch replacement by any/unknown/overly broad unions.

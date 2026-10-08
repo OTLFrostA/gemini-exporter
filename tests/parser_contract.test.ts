@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { DetailParseResult, ParserMessage } from '../src/core/api/client/detailTypes.js';
+import type { DetailParseResult } from '../src/core/api/client/detailTypes.js';
 import type { GeminiDetailEvidence } from '../src/core/parsers/gemini/rpc/detailEvidence.js';
-import { createNativeDetailView } from '../src/core/compatibility/gemini/nativeDetailView.js';
+import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import type { DomainMessage } from '../src/core/domain/conversationDetail.js';
 import type { GeminiParserExtractorsModule } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseList.js';
-import type { DetailParseDiagnostics, ParserDocument, ParserAttachment } from '../src/core/api/client/detailTypes.js';
 import type { Citation } from '../src/core/parsers/gemini/rpc/extractors.js';
 import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
 import type { GeminiUtilsModule } from '../src/core/utils/utils.js';
@@ -20,20 +20,16 @@ type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B 
 type Assert<T extends true> = T;
 type OutputContracts = [
     Assert<Equal<ListParseResult['_raw'], unknown>>,
-    Assert<Equal<DetailParseResult['_raw'], unknown>>,
+    Assert<Equal<DetailParseResult['transport']['decodedPayload'], unknown>>,
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
-    Assert<Equal<DetailParseResult['_debug'], DetailParseDiagnostics | null | undefined>>,
-    Assert<Equal<DetailParseResult['messages'][number], ParserMessage>>,
-    Assert<Equal<ParserMessage['documents'], ParserDocument[] | undefined>>,
-    Assert<Equal<ParserMessage['citations'], Citation[] | undefined>>,
-    Assert<Equal<ParserMessage['attachments'], ParserAttachment[] | undefined>>,
+    Assert<Equal<DetailParseResult['conversation']['messages'][number], DomainMessage>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getProtocol']>, GeminiProtocolModule>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, GeminiUtilsModule>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,
-    Assert<Equal<ReturnType<typeof createNativeDetailView>, DetailParseResult>>,
+    Assert<Equal<ReturnType<typeof parseGeminiRpcConversation>, DetailParseResult>>,
     Assert<Equal<ReturnType<typeof decodeGeminiDetail>, GeminiDetailEvidence>>,
 ];
-const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true, true, true, true, true];
+const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true];
 test('native parser evidence and application transport contracts remain explicitly typed', () => {
     assert.ok(contracts.every(Boolean));
 });

@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/html-document-migration.test.ts
@@ -78,7 +79,7 @@ function turnRoles(html: string): string[] {
 let newHtml: string;
 
 test('migration setup: production entry returns a valid HTML FormattedResult', async () => {
-    const res = await ChatFormatter.formatHtmlDocument(chat);
+    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(chat));
     assert.strictEqual(res.ext, 'html');
     assert.strictEqual(res.mime, 'text/html');
     assert.ok(String(res.content).startsWith('<!DOCTYPE html>'), 'must be a full HTML document');
@@ -143,5 +144,5 @@ test('migration: duplicate message IDs fail closed at the production export boun
             { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
         ],
     };
-    await assert.rejects(() => ChatFormatter.formatHtmlDocument(dupChat), /MSG_DUP_ID/);
+    await assert.rejects(() => ChatFormatter.formatHtmlDocument(historicalFixture(dupChat)), /MSG_DUP_ID/);
 });

@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * P0 回归测试 —— 2026-09-15 代码审查发现的 P0 缺陷（P0-3 ChatGPT provider
  * 尚未接入，暂不覆盖；P0-1 经执行验证为误报已撤回，其用例保留为通过性回归测试）。
@@ -163,24 +164,8 @@ test('P0-5: popup log() must not be a no-op (errors must surface)', () => {
     );
 });
 
-// ---------------------------------------------------------------- P0-6
-test('P0-6: takeout image attach must tolerate model messages without content', async () => {
-    const takeoutEngine = {
-        getTakeoutMediaForChat: () => [{ isGenerated: true, filename: 'imagen_1.png', providerRequestId: 'p0-request-identity' }],
-    };
-    const chat: any = {
-        id: 'c_p0_6', title: 'T',
-        messages: [{ role: 'user', content: 'hi' }, { role: 'model', providerRequestId: 'p0-request-identity' }], // model 消息没有 content 字段
-    };
-    // 带 bug 时这里 reject: TypeError: Cannot read properties of undefined (reading 'includes')
-    const res: any = await BatchWorker.resolveChat(chat, { id: 'c_p0_6' }, null, takeoutEngine, 'u0');
-    const modelMsg = res.chat.messages.find((msg: any) => msg.role === 'model');
-    assert.ok(modelMsg.images && modelMsg.images.length === 1, 'generated image should be attached');
-    assert.ok(
-        typeof modelMsg.content === 'string' && modelMsg.content.includes('imagen_1.png'),
-        'image markdown should be appended to the model message'
-    );
-});
+// Runtime export no longer supplements images using detached Takeout evidence.
+// Native Takeout/RPC ownership tests cover source-derived generated assets.
 
 // ---------------------------------------------------------------- P0-7
 test('P0-7: Canonical Markdown must not throw on invalid date values', async () => {
@@ -188,7 +173,7 @@ test('P0-7: Canonical Markdown must not throw on invalid date values', async () 
     let md = '';
     try {
         md = (await ChatFormatter.formatMarkdownDocument(
-            { id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] }, {}
+            historicalFixture({ id: 'c_p0_7', title: 'T', createdAt: 'not-a-date', messages: [] }), {}
         )).content;
     } catch (e) {
         threw = e;

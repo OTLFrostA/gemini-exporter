@@ -1,13 +1,11 @@
-import { readParsedConversation, createParsedConversationView, type ParsedConversationView } from '../../compatibility/record/projectDomainRecord.js';
+import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { saveDomainConversation, getStoredDomain, storedParseResult, storageIdentity } from './domainStore.js';
 import type { StoredDomainResource } from './contracts.js';
 
-export async function persistNativeConversation(accountSlot: string, value: unknown, resources: readonly StoredDomainResource[] = []): Promise<void> {
-    const parsed = readParsedConversation(value);
-    if (!parsed) return;
-    await saveDomainConversation(accountSlot, parsed, resources);
+export async function persistNativeConversation(accountSlot: string, result: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = []): Promise<void> {
+    await saveDomainConversation(accountSlot, result, resources);
 }
-export async function getDomainConversationView(accountSlot: string, id: string, providerId = 'gemini'): Promise<ParsedConversationView | null> {
+export async function getDomainConversationResult(accountSlot: string, id: string, providerId = 'gemini'): Promise<ResourceConversationParseResult | null> {
     const stored = await getStoredDomain(storageIdentity(providerId, accountSlot, id));
-    return stored ? createParsedConversationView(storedParseResult(stored)) : null;
+    return stored ? storedParseResult(stored) : null;
 }

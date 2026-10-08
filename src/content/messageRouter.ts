@@ -1,6 +1,8 @@
+import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
+import { extractBlockText } from '../core/domain/content/unknownFallback.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
-import type { ContentConversationDetail, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
+import type { ContentConversationDetail, DomDetailDebug, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { normalizeReliableTitleSource, TitleResolutionInput } from '../core/utils/titleUtils.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import { SyncEngine } from './syncEngine.js';
@@ -57,7 +59,7 @@ export function init({
             (it.titles = it.titles || {})[rel] = val;
         }
     };
-    const resolveDetailTitle = (msgs: ContentConversationDetail['messages'], id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
+    const resolveDetailTitle = (msgs: Array<{ role: string; content: string }>, id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
 
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
@@ -148,17 +150,18 @@ export function init({
                 async function persistDetailTitle(chatObj: ContentConversationDetail): Promise<void> {
                     if (!chatObj) return;
                     await persistNativeConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj);
-                    const nid = normId(cid || chatObj.id);
-                    chatObj.title = cleanTitle(chatObj.title);
-                    let detectedSource = chatObj.titleSource || 'rpc';
-                    if (!isRealTitle(chatObj.title, nid) && Array.isArray(chatObj.messages)) {
-                        const sniffed = resolveDetailTitle(chatObj.messages, nid);
+                    const chat = { ...chatObj.conversation, titles: { ...chatObj.conversation.titles } };
+                    const nid = normId(cid || chat.id);
+                    chat.title = cleanTitle(chat.title);
+                    let detectedSource = chat.titleSource || 'rpc';
+                    if (!isRealTitle(chat.title, nid) && Array.isArray(chat.messages)) {
+                        const sniffed = resolveDetailTitle(chat.messages.map(message => ({ role: message.role, content: message.content.map(block => extractBlockText(block)).join('\n\n') })), nid);
                         if (sniffed) {
-                            chatObj.title = sniffed.title;
+                            chat.title = sniffed.title;
                             detectedSource = sniffed.source;
                         }
                     }
-                    if (!isRealTitle(chatObj.title, nid)) return;
+                    if (!isRealTitle(chat.title, nid)) return;
                     const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                     try {
                         // SSOT: single-item title update runs inside the cross-tab
@@ -174,7 +177,7 @@ export function init({
                                 const beforeTitle = item.title;
                                 const beforeSource = item.titleSource;
                                 const titleTarget: Record<string, unknown> = item;
-                                setTitleBySource(titleTarget, detectedSource, chatObj.title);
+                                setTitleBySource(titleTarget, detectedSource, chat.title);
                                 if (item.title === beforeTitle && item.titleSource === beforeSource) return null;
                                 return { title: item.title, titleSource: item.titleSource, titles: item.titles };
                             });
@@ -189,15 +192,15 @@ export function init({
                     const provider = resolveProvider() as ApplicationProvider | undefined;
                     if (provider) {
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
-                        if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
+                        if (detail && isResourceConversationParseResult(detail) && detail.conversation.messages.length > 0) {
                             await persistDetailTitle(detail);
                             respondDetail({ success: true, data: detail, source: 'batchexecute' });
                             return;
                         } else if (detail) {
-                            const rawKeys = detail._raw ? Object.keys(detail._raw) : [];
-                            const rawPreview = detail._raw ? JSON.stringify(detail._raw).slice(0, 4000) : '';
-                            const topPreview = detail._raw ? JSON.stringify(detail).slice(0, 1000) : '';
-                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.messages?.length, hasRaw: !!detail._raw, titleSeen: detail.title };
+                            const rawKeys = detail.transport.decodedPayload ? Object.keys(detail.transport.decodedPayload) : [];
+                            const rawPreview = detail.transport.decodedPayload ? JSON.stringify(detail.transport.decodedPayload).slice(0, 4000) : '';
+                            const topPreview = detail.transport.decodedPayload ? JSON.stringify(detail).slice(0, 1000) : '';
+                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.title };
                             if (contentContext.isDevMode()) {
                                 console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
                             }
@@ -243,7 +246,6 @@ export function init({
                             data: {
                                 id: cid,
                                 title: cid,
-                                messages: [],
                                 _empty: true,
                                 isDeleted: true,
                                 error: errDeleted,
@@ -257,17 +259,15 @@ export function init({
                 try {
                     if (Scraper) {
                         const chat = await Scraper.contentFetchChatDetail(cid);
-                        if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
+                        if (chat && isResourceConversationParseResult(chat) && chat.conversation.messages.length > 0) {
                             await persistDetailTitle(chat);
                             respondDetail({ success: true, data: chat, source: 'dom' });
                             return;
                         } else {
-                            if (contentContext.isDevMode()) {
-                                console.warn('[Gemini Exporter] DOM fallback returned empty messages', cid, 'messages', chat?.messages?.length, 'has _raw', !!chat?._raw);
-                            }
-                            const isConfirmedDeleted = !!chat?.isDeleted
-                                || !!chat?._debug?.isNotFound
-                                || (typeof chat?.error === 'string' && (chat.error.includes('删除或不存在') || chat.error.includes('服务端删除')));
+                            const failure = chat && 'error' in chat ? chat : { id: cid, error: 'DOM returned empty content' };
+                            const isConfirmedDeleted = !!failure?.isDeleted
+                                || !!failure?._debug && 'isNotFound' in failure._debug && failure._debug.isNotFound === true
+                                || (typeof failure?.error === 'string' && (failure.error.includes('删除或不存在') || failure.error.includes('服务端删除')));
                             if (isConfirmedDeleted) {
                                 const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                                 try {
@@ -296,20 +296,19 @@ export function init({
                                     if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
                                 }
                             }
-                            const mergedDebug = { batchexecuteEmptyDebug, domDebug: chat?._debug || null, domHtmlLen: chat?._debug?.htmlLen || null, isDeleted: isConfirmedDeleted };
+                            const domDebug = chat && isResourceConversationParseResult(chat) && 'transport' in chat ? chat.transport as DomDetailDebug : failure._debug && 'batchexecuteEmptyDebug' in failure._debug ? failure._debug.domDebug ?? undefined : failure._debug;
+                            const mergedDebug = { batchexecuteEmptyDebug, domDebug, domHtmlLen: domDebug && 'htmlLen' in domDebug ? domDebug.htmlLen : null, isDeleted: isConfirmedDeleted };
                             const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
                             const errDomEmpty = contentContext.isZh() ? 'DOM 返回内容为空' : 'DOM returned empty content';
                             respondDetail({
                                 success: true,
                                 data: {
-                                    ...chat,
-                                    id: chat?.id || cid,
-                                    title: chat?.title || cid,
-                                    messages: [],
+                                    id: failure?.id || cid,
+                                    title: failure?.title || cid,
                                     _empty: true,
                                     isEmpty: !isConfirmedDeleted,
                                     isDeleted: isConfirmedDeleted,
-                                    error: isConfirmedDeleted ? errDeleted : (chat?.error || errDomEmpty),
+                                    error: isConfirmedDeleted ? errDeleted : (failure?.error || errDomEmpty),
                                     _debug: mergedDebug,
                                     _debug_dom_empty: true
                                 },

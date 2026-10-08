@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -97,12 +98,12 @@ test('Markdown unknown content remains visible as escaped text', () => {
 });
 
 test('Gemini structuredContent reaches Document Markdown without using the string body', async () => {
-    const result = await formatMarkdownDocument({ id: 'c', title: 'Structured', messages: [{ id: 'm', role: 'model', content: 'wrong string', structuredContent: { children: [{ nodeType: 18, text: 'structured answer' }] } }] });
+    const result = await formatMarkdownDocument(historicalFixture({ id: 'c', title: 'Structured', messages: [{ id: 'm', role: 'model', content: 'wrong string', structuredContent: { children: [{ nodeType: 18, text: 'structured answer' }] } }] }));
     assert.ok(result.content.includes('structured answer')); assert.ok(!result.content.includes('wrong string'));
 });
 
 test('Gemini Markdown fallback reaches Document Markdown with semantic formatting', async () => {
-    const result = await formatMarkdownDocument({ id: 'c', title: 'Fallback', messages: [{ id: 'm', role: 'model', content: '**bold**\n\n```js\nconst x = 1;\n```' }] });
+    const result = await formatMarkdownDocument(historicalFixture({ id: 'c', title: 'Fallback', messages: [{ id: 'm', role: 'model', content: '**bold**\n\n```js\nconst x = 1;\n```' }] }));
     assert.ok(result.content.includes('**bold**')); assert.ok(result.content.includes('```js\nconst x = 1;\n```'));
 });
 
@@ -113,7 +114,7 @@ test('Markdown escapes unsafe links, local paths and YAML title boundaries', asy
 });
 
 test('Document Markdown rejects duplicate message IDs like HTML and PDF', async () => {
-    await assert.rejects(formatMarkdownDocument({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] }), /MSG_DUP_ID/);
+    await assert.rejects(formatMarkdownDocument(historicalFixture({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] })), /MSG_DUP_ID/);
 });
 
 

@@ -26,7 +26,7 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，现有数据格式的转换属于 `compatibility/`，问题记录属于 `diagnostics/`。目录移动不改变 storage 或用户升级数据格式，也不表示生产 parser 迁移已经完成。
 
-依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有统一解析入口可显式调用现有 `conversation-record` 兼容桥。具体目录见 [Source Directory Guide](../src/README.md)。
+依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有 `legacyStorage` 迁移边界可调用历史 record 解码，运行时和导出直接消费原生 Domain 结果。具体目录见 [Source Directory Guide](../src/README.md)。
 
 文档导出的内部会话表示只有 Domain 和 Document AST 两层：
 
@@ -211,7 +211,7 @@ graph TD
 | `src/core/api/client/retryPolicy.ts` | Core: API Client | `handleHttp400` / `handleHttp401` / `handleHttp429` / `interruptibleSleep` / `parseRetryAfterMs` | 处理 HTTP 400（XSRF 过期刷新）、401（凭证失效）、429（频率限制）的指数退避与重试策略。 | `geminiClient.ts` | 网络请求调用 | `API_Client` |
 | `src/core/api/client/rpcClient.ts` | Core: API Client | `postBatchexecute`, `getApiUrl` | 构造 batchexecute 原始 POST 请求负载、组装 RPC 封包并处理响应转义。 | `geminiClient.ts` | `window.fetch` | `API_Client` |
 | `src/core/parsers/gemini/rpc/parseList.ts` | Core: API Parser | `parseList`, `extractListItemTimestamp` | 从 batchexecute 响应中提取会话列表项（ID、标题、修改时间）。 | `geminiClient`, `messageBridge` | 原始数组 -> 会话摘要列表 | `API_Parser` |
-| `src/core/api/client/detailTypes.ts` | Core: API Transport | `DetailParseResult`, `ParserMessage` | 原生 Domain 的应用详情返回类型及分页、调试旁路字段。 | `geminiClient`, `pagination`, `nativeDetailView` | 类型定义 | `API_Transport` |
+| `src/core/api/client/detailTypes.ts` | Core: API Transport | `DetailParseResult` | 原生 Domain 的应用详情返回类型及分页、调试旁路字段。 | `geminiClient`, `pagination`, 原生详情调用方 | 类型定义 | `API_Transport` |
 | `src/core/parsers/gemini/rpc/extractors.ts` | Core: API Parser | `extractCandidateText`, `extractThoughts`, `extractCitations` | 提取模型思考推理过程（Thought Blocks）、候选回答文本与网络引用链接。 | `detailDecoder.ts` | 候选数据块 -> 纯文本与引用元数据 | `API_Parser` |
 | `src/core/compatibility/gemini/attachments.ts` | Core: API Parser | `extractImages`, `extractUserFiles`, `extractDocumentsMeta` | 保留仍被应用兼容边界使用的附件辅助函数和类型。 | `types/attachment`, `detailTypes` | 附件原始元数据 -> `Attachment[]` | `API_Parser` |
 | `src/core/parsers/gemini/rpc/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `detailDecoder.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |

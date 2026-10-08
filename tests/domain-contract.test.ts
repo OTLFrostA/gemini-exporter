@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Domain/composer contracts, including the shared title authority rules. */
 import { test } from 'node:test';
@@ -54,7 +55,7 @@ test('archive preparation rejects traversal and absolute destinations', () => {
 test('unknown provider bodies have a bounded deterministic fallback, and raw input stays intact', () => {
     const raw = { id: 'unknown', messages: [{ role: 'widget', content: { message: 'x'.repeat(5000) } }] };
     const original = structuredClone(raw);
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const parsed = historicalFixture(raw, { providerId: 'gemini' });
     const content = parsed.conversation.messages[0].content[0];
     assert.equal(content.type, 'unknown');
     if (content.type === 'unknown') { assert.ok(content.text.length <= 2001); assert.ok(content.text.endsWith('…')); assert.ok(content.sourceType); }

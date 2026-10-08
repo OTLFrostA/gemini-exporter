@@ -1,5 +1,4 @@
 import { parseGeminiRpcConversation } from '../parsers/gemini/rpc/parseConversation.js';
-import { createNativeDetailView } from '../compatibility/gemini/nativeDetailView.js';
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
 import { isDevMode, getErrorMessage } from "../utils/utils.js";
 import { extractConversationIdFromUrl } from "../utils/pathUtils.js";
@@ -261,9 +260,9 @@ const pagination = GeminiClientPagination;
             let text = await resp.text();
             try {
                 const native = parseGeminiRpcConversation(text, { providerId: 'gemini', targetConvId: conversationId });
-                const parsed = createNativeDetailView(native);
+                const parsed = native;
                 if (isDev) {
-                    console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.messages?.length}`);
+                    console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.conversation.messages.length}`);
                 }
                 return parsed;
             } catch (err: unknown) {

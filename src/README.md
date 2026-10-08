@@ -49,12 +49,12 @@ src/
         geminiProvider.ts      batchexecute RPC provider implementation
 
     api/                       Network clients, credentials, pagination and retries
-      geminiClient.ts          Raw RPC → Domain with the existing application envelope
+      geminiClient.ts          Raw RPC → native Domain result with separate transport evidence
       client/                  RPC transport and credential submodules
 
     parsers/                   Raw source decoding and direct Domain construction
       contracts.ts             Source parser context/result contracts (diagnostics beside Domain)
-      parseConversation.ts     Explicit format dispatcher; conversation-record is a migration bridge
+      parseConversation.ts     Raw format dispatcher; legacy-storage is the migration boundary
       gemini/rpc/              Wire extraction, source media and raw RPC → Domain
       gemini/takeout/           Activity HTML and cooperative ZIP parsing → Domain
       gemini/dom/               Authored DOM trees → Domain; observed coverage stays partial
@@ -74,11 +74,11 @@ src/
       typst/                   Typst renderer, templates, layout, math and private payload
       shared/                  Renderer options, strings and shared presentation policy
 
-    compatibility/             One-way legacy output views and historical record bridges
-      gemini/                  RPC facade, legacy filenames/paths and persisted detail projection
+    compatibility/             Historical grammar, final JSON serialization and acquisition adapters
+      gemini/                  Legacy media extraction/acquisition utilities
       takeout/                 Native import/cache and source-bound offline acquisition adapters
-      record/                  Domain → existing string record views; historical record → Domain
-        projectDomainRecord.ts One-way storage/JSON projection and native runtime sidecar
+      record/                  Historical storage record → Domain; final OpenAI output conversion
+        projectDomainRecord.ts One-way conversion used only by final OpenAI JSON serialization
       archive/                 Existing localized ZIP guard errors
 
     diagnostics/               Parsing, composition and rendering problem records
@@ -230,11 +230,10 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 ## Scoped Zero-Any Gate
 
 Run `node scripts/check-zero-any.cjs` locally. `npm test` and the CI `Unit Tests & Syntax`
-job enforce the same Oxlint `typescript/no-explicit-any` rule. The initial
-protected scope is exactly `src/core/utils/titleUtils.ts` and
-`src/core/utils/mergeUtils.ts`; legacy core files and tests remain outside it.
-To expand coverage, clean a production file first, then add its path to the
-`scripts/check-zero-any.cjs` script. No dependency upgrade is needed.
+job enforce the same Oxlint `typescript/no-explicit-any` rule. The protected
+scope is listed in `scripts/zero-any-files.json`, including semantic contracts,
+native parsing, selected runtime/export consumers and typed contract tests.
+To expand coverage, clean a file first, then add its path to that list. No dependency upgrade is needed.
 
 In protected production core code, `as any`, explicit `any`, `any[]`, and
 `Record<string, any>` are forbidden. `unknown` is allowed; type narrowing is
@@ -243,6 +242,6 @@ suppression comments are forbidden by review.
 
 ## Semantic dependency boundaries
 
-The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Domain and Document AST do not import parsers or output backends. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. The unified dispatcher has an explicit, limited dependency on the existing conversation-record bridge.
+The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Domain and Document AST do not import parsers or output backends. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. Only legacy-storage migration can invoke historical record decoding; runtime/export consume native Domain results.
 
 Native conversation inputs now persist Domain in the versioned repository; the old record format has an explicit parser and recoverable migration. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).

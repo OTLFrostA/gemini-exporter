@@ -1,4 +1,4 @@
-import { parseConversation } from '../../src/core/parsers/parseConversation.js';
+import { historicalFixture } from '../../tests/helpers/nativeFixture.js';
 /**
  * scripts/parser_migration/run_corpus.ts
  *
@@ -120,10 +120,10 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
 
     // Default baseline parser & converter if not injected
     const defaultBaselineParser: MarkdownParserFn = async (content, id) => {
-        return parseConversation({ format: 'conversation-record', providerId: 'gemini', data: {
+        return historicalFixture({
             id,
             messages: [{ id: 'm1', role: 'user', content }],
-        } });
+        }, { providerId: 'gemini' });
     };
 
     const activeBaselineParser = options.baselineParser || defaultBaselineParser;

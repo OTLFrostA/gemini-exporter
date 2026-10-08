@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,7 +28,7 @@ function input() {
 
 test('same URL with different generation/provider identities acquires separately by Domain asset ID', async () => {
     const raw = input(), original = structuredClone(raw);
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const parsed = historicalFixture(raw, { providerId: 'gemini' });
     assert.equal(parsed.conversation.assets.length, 2);
     const ids = parsed.conversation.assets.map(asset => asset.id);
     assert.notEqual(ids[0], ids[1]);
@@ -49,7 +50,7 @@ test('same URL with different generation/provider identities acquires separately
     assert.deepEqual(prepared.resources.get(ids[1])?.bytes, secondBytes);
     // Exercise the actual PDF orchestrator as well, not just the preparation helper.
     const requests: Array<string | undefined> = [];
-    const pdf = await preparePdfItem(raw, { assetPipeline: { acquireAssetBytes: async hint => {
+    const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async hint => {
         requests.push(hint.generation?.providerRequestId);
         return result(hint.generation?.providerRequestId === 'request-one' ? firstBytes : secondBytes);
     } } });
@@ -63,7 +64,7 @@ test('same URL with different generation/provider identities acquires separately
 
 test('acquired bytes, MIME and failure outcomes never enter Domain JSON or change Domain/AST', async () => {
     const raw = input(), original = structuredClone(raw);
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const parsed = historicalFixture(raw, { providerId: 'gemini' });
     const domainJson = JSON.stringify(parsed.conversation);
     const hintsJson = JSON.stringify(parsed.acquisitionHints);
     const document = composeDomainDocument(parsed.conversation).document;
@@ -82,14 +83,14 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         assert.equal(JSON.stringify(parsed.acquisitionHints), hintsJson);
         assert.equal(JSON.stringify(document), astJson);
         assert.equal(JSON.stringify(composeDomainDocument(parsed.conversation).document), astJson);
-        assert.equal(JSON.stringify(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw }).conversation), domainJson);
+        assert.equal(JSON.stringify(historicalFixture(raw, { providerId: 'gemini' }).conversation), domainJson);
         assert.ok(!domainJson.includes('dataBase64'));
         assert.ok(!domainJson.includes(Buffer.from(firstBytes).toString('base64')));
         for (const resource of prepared.resources.values()) {
             assert.deepEqual(resource.bytes, bytes ?? undefined);
             assert.equal(resource.failureReason, bytes ? undefined : 'HTTP 404');
         }
-        const pdf = await preparePdfItem(raw, { assetPipeline: { acquireAssetBytes: async () => result(bytes) } });
+        const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async () => result(bytes) } });
         assert.equal(pdf.ok, true);
             assert.equal(JSON.stringify(pdf.document), astJson);
     }
@@ -101,7 +102,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
 test('source-provided original bytes survive JSON round-trip and bypass runtime acquisition', async () => {
     const raw: ConversationRecordInput = { id: 'inline-fact', messages: [{ role: 'model', content: '',
         images: [{ type: 'image', dataBuffer: firstBytes, mimeType: 'image/png' }] }] };
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const parsed = historicalFixture(raw, { providerId: 'gemini' });
     assert.equal(parsed.conversation.assets[0].dataBase64, Buffer.from(firstBytes).toString('base64'));
     const domain = JSON.parse(JSON.stringify(parsed.conversation));
     const document = composeDomainDocument(domain).document;

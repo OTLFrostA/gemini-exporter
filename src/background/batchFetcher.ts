@@ -95,7 +95,6 @@ export async function fetchBatch(
 
                 if (res && res.success) {
                     const chat = res.data || res.chat || res;
-                    chat.id = cid;
                     results.push(chat);
                 } else {
                     results.push({
@@ -103,7 +102,6 @@ export async function fetchBatch(
                         title: item.title,
                         url: item.url || `https://gemini.google.com/app/${cid}`,
                         error: res?.error || '抓取失败',
-                        messages: [],
                         _empty: true,
                         _debug: res?._debug || null,
                         _raw: res?._raw || null
@@ -115,7 +113,6 @@ export async function fetchBatch(
                     title: item.title,
                     url: item.url || `https://gemini.google.com/app/${cid}`,
                     error: (e instanceof Error && e.message) ? e.message : '抓取异常',
-                    messages: [],
                     _empty: true,
                     _debug: e instanceof Error ? (e.stack || null) : null,
                     _raw: null

@@ -1,3 +1,5 @@
+const { rpcFixture } = require('./helpers/nativeFixture.js');
+const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
 /**
  * Phase C 规格测试 —— 解析可观测 (P1-8 / P1-9)
  * red-by-design: 修复前失败、修复后通过。
@@ -59,7 +61,7 @@ test('P1-8b: 正常 payload 无拒识、无漂移', () => {
 test('P1-8c: extractChatParseDrift 抽取诊断，turnsRejected>0 判 partial', () => {
     const junk = [["x_123"], [1, 0], [["u"]]];
     const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), junk]]));
-    const drift = parseDrift.extractChatParseDrift(res);
+    const drift = parseDrift.extractChatParseDrift(parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', targetConvId: 'abc123def456' }));
     assert.strictEqual(drift.turnsRejected, 1);
     assert.ok(drift.schemaDrift.length >= 0);
     assert.strictEqual(drift.hasHeuristicDocs, false);
@@ -79,10 +81,10 @@ test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）',
         { id: "c_x", messages: [{ id: "m2" }], schemaDrift: ["drift-b", "drift-a"], turnsRejected: 2, nextPageToken: null }
     ];
     let calls = 0;
-    const client = { fetchConversationPage: async () => pages[calls++] };
+    const client = { fetchConversationPage: async () => { const page = pages[calls++]; return rpcFixture(page, { nextPageToken: page.nextPageToken, schemaDrift: page.schemaDrift, turnsRejected: page.turnsRejected }); } };
     const res = await pagination.getConversationDetail(client, "c_x");
-    assert.strictEqual(res.turnsRejected, 3, 'turnsRejected 应跨页累加');
-    assert.deepStrictEqual([...res.schemaDrift].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
+    assert.strictEqual(res.transport.turnsRejected, 3, 'turnsRejected 应跨页累加');
+    assert.deepStrictEqual([...res.transport.schemaDrift].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
 });
 
 // ---------------------------------------------------------------- P1-9: 文档元数据来源标记

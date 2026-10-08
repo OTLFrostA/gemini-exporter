@@ -9,10 +9,10 @@ test.beforeAll(async () => {
         import { migrate, CURRENT_SCHEMA_VERSION } from './src/core/storage/schemaMigration.ts';
         import { saveConversationDetail, getConversationDetail } from './src/core/storage/conversationDetailStore.ts';
         import * as StorageService from './src/core/storage/storageService.ts';
-        import { getDomainConversationView } from './src/core/storage/domain/nativePersistence.ts';
+        import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import { formatMarkdownDocument } from './src/core/engine/chatFormatter.ts';
-        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationView, AssetPipeline, formatMarkdownDocument };
+        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -43,9 +43,9 @@ test('v1 disk migration joins metadata/body, survives restart and exports native
     await page.reload(); await install(page);
     const restored = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        const view = await api.getDomainConversationView('u0', 'old');
+        const view = await api.getDomainConversationResult('u0', 'old');
         const markdown = await api.formatMarkdownDocument(view);
-        return { version: (await chrome.storage.local.get(['gemini_schema_version'])).gemini_schema_version, conversation: view.parsed.conversation, markdown: markdown.content };
+        return { version: (await chrome.storage.local.get(['gemini_schema_version'])).gemini_schema_version, conversation: view.conversation, markdown: markdown.content };
     });
     expect(restored.version).toBe(2);
     expect(restored.conversation.messages).toHaveLength(2);
@@ -89,10 +89,10 @@ test('durable attachment bytes remain outside Domain and are acquired offline af
     await page.reload(); await install(page);
     const restored = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        const view = await api.getDomainConversationView('u0', 'offline');
+        const view = await api.getDomainConversationResult('u0', 'offline');
         const pipeline = new api.AssetPipeline({ currentSlot: 'u0', fetchAsset: async () => { throw new Error('Network must not be needed'); } });
-        const bytes = await pipeline.acquireAssetBytes(view.messages[0].attachments[0], { id: 'offline', title: 'Offline' });
-        return { bytes: [...bytes.bytes], conversation: view.parsed.conversation };
+        const bytes = await pipeline.acquireAssetBytes({ assetId: view.conversation.assets[0].id, url: view.conversation.assets[0].source.uri }, { id: 'offline', title: 'Offline' });
+        return { bytes: [...bytes.bytes], conversation: view.conversation };
     });
     expect(restored.bytes).toEqual([137, 80, 78, 71, 13, 10, 26, 10, 1]);
     expect(JSON.stringify(restored.conversation)).not.toMatch(/bytes|dataBuffer|archivePath|localName/);

@@ -58,7 +58,7 @@ export interface PdfExportProgress {
 }
 
 export interface PdfExporterOptions {
-    selected: Array<string | { id: string; title?: string }>;
+    selected: PdfSelectedItem[];
     conversations?: any[];
     format?: string;
     useZip?: boolean;
@@ -130,7 +130,7 @@ export {
     type PreparedPdfItemFailure,
     type PreparePdfItemContext,
 } from './prepareItem.js';
-import { preparePdfItem } from './prepareItem.js';
+import { preparePdfItem, type PdfSelectedItem } from './prepareItem.js';
 
 export interface MountedRuntimeFonts {
     readonly mountedCount: number;
@@ -238,9 +238,10 @@ export class PdfExporter {
         const skip = options.skip ?? false;
 
         const items = selected.map((s) => {
-            const id = typeof s === 'string' ? s : s?.id;
-            const title = (typeof s === 'object' && s?.title) || String(id ?? '');
-            return { id: String(id ?? ''), title };
+            const source = typeof s === 'object' && s && 'conversation' in s ? s.conversation : s;
+            const id = typeof source === 'string' ? source : source && typeof source === 'object' && 'id' in source ? source.id : '';
+            const title = source && typeof source === 'object' && 'title' in source && typeof source.title === 'string' ? source.title : String(id ?? '');
+            return { id: source && typeof source === 'object' && 'providerId' in source && source.providerId !== 'gemini' ? String(id ?? '') : normId(String(id ?? '')), title, selected: s };
         }).filter((it) => it.id);
 
         const total = items.length;
@@ -378,7 +379,7 @@ export class PdfExporter {
             if (this.aborted || signal.aborted) break;
             report(i, title);
 
-            const prep = await preparePdfItem(selected[i] ?? items[i], {
+            const prep = await preparePdfItem(items[i].selected, {
                 conversations: options.conversations,
                 fetchChatDetail: fetchChatDetailFn,
                 index: i,

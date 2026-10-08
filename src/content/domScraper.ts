@@ -1,6 +1,5 @@
-import type { DomDetail } from '../types/detailTransport.js';
+import type { DomDetail, DetailFailure } from '../types/detailTransport.js';
 import { parseGeminiDomConversation } from '../core/parsers/gemini/dom/parseConversation.js';
-import { createParsedConversationView } from '../core/compatibility/record/projectDomainRecord.js';
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle, getErrorMessage } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
@@ -16,23 +15,22 @@ export function parseDoc(doc: Document | null, id: string, url?: string): DomDet
 export function parseDoc(doc: Document | null, id: string, url?: string): DomDetail | null {
     if (!doc) return null;
     const parsed = parseGeminiDomConversation({ document: doc, id, url }, { providerId: 'gemini' });
-    return { ...createParsedConversationView(parsed), titleSource: parsed.conversation.titleSource === 'dom' ? 'dom' : 'default', _debug: parsed.transport };
+    return parsed;
 }
 
-export async function contentFetchChatDetail(id: string): Promise<DomDetail> {
+export async function contentFetchChatDetail(id: string): Promise<DomDetail | DetailFailure> {
     const url = `https://gemini.google.com/app/${id}`;
     let res: Response;
     try {
         res = await fetch(url, { credentials: 'include' });
     } catch (e: unknown) {
-        return { id, title: id, messages: [], error: 'fetch failed: ' + (getErrorMessage(e) || String(e)), _debug: { isNetworkError: true } };
+        return { id, title: id, error: 'fetch failed: ' + (getErrorMessage(e) || String(e)), _debug: { isNetworkError: true } };
     }
     if (!res.ok) {
         const isNotFound = res.status === 404;
         return {
             id,
             title: id,
-            messages: [],
             error: `HTTP ${res.status}`,
             isDeleted: isNotFound,
             _debug: { status: res.status, isNotFound }
@@ -40,16 +38,16 @@ export async function contentFetchChatDetail(id: string): Promise<DomDetail> {
     }
     const html = await res.text();
     if (typeof DOMParser === 'undefined') {
-        return { id, title: id, messages: [], _raw: { htmlLen: html.length } };
+        return { id, error: 'DOM parser unavailable', _debug: { htmlLen: html.length } };
     }
     const doc = new DOMParser().parseFromString(html, 'text/html');
     let parsed = parseDoc(doc, id, url);
-    if (!parsed.messages.length) {
+    if (!parsed.conversation.messages.length) {
         try {
             const cleanId = normId(id);
             if (typeof location !== 'undefined' && (location.pathname.includes(cleanId) || location.href.includes(cleanId))) {
                 const liveFallback = parseDoc(document, id, location.href);
-                if (liveFallback.messages.length) {
+                if (liveFallback.conversation.messages.length) {
                     console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
                     return liveFallback;
                 }

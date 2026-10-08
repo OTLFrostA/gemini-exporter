@@ -13,11 +13,12 @@
 import { isLiveSaveFormatSupported } from '../storage/liveStorageManager.js';
 import { FsWriter } from './writers/fsWriter.js';
 import { ChatFormatter } from './chatFormatter.js';
+import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import { buildExportFileName } from '../utils/pathUtils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../utils/constants.js';
 
 export interface LiveSaveWriteInput {
-    chat: any;
+    chat: ResourceConversationParseResult;
     safeTitle: string;
     nid: string;
 }
@@ -60,7 +61,7 @@ export async function formatLiveSaveMarkdown(
     const buildFileName = deps.buildFileName || buildExportFileName;
     const formatter = deps.formatter ?? ChatFormatter;
     const fileName = buildFileName(input.safeTitle, input.nid, 'md');
-    const shaped = { ...input.chat, title: input.safeTitle, id: input.nid };
+    const shaped = { ...input.chat, conversation: { ...input.chat.conversation, title: input.safeTitle, id: input.nid } };
     const { content: markdown } = await formatter.formatMarkdownDocument(shaped);
     return { fileName, markdown };
 }

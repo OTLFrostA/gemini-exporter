@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-e2e-disk.test.ts
  *
@@ -215,7 +216,7 @@ test('e2e-disk: single PDF export lands a real, parseable file on disk', async (
         const result = await exporter.run(
             {
                 selected: [{ id: conv.id, title: conv.title }],
-                conversations: [conv],
+                conversations: [conv], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([conv]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,
             },
@@ -289,6 +290,7 @@ test('e2e-disk: batch ZIP of 3 conversations lands a real ZIP with 3 parseable P
             {
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
                 conversations,
+                fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: true,
                 writer,
                 // The production delivery endpoint: in the browser this triggers

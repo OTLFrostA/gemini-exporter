@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { sendTypedMessage, isMessageAction, getErrorMessage } from '../src/core/utils/messaging.js';
@@ -22,7 +23,7 @@ type Contracts = [
     Assert<Equal<ReturnType<typeof readPopupFetchResult>, PopupFetchResult>>,
     Assert<Equal<Awaited<ReturnType<typeof openGeminiPage>>, unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof reloadGeminiTab>>, unknown>>,
-    Assert<Equal<PopupExportInput['messages'][number], unknown>>
+    Assert<Equal<PopupExportInput['conversation']['messages'][number]['role'], 'user' | 'assistant' | 'system' | 'developer' | 'unknown'>>
 ];
 const contracts: Contracts = [true, true, true, true, true, true, true, true, true, true, true];
 function actionOnly(input: unknown): void {
@@ -79,14 +80,14 @@ test('scan validation rejects malformed fields while preserving valid diagnostic
 });
 
 test('popup validation preserves rich envelope/direct replies and rejects false success shapes', () => {
-    const chat = { id: 'abc', title: 'Report', messages: [{ role: 'model', content: 'body' }],
+    const chat = { ...historicalFixture({ id: 'abc', title: 'Report', messages: [{ role: 'model', content: 'body' }] }),
         rawProviderEvidence: { keep: true } };
     for (const value of [{ success: true, data: chat }, { success: true, ...chat }]) {
         const parsed = readPopupFetchResult(value);
         assert.equal(parsed.success, true);
         if (parsed.success) {
             assert.equal(parsed.chat, 'data' in value ? chat : value);
-            assert.equal(parsed.chat.rawProviderEvidence, chat.rawProviderEvidence);
+            assert.equal(parsed.chat.conversation, chat.conversation);
         }
     }
     for (const bad of [null, [], {}, { success: 'true', data: chat }, { success: true, data: 'bad' },

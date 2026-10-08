@@ -1,16 +1,17 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { preparePdfItem, extractChatFromDetailResult, PDF_NO_MESSAGES } = require('../src/core/export/pdf/prepareItem.js');
 const { resolveConversationData } = require('../src/core/engine/export/batchWorker.js');
-const store = require('../src/core/storage/conversationDetailStore.js');
+const store = require('../src/core/storage/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
 test('PDF successful empty online response recovers Takeout messages before normalization', async () => {
     const result = await preparePdfItem({ id: 'fallback' }, {
         includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [{ messages: [] }] }),
-        takeoutEngine: { getTakeoutOfflineChat: () => ({ messages: [message('Recovered Takeout')] }) },
+        fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ messages: [] })] }),
+        takeoutEngine: { getTakeoutOfflineChat: () => historicalFixture({ id: 'fallback', messages: [message('Recovered Takeout')] }) },
     });
     assert.equal(result.ok, true);
     assert.match(JSON.stringify(result.document), /Recovered Takeout/);
@@ -18,27 +19,27 @@ test('PDF successful empty online response recovers Takeout messages before norm
 
 test('shared acquisition prefers online and uses cache only after unusable Takeout', async () => {
     let calls = 0;
-    const takeout = { getTakeoutOfflineChat: () => { calls++; return { messages: [] }; } };
-    const online = { messages: [message('online')] };
+    const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id: 'fallback', messages: [] }); } };
+    const online = historicalFixture({ id: 'fallback', messages: [message('online')] });
     assert.equal(await resolveConversationData(online, 'fallback', null, takeout), online);
     assert.equal(calls, 0);
-    await store.saveConversationDetail('fallback', { messages: [message('cache')] });
+    await store.saveDomainConversation('u0', historicalFixture({ id: 'fallback', messages: [message('cache')] }));
     try {
         const recovered = await resolveConversationData({ messages: [] }, 'fallback', null, takeout);
-        assert.equal(recovered.messages[0].content, 'cache');
+        assert.match(JSON.stringify(recovered.conversation.messages), /cache/);
         const pdf = await preparePdfItem({ id: 'fallback' }, {
             includeAssets: false, takeoutEngine: takeout,
             fetchChatDetail: async () => ({ success: false, error: 'offline' }),
         });
         assert.equal(pdf.ok, true);
         assert.match(JSON.stringify(pdf.document), /cache/);
-    } finally { store.__clearMemoryStore(); }
+    } finally { store.__clearDomainMemory(); }
 });
 
 test('PDF reports no messages only after all sources fail', async () => {
     const result = await preparePdfItem({ id: 'missing' }, {
         includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [{ messages: [] }] }),
+        fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ messages: [] })] }),
         takeoutEngine: { getTakeoutOfflineChat: () => null },
     });
     assert.equal(result.ok, false);
@@ -54,11 +55,11 @@ test('metadata-only selected item triggers detail fetch and prepares PDF documen
             assert.equal(item.id, 'meta-only');
             return {
                 success: true,
-                results: [{
+                results: [historicalFixture({
                     id: 'meta-only',
                     title: 'Authoritative Title',
                     messages: [message('Detail payload content')],
-                }],
+                })],
             };
         },
     });
@@ -74,18 +75,18 @@ test('extractChatFromDetailResult and preparePdfItem: results[0] wins over chat'
     const fallback = { id: 'f1', messages: [message('loser from fallback')] };
 
     const extracted = extractChatFromDetailResult(
-        { success: true, results: [fromResults], chat: fromChat },
+        { success: true, results: [historicalFixture(fromResults)], chat: fromChat },
         'norm-id',
         fallback,
     );
-    assert.equal(extracted.id, 'norm-id');
-    assert.equal(extracted.messages[0].content, 'winner from results');
+    assert.equal(extracted.conversation.id, 'r1');
+    assert.match(JSON.stringify(extracted.conversation.messages), /winner from results/);
 
     const result = await preparePdfItem({ id: 'precedence' }, {
         includeAssets: false,
         fetchChatDetail: async () => ({
             success: true,
-            results: [fromResults],
+            results: [historicalFixture(fromResults)],
             chat: fromChat,
         }),
     });

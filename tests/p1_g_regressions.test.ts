@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 /**
  * tests/p1_g_regressions.test.ts
  * Regression tests for review group G (type system: contract drift & dead code),
@@ -92,7 +93,7 @@ test('p1_g - P1-092 MessageAction covers all real actions', () => {
 // ---------------------------------------------------------------------------
 test('p1_g - P1-093 live-save payload includes assets contract', () => {
     const payload: LiveSaveViaHandlePayload = {
-        chat: { id: 'c_1', title: 't', timestamp: 1 },
+        chat: historicalFixture({ id: 'c_1', title: 't', timestamp: 1 }),
         safeTitle: 't', nid: 'n1',
         assets: [{ fileName: 'a.png', subDir: 'assets', base64: 'eA==' }],
     };

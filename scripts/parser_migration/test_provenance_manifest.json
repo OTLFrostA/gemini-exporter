@@ -1705,7 +1705,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "legacy application callers retain provider inference and use the unified Domain result",
+          "name": "historical record fixtures retain provider inference inside the migration boundary",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -1910,7 +1910,7 @@
       "policy": "PRESERVE_PROJECT_CONTRACT",
       "provenanceSource": "Physical layer ownership, erased type references and shared runtime dependency closure",
       "notes": "Architecture contracts verify import boundaries and naming responsibility; they do not establish provider wire fidelity or live Tier 2 coverage.",
-      "testCount": 5,
+      "testCount": 6,
       "tests": [
         {
           "name": "retired compatibility modules are absent and no production source imports them",
@@ -1934,6 +1934,11 @@
         },
         {
           "name": "native parsing does not allocate export paths or sanitized filenames",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "normal runtime cannot parse historical records or depend on application projections",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -1996,7 +2001,7 @@
       "classification": "P2",
       "provenanceSource": "Synthetic production caller, native pagination/export and ZIP acquisition contracts; not evidence of live provider compatibility",
       "policy": "PRESERVE_PROJECT_CONTRACT",
-      "testCount": 14,
+      "testCount": 16,
       "tests": [
         {
           "name": "production pagination merges native pages chronologically and closes renamed resources",
@@ -2019,12 +2024,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "storage projection and JSON exports keep string records without runtime Domain sidecars",
-          "classification": "P2",
-          "policy": "PRESERVE_PROJECT_CONTRACT"
-        },
-        {
-          "name": "malformed native sidecars fail rather than silently using the legacy parser",
+          "name": "final serializers preserve native JSON and isolate the external record projection",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -2065,6 +2065,21 @@
         },
         {
           "name": "compatibility table projection preserves pipe and backslash content without adding columns",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "malformed native results fail rather than silently using the legacy parser",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "metadata-only detail retry follows native pagination to its terminal page",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "metadata-only retry cannot hide a subsequent detail-page fetch failure",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
@@ -2140,15 +2155,41 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/native-json-export.test.ts",
+      "domain": "domain",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Native Domain preservation and explicit external JSON serialization contracts",
+      "notes": "Synthetic closed Domain fixtures verify both public JSON outputs; no ChatGPT import compatibility claim.",
+      "testCount": 3,
+      "tests": [
+        {
+          "name": "complete JSON preserves the full native Domain and versioned resource destinations",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "OpenAI JSON converts roles, multimodal images and reasoning only at the output boundary",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "raw JSON requires actual provider evidence and never exports a synthetic snapshot",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 40,
-    "totalTests": 333,
+    "totalSuites": 41,
+    "totalTests": 339,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 313,
+      "P2": 319,
       "P3": 2,
       "P4": 0
     }

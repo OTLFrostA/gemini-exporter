@@ -19,6 +19,31 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from scripts.framework.environment import TestEnvironment, EnvironmentContext
 
 
+from scripts.framework.assertions import CDPAssertions
+
+
+class TestPdfMathAssertion(unittest.TestCase):
+    def test_normal_latex_prose_and_code_are_not_renderer_fallbacks(self):
+        for text in ("Use LaTeX and state the units of every parameter.",
+                     r"LaTeX \frac{1}{2} in a tutorial code example"):
+            with self.subTest(text=text):
+                self.assertEqual(CDPAssertions.assert_pdf_math_compiled(text), (True, ""))
+
+    def test_real_renderer_fallback_preserves_failure_and_formula_context(self):
+        for label in ("Could not typeset this formula; original LaTeX preserved:",
+                      "\u65e0\u6cd5\u6392\u7248\u8be5\u516c\u5f0f\uff1b\u4fdd\u7559\u539f\u59cb LaTeX\uff1a"):
+            formula = r"\Lambda(X) \gtrso_{D_0}^{D_1} \gamma"
+            passed, context = CDPAssertions.assert_pdf_math_compiled(label + formula)
+            self.assertFalse(passed)
+            self.assertIn(formula, context)
+
+    def test_fallback_label_survives_extraction_whitespace(self):
+        self.assertFalse(CDPAssertions.assert_pdf_math_compiled(
+            "Couldnottypesetthis\nformula; original LaTeX preserved:" )[0])
+        self.assertFalse(CDPAssertions.assert_pdf_math_compiled(
+            "\u65e0 \u6cd5\u6392\n\u7248\u8be5\u516c\u5f0f")[0])
+
+
 class MockCDP:
     def __init__(self, ws_url="ws://127.0.0.1:9222/devtools/page/mock1"):
         self.ws_url = ws_url

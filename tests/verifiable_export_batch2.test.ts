@@ -1,3 +1,5 @@
+const { rpcFixture } = require('./helpers/nativeFixture.js');
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -10,20 +12,20 @@ test('D3: getConversationDetail flags truncated=true when exceeding 20 pages', a
     const mockClient = {
         fetchConversationPage: async (_cid: string, token: string | null) => {
             pageCalls++;
-            return {
+            return rpcFixture({
                 id: 'chat_long',
                 title: 'Long Chat',
                 messages: [{ id: `msg_${pageCalls}`, timestamp: 1700000000000 + pageCalls * 1000 }],
                 nextPageToken: `token_page_${pageCalls + 1}`
-            };
+            }, { nextPageToken: `token_page_${pageCalls + 1}` });
         }
     };
 
     const detail = await Pagination.getConversationDetail(mockClient, 'chat_long');
     assert.strictEqual(pageCalls, 20, 'Should stop after 20 pages');
-    assert.strictEqual(detail.truncated, true, 'detail must be flagged as truncated');
-    assert.strictEqual(detail.isTruncated, true);
-    assert.strictEqual(detail.truncateReason, 'max_turns_page_limit_20');
+    assert.strictEqual(detail.transport.truncated, true, 'detail must be flagged as truncated');
+    assert.strictEqual(detail.transport.truncated, true);
+    assert.strictEqual(detail.transport.truncateReason, 'max_turns_page_limit_20');
 });
 
 test('D3: getConversationDetail flags truncated=true on detail cursor token loop', async () => {
@@ -33,19 +35,19 @@ test('D3: getConversationDetail flags truncated=true on detail cursor token loop
     const mockClient = {
         fetchConversationPage: async () => {
             pageCalls++;
-            return {
+            return rpcFixture({
                 id: 'chat_loop',
                 title: 'Looping Detail Chat',
                 messages: [{ id: `msg_${pageCalls}`, timestamp: 1700000000000 + pageCalls * 1000 }],
                 nextPageToken: 'repeating_detail_token'
-            };
+            }, { nextPageToken: 'repeating_detail_token' });
         }
     };
 
     const detail = await Pagination.getConversationDetail(mockClient, 'chat_loop');
     assert.strictEqual(pageCalls, 2, 'Should break on repeated token (callCount = 2)');
-    assert.strictEqual(detail.truncated, true, 'detail must be flagged as truncated on loop');
-    assert.strictEqual(detail.truncateReason, 'token_loop');
+    assert.strictEqual(detail.transport.truncated, true, 'detail must be flagged as truncated on loop');
+    assert.strictEqual(detail.transport.truncateReason, 'token_loop');
 });
 
 // 2. D5: Failed items show failure badge, never ok badge
@@ -97,7 +99,7 @@ test('D6: liveSaveCoordinator deduplicates candidateName collisions within the s
                     {
                         type: 'image',
                         url: 'https://example.com/images/second_diagram.png',
-                        fileName: 'diagram.png'
+                        fileName: 'diagram.jpeg'
                     }
                 ]
             }
@@ -115,8 +117,10 @@ test('D6: liveSaveCoordinator deduplicates candidateName collisions within the s
         assetFetcher: mockFetcher
     });
 
+    const native = historicalFixture(chatWithCollidingImages);
+    const before = JSON.stringify(native.conversation);
     const saved = await LiveSaveCoordinator.processAndSaveImages(
-        chatWithCollidingImages,
+        native,
         chatWithCollidingImages.id,
         mockWriter
     );
@@ -125,8 +129,7 @@ test('D6: liveSaveCoordinator deduplicates candidateName collisions within the s
     assert.notStrictEqual(saved[0].fileName, saved[1].fileName, 'Both images must have distinct file names');
     assert.strictEqual(writtenFiles.size, 2, 'Two separate files must exist on disk without overwriting');
 
-    // Verify chat messages have distinct relative URLs
-    const att1: any = chatWithCollidingImages.messages[0].attachments[0];
-    const att2: any = chatWithCollidingImages.messages[0].attachments[1];
-    assert.notStrictEqual(att1.localName, att2.localName, 'Attachments must point to distinct local paths');
+    const destinations = Object.values(native.resourceHints).map((hint: any) => hint.archivePath);
+    assert.equal(new Set(destinations).size, 2, 'Each Domain asset must retain its own saved destination');
+    assert.equal(JSON.stringify(native.conversation), before, 'Saving bytes cannot rewrite source facts');
 });

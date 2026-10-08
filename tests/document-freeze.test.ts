@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -62,16 +63,16 @@ test('display date selects the first valid fact and normalizes to UTC at composi
     }
     assert.equal(composeDomainDocument(input).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: source }).conversation).document.header.date, '2026-10-07');
+    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document.header.date, '2026-10-07');
     source.updatedAt = 'invalid';
-    const document = composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: source }).conversation).document;
+    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document;
     assert.equal(document.header.date, '2026-10-04');
     assert.equal(document.messages[0].modelLabel, 'provider only');
     assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
 });
 
 test('parser removes math delimiters; HTML renders source verbatim and preserves malformed source', () => {
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] } });
+    const parsed = historicalFixture({ id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] }, { providerId: 'gemini' });
     const document = composeDomainDocument(parsed.conversation).document;
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'paragraph', children: [{ type: 'inlineMath', source: 'x^2' }] }, { type: 'math', source: 'y^2' },

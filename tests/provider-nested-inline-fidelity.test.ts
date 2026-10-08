@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-nested-inline-fidelity.test.ts
@@ -13,7 +14,7 @@ const { parseConversation } = require('../src/core/parsers/parseConversation.js'
  */
 export {};
 const test = require('node:test');
-const assert = require('node:assert');
+import assert from 'node:assert/strict';
 
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
@@ -24,7 +25,7 @@ async function normAndRender(content: string, options: any = {}) {
         title: 'Fidelity Test',
         messages: [{ id: 'm1', role: 'model', content }],
     };
-    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw, ...options });
+    const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini', ...options });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
     const msg = domain.messages[0];
     return { domain, msg, html, diagnostics };
@@ -35,10 +36,12 @@ test('Fidelity 1: Table cell bold renders as <strong> and does not leak **', asy
     const { msg, html } = await normAndRender(md);
 
     const table = msg.content.find((b: any) => b.type === 'table');
+    assert.ok(table?.type === 'table');
     assert.ok(table, 'table block found');
     const cellChildren = table.rows[0].cells[0].children;
     assert.strictEqual(cellChildren.length, 1);
     assert.strictEqual(cellChildren[0].type, 'strong');
+    assert.ok(cellChildren[0]?.type === 'strong');
     assert.strictEqual(cellChildren[0].children[0].text, 'bold text');
 
     // HTML assertions
@@ -51,13 +54,16 @@ test('Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not l
     const { msg, html } = await normAndRender(md);
 
     const table = msg.content.find((b: any) => b.type === 'table');
+    assert.ok(table?.type === 'table');
     assert.ok(table, 'table block found');
     const cellChildren = table.rows[0].cells[1].children;
 
     // Check Domain content structure
     assert.strictEqual(cellChildren[0].type, 'strong');
+    assert.ok(cellChildren[0]?.type === 'strong');
     assert.strictEqual(cellChildren[0].children[0].text, '确定状态');
     assert.strictEqual(cellChildren[1].type, 'lineBreak');
+    assert.ok(cellChildren[1]?.type === 'lineBreak');
     assert.strictEqual(cellChildren[1].kind, 'hard');
 
     // HTML assertions
@@ -72,6 +78,7 @@ test('Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) rend
 
     const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
+    assert.ok(p?.type === 'paragraph');
     const types = p.children.map((c: any) => c.type);
     assert.deepStrictEqual(types, ['strong', 'lineBreak', 'inlineCode', 'text', 'emphasis']);
 
@@ -93,12 +100,15 @@ test('Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting 
 
     const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
+    assert.ok(p?.type === 'paragraph');
 
     // First node is strong
     assert.strictEqual(p.children[0].type, 'strong');
+    assert.ok(p.children[0]?.type === 'strong');
     const strongChildren = p.children[0].children;
     assert.strictEqual(strongChildren[0].text, 'bold ');
     assert.strictEqual(strongChildren[1].type, 'inlineCode');
+    assert.ok(strongChildren[1]?.type === 'inlineCode');
     assert.strictEqual(strongChildren[1].code, 'code');
     assert.strictEqual(strongChildren[2].text, ' bold');
 
@@ -119,14 +129,18 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
     const p = msg.content[0];
     // First: strong containing link
     assert.strictEqual(p.children[0].type, 'strong');
+    assert.ok(p.children[0]?.type === 'strong');
     const link1 = p.children[0].children[0];
     assert.strictEqual(link1.type, 'link');
+    assert.ok(link1?.type === 'link');
     assert.strictEqual(link1.href, 'https://example.com/1');
 
     // Second: link containing strong
     assert.strictEqual(p.children[2].type, 'link');
+    assert.ok(p.children[2]?.type === 'link');
     assert.strictEqual(p.children[2].href, 'https://example.com/2');
     assert.strictEqual(p.children[2].children[0].type, 'strong');
+    assert.ok(p.children[2].children[0]?.type === 'strong');
     assert.strictEqual(p.children[2].children[0].children[0].text, 'nested bold');
 
     // HTML assertions

@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 // tests/export_cancel_semantics.test.ts
 // B3: 取消语义 —— 取消是用户意图，不记失败、不写 _export_errors.json、无下载回调。
 // 覆盖三类：
@@ -102,21 +103,21 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
     const worker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => ({
             success: true,
-            chat: {
+            chat: historicalFixture({
                 id: requestedItem.id,
                 title: requestedItem.title,
                 messages: [{ role: 'user', content: 'Hello' }]
-            }
+            })
         }),
         // 注入点：抓取完成、主 md 写入前 —— 用户点了取消
         resolveChat: async (chat: any, _requestedItem: any) => {
-            if (chat.id === 'chat-cancel-2') {
+            if (chat.conversation.id === 'chat-cancel-2') {
                 orchestrator.abort();
             }
             return {
                 chat,
-                listTitle: chat.title,
-                displayTitle: chat.title,
+                listTitle: chat.conversation.title,
+                displayTitle: chat.conversation.title,
                 isError: false,
                 errMsg: null,
                 isConfirmedDeleted: false,
@@ -152,11 +153,11 @@ test('cancel semantics - permission revoked: one real failure recorded, still no
     const worker = makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => ({
             success: true,
-            chat: {
+            chat: historicalFixture({
                 id: requestedItem.id,
                 title: requestedItem.title,
                 messages: [{ role: 'user', content: 'Hello' }]
-            }
+            })
         })
     });
 

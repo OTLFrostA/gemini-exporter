@@ -45,7 +45,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
         return chrome.tabs.sendMessage(tabs[0].id!, { action: 'getConversationDetail', conversationId: 'cross_origin_native', accountSlot: 'default' });
     });
     expect(response.success).toBe(true);
-    expect(response.data.parsed.conversation.messages).toHaveLength(2);
+    expect(response.data.conversation.messages).toHaveLength(2);
     await source.close();
     const stored = await options.evaluate(async () => {
         const request = indexedDB.open('gemini_exporter_domain', 1);

@@ -1,3 +1,4 @@
+import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { ScanResponse } from '../../types/ui.js';
 
 export function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -30,17 +31,9 @@ export function isScanResponse(value: unknown): value is ScanResponse {
     return true;
 }
 
-/** Only the top-level fields used by popup are checked; rich detail remains formatter input. */
-export interface PopupExportInput extends Record<string, unknown> {
-    id?: string | null;
-    title?: string | null;
-    messages: unknown[];
-}
-function isPopupExportInput(value: unknown): value is PopupExportInput {
-    return isObjectRecord(value) && (value.id == null || typeof value.id === 'string') &&
-        (value.title == null || typeof value.title === 'string') &&
-        Array.isArray(value.messages);
-}
+/** Popup consumes the same closed native result as the full workbench. */
+export type PopupExportInput = ResourceConversationParseResult;
+function isPopupExportInput(value: unknown): value is PopupExportInput { return isResourceConversationParseResult(value); }
 
 export type PopupFetchResult =
     | { success: true; chat: PopupExportInput }

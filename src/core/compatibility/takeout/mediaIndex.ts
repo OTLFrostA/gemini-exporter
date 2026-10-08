@@ -1,4 +1,3 @@
-import { readParsedConversation } from '../record/projectDomainRecord.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { sameGenerationEvent } from '../../engine/generatedMediaIdentity.js';
 import type {
@@ -21,55 +20,7 @@ interface StoredTakeoutMedia {
     providerRequestId?: string;
 }
 
-interface TakeoutCachedImage {
-    url?: string;
-    name?: string;
-    fileName?: string;
-    localName?: string;
-    source?: string;
-    isGenerated?: boolean;
-    providerRequestId?: string;
-    imageOrdinal?: number;
-    generation?: GeneratedMediaIdentity;
-}
-
-interface TakeoutCachedMessage {
-    id?: string;
-    role?: 'user' | 'model' | 'assistant' | 'system';
-    content?: string;
-    timestamp?: number | null;
-    turnId?: string;
-    providerRequestId?: string;
-    generation?: GeneratedMediaIdentity;
-    images?: TakeoutCachedImage[];
-    attachments?: unknown[];
-    thoughts?: string | string[];
-    thinking?: string;
-    citations?: unknown[];
-}
-
-export interface TakeoutCachedConversation {
-    parsed?: ResourceConversationParseResult;
-    id?: string;
-    title?: string;
-    timestamp?: number | null;
-    updatedAt?: number | string | null;
-    createdAt?: number | string | null;
-    source?: string;
-    titleSource?: string;
-    titles?: Record<string, string | undefined>;
-    messages?: TakeoutCachedMessage[];
-    turns?: unknown[];
-    accountSlot?: string;
-    isTakeoutOnly?: boolean;
-    hitGoogleLimit?: boolean;
-    url?: string;
-    attachmentCount?: number;
-    messageCount?: number;
-    hasExplicitPrompt?: boolean;
-    error?: unknown;
-    _empty?: boolean;
-}
+export type TakeoutCachedConversation = ResourceConversationParseResult;
 
 export interface TakeoutStore {
     mediaMap: Record<string, StoredTakeoutMedia[]>;
@@ -170,8 +121,8 @@ async function getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slo
     if (!filenameOrId) return null;
     const nid = normId(chatId);
     const store = getStore(slot);
-    if (!store.convCache[nid] && Object.values(store.convCache).some(chat => chat.parsed)) return null;
-    const native = readParsedConversation(store.convCache[nid]);
+    if (!store.convCache[nid] && Object.keys(store.convCache).length > 0) return null;
+    const native = store.convCache[nid];
     if (native) {
         const matches = native.conversation.assets.filter(asset => {
             const path = native.resourceHints[asset.id]?.archivePath;

@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-underscore-delimiter.test.ts
@@ -18,7 +19,7 @@ async function inlineNodes(content: string): Promise<any[]> {
         id: 'c1',
         messages: [{ id: 'm1', role: 'user', content }],
     };
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const { conversation: domain } = await historicalFixture(raw, { providerId: 'gemini' });
     const msg = domain.messages[0];
     const out: any[] = [];
     for (const b of msg.content) {

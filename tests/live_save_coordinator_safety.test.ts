@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -7,24 +8,24 @@ test('B3 Safety 1: RPC/provider success beats DOM scraper', async () => {
     let scraperCalled = false;
     class MockClient {
         async getConversationDetail(id: string) {
-            return {
+            return historicalFixture({
                 id,
                 title: 'RPC Authority Title',
                 messages: [{ role: 'user', content: 'from RPC', timestamp: 1710000000000 }],
                 chatTime: 1710000000000,
                 updatedAt: 1710000000000,
                 timestamp: 1710000000000
-            };
+            });
         }
     }
     const mockScraper = {
         parseDoc: () => {
             scraperCalled = true;
-            return {
+            return historicalFixture({
                 id: 'dom_id',
                 title: 'DOM Scraped Title',
                 messages: [{ role: 'user', content: 'from DOM' }]
-            };
+            });
         }
     };
 
@@ -35,8 +36,8 @@ test('B3 Safety 1: RPC/provider success beats DOM scraper', async () => {
 
     const detail = await LiveSaveCoordinator.resolveConversationDetail('c_rpc_beats_dom');
     assert.ok(detail);
-    assert.strictEqual(detail.title, 'RPC Authority Title');
-    assert.strictEqual(detail.messages[0].content, 'from RPC');
+    assert.strictEqual(detail.conversation.title, 'RPC Authority Title');
+    assert.deepStrictEqual(detail.conversation.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'from RPC' }] }]);
     assert.strictEqual(scraperCalled, false, 'DOM scraper must not be called when RPC detail succeeds');
 });
 
@@ -50,11 +51,11 @@ test('B3 Safety 2: RPC empty/failure falls back to DOM scraper', async () => {
     const mockScraper = {
         parseDoc: () => {
             scraperCalled = true;
-            return {
+            return historicalFixture({
                 id: 'c_fallback_test',
                 title: 'DOM Fallback Title',
                 messages: [{ role: 'user', content: 'from DOM fallback' }]
-            };
+            });
         }
     };
 
@@ -65,14 +66,14 @@ test('B3 Safety 2: RPC empty/failure falls back to DOM scraper', async () => {
 
     const detail = await LiveSaveCoordinator.resolveConversationDetail('c_fallback_test');
     assert.ok(detail);
-    assert.strictEqual(detail.title, 'DOM Fallback Title');
-    assert.strictEqual(detail.messages[0].content, 'from DOM fallback');
+    assert.strictEqual(detail.conversation.title, 'DOM Fallback Title');
+    assert.deepStrictEqual(detail.conversation.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'from DOM fallback' }] }]);
     assert.strictEqual(scraperCalled, true, 'DOM scraper must be called when RPC throws');
 
     // Also test RPC returning empty messages array
     class EmptyMessagesClient {
         async getConversationDetail(id: string) {
-            return { id, title: 'Empty', messages: [] };
+            return historicalFixture({ id, title: 'Empty', messages: [] });
         }
     }
     scraperCalled = false;
@@ -83,14 +84,14 @@ test('B3 Safety 2: RPC empty/failure falls back to DOM scraper', async () => {
 
     const detail2 = await LiveSaveCoordinator.resolveConversationDetail('c_empty_test');
     assert.ok(detail2);
-    assert.strictEqual(detail2.title, 'DOM Fallback Title');
+    assert.strictEqual(detail2.conversation.title, 'DOM Fallback Title');
     assert.strictEqual(scraperCalled, true, 'DOM scraper must be called when RPC returns 0 messages');
 });
 
-test('B3 Safety 3: timestamp repair uses max valid message timestamp', async () => {
+test('B3 Safety 3: runtime preserves source timestamps without repairing missing conversation time', async () => {
     class TimestampClient {
         async getConversationDetail(id: string) {
-            return {
+            return historicalFixture({
                 id,
                 title: 'Timestamp Test',
                 chatTime: null, // missing/non-finite
@@ -103,7 +104,7 @@ test('B3 Safety 3: timestamp repair uses max valid message timestamp', async () 
                     { role: 'model', content: 'msg4', timestamp: -1 },
                     { role: 'user', content: 'msg5', timestamp: null }
                 ]
-            };
+            });
         }
     }
 
@@ -113,9 +114,9 @@ test('B3 Safety 3: timestamp repair uses max valid message timestamp', async () 
 
     const detail = await LiveSaveCoordinator.resolveConversationDetail('c_timestamp_test');
     assert.ok(detail);
-    assert.strictEqual(detail.chatTime, 5000, 'chatTime must be repaired to max valid timestamp');
-    assert.strictEqual(detail.updatedAt, 5000, 'updatedAt must be repaired to max valid timestamp');
-    assert.strictEqual(detail.timestamp, 5000, 'timestamp must be repaired to max valid timestamp');
+    assert.strictEqual(detail.conversation.chatTime, undefined);
+    assert.strictEqual(detail.conversation.updatedAt, null);
+    assert.strictEqual(detail.conversation.timestamp, null);
 });
 
 test('B3 Safety 4: mock mode triggers feedback and returns true without disk/IPC', async () => {
@@ -136,11 +137,11 @@ test('B3 Safety 4: mock mode triggers feedback and returns true without disk/IPC
         setLiveConfig: async () => {}
     };
     const mockScraper = {
-        parseDoc: () => ({
+        parseDoc: () => historicalFixture(({
             id: 'c_mock_test',
             title: 'Mock Mode Session',
             messages: [{ role: 'user', content: 'hi' }]
-        })
+        }))
     };
 
     LiveSaveCoordinator.init({
@@ -178,11 +179,11 @@ test('B3 Safety 5: live-save IPC success delegates and triggers feedback', async
                 setLiveConfig: async () => {}
             },
             scraper: {
-                parseDoc: () => ({
+                parseDoc: () => historicalFixture(({
                     id: 'c_ipc_01',
                     title: 'IPC Chat',
                     messages: [{ role: 'user', content: 'query' }, { role: 'model', content: 'answer' }]
-                })
+                }))
             },
             badge: {
                 showLiveSaveFeedback: () => { feedbackCalled = true; }
@@ -226,11 +227,11 @@ test('B3 Safety 6: partial asset result is treated as saved + warning', async ()
                 setLiveConfig: async () => {}
             },
             scraper: {
-                parseDoc: () => ({
+                parseDoc: () => historicalFixture(({
                     id: 'c_partial_ipc',
                     title: 'Partial IPC Chat',
                     messages: [{ role: 'user', content: 'test' }]
-                })
+                }))
             },
             badge: {
                 showLiveSaveWarning: (msg: string) => { warningCalledWith = msg; }
@@ -274,11 +275,11 @@ test('B3 Safety 7: permission/directory errors map exactly as expected', async (
                     setLiveConfig: async () => {}
                 },
                 scraper: {
-                    parseDoc: () => ({
+                    parseDoc: () => historicalFixture(({
                         id: 'c_err_test',
                         title: 'Error Test',
                         messages: [{ role: 'user', content: 'ping' }]
-                    })
+                    }))
                 },
                 badge: {
                     showLiveSaveWarning: (msg: string) => { warningCalledWith = msg; }
@@ -335,7 +336,7 @@ test('B3 Safety 8: failed image download does not rewrite source URL', async () 
     };
     const failures: Array<{ file: string; error: string }> = [];
 
-    const collected = await LiveSaveCoordinator.processAndSaveImages(chat, 'c_0123456789fail', null, failures);
+    const collected = await LiveSaveCoordinator.processAndSaveImages(historicalFixture(chat), 'c_0123456789fail', null, failures);
     assert.strictEqual(collected.length, 0);
     assert.strictEqual(failures.length, 1);
     assert.ok(failures[0].file.endsWith('.png'));
@@ -394,7 +395,8 @@ test('B3 Safety 9: successful image save rewrites attachment/image/Markdown path
         ]
     };
     const failures: Array<{ file: string; error: string }> = [];
-    const collected = await LiveSaveCoordinator.processAndSaveImages(chat, 'c_9988776655443322', mockWriter, failures);
+    const native = historicalFixture(chat); const before = structuredClone(native.conversation);
+    const collected = await LiveSaveCoordinator.processAndSaveImages(native, 'c_9988776655443322', mockWriter, failures);
 
     assert.strictEqual(collected.length, 1);
     assert.strictEqual(failures.length, 0);
@@ -402,18 +404,8 @@ test('B3 Safety 9: successful image save rewrites attachment/image/Markdown path
     assert.ok(writtenFile.startsWith('443322_'));
 
     const expectedLocal = `assets/${writtenFile}`;
-    // Attachment: localName = local, src = local
-    assert.strictEqual(chat.messages[0].attachments[0].localName, expectedLocal);
-    assert.strictEqual(chat.messages[0].attachments[0].src, expectedLocal);
-
-    // Image: localName = local, src = local, url = local
-    assert.strictEqual(chat.messages[0].images[0].localName, expectedLocal);
-    assert.strictEqual(chat.messages[0].images[0].src, expectedLocal);
-    assert.strictEqual((chat.messages[0].images[0] as any).url, expectedLocal);
-
-    // Markdown: exact online URL replaced
-    assert.ok(chat.messages[0].content.includes(expectedLocal));
-    assert.strictEqual(chat.messages[0].content.includes(photoUrl), false);
+    assert.strictEqual(native.resourceHints[native.conversation.assets[0].id].archivePath, expectedLocal);
+    assert.deepStrictEqual(native.conversation, before);
 });
 
 test('B3 Safety 10: deterministic image filename behavior and collision handling', async () => {
@@ -439,7 +431,7 @@ test('B3 Safety 10: deterministic image filename behavior and collision handling
             }
         ]
     };
-    const collected = await LiveSaveCoordinator.processAndSaveImages(chat, 'c_1234567890abcdef', null, []);
+    const collected = await LiveSaveCoordinator.processAndSaveImages(historicalFixture(chat), 'c_1234567890abcdef', null, []);
     assert.strictEqual(collected.length, 2);
     // cid6 is abcdef, turn 1 => t1
     assert.ok(collected[0].fileName.startsWith('abcdef_t1_my_pic.png'));
@@ -475,7 +467,7 @@ test('B3 Safety 11: bounded concurrency (IMAGE_FETCH_CONCURRENCY = 4) completes 
         });
     }
     const chat = { messages };
-    const collected = await LiveSaveCoordinator.processAndSaveImages(chat, 'c_concurrency123', null, []);
+    const collected = await LiveSaveCoordinator.processAndSaveImages(historicalFixture(chat), 'c_concurrency123', null, []);
 
     assert.strictEqual(collected.length, 10);
     assert.ok(maxConcurrent <= 4, `Max concurrency should not exceed 4 (observed: ${maxConcurrent})`);
@@ -530,14 +522,14 @@ test('B3 Safety 13: direct directory path calls export completion with title/tim
             setLiveConfig: async (cfg: any) => { savedConfig = cfg; }
         },
         scraper: {
-            parseDoc: () => ({
+            parseDoc: () => historicalFixture(({
                 id: 'c_completion_test',
                 title: 'Export Record Complete Test',
                 titleSource: 'dom',
                 titles: { dom: 'Export Record Complete Test' },
                 messages: [{ role: 'user', content: 'test msg' }],
                 timestamp: 1715000000000
-            })
+            }))
         },
         completeExport: async (_records: any, _slot: string, input: any) => {
             completionInput = input;
@@ -583,11 +575,11 @@ test('B3 Safety 14: queue serialization and survival of prior rejection', async 
             setLiveConfig: async () => {}
         },
         scraper: {
-            parseDoc: (_doc: any, id: string) => ({
+            parseDoc: (_doc: any, id: string) => historicalFixture(({
                 id,
                 title: `Chat ${id}`,
                 messages: [{ role: 'user', content: `content ${id}` }]
-            })
+            }))
         },
         fsWriterClass: DelayedWriter,
         clientClass: null,

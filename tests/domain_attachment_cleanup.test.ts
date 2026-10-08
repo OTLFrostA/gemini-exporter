@@ -1,3 +1,4 @@
+import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
@@ -7,7 +8,6 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
 import { structuredBodyAttachments } from '../src/core/compatibility/gemini/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
@@ -18,10 +18,10 @@ const generation = { chatId: metadata.id, providerRequestId: 'abcdef0123456789',
 
 async function assertRoundTrip(input: Conversation): Promise<DomainConversationDetail> {
     const original = structuredClone(input);
-    const { conversation: domain, resourceHints } = parseLegacyConversation(input);
+    const { conversation: domain, resourceHints } = historicalFixture(input);
     const serialized: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
     const [raw, semantic, restored] = await Promise.all([
-        composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: input }).conversation, resourceHints), composeFixture(domain, resourceHints), composeFixture(serialized, resourceHints),
+        composeFixture(historicalFixture(input, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints), composeFixture(serialized, resourceHints),
     ]);
     assert.deepEqual(semantic.document, raw.document);
     assert.deepEqual(restored.document, semantic.document);

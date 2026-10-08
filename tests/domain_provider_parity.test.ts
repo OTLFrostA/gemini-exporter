@@ -1,15 +1,15 @@
+import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
 async function assertDomainParity(conversation: Conversation): Promise<void> {
-    const { conversation: domain, resourceHints } = parseLegacyConversation(conversation);
+    const { conversation: domain, resourceHints } = historicalFixture(conversation);
     const [legacyResult, domainResult] = await Promise.all([
-        composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conversation }).conversation, resourceHints),
+        composeFixture(historicalFixture(conversation, { providerId: 'gemini' }).conversation, resourceHints),
         composeFixture(domain, resourceHints),
     ]);
     assert.deepEqual(domainResult.document, legacyResult.document);
@@ -76,7 +76,7 @@ test('Domain composition preserves provider parsing after flattening turns-only 
             { messages: [{ role: 'user', content: 'Follow-up', timestamp: null }, { role: 'model', content: 'Follow-up answer' }] },
         ],
     };
-    const domain = toDomainConversationDetail(conversation);
+    const domain = historicalFixtureDomain(conversation);
     assert.equal('turns' in domain, false);
     assert.deepEqual(domain.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
     await assertDomainParity(conversation);

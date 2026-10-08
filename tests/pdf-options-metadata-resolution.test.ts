@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-options-metadata-resolution.test.ts
  *
@@ -137,7 +138,7 @@ test('regression: metadata-only options.conversations item resolves full detail 
     const fetchCalls: any[] = [];
     const fetchChatDetail = async (requestedItem: any, index: number, total: number, slot: string, skip: boolean, format: string) => {
         fetchCalls.push({ requestedItem, index, total, slot, skip, format });
-        return { success: true, results: [JSON.parse(JSON.stringify(fullChat))] };
+        return { success: true, results: [historicalFixture(JSON.parse(JSON.stringify(fullChat)))] };
     };
 
     const compilerState = { calls: 0, document: null as any };
@@ -198,7 +199,7 @@ test('regression: metadata-only selected (empty conversations) resolves full det
     const fetchCalls: any[] = [];
     const fetchChatDetail = async (requestedItem: any, index: number, total: number, slot: string, skip: boolean, format: string) => {
         fetchCalls.push({ requestedItem, index, total, slot, skip, format });
-        return { success: true, results: [JSON.parse(JSON.stringify(fullChat))] };
+        return { success: true, results: [historicalFixture(JSON.parse(JSON.stringify(fullChat)))] };
     };
 
     const compilerState = { calls: 0, document: null as any };
@@ -242,7 +243,7 @@ test('fail-closed: metadata-only selected resolving to zero messages fails with 
 
     const fetchChatDetail = async () => ({
         success: true,
-        results: [{ id, title, messages: [] }],
+        results: [historicalFixture({ id, title, messages: [] })],
     });
 
     const compilerState = { calls: 0, document: null as any };
@@ -323,7 +324,7 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
 
     const fetchChatDetail = async () => ({
         success: true,
-        results: [{ id, title, messages: [] }],
+        results: [historicalFixture({ id, title, messages: [] })],
     });
 
     const compilerState = { calls: 0, document: null as any };

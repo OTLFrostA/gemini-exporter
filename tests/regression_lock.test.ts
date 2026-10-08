@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const { isRealTitle } = require('../src/core/parsers/gemini/rpc/extractors.js');
@@ -123,7 +124,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     __setModuleOverride('TabService', {
         sendToGeminiTab: async (msg: any) => {
             assert.strictEqual(msg.action, 'getConversationDetail');
-            return { success: true, data: chatDetail };
+            return { success: true, data: historicalFixture(chatDetail) };
         }
     });
 
@@ -306,7 +307,7 @@ test('regression: export_engine failedChats must store detailed objects with err
     const orchContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
     const recContent = readSrc('../src/core/engine/export/sessionRecovery.js');
     assert.ok(orchContent.includes('failedChats.push({ id:'), 'failedChats should push detailed objects');
-    assert.ok(orchContent.includes("failedChats.push({ id: c.id, title:")
+    assert.ok(orchContent.includes("failedChats.push({ id: nid, title:")
         || orchContent.includes("failedChats.push({ id: chat.id")
         || orchContent.includes("failedChats.push({ id: typeof chatCandidate.id === 'string' ? chatCandidate.id : nid, title:"),
     'failedChats push should include title and error');
@@ -343,7 +344,7 @@ test('regression: stop sync must sync window flag and active client', () => {
 test('regression: empty cloud response must be logged as error with debug', () => {
     const expContent = readSrc('../src/core/engine/export/exportOrchestrator.js');
     assert.ok(expContent.includes("'error'") && expContent.includes('logExportSkipped'), 'empty should be error level');
-    assert.ok(expContent.includes('_debug') && expContent.includes('_raw'), 'failedChats should carry debug/raw');
+    assert.ok(expContent.includes('debug: evidence._debug') && expContent.includes('raw: transport.decodedPayload'), 'failedChats should carry debug/raw');
     const bgContent = readSrc('../src/background/background.js') + readSrc('../src/background/batchFetcher.js');
     assert.ok(bgContent.includes('_debug'), 'background should preserve _raw debug');
 });
@@ -618,7 +619,7 @@ test('regression: export_engine and options must scrub Google Gemini brand', () 
     const expContent = readSrc('../src/core/engine/export/batchWorker.js');
     const titleUtilsContent = readSrc('../src/core/utils/titleUtils.js');
     const optContent = readSrc('../src/ui/options/options.js');
-    assert.ok(expContent.includes('isBadBrand') || expContent.includes('isBrandPlaceholderTitle'), 'batchWorker should have isBadBrand scrub');
+    assert.ok(expContent.includes('resolveTitle('), 'batchWorker should have isBadBrand scrub');
     assert.ok(expContent.includes('Google\\s+)?(Gemini|Bard') || titleUtilsContent.includes('Google\\s+)?(Gemini|Bard'), 'batchWorker/titleUtils should filter brand regex');
     assert.ok(optContent.includes('isBad'), 'options.js should scrub bad titles on load');
     assert.strictEqual(isRealTitle('Google Gemini', 'abc123'), false);
@@ -842,8 +843,8 @@ test('Bug repro - takeout title stale when second block is non-explicit prompt',
         assert.strictEqual(res.conversations[0].title, 'Corrected Title', 'extractedMap title should be corrected');
         const offline = TakeoutEngine.getTakeoutOfflineChat('BUG_REPRO_001');
         assert.ok(offline, 'offline chat should exist');
-        assert.strictEqual(offline.title, 'Corrected Title', 'offlineCache title should be sync to Corrected Title');
-        assert.strictEqual(offline.titles.takeout, 'Corrected Title', 'offlineCache titles.takeout should be sync');
+        assert.strictEqual(offline.conversation.title, 'Corrected Title', 'offlineCache title should be sync to Corrected Title');
+        assert.strictEqual(offline.conversation.titles.takeout, 'Corrected Title', 'offlineCache titles.takeout should be sync');
     } finally {
         (global as any).JSZip = origJSZip;
     }
@@ -884,12 +885,12 @@ test('regression: dom_scraper must try live document before fetch shell', () => 
     assert.ok(domContent.includes('location.pathname.includes(cleanId)'), 'should try live parseDoc when location matches');
     assert.ok(domContent.includes('debugCurrentPage'), 'should expose debugCurrentPage');
     const nativeParser = fs.readFileSync(path.join(__dirname, '../src/core/parsers/gemini/dom/parseConversation.ts'), 'utf8');
-    assert.ok(nativeParser.includes('fallbackUsed') && domContent.includes('_debug: parsed.transport'), 'parseDoc should expose the native parser fallback evidence');
+    assert.ok(nativeParser.includes('fallbackUsed') && domContent.includes('return parsed;'), 'parseDoc should expose the native parser fallback evidence');
 });
 
 test('regression: content.js must fallback to DOM when batchexecute returns empty', () => {
     const ctContent = readSrc('../src/content/content.js') + readSrc('../src/content/messageRouter.js');
-    assert.ok(ctContent.includes('Array.isArray(detail.messages) && detail.messages.length > 0'), 'should check length>0 before success');
+    assert.ok(ctContent.includes('detail.conversation.messages.length > 0'), 'should check length>0 before success');
     assert.ok(ctContent.includes('batchexecute returned empty messages, fallback to DOM'), 'should warn and fallback');
 });
 

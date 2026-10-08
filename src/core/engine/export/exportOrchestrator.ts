@@ -1,3 +1,4 @@
+import { planExportResources } from '../../export/assets/planExportResources.js';
 
 import type {
     UIExportOptions,
@@ -869,26 +870,26 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         } else if (res.chat !== undefined && res.chat !== null) {
                             candidate = res.chat;
                         }
-                        const chatCandidate = candidate || { title: requestedItem.title };
-                        if (!isResolverPropertyAccessCandidate(chatCandidate)) {
-                            throw new TypeError(`Cannot create property 'id' on ${typeof chatCandidate} '${String(chatCandidate)}'`);
-                        }
-                        chatCandidate.id = nid;
+                        const chatCandidate = candidate;
 
                         const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
                         const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
 
                         if (resolvedRes.isError) {
-                            failedChats.push({ id: typeof chatCandidate.id === 'string' ? chatCandidate.id : nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: chatCandidate._debug || null, raw: chatCandidate._raw || null, isDeleted: resolvedRes.isConfirmedDeleted });
+                            const evidence = isObjectRecord(chatCandidate) ? chatCandidate : {};
+                            const transport = isObjectRecord(evidence.transport) ? evidence.transport : {};
+                            failedChats.push({ id: nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: evidence._debug ?? transport.debug ?? null, raw: transport.decodedPayload ?? evidence._raw ?? evidence.raw ?? null, isDeleted: resolvedRes.isConfirmedDeleted });
                             if (typeof console !== 'undefined' && console.warn) {
-                                console.warn('[Gemini Exporter] export empty detail', nid, resolvedRes.errMsg, 'chat keys', Object.keys(chatCandidate));
+                                console.warn('[Gemini Exporter] export empty detail', nid, resolvedRes.errMsg, 'chat keys', Object.keys(chatCandidate || {}));
                             }
                             completedCount++;
                             updateProgress(completedCount, resolvedRes.displayTitle);
                             continue;
                         }
 
-                        const chat = resolvedRes.chat;
+                        const planned = await planExportResources(resolvedRes.chat);
+                        const exportResult = planned.result;
+                        const chat = exportResult.conversation;
                         const listTitle = resolvedRes.listTitle;
                         chat.title = listTitle;
                         const chatId = chat.id;
@@ -925,11 +926,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         let formatted: FormattedResult;
                         if (format === 'html') {
-                            formatted = await ChatFormatter.formatHtmlDocument(chat);
+                            formatted = await ChatFormatter.formatHtmlDocument(exportResult);
                         } else if (format === 'markdown') {
-                            formatted = await ChatFormatter.formatMarkdownDocument(chat);
+                            formatted = await ChatFormatter.formatMarkdownDocument(exportResult);
                         } else {
-                            formatted = ChatFormatter.formatContent(chat, format);
+                            formatted = ChatFormatter.formatContent(exportResult, format);
                         }
 
                         const content = formatted.content;
@@ -958,7 +959,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         let queuedAssetsForThisChat = 0;
                         const chatAssetTasks: AssetTask[] = [];
                         const assetChatTitle = chat.title || chatId;
-                        const queueAsset = (item: WorkerMessageAttachment, isImage: boolean) => {
+                        const queueAsset = (item: WorkerMessageAttachment, isImage: boolean, content?: string | Uint8Array) => {
                             totalAssets++;
                             queuedAssetsForThisChat++;
                             updateProgress();
@@ -971,7 +972,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     localName: itemLocalName || itemFileName || (isImage ? 'image.jpg' : 'file.bin'),
                                     recoveredFromTakeout: false
                                 };
-                                if (assetPipeline) {
+                                if (content !== undefined) {
+                                    await writeFileDirect(assetRes.localName, content);
+                                    assetRes.saved = true;
+                                } else if (assetPipeline) {
                                     assetRes = await assetPipeline.processAsset(item, chat, { isImage, listTitle, signal: abortSignal });
                                 }
                                 if (assetRes.saved) {
@@ -1010,90 +1014,18 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             chatAssetTasks.push(assetTask);
                         };
 
-                        if (includeAssets && chat.messages && !mainWriteError) {
-                            for (const m of chat.messages) {
-                                if (m.attachments?.length) {
-                                    for (const attValue of m.attachments) {
-                                        const attType = attValue.type;
-                                        if (attType === 'image') {
-                                            const alreadyListed = m.images?.some(image =>
-                                                image.localName === attValue.localName
-                                                || image.url === attValue.url
-                                                || image.fileName === attValue.fileName);
-                                            if (!alreadyListed) {
-                                                queueAsset(attValue, true);
-                                            }
-                                            continue;
-                                        }
-                                        if (attType !== 'file') continue;
-                                        const attUrl = attValue.url;
-                                        const attContentMarkdown = attValue.contentMarkdown;
-                                        if ((attUrl && attUrl.includes('immersive_entry_chip')) && !attContentMarkdown) continue;
-                                        if (attContentMarkdown) {
-                                            const docMarkdown = typeof attContentMarkdown === 'string' ? attContentMarkdown : '';
-                                            const cleanDocMd = stripInternalChipMarkdown(docMarkdown).trim();
-                                            if (!cleanDocMd) {
-                                                continue;
-                                            }
-                                            const docLocalName = attValue.localName || '';
-                                            if (useZip) {
-                                                try {
-                                                    await writeFileDirect(docLocalName, cleanDocMd);
-                                                    totalAssets++;
-                                                    downloadedAssets++;
-                                                    updateProgress();
-                                                } catch (e: unknown) {
-                                                    // 取消不记为资产失败，直接向上传播（B3 会进一步区分取消语义）
-                                                    if (isNamedError(e, 'AbortError') || this.aborted) throw e;
-                                                    chatFailedAssetsSet.add(nid);
-                                                    failedAttachments.push({ chatId, chatTitle: listTitle || assetChatTitle, file: docLocalName, error: getErrorMessage(e) });
-                                                }
-                                            } else {
-                                                totalAssets++;
-                                                queuedAssetsForThisChat++;
-                                                updateProgress();
-                                                const mdTask: AssetTask = async () => {
-                                                    const docFileName = docLocalName || `${safeBase}_${shortId(chatId)}.md`;
-                                                    try {
-                                                        await writeFileDirect(docFileName, cleanDocMd);
-                                                        downloadedAssets++;
-                                                    } catch (e: unknown) {
-                                                        // 取消不记为资产失败，直接向上传播
-                                                        if (isNamedError(e, 'AbortError') || this.aborted) throw e;
-                                                        chatFailedAssetsSet.add(nid);
-                                                        failedAttachments.push({ chatId, chatTitle: listTitle || assetChatTitle, file: docFileName, error: getErrorMessage(e) });
-                                                    }
-                                                    updateProgress();
-                                                    const left = (pendingAssetsPerChat.get(nid) || 1) - 1;
-                                                    pendingAssetsPerChat.set(nid, left);
-                                                    if (left === 0) await finalizeChatExport(chatId);
-                                                };
-                                                mdTask.__assetMeta = { nid, chatId, listTitle, fileName: docLocalName || 'doc.md' };
-                                                chatAssetTasks.push(mdTask);
-                                            }
-                                            continue;
-                                        }
-
-                                        queueAsset(attValue, false);
-                                    }
-                                }
-
-                                if (m.images?.length) {
-                                    for (const imageValue of m.images) {
-                                        queueAsset(imageValue, true);
-                                    }
-                                }
-                            }
+                        if (includeAssets && !mainWriteError) {
+                            for (const asset of planned.assets) queueAsset(asset.item, asset.isImage, asset.content);
                         }
 
                         // P1-8/P1-9: parser 诊断随 chat 透出，不在生产环境静默
-                        const chatDrift = extractChatParseDrift(chat);
+                        const chatDrift = extractChatParseDrift(exportResult);
                         const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
 
                         if (!mainWriteError) {
                             landedChats++;
                             onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
-                            if (!chat.error && !chat._empty) {
+                            if (chat.messages.length) {
                                 if (driftNotable) {
                                     const bits: string[] = [];
                                     if (chatDrift.turnsRejected > 0) bits.push(`拒识 ${chatDrift.turnsRejected} 个 turn`);
@@ -1110,11 +1042,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         hasHeuristicDocs: chatDrift.hasHeuristicDocs
                                     });
                                 }
-                                const isChatTruncated = Boolean(chat.truncated || chat.isTruncated);
+                                const isChatTruncated = Boolean(chatDrift.truncated);
                                 if (isChatTruncated) {
                                     onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                                 }
-                                const baseStatus = (actualMsgCount === 0 || !!chat.isEmpty) ? 'empty' : 'ok';
+                                const baseStatus = (actualMsgCount === 0) ? 'empty' : 'ok';
                                 const driftStatus = chatRecordStatusWithDrift(baseStatus, chatDrift);
                                 const statusOverride = isChatTruncated
                                     ? 'partial'
@@ -1141,7 +1073,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     statusOverride,
                                     isTruncated: isChatTruncated,
                                     truncateReason: isChatTruncated
-                                        ? (typeof chat.truncateReason === 'string' ? chat.truncateReason : 'truncated')
+                                        ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
                                         : undefined
                                 });
 
@@ -1206,7 +1138,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
                             messageCount: computeExportMessageCount(chat),
-                            attachmentCount: queuedAssetsForThisChat || (typeof chat.attachmentCount === 'number' && Number.isFinite(chat.attachmentCount) ? chat.attachmentCount : 0),
+                            attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,
                             status: mainWriteError ? 'failed' : 'success',
                             ...(driftNotable ? {

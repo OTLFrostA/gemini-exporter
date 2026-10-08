@@ -80,11 +80,12 @@ Fresh native captures from network interception, detail fetching, DOM fallback,
 live saving and Takeout import write Domain directly to the new repository.
 Takeout import also stores source-bound file bytes before reporting success.
 
-Export fallback reads the account-scoped native record before the historical
-detail cache. Runtime compatibility views can still produce old string fields for
-JSON/application consumers, but those strings are not the new stored semantic
-body. The old detail API remains for historical inputs and characterization;
-native writes do not write a second legacy body. Scoped deletion removes both the
+Export fallback reads account-scoped native Domain records; it never decodes the
+historical detail cache at runtime. Missing bodies remain retryable failures.
+Only old-storage migration interprets historical string records. OpenAI JSON
+conversion happens at final serialization, without an application projection.
+The old detail API remains for migration and characterization; native writes do
+not write a second legacy body. Scoped deletion removes both the
 selected record, its native revisions and acquired bytes while preserving other
 accounts. `removed_conversations` markers prevent late migration/retry from
 restoring removed bodies; an explicit fresh source capture can restore them.

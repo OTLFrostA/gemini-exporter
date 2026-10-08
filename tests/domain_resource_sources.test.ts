@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Conversation } from '../src/types/conversation.js';
-import { parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
 
 const base = { id: 'resource-sources', title: '', timestamp: null };
@@ -15,7 +15,7 @@ test('renaming export paths changes prepared bindings but not Domain facts or id
     const renamed = structuredClone(input);
     renamed.messages![0].content = '![caption](new/photo.webp)';
     renamed.messages![0].attachments![0].localName = 'new/photo.webp';
-    const first = parseLegacyConversation(input), second = parseLegacyConversation(renamed);
+    const first = historicalFixture(input), second = historicalFixture(renamed);
     assert.deepEqual(first.conversation, second.conversation);
     assert.deepEqual(input, before);
     const asset = first.conversation.assets[0];
@@ -29,7 +29,7 @@ test('renaming export paths changes prepared bindings but not Domain facts or id
 });
 
 test('same export destination cannot collapse resources from different sources', () => {
-    const { conversation } = parseLegacyConversation({ ...base, messages: [{ role: 'user', content: '', attachments: [
+    const { conversation } = historicalFixture({ ...base, messages: [{ role: 'user', content: '', attachments: [
         { type: 'image', url: 'https://example.test/one', localName: 'assets/same.png' },
         { type: 'image', url: 'https://example.test/two', localName: 'assets/same.png' },
     ] }] });
@@ -38,7 +38,7 @@ test('same export destination cannot collapse resources from different sources',
 });
 
 test('one source remains one resource across renamed legacy destinations', () => {
-    const { conversation } = parseLegacyConversation({ ...base, messages: [
+    const { conversation } = historicalFixture({ ...base, messages: [
         { role: 'user', content: '![one](one.png)', attachments: [{ type: 'image', url: 'https://example.test/shared', localName: 'one.png' }] },
         { role: 'model', content: '![two](two.png)', images: [{ type: 'image', url: 'https://example.test/shared', localName: 'two.png' }] },
     ] });
@@ -53,14 +53,14 @@ test('destination-only resources retain distinct occurrence identities without p
     ] }] };
     const renamed = structuredClone(input);
     renamed.messages![0].attachments!.forEach(item => { item.localName = 'new/image.png'; });
-    const first = parseLegacyConversation(input).conversation;
-    assert.deepEqual(first, parseLegacyConversation(renamed).conversation);
+    const first = historicalFixture(input).conversation;
+    assert.deepEqual(first, historicalFixture(renamed).conversation);
     assert.equal(first.assets.length, 2);
     assert.ok(first.assets.every(asset => asset.kind === 'file' && !asset.source && !asset.name));
 });
 
 test('ambiguous export aliases remain unresolved instead of becoming acquisition sources', () => {
-    const { conversation } = parseLegacyConversation({ ...base, messages: [{
+    const { conversation } = historicalFixture({ ...base, messages: [{
         role: 'user', content: '![caption](same.png)', attachments: [
             { type: 'image', url: 'https://example.test/one', localName: 'same.png' },
             { type: 'image', url: 'https://example.test/two', localName: 'same.png' },
