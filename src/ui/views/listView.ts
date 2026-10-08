@@ -149,8 +149,11 @@ export function render(
         for (const c of currentConversationsRef) {
             const nid = normId(c.id);
             const rec = expMap[nid] || null;
-            const st = resolveConversationExportState(c, rec);
-            if (st.needsIncrementalExport) {
+            const isFailedInSession = !!(
+                failedChatIds && (failedChatIds.has(c.id) || failedChatIds.has(nid) || failedChatIds.has('c_' + nid))
+            );
+            const st = resolveConversationExportState(c, rec, { isFailedInSession });
+            if (st.shouldAutoSelect) {
                 canonicalSelectedIds.add(c.id);
                 canonicalSelectedIds.add(nid);
             }
@@ -213,7 +216,7 @@ export function render(
         } else if (prevSelectedSet instanceof Set) {
             isChecked = prevSelectedSet.has(c.id) || prevSelectedSet.has(nid) || prevSelectedSet.has('c_' + nid);
         } else {
-            isChecked = st.needsIncrementalExport;
+            isChecked = st.shouldAutoSelect;
         }
 
         const resolved = resolveTitle(c);

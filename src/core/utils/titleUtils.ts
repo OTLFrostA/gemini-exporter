@@ -425,8 +425,10 @@ export interface ConversationExportState {
     state: ConversationExportStateKind;
     /** True only when conversation activity on server/local advanced past the export record */
     hasNewerActivity: boolean;
-    /** True when incremental export (skipExported) or default auto-select should include this conversation */
+    /** True when incremental export (skipExported) should include this conversation, including resource retries */
     needsIncrementalExport: boolean;
+    /** Default selection includes new, updated, failed or empty exports, but accepts delivered partial exports */
+    shouldAutoSelect: boolean;
     /** True when the conversation failed in the current session or has a partial/failed export record */
     isFailed: boolean;
     /** True when never exported and not failed */
@@ -591,11 +593,15 @@ export function resolveConversationExportState(
     }
 
     const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity;
+    const shouldAutoSelect = !isPendingAssets && (
+        !hasRecord || isRecordFailed || recStatus === 'empty' || hasNewerActivity || (isFailedInSession && !isPartial)
+    );
 
     return {
         state,
         hasNewerActivity,
         needsIncrementalExport,
+        shouldAutoSelect,
         isFailed,
         isUnexported,
         isExportedClean,

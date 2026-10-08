@@ -136,11 +136,21 @@ test.describe('Workbench UI & Selection Controls', () => {
       const mockConvs = [
         { id: 'chat_fresh', title: '未导出新会话', timestamp: now - 3600000 },
         { id: 'chat_exported', title: '已导出未变动会话', timestamp: now - 7200000, updatedAt: now - 7200000 },
-        { id: 'chat_updated', title: '已导出又有新对话', timestamp: now - 7200000, updatedAt: now }
+        { id: 'chat_updated', title: '已导出又有新对话', timestamp: now - 7200000, updatedAt: now },
+        { id: 'chat_partial', title: '附件缺失但正文已导出', timestamp: now - 7200000 },
+        { id: 'chat_legacy_partial', title: '旧版附件缺失记录', timestamp: now - 7200000 },
+        { id: 'chat_partial_updated', title: '附件缺失后又有新对话', timestamp: now - 7200000, updatedAt: now },
+        { id: 'chat_failed', title: '之前整次导出失败', timestamp: now - 7200000 },
+        { id: 'chat_empty', title: '之前未导出任何正文', timestamp: now - 7200000 }
       ];
       const mockExported = {
         'chat_exported': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出未变动会话' },
-        'chat_updated': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出又有新对话' }
+        'chat_updated': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出又有新对话' },
+        'chat_partial': { exportedAt: new Date(now - 3600000).toISOString(), status: 'partial', hasFailedAssets: true },
+        'chat_legacy_partial': { exportedAt: new Date(now - 3600000).toISOString(), hasFailedAssets: true },
+        'chat_partial_updated': { exportedAt: new Date(now - 3600000).toISOString(), status: 'partial', hasFailedAssets: true },
+        'chat_failed': { exportedAt: new Date(now - 3600000).toISOString(), status: 'failed' },
+        'chat_empty': { exportedAt: new Date(now - 3600000).toISOString(), status: 'empty', messageCount: 0 }
       };
       await chrome.storage.local.set({
         gemini_conversations: mockConvs,
@@ -154,7 +164,7 @@ test.describe('Workbench UI & Selection Controls', () => {
     });
 
     const listItems = page.locator('#list .item');
-    await expect(listItems).toHaveCount(3);
+    await expect(listItems).toHaveCount(8);
 
     // 1. Verify "Updated" badge on chat_updated (default headless locale is en)
     const updatedItem = page.locator('#list .item[data-chat-id="chat_updated"]');
@@ -170,15 +180,35 @@ test.describe('Workbench UI & Selection Controls', () => {
     const freshItem = page.locator('#list .item[data-chat-id="chat_fresh"]');
     expect(await freshItem.locator('.badge').count()).toBe(0);
 
-    // 4. Verify default selection: chat_fresh and chat_updated are checked, chat_exported is unchecked
+    // 4. New, updated and wholly failed exports are selected; unchanged partial delivery is accepted.
     expect(await freshItem.locator('input[type=checkbox]').isChecked()).toBe(true);
     expect(await updatedItem.locator('input[type=checkbox]').isChecked()).toBe(true);
     expect(await exportedItem.locator('input[type=checkbox]').isChecked()).toBe(false);
-    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(2);
+    const partialItem = page.locator('#list .item[data-chat-id="chat_partial"]');
+    await expect(partialItem.locator('input[type=checkbox]')).not.toBeChecked();
+    await expect(partialItem.locator('.badge-exported-partial')).toBeVisible();
+    await expect(page.locator('#list .item[data-chat-id="chat_legacy_partial"] input[type=checkbox]')).not.toBeChecked();
+    await expect(page.locator('#list .item[data-chat-id="chat_partial_updated"] input[type=checkbox]')).toBeChecked();
+    await expect(page.locator('#list .item[data-chat-id="chat_failed"] input[type=checkbox]')).toBeChecked();
+    await expect(page.locator('#list .item[data-chat-id="chat_empty"] input[type=checkbox]')).toBeChecked();
+    expect(await page.locator('#list input[type=checkbox]:checked').count()).toBe(5);
+
+    // Accepting partial delivery by default does not prevent an explicit retry.
+    await partialItem.locator('input[type=checkbox]').check();
 
     // 5. Test Chinese language switch: badge updates to "已更新" and "已导出"
     await page.click('#labelLangZh');
     await expect(updatedItem.locator('.badge-updated')).toContainText('已更新');
     await expect(exportedItem.locator('.badge-exported')).toContainText('已导出');
+    await expect(partialItem.locator('input[type=checkbox]')).toBeChecked();
+    await expect(partialItem.locator('.badge-exported-partial')).toBeVisible();
+
+    await page.reload();
+    await expect(partialItem.locator('input[type=checkbox]')).not.toBeChecked();
+    await expect(page.locator('#list .item[data-chat-id="chat_failed"] input[type=checkbox]')).toBeChecked();
+    await expect(freshItem.locator('input[type=checkbox]')).toBeChecked();
+    await expect(updatedItem.locator('input[type=checkbox]')).toBeChecked();
+    await expect(page.locator('#list .item[data-chat-id="chat_empty"] input[type=checkbox]')).toBeChecked();
+    await expect(page.locator('#list .item[data-chat-id="chat_partial_updated"] input[type=checkbox]')).toBeChecked();
   });
 });

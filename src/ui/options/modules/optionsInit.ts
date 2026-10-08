@@ -118,9 +118,9 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
         const Storage = getStorage();
         if (!Store) return;
         const slot = Store.getCurrentSlot() || 'u0';
+        const hadExistingConvs = Store.getConversations().length > 0;
         const { conversations: incoming, exportedIds } = await Store.loadStore(slot);
         updateAccountSlotSelector();
-        const hadExistingConvs = Store.getConversations().length > 0;
 
         const syncInfo = await Store.getLastSync(slot);
         const lastSyncVal = syncInfo.timestamp;
