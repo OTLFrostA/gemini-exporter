@@ -7,11 +7,12 @@ test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
         import * as store from './src/core/storage/domain/domainStore.ts';
         import { migrate, CURRENT_SCHEMA_VERSION } from './src/core/storage/schemaMigration.ts';
-        import { saveConversationDetail } from './src/core/storage/conversationDetailStore.ts';
+        import { saveConversationDetail, getConversationDetail } from './src/core/storage/conversationDetailStore.ts';
+        import * as StorageService from './src/core/storage/storageService.ts';
         import { getDomainConversationView } from './src/core/storage/domain/nativePersistence.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import { formatMarkdownDocument } from './src/core/engine/chatFormatter.ts';
-        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getDomainConversationView, AssetPipeline, formatMarkdownDocument };
+        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationView, AssetPipeline, formatMarkdownDocument };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -119,3 +120,112 @@ test('online byte cache survives restart, deletion erases bytes and a late migra
     });
     expect(result).toEqual({ bytes: [1, 2, 3], late: null, removed: null, restoredBytes: null });
 });
+
+for (const method of ['remove', 'reconcile'] as const) {
+    for (const failure of ['domain', 'legacy', 'exports'] as const) {
+        test(`${method} retries ${failure} deletion failure after list removal and restart`, async ({ page }) => {
+            await install(page);
+            const failed = await page.evaluate(async ({ method, failure }) => {
+                const api = Reflect.get(globalThis, 'storageProbe');
+                const parsed = {
+                    conversation: { providerId: 'gemini', id: 'retry-delete', title: 'Delete', timestamp: null,
+                        assets: [{ id: 'archive', kind: 'image', source: { uri: 'Takeout/source.png' } },
+                            { id: 'online', kind: 'image', source: { uri: 'https://example.test/online.png' } }],
+                        messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'archive' }, { type: 'image', assetId: 'online' }] }] },
+                    acquisitionHints: {}, resourceHints: {}, diagnostics: []
+                };
+                await chrome.storage.local.set({ gemini_schema_version: 2,
+                    gemini_conversations: [{ id: 'c_retry-delete', title: 'Delete' }],
+                    gemini_conversations_u1: [{ id: 'retry-delete', title: 'Other account' }],
+                    exportedIds: { 'retry-delete': { timestamp: 1 }, 'c_retry-delete': { timestamp: 1 }, keep: { timestamp: 1 } },
+                    gemini_exported_u1: { 'retry-delete': { timestamp: 2 } }
+                });
+                await api.saveDomainConversation('u0', parsed, [{ assetId: 'archive', bytes: new Uint8Array([1, 2, 3]) }]);
+                parsed.conversation.title = 'New revision';
+                await api.saveDomainConversation('u0', parsed);
+                await api.saveDomainConversation('u1', parsed, [{ assetId: 'archive', bytes: new Uint8Array([4, 5]) }]);
+                for (const slot of ['u0', 'u1']) await api.cacheDomainResource(api.storageIdentity('gemini', slot, 'retry-delete'), 'online', 'https://example.test/online.png', new Uint8Array([6, 7]));
+                await api.saveConversationDetail('retry-delete', { messages: [{ role: 'user', content: 'Legacy body' }] });
+                const originalDelete = IDBObjectStore.prototype.delete;
+                const originalSet = chrome.storage.local.set.bind(chrome.storage.local);
+                IDBObjectStore.prototype.delete = function (...args) {
+                    if ((failure === 'domain' && this.transaction.db.name === 'gemini_exporter_domain' && this.name === 'conversations')
+                        || (failure === 'legacy' && this.name === 'conversation_details')) {
+                        throw new DOMException('Injected deletion failure', 'UnknownError');
+                    }
+                    return originalDelete.apply(this, args);
+                };
+                chrome.storage.local.set = async function (values) {
+                    if (failure === 'exports' && 'exportedIds' in values) throw new Error('Injected export-record deletion failure');
+                    return originalSet(values);
+                };
+                let error = '';
+                try {
+                    if (method === 'remove') await api.StorageService.removeConversation('u0', 'c_retry-delete');
+                    else await api.StorageService.reconcileConversations('u0', []);
+                } catch (e) { error = String(e); }
+                finally { IDBObjectStore.prototype.delete = originalDelete; chrome.storage.local.set = originalSet; }
+                return {
+                    error,
+                    local: await chrome.storage.local.get(['gemini_conversations', 'gemini_pending_deletions_u0']),
+                    native: await api.getStoredDomain(api.storageIdentity('gemini', 'u0', 'retry-delete')),
+                    legacy: await api.getConversationDetail('retry-delete')
+                };
+            }, { method, failure });
+            expect(failed.error).toContain('Injected');
+            expect(failed.local.gemini_conversations).toEqual([]);
+            expect(failed.local.gemini_pending_deletions_u0).toEqual(['retry-delete']);
+            if (failure === 'domain') expect(failed.native).not.toBeNull();
+            else expect(failed.native).toBeNull();
+            if (failure !== 'exports') expect(failed.legacy).not.toBeNull();
+
+            // Retry from a new JS context: recovery must use disk intent, not the list or memory.
+            await page.reload(); await install(page);
+            const cleaned = await page.evaluate(async method => {
+                const api = Reflect.get(globalThis, 'storageProbe');
+                const result = method === 'remove'
+                    ? await api.StorageService.removeConversation('u0', 'retry-delete')
+                    : await api.StorageService.reconcileConversations('u0', []);
+                const db = await api.openDomainDB();
+                const stores = await new Promise<Record<string, unknown[]>>((resolve, reject) => {
+                    const names = ['conversations', 'revisions', 'resource_bytes', 'removed_conversations'];
+                    const tx = db.transaction(names, 'readonly');
+                    const rows: Record<string, unknown[]> = {};
+                    tx.oncomplete = () => resolve(rows);
+                    tx.onabort = tx.onerror = () => reject(tx.error);
+                    for (const name of names) {
+                        const req = tx.objectStore(name).getAll();
+                        req.onsuccess = () => { rows[name] = req.result; };
+                    }
+                });
+                db.close();
+                const repeat = method === 'remove'
+                    ? await api.StorageService.removeConversation('u0', 'c_retry-delete')
+                    : await api.StorageService.reconcileConversations('u0', []);
+                return { result, repeat, stores,
+                    local: await chrome.storage.local.get(['gemini_conversations', 'gemini_pending_deletions_u0', 'gemini_last_count', 'gemini_account_slots', 'exportedIds', 'gemini_exported_u1']),
+                    legacy: await api.getConversationDetail('retry-delete'),
+                    otherArchive: [...await api.getDomainResource(api.storageIdentity('gemini', 'u1', 'retry-delete'), 'archive')],
+                    otherOnline: [...await api.getDomainResource(api.storageIdentity('gemini', 'u1', 'retry-delete'), 'online')]
+                };
+            }, method);
+            expect(cleaned.result).toEqual(method === 'remove' ? false : { kept: 0, removed: 1, removedIds: ['retry-delete'] });
+            expect(cleaned.repeat).toEqual(method === 'remove' ? false : { kept: 0, removed: 0, removedIds: [] });
+            expect(cleaned.local.gemini_conversations).toEqual([]);
+            expect(cleaned.local.gemini_pending_deletions_u0).toEqual([]);
+            expect(cleaned.local.gemini_last_count).toBe(0);
+            expect(cleaned.local.gemini_account_slots).toMatchObject({ u0: { count: 0 } });
+            expect(cleaned.local.exportedIds).toEqual({ keep: { timestamp: 1 } });
+            expect(cleaned.local.gemini_exported_u1).toEqual({ 'retry-delete': { timestamp: 2 } });
+            expect(cleaned.legacy).toBeNull();
+            // Only the other account survives in current, history and online bytes.
+            expect(cleaned.stores.conversations).toHaveLength(1);
+            expect(cleaned.stores.revisions).toHaveLength(1);
+            expect(cleaned.stores.resource_bytes).toHaveLength(1);
+            expect(cleaned.stores.removed_conversations).toHaveLength(1);
+            expect(cleaned.stores.removed_conversations[0]).toMatchObject({ key: JSON.stringify(['gemini', 'u0', 'retry-delete']) });
+            expect(cleaned.otherArchive).toEqual([4, 5]);
+            expect(cleaned.otherOnline).toEqual([6, 7]);
+        });
+    }
+}

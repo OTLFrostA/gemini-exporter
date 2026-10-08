@@ -178,12 +178,14 @@ export async function removeStoredDomain(identity: DomainStorageIdentity): Promi
             const tx = db.transaction([CURRENT, HISTORY, BYTE_CACHE, REMOVED], 'readwrite');
             tx.oncomplete = () => resolve();
             tx.onabort = tx.onerror = () => reject(tx.error || new Error('Domain deletion failed'));
-            tx.objectStore(REMOVED).put({ key, removedAt: Date.now() });
-            tx.objectStore(CURRENT).delete(key);
-            for (const name of [HISTORY, BYTE_CACHE]) {
-                const cursor = tx.objectStore(name).index('conversation').openCursor(IDBKeyRange.only(key));
-                cursor.onsuccess = () => { const c = cursor.result; if (c) { c.delete(); c.continue(); } };
-            }
+            try {
+                tx.objectStore(REMOVED).put({ key, removedAt: Date.now() });
+                tx.objectStore(CURRENT).delete(key);
+                for (const name of [HISTORY, BYTE_CACHE]) {
+                    const cursor = tx.objectStore(name).index('conversation').openCursor(IDBKeyRange.only(key));
+                    cursor.onsuccess = () => { const c = cursor.result; if (c) { c.delete(); c.continue(); } };
+                }
+            } catch (error) { tx.abort(); reject(error); }
         });
     } finally { db.close(); }
 }

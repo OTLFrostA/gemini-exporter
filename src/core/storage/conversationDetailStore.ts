@@ -268,21 +268,20 @@ export async function removeConversationDetails(ids: string[]): Promise<number> 
         return removed;
     }
 
+    // A physical deletion failure must reach the caller so its durable intent
+    // remains pending. A memory fallback cannot clean an existing disk database.
+    const db = await openDetailDB();
     try {
-        return await withDetailDB('readwrite', async (store) => {
-            for (const nid of nids) {
-                store.delete(nid);
-                removed++;
-            }
-            return removed;
+        return await new Promise<number>((resolve, reject) => {
+            const tx = db.transaction(DETAIL_STORE, 'readwrite');
+            tx.oncomplete = () => resolve(nids.length);
+            tx.onabort = tx.onerror = () => reject(tx.error || new Error('Legacy detail deletion failed'));
+            try {
+                const store = tx.objectStore(DETAIL_STORE);
+                for (const nid of nids) store.delete(nid);
+            } catch (error) { tx.abort(); reject(error); }
         });
-    } catch (e) {
-        console.warn('[ConversationDetailStore] removeConversationDetails failed:', e);
-        for (const nid of nids) {
-            if (_memoryDetailStore.delete(nid)) removed++;
-        }
-        return removed;
-    }
+    } finally { db.close(); }
 }
 
 export async function hasConversationDetail(id: string): Promise<boolean> {
