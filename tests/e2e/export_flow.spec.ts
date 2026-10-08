@@ -38,7 +38,7 @@ test.describe('Export Workflow & State Update', () => {
     ];
     const mockDetailInner = JSON.stringify([
       turns,
-      "tC_sample_token",
+      null, // This fixture is a terminal detail page.
       "深度学习神经网络实践"
     ]);
     const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;

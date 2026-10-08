@@ -1,4 +1,4 @@
-import { decodeTakeoutHtml, type TakeoutActivityEvidence } from './decodeHtml.js';
+import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { DocumentDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
@@ -45,6 +45,25 @@ export function parseGeminiTakeoutArchive(raw: GeminiTakeoutRaw, context: Conver
     return ids.map(id => buildConversation(id, activities, resolveResource));
 }
 
+/** Large ZIP inputs yield during decoding and Domain construction without changing semantics. */
+export async function parseGeminiTakeoutArchiveAsync(raw: GeminiTakeoutRaw, context: ConversationParseContext, onProgress?: (completed: number, total: number) => void): Promise<GeminiTakeoutParseResult[]> {
+    if (context.providerId !== 'gemini') throw new TypeError('Gemini Takeout parser requires providerId gemini');
+    const activities = await decodeTakeoutHtmlAsync(raw.htmlText, onProgress);
+    const groups = new Map<string, TakeoutActivityEvidence[]>();
+    for (const activity of activities) for (const id of activity.conversationIds) {
+        const group = groups.get(id) ?? [];
+        group.push(activity); groups.set(id, group);
+    }
+    if (!groups.size) throw new TypeError('Takeout has no recognized conversation identities');
+    const resolve = createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath);
+    const results: GeminiTakeoutParseResult[] = [];
+    for (const [id, selected] of groups) {
+        results.push(buildConversation(id, selected, resolve));
+        if (results.length % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
+    }
+    return results;
+}
+
 function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>): GeminiTakeoutParseResult {
     const diagnostics: DocumentDiagnostic[] = [];
     const contentDiagnostics: Diagnostic[] = [];
@@ -60,8 +79,10 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         const sourceUrl = match?.path ?? ref.uri;
         if (match) boundFiles.set(sourceUrl, match);
         const size = match?.entry._data?.uncompressedSize;
-        const image = isImage(sourceUrl) || isImage(decodeTakeoutReference(ref.uri));
-        return { type: image ? 'image' : 'file', url: ref.uri, sourceUrl, name: takeoutBaseName(match ? sourceUrl : decodeTakeoutReference(sourceUrl)), source: 'takeout',
+        const referenceName = decodeTakeoutReference(ref.uri);
+        const image = isImage(sourceUrl) || isImage(referenceName);
+        const type = image ? 'image' : /\.(wav|mp3|m4a|aac|ogg|flac|opus)$/i.test(referenceName) ? 'audio' : /\.(mp4|webm|mov|mkv)$/i.test(referenceName) ? 'video' : 'file';
+        return { type, url: ref.uri, sourceUrl, name: takeoutBaseName(match ? sourceUrl : decodeTakeoutReference(sourceUrl)), source: 'takeout',
             ...(typeof size === 'number' && Number.isFinite(size) && size >= 0 ? { size } : {}),
             ...(!match ? { failureReason: resolution.status === 'ambiguous' ? 'Ambiguous archive reference' : 'Missing archive entry' } : {}),
             ...(generation && image ? { isGenerated: true, generation: { ...generation,
@@ -77,7 +98,11 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         if (activity.conversationIds.length > 1) diagnostics.push({ severity: 'warning', code: 'TAKEOUT_AMBIGUOUS_CONVERSATION', message: 'Activity links multiple conversations; its ownership is ambiguous', path: `blocks[${activity.blockIndex}]` });
         const generation = activity.generatedImageCount !== undefined ? { chatId: id, time: activity.timestamp,
             prompt: activity.hasExplicitPrompt ? activity.promptText : '', generationOrdinal: generationOrdinal++, imageCount: activity.generatedImageCount } : undefined;
-        for (const ref of activity.media.filter(media => media.owner === 'unknown')) {
+        // A preview outside the authored cell can repeat an explicitly owned URI.
+        // Keep that source resource's known relation instead of reporting a second,
+        // unbound copy. Distinct resources outside the cell remain unowned.
+        const ownedUris = new Set(activity.media.filter(media => media.owner !== 'unknown').map(media => media.uri));
+        for (const ref of activity.media.filter(media => media.owner === 'unknown' && !ownedUris.has(media.uri))) {
             unowned.push(attachmentOf(ref));
             diagnostics.push({ severity: 'warning', code: 'TAKEOUT_UNBOUND_RESOURCE', message: `Source does not identify which message owns archive resource: ${ref.uri}` });
         }
@@ -99,7 +124,9 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const dates = selected.flatMap(activity => activity.timestamp === null ? [] : [activity.timestamp]);
     const createdAt = dates.length ? Math.min(...dates) : null;
     const updatedAt = dates.length ? Math.max(...dates) : null;
-    const titleEvent = selected.find(a => a.hasExplicitPrompt && a.promptText) ?? selected.find(a => a.promptText);
+    const titleEvent = selected.find(a => a.hasExplicitPrompt && a.promptText)
+        ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()))
+        ?? selected.find(a => a.promptText);
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout', titles: { takeout: title },
         provenance: { source: 'gemini-takeout' }, completeness: { status: 'partial', reason: 'MyActivity is an activity log, not a complete conversation transcript' },

@@ -914,7 +914,8 @@ test('regression: dom_scraper must try live document before fetch shell', () => 
     const domContent = fs.readFileSync(domPath, 'utf8');
     assert.ok(domContent.includes('location.pathname.includes(cleanId)'), 'should try live parseDoc when location matches');
     assert.ok(domContent.includes('debugCurrentPage'), 'should expose debugCurrentPage');
-    assert.ok(domContent.includes('fallbackUsed'), 'parseDoc should log fallbackUsed');
+    const nativeParser = fs.readFileSync(path.join(__dirname, '../src/core/parsers/gemini/dom/parseConversation.ts'), 'utf8');
+    assert.ok(nativeParser.includes('fallbackUsed') && domContent.includes('_debug: parsed.transport'), 'parseDoc should expose the native parser fallback evidence');
 });
 
 test('regression: content.js must fallback to DOM when batchexecute returns empty', () => {

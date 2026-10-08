@@ -76,6 +76,11 @@ class SearchClearCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             target_search_id = ctx.shared_data.get("target_search_id", "1bd028d5c5b0c0e2")
+            # Other DAG cases can intentionally clear selections or change the
+            # search between SearchIdCase and this case. Establish our own real
+            # filtered selection immediately before testing clear/restore.
+            CDPActions.search_workbench(cdp_opt, target_search_id)
+            CDPActions.select_workbench_item(cdp_opt, target_search_id, True)
             restored_count = CDPActions.clear_search_workbench(cdp_opt)
             is_still_checked = bool(cdp_opt.eval(f"""
             (() => {{

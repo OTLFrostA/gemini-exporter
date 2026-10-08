@@ -43,7 +43,7 @@ test.describe('Deep E2E: Real Export to JSON (OpenAI format) & Structure Verific
     ];
     const mockDetailInner = JSON.stringify([
       turns,
-      "tC_sample_token",
+      null, // This fixture is a terminal detail page.
       "分布式一致性哈希算法详解"
     ]);
     const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
@@ -111,7 +111,8 @@ test.describe('Deep E2E: Real Export to JSON (OpenAI format) & Structure Verific
     // Validate OpenAI JSON structure
     expect(parsed).toBeTruthy();
     expect(Array.isArray(parsed.messages)).toBe(true);
-    expect(parsed.messages.length).toBeGreaterThanOrEqual(2);
+    expect(parsed.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
+    expect(parsed.parsed).toBeUndefined();
 
     const userMsg = parsed.messages.find((m: any) => m.role === 'user');
     expect(userMsg).toBeTruthy();

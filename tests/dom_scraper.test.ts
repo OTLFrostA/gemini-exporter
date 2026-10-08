@@ -9,6 +9,9 @@ interface MockNode {
     _id: number;
     tagName: string;
     textContent?: string;
+    innerHTML?: string;
+    nodeType?: number;
+    childNodes?: unknown[];
     attributes?: Record<string, string>;
     children?: MockNode[];
     getAttribute?: (name: string) => string | null;
@@ -23,12 +26,15 @@ function createMockElement(tag: string, attrs: Record<string, string> = {}, text
     const el: MockNode = {
         _id: ++nodeCounter,
         tagName: tag.toUpperCase(),
+        nodeType: 1,
         textContent: text,
         attributes: { ...attrs },
         children: [...children],
         clicked: false
     };
 
+    Object.defineProperty(el, 'childNodes', { get: () => [...(el.textContent ? [{ nodeType: 3, textContent: el.textContent }] : []), ...(el.children || [])] });
+    Object.defineProperty(el, 'innerHTML', { get: () => (el.textContent || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + (el.children || []).map(child => `<${child.tagName.toLowerCase()}${Object.entries(child.attributes || {}).map(([key, value]) => ` ${key}="${value}"`).join('')}>${child.innerHTML || ''}</${child.tagName.toLowerCase()}>`).join('') });
     el.getAttribute = (name: string) => el.attributes?.[name] ?? null;
 
     el.querySelector = (selector: string): MockNode | null => {
@@ -118,7 +124,7 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
         createMockElement('div', { class: 'markdown' }, '', [
             createMockElement('p', {}, '这是第一段解析。'),
             createMockElement('pre', {}, 'console.log("ok");'),
-            createMockElement('li', {}, '要点 A')
+            createMockElement('ul', {}, '', [createMockElement('li', {}, '要点 A')])
         ])
     ]);
 
@@ -146,7 +152,7 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
 
     assert.strictEqual(parsed.messages[1].role, 'model');
     assert.ok(parsed.messages[1].content.includes('这是第一段解析'));
-    assert.ok(parsed.messages[1].content.includes('```\nconsole.log("ok");\n```'));
+    assert.ok(parsed.messages[1].content.includes('```\nconsole.log("ok");\n```'), parsed.messages[1].content);
     assert.ok(parsed.messages[1].content.includes('- 要点 A'));
 });
 

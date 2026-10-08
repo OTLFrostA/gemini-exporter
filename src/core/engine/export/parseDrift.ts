@@ -1,3 +1,4 @@
+import { readParsedConversation } from '../../compatibility/record/projectDomainRecord.js';
 /**
  * Phase C (P1-8/P1-9): parser 诊断抽取 —— 纯函数，供导出链路与单测共用。
  *
@@ -11,6 +12,7 @@ export interface ChatParseDrift {
     schemaDrift: string[];
     turnsRejected: number;
     hasHeuristicDocs: boolean;
+    sourcePartial?: boolean;
 }
 
 export function extractChatParseDrift(chat: any): ChatParseDrift {
@@ -24,10 +26,18 @@ export function extractChatParseDrift(chat: any): ChatParseDrift {
     const hasHeuristicDocs = messages.some((m: any) =>
         Array.isArray(m?.documents) && m.documents.some((d: any) => d != null && d.hasFabricatedText === true)
     );
+    const native = readParsedConversation(chat);
+    if (native) {
+        for (const diagnostic of native.diagnostics.filter(d => d.severity !== 'info')) {
+            const warning = `${diagnostic.code}: ${diagnostic.message}`;
+            if (!schemaDrift.includes(warning)) schemaDrift.push(warning);
+        }
+        return { schemaDrift, turnsRejected, hasHeuristicDocs: hasHeuristicDocs || native.conversation.assets.some(asset => asset.document?.hasFabricatedText), sourcePartial: native.conversation.completeness?.status === 'partial' };
+    }
     return { schemaDrift, turnsRejected, hasHeuristicDocs };
 }
 
 export function chatRecordStatusWithDrift(base: "ok" | "empty", drift: ChatParseDrift): "ok" | "empty" | "partial" {
-    if (drift.turnsRejected > 0 || drift.hasHeuristicDocs) return "partial";
+    if (drift.turnsRejected > 0 || drift.hasHeuristicDocs || drift.sourcePartial) return "partial";
     return base;
 }

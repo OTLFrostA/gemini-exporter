@@ -162,7 +162,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
     ];
     const mockDetailInner = JSON.stringify([
       turns,
-      "tC_next_token",
+      null, // This fixture is a terminal detail page.
       "" // Empty RPC title to trigger firstUser sniff fallback
     ]);
     const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;

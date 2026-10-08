@@ -37,6 +37,9 @@ export async function handleTakeoutImport(
             if (onLog) onLog(txt, 'info');
         }, slot);
 
+        for (const diagnostic of res.diagnostics ?? []) {
+            if (diagnostic.severity !== 'info') onLog?.(`${diagnostic.code}: ${diagnostic.message}`, 'warn');
+        }
         const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
         // SSoT: merge via deduplicateConversations so multi-tier titles

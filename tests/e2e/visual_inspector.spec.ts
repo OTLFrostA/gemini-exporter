@@ -108,6 +108,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
   test('choosing PDF in onboarding advances without requesting local font permission', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await page.waitForFunction(() => typeof (window as any).__workbenchLoadStore === 'function');
     await page.evaluate(() => {
       (window as any).__fontQueries = 0;
       (window as any).queryLocalFonts = async () => {

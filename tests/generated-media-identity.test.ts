@@ -25,60 +25,23 @@ function onlineChat(): any {
     ] };
 }
 
-test('real Takeout fixture preserves event metadata through MediaIndex and dedupes the online JPG', async () => {
+test('real Takeout fixture retains generation evidence without guessing ownership of an unreferenced PNG', async () => {
     (global as any).JSZip = require('../lib/jszip.min.js');
     TakeoutEngine.clearTakeoutData('identity');
     try {
-        await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, 'identity');
-        const media = TakeoutEngine.getTakeoutMediaForChat(id, 'identity');
-        assert.equal(media[0].filename, png);
-        assert.deepEqual(media[0].generation, {
-            chatId: id, time: Math.floor(time / 1000) * 1000, prompt,
-            generationOrdinal: 0, imageCount: 1, imageOrdinal: 0,
-            providerRequestId: '1c81efe352c9ef8a',
-        });
+        const result = await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, 'identity');
         const offline = TakeoutEngine.getTakeoutOfflineChat(id, 'identity');
-        assert.equal(offline.messages.find((m: any) => m.role === 'model').images[0].generation.prompt, prompt);
-        const chat = onlineChat();
-        supplementTakeoutGeneratedMedia(chat, id, 'identity', TakeoutEngine);
-        assert.equal(chat.messages[1].images.length, 1);
-        assert.equal(chat.messages[1].images[0].fileName, jpg);
-        assert.equal((chat.messages[1] as any).generation.turnId, 'm1');
-        const { domain, document, resources } = await parseFixture(chat);
-        assert.equal(domain.assets.filter((a: any) => a.kind === 'image').length, 1);
-        const { parseLegacyConversation } = require('../src/core/compatibility/legacyConversationAdapter.js');
-        const { conversation: legacyDomain } = parseLegacyConversation(chat);
-        assert.equal('generation' in legacyDomain.messages[1], false);
-        assert.equal(domain.messages[1].attachmentIds.length, 1);
-        assert.deepEqual(composeDomainDocument(legacyDomain).document, document);
-        // Dedupe retains the offline bytes under event identity even though names differ.
-        const image = chat.messages[1].images[0];
-        const bytes = await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', image.generation);
-        assert.ok(bytes && bytes.length > 0);
-        assert.deepEqual(await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', messageAssets(domain, 1)[0].generation), bytes);
-        const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
-        const pipeline = new AssetPipeline({
-            currentSlot: 'identity', takeoutEngine: TakeoutEngine,
-            fetchAsset: async () => ({ success: false, error: 'offline' }),
-        });
-        const acquired = await pipeline.acquireAssetBytes(image, chat, { isImage: true, maxRetries: 0 });
-        assert.equal(acquired.ok, true);
-        assert.equal(acquired.recoveredFromTakeout, true);
-        assert.deepEqual(acquired.bytes, bytes);
-        const { preparePdfItem } = require('../src/core/export/pdf/prepareItem.js');
-        const pdf = await preparePdfItem(chat, {
-            currentSlot: 'identity', takeoutEngine: TakeoutEngine,
-            fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0,
-        });
-        assert.equal(pdf.ok, true);
-        const pdfImages = [...pdf.resources.values()].filter((resource: any) => resource.bytes);
-        assert.equal(pdfImages.length, 1);
-        assert.deepEqual(pdfImages[0].bytes, bytes);
-
-        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, jpg, 'identity', {
-            ...image.generation, generationOrdinal: 99, providerRequestId: 'nonexistent',
-        }), null);
-
+        assert.ok(offline.parsed, 'production cache must carry native Domain');
+        const model = offline.parsed.conversation.messages.find((m: any) => m.role === 'assistant');
+        assert.deepEqual(model.generation, { mediaKind: 'image', outputCount: 1 });
+        assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, 'identity'), []);
+        assert.ok(result.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
+        assert.ok((await result.globalMedia[png].async('uint8array')).length > 0, 'unowned archive bytes remain available as acquisition evidence');
+        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, png, 'identity'), null, 'an archive file does not establish message ownership');
+        for (const record of result.conversations) {
+            assert.equal('parsed' in record, false);
+            assert.equal('messages' in record, false, 'imports remain metadata-only and cannot overwrite stored detail');
+        }
     } finally { TakeoutEngine.clearTakeoutData('identity'); }
 });
 

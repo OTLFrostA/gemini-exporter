@@ -43,7 +43,7 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
     ];
     const mockDetailInner = JSON.stringify([
       turns,
-      "tC_sample_token",
+      null, // This fixture is a terminal detail page.
       "瞬态热激波与热膨胀物理机制"
     ]);
     const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
@@ -122,6 +122,8 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
     await exportedPage.setContent(htmlContent);
     const prompt = exportedPage.locator('.gem-prompt-content');
     const toggle = exportedPage.locator('.gem-prompt-toggle');
+    await expect(prompt).toHaveCount(1);
+    await expect(exportedPage.locator('.gem-model-content')).toHaveCount(1);
     await expect(prompt).toHaveClass(/collapsed/);
     await toggle.click();
     await expect(prompt).not.toHaveClass(/collapsed/);

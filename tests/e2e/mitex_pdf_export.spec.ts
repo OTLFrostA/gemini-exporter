@@ -230,7 +230,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
             ]
           ]
         ],
-        "tC_sample_token",
+        null, // This fixture is a terminal detail page.
         denyLocalFonts ? "Gaussian integral derivation" : "高斯积分推导"
       ]);
       const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;

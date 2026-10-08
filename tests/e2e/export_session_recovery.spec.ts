@@ -128,7 +128,7 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     ];
     const mockDetailInner = JSON.stringify([
       turns,
-      "tC_sample_token",
+      null, // This fixture is a terminal detail page.
       "待导出延迟测试会话"
     ]);
     const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;

@@ -9,6 +9,7 @@ and Subgraph Pruning (子图剪枝) in scripts/framework.
 import os
 import sys
 import unittest
+from unittest.mock import MagicMock, patch
 from typing import Tuple, Optional, Dict, Any
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +19,7 @@ if BASE_DIR not in sys.path:
 from scripts.framework.cases.base import FeatureTestCase, DAGRunner, TestContext
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
 from scripts.framework.runner import FrameworkRunner
+from scripts.framework.cases.workbench import SearchClearCase
 
 
 class DummyTestCase(FeatureTestCase):
@@ -229,6 +231,44 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertEqual(res2.status, TestStatus.PASS)
         self.assertEqual(res3.status, TestStatus.SKIP)
         self.assertIn("子图剪枝免除执行", res3.message)
+
+
+class TestSearchClearIsolation(unittest.TestCase):
+    def run_case(self, preserve_selection):
+        # Earlier independent cases have changed both the search and selection.
+        state = {"query": "another-chat", "selected": False}
+        cdp = MagicMock()
+        cdp.eval.side_effect = lambda expression: state["selected"]
+        ctx = MagicMock()
+        ctx.shared_data = {"target_search_id": "target-chat"}
+        ctx.connect_options.return_value = cdp
+
+        def search(connection, query):
+            state["query"] = query
+            return 1
+
+        def select(connection, chat_id, checked):
+            state["selected"] = state["query"] == chat_id and checked
+            return state["selected"]
+
+        def clear(connection):
+            state["query"] = ""
+            if not preserve_selection:
+                state["selected"] = False
+            return 12
+
+        with patch("scripts.framework.cases.workbench.CDPActions.search_workbench", side_effect=search), \
+             patch("scripts.framework.cases.workbench.CDPActions.select_workbench_item", side_effect=select), \
+             patch("scripts.framework.cases.workbench.CDPActions.clear_search_workbench", side_effect=clear):
+            result = SearchClearCase().execute(ctx)
+        cdp.close.assert_called_once()
+        return result
+
+    def test_intervening_cases_do_not_invalidate_clear_selection_contract(self):
+        self.assertTrue(self.run_case(preserve_selection=True)[0])
+
+    def test_clear_that_loses_selection_still_fails(self):
+        self.assertFalse(self.run_case(preserve_selection=False)[0])
 
 
 if __name__ == "__main__":

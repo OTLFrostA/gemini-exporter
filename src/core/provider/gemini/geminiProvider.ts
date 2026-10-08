@@ -103,6 +103,7 @@ export class GeminiProvider implements GeminiProviderContract {
         const detail = await client.getConversationDetail(conversationId, targetSid);
         // Keep the full typed Gemini evidence beside the neutral core without cloning messages.
         const mapped: GeminiProviderConversationDetail = {
+            ...('parsed' in detail ? { parsed: detail.parsed } : {}),
             id: detail.id,
             title: detail.title,
             messages: detail.messages,

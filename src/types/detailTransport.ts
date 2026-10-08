@@ -1,3 +1,4 @@
+import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import type { ProviderConversationDetail } from '../core/provider/aiProvider.js';
 import type { GeminiProviderConversationDetail } from '../core/provider/gemini/geminiContracts.js';
 import type { Attachment, TitleSource, TitleSources } from './conversation.js';
@@ -13,6 +14,7 @@ export interface DomDetailDebug {
 }
 
 export interface DomDetail extends ProviderConversationDetail {
+    parsed?: ResourceConversationParseResult;
     messages: Array<ProviderConversationDetail['messages'][number] & {
         images?: Attachment[];
         attachments?: Attachment[];

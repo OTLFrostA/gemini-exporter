@@ -1,5 +1,6 @@
 import type { DomDetail } from '../types/detailTransport.js';
-import type { Attachment } from '../types/conversation.js';
+import { parseGeminiDomConversation } from '../core/parsers/gemini/dom/parseConversation.js';
+import { createParsedConversationView } from '../core/compatibility/record/projectDomainRecord.js';
 import { contentContext } from './contentContext.js';
 import { cleanTitle, isRealTitle, getErrorMessage } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
@@ -7,157 +8,15 @@ import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
 export { isReservedRoute };
 
 function cleanText(t?: string | null): string {
-    return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim().slice(0, 20000) : '';
+    return t ? t.replace(/\u00a0/g, ' ').replace(/\r/g, '').trim() : '';
 }
 
 export function parseDoc(doc: Document, id: string, url?: string): DomDetail;
 export function parseDoc(doc: Document | null, id: string, url?: string): DomDetail | null;
 export function parseDoc(doc: Document | null, id: string, url?: string): DomDetail | null {
     if (!doc) return null;
-    let title = doc.title ? cleanTitle(doc.title) : '';
-    if (!title || title === 'Gemini') {
-        const h = doc.querySelector('title');
-        if (h) title = cleanTitle(h.textContent?.trim().slice(0, 60));
-    }
-    if (!title) title = id;
-    const messages: DomDetail['messages'] = [];
-    const nodes = Array.from(doc.querySelectorAll('user-query, model-response'));
-    let fallbackUsed: string | null = null;
-    let finalNodes: Element[] = nodes;
-
-    if (!finalNodes.length) {
-        const fallbacks = [
-            '[data-test-id*="user-query"]', '[data-test-id*="model-response"]',
-            '[data-message-author-role="user"]', '[data-message-author-role="model"]',
-            'div[data-test-id="conversation-turn"]',
-            'div[role="article"]'
-        ];
-        for (const sel of fallbacks) {
-            try {
-                const alt = Array.from(doc.querySelectorAll(sel));
-                if (alt.length) { finalNodes = alt; fallbackUsed = sel; break; }
-            } catch (e) {
-                if (contentContext.isDevMode()) console.debug('[GemExporter:domScraper.ts]', e);
-            }
-        }
-    }
-    if (!finalNodes.length) {
-        console.warn('[Gemini Exporter][DOM] parseDoc no nodes matched for', id, 'title', title, 'html_len', doc.documentElement?.outerHTML?.length, 'fallbackUsed', fallbackUsed);
-    } else if (fallbackUsed && contentContext.isDevMode()) {
-        console.log('[Gemini Exporter][DOM] parseDoc fallback matched', fallbackUsed, 'count', finalNodes.length);
-    }
-
-    const sorted = [...finalNodes].sort((a, b) => {
-        const pos = a.compareDocumentPosition(b);
-        return (pos & 4) ? -1 : 1;
-    });
-
-    for (const node of sorted) {
-        const tagName = node.tagName.toLowerCase();
-        const roleAttr = (node.getAttribute && node.getAttribute('data-message-author-role')) || '';
-        let isUser = tagName === 'user-query' || roleAttr === 'user';
-        let isModel = tagName === 'model-response' || roleAttr === 'model';
-
-        if (!isUser && !isModel && fallbackUsed) {
-            if (node.querySelector('[data-test-id*="user-query"], .query-text-line, .query-text')) {
-                isUser = true;
-            } else if (node.querySelector('[data-test-id*="model-response"], .markdown, message-content')) {
-                isModel = true;
-            } else {
-                const innerRole = node.querySelector('[data-message-author-role]');
-                if (innerRole) {
-                    const r = innerRole.getAttribute('data-message-author-role');
-                    if (r === 'user') isUser = true;
-                    else if (r === 'model') isModel = true;
-                }
-            }
-        }
-        if (!isUser && !isModel) continue;
-
-        let text = '';
-        const imgNodes = Array.from(node.querySelectorAll('img'));
-        const images: Attachment[] = [];
-        const attachments: Attachment[] = [];
-
-        for (const imgEl of imgNodes) {
-            const src = (imgEl as HTMLImageElement).src || imgEl.getAttribute('src') || '';
-            if (src && !src.startsWith('data:image/svg') && !src.includes('avatar') && !src.includes('icon') && !src.includes('sparkle')) {
-                const alt = imgEl.getAttribute('alt') || (isUser ? 'User Image' : 'Generated Image');
-                const imgObj = {
-                    type: 'image',
-                    src,
-                    url: src,
-                    sourceUrl: src,
-                    name: alt,
-                    alt,
-                    isGenerated: !isUser,
-                    isImage: true
-                };
-                images.push(imgObj);
-                attachments.push(imgObj);
-            }
-        }
-
-        if (isUser) {
-            const q = node.querySelector('.query-text-line, .query-text, [data-test-id="query-text"], p');
-            if (q) text = (q.textContent || '').trim();
-            if (!text) text = (node.textContent || '').trim();
-            if (text || images.length) {
-                const msg: DomDetail['messages'][number] = {
-                    role: 'user',
-                    content: cleanText(text)
-                };
-                if (images.length) {
-                    msg.images = images;
-                    msg.attachments = attachments;
-                }
-                messages.push(msg);
-            }
-        } else {
-            const md = node.querySelector('.markdown, message-content, [data-test-id="model-response-content"]') || node;
-            let t = '';
-            const parts = md.querySelectorAll('p, li, pre, code, h1,h2,h3, blockquote');
-            if (parts.length) {
-                for (const p of Array.from(parts)) {
-                    let tt = (p.textContent || '').trim();
-                    if (!tt) continue;
-                    if (tt.length > 5000) tt = tt.slice(0, 5000);
-                    const tag = p.tagName.toLowerCase();
-                    if (tag === 'pre') t += '\n```\n' + tt + '\n```\n';
-                    else if (tag.startsWith('h')) t += '\n### ' + tt + '\n';
-                    else if (tag === 'li') t += '\n- ' + tt;
-                    else t += '\n\n' + tt;
-                }
-            }
-            if (!t) t = (md.textContent || '').trim();
-            if (t || images.length) {
-                const msg: DomDetail['messages'][number] = {
-                    role: 'model',
-                    content: cleanText(t)
-                };
-                if (images.length) {
-                    msg.images = images;
-                    msg.attachments = attachments;
-                }
-                messages.push(msg);
-            }
-        }
-    }
-
-    const realT = isRealTitle(title, id) ? title : id;
-    return {
-        id,
-        title: realT,
-        titleSource: isRealTitle(title, id) ? 'dom' : 'default',
-        url: url || `https://gemini.google.com/app/${id}`,
-        messages,
-        messageCount: messages.length,
-        _debug: {
-            fallbackUsed,
-            nodeCount: finalNodes.length,
-            htmlLen: doc.documentElement?.outerHTML?.length
-        }
-    };
+    const parsed = parseGeminiDomConversation({ document: doc, id, url }, { providerId: 'gemini' });
+    return { ...createParsedConversationView(parsed), titleSource: parsed.conversation.titleSource === 'dom' ? 'dom' : 'default', _debug: parsed.transport };
 }
 
 export async function contentFetchChatDetail(id: string): Promise<DomDetail> {
