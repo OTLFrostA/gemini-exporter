@@ -12,6 +12,8 @@
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT">
 </p>
 
+![Cumulative Chrome Web Store installs](https://raw.githubusercontent.com/OTLFrostA/gemini-exporter/stats/stats/install-growth.svg)
+
 > **The easiest, privacy-first way to export and archive your Google Gemini conversations.**  
 > Batch export your chat history into clean **Markdown**, standalone **1:1 HTML** (with Dark/Light theme toggle), **PDF**, **JSON**, or a complete **ZIP archive** with images and attachments. Seamlessly migrate your chats into **Obsidian**, **Notion**, **Logseq**, or your local knowledge base.
 
