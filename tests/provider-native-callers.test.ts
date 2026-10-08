@@ -213,3 +213,34 @@ test('Takeout prompt-cell attachments and audio stay user-owned while response r
     assert.equal(result.diagnostics.filter(d => d.code === 'TAKEOUT_UNBOUND_RESOURCE').length, 1);
     assertDomainClosure(result.conversation);
 });
+
+test('compatibility table projection preserves pipe and backslash content without adding columns', async () => {
+    const { fromMarkdown } = await import('mdast-util-from-markdown');
+    const { gfm } = await import('micromark-extension-gfm');
+    const { gfmFromMarkdown } = await import('mdast-util-gfm');
+    const samples: Array<{ node: import('../src/core/domain/content/inline.js').InlineNode; text: string }> = [
+        { node: { type: 'text', text: 'a|b' }, text: 'a|b' },
+        { node: { type: 'text', text: 'a\\|b' }, text: 'a\\|b' },
+        { node: { type: 'text', text: 'a\\\\|b' }, text: 'a\\\\|b' },
+        { node: { type: 'strong', children: [{ type: 'text', text: 'a\\|b' }] }, text: 'a\\|b' },
+        { node: { type: 'inlineCode', code: 'a|b' }, text: 'a|b' },
+        { node: { type: 'inlineCode', code: 'a\\|b' }, text: 'a\\|b' },
+        { node: { type: 'inlineCode', code: 'a\\\\|b' }, text: 'a\\\\|b' },
+    ];
+    const domain: import('../src/core/domain/conversationDetail.js').DomainConversationDetail = {
+        providerId: 'gemini', id: 'projection', title: 'Projection', timestamp: null, assets: [], messages: [{ role: 'assistant', content: [{ type: 'table',
+            headerRows: [{ cells: [{ children: [{ type: 'text', text: 'Content' }] }, { children: [{ type: 'text', text: 'Sentinel' }] }] }],
+            rows: samples.map(sample => ({ cells: [{ children: [sample.node] }, { children: [{ type: 'text', text: 'kept' }] }] })) }] }],
+    };
+    const markdown = projectDomainRecord(domain).messages![0].content;
+    const tree = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
+    const table = tree.children.find(node => node.type === 'table')!;
+    const visible = (node: import('mdast').Nodes): string => node.type === 'html' ? '' : 'value' in node ? node.value : 'children' in node ? node.children.map(visible).join('') : '';
+    assert.equal(table.children.length, samples.length + 1);
+    samples.forEach((sample, index) => {
+        const row = table.children[index + 1];
+        assert.equal(row.children.length, 2);
+        assert.equal(visible(row.children[0]), sample.text);
+        assert.equal(visible(row.children[1]), 'kept');
+    });
+});

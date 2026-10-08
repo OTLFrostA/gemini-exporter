@@ -1991,7 +1991,7 @@
       "classification": "P2",
       "provenanceSource": "Synthetic production caller, native pagination/export and ZIP acquisition contracts; not evidence of live provider compatibility",
       "policy": "PRESERVE_PROJECT_CONTRACT",
-      "testCount": 13,
+      "testCount": 14,
       "tests": [
         {
           "name": "production pagination merges native pages chronologically and closes renamed resources",
@@ -2057,17 +2057,22 @@
           "name": "Takeout prompt-cell attachments and audio stay user-owned while response references remain assistant-owned",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "compatibility table projection preserves pipe and backslash content without adding columns",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
     }
   ],
   "summary": {
     "totalSuites": 39,
-    "totalTests": 319,
+    "totalTests": 320,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 299,
+      "P2": 300,
       "P3": 2,
       "P4": 0
     }

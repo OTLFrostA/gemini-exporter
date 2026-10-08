@@ -14,14 +14,20 @@ export interface ParsedConversationView extends Conversation { messages: ChatMes
 /** Existing records keep their string body format; new source input is already Domain. */
 function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset>, blocks = message.content): string {
     const assetUri = (id: string): string => assets.get(id)?.source?.uri ?? '';
-    const inline = (nodes: InlineNode[]): string => nodes.map(node => {
+    const inline = (nodes: InlineNode[], tableCell = false): string => nodes.map(node => {
         switch (node.type) {
             case 'text': return node.text.replace(/[\\`*_\[\]<>$#]/g, character => `\\${character}`);
-            case 'strong': return `**${inline(node.children)}**`;
-            case 'emphasis': return `*${inline(node.children)}*`;
-            case 'strikethrough': return `~~${inline(node.children)}~~`;
-            case 'inlineCode': { const fence = '`'.repeat(Math.max(1, ...(node.code.match(/`+/g) ?? []).map(s => s.length + 1))); return `${fence}${node.code}${fence}`; }
-            case 'link': return `[${inline(node.children)}](<${node.href}>)`;
+            case 'strong': return `**${inline(node.children, tableCell)}**`;
+            case 'emphasis': return `*${inline(node.children, tableCell)}*`;
+            case 'strikethrough': return `~~${inline(node.children, tableCell)}~~`;
+            case 'inlineCode': {
+                // GFM treats even backslash runs before a pipe as a column boundary,
+                // including inside code spans. Encode that literal code as inline HTML.
+                if (tableCell && /\\+\|/.test(node.code)) return `<code>${node.code.replace(/[&<>\\|`*_{}\[\]]/g, character => `&#${character.charCodeAt(0)};`)}</code>`;
+                const fence = '`'.repeat(Math.max(1, ...(node.code.match(/`+/g) ?? []).map(s => s.length + 1)));
+                return `${fence}${node.code}${fence}`;
+            }
+            case 'link': return `[${inline(node.children, tableCell)}](<${node.href}>)`;
             case 'image': return `![${node.alt ?? ''}](<${assetUri(node.assetId)}>)`;
             case 'inlineMath': return `$${node.source}$`;
             case 'citationRef': { const citation = message.citations?.find(c => c.id === node.citationId); return citation?.url ? `[${node.label ?? citation.title ?? citation.number ?? node.citationId}](<${citation.url}>)` : node.label ?? `[${node.citationId}]`; }
@@ -37,7 +43,7 @@ function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset
             case 'list': return node.items.map((item, i) => `${node.ordered ? `${(node.start ?? 1) + i}.` : '-'} ${item.blocks.map(block).join('\n\n').replace(/\n/g, '\n  ')}`).join('\n');
             case 'quote': return node.blocks.map(block).join('\n\n').split('\n').map(line => `> ${line}`).join('\n');
             case 'thought': return node.blocks.map(block).join('\n\n');
-            case 'table': { const rows = [...(node.headerRows ?? []), ...node.rows].map(row => `| ${row.cells.map(cell => inline(cell.children).replace(/\|/g, '\\|').replace(/\n/g, '<br>')).join(' | ')} |`); const columns = (node.headerRows?.[0] ?? node.rows[0])?.cells.length ?? 0; rows.splice(node.headerRows?.length ?? 1, 0, `| ${Array.from({ length: columns }, (_, i) => node.columns?.[i]?.align === 'center' ? ':---:' : node.columns?.[i]?.align === 'right' ? '---:' : '---').join(' | ')} |`); return [node.caption ? inline(node.caption) : '', ...rows].filter(Boolean).join('\n'); }
+            case 'table': { const rows = [...(node.headerRows ?? []), ...node.rows].map(row => `| ${row.cells.map(cell => inline(cell.children, true).split('|').join('\\|').replace(/\n/g, '<br>')).join(' | ')} |`); const columns = (node.headerRows?.[0] ?? node.rows[0])?.cells.length ?? 0; rows.splice(node.headerRows?.length ?? 1, 0, `| ${Array.from({ length: columns }, (_, i) => node.columns?.[i]?.align === 'center' ? ':---:' : node.columns?.[i]?.align === 'right' ? '---:' : '---').join(' | ')} |`); return [node.caption ? inline(node.caption) : '', ...rows].filter(Boolean).join('\n'); }
             case 'image': return `![${node.alt ?? ''}](<${assetUri(node.assetId)}>)${node.caption ? `\n\n${inline(node.caption)}` : ''}`;
             case 'file': return `[${node.label ?? assets.get(node.assetId)?.name ?? 'File'}](<${assetUri(node.assetId)}>)${node.description ? `\n\n${inline(node.description)}` : ''}`;
             case 'thematicBreak': return '---';

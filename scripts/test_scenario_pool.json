@@ -1,26 +1,5 @@
 [
   {
-    "id": "fusion_plasma_tokamak_tearing_modes_mhd",
-    "domain": "fusion_plasma_tokamak_tearing_modes",
-    "title": "受控核聚变等离子体物理：托卡马克新经典撕裂模 (NTM) 磁岛演化推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试托卡马克阻抗磁流体动力学 (Resistive MHD) 撕裂模色散关系推导、广义 Rutherford 磁岛演化方程、电子回旋电流驱动 (ECCD) 抑制与聚变装置参数对比",
-    "turns": [
-      "在环形托卡马克磁约束等离子体几何与阻抗磁流体动力学 (Resistive MHD) 框架下，针对有理磁面 q(r_s) = m/n 处的撕裂不稳定性，推导经典撕裂模稳定性判据指数 \\Delta' = \\lim_{\\epsilon \\to 0} \\frac{1}{\\psi(r_s)} \\left[ \\frac{d\\psi}{dr}\\Big|_{r_s+\\epsilon} - \\frac{d\\psi}{dr}\\Big|_{r_s-\\epsilon} \\right] 的渐近匹配渐进解，并分析磁剪切 s = (r/q)(dq/dr) 对阻抗撕裂层增长率 \\gamma \\tau_R \\propto (S)^{2/5} (-\\Delta')^{-4/5} 的稳定化效应。",
-      "当等离子体处于无碰撞高温香蕉区 (Banana Regime) 且具有高归一化极向比压 \\beta_p 时，分析自举电流 (Bootstrap Current) 扰动诱发的新经典撕裂模 (Neoclassical Tearing Mode, NTM)。推导修正的广义 Rutherford 方程 \\frac{\\tau_R}{r_s} \\frac{dw}{dt} = r_s \\Delta' + r_s \\Delta'_{BS}(w) - r_s \\Delta'_{GGJ}(w) - r_s \\Delta'_{pol}(w)，给出自举电流亏损项 \\Delta'_{BS} \\propto \\epsilon^{1/2} \\frac{\\beta_p L_q}{L_p} \\frac{w}{w^2 + w_d^2} 导致的非线性亚临界自激增长阈值条件。",
-      "使用 Python 编写脚本，基于 Scipy 对包含自举电流项、极向极化电流项 (Ion Polarization Current) 与有限径向热导展宽特征尺度 w_d 的广义 Rutherford 微分方程进行时域数值积分，绘制磁岛宽度 w(t) 随初始扰动种子宽度 w_0 的相空间轨道分岔图，确定触发 NTM 磁岛爆发的临界种子岛宽度 (Critical Seed Island Width)。",
-      "推导出利用高功率局域电子回旋共振波电流驱动 (ECCD) 对有理磁面磁岛 O 点进行相位同步射频波注入的稳定化功率平衡模型，推导完全抑制稳态磁岛所需的最小局域射频电流驱动密度 j_{cd} / j_{bs} 的临界阈值比例。",
-      "使用 Markdown 表格，对比国际热核聚变实验堆 (ITER)、全超导托卡马克 (EAST)、先进超导托卡马克 (KSTAR) 以及紧凑型高场强托卡马克 (SPARC) 在主半径 R、环向磁场 B_t、等离子体电流 I_p、归一化比压 \\beta_N、自举电流份额 f_{bs} 以及稳态长脉冲运行防破裂 (Disruption Mitigation) 应对策略维度的关键聚变参数。"
-    ]
-  },
-  {
     "id": "spintronics_magnetic_skyrmion_racetrack_memory",
     "domain": "spintronics_magnetic_skyrmions",
     "title": "自旋电子学：拓扑磁斯格明子 Thiele 动力学方程与赛道内存推导",
@@ -204,29 +183,6 @@
       "使用 Python 编写致密双星引力波频域匹配滤波 (Matched Filtering) 核心检测脚本：构建模拟 Advanced LIGO 探测器噪声功率谱密度 (PSD) S_n(f)，在频域对注入高斯白噪声的引力波时域应变信号进行反卷积加权求和，计算最优化匹配信噪比 (Optimal SNR) 与时间序列最大化检验统计量 \rho(t)，并输出检测峰值到达时间与有效距离估计。",
       "分析地基引力波探测器在低频端 (f < 10 Hz) 由地球重力梯度噪声 (Newtonian Noise) 与悬丝热噪声构成的物理敏感度墙，推导由基准质量局部质量密度波动引发的引力扰动谱密度；进而对比天基引力波探测器（如 LISA），推导基于光不等臂迈克尔逊干涉仪的时延干涉测量技术 (Time-Delay Interferometry, TDI) 如何通过代数消除精确抵消超前 8 个数量级的激光相位波动噪声。",
       "使用 Markdown 表格，对比后牛顿 TaylorF2 频域波形、时域 TaylorT4 积分波形、有效单体数值相对论波形 (SEOBNR) 以及唯象拟合波形 (IMRPhenomXPH) 在旋近-合并-准简正振荡全时程物理完备性、高阶多极辐射矩 (h_{lm}) 覆盖能力、双星自旋进动动力学支持、计算吞吐速度以及 MCMC 贝叶斯后验参数推断兼容性等关键性能维度的差异。"
-    ]
-  },
-  {
-    "id": "oceanography_internal_solitary_waves_kdv",
-    "domain": "oceanography_internal_solitary_waves",
-    "title": "物理海洋学：深海内孤立波动力学、KdV 方程孤子解与遥感特征反演",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "description": "测试两层流体浅水内孤立波 Korteweg-de Vries (KdV) 方程推导、非线性与频散平衡孤立波波形解、SAR 空间合成孔径雷达海面粗糙度特征图 Imagen 生图、Python 伪谱法数值模拟及海洋内波观测技术对比",
-    "turns": [
-      "针对两层密度跃层流体系统（上层密度 \\rho_1、厚度 h_1；下层密度 \\rho_2、厚度 h_2，相对密度跃变 \\Delta \\rho / \\rho \\ll 1），从连续性方程和不可压缩欧拉方程出发，运用多重尺度摄动展开法推导界面位移 \\eta(x,t) 满足的经典 Korteweg-de Vries (KdV) 方程：\\frac{\\partial \\eta}{\\partial t} + c_0 \\frac{\\partial \\eta}{\\partial x} + \\alpha \\eta \\frac{\\partial \\eta}{\\partial x} + \\beta \\frac{\\partial^3 \\eta}{\\partial x^3} = 0，并推导线性长波相速度 c_0、非线性系数 \\alpha 与频散系数 \\beta 的解析表达式。",
-      "请生成一张概念图：空间合成孔径雷达（SAR）从近地轨道俯瞰南海或安达曼海海面内孤立波包（Internal Solitary Wave Packets）的微波后向散射灰度图像。画面需清晰展现两组向陆架传播的弧形内波波前（Wavefronts），表现出前沿明亮带（毛细重力波聚集粗糙区）与后缘暗带（水流发散平滑区）交替的周期性条纹明暗对比特征，展现深海内孤立波在海面的独特微波成像印记。",
-      "求解 KdV 方程的稳态单孤子解 \\eta(x, t) = -\\eta_0 \\mathrm{sech}^2\\left(\\frac{x - V t}{\\Delta}\\right)（在 h_1 < h_2 的下凹波情形下），证明其相速度 V 与波幅 \\eta_0 满足非线性正相关 V = c_0 - \\frac{1}{3} \\alpha \\eta_0，并严格证明有效波宽 \\Delta = \\sqrt{\\frac{-12 \\beta}{\\alpha \\eta_0}}，分析为何大振幅内孤立波往往演化为由多个波幅递减孤子组成的裂变孤子包（Soliton Packet Fission）。",
-      "使用 Python 编写数值程序，采用傅里叶伪谱法（Fourier Pseudospectral Method）结合四阶 Runge-Kutta 积分器求解 KdV 方程在周期边界条件下的时间演化。初始化一个高斯扰动波包 \\eta(x, 0) = -A e^{-(x - x_0)^2 / \\sigma^2}，展示波包在非线性与频散共同作用下分裂为排序孤立波列的过程，并输出各出射孤子的波幅与理论预测比值。",
-      "使用 Markdown 表格，对比锚碇潜标海流剖面仪（ADCP）、卫星空间合成孔径雷达（SAR）、地震海洋学（Seismic Oceanography）反射同相轴成像以及水下自主航行器（Glider/AUV）在空间分辨率、全水深垂直结构覆盖能力、时间连续监测能力与深海极端大振幅内波耐受性四个维度的优缺点。"
     ]
   },
   {
@@ -420,6 +376,50 @@
       "Write standalone runnable Python simulating robots on a grid with a narrow corridor. Compare prioritized planning and conflict-based search, reporting routes, collision counts and total movement cost.",
       "Use a Markdown table to compare conflict-based search, prioritized planning, reservation tables and rolling-horizon planning. Analyze changes in robot count and obstacle density.",
       "Produce a long design report covering dynamic orders, congestion, charging tasks and temporary aisle closures. Define reproducible evaluation metrics, failure handling and a staged implementation plan."
+    ]
+  },
+  {
+    "id": "glacial_lake_outburst_flood_routing_uncertainty",
+    "domain": "glaciology_outburst_flood_routing",
+    "title": "冰川湖溃决洪水：坝体侵蚀、非恒定流传播与风险不确定性",
+    "features": [
+      "imagen",
+      "multimodal",
+      "attachments",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖湖泊水量平衡、溃口增长与浅水方程、数值模拟、生成示意图及不确定性表格；参数使用假想数据，不输出真实地区预警建议",
+    "turns": [
+      "请实际生成一张冰川湖溃决过程的科学示意图：包括冰川、冰碛坝、初始溃口、下游弯曲河道和分洪平原，用不同颜色区分水流与冰体。生成图片后说明图中水量平衡及坝体侵蚀的反馈关系，使用假想案例。",
+      "建立一个假想冰川湖溃决模型，写出湖泊水位与库容关系、溃口出流和坝体侵蚀速率的耦合微分方程；用 LaTeX 定义变量、量纲及闭合假设，并讨论临界流条件。",
+      "推导一维 Saint-Venant 方程的有限体积离散形式，说明干湿交界、正水深保持、CFL 时间步和坝体出流边界如何处理；给出质量守恒检查公式。",
+      "用 Python 编写一个可运行的简化示例，生成假想溃口流量过程线并通过线性蓄泄模型传播到下游三个断面；输出峰值流量、峰值到达时间和质量平衡误差。",
+      "用 Markdown 表格比较湖泊初始水位、坝体抗蚀系数、河道糙率和断面形状四种不确定性对洪峰与到达时间的影响，并设计蒙特卡洛抽样与敏感性分析流程。"
+    ]
+  },
+  {
+    "id": "integrated_photonic_ring_resonator_coupled_mode",
+    "domain": "photonics_ring_resonator_spectroscopy",
+    "title": "集成光子环形谐振器：耦合模理论、透射光谱与参数辨识",
+    "features": [
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖时域耦合模推导、临界耦合、Python 光谱与拟合、器件对比表格及参数可辨识性分析",
+    "turns": [
+      "从时域耦合模理论推导单总线环形光学谐振器的复振幅方程与稳态透射函数，明确内禀损耗率、外耦合率、失谐量及输入输出振幅的归一化方式，用 LaTeX 展示推导并检查能量守恒。",
+      "推导欠耦合、临界耦合与过耦合时的消光比、加载品质因数和群时延表达式；解释为什么只测透射强度可能无法唯一判断内禀损耗与外耦合率。",
+      "用 Python 编写可运行代码，生成三种耦合状态下的带噪声透射光谱，使用 scipy.optimize 拟合共振频率和总衰减率，输出参数估计与残差，并给出合成数据的固定随机种子。",
+      "讨论背向散射引起顺时针与逆时针模式耦合的双峰分裂，写出二模耦合矩阵及本征值，说明拟合单峰模型会如何偏置品质因数估计。",
+      "用 Markdown 表格对比硅、氮化硅和薄膜铌酸锂环形谐振器在材料吸收、热光响应、电光调制、制造误差敏感性方面的定性差异，并设计同时采集幅度与相位以改善参数可辨识性的实验方案。"
     ]
   }
 ]
