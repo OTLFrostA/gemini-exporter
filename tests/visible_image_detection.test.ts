@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -33,7 +34,7 @@ test('candidate search metadata does not become a phantom image in exported Mark
     assert.equal(answer.images, undefined);
     assert.equal(answer.attachments, undefined);
     const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js');
-    const markdown = await formatMarkdownDocument(result);
+    const markdown = await formatMarkdownDocument(historicalFixture(result));
     assert.match(markdown.content, /Answer without pictures/);
     assert.doesNotMatch(markdown.content, /assets\/|Reference diagram|licensed-image/);
 });

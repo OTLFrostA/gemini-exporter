@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -202,13 +203,13 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
 test('P2: formatContent 未知格式显式抛错（不静默回落 markdown）', () => {
     const ChatFormatter = require('../src/core/engine/chatFormatter.js');
     const chat = { id: 'x', title: 't', messages: [] };
-    assert.throws(() => ChatFormatter.formatContent(chat, 'pdf'), /unsupported format: pdf/);
-    assert.throws(() => ChatFormatter.formatContent(chat, 'typo-format'), /unsupported format/);
+    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'pdf'), /unsupported format: pdf/);
+    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'typo-format'), /unsupported format/);
     // 合法格式不受影响
-    assert.throws(() => ChatFormatter.formatContent(chat, 'markdown'), /unsupported format: markdown/);
-    assert.strictEqual(ChatFormatter.formatContent(chat, 'json').ext, 'json');
-    assert.strictEqual(ChatFormatter.formatContent(chat, 'json_openai').ext, 'json');
-    assert.strictEqual(ChatFormatter.formatContent(chat, 'json_raw').ext, 'json');
+    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'markdown'), /unsupported format: markdown/);
+    assert.strictEqual(ChatFormatter.formatContent(historicalFixture(chat), 'json').ext, 'json');
+    assert.strictEqual(ChatFormatter.formatContent(historicalFixture(chat), 'json_openai').ext, 'json');
+    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'json_raw'), /raw.*unavailable|raw.*payload|decoded/i);
 });
 
 // ---------- P2-11: sessionStore 并发 updateSession 不丢更新 ----------

@@ -1,4 +1,6 @@
-import { readParsedConversation, type ParsedConversationView } from '../../compatibility/record/projectDomainRecord.js';
+import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../../parsers/parsingResult.js';
+import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
+import { nativeExportInput } from '../../engine/chatFormatter.js';
 import {
     BatchWorker,
     resolveConversationData,
@@ -21,11 +23,8 @@ import type { TabServiceModule } from '../../../types/utils.js';
 import type {
     GeneratedMediaIdentity,
 } from '../../../types/conversation.js';
-import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordTurn, ConversationRecordAttachment } from '../../compatibility/record/conversationRecord.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
-import { inferLegacyProviderId } from '../../compatibility/record/legacyProvider.js';
-import { parseConversation } from '../../parsers/parseConversation.js';
 import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../document/ast/resourceReferences.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
@@ -43,70 +42,8 @@ declare global {
 export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
 export const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
 
-interface PdfProviderAsset extends ConversationRecordAttachment {
-    type?: string;
-    isImage?: boolean;
-    localName?: string;
-    resolvedUrl?: string;
-    sourceUrl?: string;
-    url?: string;
-    src?: string;
-    fileName?: string;
-    name?: string;
-    title?: string;
-    mime?: string;
-    mimeType?: string;
-    dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
-    failureReason?: string;
-    dataBase64?: string;
-    blobBase64?: string;
-    contentMarkdown?: string;
-    candidates?: string[];
-    generation?: GeneratedMediaIdentity;
-    [key: string]: unknown;
-}
-
-interface PdfProviderMessage extends ConversationRecordMessage {
-    id?: string;
-    role?: string;
-    content?: unknown;
-    timestamp?: number | null;
-    turnId?: string;
-    providerRequestId?: string;
-    generation?: GeneratedMediaIdentity;
-    attachments?: PdfProviderAsset[];
-    images?: PdfProviderAsset[];
-    documents?: PdfProviderAsset[];
-    [key: string]: unknown;
-}
-
-interface PdfProviderTurn extends ConversationRecordTurn {
-    id?: string;
-    timestamp?: number | null;
-    messages?: PdfProviderMessage[];
-    attachments?: PdfProviderAsset[];
-    images?: PdfProviderAsset[];
-    [key: string]: unknown;
-}
-
-interface PdfProviderConversation extends ConversationRecordInput {
-    id?: string;
-    title?: string;
-    timestamp?: number | null;
-    messages?: PdfProviderMessage[];
-    turns?: PdfProviderTurn[];
-    [key: string]: unknown;
-}
-
-interface PdfSelectedItemObject {
-    id?: string | number | null;
-    title?: string | null;
-    messages?: PdfProviderMessage[];
-    turns?: PdfProviderTurn[];
-    [key: string]: unknown;
-}
-
-type PdfSelectedItem = string | PdfSelectedItemObject | ParsedConversationView;
+interface PdfSelectedItemObject { id?: string | number | null; title?: string | null; [key: string]: unknown }
+export type PdfSelectedItem = string | PdfSelectedItemObject | ResourceConversationParseResult | DomainConversationDetail;
 
 type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
 type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
@@ -139,65 +76,29 @@ export function toRenderDiagnostic(d: DocumentDiagnostic): RenderDiagnostic {
     };
 }
 
-export function hasUsableMessages(chat: unknown): boolean {
-    if (!chat || typeof chat !== 'object') return false;
-    if ('messages' in chat && Array.isArray(chat.messages) && chat.messages.length > 0) return true;
-    if ('turns' in chat && Array.isArray(chat.turns) && chat.turns.length > 0) return true;
-    return false;
+export function hasUsableMessages(value: unknown): boolean {
+    return isResourceConversationParseResult(value) && value.conversation.messages.length > 0;
 }
 
-/**
- * Extract the chat from a fetchChatDetail result using the exact contract
- * ExportOrchestrator uses: results[0] wins, then chat. Never invent fields.
- */
-export function extractChatFromDetailResult(
-    res: FetchChatDetailResult,
-    nid: string,
-    fallback: PdfProviderConversation,
-): PdfProviderConversation {
-    const rawResults: unknown = isObjectRecord(res) ? res.results : undefined;
-    const rawChat: unknown = isObjectRecord(res) ? res.chat : undefined;
-    const chunkResults: readonly unknown[] = Array.isArray(rawResults)
-        ? rawResults
-        : (isObjectRecord(rawChat) ? [rawChat] : []);
-    const chosen: unknown = chunkResults[0] || fallback;
-    if (isObjectRecord(chosen)) {
-        return { ...chosen, id: nid };
-    }
-    return fallback;
+/** Only native details may cross the acquisition boundary. */
+export function extractChatFromDetailResult(res: FetchChatDetailResult, _id: string): ResourceConversationParseResult | null {
+    if (!isObjectRecord(res)) return null;
+    const value = Array.isArray(res.results) ? res.results[0] : res.chat;
+    return isResourceConversationParseResult(value) ? value : null;
 }
-
-/**
- * Resolve a full conversation for a metadata-only list item via the same
- * BatchWorker.fetchChatDetail path the normal export uses. The normalizer
- * stays a pure data transform — no network fetch is ever put inside it.
- */
 export async function resolveFullChatDetail(args: {
-    id: string;
-    title: string;
-    index: number;
-    total: number;
-    currentSlot: string;
-    skip: boolean;
-    signal: AbortSignal;
-    fetchChatDetail: typeof BatchWorker.fetchChatDetail;
-    onLog: (msg: string, level?: string) => void;
-}): Promise<{ ok: true; chat: PdfProviderConversation } | { ok: false; error: string }> {
-    const { id, title, index, total, currentSlot, skip, signal, fetchChatDetail, onLog } = args;
-    const nid = normId(id);
-    let res: FetchChatDetailResult | null = null;
+    id: string; title: string; index: number; total: number; currentSlot: string; skip: boolean;
+    signal: AbortSignal; fetchChatDetail: typeof BatchWorker.fetchChatDetail; onLog: (message: string, level?: string) => void;
+}): Promise<{ ok: true; chat: ResourceConversationParseResult } | { ok: false; error: string }> {
     try {
-        res = await fetchChatDetail({ id: nid, title }, index, total, currentSlot, skip, 'pdf', signal);
-    } catch (e: unknown) {
-        return { ok: false, error: getErrorMessage(e) };
-    }
-    if (!isObjectRecord(res) || !res.success) {
-        return { ok: false, error: (isObjectRecord(res) && typeof res.error === 'string' && res.error) || 'unknown error' };
-    }
-    const chat = extractChatFromDetailResult(res, nid, { id: nid, title });
-    const msgCount = Array.isArray(chat.messages) ? chat.messages.length : 0;
-    onLog(`[PDF] ${title || nid}: resolved full conversation detail (${msgCount} messages)`, 'info');
-    return { ok: true, chat };
+        const response = await args.fetchChatDetail({ id: args.id, title: args.title }, args.index, args.total,
+            args.currentSlot, args.skip, 'pdf', args.signal);
+        if (!isObjectRecord(response) || !response.success) return { ok: false, error: isObjectRecord(response) && typeof response.error === 'string' ? response.error : 'Detail fetch failed' };
+        const chat = extractChatFromDetailResult(response, args.id);
+        if (!chat) return { ok: false, error: 'Detail acquisition did not return native Domain' };
+        args.onLog(`[PDF] ${args.title}: resolved ${chat.conversation.messages.length} messages`, 'info');
+        return { ok: true, chat };
+    } catch (error) { return { ok: false, error: getErrorMessage(error) }; }
 }
 
 export interface PreparedPdfItemSuccess {
@@ -220,7 +121,7 @@ export interface PreparedPdfItemFailure {
 export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFailure;
 
 export interface PreparePdfItemContext {
-    conversations?: PdfProviderConversation[];
+    conversations?: Array<{ id: string; title?: string }>;
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
@@ -298,99 +199,58 @@ function resolvePdfAssetPipeline(context: PreparePdfItemContext): {
     return { pipeline, takeoutEngine, maxRetries };
 }
 
-export async function preparePdfItem(
+async function prepareNativePdfItem(
     selectedItem: PdfSelectedItem,
     context: PreparePdfItemContext = {},
 ): Promise<PreparedPdfItemResult> {
-    const rawId = typeof selectedItem === 'string'
-        ? selectedItem
-        : (isObjectRecord(selectedItem) && 'id' in selectedItem ? selectedItem.id : '');
-    const id = normId(typeof rawId === 'string' || typeof rawId === 'number' || rawId === null ? rawId : undefined);
-    const rawTitle = typeof selectedItem !== 'string' && isObjectRecord(selectedItem) && 'title' in selectedItem && typeof selectedItem.title === 'string'
-        ? selectedItem.title
-        : undefined;
-    const title = rawTitle || id;
+    const nativeSelected = typeof selectedItem === 'object' && selectedItem && 'providerId' in selectedItem
+        ? nativeExportInput(selectedItem as DomainConversationDetail)
+        : isResourceConversationParseResult(selectedItem) ? selectedItem : null;
+    const source = nativeSelected?.conversation;
+    const rawId = source?.id ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
+    const id = source && source.providerId !== 'gemini' ? source.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');
+    const listItem = context.conversations?.find(item => normId(item.id) === id);
+    const rawTitle = typeof selectedItem === 'object' && 'title' in selectedItem ? selectedItem.title : undefined;
+    const title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.title) || id;
     const signal = context.signal ?? new AbortController().signal;
     const onLog = context.onLog ?? (() => {});
     const currentSlot = context.currentSlot ?? 'u0';
-    const index = context.index ?? 0;
-    const total = context.total ?? 1;
-    const skip = context.skip ?? false;
-
-    const listChat = Array.isArray(context.conversations)
-        ? context.conversations.find((c) => normId(c.id) === id) ?? null
-        : null;
-    const selectedRecord: Record<string, unknown> = typeof selectedItem !== 'string' ? { ...selectedItem } : {};
-    const selectedChat: PdfProviderConversation = typeof selectedItem !== 'string' && isObjectRecord(selectedItem)
-        ? {
-            ...selectedRecord,
-            id: typeof selectedItem.id === 'string' ? selectedItem.id : id,
-            title: typeof selectedItem.title === 'string' ? selectedItem.title : title,
-        }
-        : { id, title };
-
     const diagnostics: RenderDiagnostic[] = [];
-    let chat: PdfProviderConversation = listChat ?? selectedChat;
-
-    if (!hasUsableMessages(chat)) {
-        let fetchError: string | undefined;
-        if (context.fetchChatDetail) {
-            const fetched = await resolveFullChatDetail({
-                id, title, index, total, currentSlot, skip, signal,
-                fetchChatDetail: context.fetchChatDetail, onLog,
-            });
-            if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-            if (fetched.ok) chat = fetched.chat;
-            else fetchError = fetched.error;
-        }
-        const takeout: PdfTakeoutEngine | null = context.takeoutEngine
-            ?? __getModuleOverride<TakeoutExportSource | TakeoutEngineModule>('TakeoutEngine')
-            ?? (typeof window !== 'undefined' ? window.TakeoutEngine : null)
-            ?? null;
-        const resolvedRaw: unknown = await resolveConversationData(chat, id, listChat, takeout, currentSlot, onLog);
-        if (isObjectRecord(resolvedRaw)) chat = resolvedRaw;
-        if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-        if (!hasUsableMessages(chat)) {
-            return {
-                ok: false, id, title, diagnostics,
-                error: `[${PDF_NO_MESSAGES}] ${fetchError || 'No usable conversation after online, Takeout and cache resolution'}`,
-            };
-        }
+    let parsed = nativeSelected;
+    if (!parsed?.conversation.messages.length && context.fetchChatDetail) {
+        const fetched = await resolveFullChatDetail({ id, title, index: context.index ?? 0, total: context.total ?? 1,
+            currentSlot, skip: context.skip ?? false, signal, fetchChatDetail: context.fetchChatDetail, onLog });
+        if (fetched.ok) parsed = fetched.chat;
+        else onLog(fetched.error, 'warn');
     }
-
-    const providerInput = { ...chat, id: chat.id || id };
-    const { pipeline, takeoutEngine, maxRetries } = context.includeAssets === false
-        ? { pipeline: null, takeoutEngine: null, maxRetries: undefined }
-        : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
-    const generatedMedia = takeoutEngine && 'getTakeoutMediaForChat' in takeoutEngine
-        ? takeoutEngine.getTakeoutMediaForChat?.(id, currentSlot) : undefined;
-
-    // Parse all provider syntax before composing the sole logical document representation.
-    let parsed: ReturnType<typeof parseConversation>;
+    if (!parsed?.conversation.messages.length) {
+        const resolved = await resolveConversationData(parsed, id, listItem, context.takeoutEngine && 'getTakeoutOfflineChat' in context.takeoutEngine ? context.takeoutEngine : null, currentSlot, onLog);
+        if (isResourceConversationParseResult(resolved)) parsed = resolved;
+    }
+    if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
+    if (!parsed?.conversation.messages.length) return { ok: false, id, title,
+        error: `[${PDF_NO_MESSAGES}] Native conversation body is unavailable`, diagnostics };
+    parsed = { ...parsed, conversation: { ...parsed.conversation, title } };
     let document: DocumentAst;
     try {
-        for (const message of providerInput.messages ?? providerInput.turns?.flatMap(turn => turn.messages ?? []) ?? []) {
-            if (message.id !== undefined && !message.id.trim()) throw new TypeError('[MSG_BAD_ID] Empty message identity');
-        }
-        const native = readParsedConversation(chat);
-        parsed = native ? { ...native, conversation: { ...native.conversation, id: typeof providerInput.id === 'string' ? providerInput.id : id, title: typeof chat.title === 'string' ? chat.title : native.conversation.title } } : parseConversation({ format: 'conversation-record', data: providerInput, providerId: inferLegacyProviderId(providerInput), generatedMedia });
         diagnostics.push(...parsed.diagnostics);
         const composed = composeDomainDocument(parsed.conversation);
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
         const message = getErrorMessage(error);
-        const code = message.match(/\[(MSG_BAD_ID|MSG_DUP_ID)\]/)?.[1] ?? 'PDF_INPUT_INVALID';
-        diagnostics.push({ severity: 'error', code, message });
+        diagnostics.push({ severity: 'error', code: 'PDF_INPUT_INVALID', message });
         return { ok: false, id, title, error: message, diagnostics };
     }
-    if (!document.messages.length) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] Conversation detail resolved without any messages; refusing to generate an empty PDF.`, diagnostics };
+    const { pipeline, maxRetries } = context.includeAssets === false
+        ? { pipeline: null, maxRetries: undefined }
+        : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
 
     const pipelineChat: AssetPipelineChat = { id: parsed.conversation.id, title: parsed.conversation.title };
     const imageIds = collectDocumentResources(document).imageIds;
     const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
         signal,
-        acquire: pipeline ? (_assetId, hint) => pipeline.acquireAssetBytes(hint, pipelineChat, {
+        acquire: pipeline ? (assetId, hint) => pipeline.acquireAssetBytes({ ...hint, assetId, localName: parsed.resourceHints[assetId]?.archivePath ?? hint.localName }, pipelineChat, {
             isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}),
         }) : undefined,
         onFailure: (assetId, reason) => onLog(`[PDF] [${title || id}] 图片获取失败 (${assetId}): ${reason}`, 'warn'),
@@ -399,4 +259,16 @@ export async function preparePdfItem(
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
     const resources = prepared.resources;
     return { ok: true, id, title, document, resources, diagnostics };
+}
+
+/** Per-item source or storage failures remain reportable and retryable by the batch exporter. */
+export async function preparePdfItem(selectedItem: PdfSelectedItem, context: PreparePdfItemContext = {}): Promise<PreparedPdfItemResult> {
+    try { return await prepareNativePdfItem(selectedItem, context); }
+    catch (error) {
+        const candidate = typeof selectedItem === 'object' && selectedItem && 'conversation' in selectedItem ? selectedItem.conversation : selectedItem;
+        const id = typeof candidate === 'string' ? normId(candidate) : typeof candidate === 'object' && candidate && 'id' in candidate ? String(candidate.id) : '';
+        const title = typeof candidate === 'object' && candidate && 'title' in candidate ? String(candidate.title) : id;
+        const message = getErrorMessage(error);
+        return { ok: false, id, title, error: message, diagnostics: [{ severity: 'error', code: 'PDF_INPUT_INVALID', message }] };
+    }
 }

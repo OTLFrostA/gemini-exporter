@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -22,7 +23,7 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
     };
 
     const mockScraper = {
-        parseDoc: (doc: any, id: string) => ({
+        parseDoc: (doc: any, id: string) => historicalFixture(({
             id,
             title: 'Quantum Computing Intro',
             messages: [
@@ -30,7 +31,7 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
                 { role: 'model', content: 'Superposition is a fundamental principle of quantum mechanics.' }
             ],
             timestamp: 1710000000000
-        })
+        }))
     };
 
     let writerFolderUsed = '';
@@ -104,12 +105,12 @@ test('liveSaveCoordinator - executeLiveSave delegates via chrome.runtime.sendMes
     };
 
     const mockScraper = {
-        parseDoc: (_doc: any, id: string) => ({
+        parseDoc: (_doc: any, id: string) => historicalFixture(({
             id,
             title: 'Delegated Live Save Test',
             messages: [{ role: 'user', content: 'hello' }, { role: 'model', content: 'world' }],
             timestamp: Date.now()
-        })
+        }))
     };
 
     const origChrome = (global as any).chrome;
@@ -159,12 +160,12 @@ test('liveSaveCoordinator - executeLiveSave cleanly aborts and returns false wit
     };
 
     const mockScraper = {
-        parseDoc: (_doc: any, id: string) => ({
+        parseDoc: (_doc: any, id: string) => historicalFixture(({
             id,
             title: 'No Handle Test',
             messages: [{ role: 'user', content: 'ping' }, { role: 'model', content: 'pong' }],
             timestamp: Date.now()
-        })
+        }))
     };
 
     const origChrome = (global as any).chrome;
@@ -212,12 +213,12 @@ test('liveSaveCoordinator - executeLiveSave aborts and warns when configured dir
     };
 
     const mockScraper = {
-        parseDoc: (_doc: any, id: string) => ({
+        parseDoc: (_doc: any, id: string) => historicalFixture(({
             id,
             title: 'Missing Dir Test',
             messages: [{ role: 'user', content: 'hello' }],
             timestamp: Date.now()
-        })
+        }))
     };
 
     const origChrome = (global as any).chrome;
@@ -274,12 +275,12 @@ test('liveSaveCoordinator - executeLiveSave catches native NotFoundError and res
     };
 
     const mockScraper = {
-        parseDoc: (_doc: any, id: string) => ({
+        parseDoc: (_doc: any, id: string) => historicalFixture(({
             id,
             title: 'Native Delete Test',
             messages: [{ role: 'user', content: 'test' }],
             timestamp: Date.now()
-        })
+        }))
     };
 
     class DeadFsWriter {
@@ -350,7 +351,8 @@ test('liveSaveCoordinator - processAndSaveImages saves to assets/ with cid6 and 
     };
 
     const cid = 'c_0123456789abcdef';
-    const collected = await LiveSaveCoordinator.processAndSaveImages(chat, cid, mockWriter);
+    const native = historicalFixture(chat); const before = structuredClone(native.conversation);
+    const collected = await LiveSaveCoordinator.processAndSaveImages(native, cid, mockWriter);
 
     assert.strictEqual(savedAssets.length, 1);
     assert.strictEqual(savedAssets[0].subDir, 'assets');
@@ -358,10 +360,8 @@ test('liveSaveCoordinator - processAndSaveImages saves to assets/ with cid6 and 
     assert.ok(savedAssets[0].fileName.startsWith('abcdef_'));
     assert.ok(savedAssets[0].fileName.endsWith('.png'));
 
-    // Verify markdown rewritten to assets/...
-    assert.ok(chat.messages[1].content.includes('assets/abcdef_'));
-    assert.strictEqual(chat.messages[1].content.includes('attachments/'), false);
-    assert.strictEqual((chat.messages[1] as any)?.attachments?.[0]?.localName, `assets/${savedAssets[0].fileName}`);
+    assert.ok(Object.values(native.resourceHints).some((hint: unknown) => !!hint && typeof hint === 'object' && 'archivePath' in hint && hint.archivePath === `assets/${savedAssets[0].fileName}`));
+    assert.deepStrictEqual(native.conversation, before);
 
     // Verify collected assets returned with valid base64 payload
     assert.strictEqual(collected.length, 1);
@@ -387,7 +387,7 @@ test('failed live image downloads remain partial and are not rewritten to missin
     LiveSaveCoordinator.init({ assetFetcher: { fetchImageBuffer: async () => null } });
     const chat = { messages: [{ role: 'model', content: '![Image](https://example.com/image.png)' }] };
     const failures: any[] = [];
-    const assets = await LiveSaveCoordinator.processAndSaveImages(chat, 'abcdef', null, failures);
+    const assets = await LiveSaveCoordinator.processAndSaveImages(historicalFixture(chat), 'abcdef', null, failures);
     assert.strictEqual(assets.length, 0);
     assert.strictEqual(failures.length, 1);
     assert.match(failures[0].error, /no bytes/);
@@ -405,8 +405,8 @@ test('direct live save marks image failures partial after the Markdown file land
     LiveSaveCoordinator.init({
         storageManager: { getLiveConfig: async () => ({ enabledDisk: true, includeAssets: true }),
             getLiveDirHandle: async () => ({ name: 'Vault' }), setLiveConfig: async () => {} },
-        scraper: { parseDoc: (_doc: any, id: string) => ({ id, title: 'Image chat', timestamp: 1700000000000,
-            messages: [{ role: 'model', content: '![Image](https://example.com/missing.png)' }] }) },
+        scraper: { parseDoc: (_doc: any, id: string) => historicalFixture(({ id, title: 'Image chat', timestamp: 1700000000000,
+            messages: [{ role: 'model', content: '![Image](https://example.com/missing.png)' }] })) },
         clientClass: null,
         fsWriterClass: Writer,
         assetFetcher: { fetchImageBuffer: async () => null },

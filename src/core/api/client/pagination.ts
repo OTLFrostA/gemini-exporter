@@ -1,10 +1,10 @@
-import { createParsedConversationView } from '../../compatibility/record/projectDomainRecord.js';
+import { isResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
-import { getErrorMessage, isDevMode } from "../../utils/utils.js";
+import { getErrorMessage, isDevMode, normId } from "../../utils/utils.js";
 import { isRateLimited } from "../../engine/export/rateLimiter.js";
 import type { ConversationListItem, ListParseResult, ListParseDiagnostics } from "../../parsers/gemini/rpc/parseList.js";
-import type { DetailParseResult, ParserMessage } from "./detailTypes.js";
+import type { DetailParseResult } from "./detailTypes.js";
 
 export interface PaginationProgressInfo {
     page: number;
@@ -125,9 +125,11 @@ export interface GeminiPaginationDetailClient {
         targetSid?: string | null, opts?: GeminiDetailRequestOptions) => Promise<DetailParseResult>;
 }
 
-export interface PaginatedDetailResult extends DetailParseResult {
-    messageCount: number;
-    truncateReason?: 'token_loop' | 'max_turns_page_limit_20';
+export interface PaginatedDetailResult extends ResourceConversationParseResult {
+    transport: DetailParseResult['transport'] & {
+        truncated?: boolean;
+        truncateReason?: 'token_loop' | 'max_turns_page_limit_20';
+    };
 }
 
 export interface GeminiClientPaginationModule {
@@ -353,132 +355,60 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
     }
 
     async function getConversationDetail(client: GeminiPaginationDetailClient, conversationId: string, targetSid?: string | null): Promise<PaginatedDetailResult> {
-        let msgs: ParserMessage[] = [];
-        const nativePages: ResourceConversationParseResult[] = [];
-        let legacyMessagesObserved = false;
-        let token: string | null = null;
-        let first: DetailParseResult | null = null;
-        let attempts = 0;
+        const pages: DetailParseResult[] = [];
         const seenTokens = new Set<string>();
-        const seenMsgIds = new Set<string>();
-        // P1-8: parser 诊断跨页合并（去重），不能只保留第一页
-        let mergedTurnsRejected = 0;
-        const mergedSchemaDrift: string[] = [];
-        const accPageDrift = (page: DetailParseResult) => {
-            if (typeof page?.turnsRejected === "number" && page.turnsRejected > 0) {
-                mergedTurnsRejected += Math.floor(page.turnsRejected);
-            }
-            if (Array.isArray(page?.schemaDrift)) {
-                for (const w of page.schemaDrift) {
-                    if (typeof w === "string" && w && !mergedSchemaDrift.includes(w)) mergedSchemaDrift.push(w);
-                }
-            }
-        };
-        let detailTruncated = false;
-        let truncateReason: PaginatedDetailResult["truncateReason"] = undefined;
+        let token: string | null = null;
+        let truncateReason: PaginatedDetailResult['transport']['truncateReason'];
         do {
-            let page: DetailParseResult = await client.fetchConversationPage(conversationId, token, targetSid);
-            if (!first) first = page;
-            accPageDrift(page);
-            if (page.parsed) nativePages.push(page.parsed);
-            else if (page.messages?.length) legacyMessagesObserved = true;
-            const fresh = (Array.isArray(page.messages) ? page.messages : []).filter((m: ParserMessage) => {
-                const mid = m ? m.id : null;
-                if (mid === null || mid === undefined || mid === '') return true;
-                const midStr = String(mid);
-                // Dedup: same id is accepted exactly once, no exceptions. The old
-                // bypass that permanently let messages whose id equals the
-                // conversation id skip dedupe caused duplicate turns whenever
-                // such a message reappeared on another page (detail/token-loop
-                // repeats). Gemini detail envelopes can be keyed by the
-                // conversation id; if that structure ever needs distinct
-                // handling it belongs in the parser (parseDetail), not here.
-                if (seenMsgIds.has(midStr)) return false;
-                seenMsgIds.add(midStr);
-                return true;
-            });
-            msgs = [...fresh, ...msgs];
-            const nextToken: string | null = page.nextPageToken || null;
-            if (nextToken) {
-                if (seenTokens.has(nextToken)) {
-                    // Token loop: the server is repeating a cursor we already
-                    // followed — stop instead of pulling up to 20 duplicate pages.
-                    token = null;
-                    detailTruncated = true;
-                    truncateReason = 'token_loop';
-                    break;
-                }
-                seenTokens.add(nextToken);
-            }
-            token = nextToken;
-            attempts++;
-        } while (token && attempts < 20);
-        if (token && attempts >= 20) {
-            detailTruncated = true;
-            truncateReason = 'max_turns_page_limit_20';
-        }
-        if (!first) throw new Error("no data");
-
-        // If the primary request returned metadata-only (no messages, but raw data present),
-        // do one retry with DETAIL-only RPC and alternative innerDetail params.
-        if (!msgs.length && first._raw) {
-            const inner = first._raw;
-            const looksMetadataOnly = Array.isArray(inner) && inner[0] === null && inner[1] === null
-                && Array.isArray(inner[2]) && inner[2].length > 0
-                && typeof inner[2][0]?.[0] === "string" && inner[2][0][0].startsWith("c_");
-            if (looksMetadataOnly) {
-                try {
-                    const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true });
-                    if (retry && retry.messages && retry.messages.length > 0) {
-                        const primaryTitle = first.title;
-                        const primaryTitles = first.titles;
-                        const primarySource = first.titleSource;
-                        msgs = retry.messages;
-                        if (retry.parsed) nativePages.push(retry.parsed);
-                        accPageDrift(retry);
-                        first = retry;
-                        if (primarySource === "rpc" && primaryTitle && primaryTitle !== "未命名对话" && first.titleSource !== "rpc") {
-                            first.title = primaryTitle;
-                            first.titles = { ...(first.titles || {}), ...(primaryTitles || {}) };
-                            first.titleSource = "rpc";
-                        }
+            const page = await client.fetchConversationPage(conversationId, token, targetSid);
+            if (!isResourceConversationParseResult(page)) throw new TypeError('Detail pagination requires native conversation results');
+            pages.push(page);
+            token = page.transport.nextPageToken;
+            if (token && seenTokens.has(token)) { truncateReason = 'token_loop'; break; }
+            if (token) seenTokens.add(token);
+        } while (token && pages.length < 20);
+        if (token && !truncateReason) truncateReason = 'max_turns_page_limit_20';
+        const first = pages[0];
+        if (!first) throw new Error('no data');
+        const inner = first.transport.decodedPayload;
+        const metadataOnly = !pages.some(page => page.conversation.messages.length) && Array.isArray(inner)
+            && inner[0] === null && inner[1] === null && Array.isArray(inner[2])
+            && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
+        if (metadataOnly) {
+            try {
+                const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true });
+                if (!isResourceConversationParseResult(retry)) throw new TypeError('Detail retry requires native conversation results');
+                if (retry.conversation.messages.length) {
+                    // The retry is a new detail chain; follow its real cursor before claiming completeness.
+                    pages.push(retry);
+                    seenTokens.clear();
+                    truncateReason = undefined;
+                    token = retry.transport.nextPageToken;
+                    while (token && pages.length < 20) {
+                        if (seenTokens.has(token)) { truncateReason = 'token_loop'; break; }
+                        seenTokens.add(token);
+                        const next = await client.fetchConversationPage(conversationId, token, targetSid, { detailOnly: true, altParams: true });
+                        if (!isResourceConversationParseResult(next)) throw new TypeError('Detail pagination requires native conversation results');
+                        pages.push(next);
+                        token = next.transport.nextPageToken;
                     }
-                } catch (retryErr: unknown) {
-                    if (isDevMode()) {
-                        console.warn("[Gemini Exporter Client] metadata-only retry also failed:", (retryErr as { message?: unknown }).message);
-                    }
+                    if (token && !truncateReason) truncateReason = 'max_turns_page_limit_20';
                 }
+            } catch (error: unknown) {
+                if (pages.some(page => page.conversation.messages.length)) throw error;
+                if (isDevMode()) console.warn('[Gemini Exporter Client] metadata-only retry failed:', getErrorMessage(error));
             }
         }
-
-        let allTimestamps = msgs.map(m => m.timestamp).filter((x): x is number => typeof x === "number" && Number.isFinite(x) && x > 0);
-        let minTs = allTimestamps.length ? Math.min(...allTimestamps) : (first.createdAt || null);
-        let maxTs = allTimestamps.length ? Math.max(...allTimestamps) : (first.updatedAt || minTs || null);
-        let attachmentCount = msgs.reduce((a: number, m: ParserMessage) => a + (m.attachmentCount || 0), 0);
-        let cleanId = String(conversationId).replace(/^c_/, "").trim();
-        if (nativePages.length && legacyMessagesObserved) throw new TypeError('Cannot merge native and legacy conversation messages');
-        const parsed = nativePages.length ? mergeConversationPages(nativePages, detailTruncated ? truncateReason : undefined) : undefined;
-        if (parsed) {
-            parsed.conversation = { ...parsed.conversation, id: cleanId, title: first.title, titleSource: first.titleSource, titles: { ...first.titles } };
-        }
-        const nativeView = parsed ? createParsedConversationView(parsed) : undefined;
-        return {
-            ...first,
-            ...(nativeView ? { parsed: nativeView.parsed } : {}),
-            id: cleanId,
-            messages: nativeView ? nativeView.messages as ParserMessage[] : msgs,
-            messageCount: nativeView ? nativeView.messages.length : msgs.length,
-            timestamp: nativeView ? nativeView.timestamp : maxTs,
-            createdAt: nativeView ? nativeView.createdAt : minTs,
-            chatTime: nativeView ? nativeView.chatTime ?? null : maxTs,
-            updatedAt: nativeView ? nativeView.updatedAt : maxTs,
-            attachmentCount: nativeView ? nativeView.attachmentCount ?? 0 : attachmentCount,
-            turnsRejected: mergedTurnsRejected > 0 ? mergedTurnsRejected : void 0,
-            schemaDrift: mergedSchemaDrift.length ? mergedSchemaDrift : void 0,
-            truncated: detailTruncated || undefined,
-            isTruncated: detailTruncated || undefined,
-            truncateReason: detailTruncated ? truncateReason : undefined
-        };
+        const normalizedPages = pages.map(page => ({ ...page, conversation: { ...page.conversation, id: normId(page.conversation.id) } }));
+        const result = mergeConversationPages(normalizedPages, truncateReason);
+        const sourceTitle = pages.find(page => page.conversation.titleSource === 'rpc')?.conversation ?? first.conversation;
+        result.conversation = { ...result.conversation, id: String(conversationId).replace(/^c_/, '').trim(),
+            title: sourceTitle.title, titleSource: sourceTitle.titleSource, titles: { ...sourceTitle.titles } };
+        const schemaDrift = [...new Set(pages.flatMap(page => page.transport.schemaDrift ?? []))];
+        const turnsRejected = pages.reduce((sum, page) => sum + (page.transport.turnsRejected ?? 0), 0);
+        return { ...result, transport: { ...first.transport, nextPageToken: null,
+            ...(schemaDrift.length ? { schemaDrift } : {}), ...(turnsRejected ? { turnsRejected } : {}),
+            ...(truncateReason ? { truncated: true, truncateReason } : {}) } };
     }
 
 export {

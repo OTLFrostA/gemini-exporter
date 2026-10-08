@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -15,7 +16,7 @@ test('chat_formatter - formatMarkdownDocument', async () => {
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownDocument(mockChat);
+    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
     assert.strictEqual(res.ext, 'md');
     // Frontmatter structure assertions
     assert.ok(res.content.startsWith('---\n'), 'Markdown must start with YAML frontmatter delimiter');
@@ -45,7 +46,7 @@ test('chat_formatter - formatContent json_openai', () => {
         ]
     };
 
-    const res = ChatFormatter.formatContent(mockChat, 'json_openai');
+    const res = ChatFormatter.formatContent(historicalFixture(mockChat), 'json_openai');
     assert.strictEqual(res.ext, 'json');
     const parsed = JSON.parse(res.content);
     assert.strictEqual(parsed.messages.length, 2);
@@ -110,7 +111,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
         id: 'test_123',
         title: 'Google Gemini',
         titles: { rpc: 'Google Gemini', sniff: '如何设计微服务架构' },
-        titleSource: 'sniff'
+        titleSource: 'sniff', messages: [{ role: 'user', content: 'Question' }]
     };
     const listConv = {
         id: 'test_123',
@@ -120,7 +121,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
     };
 
     const resolved = await BatchWorker.resolveChat(
-        chat as any,
+        historicalFixture(chat),
         { id: 'test_123', title: '如何设计微服务架构' },
         listConv as any,
         null,
@@ -194,7 +195,7 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
             { role: 'model', content: 'Here is the detailed explanation of const vs var.' }
         ]
     };
-    const res = await ChatFormatter.formatMarkdownDocument(mockChat);
+    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat));
     assert.ok(!res.content.includes('```javascript\nPlease explain'), 'Natural language prompt must not be wrapped in javascript code block');
     assert.ok(res.content.includes('Please explain the following architectural concepts'), 'Prompt content must remain plain text');
 });
@@ -209,10 +210,10 @@ test('chat_formatter - decoupled formatters export valid focused functions', asy
     assert.strictEqual(typeof convertHtmlToMarkdown, 'function');
 
     const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
-    assert.ok((await ChatFormatter.formatMarkdownDocument(testChat)).content.includes('title: "Test"'));
-    assert.throws(() => ChatFormatter.formatContent(testChat, 'markdown'), /unsupported format/);
-    assert.ok(toOpenAIJson(testChat).includes('"content": "hello"'));
-    assert.ok(toJsonStandard(testChat).includes('"id": "c1"'));
+    assert.ok((await ChatFormatter.formatMarkdownDocument(historicalFixture(testChat))).content.includes('title: "Test"'));
+    assert.throws(() => ChatFormatter.formatContent(historicalFixture(testChat), 'markdown'), /unsupported format/);
+    assert.ok(toOpenAIJson(historicalFixture(testChat)).includes('"content": "hello"'));
+    assert.ok(toJsonStandard(historicalFixture(testChat)).includes('"id": "c1"'));
     assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));
 });
 

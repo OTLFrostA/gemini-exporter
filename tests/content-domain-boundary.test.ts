@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -51,7 +52,7 @@ test('provider parsing diagnoses malformed entries at their source position with
         { role: 'assistant', content: { unsupported: 'visible fallback' } },
     ] };
     const original = structuredClone(raw);
-    const result = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const result = historicalFixture(raw, { providerId: 'gemini' });
     assert.equal(result.conversation.messages.length, 1);
     assert.deepEqual(raw, original);
     assert.equal(result.diagnostics.find(d => d.code === 'BAD_MESSAGE_SHAPE')?.path, 'messages[0]');

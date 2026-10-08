@@ -1,3 +1,4 @@
+import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import type { Attachment, Conversation, GeneratedMediaIdentity } from './conversation.js';
 import type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
 export type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
@@ -57,7 +58,7 @@ export interface ExportProgress {
 }
 /** Only the Takeout capabilities used by export, independent of ZIP decoding/index internals. */
 export interface TakeoutExportSource {
-    getTakeoutOfflineChat(chatId: string, slot?: string | null): Conversation | null;
+    getTakeoutOfflineChat(chatId: string, slot?: string | null): ResourceConversationParseResult | null;
     getTakeoutMediaForChat(chatId: string, slot?: string | null): Array<{
         filename: string;
         isGenerated?: boolean;

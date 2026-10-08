@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 // tests/write_failure_semantics.test.ts
 // Phase A (P0-1): writeFileDirect 抛错语义回归测试。
 // 覆盖四类：
@@ -51,12 +52,12 @@ function makeWorker(chatOverrides: any = {}) {
     return makeTestWorker({
         fetchChatDetail: async (requestedItem: any) => ({
             success: true,
-            chat: {
+            chat: historicalFixture({
                 id: requestedItem.id,
                 title: requestedItem.title,
                 messages: [{ role: 'user', content: 'Hello' }],
                 ...chatOverrides
-            },
+            }),
             listTitle: requestedItem.title
         })
     });

@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-exporter-dispose.test.ts
  *
@@ -102,7 +103,7 @@ function makeFakeCompiler(opts: { throws?: boolean } = {}) {
 function baseOptions(writer: any, extra: any = {}) {
     return {
         selected: [{ id: sample.id, title: sample.title }],
-        conversations: [sample],
+        conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
         useZip: false,
         writer,
         ...extra,

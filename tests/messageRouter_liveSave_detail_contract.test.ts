@@ -1,3 +1,4 @@
+import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { init as initRouter, type MessageRouterDeps } from '../src/content/messageRouter.js';
@@ -5,7 +6,7 @@ import { init as initLive, resolveConversationDetail } from '../src/content/live
 import { DomScraper } from '../src/content/domScraper.js';
 import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
 import type { GeminiProviderConversationDetail } from '../src/core/provider/gemini/geminiContracts.js';
-import type { DomDetail, GetConversationDetailResponse } from '../src/types/detailTransport.js';
+import type { DomDetail, GetConversationDetailResponse, DetailFailure } from '../src/types/detailTransport.js';
 
 // Compile-time regression: explicit null disables these optional runtime dependencies.
 // Keep this assignment typed; routing through an unchecked fixture would hide the bug.
@@ -13,16 +14,11 @@ const deps: MessageRouterDeps = { syncEngine: null, scraper: null, assets: null,
 void deps;
 
 function detail(): GeminiProviderConversationDetail {
-    return { id: 'detail123', title: 'Research', titleSource: 'rpc', titles: { rpc: 'Research' },
-        createdAt: null, updatedAt: null, timestamp: null, chatTime: null,
-        url: 'https://gemini.google.com/app/detail123', nextPageToken: null, messageCount: 1, attachmentCount: 1,
-        messages: [{ role: 'model', content: 'Research answer', timestamp: 1700000000000,
-            images: [{ type: 'image', sourceUrl: 'https://example.com/image', isGenerated: true, generation: { chatId: 'detail123', providerRequestId: 'req', generationOrdinal: 0 } }],
-            attachments: [{ type: 'image', originalUrl: 'original', alt: 'generated' }],
-            documents: [{ id: 'doc', title: 'Report', chipUrl: 'chip', url: 'url', localName: 'report.md', type: 'doc', sections: ['section'], links: [] }],
-            citations: [{ title: 'Citation', url: 'source' }], structuredContent: { children: [] }, groundingCitationMarkers: ['cite'], thoughts: ['thought'] }],
-        _raw: { wire: ['evidence'] }, _debug: { turnsLen: 1 }, schemaDrift: ['drift'], turnsRejected: 1,
-        truncated: true, isTruncated: true, truncateReason: 'token_loop' };
+    return rpcFixture({ id: 'detail123', title: 'Research', titleSource: 'rpc', titles: { rpc: 'Research' }, timestamp: null, createdAt: null, updatedAt: null,
+        messages: [{ role: 'model', content: 'Research answer', timestamp: 1700000000000, model: 'Model',
+            attachments: [{ type: 'image', url: 'https://example.com/image', name: 'generated.png' }],
+            citations: [{ title: 'Citation', url: 'source' }], thoughts: 'thought' }] },
+        { decodedPayload: { wire: ['evidence'] }, schemaDrift: ['drift'], turnsRejected: 1 });
 }
 
 async function withProvider(run: (set: (acquire: () => Promise<GeminiProviderConversationDetail>) => void) => Promise<void>) {
@@ -33,7 +29,7 @@ async function withProvider(run: (set: (acquire: () => Promise<GeminiProviderCon
     finally { provider.fetchConversationDetail = original; initLive(); }
 }
 
-async function route(dom: DomDetail | (() => Promise<DomDetail>)) {
+async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail | DetailFailure>)) {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
     let removed = '';
@@ -53,23 +49,24 @@ async function route(dom: DomDetail | (() => Promise<DomDetail>)) {
         else Reflect.deleteProperty(globalThis, 'chrome');
     }
 }
-const dom: DomDetail = { id: 'detail123', title: 'DOM title', titleSource: 'dom', messages: [{ role: 'user', content: 'DOM' }], _debug: { nodeCount: 1 } };
+const dom: DomDetail = { ...historicalFixture({ id: 'detail123', title: 'DOM title', titleSource: 'dom', messages: [{ role: 'user', content: 'DOM' }] }), transport: { nodeCount: 1, htmlLen: 42, fallbackUsed: null } };
+const emptyDom: DomDetail = { ...dom, conversation: { ...dom.conversation, messages: [] } };
 
 test('messageRouter: provider success preserves all companion and multimodal evidence', async () => withProvider(async set => {
     const payload = detail(); set(async () => payload);
     const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute');
     assert.strictEqual(result.data, payload);
-    assert.strictEqual(result.data.messages, payload.messages);
+    assert.strictEqual(('conversation' in result.data && result.data.conversation.messages), payload.conversation.messages);
     assert.deepEqual(result.data, payload); assert.equal(removed, '');
 }));
 
 test('messageRouter: empty RPC retains raw previews and DOM debug without pruning', async () => withProvider(async set => {
-    const payload = detail(); payload.messages = []; set(async () => payload);
-    const { result, removed } = await route({ ...dom, messages: [], _debug: { htmlLen: 42 } });
+    const payload = detail(); payload.conversation.messages = []; set(async () => payload);
+    const { result, removed } = await route(emptyDom);
     assert.ok(result.success && result.source === 'dom' && '_empty' in result.data);
-    const debug = result.data._debug;
-    assert.deepEqual(debug.batchexecuteEmptyDebug, { rawKeys: ['wire'], rawPreview: JSON.stringify(payload._raw),
+    const debug = result.data._debug; assert.ok(debug && 'batchexecuteEmptyDebug' in debug);
+    assert.deepEqual(debug.batchexecuteEmptyDebug, { rawKeys: ['wire'], rawPreview: JSON.stringify(payload.transport.decodedPayload),
         topPreview: JSON.stringify(payload).slice(0, 1000), messagesLen: 0, hasRaw: true, titleSeen: 'Research' });
     assert.equal(debug.domHtmlLen, 42); assert.equal(result.data.isEmpty, true); assert.equal(removed, '');
 }));
@@ -79,10 +76,11 @@ test('messageRouter: provider failure permits valid DOM fallback; 404 prunes onl
     const success = await route(dom);
     assert.ok(success.result.success && success.result.source === 'dom'); assert.strictEqual(success.result.data, dom);
     assert.equal(success.removed, '');
-    const deleted = await route({ ...dom, messages: [], isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
+    const deleted = await route({ id: 'detail123', isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
     assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
     assert.equal(deleted.result.data.isDeleted, true); assert.equal(deleted.result.data.isEmpty, false);
     assert.equal(deleted.removed, 'detail123');
+    assert.ok(deleted.result.data._debug && 'batchexecuteEmptyDebug' in deleted.result.data._debug);
     assert.deepEqual(deleted.result.data._debug.batchexecuteEmptyDebug, { error: 'temporary failure' });
 }));
 
@@ -91,6 +89,7 @@ test('messageRouter: confirmed RPC deletion suppresses DOM and preserves deletio
     const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute' && '_empty' in result.data);
     assert.equal(result.data.isDeleted, true); assert.equal(removed, 'detail123');
+    assert.ok(result.data._debug && 'isDeleted' in result.data._debug);
     assert.equal(result.data._debug.isDeleted, true);
 }));
 
@@ -100,22 +99,22 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         set(async () => { if (injected) throw new Error('provider must not run'); return payload; });
         class Client { async getConversationDetail(id: string) { calledId = id; return payload; } }
         initLive(injected ? { clientClass: Client } : {});
-        const before = structuredClone(payload.messages);
+        const before = structuredClone(payload.conversation.messages);
         const resolved = await resolveConversationDetail('c_detail123');
-        assert.strictEqual(resolved, payload); assert.deepEqual(resolved?.messages, before);
-        assert.equal(resolved?.chatTime, 1700000000000); assert.equal(resolved?.timestamp, 1700000000000);
-        assert.equal(resolved?.updatedAt, 1700000000000); assert.equal(resolved?.createdAt, null);
-        assert.equal(resolved?.titleSource, 'rpc'); assert.strictEqual(resolved?.titles, payload.titles);
+        assert.strictEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
+        assert.equal(resolved?.conversation.chatTime, undefined); assert.equal(resolved?.conversation.timestamp, null);
+        assert.equal(resolved?.conversation.updatedAt, null); assert.equal(resolved?.conversation.createdAt, null);
+        assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.strictEqual(resolved?.conversation.titles, payload.conversation.titles);
         if (injected) assert.equal(calledId, 'detail123');
     }
-    const existing = detail(); existing.chatTime = 1600000000000; existing.updatedAt = 1500000000000;
+    const existing = detail(); existing.conversation.chatTime = 1600000000000; existing.conversation.updatedAt = 1500000000000;
     set(async () => existing); initLive();
     assert.strictEqual(await resolveConversationDetail('detail123'), existing);
-    assert.equal(existing.chatTime, 1600000000000); assert.equal(existing.updatedAt, 1500000000000); assert.equal(existing.timestamp, null);
+    assert.equal(existing.conversation.chatTime, 1600000000000); assert.equal(existing.conversation.updatedAt, 1500000000000); assert.equal(existing.conversation.timestamp, null);
 }));
 
 test('liveSave: empty/failed provider and failed injected client still permit DOM acquisition', async () => withProvider(async set => {
-    const empty = detail(); empty.messages = [];
+    const empty = detail(); empty.conversation.messages = [];
     for (const mode of ['empty', 'failed', 'injected']) {
         set(async () => { if (mode === 'empty') return empty; throw new Error('failure'); });
         class Client { async getConversationDetail(): Promise<GeminiProviderConversationDetail> { throw new Error('injected failure'); } }

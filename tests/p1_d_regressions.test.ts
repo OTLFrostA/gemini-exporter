@@ -1,3 +1,4 @@
+const { historicalFixture, rpcFixture } = require('./helpers/nativeFixture.js');
 /**
  * D 组 P1 回归测试 —— 2026-09-15 代码审查「存储层：并发、原子性与写放大」
  * P1-045 ~ P1-060，共 20 个测试。
@@ -511,13 +512,13 @@ test('P1-060: detail pagination stops on token loops and dedupes messages by id'
     const client: any = {
         fetchConversationPage: async (_cid: string, token: string | null) => {
             calls++;
-            if (!token) return { messages: [{ id: 'm1' }, { id: 'm2' }], nextPageToken: 't1', title: 'T' };
+            if (!token) return rpcFixture({ messages: [{ id: 'm1' }, { id: 'm2' }], title: 'T' }, { nextPageToken: 't1' });
             // Misbehaving server: repeats the same cursor and re-sends m2.
-            return { messages: [{ id: 'm2' }, { id: 'm3' }], nextPageToken: 't1', title: 'T' };
+            return rpcFixture({ messages: [{ id: 'm2' }, { id: 'm3' }], title: 'T' }, { nextPageToken: 't1' });
         },
     };
     const res = await Pagination.getConversationDetail(client, 'c_det');
     assert.strictEqual(calls, 2, `token loop was not stopped (fetch calls: ${calls})`);
-    const ids = (res.messages as any[]).map((m) => m.id);
+    const ids = (res.conversation.messages as any[]).map((m) => m.id);
     assert.deepStrictEqual(ids, ['m3', 'm1', 'm2'], `duplicate/looped messages leaked: ${JSON.stringify(ids)}`);
 });

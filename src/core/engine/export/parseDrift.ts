@@ -1,4 +1,4 @@
-import { readParsedConversation } from '../../compatibility/record/projectDomainRecord.js';
+import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 /**
  * Phase C (P1-8/P1-9): parser 诊断抽取 —— 纯函数，供导出链路与单测共用。
  *
@@ -13,28 +13,22 @@ export interface ChatParseDrift {
     turnsRejected: number;
     hasHeuristicDocs: boolean;
     sourcePartial?: boolean;
+    truncated?: boolean;
+    truncateReason?: string;
 }
 
-export function extractChatParseDrift(chat: any): ChatParseDrift {
-    const schemaDrift = Array.isArray(chat?.schemaDrift)
-        ? chat.schemaDrift.filter((s: any) => typeof s === "string")
-        : [];
-    const turnsRejected = typeof chat?.turnsRejected === "number" && chat.turnsRejected > 0
-        ? Math.floor(chat.turnsRejected)
-        : 0;
-    const messages = Array.isArray(chat?.messages) ? chat.messages : [];
-    const hasHeuristicDocs = messages.some((m: any) =>
-        Array.isArray(m?.documents) && m.documents.some((d: any) => d != null && d.hasFabricatedText === true)
-    );
-    const native = readParsedConversation(chat);
-    if (native) {
-        for (const diagnostic of native.diagnostics.filter(d => d.severity !== 'info')) {
-            const warning = `${diagnostic.code}: ${diagnostic.message}`;
-            if (!schemaDrift.includes(warning)) schemaDrift.push(warning);
-        }
-        return { schemaDrift, turnsRejected, hasHeuristicDocs: hasHeuristicDocs || native.conversation.assets.some(asset => asset.document?.hasFabricatedText), sourcePartial: native.conversation.completeness?.status === 'partial' };
+export function extractChatParseDrift(result: ResourceConversationParseResult): ChatParseDrift {
+    const transport = 'transport' in result && result.transport && typeof result.transport === 'object' ? result.transport : {};
+    const schemaDrift = 'schemaDrift' in transport && Array.isArray(transport.schemaDrift) ? transport.schemaDrift.filter((value): value is string => typeof value === 'string') : [];
+    for (const diagnostic of result.diagnostics.filter(d => d.severity !== 'info')) {
+        const warning = `${diagnostic.code}: ${diagnostic.message}`;
+        if (!schemaDrift.includes(warning)) schemaDrift.push(warning);
     }
-    return { schemaDrift, turnsRejected, hasHeuristicDocs };
+    const turnsRejected = 'turnsRejected' in transport && typeof transport.turnsRejected === 'number' ? transport.turnsRejected : 0;
+    return { schemaDrift, turnsRejected, hasHeuristicDocs: result.conversation.assets.some(asset => asset.document?.hasFabricatedText),
+        sourcePartial: result.conversation.completeness?.status === 'partial',
+        truncated: 'truncated' in transport && transport.truncated === true,
+        truncateReason: 'truncateReason' in transport && typeof transport.truncateReason === 'string' ? transport.truncateReason : undefined };
 }
 
 export function chatRecordStatusWithDrift(base: "ok" | "empty", drift: ChatParseDrift): "ok" | "empty" | "partial" {

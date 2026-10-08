@@ -1,4 +1,5 @@
 export type { GetConversationDetailResponse } from './detailTransport.js';
+import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import type { Conversation } from './conversation.js';
 import type { LiveSaveConfig } from './liveSave.js';
 
@@ -99,7 +100,7 @@ export interface LiveSaveAsset {
 }
 
 export interface LiveSaveViaHandlePayload {
-    chat: Conversation;
+    chat: ResourceConversationParseResult;
     safeTitle: string;
     nid: string;
     config?: LiveSaveConfig;

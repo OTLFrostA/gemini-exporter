@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ for (const messages of [
     [{ role: 'assistant', author: { model: '  Gemini 2.5 Pro  ' }, content: 'Answer' }],
 ]) test('provider model survives Domain, JSON AST and all renderers: ' + JSON.stringify(messages[0]), () => {
     const raw = { id: 'model', messages }; const before = JSON.stringify(raw);
-    const domain = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw }).conversation;
+    const domain = historicalFixture(raw, { providerId: 'gemini' }).conversation;
     assert.equal(domain.messages[0].model, 'Gemini 2.5 Pro');
     const document = JSON.parse(JSON.stringify(composeDomainDocument(domain).document));
     assert.equal(document.messages[0].modelLabel, 'Gemini 2.5 Pro');
@@ -27,19 +28,19 @@ for (const messages of [
 });
 
 test('turn models, absent/invalid models and escaped model names', () => {
-    const domain = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { id: 'turn', turns: [{ userContent: 'Question', modelContent: 'Answer', model: 'GPT-5' }] } }).conversation;
+    const domain = historicalFixture({ id: 'turn', turns: [{ userContent: 'Question', modelContent: 'Answer', model: 'GPT-5' }] }, { providerId: 'gemini' }).conversation;
     assert.equal(domain.messages[0].model, undefined);
     assert.equal(domain.messages[1].model, 'GPT-5');
     for (const model of [undefined, null, '', '  ', 42, {}]) {
-        assert.ok(!('model' in parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { messages: [{ role: 'model', model, content: '' }] } }).conversation.messages[0]));
+        assert.ok(!('model' in historicalFixture({ messages: [{ role: 'model', model, content: '' }] }, { providerId: 'gemini' }).conversation.messages[0]));
     }
-    const document = composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] } }).conversation).document;
+    const document = composeDomainDocument(historicalFixture({ messages: [{ role: 'assistant', model: '<script>**x**</script>', content: '' }] }, { providerId: 'gemini' }).conversation).document;
     assert.match(renderDocumentHtml(document, {}).html, /&lt;script&gt;\*\*x\*\*&lt;\/script&gt;/);
     assert.match(renderDocumentMarkdown(document, {}), /&lt;script&gt;\\\*\\\*x\\\*\\\*&lt;\/script&gt;/);
 });
 
 test('compiled PDF visibly retains the model name', async () => {
-    const document = composeDomainDocument(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: { messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] } }).conversation).document;
+    const document = composeDomainDocument(historicalFixture({ messages: [{ role: 'model', model: 'Gemini 2.5 Pro', content: 'Answer' }] }, { providerId: 'gemini' }).conversation).document;
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     try {
         const result = await compiler.compile({ rendererSchemaVersion: 1, document: renderDocumentTypst(document, {}), assetPaths: new Map() }, {
@@ -52,9 +53,9 @@ test('compiled PDF visibly retains the model name', async () => {
 
 test('production export entrypoints preserve provider model names', async () => {
     const raw = { id: 'production-model', title: 'Model', messages: [{ role: 'model' as const, model: 'Gemini 2.5 Pro', content: 'Answer' }] };
-    assert.match((await formatHtmlDocument(raw)).content, /gem-model-label">Gemini 2.5 Pro</);
-    assert.match((await formatMarkdownDocument(raw)).content, /Gemini 2\.5 Pro/);
-    const pdf = await preparePdfItem(raw);
+    assert.match((await formatHtmlDocument(historicalFixture(raw))).content, /gem-model-label">Gemini 2.5 Pro</);
+    assert.match((await formatMarkdownDocument(historicalFixture(raw))).content, /Gemini 2\.5 Pro/);
+    const pdf = await preparePdfItem(historicalFixture(raw));
     assert.equal(pdf.ok, true);
     if (!pdf.ok || !pdf.document) throw new Error('Expected prepared PDF document');
     assert.equal(pdf.document.messages[0].modelLabel, 'Gemini 2.5 Pro');

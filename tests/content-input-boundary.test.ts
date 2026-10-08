@@ -1,3 +1,4 @@
+import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { messageAssets } from './helpers/domainAssets.js';
@@ -9,7 +10,6 @@ import type { BlockNode } from '../src/core/domain/content/blocks.js';
 import { mapContentAssetReferences } from '../src/core/domain/content/assetReferences.js';
 import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/index.js';
 import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import type { Conversation } from '../src/types/conversation.js';
 
@@ -17,7 +17,7 @@ const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children:
 const metadata = { id: 'content-input', title: 'Content boundary', timestamp: null };
 
 test('Gemini chooses provider structure before Domain and does not reinterpret structured text as Markdown', () => {
-    const domain = toDomainConversationDetail({ ...metadata, messages: [{
+    const domain = historicalFixtureDomain({ ...metadata, messages: [{
         role: 'model', content: 'raw **fallback**',
         structuredContent: { children: [{ nodeType: 18, text: '**literal structure**' }] },
     }] });
@@ -66,9 +66,9 @@ for (const content of [
             attachments: [{ type: 'image', localName: 'assets/image.png', url: 'https://example.test/image.png' }],
             citations: [{ url: 'https://example.test/source', title: 'Source' }], thoughts: 'Reasoning **detail**',
         }] };
-        const { conversation: domain, resourceHints } = parseLegacyConversation(legacy);
+        const { conversation: domain, resourceHints } = historicalFixture(legacy);
         const before = structuredClone(domain);
-        const [raw, semantic] = await Promise.all([composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: legacy }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
+        const [raw, semantic] = await Promise.all([composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
         assert.deepEqual(semantic.document, raw.document);
         assert.deepEqual(domain, before, 'asset/citation reconciliation must not mutate Domain');
         assert.deepEqual((await composeFixture(domain, resourceHints)).document, semantic.document);
@@ -91,7 +91,7 @@ test('semantic asset binding visits nested captions, descriptions and cells whil
 });
 
 test('Domain body is structured-only, including empty bodies, without raw provider fields', () => {
-    const domain = toDomainConversationDetail({ ...metadata, messages: [
+    const domain = historicalFixtureDomain({ ...metadata, messages: [
         { role: 'assistant', content: '', structuredContent: { children: [] } },
         { role: 'user', content: 'Question' },
     ] });
@@ -103,14 +103,14 @@ test('Domain body is structured-only, including empty bodies, without raw provid
 });
 
 test('existing OpenAI imports parse generic Markdown and Takeout imports interpret HTML before Domain', () => {
-    const openai = toDomainConversationDetail({ ...metadata, source: 'openai-import', messages: [{
+    const openai = historicalFixtureDomain({ ...metadata, source: 'openai-import', messages: [{
         role: 'assistant', content: '# Imported\n\n**answer**',
     }] });
     assert.deepEqual(openai.messages[0].content, [
         { type: 'heading', level: 1, children: [{ type: 'text', text: 'Imported' }] },
         { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
     ]);
-    const takeout = toDomainConversationDetail({ ...metadata, source: 'takeout', turns: [{
+    const takeout = historicalFixtureDomain({ ...metadata, source: 'takeout', turns: [{
         modelContent: '<h2>Imported</h2><p>中文 <strong>answer</strong></p>',
     }] });
     assert.deepEqual(takeout.messages[0].content, [
@@ -144,10 +144,10 @@ for (const document of [
             id: 'message', role: 'model', content: 'fallback', structuredContent, documents: [document],
         }] };
         const original = structuredClone(legacy);
-        const { conversation: domain, resourceHints } = parseLegacyConversation(legacy);
+        const { conversation: domain, resourceHints } = historicalFixture(legacy);
         assert.equal('structuredContent' in domain.messages[0], false);
         assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['section']);
-        const [raw, semantic] = await Promise.all([composeFixture(parseConversation({ format: 'conversation-record', providerId: 'gemini', data: legacy }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
+        const [raw, semantic] = await Promise.all([composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
         assert.deepEqual(semantic.document, raw.document);
         assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints)).document, raw.document);
         assert.deepEqual(domain.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);

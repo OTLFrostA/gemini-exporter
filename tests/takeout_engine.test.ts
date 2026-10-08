@@ -53,9 +53,9 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
     // 3. getTakeoutOfflineChat should find by exact ID and with c_ prefix
     const offlineChat1 = TakeoutEngine.getTakeoutOfflineChat('CaseSensitive_99');
     assert.ok(offlineChat1, 'Should find offline chat by exact ID');
-    assert.strictEqual(offlineChat1.title, '什么是量子物理？');
-    assert.strictEqual(offlineChat1.titles.takeout, '什么是量子物理？');
-    assert.strictEqual(offlineChat1.messages.length, 3); // Response-only activity must not fabricate a user prompt
+    assert.strictEqual(offlineChat1.conversation.title, '什么是量子物理？');
+    assert.strictEqual(offlineChat1.conversation.titles.takeout, '什么是量子物理？');
+    assert.strictEqual(offlineChat1.conversation.messages.length, 3); // Response-only activity must not fabricate a user prompt
 
     const offlineChat2 = TakeoutEngine.getTakeoutOfflineChat('c_CaseSensitive_99');
     assert.ok(offlineChat2, 'Should find offline chat with c_ prefix');
@@ -121,7 +121,7 @@ test('takeout_engine - parseTakeoutZip never assigns unreferenced watermarked fi
     for (const id of ['chat_A_12345678', 'chat_B_87654321']) {
         assert.deepStrictEqual(TakeoutEngine.getTakeoutMediaForChat(id), []);
         const chat = TakeoutEngine.getTakeoutOfflineChat(id);
-        assert.deepStrictEqual(chat.parsed.conversation.messages.find((m: any) => m.role === 'assistant').generation, { mediaKind: 'image', outputCount: 1 });
+        assert.deepStrictEqual(chat.conversation.messages.find((m: any) => m.role === 'assistant').generation, { mediaKind: 'image', outputCount: 1 });
     }
     assert.strictEqual(res.diagnostics.filter((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED').length, 2);
     assert.deepStrictEqual(await res.globalMedia['watermarked_img_1111-aaaa.png'].async('uint8array'), new Uint8Array(imgABuffer));

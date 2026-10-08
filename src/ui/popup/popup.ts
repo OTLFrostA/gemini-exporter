@@ -284,8 +284,8 @@ function initPopupEvents(): void {
 
                     ProgressView.update(80);
                     const chat = res.chat;
-                    if (!chat.id) chat.id = _activeConvId;
-                    chat.title = cleanTitle(chat.title || _activeChatTitle);
+                    if (!chat.conversation.id) chat.conversation.id = _activeConvId || chat.conversation.id;
+                    chat.conversation.title = cleanTitle(chat.conversation.title || _activeChatTitle);
 
                     let formatted;
                     if (format === 'html') {
@@ -295,7 +295,7 @@ function initPopupEvents(): void {
                     } else {
                         formatted = ChatFormatter.formatContent(chat, format);
                     }
-                    const fileName = buildExportFileName(chat.title || chat.id, _activeConvId, formatted.ext);
+                    const fileName = buildExportFileName(chat.conversation.title || chat.conversation.id, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -305,7 +305,7 @@ function initPopupEvents(): void {
                     setTimeout(() => URL.revokeObjectURL(url), 3000);
 
                     ProgressView.complete();
-                    log(i18n.t('popupExported', fileName, chat.messages?.length || 0));
+                    log(i18n.t('popupExported', fileName, chat.conversation.messages.length || 0));
                 } finally {
                     __releaseExportGuard();
                 }

@@ -1,32 +1,32 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import type { ConversationRecordInput } from '../src/core/compatibility/record/conversationRecord.js';
 import type { ConversationParseResult } from '../src/core/parsers/contracts.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 
-const parse = (data: ConversationRecordInput) => parseConversation({ format: 'conversation-record', providerId: 'gemini', data });
+const parse = (data: ConversationRecordInput) => historicalFixture(data, { providerId: 'gemini' });
 
 test('unified parsing requires explicit provider identity and implemented format', () => {
     const data = { source: 'openai-import', messages: [{ role: 'model', model: 'Model A', content: '**Answer**' }] };
-    const result = parseConversation({ format: 'conversation-record', providerId: 'custom', data });
+    const result = historicalFixture(data, { providerId: 'custom' });
     assert.equal(result.conversation.providerId, 'custom');
     assert.equal(result.conversation.messages[0].model, 'Model A');
-    for (const providerId of ['', '  ', undefined, null]) {
-        assert.throws(() => parseConversation({ format: 'conversation-record', data, providerId: providerId as never }), /providerId/);
+    for (const providerId of ['', '  ']) {
+        assert.throws(() => historicalFixture(data, { providerId: providerId as never }), /providerId/);
     }
-    assert.throws(() => parseConversation({ format: 'raw-rpc' as never, providerId: 'gemini', data }), /Unsupported conversation format/);
+    assert.throws(() => parseConversation({ format: 'raw-rpc' as never, providerId: 'gemini', data: data as never }), /Unsupported conversation format/);
 });
 
-test('legacy application callers retain provider inference and use the unified Domain result', () => {
+test('historical record fixtures retain provider inference inside the migration boundary', () => {
     for (const source of ['takeout', 'openai-import']) {
         const data = { id: 'chat', title: 'Title', timestamp: null, source, messages: [{ role: 'assistant' as const, content: '**Answer**' }] };
         const providerId = source === 'takeout' ? 'gemini' : 'openai';
-        const result = parseConversation({ format: 'conversation-record', providerId, data });
-        assert.deepEqual(parseConversation({ format: 'conversation-record', providerId, data }), result);
-        assert.deepEqual(parseLegacyConversation(data), { conversation: result.conversation, resourceHints: result.resourceHints });
+        const result = historicalFixture(data, { providerId });
+        assert.deepEqual(historicalFixture(data, { providerId }), result);
+        assert.deepEqual(historicalFixture(data), result);
         assert.deepEqual(data.messages[0].content, '**Answer**');
     }
 });

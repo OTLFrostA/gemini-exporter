@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,11 +24,11 @@ const fixture = () => ({ id: 'direct-pdf', title: 'Direct PDF boundary', timesta
 
 test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips preserve meaning', async () => {
     const raw = fixture(), before = structuredClone(raw);
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const parsed = historicalFixture(raw, { providerId: 'gemini' });
     const domain = structuredClone(parsed.conversation);
     const roundTrip = JSON.parse(JSON.stringify(domain)) as typeof domain;
     assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
-    const prepared = await preparePdfItem(raw, { includeAssets: false });
+    const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
     assert.ok(prepared.ok);
     assert.deepEqual(prepared.document, composeDomainDocument(domain).document);
     assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
@@ -38,7 +39,7 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
 
 test('intrinsic file size and unknown role survive parser and JSON without output formatting', () => {
     const raw = { id: 'file', messages: [{ role: 'historical-tool', content: 'Answer', attachments: [{ type: 'file', name: 'note.txt', dataBuffer: new Uint8Array([65, 66, 67]) }] }] };
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw }).conversation;
+    const parsed = historicalFixture(raw, { providerId: 'gemini' }).conversation;
     assert.equal(parsed.assets[0].byteLength, 3);
     assert.equal(parsed.messages[0].role, 'unknown');
     assert.equal(parsed.messages[0].provenance?.rawRole, 'historical-tool');
@@ -56,7 +57,7 @@ test('PDF hydration cannot conflate two sources sharing an export destination', 
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/one' },
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/two' },
     ] }] };
-    const prepared = await preparePdfItem(raw, { fetchAsset: async request => { urls.push(typeof request === 'string' ? request : request.url ?? ''); return { success: true, mime: 'image/png', dataBase64: png }; } });
+    const prepared = await preparePdfItem(historicalFixture(raw), { fetchAsset: async request => { urls.push(typeof request === 'string' ? request : request.url ?? ''); return { success: true, mime: 'image/png', dataBase64: png }; } });
     assert.ok(prepared.ok);
     assert.deepEqual(urls, ['https://example.test/one', 'https://example.test/two']);
     assert.equal(prepared.resources.size, 2);
@@ -73,7 +74,7 @@ test('production PDF pipeline only consumes Document AST and prepared resources'
 
 test('direct PDF keeps Typst layout and physical page content parity with the historical route', async () => {
     const raw = fixture();
-    const prepared = await preparePdfItem(raw, { includeAssets: false });
+    const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
     assert.ok(prepared.ok);
     const resolved = await resourceStage(prepared, ctx);
     const direct = await payloadStage({ document: prepared.document, pathMap: resolved.output.pathMap, locale: 'en' }, ctx);

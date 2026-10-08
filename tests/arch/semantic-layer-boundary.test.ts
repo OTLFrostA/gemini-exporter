@@ -104,9 +104,9 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
     if (owner.startsWith('renderers/')) return /^(parsers\/|compatibility\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
     if (owner.startsWith('parsers/')) {
-        // The dispatcher and legacy-storage source decoder may explicitly reuse the historical record grammar.
+        // The legacy-storage source decoder may explicitly reuse the historical record grammar.
         // Native RPC/Takeout/DOM parsers cannot reach this bridge.
-        if ((owner === 'parsers/parseConversation.ts' || owner === 'parsers/legacyStorage/parseConversation.ts') && /^compatibility\/record\/(?:conversationRecord|parseConversationRecord)\.ts$/.test(target)) return false;
+        if (owner === 'parsers/legacyStorage/parseConversation.ts' && /^compatibility\/record\/(?:conversationRecord|parseConversationRecord)\.ts$/.test(target)) return false;
         return /^(compatibility\/|document\/|renderers\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
     }
     return false;
@@ -158,6 +158,31 @@ test('native parsing does not allocate export paths or sanitized filenames', () 
         if (!name.startsWith('parsers/')) continue;
         for (const token of tokens(readFileSync(file, 'utf8'))) {
             assert.ok(token.literal || !naming.has(token.value), `${name} uses export naming: ${token.value}`);
+        }
+    }
+});
+
+test('normal runtime cannot parse historical records or depend on application projections', () => {
+    const removed = new Set(['compatibility/legacyConversationAdapter.ts', 'compatibility/gemini/nativeDetailView.ts']);
+    const obsolete = new Set(['parseLegacyConversation', 'toDomainConversationDetail', 'createParsedConversationView', 'readParsedConversation', 'createNativeDetailView', 'ParsedConversationView']);
+    for (const name of removed) assert.equal(existsSync(resolve(core, name)), false, `retired runtime adapter exists: ${name}`);
+    for (const file of files(resolve(root, 'src'))) {
+        const name = relative(core, file).replace(/\\/g, '/');
+        const migration = name.startsWith('parsers/legacyStorage/') || name.startsWith('compatibility/record/');
+        const text = readFileSync(file, 'utf8');
+        for (const edge of dependencies(file, text)) {
+            assert.ok(!removed.has(edge.target), `${name} imports ${edge.target}`);
+            if (edge.target === 'compatibility/record/projectDomainRecord.ts') {
+                assert.equal(name, 'engine/formatters/jsonFormatter.ts', `${name} projects Domain outside final JSON serialization`);
+            }
+            if (/^compatibility\/record\/(?:parseConversationRecord|conversationRecord|legacyProvider)\.ts$/.test(edge.target)) {
+                assert.ok(migration, `${name} depends on the historical record boundary`);
+            }
+        }
+        for (const token of tokens(text)) {
+            assert.ok(token.literal || !obsolete.has(token.value), `${name} uses ${token.value}`);
+            assert.ok(token.value !== 'conversation-record', `${name} exposes retired runtime input`);
+            if (!token.literal && token.value === 'parseConversationRecord') assert.ok(migration, `${name} invokes historical record parsing`);
         }
     }
 });

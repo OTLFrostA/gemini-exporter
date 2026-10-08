@@ -142,13 +142,14 @@ test('storage_service - two-tier storage offloads messages to detail store and s
         assert.strictEqual(detail.messages.length, 2);
         assert.strictEqual(detail.messages[0].content, 'Explain quantum computing in detail...');
 
-        // 3. Verify getConversationWithDetail reconstructs full object
+        // Legacy writes are readable only after the explicit startup migration.
+        await require('../src/core/storage/domain/migrateLegacy.js').migrateLegacyDomains();
         const full = await StorageService.getConversationWithDetail('u0', 'chat_heavy_1');
         assert.ok(full);
-        assert.strictEqual(full.id, 'chat_heavy_1');
-        assert.strictEqual(full.title, 'Quantum Chat');
-        assert.strictEqual(full.messages.length, 2);
-        assert.strictEqual(full.turns.length, 1);
+        assert.strictEqual(full.conversation.id, 'chat_heavy_1');
+        assert.strictEqual(full.conversation.title, 'Quantum Chat');
+        assert.strictEqual(full.conversation.messages.length, 2);
+        assert.equal('turns' in full.conversation, false);
 
         // 4. Verify removeConversation purges details as well
         await StorageService.removeConversation('u0', 'chat_heavy_1');

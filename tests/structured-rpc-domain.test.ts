@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/structured-rpc-domain.test.ts
@@ -19,7 +20,7 @@ const { parseConversation } = require('../src/core/parsers/parseConversation.js'
  */
 export {};
 const test = require('node:test');
-const assert = require('node:assert');
+import assert from 'node:assert/strict';
 const fs = require('fs');
 const path = require('path');
 
@@ -78,7 +79,7 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
         ],
     };
 
-    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
     const modelMsg = domain.messages.find((m: any) => m.id === 'm2');
@@ -87,11 +88,14 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
     // Should have 2 blocks: paragraph and math (NOT the raw markdown text)
     assert.strictEqual(modelMsg.content.length, 2);
     assert.strictEqual(modelMsg.content[0].type, 'paragraph');
+    assert.ok(modelMsg.content[0]?.type === 'paragraph');
     assert.strictEqual(modelMsg.content[1].type, 'math');
+    assert.ok(modelMsg.content[1]?.type === 'math');
 
     // Check paragraph inlines:
     const p = modelMsg.content[0];
     const strongInline = p.children.find((c: any) => c.type === 'strong');
+    assert.ok(strongInline?.type === 'strong');
     assert.ok(strongInline, 'Strong inline exists from annotation');
     assert.strictEqual(strongInline.children[0].text, 'structured');
 
@@ -136,12 +140,15 @@ test('#705 Divergence Case: Display Math directly to Canonical math block', asyn
         ],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.messages[0];
     assert.strictEqual(msg.content.length, 3);
     assert.strictEqual(msg.content[0].type, 'paragraph');
+    assert.ok(msg.content[0]?.type === 'paragraph');
     assert.strictEqual(msg.content[1].type, 'math');
+    assert.ok(msg.content[1]?.type === 'math');
     assert.strictEqual(msg.content[2].type, 'math');
+    assert.ok(msg.content[2]?.type === 'math');
 
     const math1 = msg.content[1];
     assert.strictEqual(math1.source, multilineFormula);
@@ -168,9 +175,10 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
         ],
     };
 
-    const { conversation: domainAlpha } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: convAlpha as any });
+    const { conversation: domainAlpha } = await historicalFixture(convAlpha as any, { providerId: 'gemini' });
     const msgAlpha = domainAlpha.messages[0];
     const tableBlockAlpha = msgAlpha.content.find((b: any) => b.type === 'table');
+    assert.ok(tableBlockAlpha?.type === 'table');
     assert.ok(tableBlockAlpha, 'Table block exists for Case C-alpha');
 
     // Header row should have exactly 5 cells
@@ -186,6 +194,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     // Verify cell r2c4 contains the alpha^2 math intact
     const cellAlpha = tableBlockAlpha.rows[1].cells[4]; // row 2 in 0-indexed data rows is index 1
     const mathNodeAlpha = cellAlpha.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\alpha'));
+    assert.ok(mathNodeAlpha?.type === 'inlineMath');
     assert.ok(mathNodeAlpha, 'InlineMath node found in table cell');
     assert.strictEqual(mathNodeAlpha.source, String.raw`\vert{}\alpha\vert{}^2`);
 
@@ -203,9 +212,10 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
         ],
     };
 
-    const { conversation: domainPsi } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: convPsi as any });
+    const { conversation: domainPsi } = await historicalFixture(convPsi as any, { providerId: 'gemini' });
     const msgPsi = domainPsi.messages[0];
     const tableBlockPsi = msgPsi.content.find((b: any) => b.type === 'table');
+    assert.ok(tableBlockPsi?.type === 'table');
     assert.ok(tableBlockPsi, 'Table block exists for Case C-psi');
 
     // Header row should have exactly 3 cells
@@ -217,6 +227,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     // Verify cell r1c2 contains \\Vert{}\\psi\\rangle math intact
     const cellPsi = tableBlockPsi.rows[0].cells[2];
     const mathNodePsi = cellPsi.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\Vert{}\\psi'));
+    assert.ok(mathNodePsi?.type === 'inlineMath');
     assert.ok(mathNodePsi, 'InlineMath node found in table cell for psi');
     assert.ok(mathNodePsi.source.includes(String.raw`\Vert{}\psi\rangle`), 'Math source contains \\Vert{}\\psi\\rangle');
 });
@@ -232,7 +243,7 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
         title: 'Case A Multiline Display',
         messages: [{ id: 'm1', role: 'model', content: 'raw', structuredContent: aStack }],
     };
-    const resA = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: convA as any });
+    const resA = await historicalFixture(convA as any, { providerId: 'gemini' });
     assert.doesNotThrow(() => assertDomainClosure(resA.conversation));
 
     // Case B: 49 root nodes
@@ -242,7 +253,7 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
         title: 'Case B Display After Text',
         messages: [{ id: 'm1', role: 'model', content: 'raw', structuredContent: bStack }],
     };
-    const resB = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: convB as any });
+    const resB = await historicalFixture(convB as any, { providerId: 'gemini' });
     assert.doesNotThrow(() => assertDomainClosure(resB.conversation));
 });
 
@@ -324,7 +335,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         ],
     };
 
-    const resList = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: listConv as any });
+    const resList = await historicalFixture(listConv as any, { providerId: 'gemini' });
     assert.strictEqual(
         resList.conversation.messages[0].content[0].children[0].text,
         'Raw list markdown fallback',
@@ -359,7 +370,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         ],
     };
 
-    const resTable = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: tableConv as any });
+    const resTable = await historicalFixture(tableConv as any, { providerId: 'gemini' });
     assert.strictEqual(
         resTable.conversation.messages[0].content[0].children[0].text,
         'Raw table markdown fallback',
@@ -390,7 +401,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
         ],
     };
 
-    const resBq = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: bqConv as any });
+    const resBq = await historicalFixture(bqConv as any, { providerId: 'gemini' });
     assert.strictEqual(
         resBq.conversation.messages[0].content[0].children[0].text,
         'Raw bq markdown fallback',
@@ -428,7 +439,7 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
         ],
     };
 
-    const res = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const res = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = res.conversation.messages[0];
     assert.strictEqual(
         msg.content[0].children[0].text,
@@ -497,18 +508,21 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
         ],
     };
 
-    const res = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const res = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg0 = res.conversation.messages[0];
     const msg1 = res.conversation.messages[1];
 
     // msg0 used structured content (contains table block)
     const tableBlock0 = msg0.content.find((b: any) => b.type === 'table');
+    assert.ok(tableBlock0?.type === 'table');
     assert.ok(tableBlock0, 'Candidate 0 has table block from structured path');
 
     // msg1 used markdown fallback (contains paragraph with strong inline)
     assert.strictEqual(msg1.content.length, 1);
     assert.strictEqual(msg1.content[0].type, 'paragraph');
+    assert.ok(msg1.content[0]?.type === 'paragraph');
     const strong1 = msg1.content[0].children.find((c: any) => c.type === 'strong');
+    assert.ok(strong1?.type === 'strong');
     assert.ok(strong1, 'Candidate 1 used markdown parser for bold');
     assert.strictEqual(strong1.children[0].text, 'bold from markdown');
 });
@@ -565,13 +579,16 @@ test('Fallback: missing structuredContent falls back to existing Markdown parser
         ],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.messages[0];
     assert.strictEqual(msg.content.length, 2);
     assert.strictEqual(msg.content[0].type, 'heading');
+    assert.ok(msg.content[0]?.type === 'heading');
     assert.strictEqual(msg.content[1].type, 'paragraph');
+    assert.ok(msg.content[1]?.type === 'paragraph');
 
     const strong = msg.content[1].children.find((c: any) => c.type === 'strong');
+    assert.ok(strong?.type === 'strong');
     assert.ok(strong, 'Markdown parser bold succeeded');
 });
 
@@ -594,10 +611,11 @@ test('Fallback: unknown nodeType triggers complete fallback to Markdown parser',
         ],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].type, 'paragraph');
+    assert.ok(msg.content[0]?.type === 'paragraph');
     assert.strictEqual(msg.content[0].children[0].text, 'Fallback to markdown text when structured has unknown nodeType.');
 });
 
@@ -626,7 +644,7 @@ test('Fallback: crossing overlap annotations trigger fallback to Markdown parser
         ],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].children[0].text, 'Fallback text on crossing overlap.');
@@ -648,7 +666,7 @@ test('Fallback: empty structured document with non-empty raw markdown triggers f
         ],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].children[0].text, 'Non-empty raw markdown should not be lost if structured is empty.');
@@ -682,7 +700,7 @@ test('Generic HTML renderer renders Domain content from structured path cleanly'
         ],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
     assert.ok(html.includes('<h2'), 'Heading 2 rendered');
     assert.ok(html.includes('Heading 2 Title'), 'Heading text rendered');
@@ -725,7 +743,7 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
         ],
     };
 
-    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const errorDiags = diagnostics.filter((d: any) => d.severity === 'error');
     assert.strictEqual(errorDiags.length, 0, 'No error diagnostics during normalization');
 
@@ -772,7 +790,7 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
         ],
     };
 
-    const resStructured = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: convStructured as any });
+    const resStructured = await historicalFixture(convStructured as any, { providerId: 'gemini' });
     const msgStructured = resStructured.conversation.messages[0];
     const imgBlocksStructured = composeDomainDocument(resStructured.conversation).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
@@ -792,7 +810,7 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
         ],
     };
 
-    const resFallback = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: convFallback as any });
+    const resFallback = await historicalFixture(convFallback as any, { providerId: 'gemini' });
     const msgFallback = resFallback.conversation.messages[0];
     const imgBlocksFallback = composeDomainDocument(resFallback.conversation).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocksFallback.length, 1, 'Fallback path has exactly 1 image block');
@@ -820,7 +838,7 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
         ],
     };
 
-    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: conv as any });
+    const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.messages[0];
     const imageBlocks = composeDomainDocument(domain).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
@@ -829,6 +847,8 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
     // Only text paragraph and table blocks present
     assert.strictEqual(msg.content.length, 2);
     assert.strictEqual(msg.content[0].type, 'paragraph');
+    assert.ok(msg.content[0]?.type === 'paragraph');
     assert.strictEqual(msg.content[1].type, 'table');
+    assert.ok(msg.content[1]?.type === 'table');
 });
 

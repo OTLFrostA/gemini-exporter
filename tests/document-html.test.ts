@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -117,7 +118,7 @@ test('actual HTML backend has no semantic model or presentation inference import
 });
 
 test('production HTML facade uses prepared archive paths consistently', async () => {
-    const result = await formatHtmlDocument({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
+    const result = await formatHtmlDocument(historicalFixture({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] }));
     assert.ok(result.content.includes('assets/p.png'));
     assert.ok(!result.content.includes('gem-missing-asset">'));
 });

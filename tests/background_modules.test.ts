@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 import test from 'node:test';
 import assert from 'node:assert';
 
@@ -242,10 +243,10 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
 
     try {
         const payload = {
-            chat: {
+            chat: historicalFixture({
                 title: 'Quantum Teleportation',
                 messages: [{ role: 'user', content: 'What is quantum entanglement?' }]
-            },
+            }),
             safeTitle: 'Quantum Teleportation',
             nid: 'c_1234567890abcdef',
             assets: [

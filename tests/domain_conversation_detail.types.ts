@@ -1,6 +1,6 @@
 import type { Conversation } from '../src/types/conversation.js';
 import type { DomainAsset, DomainConversationDetail, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
-import { toDomainConversationDetail } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { historicalFixtureDomain } from './helpers/nativeFixture.js';
 
 const legacyConversation: Conversation = {
     id: 'typed-conversation',
@@ -9,7 +9,7 @@ const legacyConversation: Conversation = {
     messages: [{ role: 'assistant', content: 'Typed message', timestamp: null }],
 };
 
-const domainConversation: DomainConversationDetail = toDomainConversationDetail(legacyConversation);
+const domainConversation: DomainConversationDetail = historicalFixtureDomain(legacyConversation);
 
 // These assignments make both adapter boundaries part of strict TypeScript checking.
 const acceptedLegacyInput: Conversation = legacyConversation;

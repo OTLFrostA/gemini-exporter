@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /** Original data URI facts are parsed into Domain; decoded bytes belong to PreparedResources. */
 export {};
@@ -15,7 +16,7 @@ const PNG_REF = `assets/sha256/c4/14/${PNG_SHA256}.png`;
 async function prepare(content: string, id = 'dataurl') {
     const input = { id, title: 'data url assets', messages: [{ id: 'm1', role: 'user', content }] };
     const before = JSON.stringify(input);
-    const parsed = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: input });
+    const parsed = historicalFixture(input, { providerId: 'gemini' });
     const domain = parsed.conversation;
     assertDomainClosure(domain);
     const document = composeDomainDocument(domain).document;

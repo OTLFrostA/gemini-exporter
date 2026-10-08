@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -25,7 +26,7 @@ test('liveSavePermissionDeadlock - handleLiveSaveViaHandle returns permission_pr
 
     try {
         const payload = {
-            chat: { title: 'Test Chat', messages: [{ role: 'user', content: 'Hi' }] },
+            chat: historicalFixture({ title: 'Test Chat', messages: [{ role: 'user', content: 'Hi' }] }),
             safeTitle: 'Test Chat',
             nid: 'chat_test_1'
         };

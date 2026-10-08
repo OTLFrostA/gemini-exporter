@@ -188,14 +188,14 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             } catch {}
 
             let turnTsFromMsgs = 0;
-            if (Array.isArray(chat?.messages)) {
-                for (const m of chat.messages) {
+            if (Array.isArray(chat?.conversation.messages)) {
+                for (const m of chat.conversation.messages) {
                     const mt = toTimestampMs(m?.timestamp);
                     if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
                 }
             }
-            const effectiveChatTime = (chat as any)?.chatTime || turnTsFromMsgs || (chat as any)?.updatedAt || (chat as any)?.timestamp || convInStore?.updatedAt || convInStore?.timestamp || null;
-            const effectiveMsgCount = (Array.isArray(chat?.messages) ? chat.messages.length : 0) || convInStore?.messageCount || (chat as any)?.messageCount || 0;
+            const effectiveChatTime = chat.conversation.chatTime || turnTsFromMsgs || chat.conversation.updatedAt || chat.conversation.timestamp || convInStore?.updatedAt || convInStore?.timestamp || null;
+            const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || chat.conversation.messageCount || 0;
 
             await completeConversationExport(
                 StorageService,
@@ -203,7 +203,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                 {
                     conversation: {
                         ...convInStore,
-                        ...chat,
+                        ...chat.conversation,
                         messageCount: effectiveMsgCount,
                         ...(effectiveChatTime ? {
                             chatTime: effectiveChatTime,
@@ -216,8 +216,8 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     exportedAt: now,
                     failedAssets,
                     titleCandidate: safeTitle,
-                    titleProvenance: (chat as any)?.titleSource || convInStore?.titleSource,
-                    titles: (chat as any)?.titles || convInStore?.titles,
+                    titleProvenance: chat.conversation.titleSource || convInStore?.titleSource,
+                    titles: chat.conversation.titles || convInStore?.titles,
                     messageCount: effectiveMsgCount,
                     chatTime: effectiveChatTime
                 }

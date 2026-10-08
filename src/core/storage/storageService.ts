@@ -1,6 +1,6 @@
 import { assertSchemaWritable } from './schemaState.js';
-import { readParsedConversation } from '../compatibility/record/projectDomainRecord.js';
-import { getDomainConversationView } from './domain/nativePersistence.js';
+import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../parsers/parsingResult.js';
+import { getDomainConversationResult } from './domain/nativePersistence.js';
 import { saveDomainConversation, removeStoredDomain, storageIdentity } from './domain/domainStore.js';
 import {
     readStoredValue, readStoredObject, isStoredConversationRow,
@@ -208,8 +208,12 @@ async function _setConversationsRaw(
     const domainWrites: Array<() => Promise<unknown>> = [];
     const slimList = (list || []).map(value => {
         if (!value) return readStoredValue(value);
-        const c = fields(value);
-        const native = readParsedConversation(value);
+        const native = isResourceConversationParseResult(value) ? value : undefined;
+        const c = native ? { id: native.conversation.id, title: native.conversation.title,
+            titleSource: native.conversation.titleSource, titles: native.conversation.titles,
+            url: native.conversation.url, timestamp: native.conversation.timestamp,
+            createdAt: native.conversation.createdAt, updatedAt: native.conversation.updatedAt,
+            messageCount: native.conversation.messages.length } : fields(value);
         if (native) domainWrites.push(() => saveDomainConversation(normSlot(slot), native));
         const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
         const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
@@ -235,7 +239,6 @@ async function _setConversationsRaw(
         }
         delete copy.messages;
         delete copy.turns;
-        delete copy.parsed;
         return copy;
     });
 
@@ -829,21 +832,17 @@ async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
     }
 }
 
-async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<StoredConversationFields | null> {
+async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<ResourceConversationParseResult | null> {
     if (!id) return null;
     const targetId = normId(id);
     const list = await getConversations(slot);
     const rawMeta = list.find(c => c && normalizedConversationId(c) === targetId);
-    const meta = rawMeta ? fields(rawMeta) : null;
-    if (!meta) return null;
-    const native = await getDomainConversationView(normSlot(slot), targetId);
-    if (native) return { ...native, ...meta, messages: native.messages, parsed: native.parsed } as unknown as StoredConversationFields;
-    const detail = await getConversationDetail(targetId);
-    return {
-        ...meta,
-        messages: detail?.messages || meta.messages || [],
-        turns: detail?.turns || meta.turns || []
-    };
+    if (!rawMeta) return null;
+    const native = await getDomainConversationResult(normSlot(slot), targetId);
+    if (!native) return null;
+    const meta = fields(rawMeta);
+    const title = typeof meta.title === 'string' ? meta.title : native.conversation.title;
+    return { ...native, conversation: { ...native.conversation, title } };
 }
 
 export {

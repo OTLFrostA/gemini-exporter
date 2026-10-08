@@ -82,7 +82,6 @@
   "src/core/parsers/gemini/takeout/archiveResources.ts",
   "tests/takeout-archive-resources.test.ts",
   "src/core/compatibility/record/projectDomainRecord.ts",
-  "src/core/compatibility/gemini/nativeDetailView.ts",
   "src/core/parsers/gemini/rpc/mergePages.ts",
   "src/core/parsers/gemini/dom/parseConversation.ts",
   "src/core/parsers/gemini/dom/content.ts",
@@ -99,5 +98,12 @@
   "src/core/storage/domain/transport.ts",
   "src/background/domainStorageHandler.ts",
   "src/core/api/client/detailTypes.ts",
-  "src/core/compatibility/record/legacyProvider.ts"
+  "src/core/compatibility/record/legacyProvider.ts",
+  "src/core/export/assets/planExportResources.ts",
+  "tests/helpers/nativeFixture.ts",
+  "tests/native-json-export.test.ts",
+  "src/core/engine/chatFormatter.ts",
+  "src/core/engine/formatters/jsonFormatter.ts",
+  "src/core/engine/export/batchWorker.ts",
+  "src/core/engine/export/parseDrift.ts"
 ]

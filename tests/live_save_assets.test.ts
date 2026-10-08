@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -23,7 +24,7 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
     };
 
     const mockScraper = {
-        parseDoc: (doc: any, id: string) => ({
+        parseDoc: (doc: any, id: string) => historicalFixture(({
             id,
             title: 'Multimodal Cat & Cyberpunk Art',
             messages: [
@@ -66,7 +67,7 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
                 }
             ],
             timestamp: 1710000000000
-        })
+        }))
     };
 
     class MockFsWriter {
@@ -152,7 +153,7 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
     };
 
     const mockScraper = {
-        parseDoc: (doc: any, id: string) => ({
+        parseDoc: (doc: any, id: string) => historicalFixture(({
             id,
             title: 'Failing Image Test',
             messages: [
@@ -162,7 +163,7 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
                 }
             ],
             timestamp: 1710000000000
-        })
+        }))
     };
 
     class MockFsWriter {

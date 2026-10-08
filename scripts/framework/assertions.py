@@ -24,6 +24,22 @@ from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
 
 class CDPAssertions:
     @staticmethod
+    def assert_pdf_math_compiled(text: str) -> Tuple[bool, str]:
+        """Detect the renderer's fallback label, not ordinary LaTeX prose.
+
+        Typst always emits mathFallback before preserved raw source. Whitespace
+        can vary when text is extracted across glyphs, lines, and page breaks.
+        """
+        match = re.search(
+            r"Could\s*not\s*typeset\s*this\s*formula|"
+            r"\u65e0\s*\u6cd5\s*\u6392\s*\u7248\s*\u8be5\s*\u516c\s*\u5f0f",
+            text,
+        )
+        if match:
+            return False, text[max(0, match.start() - 80):match.end() + 300]
+        return True, ""
+
+    @staticmethod
     def assert_stream_completed(cdp_gemini, min_turns: int = 1) -> Tuple[bool, str, Dict[str, Any]]:
         """断言 Gemini 页面流式回复已彻底完成且 DOM 稳定"""
         state = cdp_gemini.eval(f"""

@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -1225,7 +1226,7 @@ test('30. Adversarial Matrix J: BatchWorker merge dirty map filters non-canonica
         titles: {}
     };
 
-    await resolveChat(chat, { id: 'c_adv_j' }, listConversation);
+    await resolveChat(historicalFixture(chat), { id: 'c_adv_j' }, listConversation);
 
     assert.strictEqual(listConversation.titles['random-source'], undefined, 'random-source must be excluded');
     assert.strictEqual(listConversation.titles.rpc, 'RPC Title', 'rpc slot must be preserved');

@@ -1,3 +1,5 @@
+import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
+
 /** Provider-neutral lifecycle and data. Gemini evidence belongs in gemini contracts. */
 export interface ProviderConversationItem {
     id: string;
@@ -8,16 +10,7 @@ export interface ProviderConversationItem {
     messageCount?: number;
 }
 
-export interface ProviderMessage {
-    id?: string;
-    role: 'user' | 'model' | 'assistant' | 'system';
-    content: string;
-    timestamp?: number | null;
-}
-
-export interface ProviderConversationDetail extends ProviderConversationItem {
-    messages: ProviderMessage[];
-}
+export interface ProviderConversationDetail extends ResourceConversationParseResult {}
 
 export interface ProviderPageResult<T> {
     items: T[];

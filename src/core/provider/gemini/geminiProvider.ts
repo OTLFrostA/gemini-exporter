@@ -101,32 +101,7 @@ export class GeminiProvider implements GeminiProviderContract {
         const client = this.getClient();
         const targetSid = readStringInput(options, 'targetSid') || readStringInput(options, 'slot') || null;
         const detail = await client.getConversationDetail(conversationId, targetSid);
-        // Keep the full typed Gemini evidence beside the neutral core without cloning messages.
-        const mapped: GeminiProviderConversationDetail = {
-            ...('parsed' in detail ? { parsed: detail.parsed } : {}),
-            id: detail.id,
-            title: detail.title,
-            messages: detail.messages,
-            url: detail.url,
-            createdAt: detail.createdAt,
-            updatedAt: detail.updatedAt,
-            messageCount: detail.messageCount,
-            titleSource: detail.titleSource,
-            titles: detail.titles,
-            timestamp: detail.timestamp,
-            chatTime: detail.chatTime,
-            nextPageToken: detail.nextPageToken,
-            attachmentCount: detail.attachmentCount,
-        };
-        // Optional evidence keeps the producer's own enumerable property presence.
-        if (Object.prototype.propertyIsEnumerable.call(detail, 'schemaDrift')) mapped.schemaDrift = detail.schemaDrift;
-        if (Object.prototype.propertyIsEnumerable.call(detail, 'turnsRejected')) mapped.turnsRejected = detail.turnsRejected;
-        if (Object.prototype.propertyIsEnumerable.call(detail, 'truncated')) mapped.truncated = detail.truncated;
-        if (Object.prototype.propertyIsEnumerable.call(detail, 'isTruncated')) mapped.isTruncated = detail.isTruncated;
-        if (Object.prototype.propertyIsEnumerable.call(detail, 'truncateReason')) mapped.truncateReason = detail.truncateReason;
-        if (Object.prototype.propertyIsEnumerable.call(detail, '_raw')) mapped._raw = detail._raw;
-        if (Object.prototype.propertyIsEnumerable.call(detail, '_debug')) mapped._debug = detail._debug;
-        return mapped;
+        return detail;
     }
 }
 

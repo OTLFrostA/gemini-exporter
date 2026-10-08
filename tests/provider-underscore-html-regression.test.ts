@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-underscore-html-regression.test.ts
@@ -34,7 +35,7 @@ test('full pipeline keeps LaTeX-like underscores and file names intact', async (
         title: 'Underscore regression',
         messages: [{ id: 'm1', role: 'user', content }],
     };
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: chat });
+    const { conversation: domain } = await historicalFixture(chat, { providerId: 'gemini' });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
 
     for (const c of CASES) {
@@ -55,7 +56,7 @@ test('legit underscore emphasis still renders in HTML', async () => {
         title: 'Underscore legit',
         messages: [{ id: 'm1', role: 'user', content: 'word _italic_ word and __strong__ here' }],
     };
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: chat });
+    const { conversation: domain } = await historicalFixture(chat, { providerId: 'gemini' });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
     assert.ok(html.includes('<em>italic</em>'), 'legit _italic_ renders');
     assert.ok(html.includes('<strong>strong</strong>'), 'legit __strong__ renders');

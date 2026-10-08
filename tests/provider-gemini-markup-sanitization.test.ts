@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-gemini-markup-sanitization.test.ts
@@ -51,7 +52,7 @@ test('Gemini structured markup is sanitized at normalization boundary and never 
         }],
     };
 
-    const { conversation: domain } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const { conversation: domain } = await historicalFixture(raw, { providerId: 'gemini' });
     const msg = domain.messages[0];
 
     // Domain content assertions

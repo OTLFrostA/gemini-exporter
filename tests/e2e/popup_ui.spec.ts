@@ -39,8 +39,8 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(page.locator('#btnOptions')).toHaveText('Batch Export in Console ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('Current Conversation');
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI)');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (Std)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI compatible)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (complete data)');
     expect(await page.locator('#langToggle').isChecked()).toBe(true);
 
     const enStorageLang = await page.evaluate(async () => {
@@ -55,8 +55,8 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(page.locator('#btnOptions')).toHaveText('去控制台批量导出 ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('当前会话');
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI)');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (标准)');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON（OpenAI 兼容）');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON（完整数据）');
     expect(await page.locator('#langToggle').isChecked()).toBe(false);
 
     const zhStorageLang = await page.evaluate(async () => {
@@ -78,7 +78,7 @@ test.describe('Popup UI & Action Center Localization', () => {
     await page.click('#formatTabs .tab-btn[data-value="json_openai"]');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveClass(/active/);
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).not.toHaveClass(/active/);
-    await expect(page.locator('#activeFormatLabel')).toHaveText('JSON (OpenAI)');
+    await expect(page.locator('#activeFormatLabel')).toHaveText('JSON（OpenAI 兼容）');
 
     const savedFmt = await page.evaluate(async () => {
       const d = await chrome.storage.local.get('gemini_export_format');
@@ -136,7 +136,7 @@ test.describe('Popup UI & Action Center Localization', () => {
     // 4. Format: Switch in options to json -> popup format tabs active state updates
     await optionsPage.selectOption('#format', 'json');
     await expect(popupPage.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveClass(/active/);
-    await expect(popupPage.locator('#activeFormatLabel')).toHaveText('JSON (标准)');
+    await expect(popupPage.locator('#activeFormatLabel')).toHaveText('JSON（完整数据）');
   });
 });
 
@@ -146,11 +146,13 @@ test('popup rejects malformed transport replies without download, releases guard
     const replies: unknown[] = [
       { success: 'true', data: { messages: [] } },
       { success: true, data: {} },
-      { success: true, data: { id: 'abcdef0123456789', title: 'Boundary regression',
-        timestamp: 1700000000000, messages: [
-          { role: 'user', content: 'Transport boundary prompt', timestamp: 1700000000000 },
-          { role: 'model', content: 'Transport boundary reply', timestamp: 1700000001000 }
-        ] } }
+      { success: true, data: { diagnostics: [], resourceHints: {}, acquisitionHints: {},
+        conversation: { providerId: 'gemini', id: 'abcdef0123456789', title: 'Boundary regression',
+          timestamp: 1700000000000, assets: [], messages: [
+            { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Transport boundary prompt' }] }], timestamp: 1700000000000 },
+            { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Transport boundary reply' }] }], timestamp: 1700000001000 }
+          ] }
+      } }
     ];
     Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{
       id: 999, active: true, url: 'https://gemini.google.com/app/abcdef0123456789',

@@ -981,10 +981,9 @@ class PdfExportDownloadCase(FeatureTestCase):
                     return False, f"PDF 导出文件 [{pf}] 泄漏内部未清洗的 <Image ... image_agent_tag> 标签: text={pdf_text[:300]!r}", pdf_info
 
                 # 4. 数学公式转换回退断言（防止 LaTeX 公式解析失败回退为带有 fallbackLabel 的提示或原始代码块）
-                has_fallback_label = "无法排版该公式" in pdf_text or "Could not typeset this formula" in pdf_text
-                raw_latex_fallback_blocks = len(re.findall(r"\bLaTeX[\s\ufffd]+[\\a-zA-Z0-9_\^\|\-]", pdf_text))
-                if has_fallback_label or raw_latex_fallback_blocks > 0:
-                    return False, f"PDF 导出文件 [{pf}] 存在未编译的原始 LaTeX 公式回退标签: text={pdf_text[:300]!r}", pdf_info
+                math_compiled, fallback_context = CDPAssertions.assert_pdf_math_compiled(pdf_text)
+                if not math_compiled:
+                    return False, f"PDF [{pf}] contains an uncompiled formula fallback: {fallback_context!r}", pdf_info
 
                 # 5. 关键业务词物理存在性断言（确保标题与核心正文真实落地）
                 if "贝尔不等式" in pf:

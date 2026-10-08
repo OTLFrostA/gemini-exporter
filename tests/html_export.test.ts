@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/html_export.test.ts
@@ -45,7 +46,7 @@ test('html_export - formatHtmlDocument returns valid structure, metadata, and st
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlDocument(mockChat);
+    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(mockChat));
     assert.strictEqual(res.ext, 'html');
     assert.strictEqual(res.mime, 'text/html');
 
@@ -96,11 +97,11 @@ test('html_export - supports English localization and handles empty conversation
         messages: []
     };
 
-    const resEn = await ChatFormatter.formatHtmlDocument(emptyChat, { lang: 'en' });
+    const resEn = await ChatFormatter.formatHtmlDocument(historicalFixture(emptyChat), { lang: 'en' });
     assert.ok(resEn.content.includes('<html>'), 'Unknown document language must not be inferred from English UI');
     assert.ok(resEn.content.includes('Empty conversation or fetch failed.'), 'Must render English empty notice');
 
-    const resZh = await ChatFormatter.formatHtmlDocument(emptyChat, { lang: 'zh' });
+    const resZh = await ChatFormatter.formatHtmlDocument(historicalFixture(emptyChat), { lang: 'zh' });
     assert.ok(resZh.content.includes('<html>'), 'Unknown document language must not be inferred from Chinese UI');
     assert.ok(resZh.content.includes('暂无对话记录或拉取失败。'), 'Must render Chinese empty notice');
 });
@@ -117,7 +118,7 @@ test('html_export - XSS protection escapes malicious tags', async () => {
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlDocument(attackChat);
+    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(attackChat));
     assert.ok(!res.content.includes('<script>alert("hacked")</script>'), 'Title script tags must be escaped');
     assert.ok(res.content.includes('&lt;script&gt;alert(&quot;hacked&quot;)&lt;/script&gt;'), 'Title must be HTML encoded');
 });
@@ -138,7 +139,7 @@ test('html_export - XSS pseudo-protocols in markdown links are disarmed to safe 
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlDocument(attackChat);
+    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(attackChat));
     const html = res.content;
     assert.ok(!html.includes('href="javascript:'), 'Must NOT contain javascript: in href');
     assert.ok(!html.includes('href="vbscript:'), 'Must NOT contain vbscript: in href');

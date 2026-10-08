@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,7 @@ for (const layout of ['messages', 'turns'] as const) {
             ...(layout === 'messages' ? { messages: [message] } : { turns: [{ messages: [message] }] }),
         };
         const snapshot = structuredClone(raw);
-        const result = await preparePdfItem(raw, { includeAssets: false });
+        const result = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
         assert.equal(result.ok, true);
         assert.equal(result.resources.size, 1);
         const node = result.document.messages[0];
@@ -36,7 +37,7 @@ test('provider parser contract accepts missing metadata and historical aliases w
         messages: [{ role: 'tool', content: 17, images: [{ src: 'https://example.com/generated', fileName: 'historical' }] }],
     };
     const snapshot = structuredClone(raw);
-    const { conversation: domain, diagnostics } = await parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw });
+    const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini' });
     assert.equal(domain.assets[0].kind, 'image');
     assert.equal(domain.assets[0].name, 'historical');
     assert.equal(domain.messages[0].provenance?.rawRole, 'tool');

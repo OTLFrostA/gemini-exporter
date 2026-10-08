@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-image-hydration.test.ts
  *
@@ -104,7 +105,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         {
-            conversations: [rawChat],
+            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             fetchAsset: async (req: any) => {
                 fetchedUrls.push(typeof req === 'string' ? req : req.url);
                 return {
@@ -206,7 +207,7 @@ test('1b. Remote URL-only attachment and standalone Markdown remote image: conte
     const result = await exporter.run(
         {
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: [rawChat],
+            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             fetchAsset: async () => ({
@@ -279,7 +280,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         {
-            conversations: [rawChat],
+            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({
@@ -326,57 +327,19 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     );
 });
 
-test('2b. Parser reconciles detached Takeout generated-media evidence before PDF resource acquisition', async () => {
-    const rawChat = {
-        id: 'chat-takeout-supplement',
-        title: 'Takeout Supplemented Conversation',
-        messages: [
-            { id: 'u1', role: 'user', content: 'Generate an astronaut cat.' },
-            { id: 'm1', role: 'model', content: 'Here is your astronaut cat:', providerRequestId: 'pdf-supplement-request' },
-        ],
-    };
-
-    const fakeTakeoutEngine = {
-        getTakeoutMediaForChat: () => [
-            { filename: 'user_upload_ignored.png', isGenerated: false },
-            { filename: 'watermarked_takeout_cat.png', isGenerated: true, providerRequestId: 'pdf-supplement-request' },
-        ],
-        getTakeoutFallbackMedia: async (_chatId: string, localName: string) => {
-            if (localName.includes('watermarked_takeout_cat.png')) return PNG_BYTES;
-            return null;
-        },
-    };
-
-    const prepared = await preparePdfItem(
-        { id: rawChat.id, title: rawChat.title },
-        {
-            conversations: [rawChat],
-            maxAssetRetries: 0,
-            takeoutEngine: fakeTakeoutEngine,
-        },
-    );
-
-    assert.strictEqual(prepared.ok, true);
-    if (!prepared.ok) return;
-
-    const { document, resources } = prepared;
-    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
-    assert.strictEqual(entries.length, 1, 'only generated Takeout media is supplemented');
-    assert.ok(entries[0].bytes);
-    assert.ok(!('storageRef' in entries[0]));
-
-    const ctx = makeStageCtx();
-    const s2 = await resourceStage({ document, resources }, ctx);
-    const s3 = await payloadStage(
-        { document, pathMap: s2.output.pathMap, locale: 'zh' },
-        ctx,
-    );
-    const modelMsg = s3.output.payload.messages.find((m: any) => m.variant === 'flow');
-    assert.strictEqual(
-        modelMsg.blocks.filter((b: any) => b.type === 'image').length,
-        1,
-        'supplemented Takeout generated media renders as a top-level image block in PDF',
-    );
+test('2b. PDF does not invent ownership for detached Takeout media', async () => {
+    const input = historicalFixture({ id: 'chat-detached-media', messages: [
+        { role: 'user', content: 'Generate an astronaut cat.' },
+        { role: 'model', content: 'Here is your astronaut cat:' },
+    ] });
+    let acquired = 0;
+    const prepared = await preparePdfItem(input, { takeoutEngine: {
+        getTakeoutMediaForChat: () => [{ filename: 'detached.png', isGenerated: true }],
+        getTakeoutFallbackMedia: async () => { acquired++; return PNG_BYTES; },
+    } });
+    assert.equal(prepared.ok, true);
+    assert.equal(prepared.resources.size, 0);
+    assert.equal(acquired, 0);
 });
 
 test('3. Acquisition failure: when both network fetch and Takeout fallback fail, export does not crash and preserves missing-image fallback + diagnostics', async () => {
@@ -410,7 +373,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         {
-            conversations: [rawChat],
+            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({
@@ -457,7 +420,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const runRes = await exporter.run(
         {
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: [rawChat],
+            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             maxAssetRetries: 0,
@@ -501,7 +464,7 @@ test('4. Abort during asset acquisition stops immediately and writes no files', 
     const runPromise = exporter.run(
         {
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: [rawChat],
+            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             fetchAsset: async () => {
@@ -562,7 +525,7 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
         const result = await exporter.run(
             {
                 selected: [{ id: rawChat.id, title: rawChat.title }],
-                conversations: [rawChat],
+                conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,
                 fetchAsset: async () => ({
@@ -595,16 +558,16 @@ test('PDF preparation refuses duplicate message IDs before entering the pipeline
     const chat = { id: 'duplicate', title: 'Duplicate', messages: [
         { id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' },
     ] };
-    const result = await preparePdfItem(chat);
+    const result = await preparePdfItem(historicalFixture(chat));
     assert.strictEqual(result.ok, false);
     assert.match(result.error, /MSG_DUP_ID/);
-    assert.ok(result.diagnostics.some((d: any) => d.code === 'MSG_DUP_ID'));
+    assert.ok(result.diagnostics.some((d: any) => d.code === 'PDF_INPUT_INVALID'));
 });
 
 test('PDF preparation preserves nonfatal normalization diagnostics', async () => {
-    const result = await preparePdfItem({ id: 'warning', title: 'Warning', messages: [
+    const result = await preparePdfItem(historicalFixture({ id: 'warning', title: 'Warning', messages: [
         { id: 'valid', role: 'unrecognized', content: 'visible' },
-    ] });
+    ] }));
     assert.strictEqual(result.ok, true);
     assert.ok(result.diagnostics.some((d: any) => d.code === 'UNKNOWN_ROLE'));
 });
@@ -648,7 +611,7 @@ test('hydrated image bytes and image classification do not mutate the original i
         },
     };
 
-    const result = await preparePdfItem(origChat, {
+    const result = await preparePdfItem(historicalFixture(origChat), {
         assetPipeline: fakePipeline,
     });
 
@@ -688,7 +651,7 @@ test('references to one Domain asset acquire once and share the prepared resourc
         },
     };
 
-    const result = await preparePdfItem(chat, {
+    const result = await preparePdfItem(historicalFixture(chat), {
         assetPipeline: fakePipeline,
     });
 
@@ -731,7 +694,7 @@ test('inline bytes skip acquisition', async () => {
         },
     };
 
-    const result = await preparePdfItem(chat, {
+    const result = await preparePdfItem(historicalFixture(chat), {
         assetPipeline: fakePipeline,
     });
 
@@ -772,7 +735,7 @@ test('acquisition keeps the legacy destination hint while source URI controls gr
         },
     };
 
-    const result = await preparePdfItem(chat, {
+    const result = await preparePdfItem(historicalFixture(chat), {
         assetPipeline: fakePipeline,
     });
 

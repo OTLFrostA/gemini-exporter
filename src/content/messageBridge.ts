@@ -1,6 +1,6 @@
+import { extractBlockText } from '../core/domain/content/unknownFallback.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
-import { createNativeDetailView } from '../core/compatibility/gemini/nativeDetailView.js';
 import { contentContext } from './contentContext.js';
 import { parseList } from '../core/parsers/gemini/rpc/parseList.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
@@ -90,21 +90,22 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
             if (text.includes(Proto.RPCS.DETAIL) && typeof upsertConversations === 'function') {
                 try {
-                    const detailRes = createNativeDetailView(parseGeminiRpcConversation(text, { providerId: 'gemini' }));
+                    const native = parseGeminiRpcConversation(text, { providerId: 'gemini' });
+                    const detailRes = native.conversation;
                     if (detailRes && detailRes.id) {
                         const nid = normId(detailRes.id);
                         let title = cleanTitle(detailRes.title);
                         let sourceTier = detailRes.titleSource || 'rpc';
                         if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
-                            const sniffed = resolveDetailTitle(detailRes.messages, nid);
+                            const sniffed = resolveDetailTitle(detailRes.messages.map(message => ({ role: message.role, content: message.content.map(block => extractBlockText(block)).join('\n\n') })), nid);
                             if (sniffed) {
                                 title = sniffed.title;
                                 sourceTier = sniffed.source;
                             }
                         }
-                        let titlesObj = detailRes.titles || {};
+                        let titlesObj = { ...detailRes.titles };
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        await persistNativeConversation(targetSlot, detailRes);
+                        await persistNativeConversation(targetSlot, native);
 
                         if (isRealTitle(title, nid)) {
                             titlesObj[sourceTier] = title;

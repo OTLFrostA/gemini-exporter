@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -13,24 +14,24 @@ test('asset_dedup - Takeout getTakeoutFallbackMedia retrieves exact image among 
     <html><body>
       <div class="outer-cell">
         <a href="https://gemini.google.com/app/chat_multi_img_123">Chat Multi</a>
-        Prompted Question 1<br>
+        <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question 1<br>
         Attached 1 file.<br>
         - <a href="image-adb659a48f83024b.png">image.png</a><br>
-        <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1"><p>Response 1</p></div>
+        <p>Response 1</p></div>
       </div>
       <div class="outer-cell">
         <a href="https://gemini.google.com/app/chat_multi_img_123">Chat Multi</a>
-        Prompted Question 2<br>
+        <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question 2<br>
         Attached 1 file.<br>
         - <a href="image-088981d4885e6166.png">image.png</a><br>
-        <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1"><p>Response 2</p></div>
+        <p>Response 2</p></div>
       </div>
       <div class="outer-cell">
         <a href="https://gemini.google.com/app/chat_multi_img_123">Chat Multi</a>
-        Prompted Question 3<br>
+        <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question 3<br>
         Attached 1 file.<br>
         - <a href="image-b70178f36ab8ed17.png">image.png</a><br>
-        <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1"><p>Response 3</p></div>
+        <p>Response 3</p></div>
       </div>
     </body></html>
     `;
@@ -65,37 +66,17 @@ test('asset_dedup - Takeout getTakeoutFallbackMedia retrieves exact image among 
     assert.strictEqual(resGeneric, null, 'Must NOT arbitrarily pick first image when multiple exist');
 });
 
-test('asset_dedup - batchWorker resolveChat only supplements genuine AI generated media', async () => {
-    const mockTakeoutEngine = {
-        getTakeoutOfflineChat: () => null,
-        getTakeoutMediaForChat: () => [
-            { filename: 'user_upload_photo.png', isGenerated: false },
-            { filename: 'ai_artwork_generated.png', isGenerated: true }
-        ]
-    };
-
-    const chat = {
-        id: 'test_chat_batch_worker',
-        title: 'Art Creation',
-        messages: [
-            { role: 'user', content: 'Draw an artwork' },
-            { role: 'model', content: 'Here is your artwork:' }
-        ]
-    };
-
-    const requested = { id: 'test_chat_batch_worker', title: 'Art Creation' };
-    const res = await BatchWorker.resolveChat(chat, requested, null, mockTakeoutEngine, 'u0');
-
-    assert.ok(res.chat, 'resolveChat should return chat');
-    assert.equal(res.chat.messages[1].content, 'Here is your artwork:', 'Missing evidence must not select an arbitrary model reply');
-    const modelMsg = res.chat.messages[2];
-    assert.ok(modelMsg, 'Unresolved generated media must remain separately exportable');
-
-    // Should include ai_artwork_generated.png as generated media
-    assert.ok(modelMsg.content.includes('ai_artwork_generated.png'), 'Generated media should be added');
-
-    // Should NOT include user_upload_photo.png as generated media
-    assert.ok(!modelMsg.content.includes('user_upload_photo.png'), 'User upload should NOT be added as generated image');
+test('asset_dedup - batchWorker keeps Domain ownership and does not attach unreferenced Takeout media', async () => {
+    const native = historicalFixture({ id: 'test_chat_batch_worker', title: 'Art Creation', messages: [
+        { role: 'user', content: 'Draw an artwork' }, { role: 'model', content: 'Here is your artwork:' } ] });
+    const before = structuredClone(native.conversation);
+    const mockTakeoutEngine = { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [
+        { filename: 'user_upload_photo.png', isGenerated: false }, { filename: 'ai_artwork_generated.png', isGenerated: true } ] };
+    const res = await BatchWorker.resolveChat(native, { id: 'test_chat_batch_worker', title: 'Art Creation' }, null, mockTakeoutEngine, 'u0');
+    assert.ok(res.chat);
+    assert.equal(res.chat.conversation.messages.length, 2);
+    assert.equal(res.chat.conversation.assets.length, 0);
+    assert.deepStrictEqual(res.chat.conversation.messages, before.messages);
 });
 
 test('asset_dedup - AssetPipeline preserves byteOffset and byteLength for sliced buffers', async () => {

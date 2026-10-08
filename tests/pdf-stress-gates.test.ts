@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-stress-gates.test.ts
  * Phase F 压力/附件/内存门禁测试（Tier 1）。
@@ -447,6 +448,7 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
             {
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
                 conversations,
+                fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,
             },
@@ -490,7 +492,7 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
     assert.strictEqual(result.total, N, 'result.total must equal the input conversation count');
 
     // Gate d) all conversations accounted for —— 先算账，再谈别的
-    const inputIds = new Set(conversations.map((c) => c.id));
+    const inputIds = new Set(conversations.map((c) => c.id.replace(/^c_/, '')));
     const exportedIds = exported.map((e) => e.id);
     const failedIds = result.failed.map((f: any) => f.id);
     assert.strictEqual(

@@ -1,10 +1,10 @@
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
-import { readParsedConversation } from '../core/compatibility/record/projectDomainRecord.js';
+import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
+import { decodeDataUrlAsset } from '../core/export/assets/dataUrl.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { AIProvider } from "../core/provider/aiProvider.js";
 import { StorageService } from '../core/storage/storageService.js';
 import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
-import { toTimestampMs } from '../core/utils/titleUtils.js';
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
@@ -12,7 +12,6 @@ import { ChatFormatter } from '../core/engine/chatFormatter.js';
 import { FsWriter } from '../core/engine/writers/fsWriter.js';
 import { buildExportFileName, shortId, normId, sanitizeFileName } from '../core/utils/pathUtils.js';
 import type { ContentConversationDetail, DetailClient, DomDetail } from '../types/detailTransport.js';
-import type { Conversation, TitleSource, TitleSources } from '../types/conversation.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { BadgeView } from './badgeView.js';
 import { AssetFetcher, inferImageExt, type FetchedImageAsset } from './assetFetcher.js';
@@ -60,39 +59,6 @@ interface LiveSaveCoordinatorDeps {
     clientClass?: (new () => DetailClient) | null;
     badge?: LiveSaveBadge;
     assetFetcher?: LiveSaveAssetFetcher;
-}
-
-interface LiveSaveAssetReference {
-    type?: string;
-    isImage?: boolean;
-    src?: string;
-    originalUrl?: string;
-    url?: string;
-    sourceUrl?: string;
-    resolvedUrl?: string;
-    fileName?: string;
-    name?: string;
-    alt?: string;
-    localName?: string;
-}
-
-interface LiveSaveCompatibleMessage {
-    attachments?: LiveSaveAssetReference[] | null;
-    images?: LiveSaveAssetReference[] | null;
-    content?: string | null;
-    timestamp?: unknown;
-}
-
-interface LiveSaveCompatibleConversation {
-    id?: string;
-    title?: string;
-    titleSource?: TitleSource | string;
-    titles?: TitleSources;
-    messages?: LiveSaveCompatibleMessage[] | null;
-    chatTime?: number | string | null;
-    updatedAt?: number | string | null;
-    timestamp?: number | string | null;
-    createdAt?: number | string | null;
 }
 
 interface CollectedLiveSaveAsset {
@@ -174,32 +140,17 @@ function isApplicationProvider(provider: AIProvider | null | undefined): provide
     return provider !== null && provider !== undefined && typeof provider.fetchConversationDetail === 'function' && provider.id === 'gemini';
 }
 
-function repairDetailTimestamps(detail: ContentConversationDetail): void {
-    if (!detail.chatTime || !Number.isFinite(Number(detail.chatTime))) {
-        const times = detail.messages
-            .map((m) => toTimestampMs(m?.timestamp))
-            .filter((t): t is number => typeof t === 'number' && Number.isFinite(t) && t > 0);
-        if (times.length > 0) {
-            const maxTs = Math.max(...times);
-            detail.chatTime = maxTs;
-            detail.updatedAt = detail.updatedAt || maxTs;
-            detail.timestamp = detail.timestamp || maxTs;
-        }
-    }
-}
-
 export async function resolveConversationDetail(cid: string): Promise<ContentConversationDetail | null> {
     const nid = normId(cid);
     // DI seam kept: an explicitly injected client class still uses the legacy
     // construction path. Default now resolves through the provider registry.
     const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
-    const provider = InjectedClass ? null : resolveProvider();
+    const provider = Object.hasOwn(_deps, 'clientClass') ? null : resolveProvider();
 
     if (InjectedClass) {
         try {
             const detail = await new InjectedClass().getConversationDetail(nid);
-            if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
-                repairDetailTimestamps(detail);
+            if (detail && Array.isArray(detail.conversation.messages) && detail.conversation.messages.length > 0) {
                 await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
                 return detail;
             }
@@ -209,8 +160,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
     } else if (isApplicationProvider(provider)) {
         try {
             const detail = await provider.fetchConversationDetail(nid);
-            if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
-                repairDetailTimestamps(detail);
+            if (detail && Array.isArray(detail.conversation.messages) && detail.conversation.messages.length > 0) {
                 await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
                 return detail;
             }
@@ -224,7 +174,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         const doc = typeof document !== 'undefined' ? document : null;
         try {
             const docResult = Scraper.parseDoc(doc, nid);
-            if (docResult && Array.isArray(docResult.messages) && docResult.messages.length > 0) {
+            if (docResult && Array.isArray(docResult.conversation.messages) && docResult.conversation.messages.length > 0) {
                 await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
                 return docResult;
             }
@@ -311,7 +261,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             // In mockMode (e.g. headless/test environments without native filesystem handles), simulate live save feedback
             if (options.mockMode) {
                 const chat = await resolveConversationDetail(nid);
-                const rawTitle = chat?.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
+                const rawTitle = chat?.conversation.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
                 const Utils = getUtils();
                 const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
                 const badge = getBadge();
@@ -329,13 +279,13 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             }
 
             const chat = await resolveConversationDetail(nid);
-            if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) {
+            if (!chat || !Array.isArray(chat.conversation.messages) || chat.conversation.messages.length === 0) {
                 if (isDev()) console.warn('[LiveSaveCoordinator] No messages extracted for', nid);
                 return false;
             }
 
             const Utils = getUtils();
-            const rawTitle = chat.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
+            const rawTitle = chat.conversation.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
             const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
             let failedAssets: Array<{ file: string; error: string }> = [];
 
@@ -393,14 +343,9 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             notifyLiveSaveWarning('payload_too_large');
                             return false;
                         }
-                        const conversationChat: Conversation = {
+                        const conversationChat: ResourceConversationParseResult = {
                             ...chat,
-                            id: nid,
-                            title: chat.title || safeTitle,
-                            timestamp: typeof chat.timestamp === 'number' ? chat.timestamp : null,
-                            chatTime: typeof chat.chatTime === 'number' ? chat.chatTime : undefined,
-                            updatedAt: typeof chat.updatedAt === 'number' || typeof chat.updatedAt === 'string' ? chat.updatedAt : undefined,
-                            createdAt: typeof chat.createdAt === 'number' || typeof chat.createdAt === 'string' ? chat.createdAt : undefined,
+                            conversation: { ...chat.conversation, id: nid, title: chat.conversation.title || safeTitle }
                         };
                         const resp = await new Promise<LiveSaveResult | null>((resolve) => {
                             const message: LiveSaveViaHandleMessage = {
@@ -463,14 +408,14 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         records,
                         slot,
                         {
-                            conversation: chat,
+                            conversation: chat.conversation,
                             conversationId: nid,
                             format: 'markdown',
                             exportedAt: now,
                             failedAssets,
                             titleCandidate: safeTitle,
-                            titleProvenance: chat?.titleSource,
-                            titles: chat?.titles
+                            titleProvenance: chat?.conversation.titleSource,
+                            titles: chat?.conversation.titles
                         }
                     );
                 } catch (err) {
@@ -504,6 +449,8 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
 }
 
 interface ImageDownloadTarget {
+    assetId: string;
+    inlineData?: string;
     url: string;
     fileName: string;
     localName: string;
@@ -554,12 +501,12 @@ export function arrayBufferToBase64(buffer: unknown): string {
  * and rewrite references in chat to local relative paths.
  */
 export async function processAndSaveImages(
-    chat: LiveSaveCompatibleConversation | null | undefined,
+    chat: ResourceConversationParseResult | null | undefined,
     nid: string,
     writer?: LiveSaveImageWriter | null,
     failures: Array<{ file: string; error: string }> = []
 ): Promise<CollectedLiveSaveAsset[]> {
-    if (!chat || !Array.isArray(chat.messages) || chat.messages.length === 0) return [];
+    if (!chat || !Array.isArray(chat.conversation.messages) || chat.conversation.messages.length === 0) return [];
 
     const Utils = getUtils();
     const cid6 = Utils?.shortId ? Utils.shortId(nid) : shortId(nid);
@@ -568,9 +515,9 @@ export async function processAndSaveImages(
 
     let imgCounter = 0;
 
-    const registerTarget = (rawUrl?: string | null, candidateName?: string, altText?: string, turnIndex = 0) => {
-        if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.startsWith('http')) return;
-        if (targets.has(rawUrl)) return;
+    const registerTarget = (assetId: string, rawUrl: string, candidateName?: string, turnIndex = 0, inlineData?: string) => {
+        if (!rawUrl && !inlineData) return;
+        if (targets.has(assetId)) return;
 
         imgCounter++;
         const hash4 = Math.abs(hashString(rawUrl)).toString(36).slice(0, 4);
@@ -603,45 +550,31 @@ export async function processAndSaveImages(
         }
         allocatedNames.add(finalName);
 
-        targets.set(rawUrl, {
-            url: rawUrl,
+        targets.set(assetId, {
+            assetId, inlineData, url: rawUrl,
             fileName: finalName,
             localName: `assets/${finalName}`,
-            alt: altText || 'Image'
+            alt: candidateName || 'Image'
         });
     };
 
-    // 1. Discover all image targets across messages
-    for (let i = 0; i < chat.messages.length; i++) {
-        const m = chat.messages[i];
-        if (!m) continue;
-
-        if (Array.isArray(m.attachments)) {
-            for (const att of m.attachments) {
-                if (att && (att.type === 'image' || att.isImage)) {
-                    const u = att.src || att.originalUrl || att.url || att.sourceUrl;
-                    registerTarget(u, att.fileName || att.name, att.alt || att.name, i);
-                }
-            }
-        }
-
-        if (Array.isArray(m.images)) {
-            for (const img of m.images) {
-                if (img) {
-                    const u = img.resolvedUrl || img.sourceUrl || img.url || img.src;
-                    registerTarget(u, img.fileName || img.name, img.alt || img.name, i);
-                }
-            }
-        }
-
-        if (typeof m.content === 'string') {
-            const matches = m.content.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^\s\)]+)\)/g);
-            for (const match of matches) {
-                const alt = match[1];
-                const u = match[2];
-                registerTarget(u, undefined, alt, i);
-            }
-        }
+    // Domain asset identity owns resources; two assets sharing a URL remain distinct.
+    for (const asset of chat.conversation.assets) {
+        if (asset.kind !== 'image') continue;
+        const source = chat.acquisitionHints[asset.id];
+        const url = source?.resolvedUrl || source?.url || source?.sourceUrl || asset.source?.uri || '';
+        const inlineData = asset.dataBase64 ? `data:${asset.mediaType || 'image/png'};base64,${asset.dataBase64}`
+            : url.startsWith('data:') ? url : undefined;
+        const turn = chat.conversation.messages.findIndex(message => {
+            if (message.attachmentIds?.includes(asset.id)) return true;
+            const contains = (value: unknown): boolean => {
+                if (!value || typeof value !== 'object') return false;
+                if (Array.isArray(value)) return value.some(contains);
+                return Object.entries(value).some(([key, child]) => key === 'assetId' ? child === asset.id : contains(child));
+            };
+            return contains(message.content) || contains(message.reasoning);
+        });
+        registerTarget(asset.id, url, asset.name, Math.max(0, turn), inlineData);
     }
 
     if (targets.size === 0) return [];
@@ -654,16 +587,24 @@ export async function processAndSaveImages(
 
     const processOneTarget = async (target: ImageDownloadTarget): Promise<void> => {
         try {
-            const res = await (fetcher && typeof fetcher.fetchImageBuffer === 'function'
-                ? fetcher.fetchImageBuffer(target.url, 12000)
-                : null);
+            const decoded = target.inlineData ? await decodeDataUrlAsset(target.inlineData) : null;
+            const res = decoded
+                ? decoded.ok ? { buffer: decoded.bytes, ext: inferImageExt(decoded.mimeType, target.url) } : null
+                : await fetcher.fetchImageBuffer(target.url, 12000);
 
             const buf = res?.buffer;
             const hasBytes = hasNonEmptyBytes(buf);
 
             if (res && hasBytes) {
                 if (res.ext && !target.fileName.toLowerCase().endsWith(`.${res.ext}`)) {
-                    target.fileName = target.fileName.replace(/\.[a-z0-9]+$/i, `.${res.ext}`);
+                    const previous = target.fileName;
+                    allocatedNames.delete(previous);
+                    const desired = previous.replace(/\.[a-z0-9]+$/i, `.${res.ext}`);
+                    let final = desired;
+                    let suffix = 2;
+                    while (allocatedNames.has(final)) final = desired.replace(/(\.[^/.]+)$/, `_${suffix++}$1`);
+                    allocatedNames.add(final);
+                    target.fileName = final;
                     target.localName = `assets/${target.fileName}`;
                 }
                 const fileBytes: Uint8Array = res.buffer instanceof Uint8Array
@@ -715,64 +656,17 @@ export async function processAndSaveImages(
         await Promise.allSettled(workers);
     }
 
-    // 3. Rewrite in-memory conversation references for successfully saved assets
-    const savedMap = new Map<string, string>();
-    for (const t of targetList) {
-        if (t.saved) {
-            savedMap.set(t.url, t.localName);
-        }
+    // Export paths are preparation context; source URIs and semantic blocks stay intact.
+    for (const target of targetList) {
+        if (target.saved) chat.resourceHints = { ...chat.resourceHints,
+            [target.assetId]: { ...chat.resourceHints[target.assetId], archivePath: target.localName } };
     }
-
-    if (savedMap.size === 0) return collectedAssets;
-    const native = readParsedConversation(chat);
-    if (native) {
-        for (const asset of native.conversation.assets) {
-            const uri = asset.source?.uri;
-            const local = uri && savedMap.get(uri);
-            if (local) native.resourceHints = { ...native.resourceHints, [asset.id]: { ...native.resourceHints[asset.id], archivePath: local } };
-        }
-    }
-
-    for (const m of chat.messages) {
-        if (!m) continue;
-
-        if (Array.isArray(m.attachments)) {
-            for (const att of m.attachments) {
-                const u = att.src || att.originalUrl || att.url || att.sourceUrl;
-                if (u && savedMap.has(u)) {
-                    const local = savedMap.get(u)!;
-                    att.localName = local;
-                    att.src = local;
-                }
-            }
-        }
-
-        if (Array.isArray(m.images)) {
-            for (const img of m.images) {
-                const u = img.resolvedUrl || img.sourceUrl || img.url || img.src;
-                if (u && savedMap.has(u)) {
-                    const local = savedMap.get(u)!;
-                    img.localName = local;
-                    img.src = local;
-                    img.url = local;
-                }
-            }
-        }
-
-        if (typeof m.content === 'string') {
-            for (const [onlineUrl, localPath] of savedMap.entries()) {
-                if (m.content.includes(onlineUrl)) {
-                    m.content = m.content.split(onlineUrl).join(localPath);
-                }
-            }
-        }
-    }
-
     return collectedAssets;
+
 }
 
 async function writeConversationToDisk(
-    chat: LiveSaveCompatibleConversation,
+    chat: ResourceConversationParseResult,
     safeTitle: string,
     nid: string,
     dirHandle: DirectoryHandle | FileSystemDirectoryHandle,

@@ -49,7 +49,7 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
         zip.file(filename, bytes);
         const parsed = await parseTakeoutZip(await zip.generateAsync({ type: 'uint8array' }), null, slot);
         assert.equal(parsed.mediaMap[chatId]?.length ?? 0, 0);
-        assert.ok(parsed.convCache[chatId].messages?.every((m: { attachments?: unknown[] }) => !m.attachments?.length));
+        assert.ok(parsed.convCache[chatId].conversation.messages.every(m => !m.attachmentIds?.length));
         const stored = parsed.globalMedia[filename];
         assert.deepEqual(await stored.async!('uint8array'), bytes);
     } finally {

@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Runtime closure and JSON portability of actual Domain and Document AST fixtures. */
 import { test } from 'node:test';
@@ -31,7 +32,7 @@ test('each Domain fixture is closed and JSON round-trip preserves every backend 
 test('provider-only state and malformed title data cannot become document context', () => {
     const raw = { id: 'state', title: { text: 'not a title' }, theme: 'dark', messages: [{ role: 'model', content: 'Authored content', initiallyCollapsed: false }] };
     const original = structuredClone(raw);
-    const { conversation } = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: raw as never });
+    const { conversation } = historicalFixture(raw as never, { providerId: 'gemini' });
     assert.equal(typeof conversation.title, 'string');
     const document = composeDomainDocument(conversation).document;
     assert.ok(!JSON.stringify(document).includes('initiallyCollapsed'));

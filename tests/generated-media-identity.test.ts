@@ -5,7 +5,6 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { messageAssets } = require('./helpers/domainAssets.js');
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
-const { supplementTakeoutGeneratedMedia } = require('../src/core/engine/export/batchWorker.js');
 const { parseFixture } = require('./helpers/documentFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
@@ -30,8 +29,8 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
     try {
         const result = await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, 'identity');
         const offline = TakeoutEngine.getTakeoutOfflineChat(id, 'identity');
-        assert.ok(offline.parsed, 'production cache must carry native Domain');
-        const model = offline.parsed.conversation.messages.find((m: any) => m.role === 'assistant');
+        assert.ok(offline.conversation, 'production cache must carry native Domain');
+        const model = offline.conversation.messages.find((m: any) => m.role === 'assistant');
         assert.deepEqual(model.generation, { mediaKind: 'image', outputCount: 1 });
         assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, 'identity'), []);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
@@ -44,26 +43,6 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
     } finally { TakeoutEngine.clearTakeoutData('identity'); }
 });
 
-test('different events and unproven multi-image ordinals are never suppressed', () => {
-    const generation = { chatId: id, time: Math.floor(time / 1000) * 1000 + 60000, prompt, generationOrdinal: 1, imageCount: 1, imageOrdinal: 0 };
-    const engine = { getTakeoutMediaForChat: () => [{ filename: png, isGenerated: true, generation }] };
-    const chat = onlineChat();
-    supplementTakeoutGeneratedMedia(chat, id, 'identity', engine);
-    assert.equal(chat.messages.length, 3, 'distinct event is retained as its own turn');
-    const multi = onlineChat();
-    engine.getTakeoutMediaForChat = () => [{ filename: png, isGenerated: true, generation: { ...generation, time: time - 472, generationOrdinal: 0, imageCount: 2, imageOrdinal: undefined as any } }];
-    supplementTakeoutGeneratedMedia(multi, id, 'identity', engine);
-    assert.equal(multi.messages[1].images.length, 2, 'unknown image ordinal cannot justify deleting media');
-});
-
-test('ambiguous same-second repeated prompts do not dedupe', () => {
-    const chat = onlineChat();
-    chat.messages.push(...onlineChat().messages);
-    const generation = { chatId: id, time: time - 472, prompt, generationOrdinal: 0, imageCount: 1, imageOrdinal: 0 };
-    supplementTakeoutGeneratedMedia(chat, id, 'identity', { getTakeoutMediaForChat: () => [{ filename: png, isGenerated: true, generation }] });
-    assert.equal(chat.messages.length, 5);
-});
-
 test('RPC generated-media detector preserves generated status while inline images remain unmarked', () => {
     const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
     const generated: any[] = Array(16).fill(null);
@@ -73,140 +52,6 @@ test('RPC generated-media detector preserves generated status while inline image
     generated[15] = [512, 512, 1000];
     assert.equal(extractImages([generated])[0].isGenerated, true);
     assert.equal(extractImages([['https://lh3.googleusercontent.com/inline', 512, 512]])[0].isGenerated, undefined);
-});
-
-test('regression: Online Martian Cat + Takeout yields exactly 1 image in Markdown, HTML, PDF without prefix heuristic', async () => {
-    const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
-    const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-    (global as any).JSZip = require('../lib/jszip.min.js');
-    TakeoutEngine.clearTakeoutData('identity');
-    try {
-        await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, 'identity');
-        const chat = onlineChat();
-        supplementTakeoutGeneratedMedia(chat, id, 'identity', TakeoutEngine);
-
-        // 1. Supplementation skips duplicate
-        assert.equal(chat.messages[1].images.length, 1);
-        assert.equal(chat.messages[1].content, '');
-
-        // 2. Canonical normalization
-        const { domain, document, resources } = await parseFixture(chat);
-        const imageAssets = domain.assets.filter((a: any) => a.kind === 'image');
-        assert.equal(imageAssets.length, 1, 'Exactly 1 logical image asset');
-
-        // 3. Markdown render
-        const md = renderDocumentMarkdown(document, resources);
-        const mdImageMatches = md.match(/!\[.*?\]\(.*?\)/g) || [];
-        assert.equal(mdImageMatches.length, 1, 'Markdown has exactly 1 image reference');
-
-        // 4. HTML render
-        const { html } = renderDocumentHtml(document, resources);
-        const htmlImageMatches = html.match(/<img\s+[^>]*>/gi) || [];
-        assert.equal(htmlImageMatches.length, 1, 'HTML has exactly 1 img tag');
-    } finally {
-        TakeoutEngine.clearTakeoutData('identity');
-    }
-});
-
-test('regression: multi-image generation in same turn does NOT merge different images (ordinal 0 vs 1)', async () => {
-    const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
-    const reqId = '1c81efe352c9ef8a';
-    const chat: any = {
-        id,
-        messages: [
-            { id: `r_${reqId}`, role: 'user', content: 'Generate 2 astronaut cats', timestamp: time },
-            {
-                id: 'm1',
-                role: 'model',
-                providerRequestId: reqId,
-                content: '',
-                images: [
-                    {
-                        type: 'image',
-                        fileName: 'cat_0.jpg',
-                        sourceUrl: 'https://lh3.googleusercontent.com/cat0',
-                        localName: 'assets/cat_0.jpg',
-                        isGenerated: true,
-                        providerRequestId: reqId,
-                        imageOrdinal: 0
-                    },
-                    {
-                        type: 'image',
-                        fileName: 'cat_1.jpg',
-                        sourceUrl: 'https://lh3.googleusercontent.com/cat1',
-                        localName: 'assets/cat_1.jpg',
-                        isGenerated: true,
-                        providerRequestId: reqId,
-                        imageOrdinal: 1
-                    }
-                ]
-            }
-        ]
-    };
-
-    // Takeout provides image for ordinal 0
-    const engine = {
-        getTakeoutMediaForChat: () => [
-            {
-                filename: 'cat_0_takeout.png',
-                isGenerated: true,
-                providerRequestId: reqId,
-                imageOrdinal: 0,
-                generation: { chatId: id, providerRequestId: reqId, imageOrdinal: 0, imageCount: 2, generationOrdinal: 0 }
-            }
-        ]
-    };
-
-    supplementTakeoutGeneratedMedia(chat, id, 'test_slot', engine);
-    assert.equal(chat.messages[1].images.length, 2, 'Must not duplicate ordinal 0 or wipe ordinal 1');
-
-    const { domain, document, resources } = await parseFixture(chat);
-    const imageAssets = domain.assets.filter((a: any) => a.kind === 'image');
-    assert.equal(imageAssets.length, 2, 'Both distinct images must be retained in canonical assets');
-
-    const md = renderDocumentMarkdown(document, resources);
-    const mdImageMatches = md.match(/!\[.*?\]\(.*?\)/g) || [];
-    assert.equal(mdImageMatches.length, 2, 'Markdown has 2 distinct image references');
-});
-
-test('regression: different provider request IDs are never deduped', async () => {
-    const chat: any = {
-        id,
-        messages: [
-            { id: 'r_aaaaaaaaaaaaaaaa', role: 'user', content: 'Cat A', timestamp: time },
-            {
-                id: 'm1',
-                role: 'model',
-                providerRequestId: 'aaaaaaaaaaaaaaaa',
-                content: '',
-                images: [
-                    {
-                        type: 'image',
-                        fileName: 'cat_a.jpg',
-                        localName: 'assets/cat_a.jpg',
-                        isGenerated: true,
-                        providerRequestId: 'aaaaaaaaaaaaaaaa',
-                        imageOrdinal: 0
-                    }
-                ]
-            }
-        ]
-    };
-
-    const engine = {
-        getTakeoutMediaForChat: () => [
-            {
-                filename: 'cat_b.png',
-                isGenerated: true,
-                providerRequestId: 'bbbbbbbbbbbbbbbb',
-                imageOrdinal: 0,
-                generation: { chatId: id, providerRequestId: 'bbbbbbbbbbbbbbbb', imageOrdinal: 0, imageCount: 1, generationOrdinal: 0 }
-            }
-        ]
-    };
-
-    supplementTakeoutGeneratedMedia(chat, id, 'test_slot', engine);
-    assert.equal(chat.messages.length, 3, 'Different request ID must be added as distinct model message, not deduped');
 });
 
 test('regression: extractImages suppresses 2x inline tuple duplicate sharing token with generated media', () => {
@@ -261,120 +106,6 @@ test('regression: extractImages suppresses 2x upscale derivative rendition (slot
     assert.equal(imgs[0].width, 1408);
     assert.equal(imgs[0].height, 768);
     assert.equal(imgs[0].isGenerated, true);
-});
-
-test('regression: model message with only ordinary inline/grounding image must NEVER suppress Takeout generated image (both preserved)', async () => {
-    const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
-    const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
-
-    // Model message has only 1 normal inline image (NOT generated, no providerRequestId, no generation identity)
-    const normalInlineImage = {
-        type: 'image',
-        fileName: 'web_search_chart.png',
-        sourceUrl: 'https://example.com/web_search_chart.png',
-        localName: 'assets/web_search_chart.png',
-        isGenerated: false
-    };
-
-    const chatWithInlineImage: any = {
-        id,
-        messages: [
-            { id: 'u1', role: 'user', content: prompt, timestamp: time },
-            { id: 'm1', role: 'model', content: 'Here is information with an inline web diagram.', images: [normalInlineImage] }
-        ]
-    };
-
-    // Takeout has a generated image for the same prompt/event
-    const generation = {
-        chatId: id,
-        time: Math.floor(time / 1000) * 1000,
-        prompt,
-        generationOrdinal: 0,
-        imageCount: 1,
-        imageOrdinal: 0,
-        providerRequestId: '1c81efe352c9ef8a'
-    };
-    const engine = {
-        getTakeoutMediaForChat: () => [{
-            filename: png,
-            isGenerated: true,
-            generation
-        }]
-    };
-
-    supplementTakeoutGeneratedMedia(chatWithInlineImage, id, 'test_slot', engine);
-
-    // The model message MUST retain both: the ordinary inline image AND the Takeout generated image
-    const modelMsg = chatWithInlineImage.messages.find((m: any) => m.role === 'model');
-    assert.ok(modelMsg, 'Model message must exist');
-    assert.equal(modelMsg.images.length, 2, 'Must contain BOTH the inline image and Takeout generated image');
-    assert.ok(modelMsg.images.some((img: any) => img.fileName === 'web_search_chart.png'), 'Inline image preserved');
-    assert.ok(modelMsg.images.some((img: any) => img.fileName === png), 'Takeout generated image preserved');
-
-    // Canonical normalization must retain both assets
-    const { domain, document, resources } = await parseFixture(chatWithInlineImage);
-    const imageAssets = domain.assets.filter((a: any) => a.kind === 'image');
-    assert.equal(imageAssets.length, 2, 'Canonical bundle must have exactly 2 image assets');
-
-    const md = renderDocumentMarkdown(document, resources);
-    const mdImgs = md.match(/!\[.*?\]\(.*?\)/g) || [];
-    assert.equal(mdImgs.length, 2, 'Markdown has 2 image refs');
-
-    const { html } = renderDocumentHtml(document, resources);
-    const htmlImgs = html.match(/<img\s+[^>]*>/gi) || [];
-    assert.equal(htmlImgs.length, 2, 'HTML has 2 img tags');
-});
-
-test('regression: sameGenerationEvent requires matching chatId (cross-conversation same providerRequestId never dedupes)', () => {
-    const { sameGenerationEvent } = require('../src/core/engine/generatedMediaIdentity.js');
-    const sharedReqId = '1c81efe352c9ef8a';
-    const genA = {
-        chatId: '1bd028d5c5b0c0e2',
-        providerRequestId: sharedReqId,
-        time: time,
-        prompt: prompt,
-        generationOrdinal: 0,
-        imageCount: 1,
-        imageOrdinal: 0
-    };
-    const genB = {
-        chatId: 'different_conv_9999',
-        providerRequestId: sharedReqId,
-        time: time,
-        prompt: prompt,
-        generationOrdinal: 0,
-        imageCount: 1,
-        imageOrdinal: 0
-    };
-
-    // Even though providerRequestId matches, different chatId must return false
-    assert.equal(sameGenerationEvent(genA, genB), false, 'Cross-conversation with same requestId must NOT match');
-
-    // Same chatId matches (including c_ prefix tolerance)
-    const genWithPrefix = { ...genA, chatId: 'c_' + genA.chatId };
-    assert.equal(sameGenerationEvent(genA, genWithPrefix), true, 'Same conversation with c_ prefix must match');
-
-    // Cross-conversation supplementation test
-    const chatA: any = {
-        id: 'different_conv_9999',
-        messages: [
-            { id: 'u1', role: 'user', content: prompt, timestamp: time },
-            { id: 'm1', role: 'model', providerRequestId: sharedReqId, content: '', images: [{
-                type: 'image', fileName: jpg, sourceUrl: 'https://lh3.googleusercontent.com/cat',
-                isGenerated: true, providerRequestId: sharedReqId, imageOrdinal: 0
-            }] }
-        ]
-    };
-    const engine = {
-        getTakeoutMediaForChat: () => [{
-            filename: png,
-            isGenerated: true,
-            generation: genA // generation is for chat 1bd028d5c5b0c0e2
-        }]
-    };
-    supplementTakeoutGeneratedMedia(chatA, 'different_conv_9999', 'test_slot', engine);
-    // Takeout image for conv A cannot be deduped into conv B
-    assert.equal(chatA.messages.length, 3, 'Cross-conversation media must not be deduped');
 });
 
 test('regression: extractTurnRequestId schema slot evidence and fallback boundaries', () => {

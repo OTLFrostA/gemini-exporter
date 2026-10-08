@@ -6,7 +6,6 @@ import { __resolveModule } from '../../utils/moduleOverrides.js';
 import { MediaIndex, readTakeoutBytes, type TakeoutStore } from './mediaIndex.js';
 import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive, type GeminiTakeoutZipRaw } from '../../parsers/gemini/takeout/parseZip.js';
-import { createParsedConversationView } from '../record/projectDomainRecord.js';
 import { TakeoutParseError } from '../../../types/errors.js';
 import type { Conversation } from '../../../types/index.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
@@ -60,23 +59,23 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     }
     for (const [name, entries] of basenames) if (entries.length === 1) store.globalMedia[name] = entries[0] as TakeoutStore['globalMedia'][string];
     for (const result of results) {
-        const view = createParsedConversationView(result);
         const id = result.conversation.id;
         const hasExplicitPrompt = result.conversation.messages.some(message => message.role === 'user');
         const durableResources: StoredDomainResource[] = [];
-        store.convCache[id] = { ...view, source: 'takeout-offline', hasExplicitPrompt };
+        const native = { conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints: result.acquisitionHints,
+            resourceHints: Object.fromEntries(Object.entries(result.archiveResources).map(([assetId, bound]) => [assetId, { archivePath: bound.path }])) };
+        store.convCache[id] = native;
         // Only source-bound resources are available to native consumers. An unresolved
         // or ambiguous reference cannot fall through to a second filename heuristic.
         for (const [assetId, bound] of Object.entries(result.archiveResources)) {
             const bytes = await readTakeoutBytes(bound.entry);
             if (!bytes) throw new Error(`Cannot persist Takeout resource: ${bound.path}`);
             durableResources.push({ assetId, bytes, sourcePath: bound.path });
-            const path = view.parsed.resourceHints[assetId].archivePath!;
+            const path = bound.path;
             store.globalMedia[path] = bound.entry;
-            store.globalMedia[bound.path] = bound.entry;
             (store.mediaMap[id] ??= []).push({ filename: path, fileObj: bound.entry });
         }
-        await persistNativeConversation(slot || 'u0', view, durableResources);
+        await persistNativeConversation(slot || 'u0', native, durableResources);
         // Preserve metadata-only import writes: Takeout fragments must never replace
         // a fuller detail already in storage. The runtime cache owns parsed bodies.
         const domain = result.conversation;

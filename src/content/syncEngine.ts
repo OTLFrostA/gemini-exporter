@@ -125,7 +125,8 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
 
             const provider = resolveProvider() as ApplicationProvider | undefined;
             if (!provider) return;
-            const d = await provider.fetchConversationDetail(activeId);
+            const native = await provider.fetchConversationDetail(activeId);
+            const d = native.conversation;
             if (d && d.id) {
                 const nid = normId(d.id);
                 const targetTs = d.updatedAt || d.timestamp || null;
@@ -140,7 +141,7 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
                         timestamp: targetTs,
                         updatedAt: targetTs,
                         createdAt: d.createdAt || null,
-                        messageCount: d.messageCount
+                        messageCount: d.messages.length
                     }], 'active-detail-sync');
                 }
             }

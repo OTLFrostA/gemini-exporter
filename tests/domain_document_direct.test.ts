@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { closeLegacyCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
-import { toDomainConversationDetail, parseLegacyConversation } from '../src/core/compatibility/legacyConversationAdapter.js';
+import { historicalFixtureDomain, historicalFixture } from './helpers/nativeFixture.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { exportDomainHtml, exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
 import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
@@ -31,7 +31,7 @@ function freeze<T>(value: T): T {
 
 test('raw -> Domain resolves citations and one resource registry without mutating input', () => {
     const snapshot = structuredClone(raw);
-    const domain = toDomainConversationDetail(freeze(structuredClone(raw)));
+    const domain = historicalFixtureDomain(freeze(structuredClone(raw)));
     assert.deepEqual(raw, snapshot);
     assert.equal(domain.title, 'Authoritative title');
     assert.equal(domain.assets.length, 2);
@@ -56,15 +56,15 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
 });
 
 test('Domain JSON round-trip gives the same AST and HTML/Markdown, including resource identities', async () => {
-    const domain = freeze(toDomainConversationDetail(structuredClone(raw)));
+    const domain = freeze(historicalFixtureDomain(structuredClone(raw)));
     const restored = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(composeDomainDocument(domain), composeDomainDocument(restored));
     assert.deepEqual(await prepareDomainResources(domain), await prepareDomainResources(restored));
-    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceHints: parseLegacyConversation(raw).resourceHints };
+    const options = { exportedAt: '2026-10-06T00:00:00Z', locale: 'en' as const, resourceHints: historicalFixture(raw).resourceHints };
     assert.equal(await exportDomainMarkdown(domain, options), await exportDomainMarkdown(restored, options));
     assert.equal(await exportDomainHtml(domain, options), await exportDomainHtml(restored, options));
-    assert.equal(await formatMarkdownDocument(raw, options).then(result => result.content), await exportDomainMarkdown(domain, options));
-    assert.equal(await formatHtmlDocument(raw, options).then(result => result.content), await exportDomainHtml(domain, options));
+    assert.equal(await formatMarkdownDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainMarkdown(domain, options));
+    assert.equal(await formatHtmlDocument(historicalFixture(raw), options).then(result => result.content), await exportDomainHtml(domain, options));
 });
 
 test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {

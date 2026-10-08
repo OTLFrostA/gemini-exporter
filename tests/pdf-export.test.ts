@@ -1,3 +1,4 @@
+const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/pdf-export.test.ts
@@ -97,7 +98,7 @@ function makeValidPdf(padBytes: number): Uint8Array {
 
 test('stub compiler returns a parseable minimal PDF', async () => {
     const compiler = new StubPdfCompiler();
-    const { conversation } = parseConversation({ format: 'conversation-record', providerId: 'gemini', data: sample });
+    const { conversation } = historicalFixture(sample, { providerId: 'gemini' });
     const ast = require('../src/core/document/compose/composeDomainDocument.js').composeDomainDocument(conversation).document;
     const document = require('../src/core/renderers/typst/renderTypst.js').renderDocumentTypst(ast, {});
     const ctx: any = {
@@ -124,7 +125,7 @@ test('success is only marked after the Writer actually wrote the file', async ()
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -156,7 +157,7 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -180,7 +181,7 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     const retry = await retryExporter.run(
         {
             selected: [{ id: result.failed[0].id, title: result.failed[0].title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer: retryWriter,
         },
@@ -199,7 +200,7 @@ test('one failed item does not block the rest of the batch', async () => {
     const result = await exporter.run(
         {
             selected: [bad, good1, good2].map((c) => ({ id: c.id, title: c.title })),
-            conversations: [bad, good1, good2],
+            conversations: [bad, good1, good2], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([bad, good1, good2]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -222,7 +223,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
     const runPromise = exporter.run(
         {
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
-            conversations: convs,
+            conversations: convs, fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             compiler: slowCompiler,
@@ -250,7 +251,7 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: failing,
@@ -271,7 +272,7 @@ test('zip mode packages only after successful writes', async () => {
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async (_blob: Blob, filename: string) => {
@@ -298,7 +299,7 @@ test('zip: generateBlob failure never reports success and commits no records (§
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -329,7 +330,7 @@ test('zip: downloadHandler failure never reports success and commits no records 
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -354,7 +355,7 @@ test('zip: success records are committed only after delivery, in item order (§1
     const result = await exporter.run(
         {
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
-            conversations: convs,
+            conversations: convs, fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -382,7 +383,7 @@ test('zip: missing generateBlob on the writer fails closed, never reports succes
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {},
@@ -405,7 +406,7 @@ test('zip: missing downloadHandler fails closed, never counts staged as delivere
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             // NOTE: no downloadHandler — the ZIP could never reach the user.
@@ -430,7 +431,7 @@ test('§11: export-record persistence failure keeps the artifact successful but 
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -456,7 +457,7 @@ test('§11 (zip): record failure during delivery commit keeps staged items deliv
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {},
@@ -494,7 +495,7 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: warningCompiler,
@@ -515,7 +516,7 @@ test('result carries UI-contract aliases so failures are visible to the summary/
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample],
+            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: failing,
@@ -524,7 +525,7 @@ test('result carries UI-contract aliases so failures are visible to the summary/
     );
     assert.strictEqual(result.failed.length, 1);
     assert.strictEqual(result.failedChats!.length, 1, 'failedChats alias present');
-    assert.strictEqual(result.failedChats![0].id, sample.id, 'banner/retry can reselect by id');
+    assert.strictEqual(result.failedChats![0].id, sample.id.replace(/^c_/, ''), 'banner/retry can reselect by id');
     assert.strictEqual(result.landedChats, 0);
     assert.strictEqual(result.exportedCount, 0);
 });
@@ -537,7 +538,7 @@ test('abort marks unfinished items as failed/retryable instead of silently dropp
     const runPromise = exporter.run(
         {
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
-            conversations: convs,
+            conversations: convs, fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: slowCompiler,
@@ -578,7 +579,7 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
     const result = await exporter.run(
         {
             selected: [convSmall, convBig].map((c) => ({ id: c.id, title: c.title })),
-            conversations: [convSmall, convBig],
+            conversations: [convSmall, convBig], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([convSmall, convBig]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             compiler: sizedCompiler,
