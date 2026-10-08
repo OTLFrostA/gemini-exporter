@@ -1,3 +1,4 @@
+import type { TakeoutResourceLookup } from '../core/engine/takeoutEngine.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import type { Attachment, Conversation, GeneratedMediaIdentity } from './conversation.js';
 import type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
@@ -66,8 +67,7 @@ export interface TakeoutExportSource {
         imageOrdinal?: number;
         generation?: GeneratedMediaIdentity;
     }>;
-    getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slot?: string | null,
-        generation?: GeneratedMediaIdentity): Promise<Uint8Array | null>;
+    getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null>;
 }
 export interface UIExportOptions {
     selected: Array<string | Pick<Conversation, 'id'> & Partial<Conversation>>;

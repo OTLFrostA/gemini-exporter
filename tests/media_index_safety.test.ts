@@ -123,39 +123,39 @@ test('mediaIndex - generated media matching path rules', async () => {
     });
 
     // 1. Exact generation match: ordinal 0
-    const res0 = await getTakeoutFallbackMedia('c_10', 'any_fallback_name.png', 'u0', {
+    const res0 = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: '10',
         generationOrdinal: 1,
         imageOrdinal: 0,
         providerRequestId: 'req_12345678'
-    });
+    } }, 'u0');
     assert.deepStrictEqual(res0, fakeBytesA, 'ordinal 0 must match fakeBytesA');
 
     // 2. Exact generation match: ordinal 1
-    const res1 = await getTakeoutFallbackMedia('c_10', 'any_fallback_name.png', 'u0', {
+    const res1 = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: '10',
         generationOrdinal: 1,
         imageOrdinal: 1,
         providerRequestId: 'req_12345678'
-    });
+    } }, 'u0');
     assert.deepStrictEqual(res1, fakeBytesB, 'ordinal 1 must match fakeBytesB');
 
     // 3. Wrong chatId in generation identity
-    const wrongChat = await getTakeoutFallbackMedia('c_10', 'any_fallback_name.png', 'u0', {
+    const wrongChat = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: 'wrong_chat_id',
         generationOrdinal: 1,
         imageOrdinal: 0,
         providerRequestId: 'req_12345678'
-    });
+    } }, 'u0');
     assert.strictEqual(wrongChat, null, 'wrong chatId must return null');
 
     // 4. Mismatched generation event
-    const wrongEvent = await getTakeoutFallbackMedia('c_10', 'any_fallback_name.png', 'u0', {
+    const wrongEvent = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: '10',
         generationOrdinal: 99,
         imageOrdinal: 0,
         providerRequestId: 'different_req_888'
-    });
+    } }, 'u0');
     assert.strictEqual(wrongEvent, null, 'mismatched generation event must return null');
 
     // 5. Ambiguous match: more than 1 match must return null (not best-effort first match)
@@ -190,21 +190,21 @@ test('mediaIndex - generated media matching path rules', async () => {
         convCache: {}
     });
 
-    const ambiguous = await getTakeoutFallbackMedia('c_10', 'target.png', 'u0', {
+    const ambiguous = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'target.png', generation: {
         chatId: '10',
         generationOrdinal: 5,
         imageOrdinal: 0,
         providerRequestId: 'dup_req_12345'
-    });
+    } }, 'u0');
     assert.strictEqual(ambiguous, null, 'ambiguous match must strictly return null');
 
     clearTakeoutData();
 });
 
 // ==========================================
-// 3. Filename Matching and Generic Fallback Path
+// 3. Exact Source Identity and Ambiguity Guards
 // ==========================================
-test('mediaIndex - filename matching passes and generic guards', async () => {
+test('mediaIndex - exact source identity rejects filename heuristics', async () => {
     clearTakeoutData();
     const bytesReport = new Uint8Array([5, 6, 7]);
     const bytesSingle = new Uint8Array([8, 9, 10]);
@@ -225,17 +225,18 @@ test('mediaIndex - filename matching passes and generic guards', async () => {
         convCache: {}
     });
 
-    // Pass 1: Direct exact or clean stem match
-    const hitClean = await getTakeoutFallbackMedia('chat_doc', 'financial_quarterly_report.pdf', 'u0');
-    assert.deepStrictEqual(hitClean, bytesReport, 'clean target stem should match stripped hex prefix');
+    // Exact original names work; prefix stripping must not.
+    const hitClean = await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'financial_quarterly_report.pdf' }, 'u0');
+    assert.strictEqual(hitClean, null, 'stripped prefixes are not source identity');
+    assert.deepStrictEqual(await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'f1a2b3c4_financial_quarterly_report.pdf' }, 'u0'), bytesReport);
 
-    // Pass 2: Distinctive stem matching
-    const hitDistinctive = await getTakeoutFallbackMedia('chat_doc', 'financial_quarterly_report-a1b2c3d4.pdf', 'u0');
-    assert.deepStrictEqual(hitDistinctive, bytesReport, 'distinctive suffix hash stripped should match');
+    // Similar stems are insufficient.
+    const hitDistinctive = await getTakeoutFallbackMedia('chat_doc', { assetId: '', sourceUri: 'financial_quarterly_report-a1b2c3d4.pdf' }, 'u0');
+    assert.strictEqual(hitDistinctive, null, 'stripped suffixes are not source identity');
 
-    // Pass 3: Single-media generic fallback (when conversation has EXACTLY 1 item and target is generic)
-    const hitGenericSingle = await getTakeoutFallbackMedia('chat_single', 'image.png', 'u0');
-    assert.deepStrictEqual(hitGenericSingle, bytesSingle, 'single media conversation should resolve generic target');
+    // A single unrelated media item is still not evidence.
+    const hitGenericSingle = await getTakeoutFallbackMedia('chat_single', { assetId: '', sourceUri: 'image.png' }, 'u0');
+    assert.strictEqual(hitGenericSingle, null, 'one unrelated file does not establish source identity');
 
     // Generic name in multi-media conversation must NOT match arbitrarily
     commitTakeoutData('u0', {
@@ -248,11 +249,11 @@ test('mediaIndex - filename matching passes and generic guards', async () => {
         globalMedia: {},
         convCache: {}
     });
-    const missMultiGeneric = await getTakeoutFallbackMedia('chat_multi', 'image.png', 'u0');
+    const missMultiGeneric = await getTakeoutFallbackMedia('chat_multi', { assetId: '', sourceUri: 'image.png' }, 'u0');
     assert.strictEqual(missMultiGeneric, null, 'generic name with multiple media must not match');
 
     // Generic names must NOT trigger unsafe global stem fallback
-    const missGlobalGeneric = await getTakeoutFallbackMedia('nonexistent_chat', 'image.png', 'u0');
+    const missGlobalGeneric = await getTakeoutFallbackMedia('nonexistent_chat', { assetId: '', sourceUri: 'image.png' }, 'u0');
     assert.strictEqual(missGlobalGeneric, null, 'generic name must never match global generic media');
 
     clearTakeoutData();
@@ -362,10 +363,10 @@ test('mediaIndex - unknown multi-image ordinals never recover another image by r
         for (const storedOrdinal of [undefined, 0]) {
             commitTakeoutData(slot, { mediaMap: { abc: [{ filename: 'offline.png', generation: { ...base, imageOrdinal: storedOrdinal },
                 fileObj: { async: async () => new Uint8Array([1, 2, 3]) } }] }, globalMedia: {}, convCache: {} });
-            assert.equal(await getTakeoutFallbackMedia('abc', 'online.jpg', slot, base), null);
+            assert.equal(await getTakeoutFallbackMedia('abc', { assetId: '', sourceUri: 'online.jpg', generation: base }, slot), null);
         }
         commitTakeoutData(slot, { mediaMap: { abc: [{ filename: 'offline.png', generation: base,
             fileObj: { async: async () => new Uint8Array([1, 2, 3]) } }] }, globalMedia: {}, convCache: {} });
-        assert.equal(await getTakeoutFallbackMedia('abc', 'online.jpg', slot, { ...base, imageOrdinal: 0 }), null);
+        assert.equal(await getTakeoutFallbackMedia('abc', { assetId: '', sourceUri: 'online.jpg', generation: { ...base, imageOrdinal: 0 } }, slot), null);
     } finally { clearTakeoutData(slot); }
 });

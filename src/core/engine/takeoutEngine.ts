@@ -1,4 +1,3 @@
-import type { GeneratedMediaIdentity } from '../../types/conversation.js';
 // Stable public facade for Takeout operations.
 //
 // Design intent — kept deliberately, this is not an empty shell:
@@ -20,18 +19,19 @@ import {
     clearTakeoutData,
     getStore,
     __slotTakeouts,
-    type TakeoutStore
+    type TakeoutStore,
+    type TakeoutResourceLookup
 } from "../compatibility/takeout/mediaIndex.js";
 import {
     parseTakeoutZip,
     type TakeoutParseResult
 } from "../compatibility/takeout/takeoutParser.js";
 
-export type { TakeoutStore, TakeoutParseResult };
+export type { TakeoutStore, TakeoutParseResult, TakeoutResourceLookup };
 
 export interface TakeoutEngineModule {
     getTakeoutOfflineChat: (chatId: string, slot?: string | null) => any;
-    getTakeoutFallbackMedia: (chatId: string, filenameOrId: string, slot?: string | null, generation?: GeneratedMediaIdentity) => Promise<Uint8Array | null>;
+    getTakeoutFallbackMedia: (chatId: string, lookup: TakeoutResourceLookup, slot?: string | null) => Promise<Uint8Array | null>;
     getTakeoutMediaForChat: (chatId: string, slot?: string | null) => any[];
     extractC2PATimestamp: (bufferOrArray: any) => number | null;
     parseTakeoutZip: (file: any, onProgress?: ((pct: number, msg: string) => void) | null, slot?: string | null) => Promise<TakeoutParseResult>;

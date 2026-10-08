@@ -20,6 +20,13 @@ interface StoredTakeoutMedia {
     providerRequestId?: string;
 }
 
+/** Source identity used to recover bytes; export destinations never belong here. */
+export interface TakeoutResourceLookup {
+    assetId: string;
+    sourceUri?: string;
+    generation?: GeneratedMediaIdentity;
+}
+
 export type TakeoutCachedConversation = ResourceConversationParseResult;
 
 export interface TakeoutStore {
@@ -34,7 +41,7 @@ interface MediaIndexModule {
     extractC2PATimestamp: (bufferOrArray: unknown) => number | null;
     getTakeoutOfflineChat: (chatId: string, slot?: string | null) => TakeoutCachedConversation | null;
     getTakeoutMediaForChat: (chatId: string, slot?: string | null) => StoredTakeoutMedia[];
-    getTakeoutFallbackMedia: (chatId: string, filenameOrId: string, slot?: string | null, generation?: GeneratedMediaIdentity) => Promise<Uint8Array | null>;
+    getTakeoutFallbackMedia: (chatId: string, lookup: TakeoutResourceLookup, slot?: string | null) => Promise<Uint8Array | null>;
     commitTakeoutData: (slot: string | null | undefined, data: Partial<TakeoutStore>) => void;
     clearTakeoutData: (slot?: string | null) => void;
     __slotTakeouts: Map<string, TakeoutStore>;
@@ -117,144 +124,72 @@ function getTakeoutMediaForChat(chatId: string, slot?: string | null): StoredTak
     return (store.mediaMap && store.mediaMap[nid]) || [];
 }
 
-async function getTakeoutFallbackMedia(chatId: string, filenameOrId: string, slot?: string | null, generation?: GeneratedMediaIdentity): Promise<Uint8Array | null> {
-    if (!filenameOrId) return null;
+function completeGeneration(generation?: Partial<GeneratedMediaIdentity>): generation is GeneratedMediaIdentity {
+    return !!generation?.chatId && generation.generationOrdinal !== undefined;
+}
+
+function imageOrdinal(generation: Partial<GeneratedMediaIdentity>): number | undefined {
+    const ordinal = generation.imageOrdinal ?? (generation.imageCount === 1 ? 0 : undefined);
+    return ordinal !== undefined && Number.isInteger(ordinal) && ordinal >= 0
+        && (generation.imageCount === undefined || ordinal < generation.imageCount) ? ordinal : undefined;
+}
+
+function consistentGeneration(source: Partial<GeneratedMediaIdentity> | undefined, requested: GeneratedMediaIdentity): boolean {
+    if (!completeGeneration(source) || !sameGenerationEvent(source, requested)) return false;
+    const ordinal = imageOrdinal(requested);
+    return requested.imageOrdinal === undefined && requested.imageCount !== 1
+        || (ordinal !== undefined && ordinal === imageOrdinal(source));
+}
+
+/** Require one generation event and one known image position across source identities. */
+function generationMatches<T>(items: T[], requested: GeneratedMediaIdentity,
+    identity: (item: T) => Partial<GeneratedMediaIdentity> | undefined): T[] {
+    const ordinal = imageOrdinal(requested);
+    if (ordinal === undefined) return [];
+    const events: Array<{ item: T; generation: GeneratedMediaIdentity }> = [];
+    for (const item of items) {
+        const generation = identity(item);
+        if (completeGeneration(generation) && sameGenerationEvent(generation, requested)) events.push({ item, generation });
+    }
+    // A timestamp/prompt match may bridge sources, but cannot merge distinct request IDs.
+    if (events.some(a => imageOrdinal(a.generation) === undefined
+        || events.some(b => !sameGenerationEvent(a.generation, b.generation)))) return [];
+    return events.filter(event => imageOrdinal(event.generation) === ordinal).map(event => event.item);
+}
+
+async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null> {
+    if (!lookup || (!lookup.assetId && !lookup.sourceUri && !lookup.generation)) return null;
     const nid = normId(chatId);
+    if (!nid || (lookup.generation && normId(lookup.generation.chatId) !== nid)) return null;
     const store = getStore(slot);
     if (!store.convCache[nid] && Object.keys(store.convCache).length > 0) return null;
     const native = store.convCache[nid];
     if (native) {
-        const matches = native.conversation.assets.filter(asset => {
-            const path = native.resourceHints[asset.id]?.archivePath;
-            return filenameOrId === asset.id || filenameOrId === asset.source?.uri || filenameOrId === asset.source?.uri?.split('/').pop() || filenameOrId === path || (path && filenameOrId === path.split('/').pop());
-        });
+        const assets = native.conversation.assets;
+        const exact = assets.filter(asset => (lookup.assetId && lookup.assetId === asset.id)
+            || (lookup.sourceUri && (lookup.sourceUri === asset.source?.uri
+                || lookup.sourceUri === native.acquisitionHints[asset.id]?.url
+                || lookup.sourceUri === native.acquisitionHints[asset.id]?.sourceUrl
+                || lookup.sourceUri === native.resourceHints[asset.id]?.archivePath)));
+        if (exact.length > 1) return null;
+        let matches = exact;
+        if (lookup.generation) {
+            // Conflicting source identity must never fall through to another image.
+            matches = exact.length ? exact.filter(asset => consistentGeneration(asset.generation, lookup.generation!))
+                : generationMatches(assets, lookup.generation, asset => asset.generation);
+        }
         if (matches.length !== 1) return null;
-        const asset = matches[0];
-        if (generation && (!asset.generation?.chatId || asset.generation.generationOrdinal === undefined || !sameGenerationEvent({ ...asset.generation, chatId: asset.generation.chatId, generationOrdinal: asset.generation.generationOrdinal }, generation))) return null;
-        const requestedOrdinal = generation?.imageOrdinal ?? (generation?.imageCount === 1 ? 0 : undefined);
-        const sourceOrdinal = asset.generation?.imageOrdinal ?? (asset.generation?.imageCount === 1 ? 0 : undefined);
-        if (requestedOrdinal !== undefined && requestedOrdinal !== sourceOrdinal) return null;
-        const path = native.resourceHints[asset.id]?.archivePath;
+        const path = native.resourceHints[matches[0].id]?.archivePath;
         try { return await readTakeoutBytes(path ? store.globalMedia[path] : undefined); } catch { return null; }
     }
-    const mediaMap = store.mediaMap;
-    const globalMedia = store.globalMedia;
-    if (generation) {
-        if (generation.chatId && generation.chatId !== nid) return null;
-        const matches = (mediaMap[nid] || []).filter((item: StoredTakeoutMedia) => {
-            const gen = item.generation;
-            if (!gen) return false;
-            if (!sameGenerationEvent(gen, generation)) return false;
-            const targetOrd = generation.imageOrdinal ?? (generation.imageCount === 1 ? 0 : undefined);
-            const itemOrd = gen.imageOrdinal ?? (gen.imageCount === 1 ? 0 : undefined);
-            return targetOrd !== undefined && itemOrd !== undefined && itemOrd === targetOrd;
-        });
-        if (matches.length === 1) {
-            try {
-                const bytes = await readTakeoutBytes(matches[0].fileObj);
-                return bytes;
-            } catch { return null; }
-        }
-        return null;
-    }
-    const isGenericName = (s: string) => /^(?:image(?:[_-]?\d+)?|file(?:[_-]?\d+)?|asset(?:[_-]?\d+)?|media(?:[_-]?\d+)?|thumb(?:nail)?(?:[_-]?\d+)?|photo(?:[_-]?\d+)?|picture(?:[_-]?\d+)?|screenshot(?:[_-]?\d+)?)$/i.test(s);
-
-    let target = String(filenameOrId).replace(/^.*[\\\/]/, '').trim();
-    try { target = decodeURIComponent(target); } catch { /* intentional */ }
-    let targetStem = target.replace(/\.[^/.]+$/, '').toLowerCase();
-    let cleanTarget = target.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
-    let cleanTargetStem = targetStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
-    // Do NOT strip hash if the stem would collapse into a generic word like 'image' or 'file'!
-    if (!isGenericName(cleanTargetStem)) {
-        const stripped = cleanTargetStem.replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
-        if (!isGenericName(stripped)) {
-            cleanTargetStem = stripped;
-        }
-    }
-
-    const convMedia = mediaMap[nid];
-    if (convMedia && convMedia.length) {
-        for (const item of convMedia) {
-            const itemFilename = item.filename;
-            const itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
-            if (itemFilename === target || itemFilename === cleanTarget || itemStem === targetStem || itemStem === cleanTargetStem) {
-                try {
-                    const bin = await readTakeoutBytes(item.fileObj);
-                    if (bin) return bin;
-                } catch (e) {
-                    if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
-                }
-            }
-        }
-
-        // Pass 2: stem matching (ONLY for distinctive non-generic names).
-        for (const item of convMedia) {
-            const itemFilename = item.filename;
-            const itemStem = itemFilename.replace(/\.[^/.]+$/, '').toLowerCase();
-            let cleanItemStem = itemStem.replace(/^[0-9a-fA-F]{4,16}_+/, '').trim();
-            if (!isGenericName(cleanItemStem)) {
-                const stripped = cleanItemStem.replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
-                if (!isGenericName(stripped)) {
-                    cleanItemStem = stripped;
-                }
-            }
-
-            if (!isGenericName(cleanItemStem) && !isGenericName(cleanTargetStem) && !isGenericName(itemStem) && !isGenericName(targetStem)) {
-                if (cleanItemStem === cleanTargetStem || cleanItemStem === targetStem || itemStem === cleanTargetStem) {
-                    try {
-                        const bin = await readTakeoutBytes(item.fileObj);
-                        if (bin) return bin;
-                    } catch (e) {
-                        if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
-                    }
-                }
-            }
-        }
-
-        // Pass 3: Single-media fallback (if the conversation has EXACTLY ONE media item and target is generic)
-        if (convMedia.length === 1 && (isGenericName(cleanTargetStem) || isGenericName(targetStem))) {
-            try {
-                const bin = await readTakeoutBytes(convMedia[0].fileObj);
-                if (bin) return bin;
-            } catch (e) {
-                if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e);
-            }
-        }
-    }
-
-    if (!isGenericName(cleanTargetStem) && !isGenericName(targetStem)) {
-        const fObj = globalMedia[cleanTargetStem] || globalMedia[targetStem] || globalMedia[cleanTarget] || globalMedia[target];
-        if (fObj) {
-            try {
-                const bin = await readTakeoutBytes(fObj);
-                if (bin) return bin;
-            } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e); }
-        }
-    }
-
-    for (const [stem, fileObj] of Object.entries(globalMedia)) {
-        const hasNid = Boolean(nid && (stem.includes(nid) || (fileObj.name && fileObj.name.includes(nid))));
-        let cleanStem = stem.replace(/^[0-9a-fA-F]{4,16}_+/, '').replace(/[-_][0-9a-fA-F]{6,16}$/i, '').trim();
-
-        if (hasNid) {
-            if (!isGenericName(cleanStem) && !isGenericName(cleanTargetStem) &&
-                (cleanStem === cleanTargetStem || stem === targetStem)) {
-                try {
-                    const bin = await readTakeoutBytes(fileObj);
-                    if (bin) return bin;
-                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e); }
-            }
-        } else if (!isGenericName(cleanTargetStem) && !isGenericName(cleanStem)) {
-            if (cleanStem === cleanTargetStem || stem === targetStem) {
-                try {
-                    const bin = await readTakeoutBytes(fileObj);
-                    if (bin) return bin;
-                } catch (e) { if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:mediaIndex.js]', e); }
-            }
-        }
-    }
-
-    return null;
+    const media = store.mediaMap[nid] || [];
+    const exact = media.filter(item => lookup.sourceUri && (lookup.sourceUri === item.filename
+        || lookup.sourceUri === item.fileObj?.path || lookup.sourceUri === item.fileObj?.name));
+    if (exact.length > 1) return null;
+    const matches = lookup.generation ? (exact.length ? exact.filter(item => consistentGeneration(item.generation, lookup.generation!))
+        : generationMatches(media, lookup.generation, item => item.generation)) : exact;
+    if (matches.length !== 1) return null;
+    try { return await readTakeoutBytes(matches[0].fileObj); } catch { return null; }
 }
 
 function commitTakeoutData(slot: string | null | undefined, data: Partial<TakeoutStore>): void {

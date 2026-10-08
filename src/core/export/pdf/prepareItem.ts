@@ -20,11 +20,8 @@ import { getErrorMessage } from '../../utils/messaging.js';
 import { isObjectRecord } from '../../utils/messageResponses.js';
 import TabService from '../../utils/tabService.js';
 import type { TabServiceModule } from '../../../types/utils.js';
-import type {
-    GeneratedMediaIdentity,
-} from '../../../types/conversation.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
-import type { TakeoutEngineModule } from '../../engine/takeoutEngine.js';
+import type { TakeoutEngineModule, TakeoutResourceLookup } from '../../engine/takeoutEngine.js';
 import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../document/ast/resourceReferences.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
@@ -54,9 +51,8 @@ interface PdfTakeoutFallbackEngine {
     getTakeoutOfflineChat?: (chatId: string, slot?: string | null) => unknown;
     getTakeoutFallbackMedia?: (
         chatId: string,
-        filenameOrId: string,
-        slot?: string | null,
-        generation?: GeneratedMediaIdentity
+        lookup: TakeoutResourceLookup,
+        slot?: string | null
     ) => Promise<Uint8Array | null>;
     getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => unknown[];
 }

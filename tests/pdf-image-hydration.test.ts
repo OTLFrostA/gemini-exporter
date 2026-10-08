@@ -271,7 +271,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     let takeoutFallbackCalls = 0;
     const fakeTakeoutEngine = {
         getTakeoutMediaForChat: () => null,
-        getTakeoutFallbackMedia: async (_chatId: string, _localName: string, _slot: string) => {
+        getTakeoutFallbackMedia: async (_chatId: string, _lookup: import('../src/core/engine/takeoutEngine.js').TakeoutResourceLookup, _slot: string) => {
             takeoutFallbackCalls++;
             return PNG_BYTES;
         },

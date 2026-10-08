@@ -893,11 +893,11 @@ test('AssetPipeline - passes the original generation identity to Takeout fallbac
             return new Uint8Array([4, 5, 6]);
         } }
     });
-    const result = await pipeline.acquireAssetBytes({ fileName: 'generated.png', generation }, { id: 'generated_boundary' }, { isImage: true });
+    const result = await pipeline.acquireAssetBytes({ assetId: 'online-image', sourceUrl: 'Takeout/original.png', fileName: 'generated.png', generation }, { id: 'generated_boundary' }, { isImage: true });
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.recoveredFromTakeout, true);
-    assert.deepStrictEqual(received.slice(0, 3), ['generated_boundary', 'generated.png', 'u1']);
-    assert.strictEqual(received[3], generation);
+    assert.deepStrictEqual(received, ['generated_boundary', { assetId: 'online-image', sourceUri: 'Takeout/original.png', generation }, 'u1']);
+    assert.strictEqual((received[1] as { generation: unknown }).generation, generation);
 });
 
 test('ExportOrchestrator - queues image and file attachments while preserving image deduplication', async () => {

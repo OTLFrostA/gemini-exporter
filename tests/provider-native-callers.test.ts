@@ -120,8 +120,8 @@ test('production Takeout binds extension variations once and carries native Doma
         assert.equal('turns' in parsed.conversations[0], false);
         assert.equal(parsed.conversations[0].source, 'takeout-import');
         assert.ok(Array.isArray(view.conversation.messages[0].content));
-        for (const [i, asset] of view.conversation.assets.entries()) assert.deepEqual(await MediaIndex.getTakeoutFallbackMedia('native', view.resourceHints[asset.id].archivePath!, slot), new Uint8Array([i + 1]));
-        assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', 'image-hash', slot), null);
+        for (const [i, asset] of view.conversation.assets.entries()) assert.deepEqual(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: view.resourceHints[asset.id].archivePath! }, slot), new Uint8Array([i + 1]));
+        assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', { assetId: '', sourceUri: 'image-hash' }, slot), null);
         const pdf = await preparePdfItem(view, { currentSlot: slot, takeoutEngine: MediaIndex, fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0 });
         assert.ok(pdf.ok);
         assert.equal([...pdf.resources.values()].filter(r => r.bytes).length, 2);
@@ -135,8 +135,8 @@ test('ambiguous Takeout resources cannot be recovered later by permissive legacy
         assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
         const view = parsed.convCache.native;
         const asset = view.conversation.assets[0];
-        assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', asset.id, slot), null);
-        assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', 'photo.png', slot), null);
+        assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: asset.id }, slot), null);
+        assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: 'photo.png' }, slot), null);
     } finally { MediaIndex.clearTakeoutData(slot); }
 });
 
