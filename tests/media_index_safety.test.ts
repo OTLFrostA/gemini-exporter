@@ -100,7 +100,7 @@ test('mediaIndex - generated media matching path rules', async () => {
                     imageOrdinal: 0,
                     generation: {
                         chatId: '10',
-                        generationOrdinal: 1,
+                        generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
                         imageOrdinal: 0,
                         providerRequestId: 'req_12345678'
                     }
@@ -111,7 +111,7 @@ test('mediaIndex - generated media matching path rules', async () => {
                     imageOrdinal: 1,
                     generation: {
                         chatId: '10',
-                        generationOrdinal: 1,
+                        generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
                         imageOrdinal: 1,
                         providerRequestId: 'req_12345678'
                     }
@@ -125,7 +125,7 @@ test('mediaIndex - generated media matching path rules', async () => {
     // 1. Exact generation match: ordinal 0
     const res0 = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: '10',
-        generationOrdinal: 1,
+        generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'req_12345678'
     } }, 'u0');
@@ -134,7 +134,7 @@ test('mediaIndex - generated media matching path rules', async () => {
     // 2. Exact generation match: ordinal 1
     const res1 = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: '10',
-        generationOrdinal: 1,
+        generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 1,
         providerRequestId: 'req_12345678'
     } }, 'u0');
@@ -143,7 +143,7 @@ test('mediaIndex - generated media matching path rules', async () => {
     // 3. Wrong chatId in generation identity
     const wrongChat = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: 'wrong_chat_id',
-        generationOrdinal: 1,
+        generationOrdinal: 1, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'req_12345678'
     } }, 'u0');
@@ -152,7 +152,7 @@ test('mediaIndex - generated media matching path rules', async () => {
     // 4. Mismatched generation event
     const wrongEvent = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'any_fallback_name.png', generation: {
         chatId: '10',
-        generationOrdinal: 99,
+        generationOrdinal: 99, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'different_req_888'
     } }, 'u0');
@@ -168,7 +168,7 @@ test('mediaIndex - generated media matching path rules', async () => {
                     imageOrdinal: 0,
                     generation: {
                         chatId: '10',
-                        generationOrdinal: 5,
+                        generationOrdinal: 5, time: 1700000000000, prompt: 'Draw a diagram',
                         imageOrdinal: 0,
                         providerRequestId: 'dup_req_12345'
                     }
@@ -179,7 +179,7 @@ test('mediaIndex - generated media matching path rules', async () => {
                     imageOrdinal: 0,
                     generation: {
                         chatId: '10',
-                        generationOrdinal: 5,
+                        generationOrdinal: 5, time: 1700000000000, prompt: 'Draw a diagram',
                         imageOrdinal: 0,
                         providerRequestId: 'dup_req_12345'
                     }
@@ -192,7 +192,7 @@ test('mediaIndex - generated media matching path rules', async () => {
 
     const ambiguous = await getTakeoutFallbackMedia('c_10', { assetId: '', sourceUri: 'target.png', generation: {
         chatId: '10',
-        generationOrdinal: 5,
+        generationOrdinal: 5, time: 1700000000000, prompt: 'Draw a diagram',
         imageOrdinal: 0,
         providerRequestId: 'dup_req_12345'
     } }, 'u0');
@@ -358,7 +358,7 @@ test('mediaIndex - extractC2PATimestamp accepted inputs and edge cases', () => {
 
 test('mediaIndex - unknown multi-image ordinals never recover another image by request identity', async () => {
     const slot = 'unknown-multi-ordinal';
-    const base = { chatId: 'abc', providerRequestId: 'abcd1234abcd1234', generationOrdinal: 0, imageCount: 2 };
+    const base = { chatId: 'abc', providerRequestId: 'abcd1234abcd1234', generationOrdinal: 0, time: 1700000000000, prompt: 'Draw a diagram', imageCount: 2 };
     try {
         for (const storedOrdinal of [undefined, 0]) {
             commitTakeoutData(slot, { mediaMap: { abc: [{ filename: 'offline.png', generation: { ...base, imageOrdinal: storedOrdinal },

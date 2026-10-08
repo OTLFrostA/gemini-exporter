@@ -1,5 +1,5 @@
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
-import { sameGenerationEvent } from '../../engine/generatedMediaIdentity.js';
+import { findResourceMatch, resourceIdentity, type ResourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
 import type {
     GeneratedMediaIdentity
 } from '../../../types/conversation.js';
@@ -124,72 +124,28 @@ function getTakeoutMediaForChat(chatId: string, slot?: string | null): StoredTak
     return (store.mediaMap && store.mediaMap[nid]) || [];
 }
 
-function completeGeneration(generation?: Partial<GeneratedMediaIdentity>): generation is GeneratedMediaIdentity {
-    return !!generation?.chatId && generation.generationOrdinal !== undefined;
-}
-
-function imageOrdinal(generation: Partial<GeneratedMediaIdentity>): number | undefined {
-    const ordinal = generation.imageOrdinal ?? (generation.imageCount === 1 ? 0 : undefined);
-    return ordinal !== undefined && Number.isInteger(ordinal) && ordinal >= 0
-        && (generation.imageCount === undefined || ordinal < generation.imageCount) ? ordinal : undefined;
-}
-
-function consistentGeneration(source: Partial<GeneratedMediaIdentity> | undefined, requested: GeneratedMediaIdentity): boolean {
-    if (!completeGeneration(source) || !sameGenerationEvent(source, requested)) return false;
-    const ordinal = imageOrdinal(requested);
-    return requested.imageOrdinal === undefined && requested.imageCount !== 1
-        || (ordinal !== undefined && ordinal === imageOrdinal(source));
-}
-
-/** Require one generation event and one known image position across source identities. */
-function generationMatches<T>(items: T[], requested: GeneratedMediaIdentity,
-    identity: (item: T) => Partial<GeneratedMediaIdentity> | undefined): T[] {
-    const ordinal = imageOrdinal(requested);
-    if (ordinal === undefined) return [];
-    const events: Array<{ item: T; generation: GeneratedMediaIdentity }> = [];
-    for (const item of items) {
-        const generation = identity(item);
-        if (completeGeneration(generation) && sameGenerationEvent(generation, requested)) events.push({ item, generation });
-    }
-    // A timestamp/prompt match may bridge sources, but cannot merge distinct request IDs.
-    if (events.some(a => imageOrdinal(a.generation) === undefined
-        || events.some(b => !sameGenerationEvent(a.generation, b.generation)))) return [];
-    return events.filter(event => imageOrdinal(event.generation) === ordinal).map(event => event.item);
-}
-
 async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null> {
     if (!lookup || (!lookup.assetId && !lookup.sourceUri && !lookup.generation)) return null;
     const nid = normId(chatId);
     if (!nid || (lookup.generation && normId(lookup.generation.chatId) !== nid)) return null;
     const store = getStore(slot);
     if (!store.convCache[nid] && Object.keys(store.convCache).length > 0) return null;
+    const requested: ResourceIdentity = { assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
     const native = store.convCache[nid];
     if (native) {
-        const assets = native.conversation.assets;
-        const exact = assets.filter(asset => (lookup.assetId && lookup.assetId === asset.id)
-            || (lookup.sourceUri && (lookup.sourceUri === asset.source?.uri
-                || lookup.sourceUri === native.acquisitionHints[asset.id]?.url
-                || lookup.sourceUri === native.acquisitionHints[asset.id]?.sourceUrl
-                || lookup.sourceUri === native.resourceHints[asset.id]?.archivePath)));
-        if (exact.length > 1) return null;
-        let matches = exact;
-        if (lookup.generation) {
-            // Conflicting source identity must never fall through to another image.
-            matches = exact.length ? exact.filter(asset => consistentGeneration(asset.generation, lookup.generation!))
-                : generationMatches(assets, lookup.generation, asset => asset.generation);
-        }
-        if (matches.length !== 1) return null;
-        const path = native.resourceHints[matches[0].id]?.archivePath;
+        const candidates = native.conversation.assets.map(asset => ({ ...resourceIdentity(asset), sourceUris:
+            [asset.source?.uri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
+                native.resourceHints[asset.id]?.archivePath].filter((uri): uri is string => !!uri) }));
+        const match = findResourceMatch(nid, requested, candidates);
+        if (match === null) return null;
+        const path = native.resourceHints[native.conversation.assets[match].id]?.archivePath;
         try { return await readTakeoutBytes(path ? store.globalMedia[path] : undefined); } catch { return null; }
     }
     const media = store.mediaMap[nid] || [];
-    const exact = media.filter(item => lookup.sourceUri && (lookup.sourceUri === item.filename
-        || lookup.sourceUri === item.fileObj?.path || lookup.sourceUri === item.fileObj?.name));
-    if (exact.length > 1) return null;
-    const matches = lookup.generation ? (exact.length ? exact.filter(item => consistentGeneration(item.generation, lookup.generation!))
-        : generationMatches(media, lookup.generation, item => item.generation)) : exact;
-    if (matches.length !== 1) return null;
-    try { return await readTakeoutBytes(matches[0].fileObj); } catch { return null; }
+    const match = findResourceMatch(nid, requested, media.map(item => ({ assetId: '', generation: item.generation,
+        sourceUris: [item.filename, item.fileObj?.name, item.fileObj?.path].filter((uri): uri is string => !!uri) })));
+    if (match === null) return null;
+    try { return await readTakeoutBytes(media[match].fileObj); } catch { return null; }
 }
 
 function commitTakeoutData(slot: string | null | undefined, data: Partial<TakeoutStore>): void {
