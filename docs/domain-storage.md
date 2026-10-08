@@ -100,3 +100,5 @@ IndexedDB transactions and reloads, inject a transaction/quota abort, acquire
 stored attachments offline, migrate the old web-origin database, and prove a
 content-script capture remains readable from the extension after its tab closes.
 Full Tier 1 and live Tier 2 remain the release gates for integration changes.
+
+Final integration acceptance: [storage v2 Tier 2 record](audits/domain-storage-v2-tier2.md).
