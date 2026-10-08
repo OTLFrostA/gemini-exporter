@@ -1,3 +1,4 @@
+import { migrateHostLegacyDomains } from '../core/storage/domain/migrateLegacy.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 import { GeminiUtils } from '../core/utils/utils.js';
@@ -168,6 +169,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         if (Sync) {
             try {
                 await ensureStorageReady();
+                await migrateHostLegacyDomains();
             } catch (e) {
                 if (contentContext.isDevMode()) console.debug('[GemExporter:content] storage not ready', e);
                 return;

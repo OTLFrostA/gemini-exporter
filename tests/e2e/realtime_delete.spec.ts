@@ -90,6 +90,16 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
 
     expect(storageState.list.some((c: any) => c.id === targetId)).toBe(false);
     expect(storageState.list.length).toBe(2);
+    // A delayed host-origin migration must not resurrect the deleted native body.
+    await expect.poll(async () => optionsPage.evaluate(async () => {
+      const state = await chrome.storage.local.get(['gemini_domain_host_migration_v2:https://gemini.google.com']);
+      return state['gemini_domain_host_migration_v2:https://gemini.google.com'];
+    })).toBe(2);
+    const deletedDomain = await optionsPage.evaluate(async (conversationId) => {
+      return chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountSlot: 'u0', conversationId } } });
+    }, targetId);
+    expect(deletedDomain).toMatchObject({ ok: true, value: null });
+
     expect(storageState.list.map((c: any) => c.id)).toEqual(
       expect.arrayContaining(['keep_chat_1111', 'keep_chat_2222'])
     );

@@ -1,3 +1,4 @@
+import { getDomainConversationView } from '../../storage/domain/nativePersistence.js';
 import { readParsedConversation } from '../../compatibility/record/projectDomainRecord.js';
 import { supplementLegacyGeneratedMedia } from '../../compatibility/legacyGeneratedMediaReconciliation.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
@@ -528,6 +529,8 @@ export async function resolveConversationData(
         }
         if (chat.error || chat._empty || hasNoMessages(chat.messages)) {
             try {
+                const native = await getDomainConversationView(slot, nid);
+                if (native) return native;
                 const detail = await getConversationDetail(nid);
                 if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                     const chatTitle = typeof chat.title === 'string' ? chat.title : undefined;

@@ -34,6 +34,8 @@ export interface GeneratedMediaIdentity {
 }
 
 export interface Attachment {
+    /** Runtime resource identity used to acquire durable Domain bytes. */
+    assetId?: string;
     type: AttachmentType | string;
     url?: string;
     sourceUrl?: string;

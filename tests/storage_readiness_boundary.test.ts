@@ -91,7 +91,7 @@ test('PR-A Test 1: First initialization runs migration on legacy fixture and sta
         await SchemaMigration.ensureStorageReady();
 
         // After ready: canonical schema reached
-        assert.strictEqual(m.localStore['gemini_schema_version'], 1, 'Schema version stamped to CURRENT_SCHEMA_VERSION (1)');
+        assert.strictEqual(m.localStore['gemini_schema_version'], 2, 'Schema version stamped to CURRENT_SCHEMA_VERSION (2)');
         const convs = m.localStore['gemini_conversations'];
         assert.ok(!Array.isArray((convs[0] as any).messages), 'Conversations should be slimmed');
         const mem = DetailStore.__getMemoryStore();
@@ -135,7 +135,7 @@ test('PR-A Test 2: Concurrent callers share initialization (migration executes o
 
         await Promise.all([p1, p2, p3]);
 
-        assert.strictEqual(m.localStore['gemini_schema_version'], 1);
+        assert.strictEqual(m.localStore['gemini_schema_version'], 2);
         assert.strictEqual(setCalls, 1, 'Version stamp write occurred exactly once across concurrent callers');
     } finally {
         m.restore();
@@ -146,7 +146,7 @@ test('PR-A Test 2: Concurrent callers share initialization (migration executes o
 test('PR-A Test 3: Later callers reuse readiness and do not remigrate', async () => {
     const m = installMock();
     try {
-        m.localStore['gemini_schema_version'] = 1;
+        m.localStore['gemini_schema_version'] = 2;
         m.localStore['gemini_conversations'] = [
             { id: 'chat_ready', title: 'Ready', timestamp: 300 }
         ];

@@ -1,3 +1,4 @@
+import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import { createNativeDetailView } from '../core/compatibility/gemini/nativeDetailView.js';
 import { contentContext } from './contentContext.js';
@@ -105,6 +106,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         }
                         let titlesObj = detailRes.titles || {};
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
+                        await persistNativeConversation(targetSlot, detailRes);
 
                         if (isRealTitle(title, nid)) {
                             titlesObj[sourceTier] = title;

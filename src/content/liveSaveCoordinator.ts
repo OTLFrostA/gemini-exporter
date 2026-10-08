@@ -1,3 +1,4 @@
+import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { readParsedConversation } from '../core/compatibility/record/projectDomainRecord.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { AIProvider } from "../core/provider/aiProvider.js";
@@ -199,6 +200,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
             const detail = await new InjectedClass().getConversationDetail(nid);
             if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                 repairDetailTimestamps(detail);
+                await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
                 return detail;
             }
         } catch (e) {
@@ -209,6 +211,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
             const detail = await provider.fetchConversationDetail(nid);
             if (detail && Array.isArray(detail.messages) && detail.messages.length > 0) {
                 repairDetailTimestamps(detail);
+                await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
                 return detail;
             }
         } catch (e) {
@@ -222,6 +225,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const docResult = Scraper.parseDoc(doc, nid);
             if (docResult && Array.isArray(docResult.messages) && docResult.messages.length > 0) {
+                await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
                 return docResult;
             }
         } catch {

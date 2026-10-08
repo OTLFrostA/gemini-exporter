@@ -1,3 +1,6 @@
+import { readParsedConversation } from '../compatibility/record/projectDomainRecord.js';
+import { getDomainConversationView } from './domain/nativePersistence.js';
+import { saveDomainConversation, removeStoredDomain, storageIdentity } from './domain/domainStore.js';
 import {
     readStoredValue, readStoredObject, isStoredConversationRow,
     readStoredConversationFields, readStoredExportMap, readStoredSlotMap,
@@ -201,9 +204,12 @@ async function _setConversationsRaw(
 ): Promise<Conversation[] | StoredConversationRow[]> {
     const { convKey } = getStorageKeys(slot);
     const detailsToSave: ConversationDetailRecord[] = [];
+    const domainWrites: Array<() => Promise<unknown>> = [];
     const slimList = (list || []).map(value => {
         if (!value) return readStoredValue(value);
         const c = fields(value);
+        const native = readParsedConversation(value);
+        if (native) domainWrites.push(() => saveDomainConversation(normSlot(slot), native));
         const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
         const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
         if (hasMessages || hasTurns) {
@@ -214,7 +220,8 @@ async function _setConversationsRaw(
                 updatedAt: c.updatedAt || c.timestamp || Date.now(),
                 savedAt: Date.now()
             };
-            detailsToSave.push(detailRec);
+            if (!native) detailsToSave.push(detailRec);
+
         }
         const bestCount = Math.max(
             Number(c.messageCount) || 0,
@@ -227,9 +234,11 @@ async function _setConversationsRaw(
         }
         delete copy.messages;
         delete copy.turns;
+        delete copy.parsed;
         return copy;
     });
 
+    for (const write of domainWrites) await write();
     if (detailsToSave.length > 0) {
         try {
             await saveConversationDetailsBatch(detailsToSave);
@@ -327,6 +336,7 @@ async function removeConversation(slot: string | null | undefined, conversationI
             });
             await updateAccountSlot(slot, { count: filtered.length });
             await removeExportRecords(slot, [conversationId]);
+            await removeStoredDomain(storageIdentity('gemini', normSlot(slot), targetId));
             await removeConversationDetails([conversationId]);
             return true;
         }
@@ -340,6 +350,7 @@ async function clearConversations(slot?: string | null): Promise<void> {
         const existing = await getConversations(slot);
         const ids = (existing || []).map(c => normalizedConversationId(c)).filter(Boolean);
         if (ids.length > 0) {
+            for (const id of ids) await removeStoredDomain(storageIdentity('gemini', normSlot(slot), id));
             await removeConversationDetails(ids);
         }
         const toSet: Record<string, unknown> = {
@@ -395,6 +406,7 @@ async function reconcileConversations(
             });
             await updateAccountSlot(slot, { count: kept.length });
             await removeExportRecords(slot, removedIds);
+            for (const id of removedIds) await removeStoredDomain(storageIdentity('gemini', normSlot(slot), id));
             await removeConversationDetails(removedIds);
         }
 
@@ -807,6 +819,8 @@ async function getConversationWithDetail(slot: string | null | undefined, id: st
     const rawMeta = list.find(c => c && normalizedConversationId(c) === targetId);
     const meta = rawMeta ? fields(rawMeta) : null;
     if (!meta) return null;
+    const native = await getDomainConversationView(normSlot(slot), targetId);
+    if (native) return { ...native, ...meta, messages: native.messages, parsed: native.parsed } as unknown as StoredConversationFields;
     const detail = await getConversationDetail(targetId);
     return {
         ...meta,

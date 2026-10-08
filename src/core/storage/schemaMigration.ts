@@ -1,3 +1,4 @@
+import { migrateLegacyDomains } from './domain/migrateLegacy.js';
 // Why this exists (P1-10 / P1-13): storage migrations used to be scattered
 // across read paths ("migrate on touch"): getConversations fire-and-forget a
 // legacy slim migration with a stale snapshot (lost-update hole across tabs),
@@ -6,7 +7,7 @@
 // version key, so future format changes had no detection point.
 //
 // New contract:
-// - `gemini_schema_version` in chrome.storage.local, current = 1.
+// - `gemini_schema_version` in chrome.storage.local, current = 2.
 // - `migrate()` runs once at startup, serially: slim / export-alias /
 //   credentials / IDB, then stamps the version.
 // - Unknown future version -> migrate() returns { ok:false, frozen:true } and
@@ -26,70 +27,10 @@ import { openDetailDB } from "./conversationDetailStore.js";
 import { getErrorMessage } from "../utils/messaging.js";
 import { t } from "../utils/i18n.js";
 
-export const SCHEMA_VERSION_KEY = "gemini_schema_version";
-export const CURRENT_SCHEMA_VERSION = 1;
-
-export interface SchemaMigrateResult {
-    ok: boolean;
-    frozen: boolean;
-    error?: string;
-}
-
-export class SchemaFrozenError extends Error {
-    constructor() {
-        super(t("schemaFrozenWriteBlocked"));
-        this.name = "SchemaFrozenError";
-    }
-}
-
-let _frozen = false;
-
-export function isSchemaFrozen(): boolean {
-    return _frozen;
-}
-
-export function __setSchemaFrozenForTest(v: boolean): void {
-    _frozen = v;
-}
-
-function warnSchemaFrozen(): void {
-    try {
-        const action = (typeof chrome !== "undefined" && (chrome as any).action) || null;
-        if (action && typeof action.setBadgeText === "function") {
-            action.setBadgeText({ text: "!" });
-            if (typeof action.setBadgeBackgroundColor === "function") {
-                action.setBadgeBackgroundColor({ color: "#C53929" });
-            }
-        }
-    } catch {}
-}
-
-/**
- * Fail-closed write guard. Reads stay available when frozen; every write
- * funnel must call this before touching storage.
- */
-export async function assertSchemaWritable(): Promise<void> {
-    if (_frozen) {
-        warnSchemaFrozen();
-        throw new SchemaFrozenError();
-    }
-    // Lazy cross-context check: contexts that never ran migrate() (content
-    // script, options page) still see a version stamped by a newer release.
-    try {
-        if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-            const data = await chrome.storage.local.get([SCHEMA_VERSION_KEY]);
-            const v = data ? (data as any)[SCHEMA_VERSION_KEY] : undefined;
-            if (typeof v === "number" && v > CURRENT_SCHEMA_VERSION) {
-                _frozen = true;
-                warnSchemaFrozen();
-                throw new SchemaFrozenError();
-            }
-        }
-    } catch (e) {
-        if (e instanceof SchemaFrozenError) throw e;
-        // Storage unreadable -> fail open; frozen only on positive evidence.
-    }
-}
+import { SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VERSION, SchemaFrozenError, __setSchemaFrozenForTest, markSchemaFrozen, setSchemaFrozenMessage } from './schemaState.js';
+export { SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VERSION, SchemaFrozenError, isSchemaFrozen, __setSchemaFrozenForTest, assertSchemaWritable } from './schemaState.js';
+setSchemaFrozenMessage(() => t('schemaFrozenWriteBlocked'));
+export interface SchemaMigrateResult { ok: boolean; frozen: boolean; error?: string }
 
 async function listConversationSlots(): Promise<string[]> {
     const slots = new Set<string>(["u0"]);
@@ -165,7 +106,7 @@ async function migrateIdb(): Promise<void> {
 
 /**
  * Startup one-time migration. Serial: slim -> alias -> credentials -> IDB,
- * then stamps gemini_schema_version = 1. Idempotent; safe to call from
+ * then stamps gemini_schema_version = 2. Idempotent; safe to call from
  * multiple contexts (cross-tab locks serialize the write steps).
  * If any step fails, the version stamp is withheld and ok: false is returned
  * so migration can be retried on next startup.
@@ -179,18 +120,21 @@ export async function migrate(): Promise<SchemaMigrateResult> {
         stored = undefined;
     }
     if (typeof stored === "number" && stored > CURRENT_SCHEMA_VERSION) {
-        _frozen = true;
-        warnSchemaFrozen();
+        markSchemaFrozen();
         return { ok: false, frozen: true };
     }
-    _frozen = false;
+    __setSchemaFrozenForTest(false);
     const fromVersion = typeof stored === "number" && stored >= 0 ? Math.floor(stored) : 0;
     if (fromVersion < CURRENT_SCHEMA_VERSION) {
         try {
-            await migrateSlimConversations();
-            await migrateExportAliasesAll();
-            await migrateStepCredentials();
-            await migrateIdb();
+            // Preserve fat v0 rows and unscoped v1 details before compatibility slimming.
+            await migrateLegacyDomains();
+            if (fromVersion < 1) {
+                await migrateSlimConversations();
+                await migrateExportAliasesAll();
+                await migrateStepCredentials();
+                await migrateIdb();
+            }
             await chrome.storage.local.set({ [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION });
         } catch (e: unknown) {
             console.error("[SchemaMigration] Migration step failed, version stamp withheld for retry:", e);

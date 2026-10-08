@@ -47,6 +47,13 @@ export function setLanguage(lang: string): void {
     contentContext.setLanguage(lang);
 }
 
+const confirmedDeleted = new Map<string, Set<string>>();
+/** A still-open deleted page cannot reintroduce its stale sidebar/title observations. */
+export function markConfirmedDeleted(slot: string, id: string): void {
+    const ids = confirmedDeleted.get(slot) ?? new Set<string>();
+    ids.add(normId(id)); confirmedDeleted.set(slot, ids);
+}
+
 export function getAccountSlot(): string {
     return detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
 }
@@ -272,6 +279,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                 validIncoming.forEach((c, idx) => {
                     if (!c || !c.id) return;
                     const nid = normId(c.id);
+                    if (confirmedDeleted.get(slot)?.has(nid)) return;
                     c.id = nid;
                     const old = map.get(nid);
 
@@ -757,6 +765,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
 }
 
 export const SyncEngine = {
+    markConfirmedDeleted,
     getAccountSlot,
     isZh,
     setLanguage,

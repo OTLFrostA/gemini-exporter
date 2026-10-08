@@ -2,6 +2,8 @@ import type { DomainGeneratedMediaIdentity as GeneratedMediaIdentity } from '../
 
 /** Parser-owned transport evidence. Never serialized as Domain or Document AST. */
 export interface ResourceAcquisitionHint {
+    /** Runtime lookup identity for the durable resource repository. */
+    assetId?: string;
     url?: string;
     sourceUrl?: string;
     resolvedUrl?: string;

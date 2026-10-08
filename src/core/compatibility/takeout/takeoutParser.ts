@@ -1,7 +1,9 @@
+import { persistNativeConversation } from '../../storage/domain/nativePersistence.js';
+import type { StoredDomainResource } from '../../storage/domain/contracts.js';
 import { ZipBombGuard } from '../archive/zipBombGuard.js';
 import { I18n } from '../../utils/i18n.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
-import { MediaIndex, type TakeoutStore } from './mediaIndex.js';
+import { MediaIndex, readTakeoutBytes, type TakeoutStore } from './mediaIndex.js';
 import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive, type GeminiTakeoutZipRaw } from '../../parsers/gemini/takeout/parseZip.js';
 import { createParsedConversationView } from '../record/projectDomainRecord.js';
@@ -61,15 +63,20 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         const view = createParsedConversationView(result);
         const id = result.conversation.id;
         const hasExplicitPrompt = result.conversation.messages.some(message => message.role === 'user');
+        const durableResources: StoredDomainResource[] = [];
         store.convCache[id] = { ...view, source: 'takeout-offline', hasExplicitPrompt };
         // Only source-bound resources are available to native consumers. An unresolved
         // or ambiguous reference cannot fall through to a second filename heuristic.
         for (const [assetId, bound] of Object.entries(result.archiveResources)) {
+            const bytes = await readTakeoutBytes(bound.entry);
+            if (!bytes) throw new Error(`Cannot persist Takeout resource: ${bound.path}`);
+            durableResources.push({ assetId, bytes, sourcePath: bound.path });
             const path = view.parsed.resourceHints[assetId].archivePath!;
             store.globalMedia[path] = bound.entry;
             store.globalMedia[bound.path] = bound.entry;
             (store.mediaMap[id] ??= []).push({ filename: path, fileObj: bound.entry });
         }
+        await persistNativeConversation(slot || 'u0', view, durableResources);
         // Preserve metadata-only import writes: Takeout fragments must never replace
         // a fuller detail already in storage. The runtime cache owns parsed bodies.
         const domain = result.conversation;

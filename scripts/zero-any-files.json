@@ -90,5 +90,15 @@
   "src/core/parsers/gemini/dom/parseConversation.ts",
   "src/core/parsers/gemini/dom/content.ts",
   "src/core/compatibility/takeout/takeoutParser.ts",
-  "tests/provider-native-callers.test.ts"
+  "tests/provider-native-callers.test.ts",
+  "src/core/storage/domain/contracts.ts",
+  "src/core/storage/domain/validate.ts",
+  "src/core/storage/domain/domainStore.ts",
+  "src/core/storage/domain/migrateLegacy.ts",
+  "src/core/storage/domain/nativePersistence.ts",
+  "src/core/parsers/legacyStorage/parseConversation.ts",
+  "tests/domain-storage.test.ts",
+  "src/core/storage/schemaState.ts",
+  "src/core/storage/domain/transport.ts",
+  "src/background/domainStorageHandler.ts"
 ]

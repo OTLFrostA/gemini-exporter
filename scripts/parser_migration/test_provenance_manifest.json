@@ -2064,15 +2064,86 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/domain-storage.test.ts",
+      "domain": "storage",
+      "classification": "P2",
+      "provenanceSource": "Versioned Domain storage, historical storage decoding, account isolation, resource durability and lossless migration contracts",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "notes": "Uses actual storage/parser APIs; real IndexedDB, restart, transaction-abort and extension-origin routing are covered separately by browser tests.",
+      "testCount": 12,
+      "tests": [
+        {
+          "name": "v2 stores structured Domain intact and excludes render/parse transport state",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "accounts and providers isolate identical IDs; non-Gemini IDs remain opaque",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "partial/older snapshots are retained without truncating current detail; migration retries are idempotent",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "stable resource bytes survive subsequent detail saves and scoped deletion leaves other accounts intact",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "persisted contract rejects obsolete fields, malformed content, non-finite values and dangling resources",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "legacy-storage is a distinct unified parser format and joins metadata with fuller disk body",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "legacy metadata without body reports partial coverage instead of fabricating a transcript",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "identical captures do not multiply stored revisions",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "future schema freezes writes and deletion while known Domain remains readable",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "legacy upgrade does not guess ownership for shared IDs or orphan detail; source data survives",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "acquired bytes bind to source identity, survive captures and are erased on scoped deletion",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "migration retries cannot resurrect scoped deleted bodies, while a fresh capture can restore them",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 39,
-    "totalTests": 320,
+    "totalSuites": 40,
+    "totalTests": 332,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 300,
+      "P2": 312,
       "P3": 2,
       "P4": 0
     }
