@@ -10,6 +10,9 @@ import json
 import zipfile
 import time
 import hashlib
+import html
+import unicodedata
+from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
 
 import sys
@@ -20,6 +23,101 @@ except ImportError:
     ExportSpecificationAsserter = None
 
 from scripts.framework.selectors import GeminiSelectors, WorkbenchSelectors
+from scripts.framework.archive_resources import validate_archive_resources, resource_references, find_archive_resource
+
+
+def normalized_text(text: str) -> str:
+    """Compare prose/code across DOM and Markdown without formatting/space noise."""
+    text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)
+    text = re.sub(r'\\([\\`*_{}\[\]()#+.!|>-])', r'\1', text)
+    return ''.join(c for c in unicodedata.normalize('NFKC', html.unescape(text)) if c.isalnum())
+
+
+def markdown_messages(text: str) -> List[Dict[str, str]]:
+    # Ignore headings inside fenced code, which can contain literal role examples.
+    messages = []
+    fence = None
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r'^\s*(`{3,}|~{3,})', line)
+        if marker:
+            token = marker.group(1)
+            if fence is None:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence):
+                fence = None
+        role = re.match(r'^## (?:👤 (You|用户)|🤖 (Assistant|助手))\s*$', line) if fence is None else None
+        if role:
+            messages.append({'role': 'user' if role.group(1) else 'model', 'content': ''})
+        elif messages:
+            messages[-1]['content'] += line
+    return messages
+
+
+def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool, str]:
+    """Check the exact ordered roles, including the last actual model response."""
+    messages = markdown_messages(text)
+    if not evidence or len(messages) != 2 * len(evidence):
+        return False, f"轮次不完整: 实际消息={len(messages)}, 预期={2 * len(evidence)}"
+    for idx, turn in enumerate(evidence):
+        user, model = messages[2 * idx:2 * idx + 2]
+        if (user['role'], model['role']) != ('user', 'model'):
+            return False, f"第 {idx + 1} 轮角色次序错误"
+        prompt = normalized_text(turn.get('prompt', ''))
+        if not prompt or prompt not in normalized_text(user['content']):
+            return False, f"第 {idx + 1} 轮真实用户 Prompt 缺失"
+        response = normalized_text(turn.get('response', ''))
+        actual = normalized_text(model['content'])
+        if len(response) >= 24:
+            # Two substantial fragments, or the whole short answer. Only search
+            # this model turn; a matching user prompt/older response cannot pass.
+            width = min(64, len(response))
+            anchors = list(dict.fromkeys(response[i:i + width] for i in range(0, len(response) - width + 1, width)))
+            found = sum(anchor in actual for anchor in anchors)
+            if found < min(2, len(anchors)):
+                return False, f"第 {idx + 1} 轮真实 AI 回复实质片段缺失 ({found}/{min(2, len(anchors))})"
+        elif response:
+            # A legitimately concise answer has no long fragment. Compare its
+            # entire body instead of rejecting a model asked for one sentence.
+            if not turn.get('has_images') and response != actual:
+                return False, f"第 {idx + 1} 轮简短 AI 回复不完整或不匹配"
+            if turn.get('has_images') and response not in actual:
+                return False, f"第 {idx + 1} 轮图片说明缺失"
+        elif not turn.get('has_images'):
+            return False, f"第 {idx + 1} 轮缺少实际回复文本或图片证据"
+        if turn.get('has_images') and not re.search(r'!\[[^\]]*\]\([^)]+\)', model['content']):
+            return False, f"第 {idx + 1} 轮模型图片引用缺失"
+    return True, f"完整 {len(evidence)} 轮真实提问/回复按角色匹配"
+
+
+def assert_archive_targets(names: List[str], target_ids: List[str], extension: str,
+                           excluded_ids: Optional[List[str]] = None) -> Tuple[bool, str]:
+    entries = [n for n in names if n.endswith(extension) and not os.path.basename(n).startswith('.')]
+    missing = [cid for cid in target_ids if not any(os.path.basename(n).endswith(f"_{cid.removeprefix('c_')[-6:]}{extension}") for n in entries)]
+    forbidden = [cid for cid in (excluded_ids or []) if any(os.path.basename(n).endswith(f"_{cid.removeprefix('c_')[-6:]}{extension}") for n in entries)]
+    if not target_ids or missing or forbidden:
+        return False, f"ZIP 目标覆盖错误: 缺失={missing}, 禁止出现={forbidden}"
+    if excluded_ids is not None and len(entries) != len(target_ids):
+        return False, f"部分跳过 ZIP 含额外会话: 实际={len(entries)}, 预期={len(target_ids)}"
+    return True, f"ZIP 指定目标 {len(target_ids)} 个均存在"
+
+
+def assert_scan_result(evidence: Dict[str, Any]) -> Tuple[bool, str]:
+    response = evidence.get('response') or {}
+    diag = response.get('diagnostics') or {}
+    if not evidence.get('started') or not evidence.get('finished') or evidence.get('error'):
+        return False, f"扫描未启动/未完成/失败: {evidence}"
+    if response.get('success') is not True or response.get('error'):
+        return False, f"扫描返回失败: {response}"
+    reason = diag.get('stopReason', '')
+    # Existing producer explicitly distinguishes natural exhaustion from limits,
+    # token loops, cancellation, parse errors, and network errors in diagnostics.
+    natural = 'Google 服务端已无更早历史' in reason or 'Google 服务端游标已到底' in reason
+    history = diag.get('pageHistory') or []
+    if (not natural or diag.get('incremental') is not False or not diag.get('endTime')
+            or not history or diag.get('totalPagesFetched', 0) < 1
+            or diag.get('hitGoogleLimit') or response.get('hitGoogleLimit')):
+        return False, f"全量扫描缺少完整耗尽证据（可能部分完成/限流）: {diag}"
+    return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
 
 
 class CDPAssertions:
@@ -238,6 +336,9 @@ class CDPAssertions:
         """, await_promise=True) or {}
 
         matched = status.get("matched", [])
+        missing = [cid for cid in check_ids if not any(m.get('id', '').removeprefix('c_') == cid.removeprefix('c_') for m in matched)]
+        if not check_ids or missing:
+            return False, f"预期需要 RPC 晋级的会话缺失: {missing}", status
         if not matched:
             return False, "未找到任何匹配的 Takeout 导入会话", status
 
@@ -246,12 +347,12 @@ class CDPAssertions:
             titles = m.get("titles", {})
             source = m.get("source", "")
             has_takeout = "takeout" in titles
-            is_rpc = source == "rpc" or "rpc" in titles
+            is_rpc = source == "rpc" and bool(titles.get("rpc")) and m.get("title") == titles.get("rpc")
             if has_takeout and is_rpc:
                 upgraded_count += 1
 
-        if upgraded_count == 0:
-            return False, f"匹配到 {len(matched)} 条会话，但无任何会话达成 RPC 权威升级 (sources: {[m.get('source') for m in matched]})", status
+        if upgraded_count != len(check_ids):
+            return False, f"预期 RPC 晋级未全部完成: {upgraded_count}/{len(check_ids)} (sources: {[m.get('source') for m in matched]})", status
 
         return True, f"Takeout 临时标题成功升级为 RPC 权威标题 (升级数: {upgraded_count}/{len(matched)})", status
 
@@ -303,7 +404,9 @@ class CDPAssertions:
     def assert_real_disk_live_save(
         target_dir: Optional[str] = None,
         target_chat_ids: Optional[List[str]] = None,
-        min_mtime: Optional[float] = None
+        min_mtime: Optional[float] = None,
+        turn_evidence: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+        baselines: Optional[Dict[str, str]] = None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
         断言真实磁盘的自动实时导出目录。
@@ -365,7 +468,7 @@ class CDPAssertions:
             for cid in target_chat_ids:
                 if not cid:
                     continue
-                clean_cid = str(cid).replace("c_", "")
+                clean_cid = str(cid).removeprefix("c_")
                 short_cid = clean_cid[-6:]
                 matched = [
                     f for f in valid_md_files 
@@ -374,11 +477,39 @@ class CDPAssertions:
                 if not matched:
                     missing_ids.append(cid)
                 else:
+                    if len(matched) != 1:
+                        return False, f"会话 {cid} 对应多个 MD，身份不唯一", summary
                     for mf in matched:
                         if min_mtime and mf[2] < (min_mtime - 5.0):
                             stale_files.append((mf[0], mf[2], min_mtime))
                         else:
                             matched_targets.append(mf[0])
+                        text = Path(mf[3]).read_text(encoding='utf-8')
+                        identity = re.search(r'^id:\s*["\']?([^"\'\s]+)', text, re.MULTILINE)
+                        if not identity or identity.group(1).removeprefix('c_') != clean_cid:
+                            return False, f"文件 {mf[0]} 的完整会话 ID 不匹配 {cid}", summary
+                        if turn_evidence is not None:
+                            ok, msg = assert_turn_content(text, turn_evidence.get(cid, []))
+                            if not ok:
+                                return False, f"{cid}: {msg}", summary
+                        resource_errors = validate_archive_resources(check_dir, os.path.relpath(mf[3], check_dir), text)
+                        if resource_errors:
+                            return False, f"{cid} 资源引用无效: {resource_errors}", summary
+                        for turn, message in zip((turn_evidence or {}).get(cid, []), markdown_messages(text)[1::2]):
+                            if turn.get('has_images'):
+                                refs = resource_references(message['content'])
+                                entities = [find_archive_resource(check_dir, os.path.relpath(mf[3], check_dir), ref) for ref in refs]
+                                if not any(entities):
+                                    return False, f"{cid} 图片回复没有有效的归档实体", summary
+                        before = (baselines or {}).get(cid)
+                        if before is not None:
+                            old_messages, new_messages = markdown_messages(before), markdown_messages(text)
+                            if hashlib.sha256(before.encode()).digest() == hashlib.sha256(text.encode()).digest() or len(new_messages) <= len(old_messages):
+                                return False, f"{cid} 内容未增量更新，仍为旧文件", summary
+                            for old, new in zip(old_messages, new_messages):
+                                if old['role'] != new['role'] or normalized_text(old['content']) != normalized_text(new['content']):
+                                    return False, f"{cid} 追加后原有轮次内容被改变或丢失", summary
+                        summary.setdefault('documents', {})[cid] = {'path': mf[3], 'text': text, 'sha256': hashlib.sha256(text.encode()).hexdigest()}
 
             summary["matched_targets"] = matched_targets
             summary["missing_targets"] = missing_ids

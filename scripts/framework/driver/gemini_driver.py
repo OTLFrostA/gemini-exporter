@@ -531,7 +531,11 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
             if (models.length === 0) return {{ text: '', hasImages: false, modelCount: 0 }};
             const last = models[models.length - 1];
-            const text = (last.textContent || '').trim();
+            // Read authored content, excluding the screen-reader "Gemini said"
+            // label. A short real answer cannot match if UI chrome is captured.
+            const body = last.querySelector('{GeminiSelectors.MODEL_RESPONSE_BODY}');
+            if (!body) return {{ text: '', hasImages: false, modelCount: models.length }};
+            const text = (body.textContent || '').trim();
             const imgs = last.querySelectorAll('{GeminiSelectors.IMAGES}');
             return {{
                 text: text,

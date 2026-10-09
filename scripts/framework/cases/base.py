@@ -73,7 +73,23 @@ class TestContext:
             sc_img = self.provider.pop_scenario(required_features=["imagen"], min_turns=2)
             sc_text = self.provider.pop_scenario(min_turns=2)
             self.scenarios = [sc_img, sc_text]
+        if len(self.scenarios) < 2 or any(len(sc.get("turns", [])) < 2 for sc in self.scenarios[:2]):
+            raise RuntimeError("完整回归需要两个至少两轮的真实场景")
+        if not any("imagen" in sc.get("features", []) for sc in self.scenarios[:2]):
+            raise RuntimeError("完整回归的前两个场景必须包含明确标记为 imagen 的生图场景")
         return self.scenarios
+
+    def record_turn(self, record: Dict[str, Any], result) -> None:
+        """保存实际发送的 Prompt 和实际回复，供角色/轮次/会话绑定断言。"""
+        if not result.success or not result.chat_id:
+            raise RuntimeError("无法记录失败或无会话 ID 的轮次")
+        if record.get("chat_id") and record["chat_id"] != result.chat_id:
+            raise RuntimeError("回复会话 ID 与目标会话不一致")
+        record["chat_id"] = result.chat_id
+        record.setdefault("turn_evidence", []).append({
+            "prompt": result.prompt, "response": result.model_response,
+            "has_images": result.has_images,
+        })
 
     @property
     def ext_id(self) -> Optional[str]:
@@ -250,6 +266,9 @@ class DAGRunner:
             ctx.registry.register(case.to_feature())
 
         if target_ids:
+            if any(tid not in self.cases for tid in target_ids):
+                print(f"❌ 存在未注册的目标特性: {target_ids}")
+                return False
             ordered_cases = self.prune_subgraph(target_ids)
             # 记录被剪枝的节点为 SKIP
             pruned_ids = [fid for fid in self.cases if fid not in {c.feature_id for c in ordered_cases}]
