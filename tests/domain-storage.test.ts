@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { __clearDomainMemory, __domainRevisions, saveDomainConversation, cacheDomainResource, getStoredDomain, storageIdentity, getDomainResource, removeStoredDomain, storedParseResult } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory, saveDomainConversation, cacheDomainResource, getStoredDomain, storageIdentity, getDomainResource, removeStoredDomain, storedParseResult } from '../src/core/storage/domain/domainStore.js';
 import { readStorageDomain } from '../src/core/storage/domain/validate.js';
 import { parseLegacyStorageConversation } from '../src/core/parsers/legacyStorage/parseConversation.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
@@ -41,7 +41,7 @@ test('accounts and providers isolate identical IDs; non-Gemini IDs remain opaque
     assert.equal(await getStoredDomain(storageIdentity('future', 'u0', 'chat')), null);
     assert.ok(await getStoredDomain(storageIdentity('future', 'u0', 'c_chat')));
 });
-test('partial/older snapshots are retained without truncating current detail; migration retries are idempotent', async () => {
+test('partial/older captures cannot truncate current detail; migration retries are idempotent', async () => {
     const full = source('chat', 4); full.conversation.completeness = { status: 'complete' };
     await saveDomainConversation('u0', full);
     const shorter = source('chat', 1); shorter.conversation.updatedAt = 1800000000000;
@@ -49,9 +49,8 @@ test('partial/older snapshots are retained without truncating current detail; mi
     const partial = source('chat', 4); partial.conversation.completeness = { status: 'partial' };
     await saveDomainConversation('u0', partial);
     assert.deepEqual((await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.conversation, full.conversation);
-    assert.equal(__domainRevisions().length, 3);
     await saveDomainConversation('u0', shorter, [], true);
-    assert.equal(__domainRevisions().length, 3);
+    assert.deepEqual((await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.conversation, full.conversation);
 });
 test('stable resource bytes survive subsequent detail saves and scoped deletion leaves other accounts intact', async () => {
     await saveDomainConversation('u0', source(), [{ assetId: 'asset', bytes: new Uint8Array([7]) }]);
@@ -61,7 +60,6 @@ test('stable resource bytes survive subsequent detail saves and scoped deletion 
     await removeStoredDomain(storageIdentity('gemini', 'u0', 'chat'));
     assert.equal(await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')), null);
     assert.ok(await getStoredDomain(storageIdentity('gemini', 'u1', 'chat')));
-    assert.equal(__domainRevisions().length, 1);
 });
 test('persisted contract rejects obsolete fields, malformed content, non-finite values and dangling resources', async () => {
     for (const mutate of [
@@ -95,12 +93,11 @@ test('legacy metadata without body reports partial coverage instead of fabricati
     assert.equal(result.conversation.messages.length, 0);
     assert.equal(result.conversation.completeness?.status, 'partial');
 });
-test('identical captures do not multiply stored revisions', async () => {
+test('identical captures retain the current record token', async () => {
     const parsed = source();
     const first = await saveDomainConversation('u0', parsed, [{ assetId: 'asset', bytes: new Uint8Array([1, 2]) }]);
     const again = await saveDomainConversation('u0', parsed);
     assert.equal(again.revision, first.revision);
-    assert.equal(__domainRevisions().length, 1);
 });
 test('future schema freezes writes and deletion while known Domain remains readable', async () => {
     await saveDomainConversation('u0', source());

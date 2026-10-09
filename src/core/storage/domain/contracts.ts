@@ -4,7 +4,7 @@ import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/re
 export const DOMAIN_STORAGE_VERSION = 2;
 export const DOMAIN_CONTRACT_VERSION = 1;
 export const DOMAIN_DB_NAME = 'gemini_exporter_domain';
-export const DOMAIN_DB_VERSION = 1;
+export const DOMAIN_DB_VERSION = 2;
 
 /** Storage identity includes the account; provider IDs and conversation IDs are opaque. */
 export interface DomainStorageIdentity { providerId: string; accountSlot: string; conversationId: string }
@@ -16,6 +16,7 @@ export interface DomainStorageRecord {
     domainVersion: typeof DOMAIN_CONTRACT_VERSION;
     identity: DomainStorageIdentity;
     origin: 'source' | 'legacy-storage';
+    /** Opaque token for the current record; no revision history is retained. */
     revision: string;
     savedAt: number;
     conversation: DomainConversationDetail;
