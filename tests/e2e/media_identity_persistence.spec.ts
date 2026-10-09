@@ -78,9 +78,9 @@ for (const order of ['online-first', 'takeout-first'] as const) {
             } finally { compiler.dispose(); }
             const db = await api.openDomainDB();
             const disk = await new Promise<Record<string, unknown[]>>((resolve, reject) => {
-                const tx = db.transaction(['conversations', 'revisions', 'resource_bytes'], 'readonly');
+                const tx = db.transaction(['conversations', 'resource_bytes'], 'readonly');
                 const rows: Record<string, unknown[]> = {};
-                for (const name of ['conversations', 'revisions', 'resource_bytes']) {
+                for (const name of ['conversations', 'resource_bytes']) {
                     const get = tx.objectStore(name).getAll(); get.onsuccess = () => { rows[name] = get.result; };
                 }
                 tx.oncomplete = () => resolve(rows); tx.onabort = tx.onerror = () => reject(tx.error);
@@ -92,7 +92,6 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         expect(exported.conversation.messages).toHaveLength(20);
         expect(exported.downloads).toBe(0);
         expect(exported.disk.conversations).toHaveLength(1);
-        expect(exported.disk.revisions).toHaveLength(2);
         expect(exported.delivered.succeeded).toBe(1);
         expect(exported.delivered.failed).toEqual([]);
         const assetPath = exported.receipts[0].value.path;
@@ -114,7 +113,7 @@ for (const order of ['online-first', 'takeout-first'] as const) {
 }
 
 for (const broker of [false, true]) {
-    test(`real extension IDB aborted ${broker ? 'broker' : 'direct'} import rolls back current, revision and byte cache`, async ({ context, extensionId }) => {
+    test(`real extension IDB aborted ${broker ? 'broker' : 'direct'} import rolls back current and byte cache`, async ({ context, extensionId }) => {
         const page = await context.newPage(); await install(page, extensionId);
         const original = await page.evaluate(async () => {
             const api = Reflect.get(globalThis, 'mediaProbe'); const { offline, resources } = api.mediaSources();
@@ -152,15 +151,15 @@ for (const broker of [false, true]) {
             const view = await api.getStoredDomain(identity);
             const db = await api.openDomainDB();
             const counts = await new Promise<Record<string, number>>((resolve, reject) => {
-                const tx = db.transaction(['conversations', 'revisions', 'resource_bytes'], 'readonly'); const count: Record<string, number> = {};
-                for (const name of ['conversations', 'revisions', 'resource_bytes']) {
+                const tx = db.transaction(['conversations', 'resource_bytes'], 'readonly'); const count: Record<string, number> = {};
+                for (const name of ['conversations', 'resource_bytes']) {
                     const get = tx.objectStore(name).count(); get.onsuccess = () => { count[name] = get.result; };
                 }
                 tx.oncomplete = () => resolve(count); tx.onabort = tx.onerror = () => reject(tx.error);
             }); db.close();
             return { counts, body: view.conversation, bytes: await api.getDomainResource(identity, view.conversation.assets[0].id) };
         });
-        expect(restored.counts).toEqual({ conversations: 1, revisions: 1, resource_bytes: 2 });
+        expect(restored.counts).toEqual({ conversations: 1, resource_bytes: 2 });
         expect(restored.body).toEqual(original.conversation);
         expect(restored.body.messages).toHaveLength(12);
         expect(restored.bytes).toEqual(Uint8Array.from(original.bytes));
@@ -189,7 +188,7 @@ test('real extension IDB rejects ambiguity and stale cache writes, isolates acco
     expect(result.correct).toHaveLength(68);
 });
 
-test('resource persistence: 120 large legacy revisions do not amplify 40 continuous saves or repeated imports', async ({ context, extensionId }) => {
+test('resource persistence: 40 continuous saves and repeated imports retain only current and cached bytes', async ({ context, extensionId }) => {
     const page = await context.newPage(); await install(page, extensionId);
     const measured = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'mediaProbe');
@@ -197,13 +196,6 @@ test('resource persistence: 120 large legacy revisions do not amplify 40 continu
         const bytes = new Uint8Array(4 * 1024 * 1024).fill(37);
         const resource = { ...resources[0], bytes };
         const initial = await api.saveDomainConversation('u0', offline, [resource]);
-        const db = await api.openDomainDB();
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction('revisions', 'readwrite');
-            for (let i = 0; i < 120; i++) tx.objectStore('revisions').put({ ...initial, revision: `legacy-${i}`,
-                resources: [{ ...resource, bytes: bytes.subarray(0, 256 * 1024) }] });
-            tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
-        }); db.close();
         const counts: Record<string, number> = {};
         const restores: (() => void)[] = [];
         for (const prototype of [IDBObjectStore.prototype, IDBIndex.prototype]) {
@@ -241,16 +233,25 @@ test('resource persistence: 120 large legacy revisions do not amplify 40 continu
         }
         expect(counters['resource_bytes.put'] || 0).toBe(0);
     }
-    expect(measured.normal['revisions.count']).toBe(40);
-    expect(measured.normal['revisions.put']).toBe(40);
-    expect(measured.repeats['revisions.put'] || 0).toBe(0);
+    for (const counters of [measured.normal, measured.repeats]) {
+        expect(Object.keys(counters).filter(key => key.startsWith('revisions.'))).toEqual([]);
+    }
+    await page.reload(); await page.evaluate(bundle);
     const retained = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'mediaProbe');
         const { offline, resources } = api.mediaSources();
         const restored = await api.getDomainResource(api.storageIdentity('gemini', 'u0', offline.conversation.id), resources[0].assetId);
-        return { length: restored?.length, first: restored?.[0], last: restored?.[restored.length - 1] };
+        const db = await api.openDomainDB();
+        const names = [...db.objectStoreNames];
+        const count = await new Promise<number>((resolve, reject) => {
+            const tx = db.transaction('conversations', 'readonly');
+            const req = tx.objectStore('conversations').count();
+            tx.oncomplete = () => resolve(req.result); tx.onabort = tx.onerror = () => reject(tx.error);
+        }); db.close();
+        return { length: restored?.length, first: restored?.[0], last: restored?.[restored.length - 1], names, count };
     });
-    expect(retained).toEqual({ length: 4 * 1024 * 1024, first: 37, last: 37 });
+    expect(retained).toMatchObject({ length: 4 * 1024 * 1024, first: 37, last: 37, count: 1 });
+    expect(retained.names).not.toContain('revisions');
 });
 
 test('legacy inline cache migrates once without rewriting identical bytes; subsequent saves read metadata only', async ({ context, extensionId }) => {

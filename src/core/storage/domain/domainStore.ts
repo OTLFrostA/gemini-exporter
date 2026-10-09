@@ -9,16 +9,13 @@ import { readStorageDomain } from './validate.js';
 import { DOMAIN_DB_NAME, DOMAIN_DB_VERSION, DOMAIN_STORAGE_VERSION, DOMAIN_CONTRACT_VERSION, type DomainStorageIdentity, type DomainStorageRecord, type StoredDomainResource } from './contracts.js';
 
 const CURRENT = 'conversations';
-const HISTORY = 'revisions';
 const BACKUP = 'legacy_imports';
 const BYTE_CACHE = 'resource_bytes';
 const REMOVED = 'removed_conversations';
 const removedMemory = new Set<string>();
 const byteMemory = new Map<string, Uint8Array>();
 const memory = new Map<string, DomainStorageRecord>();
-const history = new Map<string, DomainStorageRecord>();
-export function __clearDomainMemory(): void { memory.clear(); history.clear(); byteMemory.clear(); removedMemory.clear(); }
-export function __domainRevisions(): DomainStorageRecord[] { return [...history.values()].map(v => structuredClone(v)); }
+export function __clearDomainMemory(): void { memory.clear(); byteMemory.clear(); removedMemory.clear(); }
 
 export function storageIdentity(providerId: string, accountSlot: string, conversationId: string): DomainStorageIdentity {
     if (!providerId.trim() || !accountSlot.trim() || !conversationId.trim()) throw new TypeError('Invalid Domain storage identity');
@@ -62,23 +59,24 @@ export function openDomainDB(): Promise<IDBDatabase> {
             if (!db.objectStoreNames.contains(BYTE_CACHE)) db.createObjectStore(BYTE_CACHE, { keyPath: 'key' }).createIndex('conversation', 'conversationKey');
             if (!db.objectStoreNames.contains(BACKUP)) db.createObjectStore(BACKUP, { keyPath: 'key' });
             if (!db.objectStoreNames.contains(CURRENT)) db.createObjectStore(CURRENT, { keyPath: 'key' });
-            if (!db.objectStoreNames.contains(HISTORY)) db.createObjectStore(HISTORY, { keyPath: 'revision' }).createIndex('conversation', 'key');
+            // Upgrade is atomic: current bodies, byte bindings and legacy backups are untouched.
+            if (db.objectStoreNames.contains('revisions')) db.deleteObjectStore('revisions');
         };
         request.onsuccess = () => { const db = request.result; db.onversionchange = () => db.close(); resolve(db); };
         request.onerror = () => reject(request.error);
     });
 }
 /** Resolve only on transaction commit, never on a put request's success. */
-async function transaction<T>(mode: IDBTransactionMode, run: (current: IDBObjectStore, revisions: IDBObjectStore, result: (value: T) => void, removed: IDBObjectStore, byteCache: IDBObjectStore) => void): Promise<T> {
+async function transaction<T>(mode: IDBTransactionMode, run: (current: IDBObjectStore, result: (value: T) => void, removed: IDBObjectStore, byteCache: IDBObjectStore) => void): Promise<T> {
     const db = await openDomainDB();
     try {
         return await new Promise<T>((resolve, reject) => {
-            const tx = db.transaction([CURRENT, HISTORY, REMOVED, BYTE_CACHE], mode);
+            const tx = db.transaction([CURRENT, REMOVED, BYTE_CACHE], mode);
             let result: T;
             tx.oncomplete = () => resolve(result);
             tx.onabort = () => reject(tx.error || new Error('Domain storage transaction aborted'));
             tx.onerror = () => reject(tx.error || new Error('Domain storage transaction failed'));
-            try { run(tx.objectStore(CURRENT), tx.objectStore(HISTORY), value => { result = value; }, tx.objectStore(REMOVED), tx.objectStore(BYTE_CACHE)); }
+            try { run(tx.objectStore(CURRENT), value => { result = value; }, tx.objectStore(REMOVED), tx.objectStore(BYTE_CACHE)); }
             catch (error) { tx.abort(); reject(error); }
         });
     } finally { db.close(); }
@@ -87,7 +85,7 @@ export async function getStoredDomain(identity: DomainStorageIdentity): Promise<
     const key = domainStorageKey(identity);
     if (needsDomainBroker()) { const value = await callDomainBroker('get', { identity }); return value ? checked(decodeDomainRecord(value)) : null; }
     if (typeof indexedDB === 'undefined') return memory.has(key) ? checked(memory.get(key)!) : null;
-    const value = await transaction<DomainStorageRecord | null>('readonly', (store, _history, result) => {
+    const value = await transaction<DomainStorageRecord | null>('readonly', (store, result) => {
         const req = store.get(key); req.onsuccess = () => result(req.result ?? null);
     });
     return value ? checked(value) : null;
@@ -179,13 +177,8 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
         ...(hint.url ? { url: hint.url } : {}), ...(hint.sourceUrl ? { sourceUrl: hint.sourceUrl } : {}), ...(hint.src ? { src: hint.src } : {}),
         ...(hint.candidates ? { candidates: [...hint.candidates] } : {}),
     }]));
-    const incoming: DomainStorageRecord = checked({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: 'pending', savedAt: Date.now(), conversation, acquisitionHints, resources: resources.map(r => ({ ...r })) });
+    const incoming: DomainStorageRecord = checked({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: crypto.randomUUID(), savedAt: Date.now(), conversation, acquisitionHints, resources: resources.map(r => ({ ...r })) });
     const hashes = new Map(await Promise.all(incoming.resources.map(async resource => [resource.assetId, await sha256Hex(resource.bytes)] as const)));
-    // Content-addressed revision keys make repeats an indexed existence check, not a history scan.
-    incoming.revision = `sha256:${await sha256Hex(new TextEncoder().encode(JSON.stringify([
-        incoming.key, incoming.origin, incoming.conversation, incoming.acquisitionHints,
-        incoming.resources.map(r => [r.assetId, r.sourcePath, hashes.get(r.assetId)]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
-    ])))}`;
     const choose = (existing: DomainStorageRecord | null): DomainStorageRecord => {
         const changedResources = incoming.resources.some(r => hashes.get(r.assetId) !== existing?.resourceDigests?.[r.assetId]?.sha256
             || r.sourcePath !== existing?.resourceDigests?.[r.assetId]?.sourcePath);
@@ -206,16 +199,13 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
         }
         const result = checked(currentRecord(selected, updates));
         if (!migration) removedMemory.delete(incoming.key);
-        if (selected !== existing || !sameContent(incoming, existing!)) {
-            if (!history.has(incoming.revision)) history.set(incoming.revision, structuredClone(incoming));
-        }
         memory.set(incoming.key, result);
         const reachable = new Set(updates.filter(row => !row.from || row.bytes).map(row => row.key));
         for (const key of keys) if (!reachable.has(key)) byteMemory.delete(key);
         for (const row of updates) if (row.bytes) byteMemory.set(row.key, row.bytes.slice());
         return checked(result);
     }
-    return transaction<DomainStorageRecord | null>('readwrite', (store, revisions, result, removed, byteCache) => {
+    return transaction<DomainStorageRecord | null>('readwrite', (store, result, removed, byteCache) => {
         const req = removed.get(incoming.key);
         req.onsuccess = () => {
             try {
@@ -259,11 +249,7 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
                                         } catch { store.transaction.abort(); }
                                     };
                                 }
-                                if (selected === existing && sameContent(existing, incoming)) done();
-                                else {
-                                    const prior = revisions.count(incoming.revision);
-                                    prior.onsuccess = () => { try { if (!prior.result) revisions.put(incoming); done(); } catch { store.transaction.abort(); } };
-                                }
+                                done();
                             } catch { store.transaction.abort(); }
                         };
                     } catch { store.transaction.abort(); }
@@ -290,20 +276,18 @@ export async function removeStoredDomain(identity: DomainStorageIdentity): Promi
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
     const key = domainStorageKey(identity);
     if (needsDomainBroker()) { await callDomainBroker('remove', { identity }); return; }
-    if (typeof indexedDB === 'undefined') { removedMemory.add(key); memory.delete(key); for (const [id, row] of history) if (row.key === key) history.delete(id); for (const cacheKey of byteMemory.keys()) if (JSON.parse(cacheKey)[0] === key) byteMemory.delete(cacheKey); return; }
+    if (typeof indexedDB === 'undefined') { removedMemory.add(key); memory.delete(key); for (const cacheKey of byteMemory.keys()) if (JSON.parse(cacheKey)[0] === key) byteMemory.delete(cacheKey); return; }
     const db = await openDomainDB();
     try {
         await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction([CURRENT, HISTORY, BYTE_CACHE, REMOVED], 'readwrite');
+            const tx = db.transaction([CURRENT, BYTE_CACHE, REMOVED], 'readwrite');
             tx.oncomplete = () => resolve();
             tx.onabort = tx.onerror = () => reject(tx.error || new Error('Domain deletion failed'));
             try {
                 tx.objectStore(REMOVED).put({ key, removedAt: Date.now() });
                 tx.objectStore(CURRENT).delete(key);
-                for (const name of [HISTORY, BYTE_CACHE]) {
-                    const cursor = tx.objectStore(name).index('conversation').openCursor(IDBKeyRange.only(key));
-                    cursor.onsuccess = () => { const c = cursor.result; if (c) { c.delete(); c.continue(); } };
-                }
+                const cursor = tx.objectStore(BYTE_CACHE).index('conversation').openCursor(IDBKeyRange.only(key));
+                cursor.onsuccess = () => { const c = cursor.result; if (c) { c.delete(); c.continue(); } };
             } catch (error) { tx.abort(); reject(error); }
         });
     } finally { db.close(); }
@@ -356,7 +340,7 @@ export async function cacheDomainResource(identity: DomainStorageIdentity, asset
         }
         return;
     }
-    await transaction<void>('readwrite', (store, _revisions, result, _removed, byteCache) => {
+    await transaction<void>('readwrite', (store, result, _removed, byteCache) => {
         const req = store.get(domainStorageKey(identity));
         req.onsuccess = () => {
             try {

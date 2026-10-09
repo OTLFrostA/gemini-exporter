@@ -5,7 +5,7 @@ import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
 import { planExportResources } from '../src/core/export/assets/planExportResources.js';
 import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
 import { commitTakeoutData, clearTakeoutData } from '../src/core/compatibility/takeout/mediaIndex.js';
-import { __clearDomainMemory, __domainRevisions, saveDomainConversation, getDomainResource, getStoredDomain, cacheDomainResource, storageIdentity, removeStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory, saveDomainConversation, getDomainResource, getStoredDomain, cacheDomainResource, storageIdentity, removeStoredDomain } from '../src/core/storage/domain/domainStore.js';
 import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 
 beforeEach(() => { __clearDomainMemory(); clearTakeoutData(); });
@@ -52,9 +52,9 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         const identity = storageIdentity('gemini', 'u0', mediaChatId);
         assert.deepEqual((await getStoredDomain(identity))!.conversation, snapshot);
         assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
-        const revisions = __domainRevisions().length;
         await saveDomainConversation('u0', offline, resources);
-        assert.equal(__domainRevisions().length, revisions, 'repeat imports do not multiply revisions');
+        assert.deepEqual((await getStoredDomain(identity))!.conversation, snapshot);
+        assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
         assert.equal(await getDomainResource(storageIdentity('gemini', 'u1', mediaChatId), online.conversation.assets[0].id), null);
     });
 }
@@ -114,7 +114,7 @@ test('DomainStore refuses ambiguous matches in either direction and deletion era
     assert.equal(await getDomainResource(identity, online.conversation.assets[0].id), null);
 });
 
-test('URI-less imported resources remain retrievable without carrying inline bytes into current or subsequent revisions', async () => {
+test('URI-less imported resources remain retrievable without carrying inline bytes into current or subsequent saves', async () => {
     const parsed = mediaSources().online;
     const asset = parsed.conversation.assets[0]; delete asset.source;
     parsed.acquisitionHints = {};
@@ -125,16 +125,16 @@ test('URI-less imported resources remain retrievable without carrying inline byt
     const continued = await saveDomainConversation('u0', parsed);
     assert.equal(continued.resources.length, 0);
     assert.deepEqual(await getDomainResource(identity, asset.id), mediaBytes);
-    assert.equal(__domainRevisions().at(-1)!.resources.length, 0);
 });
 
-test('indexed resource receipts retain distinct archive paths while repeated receipts stay idempotent', async () => {
+test('current resource receipts update archive paths while repeated receipts stay idempotent', async () => {
     const parsed = mediaSources().online;
     const resource = { assetId: parsed.conversation.assets[0].id, sourcePath: 'archive/original.png', bytes: mediaBytes };
     await saveDomainConversation('u0', parsed, [resource]);
     resource.sourcePath = 'archive/relocated.png';
-    await saveDomainConversation('u0', parsed, [resource]);
-    assert.equal(__domainRevisions().length, 2);
-    await saveDomainConversation('u0', parsed, [resource]);
-    assert.equal(__domainRevisions().length, 2);
+    const relocated = await saveDomainConversation('u0', parsed, [resource]);
+    assert.equal(relocated.resourceDigests?.[resource.assetId]?.sourcePath, 'archive/relocated.png');
+    const repeated = await saveDomainConversation('u0', parsed, [resource]);
+    assert.equal(repeated.revision, relocated.revision);
+    assert.deepEqual(await getDomainResource(storageIdentity('gemini', 'u0', mediaChatId), resource.assetId), mediaBytes);
 });

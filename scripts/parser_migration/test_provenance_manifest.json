@@ -2105,7 +2105,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "partial/older snapshots are retained without truncating current detail; migration retries are idempotent",
+          "name": "partial/older captures cannot truncate current detail; migration retries are idempotent",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
@@ -2130,7 +2130,7 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },
         {
-          "name": "identical captures do not multiply stored revisions",
+          "name": "identical captures retain the current record token",
           "classification": "P2",
           "policy": "PRESERVE_PROJECT_CONTRACT"
         },

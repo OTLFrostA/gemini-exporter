@@ -30,6 +30,101 @@ async function install(page: import('@playwright/test').Page): Promise<void> {
     ` });
     await page.addScriptTag({ content: bundle });
 }
+
+test('history cleanup upgrades v1 atomically and retains current, cached bytes and legacy backups after restart', async ({ page }) => {
+    // Seed the released disk layout before any new-code database access.
+    const seeded = await page.evaluate(async () => {
+        const key = JSON.stringify(['gemini', 'u0', 'upgrade']);
+        const record = { key, storageVersion: 2, domainVersion: 1,
+            identity: { providerId: 'gemini', accountSlot: 'u0', conversationId: 'upgrade' },
+            origin: 'source', revision: 'old-current', savedAt: 1, acquisitionHints: {}, resources: [],
+            conversation: { providerId: 'gemini', id: 'upgrade', title: 'Keep current', timestamp: 1,
+                completeness: { status: 'complete' },
+                assets: [{ id: 'asset', kind: 'image', source: { uri: 'Takeout/kept.png' } }],
+                messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Complete persisted body' }] }, { type: 'image', assetId: 'asset' }] }] } };
+        await new Promise<void>((resolve, reject) => {
+            const req = indexedDB.open('gemini_exporter_domain', 1);
+            req.onupgradeneeded = () => {
+                const db = req.result;
+                db.createObjectStore('conversations', { keyPath: 'key' }).put(record);
+                const history = db.createObjectStore('revisions', { keyPath: 'revision' });
+                history.createIndex('conversation', 'key');
+                for (let i = 0; i < 120; i++) history.put({ ...record, revision: `old-${i}`,
+                    resources: [{ assetId: 'asset', bytes: new Uint8Array(256 * 1024).fill(i) }] });
+                const cache = db.createObjectStore('resource_bytes', { keyPath: 'key' });
+                cache.createIndex('conversation', 'conversationKey');
+                cache.put({ key: JSON.stringify([key, 'asset', 'Takeout/kept.png']), conversationKey: key,
+                    assetId: 'asset', sourceUri: 'Takeout/kept.png', bytes: new Uint8Array([7, 8, 9]) });
+                db.createObjectStore('legacy_imports', { keyPath: 'key' }).put({ key: 'original', value: { body: 'Legacy recovery copy' }, savedAt: 1 });
+                db.createObjectStore('removed_conversations', { keyPath: 'key' }).put({ key: 'removed-account-chat', removedAt: 1 });
+            };
+            req.onsuccess = () => { req.result.close(); resolve(); }; req.onerror = () => reject(req.error);
+        });
+        return record;
+    });
+    await install(page);
+    const rolledBack = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const original = IDBDatabase.prototype.deleteObjectStore;
+        IDBDatabase.prototype.deleteObjectStore = function (name) {
+            original.call(this, name);
+            if (name === 'revisions') this.createObjectStore('__cleanup_abort_probe').transaction.abort();
+        };
+        let failed = false;
+        try { const db = await api.openDomainDB(); db.close(); } catch { failed = true; }
+        finally { IDBDatabase.prototype.deleteObjectStore = original; }
+        return new Promise<{ failed: boolean; version: number; snapshots: number; backups: number }>((resolve, reject) => {
+            const req = indexedDB.open('gemini_exporter_domain', 1);
+            req.onerror = () => reject(req.error);
+            req.onsuccess = () => {
+                const db = req.result;
+                const tx = db.transaction(['revisions', 'legacy_imports'], 'readonly');
+                const snapshots = tx.objectStore('revisions').count(), backups = tx.objectStore('legacy_imports').count();
+                tx.oncomplete = () => { db.close(); resolve({ failed, version: db.version, snapshots: snapshots.result, backups: backups.result }); };
+                tx.onabort = tx.onerror = () => reject(tx.error);
+            };
+        });
+    });
+    expect(rolledBack).toEqual({ failed: true, version: 1, snapshots: 120, backups: 1 });
+    const upgraded = await page.evaluate(async () => {
+        const db = await Reflect.get(globalThis, 'storageProbe').openDomainDB();
+        const result = { version: db.version, names: [...db.objectStoreNames] }; db.close(); return result;
+    });
+    expect(upgraded.version).toBe(2);
+    expect(upgraded.names).toEqual(['conversations', 'legacy_imports', 'removed_conversations', 'resource_bytes']);
+    await page.reload(); await install(page);
+    const restored = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const identity = api.storageIdentity('gemini', 'u0', 'upgrade');
+        const current = await api.getStoredDomain(identity);
+        const shorter = api.storedParseResult(current);
+        shorter.conversation.messages = [];
+        shorter.conversation.updatedAt = 100;
+        shorter.conversation.completeness = { status: 'partial' };
+        await api.saveDomainConversation('u0', shorter);
+        const db = await api.openDomainDB();
+        const backups = await new Promise<unknown[]>((resolve, reject) => {
+            const tx = db.transaction('legacy_imports', 'readonly'), req = tx.objectStore('legacy_imports').getAll();
+            tx.oncomplete = () => resolve(req.result); tx.onabort = tx.onerror = () => reject(tx.error);
+        }); db.close();
+        const bytes = [...await api.getDomainResource(identity, 'asset')];
+        const kept = await api.getStoredDomain(identity);
+        await api.removeStoredDomain(identity);
+        const deleted = await api.getStoredDomain(identity);
+        const cleanDB = await api.openDomainDB();
+        const cacheCount = await new Promise<number>((resolve, reject) => {
+            const tx = cleanDB.transaction('resource_bytes', 'readonly'), req = tx.objectStore('resource_bytes').count();
+            tx.oncomplete = () => resolve(req.result); tx.onabort = tx.onerror = () => reject(tx.error);
+        }); cleanDB.close();
+        return { current, kept, backups, bytes, deleted, cacheCount };
+    });
+    expect(restored.current).toEqual(seeded);
+    expect(restored.kept.conversation).toEqual(seeded.conversation);
+    expect(restored.backups).toEqual([{ key: 'original', value: { body: 'Legacy recovery copy' }, savedAt: 1 }]);
+    expect(restored.bytes).toEqual([7, 8, 9]);
+    expect(restored.deleted).toBeNull();
+    expect(restored.cacheCount).toBe(0);
+});
 // Probe code runs in the browser against its real IndexedDB and survives actual page reloads.
 test('v1 disk migration joins metadata/body, survives restart and exports native content', async ({ page }) => {
     await install(page);
@@ -64,7 +159,7 @@ test('aborted actual IDB transaction withholds schema stamp and retries without 
         await api.saveConversationDetail('retry', { messages: [{ role: 'user', content: 'Keep original body' }] });
         const original = IDBObjectStore.prototype.put;
         IDBObjectStore.prototype.put = function (...args) {
-            if (this.name === 'revisions') throw new DOMException('Injected quota failure', 'QuotaExceededError');
+            if (this.name === 'conversations') throw new DOMException('Injected quota failure', 'QuotaExceededError');
             return original.apply(this, args);
         };
         let result;
@@ -188,7 +283,7 @@ for (const method of ['remove', 'reconcile'] as const) {
                     : await api.StorageService.reconcileConversations('u0', []);
                 const db = await api.openDomainDB();
                 const stores = await new Promise<Record<string, unknown[]>>((resolve, reject) => {
-                    const names = ['conversations', 'revisions', 'resource_bytes', 'removed_conversations'];
+                    const names = ['conversations', 'resource_bytes', 'removed_conversations'];
                     const tx = db.transaction(names, 'readonly');
                     const rows: Record<string, unknown[]> = {};
                     tx.oncomplete = () => resolve(rows);
@@ -218,9 +313,8 @@ for (const method of ['remove', 'reconcile'] as const) {
             expect(cleaned.local.exportedIds).toEqual({ keep: { timestamp: 1 } });
             expect(cleaned.local.gemini_exported_u1).toEqual({ 'retry-delete': { timestamp: 2 } });
             expect(cleaned.legacy).toBeNull();
-            // Only the other account survives in current, history and online bytes.
+            // Only the other account survives in current and cached bytes.
             expect(cleaned.stores.conversations).toHaveLength(1);
-            expect(cleaned.stores.revisions).toHaveLength(1);
             expect(cleaned.stores.resource_bytes).toHaveLength(2); // imported and downloaded bytes both live in the selected account cache
             expect(cleaned.stores.removed_conversations).toHaveLength(1);
             expect(cleaned.stores.removed_conversations[0]).toMatchObject({ key: JSON.stringify(['gemini', 'u0', 'retry-delete']) });
