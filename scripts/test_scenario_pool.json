@@ -1,26 +1,5 @@
 [
   {
-    "id": "quantum_chemistry_dmrg_active_space",
-    "domain": "quantum_chemistry_dmrg_active_space",
-    "title": "量子化学：多参考态强关联体系矩阵乘积态 (MPS) 与 DMRG 算法推导",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "测试强关联多电子体系电子积分张量重整化、矩阵乘积态 (MPS) 规范形式与截断误差标度律、单点/双点 DMRG 块哈密顿量对角化 Python 紧凑求解器及多参考电子结构方法纵向对比",
-    "turns": [
-      "在二次量子化表象下，写出包含单电子动能/核吸引积分 h_{pq} 与双电子排斥积分 g_{pqrs} 的全分子电子哈密顿量 \\hat{H} = \\sum_{pq} h_{pq} a_p^\\dagger a_q + \\frac{1}{2} \\sum_{pqrs} g_{pqrs} a_p^\\dagger a_q^\\dagger a_s a_r。解释为什么对于过渡金属二聚体（如 Cr_2）或铁硫簇（Fe_4S_4）等多中心强关联体系，单参考态耦合簇理论（CCSD(T)）会出现对称性破缺与发散，必须采用多参考态方法。",
-      "将全组态相互作用（FCI）波函数系数张量 C_{\\sigma_1 \\dots \\sigma_k} 展开为矩阵乘积态（Matrix Product State, MPS）形式 |\\Psi\\rangle = \\sum_{\\sigma_1 \\dots \\sigma_k} A^{\\sigma_1} A^{\\sigma_2} \\dots A^{\\sigma_k} |\\sigma_1 \\dots \\sigma_k\\rangle。通过奇异值分解（SVD）推导左正则（Left-Canonical）与右正则（Right-Canonical）规范条件，证明一维量子链纠缠熵 S_E = -\\sum_i s_i^2 \\ln s_i^2 对 MPS 键维（Bond Dimension M）截断误差 \\epsilon_{tr} 的严格标度关系。",
-      "推导单中心与双中心密度矩阵重整化群（DMRG）的扫场更新（Sweep Optimization）算法。从变分能量极小化 \\min \\langle \\Psi | \\hat{H} | \\Psi \\rangle / \\langle \\Psi | \\Psi \\rangle 出发，推导有效哈密顿量矩阵 \\mathcal{H}_{eff} 的投影构造形式，并说明利用 Davidson 迭代算法求解局部张量基态能级的收敛加速机制。",
-      "使用 Python 编写一个教学版 DMRG 变分优化程序框架，针对简化的 1D 强关联 Hubbard/Heisenberg 自旋链模型（L=8），在固定键维 M=16 下执行左右各 2 次扫场，输出每次扫场后计算基态能量的单调收敛演化过程，并验证截断概率和总纠缠熵。",
-      "使用 Markdown 表格，对比完全活性空间自洽场（CASSCF）、完全活性空间二级微扰论（CASPT2）、密度矩阵重整化群（DMRG-CASSCF）以及辅助场量子蒙特卡洛（AFQMC）在最大活性空间轨道容量（Active Space Orbitals）、动态/静态电子关联处理能力、计算标度律与侵入态（Intruder State）敏感度四个核心维度的对比。"
-    ]
-  },
-  {
     "id": "linguistics_low_resource_morphology_bayesian",
     "title": "计算语言学：低资源语言形态分析与贝叶斯词法归纳",
     "domain": "linguistics_low_resource_morphology_bayesian_inference",
@@ -203,26 +182,6 @@
       "Write runnable Python using only the standard library to simulate three replicas, duplicate messages, reordering, partitions and reconnection. Use randomized checks for commutativity, associativity and idempotence.",
       "Use a Markdown table to compare grow-only sets, 2P-sets, OR-sets, LWW registers and multivalue registers across storage costs, conflict semantics, causal metadata and garbage-collection assumptions.",
       "Write a long technical report with formulas, message-trace tables and garbage-collection pseudocode. Analyze snapshots, upgrades, long-offline replicas and deletion-tombstone compaction for convergence and data retention."
-    ]
-  },
-  {
-    "id": "food_engineering_spray_drying_mass_energy_balance",
-    "domain": "food_engineering_spray_drying",
-    "title": "Spray drying: particle formation and mass-energy balance",
-    "features": [
-      "imagen",
-      "math",
-      "latex",
-      "tables",
-      "code"
-    ],
-    "description": "Scientific process image, humid-air balances, particle drying curves, and numerical sensitivity analysis.",
-    "turns": [
-      "Actually generate a scientific cutaway illustration of a co-current spray dryer for food powders. Show atomizer droplets, hot-air inlet, drying chamber, cyclone and outlet product without fictional performance claims.",
-      "Derive the steady water and dry-solid mass balances and the humid-air enthalpy balance using LaTeX. Define every symbol and give a dimensional check with one invented numerical example.",
-      "Compare constant-rate and falling-rate particle drying in a Markdown table including controlling resistance, temperature evolution, shrinkage and measurement uncertainty.",
-      "Write runnable Python for a bounded moisture balance sensitivity sweep. Include dry-basis versus wet-basis conversion, validation of impossible inputs and a reproducible example.",
-      "Explain residence-time distributions, wall deposition and powder stability. Separate measured facts from model assumptions and propose a practical validation experiment."
     ]
   },
   {
@@ -416,6 +375,50 @@
       "Provide complete runnable Python with NumPy to generate an AR(1) process, fit a rolling forecast, calibrate blocked residual intervals and report coverage and interval width. Include Markdown tables of configurations.",
       "Compare ordinary split conformal, rolling residual quantiles and blocked calibration in a Markdown table, including assumptions, failure modes and computational cost. Add an English/Chinese glossary.",
       "Design a reproducible sensitivity experiment over autocorrelation, drift and block length. Include precise pseudo-code, LaTeX formulas for conditional and marginal empirical coverage, and a detailed interpretation of failures without claiming guarantees from simulation."
+    ]
+  },
+  {
+    "id": "geophysics_ground_penetrating_radar_layer_inversion",
+    "title": "探地雷达：分层介质回波与介电参数反演",
+    "domain": "geophysics_ground_penetrating_radar",
+    "features": [
+      "imagen",
+      "multimodal",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖真实生成剖面图、波传播推导、合成回波代码、反演比较与长篇不确定性分析。",
+    "turns": [
+      "请实际生成一张原创科学剖面图，展示探地雷达天线沿三层土壤表面移动，电磁脉冲在地下界面反射并返回接收天线。用不同颜色区分干土、湿土和基岩，标明发射、反射及走时路径；请输出生成的图片，并用中英文解释图中结构，所有深度均为虚构教学示意。",
+      "以非磁性、低损耗分层介质为假设，用 LaTeX 推导波速、相对介电常数、双程走时和层厚关系，解释斜入射与导电损耗何时使简单深度换算失效。给出单位检查和可手算的两层数值例子。",
+      "用 Python/NumPy 编写可运行的合成雷达 A-scan 程序，包含 Ricker 子波、界面反射系数、传播延迟、衰减和固定随机种子的噪声。输出完整代码并展示如何从峰值走时估算层厚，明确实际分辨率限制。",
+      "用 Markdown 表格比较峰值拾取、互相关时延估计、最小二乘拟合和贝叶斯反演的输入条件、计算成本、噪声敏感性与可辨识性。用 LaTeX 说明未知层厚与介电常数之间的参数耦合，并用中文和 English 术语对照解释。",
+      "撰写详细技术报告，为上述虚构分层场景设计采样与反演验证流程，涵盖天线频率、空间采样、速度标定、多路径与非唯一解。给出置信区间计算代码和参数敏感性表格，区分合成演示与真实地质证据。"
+    ]
+  },
+  {
+    "id": "computational_geometry_polygon_clipping_robust_predicates",
+    "title": "计算几何：多边形裁剪与稳健方向谓词",
+    "domain": "computational_geometry_robust_polygon_clipping",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "multimodal"
+    ],
+    "description": "覆盖几何谓词误差推导、长 Python 实现、退化案例、算法表格和中英文混排报告。",
+    "turns": [
+      "从二维点的有向面积出发，用 LaTeX 推导 orientation(a,b,c) 行列式、线段相交判定和凸多边形半平面表示。明确共线、端点相交与零面积输入的语义，给出带中文解释的手算例子。",
+      "分析浮点消去如何破坏几何谓词的符号，推导尺度相关误差界，区分任意 epsilon 阈值、区间过滤与精确有理数兜底。请讨论接近共线的大坐标数据，并提供中英文术语表。",
+      "用 Python 标准库实现凸多边形裁剪，包含方向统一、半平面裁剪、交点计算、重复顶点处理以及 Fraction 精确谓词兜底。给出完整可运行代码与面积守恒检查，覆盖逆时针和顺时针输入。",
+      "用 Markdown 表格比较 Sutherland–Hodgman、Weiler–Atherton、平面扫描和栅格化近似在凹多边形、孔洞、退化输入、复杂度与精度方面的适用范围。用 Mermaid 绘制过滤谓词到精确计算的流程。",
+      "撰写长篇稳健性验证报告，设计固定随机种子的对称性、幂等性、平移与缩放性质测试，并覆盖共边、单点接触、近零面积和高动态范围坐标。给出生成器代码、失败案例表格与误差指标，说明当前凸裁剪原型的能力边界。"
     ]
   }
 ]
