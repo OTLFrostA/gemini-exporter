@@ -188,3 +188,97 @@ test('real extension IDB rejects ambiguity and stale cache writes, isolates acco
     expect(result.unknown).toBeNull(); expect(result.other).toBeNull(); expect(result.after).toBeNull();
     expect(result.correct).toHaveLength(68);
 });
+
+test('resource persistence: 120 large legacy revisions do not amplify 40 continuous saves or repeated imports', async ({ context, extensionId }) => {
+    const page = await context.newPage(); await install(page, extensionId);
+    const measured = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'mediaProbe');
+        const { offline, resources } = api.mediaSources();
+        const bytes = new Uint8Array(4 * 1024 * 1024).fill(37);
+        const resource = { ...resources[0], bytes };
+        const initial = await api.saveDomainConversation('u0', offline, [resource]);
+        const db = await api.openDomainDB();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction('revisions', 'readwrite');
+            for (let i = 0; i < 120; i++) tx.objectStore('revisions').put({ ...initial, revision: `legacy-${i}`,
+                resources: [{ ...resource, bytes: bytes.subarray(0, 256 * 1024) }] });
+            tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
+        }); db.close();
+        const counts: Record<string, number> = {};
+        const restores: (() => void)[] = [];
+        for (const prototype of [IDBObjectStore.prototype, IDBIndex.prototype]) {
+            for (const method of ['get', 'getAll', 'getAllKeys', 'count', 'put', 'openCursor', 'openKeyCursor']) {
+                const original = Reflect.get(prototype, method);
+                if (!original) continue;
+                Reflect.set(prototype, method, function (this: IDBObjectStore | IDBIndex, ...args: unknown[]) {
+                    const name = this instanceof IDBIndex ? this.objectStore.name : this.name;
+                    const key = `${name}.${method}`; counts[key] = (counts[key] || 0) + 1;
+                    return original.apply(this, args);
+                });
+                restores.push(() => Reflect.set(prototype, method, original));
+            }
+        }
+        let final;
+        try {
+            for (let i = 1; i <= 40; i++) {
+                const parsed = api.storedParseResult(initial);
+                parsed.conversation.title = `Continuous save ${i}`;
+                parsed.conversation.updatedAt = Number(offline.conversation.updatedAt || 0) + i;
+                final = await api.saveDomainConversation('u0', parsed);
+            }
+            const normal = { ...counts };
+            for (const key of Object.keys(counts)) delete counts[key];
+            for (let i = 0; i < 5; i++) await api.saveDomainConversation('u0', api.storedParseResult(final), [resource]);
+            return { normal, repeats: { ...counts }, inlineBytes: final.resources.length,
+                digest: final.resourceDigests[resource.assetId]?.sha256 };
+        } finally { for (const restore of restores) restore(); }
+    });
+    expect(measured.inlineBytes).toBe(0);
+    expect(measured.digest).toMatch(/^[a-f0-9]{64}$/);
+    for (const counters of [measured.normal, measured.repeats]) {
+        for (const store of ['revisions', 'resource_bytes']) {
+            for (const method of ['getAll', 'get', 'openCursor']) expect(counters[`${store}.${method}`] || 0).toBe(0);
+        }
+        expect(counters['resource_bytes.put'] || 0).toBe(0);
+    }
+    expect(measured.normal['revisions.count']).toBe(40);
+    expect(measured.normal['revisions.put']).toBe(40);
+    expect(measured.repeats['revisions.put'] || 0).toBe(0);
+    const retained = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'mediaProbe');
+        const { offline, resources } = api.mediaSources();
+        const restored = await api.getDomainResource(api.storageIdentity('gemini', 'u0', offline.conversation.id), resources[0].assetId);
+        return { length: restored?.length, first: restored?.[0], last: restored?.[restored.length - 1] };
+    });
+    expect(retained).toEqual({ length: 4 * 1024 * 1024, first: 37, last: 37 });
+});
+
+test('legacy inline cache migrates once without rewriting identical bytes; subsequent saves read metadata only', async ({ context, extensionId }) => {
+    const page = await context.newPage(); await install(page, extensionId);
+    const result = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'mediaProbe'); const { offline, resources } = api.mediaSources();
+        const original = await api.saveDomainConversation('u0', offline, resources);
+        const db = await api.openDomainDB();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction('conversations', 'readwrite');
+            const legacy = { ...original, resources, revision: 'pre-optimization-uuid' }; delete legacy.resourceDigests;
+            tx.objectStore('conversations').put(legacy);
+            tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
+        }); db.close();
+        const originalGet = IDBObjectStore.prototype.get, originalPut = IDBObjectStore.prototype.put;
+        let reads = 0, writes = 0;
+        IDBObjectStore.prototype.get = function (...args) { if (this.name === 'resource_bytes') reads++; return originalGet.apply(this, args); };
+        IDBObjectStore.prototype.put = function (...args) { if (this.name === 'resource_bytes') writes++; return originalPut.apply(this, args); };
+        try {
+            const upgraded = await api.saveDomainConversation('u0', api.storedParseResult(original));
+            const first = { reads, writes, inline: upgraded.resources.length }; reads = writes = 0;
+            for (let i = 0; i < 10; i++) {
+                const parsed = api.storedParseResult(upgraded); parsed.conversation.title = `Legacy follow-up ${i}`;
+                await api.saveDomainConversation('u0', parsed);
+            }
+            return { first, subsequent: { reads, writes } };
+        } finally { IDBObjectStore.prototype.get = originalGet; IDBObjectStore.prototype.put = originalPut; }
+    });
+    expect(result.first).toEqual({ reads: 2, writes: 0, inline: 0 });
+    expect(result.subsequent).toEqual({ reads: 0, writes: 0 });
+});

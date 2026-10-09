@@ -21,6 +21,8 @@ export interface DomainStorageRecord {
     conversation: DomainConversationDetail;
     acquisitionHints: ResourceAcquisitionHints;
     resources: StoredDomainResource[];
+    /** Cache metadata only; absent on older records. Never part of the Domain. */
+    resourceDigests?: Record<string, { sourceUri: string; sha256?: string; sourcePath?: string }>;
 }
 export interface DomainMigrationIssue { key: string; code: string; message: string }
 export interface DomainMigrationReport { converted: number; issues: DomainMigrationIssue[] }

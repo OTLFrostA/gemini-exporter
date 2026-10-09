@@ -172,3 +172,45 @@ test('liveSaveObserver - RPC stream lifecycle triggers fast save without debounc
     }
 });
 
+
+test('liveSaveObserver - background DOM turns save without an animation frame and cleanup cancels pending work', async () => {
+    const originals = ['window', 'document', 'MutationObserver', 'requestAnimationFrame'].map(key => [key, Reflect.get(global, key)] as const);
+    let mutate: () => void = () => {};
+    let generating = false;
+    const saves: string[] = [];
+    Reflect.set(global, 'window', { addEventListener() {}, removeEventListener() {} });
+    Reflect.set(global, 'document', { visibilityState: 'hidden', body: null, documentElement: null, querySelector: (selector: string) =>
+        generating && selector === 'button[aria-label*="Stop"]' ? { offsetParent: {} } : null });
+    Reflect.set(global, 'requestAnimationFrame', () => { throw new Error('Background animation frames cannot drive saving'); });
+    Reflect.set(global, 'MutationObserver', class {
+        connected = false;
+        constructor(callback: () => void) { mutate = () => { if (this.connected) callback(); }; }
+        observe(target: unknown) { assert.strictEqual(target, Reflect.get(global, 'document')); this.connected = true; }
+        disconnect() { this.connected = false; }
+    });
+    try {
+        LiveSaveObserver.init({ debounceMs: 10, getActiveId: () => 'background-chat', onTurnComplete: (id: string) => saves.push(id) });
+        const PageObserver = require('../src/content/pageObserver.js');
+        PageObserver.init(); // Actual coordinator order: page initialization must keep live saving attached.
+        generating = true; mutate();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        generating = false; mutate();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        assert.deepStrictEqual(saves, ['background-chat']);
+        LiveSaveObserver.notifyStreamComplete('background-chat');
+        LiveSaveObserver.cleanup();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        assert.deepStrictEqual(saves, ['background-chat']);
+        LiveSaveObserver.init({ getActiveId: () => 'background-chat', onTurnComplete: (id: string) => saves.push(id) });
+        generating = true; mutate(); LiveSaveObserver.cleanup();
+        await new Promise(resolve => setTimeout(resolve, 80));
+        generating = false;
+        LiveSaveObserver.init({ getActiveId: () => 'background-chat', onTurnComplete: (id: string) => saves.push(id) });
+        mutate(); await new Promise(resolve => setTimeout(resolve, 400));
+        assert.deepStrictEqual(saves, ['background-chat']);
+    } finally {
+        require('../src/content/pageObserver.js').cleanup();
+        LiveSaveObserver.cleanup();
+        for (const [key, value] of originals) Reflect.set(global, key, value);
+    }
+});

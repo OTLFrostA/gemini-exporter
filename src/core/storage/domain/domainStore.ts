@@ -1,3 +1,4 @@
+import { sha256Hex } from '../../export/assets/sha256.js';
 import { matchResourceSets, resourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
 import { needsDomainBroker, callDomainBroker, encodeBytes, decodeBytes, decodeDomainRecord } from './transport.js';
 import { assertSchemaWritable } from '../schemaState.js';
@@ -40,6 +41,15 @@ function checked(record: DomainStorageRecord): DomainStorageRecord {
             || Object.keys(hint).some(k => !['url', 'sourceUrl', 'src', 'candidates'].includes(k))
             || ['url', 'sourceUrl', 'src'].some(k => k in hint && typeof Reflect.get(hint, k) !== 'string')
             || (hint.candidates !== undefined && (!Array.isArray(hint.candidates) || hint.candidates.some(v => typeof v !== 'string')))) throw new TypeError('Invalid stored acquisition binding');
+    }
+    if (record.resourceDigests !== undefined) {
+        if (!record.resourceDigests || typeof record.resourceDigests !== 'object' || Array.isArray(record.resourceDigests)) throw new TypeError('Invalid resource cache metadata');
+        for (const [id, digest] of Object.entries(record.resourceDigests)) {
+            if (!digest || !conversation.assets.some(a => a.id === id) || (conversation.assets.find(a => a.id === id)?.source?.uri ?? '') !== digest.sourceUri
+                || typeof digest.sourceUri !== 'string'
+                || (digest.sourcePath !== undefined && typeof digest.sourcePath !== 'string')
+                || (digest.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(digest.sha256))) throw new TypeError('Invalid resource cache binding');
+        }
     }
     return { ...structuredClone(record), conversation };
 }
@@ -92,61 +102,70 @@ function prefer(existing: DomainStorageRecord, incoming: DomainStorageRecord, mi
     const time = (v: DomainConversationDetail): number => Number(v.updatedAt ?? v.timestamp) || 0;
     return time(next) >= time(old);
 }
-function carryResources(existing: DomainStorageRecord | null, incoming: DomainStorageRecord): void {
-    if (!existing) return;
-    const supplied = new Set(incoming.resources.map(r => r.assetId));
-    for (const match of matchResourceSets(incoming.identity.conversationId, incoming.conversation.assets.map(resourceIdentity), existing.conversation.assets.map(resourceIdentity))) {
-        const next = incoming.conversation.assets[match.target], old = existing.conversation.assets[match.source];
-        const resource = existing.resources.find(r => r.assetId === old.id);
-        if (resource && !supplied.has(next.id) && next.id === old.id && next.source?.uri === old.source?.uri)
-            incoming.resources.push(structuredClone(resource));
-    }
-}
-function sameSnapshot(existing: DomainStorageRecord, incoming: DomainStorageRecord): boolean {
+function sameContent(existing: DomainStorageRecord, incoming: DomainStorageRecord): boolean {
     return existing.origin === incoming.origin
         && JSON.stringify(existing.conversation) === JSON.stringify(incoming.conversation)
-        && JSON.stringify(existing.acquisitionHints) === JSON.stringify(incoming.acquisitionHints)
-        && existing.resources.length === incoming.resources.length
-        && incoming.resources.every(resource => {
-            const old = existing.resources.find(r => r.assetId === resource.assetId);
-            return old?.sourcePath === resource.sourcePath && old?.bytes.byteLength === resource.bytes.byteLength
-                && (old.bytes === resource.bytes || old.bytes.every((byte, i) => byte === resource.bytes[i]));
-        });
+        && JSON.stringify(existing.acquisitionHints) === JSON.stringify(incoming.acquisitionHints);
 }
 interface ByteCacheRow { key: string; conversationKey: string; assetId: string; sourceUri: string; bytes: Uint8Array }
 function byteCacheKey(record: DomainStorageRecord, assetId: string, uri: string): string {
     return JSON.stringify([record.key, assetId, uri]);
 }
-function memoryBytes(record: DomainStorageRecord | null): ByteCacheRow[] {
-    return record ? record.conversation.assets.flatMap(asset => {
-        const uri = asset.source?.uri;
-        const key = uri ? byteCacheKey(record, asset.id, uri) : '';
-        const bytes = byteMemory.get(key);
-        return uri && bytes ? [{ key, conversationKey: record.key, assetId: asset.id, sourceUri: uri, bytes }] : [];
-    }) : [];
+interface BindingUpdate {
+    assetId: string;
+    key: string;
+    sourceUri: string;
+    sha256?: string;
+    sourcePath?: string;
+    bytes?: Uint8Array;
+    from?: string;
+    compare?: boolean;
 }
-/** Rebind bytes only to the chosen snapshot's own identity; no Domain relationship is rewritten. */
-function selectedBytes(selected: DomainStorageRecord, sources: readonly DomainStorageRecord[], cached: readonly ByteCacheRow[], cacheOwner: DomainStorageRecord | null): ByteCacheRow[] {
-    const result = new Map<string, ByteCacheRow>();
+/** Plan with identities and cache keys only. Load bytes solely for changed bindings. */
+function resourceUpdates(selected: DomainStorageRecord, existing: DomainStorageRecord | null, incoming: DomainStorageRecord,
+    keys: ReadonlySet<string>, hashes: ReadonlyMap<string, string>): BindingUpdate[] {
+    const updates = new Map<string, BindingUpdate>();
+    if (existing && !existing.resources.length && !incoming.resources.length
+        && JSON.stringify(selected.conversation.assets) === JSON.stringify(existing.conversation.assets)) {
+        return selected.conversation.assets.flatMap(asset => {
+            const uri = asset.source?.uri ?? '';
+            const key = byteCacheKey(selected, asset.id, uri);
+            return keys.has(key) ? [{ assetId: asset.id, key, sourceUri: uri,
+                sha256: existing.resourceDigests?.[asset.id]?.sha256, sourcePath: existing.resourceDigests?.[asset.id]?.sourcePath }] : [];
+        });
+    }
     const targets = selected.conversation.assets.map(resourceIdentity);
-    for (const source of new Set([selected, ...sources])) {
-        const bytes = new Map(source.resources.map(resource => [resource.assetId, resource.bytes]));
-        // Cache rows contain no event evidence. Only their current owner can validate
-        // them before the shared matcher rebinds them to a different snapshot.
-        for (const row of source === cacheOwner ? cached : []) {
-            const uri = source.conversation.assets.find(asset => asset.id === row.assetId)?.source?.uri;
-            if (uri && row.conversationKey === source.key && row.sourceUri === uri && row.key === byteCacheKey(source, row.assetId, uri)
-                && row.bytes instanceof Uint8Array && row.bytes.byteLength && !bytes.has(row.assetId)) bytes.set(row.assetId, row.bytes);
-        }
-        for (const match of matchResourceSets(selected.identity.conversationId, targets, source.conversation.assets.map(resourceIdentity))) {
-            const asset = selected.conversation.assets[match.target];
-            const acquired = bytes.get(source.conversation.assets[match.source].id);
-            const uri = asset.source?.uri;
-            if (uri && acquired && !result.has(asset.id)) result.set(asset.id, { key: byteCacheKey(selected, asset.id, uri),
-                conversationKey: selected.key, assetId: asset.id, sourceUri: uri, bytes: acquired.slice() });
+    const existingMatches = existing ? matchResourceSets(selected.identity.conversationId, targets, existing.conversation.assets.map(resourceIdentity)) : [];
+    for (const source of new Set([selected, ...(existing ? [existing] : []), incoming])) {
+        for (const match of source === existing ? existingMatches : matchResourceSets(selected.identity.conversationId, targets, source.conversation.assets.map(resourceIdentity))) {
+            const target = selected.conversation.assets[match.target], asset = source.conversation.assets[match.source];
+            const uri = target.source?.uri ?? '';
+            if (updates.has(target.id)) continue;
+            const key = byteCacheKey(selected, target.id, uri);
+            const inline = source.resources.find(r => r.assetId === asset.id);
+            const oldKey = byteCacheKey(source, asset.id, asset.source?.uri ?? '');
+            const oldHash = existing?.resourceDigests?.[asset.id];
+            const hash = source === incoming ? hashes.get(asset.id) : oldHash?.sourceUri === (asset.source?.uri ?? '') ? oldHash?.sha256 : undefined;
+            if (inline) {
+                const unchanged = existing && keys.has(key) && oldKey === key
+                    && existingMatches.some(prior => selected.conversation.assets[prior.target].id === target.id
+                        && existing.conversation.assets[prior.source].id === asset.id);
+                updates.set(target.id, { assetId: target.id, key, sourceUri: uri, sha256: hash, sourcePath: inline.sourcePath,
+                    ...(unchanged && hash && oldHash?.sha256 === hash ? {} : { bytes: inline.bytes }),
+                    ...(unchanged && !(hash && oldHash?.sha256 === hash) ? { compare: true } : {}) });
+            } else if (source === existing && keys.has(oldKey)) {
+                updates.set(target.id, { assetId: target.id, key, sourceUri: uri, sha256: hash, sourcePath: oldHash?.sourcePath,
+                    ...(oldKey !== key ? { from: oldKey } : {}) });
+            }
         }
     }
-    return [...result.values()];
+    return [...updates.values()];
+}
+function currentRecord(selected: DomainStorageRecord, updates: readonly BindingUpdate[]): DomainStorageRecord {
+    // Even URI-less resources stay in the existing cache, bound by their proven asset ID.
+    return { ...selected, resources: [],
+        resourceDigests: Object.fromEntries(updates.map(row => [row.assetId, { sourceUri: row.sourceUri, ...(row.sha256 ? { sha256: row.sha256 } : {}),
+            ...(row.sourcePath !== undefined ? { sourcePath: row.sourcePath } : {}) }])) };
 }
 export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources?: readonly StoredDomainResource[], migration?: false): Promise<DomainStorageRecord>;
 export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean): Promise<DomainStorageRecord | null>;
@@ -160,26 +179,41 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
         ...(hint.url ? { url: hint.url } : {}), ...(hint.sourceUrl ? { sourceUrl: hint.sourceUrl } : {}), ...(hint.src ? { src: hint.src } : {}),
         ...(hint.candidates ? { candidates: [...hint.candidates] } : {}),
     }]));
-    const incoming: DomainStorageRecord = checked({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: crypto.randomUUID(), savedAt: Date.now(), conversation, acquisitionHints, resources: resources.map(r => structuredClone(r)) });
+    const incoming: DomainStorageRecord = checked({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: 'pending', savedAt: Date.now(), conversation, acquisitionHints, resources: resources.map(r => ({ ...r })) });
+    const hashes = new Map(await Promise.all(incoming.resources.map(async resource => [resource.assetId, await sha256Hex(resource.bytes)] as const)));
+    // Content-addressed revision keys make repeats an indexed existence check, not a history scan.
+    incoming.revision = `sha256:${await sha256Hex(new TextEncoder().encode(JSON.stringify([
+        incoming.key, incoming.origin, incoming.conversation, incoming.acquisitionHints,
+        incoming.resources.map(r => [r.assetId, r.sourcePath, hashes.get(r.assetId)]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+    ])))}`;
+    const choose = (existing: DomainStorageRecord | null): DomainStorageRecord => {
+        const changedResources = incoming.resources.some(r => hashes.get(r.assetId) !== existing?.resourceDigests?.[r.assetId]?.sha256
+            || r.sourcePath !== existing?.resourceDigests?.[r.assetId]?.sourcePath);
+        return existing && sameContent(existing, incoming) && !changedResources ? existing
+            : !existing || prefer(existing, incoming, migration) ? incoming : existing;
+    };
     if (typeof indexedDB === 'undefined') {
         if (migration && removedMemory.has(incoming.key)) return null;
         const existing = memory.get(incoming.key) ?? null;
         if (existing && migration && !prefer(existing, incoming, true)) return checked(existing);
-        carryResources(existing, incoming);
-        const unchanged = existing && sameSnapshot(existing, incoming);
-        const selected = unchanged ? existing : !existing || prefer(existing, incoming, migration) ? incoming : existing;
-        const cached = selectedBytes(selected, existing ? [existing, incoming] : [incoming], memoryBytes(existing), existing);
-        const result = checked(selected);
-        const revision = !unchanged && ![...history.values()].some(row => row.key === incoming.key && sameSnapshot(row, incoming))
-            ? structuredClone(incoming) : null;
-        // Compute/validate everything before committing any memory state.
+        const selected = choose(existing);
+        const keys = new Set([...byteMemory.keys()].filter(key => JSON.parse(key)[0] === incoming.key));
+        const updates = resourceUpdates(selected, existing, incoming, keys, hashes);
+        for (const row of updates) {
+            if (row.from) row.bytes = byteMemory.get(row.from)?.slice();
+            if (row.compare && row.bytes && byteMemory.get(row.key)?.every((byte, i) => byte === row.bytes![i])
+                && byteMemory.get(row.key)?.length === row.bytes.length) row.bytes = undefined;
+        }
+        const result = checked(currentRecord(selected, updates));
         if (!migration) removedMemory.delete(incoming.key);
-        if (revision) history.set(incoming.revision, revision);
-        if (selected === incoming) memory.set(incoming.key, structuredClone(selected));
-        const reachable = new Set(cached.map(row => row.key));
-        for (const key of byteMemory.keys()) if (JSON.parse(key)[0] === incoming.key && !reachable.has(key)) byteMemory.delete(key);
-        for (const row of cached) byteMemory.set(row.key, row.bytes);
-        return result;
+        if (selected !== existing || !sameContent(incoming, existing!)) {
+            if (!history.has(incoming.revision)) history.set(incoming.revision, structuredClone(incoming));
+        }
+        memory.set(incoming.key, result);
+        const reachable = new Set(updates.filter(row => !row.from || row.bytes).map(row => row.key));
+        for (const key of keys) if (!reachable.has(key)) byteMemory.delete(key);
+        for (const row of updates) if (row.bytes) byteMemory.set(row.key, row.bytes.slice());
+        return checked(result);
     }
     return transaction<DomainStorageRecord | null>('readwrite', (store, revisions, result, removed, byteCache) => {
         const req = removed.get(incoming.key);
@@ -192,24 +226,44 @@ export async function saveDomainConversation(accountSlot: string, parsed: Resour
                     try {
                         const existing = current.result ? checked(current.result) : null;
                         if (existing && migration && !prefer(existing, incoming, true)) { result(existing); return; }
-                        carryResources(existing, incoming);
-                        const unchanged = existing && sameSnapshot(existing, incoming);
-                        const selected = unchanged ? existing : !existing || prefer(existing, incoming, migration) ? incoming : existing;
-                        const bytes = byteCache.index('conversation').getAll(incoming.key);
-                        bytes.onsuccess = () => {
+                        const selected = choose(existing);
+                        const cacheKeys = byteCache.index('conversation').getAllKeys(incoming.key);
+                        cacheKeys.onsuccess = () => {
                             try {
-                                const entries = selectedBytes(selected, existing ? [existing, incoming] : [incoming], bytes.result as ByteCacheRow[], existing);
-                                const prior = revisions.index('conversation').getAll(incoming.key);
-                                prior.onsuccess = () => {
-                                    try {
-                                        if (!unchanged && !(prior.result as DomainStorageRecord[]).some(row => sameSnapshot(row, incoming))) revisions.put(incoming);
-                                        if (selected === incoming) store.put(incoming);
-                                        const reachable = new Set(entries.map(row => row.key));
-                                        for (const row of bytes.result as ByteCacheRow[]) if (!reachable.has(row.key)) byteCache.delete(row.key);
-                                        for (const row of entries) byteCache.put(row);
-                                        result(selected);
-                                    } catch { store.transaction.abort(); }
+                                const keys = new Set(cacheKeys.result.map(String));
+                                const updates = resourceUpdates(selected, existing, incoming, keys, hashes);
+                                const complete = () => {
+                                    const reachable = new Set(updates.filter(row => !row.from || row.bytes).map(row => row.key));
+                                    for (const key of keys) if (!reachable.has(key)) byteCache.delete(key);
+                                    for (const row of updates) if (row.bytes) byteCache.put({ key: row.key, conversationKey: incoming.key,
+                                        assetId: row.assetId, sourceUri: row.sourceUri, bytes: row.bytes } satisfies ByteCacheRow);
+                                    const next = checked(currentRecord(selected, updates));
+                                    if (selected !== existing || existing!.resources.length || JSON.stringify(existing!.resourceDigests) !== JSON.stringify(next.resourceDigests)) store.put(next);
+                                    result(next);
                                 };
+                                let pending = 1;
+                                const done = () => { if (--pending === 0) { try { complete(); } catch { store.transaction.abort(); } } };
+                                // get() is reserved for actual rebindings or an old row without a digest.
+                                for (const row of updates) if (row.from || row.compare) {
+                                    pending++;
+                                    const bytes = byteCache.get(row.from || row.key);
+                                    bytes.onsuccess = () => {
+                                        try {
+                                            const cached = bytes.result as ByteCacheRow | undefined;
+                                            const valid = cached && cached.key === (row.from || row.key) && cached.conversationKey === incoming.key
+                                                && cached.bytes instanceof Uint8Array && cached.bytes.length
+                                                && cached.key === byteCacheKey(incoming, cached.assetId, cached.sourceUri);
+                                            if (row.from) row.bytes = valid ? cached.bytes : undefined;
+                                            else if (valid && row.bytes?.length === cached.bytes.length && row.bytes.every((b, i) => b === cached.bytes[i])) row.bytes = undefined;
+                                            done();
+                                        } catch { store.transaction.abort(); }
+                                    };
+                                }
+                                if (selected === existing && sameContent(existing, incoming)) done();
+                                else {
+                                    const prior = revisions.count(incoming.revision);
+                                    prior.onsuccess = () => { try { if (!prior.result) revisions.put(incoming); done(); } catch { store.transaction.abort(); } };
+                                }
                             } catch { store.transaction.abort(); }
                         };
                     } catch { store.transaction.abort(); }
@@ -228,9 +282,9 @@ export async function getDomainResource(identity: DomainStorageIdentity, assetId
     const record = await getStoredDomain(identity);
     const bound = record?.resources.find(r => r.assetId === assetId)?.bytes;
     if (bound) return bound.slice();
-    const uri = record?.conversation.assets.find(a => a.id === assetId)?.source?.uri;
-    if (!record || !uri) return null;
-    return readByteCache(JSON.stringify([record.key, assetId, uri]));
+    const asset = record?.conversation.assets.find(a => a.id === assetId);
+    if (!record || !asset) return null;
+    return readByteCache(JSON.stringify([record.key, assetId, asset.source?.uri ?? '']));
 }
 export async function removeStoredDomain(identity: DomainStorageIdentity): Promise<void> {
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
@@ -291,10 +345,15 @@ export async function cacheDomainResource(identity: DomainStorageIdentity, asset
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
     if (!bytes.byteLength) throw new TypeError('Empty acquired resource');
     if (needsDomainBroker()) { await callDomainBroker('cache', { identity, assetId, sourceUri, bytes: encodeBytes(bytes) }); return; }
+    const acquired = bytes.slice();
+    const sha256 = await sha256Hex(acquired);
     if (typeof indexedDB === 'undefined') {
         const record = memory.get(domainStorageKey(identity));
-        if (record?.conversation.assets.find(a => a.id === assetId)?.source?.uri === sourceUri)
-            byteMemory.set(byteCacheKey(record, assetId, sourceUri), bytes.slice());
+        if (record?.conversation.assets.find(a => a.id === assetId)?.source?.uri === sourceUri
+            && record.resourceDigests?.[assetId]?.sha256 !== sha256) {
+            byteMemory.set(byteCacheKey(record, assetId, sourceUri), acquired);
+            record.resourceDigests = { ...record.resourceDigests, [assetId]: { ...record.resourceDigests?.[assetId], sourceUri, sha256 } };
+        }
         return;
     }
     await transaction<void>('readwrite', (store, _revisions, result, _removed, byteCache) => {
@@ -302,8 +361,12 @@ export async function cacheDomainResource(identity: DomainStorageIdentity, asset
         req.onsuccess = () => {
             try {
                 const record = req.result ? checked(req.result) : null;
-                if (record?.conversation.assets.find(a => a.id === assetId)?.source?.uri === sourceUri)
-                    byteCache.put({ key: byteCacheKey(record, assetId, sourceUri), conversationKey: record.key, assetId, sourceUri, bytes: bytes.slice() });
+                if (record?.conversation.assets.find(a => a.id === assetId)?.source?.uri === sourceUri
+                    && record.resourceDigests?.[assetId]?.sha256 !== sha256) {
+                    byteCache.put({ key: byteCacheKey(record, assetId, sourceUri), conversationKey: record.key, assetId, sourceUri, bytes: acquired });
+                    record.resourceDigests = { ...record.resourceDigests, [assetId]: { ...record.resourceDigests?.[assetId], sourceUri, sha256 } };
+                    store.put(record);
+                }
                 result(undefined);
             } catch { store.transaction.abort(); }
         };

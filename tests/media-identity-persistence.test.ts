@@ -113,3 +113,28 @@ test('DomainStore refuses ambiguous matches in either direction and deletion era
     await saveDomainConversation('u0', online);
     assert.equal(await getDomainResource(identity, online.conversation.assets[0].id), null);
 });
+
+test('URI-less imported resources remain retrievable without carrying inline bytes into current or subsequent revisions', async () => {
+    const parsed = mediaSources().online;
+    const asset = parsed.conversation.assets[0]; delete asset.source;
+    parsed.acquisitionHints = {};
+    const identity = storageIdentity('gemini', 'u0', mediaChatId);
+    const initial = await saveDomainConversation('u0', parsed, [{ assetId: asset.id, bytes: mediaBytes }]);
+    assert.equal(initial.resources.length, 0);
+    parsed.conversation.title = 'Continued conversation';
+    const continued = await saveDomainConversation('u0', parsed);
+    assert.equal(continued.resources.length, 0);
+    assert.deepEqual(await getDomainResource(identity, asset.id), mediaBytes);
+    assert.equal(__domainRevisions().at(-1)!.resources.length, 0);
+});
+
+test('indexed resource receipts retain distinct archive paths while repeated receipts stay idempotent', async () => {
+    const parsed = mediaSources().online;
+    const resource = { assetId: parsed.conversation.assets[0].id, sourcePath: 'archive/original.png', bytes: mediaBytes };
+    await saveDomainConversation('u0', parsed, [resource]);
+    resource.sourcePath = 'archive/relocated.png';
+    await saveDomainConversation('u0', parsed, [resource]);
+    assert.equal(__domainRevisions().length, 2);
+    await saveDomainConversation('u0', parsed, [resource]);
+    assert.equal(__domainRevisions().length, 2);
+});

@@ -15,7 +15,7 @@ let __isGenerating = false;
 let __pendingConversationId: string | null = null;
 let __options: LiveSaveObserverOptions = {};
 let __initialized = false;
-let _rafPending = false;
+let __mutationTimer: ReturnType<typeof setTimeout> | null = null;
 
 function __onLocationChange(): void {
     if (__isGenerating || __debounceTimer) {
@@ -148,15 +148,16 @@ export function init(options: LiveSaveObserverOptions = {}): void {
     __options = options;
     cleanup();
 
-    const targetNode = document.body || document.documentElement;
+    // The document exists at document_start, before its root/body necessarily does.
+    const targetNode = document;
     if (targetNode) {
         __mutationObserver = new MutationObserver(() => {
-            if (_rafPending) return;
-            _rafPending = true;
-            requestAnimationFrame(() => {
-                _rafPending = false;
+            if (__mutationTimer !== null) return;
+            // Animation frames stop in background tabs; saving must still observe the turn.
+            __mutationTimer = setTimeout(() => {
+                __mutationTimer = null;
                 handleDOMChange();
-            });
+            }, 50);
         });
         __mutationObserver.observe(targetNode, {
             childList: true,
@@ -178,6 +179,10 @@ export function init(options: LiveSaveObserverOptions = {}): void {
 }
 
 export function cleanup(): void {
+    if (__mutationTimer !== null) {
+        clearTimeout(__mutationTimer);
+        __mutationTimer = null;
+    }
     if (__debounceTimer) {
         clearTimeout(__debounceTimer);
         __debounceTimer = null;
@@ -240,10 +245,12 @@ export function notifyStreamComplete(cid?: string | null): void {
     }
 
     // Micro-delay (50ms) to allow DOM to commit any syntax highlighting/math rendering, then trigger save
-    const timer = setTimeout(() => {
+    __debounceTimer = setTimeout(() => {
+        __debounceTimer = null;
+        contentContext.clearTimer('liveSaveDebounce');
         triggerSave('turn_complete');
     }, 50);
-    contentContext.registerTimer('liveSaveDebounce', timer);
+    contentContext.registerTimer('liveSaveDebounce', __debounceTimer);
 }
 
 export const LiveSaveObserver = {
