@@ -62,12 +62,12 @@ test('uploaded image tuples remain supported outside search-result metadata', ()
     assert.equal(extractResponseImages([upload], [], 'Answer').length, 1);
 });
 
-test('secondary candidates do not inherit primary candidate image nodes', () => {
+test('unselected candidates are omitted without losing the primary answer image', () => {
     const wire = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/provider/structured_rpc/wire-turn-3-12-b-stack.json'), 'utf8'));
     const secondary: any[] = ['rc_secondary_images_test', ['Second answer without pictures'], 'en'];
     secondary[12] = [searchResult];
     const answers = parseWithMetadata(wire, secondary).messages.filter((m: any) => m.role === 'model');
-    assert.equal(answers.length, 2);
+    assert.equal(answers.length, 1);
     assert.equal(answers[0].images.length, 1);
-    assert.equal(answers[1].images, undefined);
+    assert.equal(answers[0].id, 'rc_visible_images_test');
 });

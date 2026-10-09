@@ -47,11 +47,11 @@ test('source request tokens survive intact in source evidence and Domain', () =>
 
 });
 
-test('wire chronology, multiple candidates and source dates remain explicit', () => {
+test('wire chronology, primary answers and source dates remain explicit', () => {
     const older = turn('Older', 1700000000, [['rc_old', [['Old answer']]]], 'r_old');
     const newer = turn('Newer', 1700000010, [['rc_new1', [['First']]], ['rc_new2', [['Second']]]], 'r_new');
     const { conversation } = native(rpc([[newer, older]]));
-    assert.deepEqual(conversation.messages.map(m => text(m.content)), ['Older', 'Old answer', 'Newer', 'First', 'Second']);
+    assert.deepEqual(conversation.messages.map(m => text(m.content)), ['Older', 'Old answer', 'Newer', 'First']);
     assert.equal(conversation.createdAt, 1700000000000);
     assert.equal(conversation.updatedAt, 1700000010000);
     assert.equal(conversation.timestamp, 1700000010000);

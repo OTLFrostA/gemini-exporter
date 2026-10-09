@@ -1,26 +1,5 @@
 [
   {
-    "id": "linguistics_low_resource_morphology_bayesian",
-    "title": "计算语言学：低资源语言形态分析与贝叶斯词法归纳",
-    "domain": "linguistics_low_resource_morphology_bayesian_inference",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "multimodal"
-    ],
-    "description": "覆盖语言学领域、Unicode 多语言混排、概率公式、Python 形态切分、实验表格及流程图，补充非物理领域。",
-    "turns": [
-      "构造一份明确标注为合成数据的小型土耳其语与芬兰语形态学示例集，同时加入中文解释和 IPA 音标。区分词根、派生和屈折，说明 Unicode 规范化如何影响切分，避免把构造例子当成真实语言证据。",
-      "用 LaTeX 推导低资源形态切分的贝叶斯目标 p(M|D) proportional to p(D|M)p(M)，比较最小描述长度和 Dirichlet 词素先验，分析短词素偏置、未知词与复合词的处理。",
-      "用 Python 给出可复现的 Unicode 安全形态切分原型，包含 NFC 规范化、动态规划、训练/开发/测试隔离、固定随机种子与逐词输出示例。解释算法复杂度与无法解决的语言学歧义。",
-      "用 Markdown 表格比较规则式有限状态形态分析、无监督贝叶斯切分、字符序列模型和子词分词，包含边界 F1、词形泛化、标注成本与解释性。给出一幅 Mermaid 数据流图及中英文图注。",
-      "撰写低资源语言实验计划，包含 LaTeX 指标定义、bootstrap 置信区间、跨说话人划分、数据授权与方言偏差分析。汇总代码和表格的结论，明确合成数据与真实语料验证的差别。"
-    ]
-  },
-  {
     "id": "numerical_linear_algebra_randomized_svd_streaming",
     "title": "随机数值线性代数：流式低秩近似、误差界与可复现实验",
     "domain": "numerical_linear_algebra_randomized_low_rank_streaming",
@@ -202,28 +181,6 @@
       "Write runnable Python to fit log-transformed shape and scale parameters to an explicitly invented small censored dataset. Show convergence diagnostics and reject negative or zero lifetimes.",
       "Use a Markdown table to compare Kaplan-Meier estimates, exponential and Weibull parametric models, and accelerated lifetime testing. Cover assumptions, uncertainty and extrapolation limitations.",
       "Design a parametric bootstrap for the reliability at a fixed mission duration. Explain confidence intervals, model misspecification and how a monitoring plan should detect departures from the fitted hazard."
-    ]
-  },
-  {
-    "id": "desalination_reverse_osmosis_energy_recovery",
-    "domain": "water_engineering_membrane_desalination",
-    "title": "Reverse osmosis: membrane transport and energy recovery",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original engineering cutaway image of a seawater reverse osmosis system showing the membrane vessel, feed pump, brine stream and pressure energy recovery device. Then explain the flow in prose.",
-      "Derive a simple membrane water flux model J = A (delta P - delta pi), state units, and use inline and display LaTeX to explain osmotic pressure, recovery and concentration polarization.",
-      "Write a complete Python script to sweep feed pressure, membrane area and salt concentration. Print a compact numerical table and handle nonpositive net driving pressure explicitly.",
-      "Create a Markdown comparison table for reverse osmosis, thermal distillation and electrodialysis, comparing energy demand, feed salinity, fouling modes and achievable product quality.",
-      "Develop a monitoring and troubleshooting plan for a desalination plant with intermittent feed pressure and growing salt passage. Include a worked mass balance, assumptions, uncertainty and operational tradeoffs."
     ]
   },
   {
@@ -419,6 +376,48 @@
       "用 Python 标准库实现凸多边形裁剪，包含方向统一、半平面裁剪、交点计算、重复顶点处理以及 Fraction 精确谓词兜底。给出完整可运行代码与面积守恒检查，覆盖逆时针和顺时针输入。",
       "用 Markdown 表格比较 Sutherland–Hodgman、Weiler–Atherton、平面扫描和栅格化近似在凹多边形、孔洞、退化输入、复杂度与精度方面的适用范围。用 Mermaid 绘制过滤谓词到精确计算的流程。",
       "撰写长篇稳健性验证报告，设计固定随机种子的对称性、幂等性、平移与缩放性质测试，并覆盖共边、单点接触、近零面积和高动态范围坐标。给出生成器代码、失败案例表格与误差指标，说明当前凸裁剪原型的能力边界。"
+    ]
+  },
+  {
+    "id": "paleontology_fossil_taphonomy_preservation_bias",
+    "title": "化石埋藏学：沉积剖面、生物保存与采样偏差",
+    "domain": "paleontology_fossil_taphonomy",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖原创沉积剖面生图、保存概率模型、合成数据代码、采样方法表格与中英文长报告。",
+    "turns": [
+      "请实际生成一张原创科学剖面图，描绘一个虚构湖盆的泥质、砂质和火山灰沉积层，以及不同层位保存的叶片、鱼类与贝壳化石。标注埋藏、搬运和侵蚀路径，明确图示为教学假想场景，随后用中英文说明保存偏差。请直接输出生成的图片。",
+      "建立只针对该虚构教学场景的化石观测模型：真实个体数量、保存概率、暴露概率与采集概率共同决定观测计数。用 LaTeX 推导二项抽稀与 Poisson 观测模型，解释无法由观测计数单独辨识真实丰度和保存概率。",
+      "用 Python/NumPy 编写可运行程序，固定随机种子生成不同沉积相下的合成化石计数，展示错误假设相同保存概率如何造成丰度误判。给出完整代码、单位说明和参数敏感性分析，明确所有数值为模拟结果。",
+      "用 Markdown 表格比较等体积采样、等面积采样、分层随机采样和稀释曲线的估计对象、劳动成本、假设与偏差。用 LaTeX 定义置信区间并提供中英文术语对照，区分物种丰富度与个体丰度。",
+      "撰写长篇研究设计报告，讨论再搬运、时间平均、岩性变化和鉴定误差对虚构化石组合的影响。给出采样流程图、数据质量检查代码和实验记录模板，避免将合成示例表述为真实古生态发现。"
+    ]
+  },
+  {
+    "id": "coding_theory_ldpc_erasure_decoding_density_evolution",
+    "title": "编码理论：LDPC 擦除译码与密度演化",
+    "domain": "coding_theory_ldpc_binary_erasure_channel",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖 Tanner 图、擦除概率递推、Python 译码器、复杂度表格与有限长度失效分析。",
+    "turns": [
+      "从二元擦除信道出发，用 LaTeX 定义 LDPC 校验矩阵、Tanner 图和消息传递译码规则。用一个小型校验矩阵手工演示擦除符号恢复，区分擦除与随机翻转错误。",
+      "推导规则 LDPC 码在无限长度树状邻域假设下的密度演化递推，明确边视角度分布以及译码阈值的定义。说明有限长度短环为何破坏独立性假设，不将渐近阈值当作有限长度性能保证。",
+      "用 Python 标准库与 NumPy 编写可复现的擦除信道模拟和 peeling 译码器。包含固定随机种子、合法校验矩阵检查、已恢复符号一致性断言，以及不同擦除率下的块失败率估计。输出完整可运行代码。",
+      "使用 Markdown 表格对比 peeling 译码、Gaussian elimination 与 belief propagation 在二元擦除信道下的复杂度、残余停止集处理、内存与结果保证。加入英文和中文术语对照，并给出误差条的 LaTeX 计算公式。",
+      "撰写详细实验报告，对块长度、变量节点度、短环和停止集进行敏感性分析。提供停止集搜索伪代码、可复现参数表及失败轨迹说明，分清理论推导、模拟估计和未经证明的工程猜测。"
     ]
   }
 ]
