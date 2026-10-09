@@ -124,6 +124,9 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
         LiveSaveObserver.init({
             debounceMs: 300,
             onTurnComplete: (cid, reason) => {
+                if (reason === 'turn_complete') {
+                    void Sync.touchActiveConversation(cid, undefined, { forceWrite: true, source: 'live-turn-complete' });
+                }
                 void LiveSaveCoordinator.executeLiveSave(cid, reason);
             }
         });
