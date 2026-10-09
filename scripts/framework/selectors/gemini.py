@@ -21,6 +21,7 @@ class GeminiSelectors:
     # ─── 流式生成与状态指示器 ───
     STREAMING_INDICATORS: str = '.streaming-text, .loading-dots, [data-is-streaming="true"], spark-progress'
     MODEL_RESPONSE: str = 'model-response'
+    MODEL_RESPONSE_BODY: str = 'model-response-content'
     MODEL_RESPONSE_ALL: str = (
         'message-content.model-response-text, model-response, [data-test-id="model-response"], '
         '.model-response, message-content.model-message, .response-container, '

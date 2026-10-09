@@ -980,6 +980,12 @@ def test_dag_subgraph_suite():
     assert res.returncode == 0, f"test_dag_subgraph.py failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 Declarative DAG Scheduling & Subgraph Pruning test suite passed")
 
+def test_tier2_assertions_suite():
+    import subprocess
+    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_tier2_assertions.py")], capture_output=True, text=True)
+    assert res.returncode == 0, f"Tier 2 assertion counterexamples failed: {res.stderr or res.stdout}"
+    print("  ✓ Tier 2 content/completeness assertions and fault counterexamples passed")
+
 def test_impact_analyzer_suite():
     import subprocess
     cmd = [sys.executable, os.path.join(BASE_DIR, "tests", "test_impact_analyzer.py")]
@@ -1075,6 +1081,7 @@ def run_all():
                     test_framework_environment_suite()
                 if any(x in f for f in affected for x in ["framework", "dag", "cases"]):
                     test_dag_subgraph_suite()
+                    test_tier2_assertions_suite()
                 if any("impact_analyzer" in f for f in affected):
                     test_impact_analyzer_suite()
 
@@ -1111,6 +1118,7 @@ def run_all():
     test_visual_sandbox_suite()
     test_framework_environment_suite()
     test_dag_subgraph_suite()
+    test_tier2_assertions_suite()
     test_impact_analyzer_suite()
     test_javascript_syntax()
     test_javascript_unit_tests()
@@ -1122,5 +1130,4 @@ def run_all():
 
 if __name__ == "__main__":
     run_all()
-
 

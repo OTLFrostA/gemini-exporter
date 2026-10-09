@@ -11,7 +11,7 @@ from scripts.framework.archive_resources import validate_archive_resources
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
-from scripts.framework.assertions import CDPAssertions
+from scripts.framework.assertions import CDPAssertions, assert_archive_targets
 from scripts.framework.selectors import WorkbenchSelectors
 
 DESIGNATED_HISTORICAL_CHATS = [
@@ -56,6 +56,36 @@ DESIGNATED_HISTORICAL_CHATS = [
 ]
 
 
+def select_format_targets(cdp_opt, ctx, format_type):
+    required = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
+    required += [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if not h.get('optional')]
+    optional = [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if h.get('optional')]
+    result = cdp_opt.eval(f"""
+    (() => {{
+        const required = {json.dumps(required)}, optional = {json.dumps(optional)};
+        const normalize = id => (id || '').replace(/^c_/, '');
+        const items = Array.from(document.querySelectorAll('#list .item'));
+        const skip = document.getElementById('skipExported'), format = document.getElementById('format');
+        if (!skip || !format) return {{ error: 'Missing format/skip controls' }};
+        skip.checked = false; skip.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        format.value = {json.dumps(format_type)}; format.dispatchEvent(new Event('change', {{ bubbles: true }}));
+        const matched = [];
+        for (const item of items) {{
+            const cid = normalize(item.dataset.chatId), cb = item.querySelector('input[type=checkbox]');
+            if (!cb) continue;
+            cb.checked = [...required, ...optional].includes(cid);
+            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
+            if (cb.checked) matched.push(cid);
+        }}
+        return {{ matched, missing: required.filter(cid => !matched.includes(cid)),
+                  optionalMissing: optional.filter(cid => !matched.includes(cid)) }};
+    }})()
+    """) or {}
+    if result.get('error') or result.get('missing') or not result.get('matched'):
+        raise RuntimeError(f"指定 {format_type} 目标未完整勾选: {result}")
+    return result
+
+
 class LiveSaveNewChatCase(FeatureTestCase):
     def __init__(self):
         super().__init__(
@@ -80,13 +110,16 @@ class LiveSaveNewChatCase(FeatureTestCase):
         try:
             # 1. 刷新 OPFS 目录并物理落盘到 output_dir
             flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
+            if not flush_res.get('ok'):
+                return False, f"OPFS 回写失败: {flush_res.get('error')}", flush_res
             print(f"      📁 实时落盘文件已同步到磁盘 (文件总数: {flush_res.get('count', 0)})")
 
             # 2. 真实物理磁盘断言：必须存在对应的 .md 文件、大小 > 0、mtime >= ctx.start_time
             disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
                 target_dir=ctx.output_dir,
                 target_chat_ids=[s2_id],
-                min_mtime=ctx.start_time
+                min_mtime=ctx.start_time,
+                turn_evidence={s2_id: ctx.chat_records[1].get('turn_evidence', [])}
             )
             if not disk_ok:
                 return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
@@ -126,6 +159,22 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
         # 1. 在 Options 工作台重新开启实时导出
         cdp_opt = ctx.connect_options()
         try:
+            # Snapshot before the next actual prompt. The first exported MD is a
+            # physical ZIP baseline when live save has not yet written this chat.
+            baseline = ctx.shared_data.get('live_save_baselines', {}).get(s1_id)
+            if not baseline:
+                return False, "缺少老会话追加前的真实 MD 基线", None
+            flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
+            if not flush_res.get('ok'):
+                return False, f"追加前 OPFS 回写失败: {flush_res.get('error')}", flush_res
+            before_dir = os.path.join(ctx.output_dir, 'gemini_export')
+            if os.path.isdir(before_dir):
+                candidates = [f for f in os.listdir(before_dir) if f.endswith(f'_{s1_id[-6:]}.md')]
+                if len(candidates) > 1:
+                    return False, "追加前老会话 MD 身份不唯一", None
+                if candidates:
+                    with open(os.path.join(before_dir, candidates[0]), encoding='utf-8') as f:
+                        baseline = f.read()
             setup_ok = CDPActions.setup_live_save(cdp_opt, enabled=True)
             if not setup_ok:
                 return False, "开启实时导出设置失败", None
@@ -144,24 +193,29 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
             turn_res = session.send_turn(follow_up_prompt, max_wait=120)
             if not turn_res.success:
                 return False, f"老会话继续追加提问失败: {turn_res.error}", None
+            ctx.record_turn(ctx.chat_records[0], turn_res)
             ctx.chat_records[0]["turns"].append(follow_up_prompt)
             print("      ✓ 继续追加提问流式回复已落地，等待实时保存落盘...")
-            time.sleep(3.0)
         finally:
             cdp_gem.close()
 
         # 3. 回到 Options 页面，将 OPFS 实时落盘实体回写物理磁盘
         cdp_opt = ctx.connect_options()
         try:
-            flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
-            print(f"      📁 实时落盘文件已同步到磁盘 (文件总数: {flush_res.get('count', 0)})")
-
-            # 4. 物理磁盘断言：会话 1 的 .md 必须物理存在、字节非空、mtime 更新
-            disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
-                target_dir=ctx.output_dir,
-                target_chat_ids=[s1_id],
-                min_mtime=ctx.start_time
-            )
+            # Poll the actual content, not an arbitrary fixed settle delay.
+            deadline = time.monotonic() + 30
+            while True:
+                flush_res = CDPActions.flush_live_save_to_disk(cdp_opt, ctx.output_dir)
+                if not flush_res.get('ok'):
+                    return False, f"OPFS 回写失败: {flush_res.get('error')}", flush_res
+                disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
+                    target_dir=ctx.output_dir, target_chat_ids=[s1_id], min_mtime=ctx.start_time,
+                    turn_evidence={s1_id: ctx.chat_records[0].get('turn_evidence', [])},
+                    baselines={s1_id: baseline}
+                )
+                if disk_ok or time.monotonic() >= deadline:
+                    break
+                time.sleep(0.5)
             if not disk_ok:
                 return False, f"场景二物理磁盘落盘断言失败: {disk_msg}", disk_data
 
@@ -429,174 +483,84 @@ class FastSkipExportedCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
-            # 确保清空搜索框
             CDPActions.clear_search_workbench(cdp_opt)
-            time.sleep(0.5)
-
-            # 步骤 1：全量跳过与防空 ZIP 保护断言 (All-Skip Fast Path)
-            target_ids = []
-            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
-            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
-
-            select_res = cdp_opt.eval(f"""
-            (() => {{
-                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
-                if (searchInput && searchInput.value) {{
-                    searchInput.value = '';
-                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    searchInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-                if (searchInput) searchInput.blur();
-
-                const selectNone = document.getElementById('btnSelectNone');
-                if (selectNone) selectNone.click();
-                document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {{
-                    if (cb.checked) {{
-                        cb.checked = false;
-                        cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    }}
-                }});
-
-                const targetIds = {json.dumps(target_ids)};
-                const targetTitles = {json.dumps(target_titles)};
-                const items = Array.from(document.querySelectorAll('#list .item'));
-                let checkedCount = 0;
-                items.forEach(item => {{
-                    const cid = item.dataset.chatId;
-                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
-                    const hasBadge = Boolean(item.querySelector('.badge-exported'));
-                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
-                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
-                    if (hasBadge || matchId || matchTitle) {{
-                        const cb = item.querySelector('input[type=checkbox]');
-                        if (cb) {{
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            checkedCount++;
-                        }}
-                    }}
-                }});
-                const skipCb = document.getElementById('skipExported');
-                if (skipCb && !skipCb.checked) {{
-                    skipCb.checked = true;
-                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-                const zipCb = document.getElementById('includeZip');
-                if (zipCb && !zipCb.checked) {{
-                    zipCb.checked = true;
-                    zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-                const actualChecked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
-                return {{ checkedCount, actualChecked }};
-            }})()
-            """) or {}
-
-            actual_checked = select_res.get("actualChecked", 0)
-            if actual_checked < 6:
-                return False, f"未能在工作台中勾选足够的已导出会话: actualChecked={actual_checked} < 6", select_res
-
-            # 触发导出前记录时间戳与当前输出目录文件列表
-            start_t = time.time()
-            existing_files = set(os.listdir(ctx.output_dir)) if os.path.isdir(ctx.output_dir) else set()
-
-            # 点击导出
-            cdp_opt.eval(f"document.querySelector('{WorkbenchSelectors.BTN_EXPORT}')?.click();")
-
-            # 等待极速跳过完成（至多 6 秒，正常情况下在 0.5s 之内瞬间完成）
-            completed = False
-            skip_log_found = False
-            finish_msg = ""
-            for _ in range(12):
-                time.sleep(0.5)
-                status_info = cdp_opt.eval(f"""
-                (() => {{
-                    const progText = document.getElementById('progText')?.textContent || '';
-                    const logEl = document.querySelector('{WorkbenchSelectors.LOG}') || document.getElementById('log');
-                    const logText = logEl ? logEl.textContent : '';
-                    const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
-                    const isBusy = btn && btn.disabled;
-                    const hasSkip = logText.includes('跳过') || logText.includes('skipped') || logText.includes('无需生成 ZIP') ||
-                                    progText.includes('跳过') || progText.includes('skipped') || progText.includes('无需生成 ZIP');
-                    return {{
-                        progText,
-                        logSnippet: logText.slice(-200),
-                        hasSkipLog: Boolean(hasSkip),
-                        isBusy: Boolean(isBusy)
-                    }};
-                }})()
-                """) or {}
-                if status_info.get("hasSkipLog"):
-                    skip_log_found = True
-                if not status_info.get("isBusy") and status_info.get("hasSkipLog"):
-                    completed = True
-                    finish_msg = status_info.get("progText", "") or status_info.get("logSnippet", "")
-                    break
-
-            all_skip_duration = time.time() - start_t
-            if not completed or not skip_log_found:
-                return False, f"全量已导出会话未在预期时间内瞬间跳过: duration={all_skip_duration:.2f}s, msg={finish_msg}", None
-
-            # 检查输出目录，验证没有生成新的空 ZIP 文件 (防空 ZIP 保护)
-            current_files = set(os.listdir(ctx.output_dir)) if os.path.isdir(ctx.output_dir) else set()
-            new_zips = [f for f in (current_files - existing_files) if f.endswith(".zip")]
-            if new_zips:
-                return False, f"全量跳过时异常生成了无内容 ZIP 包: {new_zips}", None
-
-            # 步骤 2：部分跳过与分流导出断言 (Partial Skip + Export)
-            partial_prep = cdp_opt.eval("""
+            prep = cdp_opt.eval("""
             (() => {
-                const selectNone = document.getElementById('btnSelectNone');
-                if (selectNone) selectNone.click();
-                document.querySelectorAll('#list input[type=checkbox]').forEach(cb => {
-                    if (cb.checked) {
-                        cb.checked = false;
-                        cb.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                });
                 const items = Array.from(document.querySelectorAll('#list .item'));
-                let unexportedItem = null;
-                let exportedItem = null;
+                const exported = items.filter(it => it.querySelector('.badge-exported'));
+                const skip = document.getElementById('skipExported');
+                const zip = document.getElementById('includeZip');
+                const btn = document.getElementById('btnExport');
+                if (!skip || !zip || !btn || btn.disabled) return { error: 'Export controls unavailable' };
                 for (const it of items) {
-                    const hasExportedBadge = it.querySelector('.badge-exported');
-                    if (hasExportedBadge && !exportedItem) {
-                        exportedItem = it;
-                    } else if (!hasExportedBadge && !unexportedItem) {
-                        unexportedItem = it;
-                    }
-                    if (exportedItem && unexportedItem) break;
+                    const cb = it.querySelector('input[type=checkbox]');
+                    if (cb) { cb.checked = exported.includes(it); cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
-                if (exportedItem) {
-                    const cb = exportedItem.querySelector('input[type=checkbox]');
-                    if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
-                }
-                if (unexportedItem) {
-                    const cb = unexportedItem.querySelector('input[type=checkbox]');
-                    if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
-                }
-                const skipCb = document.getElementById('skipExported');
-                if (skipCb && !skipCb.checked) {
-                    skipCb.checked = true;
-                    skipCb.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-                return {
-                    hasExported: Boolean(exportedItem),
-                    hasUnexported: Boolean(unexportedItem),
-                    exportedTitle: exportedItem?.querySelector('.chat-title')?.textContent || '',
-                    unexportedTitle: unexportedItem?.querySelector('.chat-title')?.textContent || ''
-                };
+                skip.checked = true; skip.dispatchEvent(new Event('change', { bubbles: true }));
+                zip.checked = true; zip.dispatchEvent(new Event('change', { bubbles: true }));
+                return { count: exported.length, log: document.getElementById('log')?.textContent || '' };
             })()
             """) or {}
+            if prep.get('error') or prep.get('count', 0) < 6:
+                return False, f"全量跳过准备不足: {prep}", prep
+            start = time.monotonic()
+            existing_files = set(os.listdir(ctx.output_dir))
+            clicked = cdp_opt.eval("""(() => {
+                const btn = document.getElementById('btnExport');
+                if (!btn || btn.disabled) return false;
+                btn.click(); return true;
+            })()""")
+            if not clicked:
+                return False, "全量跳过导出按钮不可用", None
+            completed = False
+            status = {}
+            while time.monotonic() - start < 6:
+                status = cdp_opt.eval("""(() => ({
+                    busy: !!document.getElementById('btnExport')?.disabled,
+                    log: document.getElementById('log')?.textContent || ''
+                }))()""") or {}
+                previous = prep.get('log', '')
+                current = status.get('log', '')
+                fresh = current[len(previous):] if current.startswith(previous) else current if current != previous else ''
+                if not status.get('busy') and re.search(r'跳过|skipped|无需生成 ZIP', fresh, re.IGNORECASE):
+                    completed = True
+                    break
+                time.sleep(0.25)
+            duration = time.monotonic() - start
+            if not completed:
+                return False, "没有本次导出的全量跳过完成证据", status
+            new_zips = [f for f in set(os.listdir(ctx.output_dir)) - existing_files if f.endswith('.zip')]
+            if new_zips:
+                return False, f"全量跳过异常生成 ZIP: {new_zips}", status
 
-            if partial_prep.get("hasExported") and partial_prep.get("hasUnexported"):
-                partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
-                if not partial_zip or not os.path.isfile(partial_zip):
-                    return False, "部分跳过导出时未能成功生成未导出会话的 ZIP 包", partial_prep
-
-            return True, f"已导出会话前置极速过滤与防空 ZIP 保护验证通过 (全量跳过耗时 {all_skip_duration:.2f}s，防空 ZIP 生效)", {
-                "all_skip_duration": all_skip_duration,
-                "finish_msg": finish_msg,
-                "partial_prep": partial_prep
+            partial = cdp_opt.eval("""
+            (() => {
+                const items = Array.from(document.querySelectorAll('#list .item'));
+                const exported = items.find(it => it.querySelector('.badge-exported'));
+                const unexported = items.find(it => !it.querySelector('.badge-exported'));
+                for (const it of items) {
+                    const cb = it.querySelector('input[type=checkbox]');
+                    if (cb) { cb.checked = it === exported || it === unexported; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+                }
+                return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId };
+            })()
+            """) or {}
+            if not partial.get('exportedId') or not partial.get('unexportedId'):
+                return False, "部分跳过需要真实已导出与未导出两类会话，准备不足", partial
+            partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
+            if not partial_zip or not os.path.isfile(partial_zip):
+                return False, "部分跳过没有生成 ZIP", partial
+            with zipfile.ZipFile(partial_zip) as zf:
+                ok, msg = assert_archive_targets(zf.namelist(), [partial['unexportedId']], '.md', [partial['exportedId']])
+                if not ok:
+                    return False, msg, partial
+                name = next(n for n in zf.namelist() if n.endswith('.md') and not os.path.basename(n).startswith('.'))
+                text = zf.read(name).decode('utf-8')
+                match = re.search(r'^id:\s*["\']?([^"\'\s]+)', text, re.MULTILINE)
+                if not match or match.group(1).removeprefix('c_') != partial['unexportedId'].removeprefix('c_'):
+                    return False, "部分跳过 ZIP 正文的会话 ID 不匹配", partial
+            return True, f"全量跳过与部分跳过均验证，ZIP 只含未导出目标 (全量耗时 {duration:.2f}s)", {
+                'all_skip_duration': duration, 'partial_prep': partial, 'zip_path': partial_zip
             }
         finally:
             cdp_opt.close()
@@ -622,79 +586,7 @@ class HtmlExportDownloadCase(FeatureTestCase):
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.3)
 
-            target_ids = []
-            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
-            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
-
-            # 勾选待导出会话，禁用 skipExported，并将 format 设为 html
-            check_res = cdp_opt.eval(f"""
-            (() => {{
-                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
-                if (searchInput && searchInput.value) {{
-                    searchInput.value = '';
-                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                }}
-                const selectNone = document.getElementById('btnSelectNone');
-                if (selectNone) selectNone.click();
-
-                const skipCb = document.getElementById('skipExported');
-                if (skipCb && skipCb.checked) {{
-                    skipCb.checked = false;
-                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-
-                const sel = document.getElementById('format');
-                if (sel && sel.value !== 'html') {{
-                    sel.value = 'html';
-                    sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-
-                const targetIds = {json.dumps(target_ids)};
-                const targetTitles = {json.dumps(target_titles)};
-                const items = Array.from(document.querySelectorAll('#list .item'));
-                let checkedCount = 0;
-                const matchedList = [];
-                items.forEach(item => {{
-                    const cid = item.dataset.chatId;
-                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
-                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
-                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
-                    if (matchId || matchTitle) {{
-                        const cb = item.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {{
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            checkedCount++;
-                            matchedList.push({{ id: cid, title: titleText }});
-                        }}
-                    }}
-                }});
-                return {{
-                    totalItems: items.length,
-                    checkedCount: checkedCount,
-                    matched: matchedList
-                }};
-            }})()
-            """) or {}
-            time.sleep(0.5)
-
-            checked_count = check_res.get("checkedCount", 0)
-            if checked_count < 2:
-                # 兜底：若特定会话未匹配够，勾选当前列表前 4 项
-                cdp_opt.eval("""
-                (() => {
-                    const items = Array.from(document.querySelectorAll('#list .item'));
-                    items.slice(0, 4).forEach(it => {
-                        const cb = it.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                    });
-                })()
-                """)
-                time.sleep(0.3)
+            check_res = select_format_targets(cdp_opt, ctx, "html")
 
             downloaded_zip = CDPActions.trigger_export_zip(
                 cdp_opt,
@@ -717,6 +609,9 @@ class HtmlExportDownloadCase(FeatureTestCase):
                 namelist = zf.namelist()
 
             html_files = [n for n in namelist if n.endswith(".html") and not os.path.basename(n).startswith(".")]
+            targets_ok, targets_msg = assert_archive_targets(namelist, check_res['matched'], '.html')
+            if not targets_ok:
+                return False, targets_msg, check_res
             if len(html_files) == 0:
                 return False, f"导出的 ZIP 中未包含任何 .html 文件 (文件清单: {namelist[:5]})", None
 
@@ -834,79 +729,7 @@ class PdfExportDownloadCase(FeatureTestCase):
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.3)
 
-            target_ids = []
-            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
-            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
-
-            # 勾选待导出会话，禁用 skipExported，并将 format 设为 pdf
-            check_res = cdp_opt.eval(f"""
-            (() => {{
-                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
-                if (searchInput && searchInput.value) {{
-                    searchInput.value = '';
-                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                }}
-                const selectNone = document.getElementById('btnSelectNone');
-                if (selectNone) selectNone.click();
-
-                const skipCb = document.getElementById('skipExported');
-                if (skipCb && skipCb.checked) {{
-                    skipCb.checked = false;
-                    skipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-
-                const sel = document.getElementById('format');
-                if (sel && sel.value !== 'pdf') {{
-                    sel.value = 'pdf';
-                    sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                }}
-
-                const targetIds = {json.dumps(target_ids)};
-                const targetTitles = {json.dumps(target_titles)};
-                const items = Array.from(document.querySelectorAll('#list .item'));
-                let checkedCount = 0;
-                const matchedList = [];
-                items.forEach(item => {{
-                    const cid = item.dataset.chatId;
-                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
-                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
-                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
-                    if (matchId || matchTitle) {{
-                        const cb = item.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {{
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            checkedCount++;
-                            matchedList.push({{ id: cid, title: titleText }});
-                        }}
-                    }}
-                }});
-                return {{
-                    totalItems: items.length,
-                    checkedCount: checkedCount,
-                    matched: matchedList
-                }};
-            }})()
-            """) or {}
-            time.sleep(0.5)
-
-            checked_count = check_res.get("checkedCount", 0)
-            if checked_count < 2:
-                # 兜底：若特定会话未匹配够，勾选当前列表前 4 项
-                cdp_opt.eval("""
-                (() => {
-                    const items = Array.from(document.querySelectorAll('#list .item'));
-                    items.slice(0, 4).forEach(it => {
-                        const cb = it.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                    });
-                })()
-                """)
-                time.sleep(0.3)
+            check_res = select_format_targets(cdp_opt, ctx, "pdf")
 
             downloaded_zip = CDPActions.trigger_export_zip(
                 cdp_opt,
@@ -929,6 +752,9 @@ class PdfExportDownloadCase(FeatureTestCase):
                 namelist = zf.namelist()
 
             pdf_files = [n for n in namelist if n.endswith(".pdf") and not os.path.basename(n).startswith(".")]
+            targets_ok, targets_msg = assert_archive_targets(namelist, check_res['matched'], '.pdf')
+            if not targets_ok:
+                return False, targets_msg, check_res
             if len(pdf_files) == 0:
                 return False, f"导出的 ZIP 中未包含任何 .pdf 文件 (文件清单: {namelist[:5]})", None
 

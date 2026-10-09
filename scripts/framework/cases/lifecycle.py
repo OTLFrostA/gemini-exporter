@@ -38,11 +38,12 @@ class ContinuedChatPromotionCase(FeatureTestCase):
         try:
             cdp_opt_prep = ctx.connect_options()
             try:
-                CDPActions.setup_live_save(cdp_opt_prep, enabled=False)
+                if not CDPActions.setup_live_save(cdp_opt_prep, enabled=False):
+                    return False, "无法关闭实时落盘以验证已更新状态", None
             finally:
                 cdp_opt_prep.close()
         except Exception as e:
-            print(f"      ⚠️ 临时关闭实时落盘提示: {e}")
+            return False, f"临时关闭实时落盘失败: {e}", None
 
         cdp_g2 = ctx.connect_gemini()
         try:
@@ -53,6 +54,7 @@ class ContinuedChatPromotionCase(FeatureTestCase):
             print(f"      ▶️ 追加提问: '{add_turn[:36]}...'")
             turn_res = session.send_turn(add_turn, max_wait=120)
             if turn_res.success:
+                ctx.record_turn(ctx.chat_records[0], turn_res)
                 ctx.chat_records[0]["turns"].append(add_turn)
                 return True, "老会话追加提问成功完成并触发 STREAM_COMPLETE", None
             return False, f"追加提问失败: {turn_res.error}", None

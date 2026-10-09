@@ -330,7 +330,7 @@ class FeatureRegistry:
                 lines.append(f" {f.id:<34} | {f.name:<24} | {status_icon:<8} | {duration_str:<7} | {msg}")
 
         lines.append("\n" + "=" * 80)
-        overall_status = "🎉 全部通过 (ALL PASSED)" if failed_count == 0 and passed_count > 0 else ("⚠️ 存在失败项" if failed_count > 0 else "未完成")
+        overall_status = "🎉 全部通过 (ALL PASSED)" if passed_count == total_count else ("⚠️ 存在失败项" if failed_count > 0 else "⚠️ 未完整执行（含跳过或待执行项）")
         lines.append(f" 汇总统计: 总计 {total_count} 项 | 通过: {passed_count} | 失败: {failed_count} | 跳过: {skipped_count} | 警告: {warn_count}")
         lines.append(f" 最终判定: {overall_status}")
         lines.append("=" * 80)

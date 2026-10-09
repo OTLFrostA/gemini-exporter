@@ -1,46 +1,5 @@
 [
   {
-    "id": "numerical_linear_algebra_randomized_svd_streaming",
-    "title": "随机数值线性代数：流式低秩近似、误差界与可复现实验",
-    "domain": "numerical_linear_algebra_randomized_low_rank_streaming",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "multimodal"
-    ],
-    "description": "测试概率误差界、长 Python 数值代码、内存复杂度表格、算法图及中英文解释。",
-    "turns": [
-      "从 A in R^(m x n) 的随机范围寻找 Y=A Omega 出发，用 LaTeX 推导投影误差 ||A-QQ^T A||_F 与奇异值尾部的关系，明确 Gaussian 随机矩阵、oversampling 和 power iteration 的假设，不混淆期望界与高概率界。",
-      "使用 Python/NumPy 实现 randomized SVD，包含固定随机种子、QR 稳定化、奇异谱可控的合成矩阵和相对 Frobenius/谱范数误差。给出完整可运行代码与精确 SVD 基线。",
-      "推导单遍流式 sketch 的内存和计算成本，用 Mermaid 绘制输入块、sketch、压缩矩阵与重构的算法流程，并指出两遍范围寻找不能未经修改当作单遍算法。",
-      "用 Markdown 表格比较精确 SVD、randomized SVD、Frequent Directions 与增量 PCA 的遍历次数、内存、误差保证、确定性和适用矩阵谱。所有示例性能数字必须标注为实验假设或实测。",
-      "设计涵盖缓慢奇异值衰减、近重根、稀疏矩阵和概念漂移的实验方案，用 LaTeX 给出置信区间和误差指标，讨论有限精度失效模式，并附带中英文术语表和自动验证伪代码。"
-    ]
-  },
-  {
-    "id": "operations_inventory_perishable_stochastic_control",
-    "domain": "operations_research_perishable_inventory_control",
-    "title": "易腐库存随机控制：年龄结构、服务约束与动态规划",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "食品冷链的虚构库存年龄结构、随机需求动态规划、可复现仿真与启发式策略比较。",
-    "turns": [
-      "为一个完全虚构的冷链仓库建立易腐商品库存模型：商品保质期3个离散周期，状态记录各年龄库存，需求服从给定离散分布，先进先出发货，过期销毁。用LaTeX完整定义状态转移、成本函数和Bellman方程，并解释订货与需求发生顺序。",
-      "推导有限时域动态规划算法，说明库存状态与订货量的截断如何影响最优性，给出服务水平约束可行性的检测方法，区分缺货惩罚与硬约束。请给出小规模可手算数值例子。",
-      "用Python实现精确动态规划和带固定随机种子的仿真器，以年龄结构为状态，在有限订货空间求策略。加入物料守恒断言和周期末过期量检查，并展示如何复现模拟轨迹。",
-      "用Markdown表格比较最优年龄感知策略、固定订货点策略与简单订货至目标策略在缺货率、过期损耗、平均成本及计算复杂度上的表现，解释共同随机数如何减少策略比较方差。",
-      "撰写长篇技术报告，将需求分布误设、延迟到货和传感器库存误差纳入鲁棒性讨论。提供置信区间计算代码、参数敏感性表格以及模型无法覆盖的现实冷链限制，保持全部数据明确为虚构。"
-    ]
-  },
-  {
     "id": "robotics_warehouse_multi_agent_pathfinding",
     "domain": "robotics_warehouse_multi_agent_pathfinding",
     "title": "Warehouse robot multi-agent path planning and congestion scheduling",
@@ -204,29 +163,6 @@
     ]
   },
   {
-    "id": "airborne_wind_tethered_kite_power",
-    "domain": "energy_engineering_airborne_wind",
-    "title": "Airborne wind power: tether tension and crosswind flight",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "algorithms",
-      "physics"
-    ],
-    "turns": [
-      "Generate an original explanatory image of a tethered kite wind energy system with wind direction, lift, drag, tether tension and ground generator clearly visible. Explain the energy flow.",
-      "Derive a simplified crosswind power model with inline and display LaTeX. State assumptions, aerodynamic coefficients, tether drag and operating limits.",
-      "Write a complete Python example that sweeps wind speed and lift to drag ratio, prints a numerical power table and checks physical bounds.",
-      "Build a Markdown comparison table for airborne wind, fixed offshore wind and floating offshore wind, comparing deployment, control, weather exposure and maintenance.",
-      "Develop a quantitative safety and control strategy for a kite power system during gusts. Include tension limits, sensor uncertainty, graceful shutdown and parameter sensitivity."
-    ]
-  },
-  {
     "id": "urban_bus_headway_bunching_control",
     "domain": "transport_operations_bus_headway_control",
     "title": "Bus headway control: passenger queues and service regularity",
@@ -244,29 +180,6 @@
       "Write a complete Python simulation with fixed random seed for passenger arrivals and bus service. Report a waiting time summary and regularity metrics across replications.",
       "Create a Markdown comparison table for schedule based control, headway based holding, limited stop service and dispatch intervention, including benefits and operational constraints.",
       "Design an evaluation plan for deploying headway control on an urban route. Include demand uncertainty, fairness between on board and waiting passengers, monitoring and failure recovery."
-    ]
-  },
-  {
-    "id": "green_roof_stormwater_retention",
-    "domain": "urban_hydrology_green_roof",
-    "title": "Green roof stormwater retention and overflow",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "algorithms",
-      "physics"
-    ],
-    "turns": [
-      "Generate an original labeled sectional image of a hypothetical green roof showing vegetation, substrate, drainage layer, storage tank and overflow. Explain how rainfall flows through the system.",
-      "Derive a conceptual water balance and storage routing model with inline and display LaTeX. State units and assumptions for infiltration, evaporation, drainage and overflow.",
-      "Write a complete Python simulation with a fixed rainfall time series, conservation checks and a numerical table comparing substrate depth and storage capacity.",
-      "Create a Markdown comparison table for green roofs, permeable paving, rain gardens and underground detention, including storage, maintenance, peak flow reduction and constraints.",
-      "Give a detailed sensitivity and uncertainty analysis for a hypothetical catchment. Include drought conditions, clogged drainage, intense storms and monitoring design; label all assumed parameters."
     ]
   },
   {
@@ -418,6 +331,91 @@
       "用 Python 标准库与 NumPy 编写可复现的擦除信道模拟和 peeling 译码器。包含固定随机种子、合法校验矩阵检查、已恢复符号一致性断言，以及不同擦除率下的块失败率估计。输出完整可运行代码。",
       "使用 Markdown 表格对比 peeling 译码、Gaussian elimination 与 belief propagation 在二元擦除信道下的复杂度、残余停止集处理、内存与结果保证。加入英文和中文术语对照，并给出误差条的 LaTeX 计算公式。",
       "撰写详细实验报告，对块长度、变量节点度、短环和停止集进行敏感性分析。提供停止集搜索伪代码、可复现参数表及失败轨迹说明，分清理论推导、模拟估计和未经证明的工程猜测。"
+    ]
+  },
+  {
+    "id": "microfluidics_electrophoresis_joule_heating",
+    "domain": "microfluidics_electrophoretic_separation",
+    "title": "微流控电泳：迁移、扩散与焦耳热的耦合",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "芯片电泳示意生图、迁移扩散方程、虚构数据仿真和热管理限制。",
+    "turns": [
+      "请实际生成一张原创科学示意图，展示微流控芯片电泳的进样支路、分离通道、电极、两种带电示踪物和检测窗口。用清晰箭头表示迁移方向，禁止虚构测量结果。",
+      "用 LaTeX 推导一维电泳迁移与扩散方程，定义电场、迁移率和扩散系数，给出峰中心与峰宽的解析关系，并解释边界条件与模型忽略的电渗效应。",
+      "用可独立运行的 Python/NumPy 代码模拟两个虚构示踪物的迁移和扩散，固定随机种子，检查质量守恒与时间步稳定性，输出检测窗口浓度时间序列。",
+      "用 Markdown 表格比较提高电场、延长通道、降低扩散和调整进样宽度对分辨率、分析时间及焦耳热的影响；提供单位完整的虚构数值例子。",
+      "写一份完整实验设计报告，讨论焦耳热引起的迁移率漂移、吸附与电渗混淆，给出可辨识性检查、置信区间代码和中英文术语表，明确仿真不等同于真实芯片性能。"
+    ]
+  },
+  {
+    "id": "wavelet_compression_rate_distortion",
+    "domain": "signal_processing_wavelet_rate_distortion",
+    "title": "小波压缩：阈值稀疏化与率失真分析",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "正交小波能量关系、可复现压缩代码、失真指标表格和边界效应长报告。",
+    "turns": [
+      "从正交 Haar 小波变换出发，用 LaTeX 推导能量守恒与系数截断误差，明确有限信号长度、边界处理和阈值规则，区分硬阈值与软阈值。",
+      "使用 Python/NumPy 实现多层 Haar 变换与逆变换，对固定种子的合成信号进行系数截断与均匀量化，检查无损变换重建误差并给出完整可运行代码。",
+      "推导每层系数量化和索引编码的位数预算，用伪代码描述在总位数约束下分配量化精度的贪心方案，说明近似假设和无法保证全局最优的情形。",
+      "用 Markdown 表格比较不同阈值下的均方误差、峰值误差、保留系数比例和实际编码长度；所有数字明确标注为虚构示例或该代码实测结果。",
+      "撰写技术报告，分析尖峰、阶跃、噪声和非平稳振荡对率失真曲线的影响，讨论边界伪影、指标误导和可复现实验设计，附中英文术语表及自动验证伪代码。"
+    ]
+  },
+  {
+    "id": "materials_spinodal_phase_field_interface",
+    "domain": "materials_phase_field_spinodal_decomposition",
+    "title": "材料相场：旋节分解与界面能的数值演化",
+    "features": [
+      "imagen",
+      "multimodal",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "双组分材料分相的原创示意图、自由能泛函、可复现周期网格仿真和稳定性报告。",
+    "turns": [
+      "请实际生成一张原创科学示意图，用三个时间截面展示完全虚构的双组分材料旋节分解，标明浓度色标、周期边界和界面区域。图仅用于说明机理，不伪造实验照片或实测数据。",
+      "用 LaTeX 从双阱自由能与梯度能出发推导 Cahn-Hilliard 方程，解释质量守恒、化学势和能量耗散条件，明确无量纲化过程与适用假设。",
+      "用独立可运行的 Python/NumPy 代码在二维周期网格实现半隐式谱方法，固定随机种子，输出浓度均值、自由能和界面指标，并加入质量守恒与时间步敏感性检查。",
+      "用 Markdown 表格比较网格分辨率、时间步、梯度能参数和初始噪声对相分离形态与计算成本的影响，标明所有参数为虚构演示，避免把数值稳定等同于物理正确。",
+      "写长篇数值验证报告，讨论谱方法混叠、边界条件、相场模型有效范围及不确定性，给出收敛试验伪代码、可复现实验矩阵和中英文术语表。"
+    ]
+  },
+  {
+    "id": "phylogenetics_fitch_parsimony_ambiguity",
+    "domain": "computational_biology_phylogenetic_parsimony",
+    "title": "系统发育算法：Fitch 简约法与缺失字符处理",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "纯合成字符矩阵的树上动态规划、可复现 Python 算法、复杂度表格和长方法报告。",
+    "turns": [
+      "以完全合成的四物种字符矩阵为例，用 LaTeX 定义无权最大简约法的目标函数，推导二叉树上 Fitch 算法的集合合并规则，并区分树的评分与搜索全局最优树。",
+      "使用独立可运行的 Python 实现 Fitch 算法，支持多态字符和缺失字符，提供确定性的节点编码、字符集表示与单个可手算例子，避免把缺失字符当作新状态。",
+      "枚举小规模无根二叉树并对合成数据评分，用固定随机种子生成字符矩阵，记录并列最优树，说明树数增长和搜索复杂度；加入状态重命名不变性与叶标签置换检查。",
+      "用 Markdown 表格比较完全可观测、随机缺失、集中缺失和高同形性数据的评分、并列最优数量及解释限制；所有数据必须明确为合成，不推断真实物种关系。",
+      "写完整方法报告，讨论等权假设、性状相关性、根的位置、并列解与自助法解释，附复杂度分析、可复现评估伪代码和中英文术语表。"
     ]
   }
 ]
