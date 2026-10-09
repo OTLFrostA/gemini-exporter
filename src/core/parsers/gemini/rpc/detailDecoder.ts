@@ -586,7 +586,17 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
 
             const candList = extractModelCandidates(turn);
             if (Array.isArray(candList)) {
+                // hNvQHb retains alternative drafts for a single user request.
+                // The live wire's turn[3][3] identifies the displayed answer;
+                // exporting every draft creates consecutive Assistant turns.
+                const selectedId = turn?.[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD]?.[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.SELECTED_CANDIDATE_ID];
+                const selectedIndex = typeof selectedId === 'string' && selectedId.startsWith('rc_')
+                    ? candList.findIndex(cand => Array.isArray(cand) && cand[GEMINI_JSPB_SCHEMA.CANDIDATE.ID] === selectedId)
+                    : -1;
+                // Older payloads omit selection evidence: retain their primary draft.
+                const answerIndex = selectedIndex >= 0 ? selectedIndex : 0;
                 for (let ci = 0; ci < candList.length; ci++) {
+                    if (ci !== answerIndex) continue;
                     const cand = candList[ci];
                     const modelMsg = parseCandidateResponse(
                         cand,

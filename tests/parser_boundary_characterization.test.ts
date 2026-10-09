@@ -95,7 +95,7 @@ test('detail: reverse wire ordering, candidates and authoritative timestamps rem
     const parsed = decodeGeminiDetail(rpc([[newest, oldest], 'tC_detail_cursor', 'Official detail title', { extra: true }]));
     assert.equal(parsed.id, ID);
     assert.deepEqual(parsed.messages.map(m => [m.role, m.content]), [
-        ['user', 'Oldest prompt'], ['model', 'Old answer'], ['user', 'Newest prompt'], ['model', 'First variant'], ['model', 'Second variant']
+        ['user', 'Oldest prompt'], ['model', 'Old answer'], ['user', 'Newest prompt'], ['model', 'First variant']
     ]);
     assert.equal(parsed.messages[0].providerRequestId, 'r_AB12');
     assert.equal(parsed.messages[1].id, 'rc_old');
