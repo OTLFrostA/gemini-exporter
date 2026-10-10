@@ -1,7 +1,6 @@
 import type { OptionsSyncOptions } from '../../../types/ui.js';
 import {
     t,
-    getProtocol,
     getTabService,
     getStore,
     getExportCtrl as getExportController,
@@ -16,11 +15,9 @@ let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = n
 let __maybePromptTakeout: ((count: number, hitLimit: boolean) => Promise<void> | void) | null = null;
 
 async function checkAndPromptTakeoutLimit(count?: number, hitGoogleLimit?: boolean): Promise<void> {
-    const protocol = getProtocol();
-    const slidingLimit = (protocol && protocol.LIMITS?.SLIDING_WINDOW) || 500;
-    const isLimit = !!hitGoogleLimit || ((count || 0) >= slidingLimit);
+    const isLimit = !!hitGoogleLimit;
     if (isLimit && __maybePromptTakeout) {
-        await __maybePromptTakeout(count || slidingLimit, !!hitGoogleLimit);
+        await __maybePromptTakeout(count || 0, !!hitGoogleLimit);
     }
 }
 

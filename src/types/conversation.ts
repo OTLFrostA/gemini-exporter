@@ -143,6 +143,7 @@ export interface Conversation {
     turns?: Turn[];
     accountSlot?: string;
     isTakeoutOnly?: boolean;
+    cloudAvailability?: 'deleted' | 'unlisted';
     hitGoogleLimit?: boolean;
     url?: string;
     attachmentCount?: number;

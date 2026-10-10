@@ -107,7 +107,9 @@ export interface TakeoutImportResult {
     totalMediaCount: number;
 }
 /** Background/content scan reply projected to the fields consumed by the UI. */
+export type ScanStatus = 'complete' | 'up_to_date' | 'partial_limit' | 'aborted' | 'error';
 export interface ScanResponse {
+    status?: ScanStatus;
     success: boolean;
     count?: number;
     total?: number;

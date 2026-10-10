@@ -1,3 +1,4 @@
+import { StorageService } from '../../storage/storageService.js';
 import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
@@ -15,7 +16,7 @@ type MessageSenderFunction = (message: unknown, callback?: (response: unknown) =
 interface TabServiceLike { sendToGeminiTab?: (message: unknown, slot?: string, timeoutMs?: number) => Promise<unknown> }
 interface FetchChatDetailOptions { messageSender?: MessageSenderFunction | null; tabService?: TabServiceModule | TabServiceLike | null }
 export type FetchChatDetailResult = unknown;
-export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string };
+export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: Conversation['cloudAvailability'] };
 export type WorkerChat = ResourceConversationParseResult;
 export type WorkerChatResolveInput = unknown;
 export type WorkerMessageAttachment = AssetPipelineItem;
@@ -49,6 +50,16 @@ export async function fetchChatDetail(
     options: FetchChatDetailOptions = {}
 ): Promise<FetchChatDetailResult> {
     const nid = normId(requestedItem.id);
+    if (abortSignal?.aborted) return { success: false, error: 'aborted' };
+    if (requestedItem.cloudAvailability) {
+        const stored = await getDomainConversationResult(currentSlot, nid);
+        if (stored?.conversation.messages.length) return { success: true, results: [stored], source: 'local-cache' };
+    }
+    if (requestedItem.cloudAvailability === 'deleted') {
+        // Do not fetch a resource already authoritatively deleted. Resolution below
+        // recovers Domain / Takeout bodies and reports metadata-only failures.
+        return { success: true, results: [{ id: nid, isDeleted: true, error: 'Cloud conversation deleted; local metadata has no recoverable body' }] };
+    }
     const messageSender = options.messageSender || null;
     const tabService = options.tabService || __resolveModule<TabServiceModule | TabServiceLike>('TabService', TabService);
 
@@ -150,7 +161,11 @@ export async function resolveConversationData(value: unknown, id: string, _list?
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
     if (isResourceConversationParseResult(offline) && offline.conversation.messages.length) { onLog('[Takeout] Recovered ' + id, 'info'); return offline; }
     const stored = await getDomainConversationResult(slot, id);
-    return stored?.conversation.messages.length ? stored : value;
+    if (stored?.conversation.messages.length) {
+        onLog(`Exporting local snapshot: ${id}; latest cloud content was not fetched.`, 'warn');
+        return stored;
+    }
+    return value;
 }
 
 export async function resolveChat(value: unknown, requested: BatchWorkerRequestedItem, list?: Partial<Conversation> | null,
@@ -158,17 +173,23 @@ export async function resolveChat(value: unknown, requested: BatchWorkerRequeste
     onTitleUpdated: (id: string, title: string, source: string) => void = () => {},
     onLog: (message: string, level?: string) => void = () => {}, options: ResolveChatOptions = {}): Promise<ResolveChatResult> {
     const id = normId(requested.id);
+    const evidence = isObjectRecord(value) ? value : {};
+    if (evidence.isDeleted === true || isConfirmedDeletedError(evidence.error)) {
+        const storage = __resolveModule<Partial<Pick<typeof StorageService, 'updateConversation'>>>('StorageService', StorageService);
+        try {
+            await storage?.updateConversation?.(slot, id, { cloudAvailability: 'deleted' });
+            if (list) list.cloudAvailability = 'deleted';
+            const pending = (options.messageSender || resolveRuntimeSender())?.({ action: 'syncUpdate', slot, from: 'cloud-deleted-archive-retained' });
+            if (pending) void Promise.resolve(pending).catch(() => {});
+        } catch (error) { onLog(`Could not save cloud availability: ${getErrorMessage(error)}. Local archive retained.`, 'warn'); }
+    }
     const result = await resolveConversationData(value, id, list, takeout, slot, onLog);
     if (!isResourceConversationParseResult(result) || !result.conversation.messages.length) {
         const raw = isObjectRecord(result) ? result : {};
         const error = typeof raw.error === 'string' ? raw.error : 'Conversation body is unavailable; fetch or migrate its source before exporting';
         const deleted = raw.isDeleted === true || isConfirmedDeletedError(error);
         if (deleted) {
-            const storage = __resolveModule<{ removeConversation?: (slot: string, id: string) => Promise<unknown> } | null>('StorageService', null);
-            await storage?.removeConversation?.(slot, id);
-            const sender = options.messageSender || resolveRuntimeSender();
-            const sent = sender?.({ action: 'syncUpdate', slot, count: -1, from: 'export-prune-deleted' });
-            if (sent) void Promise.resolve(sent).catch(() => {});
+            onLog(`Cloud conversation deleted: ${requested.title || id}. Local archive retained; no conversation body is available.`, 'warn');
         }
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error, convsNeedSave: false };
     }

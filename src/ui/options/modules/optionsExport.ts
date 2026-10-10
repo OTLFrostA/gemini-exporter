@@ -393,7 +393,7 @@ export async function startExportPipeline(
     }
 }
 
-export async function exportSelected(overrideFormat: string | null = null): Promise<void> {
+export async function exportSelected(overrideFormat: string | null = null, forceLocalCopies = false): Promise<void> {
     if (_isExporting) return;
     _isExporting = true;
     try {
@@ -416,7 +416,7 @@ export async function exportSelected(overrideFormat: string | null = null): Prom
     const formatSelect = $('format') as HTMLSelectElement | null;
     const format = overrideFormat || (Formats ? Formats.getCurrentFormat(document.body.classList.contains('dev-mode'), formatSelect?.value) : (formatSelect?.value || 'markdown'));
     const skipCheck = $('skipExported') as HTMLInputElement | null;
-    const skip = skipCheck ? skipCheck.checked : false;
+    const skip = forceLocalCopies ? false : (skipCheck ? skipCheck.checked : false);
     const includeIndex = false;
     const assetsCheck = $('includeAssets') as HTMLInputElement | null;
     const includeAssets = assetsCheck ? assetsCheck.checked : true;

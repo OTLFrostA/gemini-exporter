@@ -781,6 +781,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     // Per-chat error isolation: one failed chat must not abort the entire batch
                     try {
                         const nid = normId(requestedItem.id);
+                        const listC: Conversation | null = (conversations || []).find(c => normId(c.id) === nid) || null;
                         let rawRes: unknown = null;
                         let retryCount = 0;
                         const maxRateLimitRetries = 3;
@@ -788,9 +789,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const I18n = getI18n();
 
                         while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                            rawRes = await worker.fetchChatDetail(requestedItem, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
+                            rawRes = await worker.fetchChatDetail({ ...requestedItem, cloudAvailability: listC?.cloudAvailability }, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
 
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
+                            if (isObjectRecord(rawRes) && rawRes.source === 'local-cache') onLog(I18n?.t?.('archiveExportingSnapshot', requestedItem.title || nid) || `Exporting local snapshot: ${nid}`, 'warn');
 
                             const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
                                 ? this.rateLimiter.isRateLimited(rawRes)
@@ -838,7 +840,6 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
                         const chatCandidate = candidate;
 
-                        const listC: Conversation | null = (conversations || []).find((c) => normId(c.id) === nid) || null;
                         const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
 
                         if (resolvedRes.isError) {

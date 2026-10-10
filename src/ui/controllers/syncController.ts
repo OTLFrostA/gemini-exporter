@@ -1,6 +1,5 @@
 import type { SyncControllerContract, ScanCallbacks, StopScanCallbacks } from '../../types/ui.js';
 import type { DeepScanMessage, StopDeepScanMessage } from '../../types/messages.js';
-import GeminiProtocol from '../../core/protocol/protocol.js';
 import { isRateLimited } from '../../core/engine/export/rateLimiter.js';
 import { $, t, hasI18n, setWorkbenchControlsDisabled } from '../uiCommon.js';
 import { isScanResponse } from '../../core/utils/messageResponses.js';
@@ -58,16 +57,21 @@ function _runScan(
         const res = raw;
         setScanRunning(false);
 
-        const slidingLimit = (GeminiProtocol.LIMITS?.SLIDING_WINDOW) || 500;
         const hitGoogleLimit = !!(
             res?.hitGoogleLimit ||
             res?.diagnostics?.hitGoogleLimit ||
-            (mode === 'full' && (((res.count ?? 0) >= slidingLimit) || ((res.total ?? 0) >= slidingLimit))) ||
             isServerRateOrQuotaLimit(res?.diagnostics?.stopReason) ||
             isServerRateOrQuotaLimit(res?.error)
         );
 
-        if (res && res.success) {
+        if (res.status && res.status !== 'complete' && res.status !== 'up_to_date') {
+            const count = res.count ?? res.total ?? 0;
+            const key = res.status === 'partial_limit' ? 'syncFinishedWithLimit'
+                : res.status === 'aborted' ? 'syncAbortedSaved' : 'syncIncompleteSaved';
+            const finishMsg = t(key, count, res.error || res.diagnostics?.stopReason || '');
+            if (onLog) onLog(finishMsg, 'warn');
+            if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });
+        } else if (res && res.success) {
             const count = res.count || res.total || 0;
             let finishMsg: string;
             if (hitGoogleLimit) {

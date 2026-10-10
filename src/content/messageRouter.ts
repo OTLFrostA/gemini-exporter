@@ -61,6 +61,15 @@ export function init({
     };
     const resolveDetailTitle = (msgs: Array<{ role: string; content: string }>, id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
 
+    async function recordCloudDeletion(slot: string, cid: string): Promise<void> {
+        Sync?.markConfirmedDeleted?.(slot, cid);
+        if (Storage?.updateConversation) await Storage.updateConversation(slot, cid, { cloudAvailability: 'deleted' });
+        try {
+            const pending = chrome.runtime.sendMessage({ action: 'syncUpdate', slot, from: 'cloud-deleted-archive-retained' });
+            if (pending) void Promise.resolve(pending).catch(() => {});
+        } catch { /* UI can reload the durable status later. */ }
+    }
+
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
     const dispatchMessage = (msg: any, sender: chrome.runtime.MessageSender, sendResponse: (response?: any) => void) => {
@@ -100,7 +109,9 @@ export function init({
                         return;
                     }
                     respond({
-                        success: true,
+                        success: res.status === 'complete' || res.status === 'up_to_date',
+                        status: res.status,
+                        error: res.error,
                         count: res?.count || 0,
                         diagnostics: res?.diagnostics,
                         hitGoogleLimit: !!(res?.hitGoogleLimit || res?.diagnostics?.hitGoogleLimit)
@@ -215,31 +226,7 @@ export function init({
                     const isRpcDeleted = isConfirmedDeletedError(errMsg);
                     if (isRpcDeleted) {
                         const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
-                        try {
-                            if (Storage && typeof Storage.removeConversation === 'function') {
-                                Sync?.markConfirmedDeleted?.(slot, cid);
-                                await Storage.removeConversation(slot, cid);
-                                const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
-                                    ? await Storage.getLastSync(slot)
-                                    : { count: (await Storage.getConversations!(slot)).length };
-                                const count = syncMeta.count;
-                                if (Sync && Sync.updateBadge) {
-                                    Sync.updateBadge(count, 0);
-                                }
-                                try {
-                                    void chrome.runtime.sendMessage({
-                                        action: 'syncUpdate',
-                                        slot,
-                                        count,
-                                        from: 'prune-dead-chat'
-                                    });
-                                } catch (e) {
-                                    if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
-                                }
-                            }
-                        } catch (e) {
-                            if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
-                        }
+                        await recordCloudDeletion(slot, cid);
                         const errDeleted = contentContext.isZh() ? '云端会话已被删除或不存在' : 'Cloud conversation deleted or does not exist';
                         respondDetail({
                             success: true,
@@ -266,35 +253,10 @@ export function init({
                         } else {
                             const failure = chat && 'error' in chat ? chat : { id: cid, error: 'DOM returned empty content' };
                             const isConfirmedDeleted = !!failure?.isDeleted
-                                || !!failure?._debug && 'isNotFound' in failure._debug && failure._debug.isNotFound === true
-                                || (typeof failure?.error === 'string' && (failure.error.includes('删除或不存在') || failure.error.includes('服务端删除')));
+                                || !!failure?._debug && 'isNotFound' in failure._debug && failure._debug.isNotFound === true;
                             if (isConfirmedDeleted) {
                                 const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
-                                try {
-                                    if (Storage && typeof Storage.removeConversation === 'function') {
-                                        Sync?.markConfirmedDeleted?.(slot, cid);
-                                await Storage.removeConversation(slot, cid);
-                                        const syncMeta = (Storage.getLastSync && typeof Storage.getLastSync === 'function')
-                                            ? await Storage.getLastSync(slot)
-                                            : { count: (await Storage.getConversations!(slot)).length };
-                                        const count = syncMeta.count;
-                                        if (Sync && Sync.updateBadge) {
-                                            Sync.updateBadge(count, 0);
-                                        }
-                                        try {
-                                            void chrome.runtime.sendMessage({
-                                                action: 'syncUpdate',
-                                                slot,
-                                                count,
-                                                from: 'prune-dead-chat'
-                                            });
-                                        } catch (e) {
-                                            if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
-                                        }
-                                    }
-                                } catch (e) {
-                                    if (contentContext.isDevMode()) console.debug('[GemExporter:messageRouter]', e);
-                                }
+                                await recordCloudDeletion(slot, cid);
                             }
                             const domDebug = chat && isResourceConversationParseResult(chat) && 'transport' in chat ? chat.transport as DomDetailDebug : failure._debug && 'batchexecuteEmptyDebug' in failure._debug ? failure._debug.domDebug ?? undefined : failure._debug;
                             const mergedDebug = { batchexecuteEmptyDebug, domDebug, domHtmlLen: domDebug && 'htmlLen' in domDebug ? domDebug.htmlLen : null, isDeleted: isConfirmedDeleted };
@@ -328,7 +290,7 @@ export function init({
                 // exactly-once guard makes this a no-op when a response
                 // was already produced.
                 respondDetail({ ok: false, success: false, error: 'conversation detail unavailable: no provider or scraper produced a result' });
-            })();
+            })().catch((error: unknown) => respondDetail({ success: false, error: getErrorMessage(error) }));
             return true;
         }
 

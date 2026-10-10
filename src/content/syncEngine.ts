@@ -1,4 +1,5 @@
 import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
+import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
 import type { GeminiPaginationDiagnostics } from "../core/api/client/pagination.js";
@@ -18,7 +19,6 @@ import {
     normalizeReliableTitleSource
 } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
-import { GeminiProtocol } from '../core/protocol/protocol.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
 import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
@@ -28,7 +28,6 @@ import { isPaginationExhaustive } from '../core/api/client/pagination.js';
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getScraper = () => DomScraper;
 const getBadge = () => BadgeView;
-const getProtocol = () => __resolveModule('GeminiProtocol', GeminiProtocol);
 
 export {
     cleanTitle,
@@ -256,11 +255,11 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
         return Promise.resolve(0);
     }
 
-    __storageWriteQueue = __storageWriteQueue.then(async () => {
+    __storageWriteQueue = __storageWriteQueue.catch(() => 0).then(async () => {
         try {
             const slot = targetSlot || getAccountSlot();
             const Storage = getStorage();
-            if (!Storage) return 0;
+            if (!Storage) throw new Error('Conversation storage unavailable');
             const now = Date.now();
 
             // Cross-tab: read + merge + write run atomically inside the storage
@@ -283,6 +282,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                     if (confirmedDeleted.get(slot)?.has(nid)) return;
                     c.id = nid;
                     const old = map.get(nid);
+                    if (old?.cloudAvailability === 'deleted') return;
 
                     const res = mergeConversation(old, c, {
                         source,
@@ -297,6 +297,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                     res.merged.source = source || (old && old.source) || 'unknown';
                     res.merged.accountSlot = slot;
 
+                    if (old?.cloudAvailability === 'unlisted' && source === 'batchexecute') res.merged.cloudAvailability = undefined;
                     map.set(nid, res.merged);
                 });
 
@@ -345,9 +346,8 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             __lastKnownCount = mergedLength;
             return mergedLength;
         } catch (e: unknown) {
-            const errMsg = getErrorMessage(e);
-            if (errMsg.includes('Extension context invalidated')) return 0;
             console.error('[Gemini Exporter] upsertConversations failed', e);
+            throw e;
         }
     });
     return __storageWriteQueue;
@@ -398,6 +398,8 @@ export async function ingestListBatch(
     // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice
     const participateInWatermark = options?.participateInWatermark === true;
 
+    const count = await upsertConversations(incomingItems, source, true, slot);
+
     // 控制面建立或校准水位基线
     if (participateInWatermark && options?.isFullScanComplete) {
         const slice = __sessionSlices.get(slot);
@@ -423,8 +425,6 @@ export async function ingestListBatch(
             newWatermark: baselineTs
         };
     }
-
-    const count = await upsertConversations(incomingItems, source, true, slot);
 
     // 嗅探（数据面）不参与 slice/checkpoint 水位逻辑
     if (!participateInWatermark) {
@@ -585,6 +585,16 @@ export interface ProviderSyncResult {
     count: number;
     diagnostics: GeminiPaginationDiagnostics;
     hitGoogleLimit: boolean;
+    status: ScanStatus;
+    error?: string;
+}
+
+function scanStatus(all: GeminiProviderPageResult, stoppedByWatermark: boolean): ScanStatus {
+    if (contentContext.isAborted() || all.completionReason === 'aborted') return 'aborted';
+    if (all.hitGoogleLimit || all.diagnostics?.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
+    if (stoppedByWatermark && all.completionReason === 'unchanged_boundary') return 'up_to_date';
+    if (isPaginationExhaustive(all)) return 'complete';
+    return 'error';
 }
 
 export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; maxPages?: number }): Promise<ProviderSyncResult | null> {
@@ -676,6 +686,25 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         // Required producer completeness plus the existing error/limit/abort vetoes.
         const isFullExhaustive = effectiveForceFull && !contentContext.isAborted() && isPaginationExhaustive(all);
 
+        // Listing absence is only uncertainty; keep bodies, resources and export records.
+        // Commit availability before advancing the completed-scan checkpoint.
+        if (isFullExhaustive && Storage?.transactConversations) {
+            const visible = new Set(all.items.map(item => normId(item.id)));
+            await Storage.transactConversations(slot, existing => ({
+                list: existing.map(item => isStoredObject(item) && !Array.isArray(item) && typeof item.id === 'string'
+                    && !item.isTakeoutOnly && !visible.has(normId(item.id)) && item.cloudAvailability !== 'deleted'
+                    ? { ...item, cloudAvailability: 'unlisted' } : item), changed: 0
+            }));
+        }
+
+        // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
+        const diagnostics: GeminiPaginationDiagnostics = all?.diagnostics;
+        const hitGoogleLimit = !!(all?.hitGoogleLimit || diagnostics?.hitGoogleLimit);
+        if (all && diagnostics) {
+            const setDiag = Storage?.setLastSyncDiagnostics || StorageService.setLastSyncDiagnostics;
+            await setDiag(diagnostics);
+        }
+
         // If this was a full scan that finished naturally and exhaustively (not stopped early, not hit limit, not aborted)
         if (isFullExhaustive && !stoppedByWatermark) {
             await ingestListBatch(page1Batch, 'batchexecute', {
@@ -687,35 +716,22 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             });
         }
 
-        // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
-        const diagnostics: GeminiPaginationDiagnostics = all?.diagnostics;
-        const hitGoogleLimit = !!(all?.hitGoogleLimit || diagnostics?.hitGoogleLimit);
-        if (all && diagnostics) {
-            const setDiag = Storage?.setLastSyncDiagnostics || StorageService.setLastSyncDiagnostics;
-            await setDiag(diagnostics);
-        }
-
         if (all && all.items && all.items.length) {
             // Each page batch was already incrementally upserted via onPageBatch;
             // avoid a second full O(n log n) pass here.
-            let mergedLen = all.items.length;
-            // Absence from the fetched list only proves deletion when the listing is
-            // provably complete. A Google ~600 sliding-window limit or early loop means
-            // the tail was never fetched — reconciling against it would mass-delete
-            // still-alive older conversations, so non-exhaustive cases must skip reconciliation.
-            if (isFullExhaustive && Storage && typeof Storage.reconcileConversations === 'function') {
-                const recRes = await Storage.reconcileConversations(slot, all.items, { keepTakeout: true });
-                if (recRes && recRes.removed > 0) {
-                    console.log(`[Gemini Exporter] Reconciled with cloud: pruned ${recRes.removed} deleted conversations`, recRes.removedIds);
-                    mergedLen = recRes.kept;
-                }
-            }
-            const Proto = getProtocol();
-            const slidingLimit = Proto?.LIMITS?.SLIDING_WINDOW || 600;
-            const isLimit = !!(hitGoogleLimit || (effectiveForceFull && mergedLen >= slidingLimit));
+            const mergedLen = all.items.length;
+            const isLimit = hitGoogleLimit;
             const zh = isZh();
             const badge = document.getElementById('geminiExportBadgeText');
-            if (badge) badge.textContent = zh ? `已同步 ${mergedLen} 条 ✓` : `${mergedLen} synced ✓`;
+            const status = scanStatus(all, stoppedByWatermark);
+            const complete = status === 'complete' || status === 'up_to_date';
+            const incompleteReason = status === 'partial_limit'
+                ? (zh ? '已达服务端限制' : 'server limit reached')
+                : status === 'aborted' ? (zh ? '已停止' : 'stopped') : (zh ? '出现错误' : 'an error occurred');
+            const finishText = complete
+                ? (zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`)
+                : (zh ? `同步未完成，已保存 ${mergedLen} 条，可重试（${incompleteReason}）` : `Sync incomplete: ${mergedLen} saved; retry (${incompleteReason})`);
+            if (badge) badge.textContent = finishText;
             if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 try {
                     const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
@@ -734,7 +750,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 }
             }
             try {
-                const completeTitle = zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`;
+                const completeTitle = finishText;
                 const _p = chrome.runtime.sendMessage({
                     action: 'scanProgress',
                     done: 1,
@@ -742,22 +758,30 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                     percent: 100,
                     count: mergedLen,
                     hitGoogleLimit: isLimit,
+                    status,
                     title: completeTitle
                 });
                 if (_p && _p.catch) _p.catch(() => {});
             } catch (e) {
                 if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
             }
-            return { count: mergedLen, diagnostics, hitGoogleLimit: isLimit };
+            return { count: mergedLen, diagnostics, hitGoogleLimit: isLimit, status,
+                ...(complete ? {} : { error: diagnostics.stopReason || status }) };
         }
         if (all && diagnostics) {
-            return { count: 0, diagnostics, hitGoogleLimit: hitGoogleLimit };
+            const status = scanStatus(all, stoppedByWatermark);
+            return { count: 0, diagnostics, hitGoogleLimit, status,
+                ...(['complete', 'up_to_date'].includes(status) ? {} : { error: diagnostics.stopReason || status }) };
         }
     } catch (e: unknown) {
         const errMsg = getErrorMessage(e);
+        const badge = document.getElementById('geminiExportBadgeText');
+        if (badge) badge.textContent = isZh() ? `同步失败，可重试：${errMsg}` : `Sync failed; retry: ${errMsg}`;
         if (contentContext.isDevMode()) console.debug('[Gemini Exporter] batch exec fail', errMsg);
+        throw e;
     } finally {
         document.getElementById('geminiExportBadge')?.classList.remove('syncing');
+        resetSessionSlice();
         contentContext.setActiveClient(null);
         contentContext.setDeepScanPromise(null);
         if (_resolve) _resolve();

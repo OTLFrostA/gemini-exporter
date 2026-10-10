@@ -71,7 +71,7 @@ test('messageRouter: empty RPC retains raw previews and DOM debug without prunin
     assert.equal(debug.domHtmlLen, 42); assert.equal(result.data.isEmpty, true); assert.equal(removed, '');
 }));
 
-test('messageRouter: provider failure permits valid DOM fallback; 404 prunes only confirmed deletion', async () => withProvider(async set => {
+test('messageRouter: provider failure permits valid DOM fallback; 404 only marks confirmed cloud deletion', async () => withProvider(async set => {
     set(async () => { throw new Error('temporary failure'); });
     const success = await route(dom);
     assert.ok(success.result.success && success.result.source === 'dom'); assert.strictEqual(success.result.data, dom);
@@ -79,7 +79,7 @@ test('messageRouter: provider failure permits valid DOM fallback; 404 prunes onl
     const deleted = await route({ id: 'detail123', isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
     assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
     assert.equal(deleted.result.data.isDeleted, true); assert.equal(deleted.result.data.isEmpty, false);
-    assert.equal(deleted.removed, 'detail123');
+    assert.equal(deleted.removed, '');
     assert.ok(deleted.result.data._debug && 'batchexecuteEmptyDebug' in deleted.result.data._debug);
     assert.deepEqual(deleted.result.data._debug.batchexecuteEmptyDebug, { error: 'temporary failure' });
 }));
@@ -88,7 +88,7 @@ test('messageRouter: confirmed RPC deletion suppresses DOM and preserves deletio
     set(async () => { throw new Error('rpc error (BardErrorInfo: 1167) inaccessible or deleted'); });
     const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute' && '_empty' in result.data);
-    assert.equal(result.data.isDeleted, true); assert.equal(removed, 'detail123');
+    assert.equal(result.data.isDeleted, true); assert.equal(removed, '');
     assert.ok(result.data._debug && 'isDeleted' in result.data._debug);
     assert.equal(result.data._debug.isDeleted, true);
 }));

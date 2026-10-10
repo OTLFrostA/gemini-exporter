@@ -42,6 +42,7 @@ interface Setup {
     forceFull?: boolean;
     abort?: boolean;
     slidingLimit?: number;
+    failWrite?: boolean;
 }
 async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     const original = ProviderRegistry.get('gemini');
@@ -64,6 +65,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         async setScanCheckpoint(slot: string, value: number) { trace.slots.push(slot); checkpoint = value; trace.checkpointWrites.push(value); },
         async transactConversations(slot: string, apply: (existing: Conversation[]) => { list: Conversation[]; changed: number } | null) {
             trace.slots.push(slot);
+            if (setup.failWrite) throw new Error('Injected quota failure');
             const result = apply(records);
             if (result) records = result.list;
             return { list: records, written: !!result, changed: result?.changed || 0 };
@@ -121,14 +123,15 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     }
 }
 
-test('sync provider: canonical items reconcile complete cloud data and retain Takeout/time/title/slot data', async () => {
+test('sync provider: complete cloud data preserves unseen local archives and Takeout/time/title/slot data', async () => {
     assert.equal(typedResult && typedDiagnostics, true);
     const input = page();
     input.hasMore = true; // availability hint must not override explicit completeness
     const { result, trace, records } = await scan(input);
-    assert.equal(trace.reconcileCalls, 1);
-    assert.equal(result?.count, 2); // visible cloud chat plus retained archive
-    assert.deepEqual(records.map(c => c.id).sort(), ['chat_archive', 'chat_visible']);
+    assert.equal(trace.reconcileCalls, 0);
+    assert.equal(result?.status, 'complete');
+    assert.equal(result?.count, 1); // successfully fetched cloud items
+    assert.deepEqual(records.map(c => c.id).sort(), ['chat_archive', 'chat_old', 'chat_visible']);
     const visible = records.find(c => c.id === 'chat_visible');
     assert.equal(visible?.timestamp, NOW);
     assert.equal(visible?.createdAt, null);
@@ -147,6 +150,7 @@ test('sync provider: every incomplete reason preserves unseen historical cloud r
         assert.ok(records.some(c => c.id === 'chat_old'), reason);
         assert.deepEqual(trace.checkpointWrites, [], reason);
         assert.equal(result?.count, 1, reason);
+        assert.equal(result?.status, reason === 'hit_google_limit' ? 'partial_limit' : reason === 'aborted' ? 'aborted' : 'error');
         assert.strictEqual(trace.diagnostics[0], input.diagnostics);
     }
 });
@@ -165,7 +169,8 @@ test('sync provider: explicit false completeness, Google evidence and cancellati
 });
 
 test('sync provider: watermark callback stop retains the same reason and incremental controls', async () => {
-    const { trace, records } = await scan(page('unchanged_boundary'), { checkpoint: NOW + 1000, forceFull: false });
+    const { result, trace, records } = await scan(page('unchanged_boundary'), { checkpoint: NOW + 1000, forceFull: false });
+    assert.equal(result?.status, 'up_to_date');
     assert.deepEqual(trace.decisions, [{ shouldStop: true, reason: '已与历史水位线闭环咬合，增量同步完成' }]);
     assert.equal(trace.options?.incremental, true);
     assert.equal(trace.options?.forceFull, false);
@@ -188,8 +193,8 @@ test('sync provider: typed Google diagnostics preserve quota prompt and completi
         assert.ok(trace.progress.some(message => typeof message === 'object' && message !== null && 'hitGoogleLimit' in message && message.hitGoogleLimit === true));
     }
     const { result, trace } = await scan(page(), { slidingLimit: 1 });
-    assert.equal(result?.hitGoogleLimit, true);
-    assert.equal(trace.prompts[0].hitGoogleLimit, false); // count heuristic remains distinct from direct Google evidence
+    assert.equal(result?.hitGoogleLimit, false);
+    assert.equal(trace.prompts.length, 0); // local counts are not evidence of a cloud limit
 });
 
 test('sync provider: empty complete account retains the existing conservative no-prune policy', async () => {
@@ -222,4 +227,12 @@ test('sync safety: real pagination edge results pass through adapter without rec
         assert.ok(records.some(c => c.id === 'chat_old'), edge);
         assert.deepEqual(trace.checkpointWrites, [], edge);
     }
+});
+
+ test('sync safety: write failure rejects scan, preserves old data and checkpoint, and queue recovers', async () => {
+    await assert.rejects(scan(page(), { failWrite: true }), /Injected quota failure/);
+    const { result, trace, records } = await scan(page());
+    assert.ok(result);
+    assert.deepEqual(trace.checkpointWrites, [NOW]);
+    assert.ok(records.some(c => c.id === 'chat_old'));
 });

@@ -103,8 +103,8 @@ class EphemeralChatPruningCase(FeatureTestCase):
         super().__init__(
             feature_id="feat_ephemeral_chat_pruning",
             domain=FeatureDomain.LIFECYCLE,
-            name="瞬态会话网页端删除实时剥离",
-            description="在网页端侧边栏删除会话，Options 列表与 Storage 在无需刷新情况下平滑剥离该项",
+            name="云端删除状态更新与本地归档保留",
+            description="网页端删除会话后，无需刷新确认云端删除状态，并保留本地归档与 Options 列表",
             critical=True,
             prerequisites=[]
         )
@@ -140,11 +140,11 @@ class EphemeralChatPruningCase(FeatureTestCase):
                 return False, f"网页端原生删除触发失败 (会话 ID: {eph_chat_id})", None
             ctx.tracker.mark_deleted(eph_chat_id)
 
-            pruned_ok, pruned_msg, _ = CDPAssertions.assert_dom_pruned(cdp_opt, eph_chat_id, timeout=10.0)
+            pruned_ok, pruned_msg, _ = CDPAssertions.assert_cloud_deleted_retained(cdp_opt, eph_chat_id, timeout=10.0)
             events = cdp_gem_live.eval("window.__tier2DeleteEvents || []")
             if pruned_ok:
-                return True, "瞬态会话已实时剥离 DOM 与本地 Storage", {"delete_events": events}
-            return False, f"DOM剥离校验失败: {pruned_msg}; 删除事件={events}", {"delete_events": events}
+                return True, "云端删除状态正确，本地归档与列表保留", {"delete_events": events}
+            return False, f"云端删除归档保留校验失败: {pruned_msg}; 删除事件={events}", {"delete_events": events}
         finally:
             cdp_gem_live.close()
             cdp_opt.close()

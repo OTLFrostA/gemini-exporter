@@ -374,7 +374,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     expect(fs.existsSync(screenshotPath)).toBe(true);
   });
 
-  test('should visually audit real-time ephemeral conversation deletion and DOM pruning without layout breakage', async ({ context, extensionId }) => {
+  test('should visually audit real-time cloud deletion status with local archive retention without layout breakage', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -408,7 +408,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       return new Promise((resolve) => {
         chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
           let convs = data.gemini_conversations || [];
-          convs = convs.filter((c: any) => c.id !== 'del_eph_9999');
+          convs = convs.map((c: any) => c.id === 'del_eph_9999' ? { ...c, cloudAvailability: 'deleted' } : c);
           await chrome.storage.local.set({ gemini_conversations: convs });
           chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'delete-event' });
           if (typeof (window as any).__workbenchLoadStore === 'function') {
@@ -419,9 +419,19 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       });
     });
 
-    // 视觉审计：DOM 列表从 3 项平滑剥离为 2 项，目标项 0 残留
+    // Cloud deletion retains all local rows; only confirmed extension cleanup removes them.
+    await expect(page.locator('#list .item')).toHaveCount(3);
+    await expect(page.locator('#list .item[data-chat-id="del_eph_9999"] .cloud-status')).toBeVisible();
+    await expect(page.locator('#archiveNotice')).toBeVisible();
+    await page.locator('#archiveNotice summary').click();
+    await expect(page.locator('#archiveNotice')).toContainText(/Metadata only|仅元数据/);
+    const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Clean local|清理本地/ });
+    page.once('dialog', dialog => dialog.dismiss());
+    await cleanup.click();
+    await expect(page.locator('#list .item')).toHaveCount(3);
+    page.once('dialog', dialog => dialog.accept());
+    await cleanup.click();
     await expect(page.locator('#list .item')).toHaveCount(2);
-    await expect(page.locator('#list .item[data-chat-id="del_eph_9999"]')).toHaveCount(0);
     await expect(page.locator('#list .item[data-chat-id="keep_chat_111"]')).toBeVisible();
 
     // 布局完整性审查：确保相邻卡片垂直间距规整紧凑，无异常空洞与布局撕裂

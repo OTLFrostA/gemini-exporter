@@ -143,7 +143,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 // never through a slot supplied by page-world JavaScript.
                 const targetSlot = (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
                 // Page-world postMessage is untrusted. The detail route only
-                // prunes after an authoritative server "confirmed_deleted" RPC.
+                // marks cloud unavailability after authoritative confirmation; local archives remain.
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
                     for (const delayMs of [0, 500, 1500]) {
                         if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
