@@ -51,7 +51,7 @@ export async function fetchChatDetail(
 ): Promise<FetchChatDetailResult> {
     const nid = normId(requestedItem.id);
     if (abortSignal?.aborted) return { success: false, error: 'aborted' };
-    if (requestedItem.cloudAvailability) {
+    if (requestedItem.cloudAvailability === 'deleted') {
         const stored = await getDomainConversationResult(currentSlot, nid);
         if (stored?.conversation.messages.length) return { success: true, results: [stored], source: 'local-cache' };
     }

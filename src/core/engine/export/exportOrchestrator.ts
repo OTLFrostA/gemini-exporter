@@ -821,7 +821,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         const res = isObjectRecord(rawRes) ? rawRes : null;
                         const success = typeof res?.success === 'boolean' ? res.success : Boolean(res?.success);
-                        if (!res || !success) {
+                        if ((!res || !success) && listC?.cloudAvailability !== 'unlisted') {
                             const fetchErr = typeof res?.error === 'string' ? res.error : 'unknown';
                             onLog(I18n.t('logFetchFailed', fetchErr), 'warn');
                             failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
@@ -831,13 +831,14 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        skipped += (typeof res.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
+                        skipped += (typeof res?.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
                         let candidate: unknown;
-                        if (Array.isArray(res.results) && res.results.length > 0) {
+                        if (Array.isArray(res?.results) && res.results.length > 0) {
                             candidate = res.results[0];
-                        } else if (res.chat !== undefined && res.chat !== null) {
+                        } else if (res?.chat !== undefined && res.chat !== null) {
                             candidate = res.chat;
                         }
+                        if (!success) candidate = res;
                         const chatCandidate = candidate;
 
                         const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
@@ -908,7 +909,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                             return { path: normalizeArchivePath(path) };
                                         }
                                         if (!assetPipeline) throw new Error('Resource acquisition is unavailable');
-                                        const saved = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal });
+                                        const saved = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal,
+                                            localOnly: listC?.cloudAvailability === 'deleted' });
                                         if (saved.failReason === 'aborted') throw new DOMException('Resource acquisition aborted', 'AbortError');
                                         if (!saved.saved) throw new Error(saved.failReason || 'Resource could not be delivered');
                                         return { path: normalizeArchivePath(saved.localName) };

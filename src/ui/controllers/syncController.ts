@@ -70,7 +70,7 @@ function _runScan(
                 : res.status === 'aborted' ? 'syncAbortedSaved' : 'syncIncompleteSaved';
             const finishMsg = t(key, count, res.error || res.diagnostics?.stopReason || '');
             if (onLog) onLog(finishMsg, 'warn');
-            if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });
+            if (onError) onError(new Error(res.error || res.status), finishMsg, { hitGoogleLimit, res });
         } else if (res && res.success) {
             const count = res.count || res.total || 0;
             let finishMsg: string;

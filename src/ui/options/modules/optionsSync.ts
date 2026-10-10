@@ -48,6 +48,7 @@ function bindSyncButtons(): void {
                 },
                 onError: (err: any, errMsg?: string) => {
                     ProgressView.update(0, errMsg);
+                    if (__loadStore) void __loadStore();
                 }
             });
         }
@@ -72,8 +73,9 @@ function bindSyncButtons(): void {
                 },
                 onError: async (err: any, errMsg?: string, details?: any) => {
                     ProgressView.update(0, errMsg);
+                    if (__loadStore) await __loadStore();
                     const currentCount = (Store && typeof (Store as any).getConversations === 'function') ? (Store as any).getConversations().length : 0;
-                    await checkAndPromptTakeoutLimit(currentCount || details?.count, details?.hitGoogleLimit);
+                    await checkAndPromptTakeoutLimit(currentCount || details?.res?.count, details?.hitGoogleLimit);
                 }
             });
         }
@@ -85,7 +87,7 @@ function bindSyncButtons(): void {
             SyncCtrl.stopScan(slot, {
                 onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onStopped: ({ message }: any) => {
-                    ProgressView.complete(message);
+                    ProgressView.update(0, message);
                 }
             });
         }
@@ -98,7 +100,8 @@ export function bindBroadcastListeners(): void {
     chrome.runtime.onMessage.addListener((msg: any) => {
         if (msg.action === 'scanProgress') {
             let pct = typeof msg.percent === 'number' ? msg.percent : 50;
-            const clamped = Math.min(Math.max(pct, 5), 100);
+            const incomplete = msg.status && msg.status !== 'complete' && msg.status !== 'up_to_date';
+            const clamped = incomplete ? 0 : Math.min(Math.max(pct, 5), 100);
             ProgressView.update(clamped, msg.title || '');
             if (msg.title) log(msg.title);
 
