@@ -312,6 +312,25 @@ class CDPAssertions:
         return False, f"会话在 {timeout}s 内未完全剥离: Storage残留={in_storage}, DOM残留={in_dom}", last_check
 
     @staticmethod
+    def assert_cloud_deleted_retained(cdp_opt, deleted_chat_id: str, timeout: float = 10.0) -> Tuple[bool, str, Dict[str, Any]]:
+        """Cloud deletion updates state; the local archive remains visible and exportable."""
+        clean_id = str(deleted_chat_id).removeprefix('c_')
+        start = time.time()
+        last = {}
+        while time.time() - start < timeout:
+            last = cdp_opt.eval(f"""(async () => {{
+                const store = window.ConversationsStore;
+                const conversations = store ? store.getConversations() : [];
+                const item = conversations.find(c => String(c.id).replace(/^c_/, '') === {json.dumps(clean_id)});
+                const row = Array.from(document.querySelectorAll('#list .item')).find(el => String(el.dataset.chatId).replace(/^c_/, '') === {json.dumps(clean_id)});
+                return {{ retained: !!item, deleted: item?.cloudAvailability === 'deleted', inDom: !!row, marked: !!row?.querySelector('.cloud-status') }};
+            }})()""", await_promise=True) or {}
+            if all(last.get(key) for key in ['retained', 'deleted', 'inDom', 'marked']):
+                return True, '云端删除已确认，本地归档与列表保留', last
+            time.sleep(0.3)
+        return False, f'云端删除保留校验失败: {last}', last
+
+    @staticmethod
     def assert_title_upgraded(cdp_opt, check_ids: List[str]) -> Tuple[bool, str, Dict[str, Any]]:
         """断言 Takeout 导入的会话标题在全量拉取历史后被在线 RPC 权威晋级"""
         status = cdp_opt.eval(f"""

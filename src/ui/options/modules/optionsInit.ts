@@ -1,3 +1,4 @@
+import { renderArchiveNotice } from './optionsArchive.js';
 import type { OptionsInitOptions } from '../../../types/ui.js';
 import {
     t,
@@ -196,6 +197,7 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
             List.updateStat(processed);
         }
 
+        await renderArchiveNotice(processed, slot, () => loadStore(true));
         __lastRenderedSignature = Store.getSignature(processed);
         __lastRenderTime = Date.now();
         await checkExportSession();

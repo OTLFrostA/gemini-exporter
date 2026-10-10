@@ -90,7 +90,7 @@ test('D2: BatchWorker does not delete conversation when error contains 11167 or 
     }
 });
 
-test('D2: BatchWorker deletes conversation ONLY when confirmed BardErrorInfo: 1167 or 404', async () => {
+test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorInfo: 1167 or 404', async () => {
     const BatchWorker = require('../src/core/engine/export/batchWorker.js');
     const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
@@ -124,7 +124,8 @@ test('D2: BatchWorker deletes conversation ONLY when confirmed BardErrorInfo: 11
             (msg: string) => logs.push(msg)
         );
 
-        assert.strictEqual(removedId, 'chat_del_1', 'Confirmed BardErrorInfo: 1167 must trigger removeConversation');
+        assert.strictEqual(removedId, null, 'Confirmed deletion must retain the local archive');
+        assert.ok(logs.some(message => message.includes('retained')));
         assert.strictEqual(res.isConfirmedDeleted, true);
     } finally {
         __setModuleOverride('StorageService', null);

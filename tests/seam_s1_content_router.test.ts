@@ -92,7 +92,9 @@ test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without 
     };
     let scraperCalled = false;
     let prunedId = '';
+    let availability = '';
     const mockStorage = {
+        updateConversation: async (_slot: string, _id: string, patch: { cloudAvailability: string }) => { availability = patch.cloudAvailability; },
         removeConversation: async (_slot: string, id: string) => {
             prunedId = id;
         },
@@ -115,7 +117,8 @@ test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without 
         const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'c_del_123' });
         assert.strictEqual(responses.length, 1, 'exactly one response');
         assert.strictEqual(scraperCalled, false, 'Must NOT fall back to DOM scraper when cloud confirms deletion');
-        assert.strictEqual(prunedId, 'c_del_123', 'Must prune deleted conversation from storage');
+        assert.strictEqual(prunedId, '', 'Cloud deletion must retain local archive');
+        assert.strictEqual(availability, 'deleted');
         const r = responses[0];
         assert.strictEqual(r.success, true);
         assert.strictEqual(r.data.isDeleted, true);
@@ -125,3 +128,36 @@ test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without 
     }
 });
 
+
+for (const failure of ['HTTP 401', 'HTTP 403', 'HTTP 429', 'request timeout', 'parse error']) {
+    test('S1 - non-deletion error retains archive and does not mark deleted: ' + failure, async () => {
+        const provider = ProviderRegistry.getDefault();
+        const original = provider.fetchConversationDetail;
+        provider.fetchConversationDetail = async () => { throw new Error(failure); };
+        let marked = false;
+        let removed = false;
+        try {
+            freshInit({ syncEngine: null, assets: null, utils: null,
+                storage: { updateConversation: async () => { marked = true; }, removeConversation: async () => { removed = true; } },
+                scraper: { contentFetchChatDetail: async () => ({ id: 'auth_failure', error: failure, isDeleted: false }) }
+            });
+            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: 'u1' });
+            assert.equal(responses[0].data.isDeleted, false);
+            assert.equal(marked, false);
+            assert.equal(removed, false);
+        } finally { provider.fetchConversationDetail = original; }
+    });
+}
+
+test('S1 - cloud availability write failure returns exactly one error without deleting archive or hanging', async () => {
+    const provider = ProviderRegistry.getDefault(); const original = provider.fetchConversationDetail;
+    provider.fetchConversationDetail = async () => { throw new Error('HTTP 404'); };
+    let removed = false;
+    try {
+        freshInit({ syncEngine: null, scraper: null, assets: null, utils: null,
+            storage: { updateConversation: async () => { throw new Error('quota failure'); }, removeConversation: async () => { removed = true; } } });
+        const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'write_fail' });
+        assert.equal(responses.length, 1); assert.equal(responses[0].success, false);
+        assert.match(responses[0].error, /quota failure/); assert.equal(removed, false);
+    } finally { provider.fetchConversationDetail = original; }
+});

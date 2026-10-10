@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
-test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
-  test('should prune deleted conversation from storage and update options workbench in real time upon deletion event', async ({ context, extensionId }) => {
+test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
+  test('should mark confirmed cloud deletion and retain local body and export records in real time', async ({ context, extensionId }) => {
     // 1. 打开扩展 Options 工作台页面并预置 3 条会话
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
@@ -17,8 +17,15 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
     await optionsPage.evaluate(async (convs) => {
       await chrome.storage.local.set({
         gemini_conversations: convs,
-        gemini_conversations_count_u0: convs.length
+        gemini_conversations_count_u0: convs.length,
+        exportedIds: { [convs[0].id]: { status: 'ok', exportedAt: 1700000000000 } }
       });
+      const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountSlot: 'u0', parsed: {
+        conversation: { providerId: 'gemini', id: convs[0].id, title: convs[0].title, timestamp: 1700000000000, assets: [],
+          messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Durable archived body' }] }] }] },
+        acquisitionHints: {}, resourceHints: {}, diagnostics: []
+      } } });
+      if (!saved.ok) throw new Error(saved.error);
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -70,13 +77,13 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
       });
     });
 
-    // 4. 断言 Options 工作台：无需用户手动刷新，通过 syncUpdate 广播列表自动实时由 3 项变为 2 项
-    await expect(optionsPage.locator('#list .item')).toHaveCount(2);
-    await expect(optionsPage.locator(`#list .item[data-chat-id="${targetId}"]`)).toHaveCount(0);
+    // 4. No refresh: mark cloud deletion and retain all local archive rows.
+    await expect(optionsPage.locator('#list .item')).toHaveCount(3);
+    await expect(optionsPage.locator(`#list .item[data-chat-id="${targetId}"] .cloud-status`)).toBeVisible();
     await expect(optionsPage.locator('#list .item[data-chat-id="keep_chat_1111"]')).toBeVisible();
     await expect(optionsPage.locator('#list .item[data-chat-id="keep_chat_2222"]')).toBeVisible();
 
-    // 5. 断言 Storage 底层数据：目标会话已被彻底剥离，留存会话完好
+    // 5. Durable metadata, body and export tracking must remain.
     const storageState = await optionsPage.evaluate(async () => {
       return new Promise<{ list: any[]; count: number }>((resolve) => {
         chrome.storage.local.get(['gemini_conversations', 'gemini_conversations_count_u0'], (data: any) => {
@@ -88,9 +95,9 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
       });
     });
 
-    expect(storageState.list.some((c: any) => c.id === targetId)).toBe(false);
-    expect(storageState.list.length).toBe(2);
-    // A delayed host-origin migration must not resurrect the deleted native body.
+    expect(storageState.list.find((c: any) => c.id === targetId)?.cloudAvailability).toBe('deleted');
+    expect(storageState.list.length).toBe(3);
+    // Host migration completion must not destroy the retained native body.
     await expect.poll(async () => optionsPage.evaluate(async () => {
       const state = await chrome.storage.local.get(['gemini_domain_host_migration_v2:https://gemini.google.com']);
       return state['gemini_domain_host_migration_v2:https://gemini.google.com'];
@@ -98,7 +105,10 @@ test.describe('Real-Time Conversation Deletion & Live Storage Pruning', () => {
     const deletedDomain = await optionsPage.evaluate(async (conversationId) => {
       return chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountSlot: 'u0', conversationId } } });
     }, targetId);
-    expect(deletedDomain).toMatchObject({ ok: true, value: null });
+    expect(deletedDomain.ok).toBe(true);
+    expect(JSON.stringify(deletedDomain.value.conversation)).toContain('Durable archived body');
+    const exported = await optionsPage.evaluate(async () => (await chrome.storage.local.get('exportedIds')).exportedIds as Record<string, unknown>);
+    expect(exported[targetId]).toMatchObject({ status: 'ok', exportedAt: 1700000000000 });
 
     expect(storageState.list.map((c: any) => c.id)).toEqual(
       expect.arrayContaining(['keep_chat_1111', 'keep_chat_2222'])

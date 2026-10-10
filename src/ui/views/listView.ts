@@ -258,6 +258,8 @@ export function render(
             badgeHtml = `<span class="${b.className}" style="font-size:10px; padding:2px 6px; border-radius:4px; background:${b.bg}; color:${b.color}; margin-left:8px; border:1px solid ${b.border};">${badgeLabel}${expDateStr ? ` (${expDateStr})` : ''}</span>`;
         }
 
+        const cloudLabel = c.cloudAvailability === 'deleted' ? t('archiveCloudDeleted') : c.cloudAvailability === 'unlisted' ? t('archiveUnlisted') : '';
+        const cloudBadge = cloudLabel ? `<span class="cloud-status" style="font-size:10px; color:var(--muted); margin-left:8px;">${escapeHtml(cloudLabel)}</span>` : '';
         const rawUrl = (c as any).url;
         const url = (typeof rawUrl === 'string' && /^https?:\/\//i.test(rawUrl.trim()))
             ? rawUrl.trim()
@@ -268,7 +270,7 @@ export function render(
                 <input type="checkbox" data-idx="${origIdx}" ${isChecked ? 'checked' : ''} ${list.dataset?.selectionDisabled === 'true' ? 'disabled' : ''} style="margin-right:10px; cursor:pointer;" />
                 <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                     <span class="chat-title" style="${titleStyle}">${displayTitle}</span>
-                    ${badgeHtml}
+                    ${badgeHtml}${cloudBadge}
                 </div>
                 <span style="font-size:11px; color:var(--muted); margin-left:12px; white-space:nowrap;">${escapeHtml(dateStr)}</span>
                 <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="open-link" style="color:var(--muted); margin-left:10px; text-decoration:none; font-size:12px;" title="${escapeHtml(typeof t === 'function' ? t('openInGemini') : 'Open in Gemini')}">↗</a>
