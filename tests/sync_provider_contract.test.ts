@@ -151,6 +151,10 @@ test('sync provider: every incomplete reason preserves unseen historical cloud r
         assert.deepEqual(trace.checkpointWrites, [], reason);
         assert.equal(result?.count, 1, reason);
         assert.equal(result?.status, reason === 'hit_google_limit' ? 'partial_limit' : reason === 'aborted' ? 'aborted' : 'error');
+        const terminal = [...trace.progress].reverse().find(message => (message as { status?: string }).status);
+        assert.ok(terminal);
+        assert.notEqual((terminal as { percent: number }).percent, 100, reason);
+        assert.notEqual((terminal as { done: number }).done, 1, reason);
         assert.strictEqual(trace.diagnostics[0], input.diagnostics);
     }
 });

@@ -753,9 +753,9 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 const completeTitle = finishText;
                 const _p = chrome.runtime.sendMessage({
                     action: 'scanProgress',
-                    done: 1,
+                    done: complete ? 1 : 0,
                     total: 1,
-                    percent: 100,
+                    percent: complete ? 100 : 0,
                     count: mergedLen,
                     hitGoogleLimit: isLimit,
                     status,

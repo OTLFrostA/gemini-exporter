@@ -5,6 +5,7 @@ import type { TakeoutEngineModule, TakeoutResourceLookup } from "./takeoutEngine
 import type { DownloadAssetDirectMessage } from "../../types/messages.js";
 
 export interface ProcessAssetOptions {
+    localOnly?: boolean;
     isImage?: boolean;
     listTitle?: string;
     timeoutMs?: number;
@@ -489,7 +490,7 @@ class AssetPipeline implements AssetPipelineInstance {
         let failReason = '';
 
         const isRemoteTarget = typeof targetUrl === 'string' && /^(https?:|blob:|data:)/i.test(targetUrl);
-        const canAttemptRemote = Boolean(targetUrl && (this.fetchAssetDelegate || isRemoteTarget));
+        const canAttemptRemote = !opts.localOnly && Boolean(targetUrl && (this.fetchAssetDelegate || isRemoteTarget));
 
         if (signal && signal.aborted) {
             return {
@@ -543,7 +544,8 @@ class AssetPipeline implements AssetPipelineInstance {
                 failReason = getErrorMessage(e);
             }
         } else {
-            failReason = isImage ? 'image direct download failed' : 'downloadAssetDirect failed';
+            failReason = opts.localOnly ? 'Resource unavailable in local Domain / Takeout archive'
+                : isImage ? 'image direct download failed' : 'downloadAssetDirect failed';
         }
 
         if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {

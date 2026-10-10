@@ -157,9 +157,12 @@ test('scan UI reports partial limits, cancellation and errors as incomplete, ret
             const response = { success: false, count: 3, status, error: 'remaining pages unavailable' };
             const restoreChrome = replaceGlobal('chrome', { runtime: { sendMessage(_msg: unknown, callback: (value: unknown) => void) { callback(response); } } });
             try {
-                const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) => startDeepScan('u0', { onFinished: resolve, onError: reject }));
-                assert.equal(result.count, 3); assert.equal(result.res.status, status);
-                assert.doesNotMatch(result.message, /Full sync completed|全量拉取完成/);
+                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startDeepScan('u0', {
+                    onFinished: () => reject(new Error('Incomplete sync entered the success callback')),
+                    onError: (_err, message, details) => resolve({ message, details })
+                }));
+                assert.equal(result.details?.res?.count, 3); assert.equal(result.details?.res?.status, status);
+                assert.doesNotMatch(result.message || '', /Full sync completed|全量拉取完成/);
                 assert.equal(isScanning(), false);
             } finally { restoreChrome(); }
         }
