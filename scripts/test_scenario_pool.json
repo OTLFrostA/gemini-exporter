@@ -1,26 +1,5 @@
 [
   {
-    "id": "stellar_spectroscopy_line_broadening_inference",
-    "domain": "stellar_spectroscopy_line_broadening_inference",
-    "title": "恒星光谱学：谱线展宽、仪器响应与参数反演",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖多普勒与碰撞展宽、卷积、拟合及残差诊断",
-    "turns": [
-      "以一条假设恒星吸收谱线为例，用 LaTeX 推导热多普勒展宽与碰撞展宽的线型，说明频率、波长、温度和宽度的单位约定。",
-      "说明真实线型与仪器线扩散函数卷积之后的观测模型，分析采样频率、信噪比与连续谱归一化对可辨识参数的影响。",
-      "用 Python 编写可运行的合成谱线反演示例，设置明确的假设参数与随机种子，生成带噪数据，拟合中心位置和宽度并打印误差。",
-      "用 Markdown 表格比较高斯、洛伦兹、Voigt 和旋转展宽线型的物理假设、参数耦合、残差特征与适用边界。",
-      "设计一套用留出谱线、残差自相关和注入恢复实验验收径向速度反演的方法，明确哪些不确定性来自模型，哪些来自观测。"
-    ]
-  },
-  {
     "id": "distributed_systems_crdt_causal_metadata",
     "domain": "distributed_systems_crdt_convergence",
     "title": "CRDTs: causal metadata, concurrent merging and convergence proofs",
@@ -200,29 +179,6 @@
       "推导每层系数量化和索引编码的位数预算，用伪代码描述在总位数约束下分配量化精度的贪心方案，说明近似假设和无法保证全局最优的情形。",
       "用 Markdown 表格比较不同阈值下的均方误差、峰值误差、保留系数比例和实际编码长度；所有数字明确标注为虚构示例或该代码实测结果。",
       "撰写技术报告，分析尖峰、阶跃、噪声和非平稳振荡对率失真曲线的影响，讨论边界伪影、指标误导和可复现实验设计，附中英文术语表及自动验证伪代码。"
-    ]
-  },
-  {
-    "id": "materials_spinodal_phase_field_interface",
-    "domain": "materials_phase_field_spinodal_decomposition",
-    "title": "材料相场：旋节分解与界面能的数值演化",
-    "features": [
-      "imagen",
-      "multimodal",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "双组分材料分相的原创示意图、自由能泛函、可复现周期网格仿真和稳定性报告。",
-    "turns": [
-      "请实际生成一张原创科学示意图，用三个时间截面展示完全虚构的双组分材料旋节分解，标明浓度色标、周期边界和界面区域。图仅用于说明机理，不伪造实验照片或实测数据。",
-      "用 LaTeX 从双阱自由能与梯度能出发推导 Cahn-Hilliard 方程，解释质量守恒、化学势和能量耗散条件，明确无量纲化过程与适用假设。",
-      "用独立可运行的 Python/NumPy 代码在二维周期网格实现半隐式谱方法，固定随机种子，输出浓度均值、自由能和界面指标，并加入质量守恒与时间步敏感性检查。",
-      "用 Markdown 表格比较网格分辨率、时间步、梯度能参数和初始噪声对相分离形态与计算成本的影响，标明所有参数为虚构演示，避免把数值稳定等同于物理正确。",
-      "写长篇数值验证报告，讨论谱方法混叠、边界条件、相场模型有效范围及不确定性，给出收敛试验伪代码、可复现实验矩阵和中英文术语表。"
     ]
   },
   {
@@ -409,6 +365,49 @@
       "写只用 Python 标准库的完整编码与擦除恢复程序，实现模逆、插值和输入校验。给出固定随机种子的随机消息测试、最大可恢复擦除测试及不足观测时必须失败的测试。",
       "用 Markdown 表格比较求值编码、系统编码、复制和 XOR 奇偶校验，列出冗余、擦除能力、运算成本及假设。用前面的参数计算存储开销，解释擦除与未知错误的区别。",
       "写一份较长的工程教学报告，讨论校验和定位擦除、分片元数据、符号序和截断输入的风险，提出可重复的恢复验证流程。保留完整公式与代码引用，避免宣称该简化实现已经适合生产部署。"
+    ]
+  },
+  {
+    "id": "aerodynamics_oblique_shock_wind_tunnel",
+    "domain": "aerodynamics_oblique_shock_visualization",
+    "title": "Oblique shocks: wind tunnel geometry and pressure ratios",
+    "features": [
+      "imagen",
+      "multimodal",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "New wind tunnel teaching scenario with real image generation, numeric root finding and uncertainty analysis.",
+    "turns": [
+      "Generate an actual scientific teaching illustration of a supersonic wind tunnel with a wedge producing an oblique shock. Label incoming flow, wedge angle, shock angle and pressure taps in English. Clearly identify it as an idealized schematic. Use the image generation tool rather than only describing an image.",
+      "Derive the ideal-gas theta-beta-M relation, normal Mach number and pressure ratio in LaTeX. Define every variable and unit, distinguishing weak, strong and detached shocks.",
+      "Write complete runnable Python using only the standard library to find weak and strong shock angles by bracket scanning and bisection for explicitly stated hypothetical upstream conditions. Check equation residuals and handle absent roots.",
+      "Use a Markdown table to compare weak shocks, strong shocks, normal shocks and detached shocks across geometry, downstream state, numerical detection and model limits.",
+      "Write a long hypothetical wind-tunnel verification report with formulas, tables and pseudocode. Propagate wedge-angle and upstream-Mach uncertainty into pressure ratios and design root-tolerance convergence checks. Do not treat the schematic as experimental data."
+    ]
+  },
+  {
+    "id": "fair_division_additive_ef1_round_robin",
+    "domain": "fair_division_discrete_allocation",
+    "title": "Discrete fair division: EF1 and round-robin verification",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Additive indivisible-item allocation with quantified definitions, executable algorithms and counterexample audits.",
+    "turns": [
+      "Construct three fictional participants and six indivisible laboratory props with nonnegative additive valuations. Define EF, EF1 and EFX using explicit LaTeX quantifiers and inequalities, including empty bundles and zero-value items.",
+      "Prove the EF1 guarantee of fixed-order round-robin selection by pairing inequalities across picks. Use a concrete valuation matrix to investigate whether the allocation is Pareto optimal.",
+      "Write complete runnable standard-library Python for round-robin allocation, EF1 checks and exhaustive Pareto-improvement search for small instances. Fix the random seed and assert behavior for zero values, ties and fewer items than participants.",
+      "Use a Markdown table to compare EF, EF1, EFX, proportionality and Pareto optimality across definitions, compatibility, verification cost and guarantees of round-robin. Distinguish proofs from observations on the example.",
+      "Write a long algorithm audit with complexity derivations, counterexample tables, pseudocode and property-based test designs. Explain how participant order, tie-breaking, random seeds and nonadditive preferences affect conclusions."
     ]
   }
 ]

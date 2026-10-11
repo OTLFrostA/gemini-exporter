@@ -465,6 +465,20 @@ class ExtensionActions:
         format_type: Optional[str] = None
     ) -> Optional[str]:
         """确保设置 format_type、启用 includeZip 并点击导出，监控下载并返回落盘的 ZIP 路径"""
+        # Another CDP client can reset Chrome's download behavior after setup.
+        # Bind it again on the connection kept alive until this ZIP is on disk.
+        os.makedirs(output_dir, exist_ok=True)
+        try:
+            routed = cdp_opt.call('Browser.setDownloadBehavior', {
+                'behavior': 'allow', 'downloadPath': os.path.abspath(output_dir),
+                'eventsEnabled': True,
+            })
+            if not isinstance(routed, dict) or 'error' in routed or 'result' not in routed:
+                print(f"❌ ZIP 测试下载目录设置失败: {routed}")
+                return None
+        except Exception as exc:
+            print(f"❌ ZIP 测试下载目录设置失败: {exc}")
+            return None
         # TestEnvironment routes downloads to output_dir. Avoid scanning the user's
         # Downloads folder, where cloud-backed entries can block directory reads.
         # 记录导出触发前已存在的 ZIP 文件与修改时间戳，杜绝旧文件误命中。
