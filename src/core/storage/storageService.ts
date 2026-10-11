@@ -779,7 +779,7 @@ async function beginScanCoverage(slot: string, accountId: string | null): Promis
         const previous = await getScanCoverage(slot);
         const sameAccount = accountId !== null && previous?.accountId === accountId;
         const runId = crypto.randomUUID();
-        const coverage: ScanCoverage = { version: 1, revision: (previous?.revision ?? 0) + 1,
+        const coverage: ScanCoverage = { version: 2, revision: (previous?.revision ?? 0) + 1,
             accountId, complete: sameAccount && !!previous?.complete,
             baseline: sameAccount ? previous?.baseline ?? null : null,
             lastStatus: sameAccount ? previous?.lastStatus ?? null : null, activeRunId: runId };

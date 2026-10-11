@@ -34,6 +34,8 @@ export type PaginationPageBatchCallback = (
 /** Options for the existing Gemini list scan; targetSid is Gemini-specific. */
 export interface PaginationOptions {
     maxPages?: number;
+    /** Gemini maintains separate pinned and recent cursor chains. Sync must cover both. */
+    includePinned?: boolean;
     onProgress?: PaginationProgressCallback | null;
     onPageBatch?: PaginationPageBatchCallback | null;
     targetSid?: string | null;
@@ -57,6 +59,7 @@ export interface PaginationTokenPreview {
 
 export interface PaginationPageDiagnostic {
     page: number;
+    listKind?: 'pinned' | 'recent';
     requestedToken: PaginationTokenPreview | null;
     count: number;
     hasNextPageToken: boolean;
@@ -165,6 +168,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         if (!maxPages || typeof maxPages !== "number") maxPages = 2000;
         opts = opts || {};
         const incremental = !!opts.incremental;
+        let listKind: 'pinned' | 'recent' = opts.includePinned ? 'pinned' : 'recent';
         let all: ConversationListItem[] = [],
             seen = new Set<string>(),
             seenTokens = new Set<string>(),
@@ -220,7 +224,8 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             }
             let res: ListParseResult;
             try {
-                res = await client.getConversationList(token, targetSid, undefined, { signal: opts?.signal });
+                res = await client.getConversationList(token, targetSid,
+                    listKind === 'pinned' ? [1, null, 1] : undefined, { signal: opts?.signal });
             } catch (err: unknown) {
                 console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, getErrorMessage(err));
                 const aborted = isAborted() || (typeof err === 'object' && err !== null && 'name' in err && err.name === 'AbortError');
@@ -240,6 +245,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             diagLog.totalPagesFetched = i + 1;
             diagLog.pageHistory.push({
                 page: i + 1,
+                ...(opts.includePinned ? { listKind } : {}),
                 requestedToken: token ? { len: token.length, preview: token.slice(0, 20) + "..." } : null,
                 count: res?.conversations?.length || 0,
                 hasNextPageToken: !!res?.nextPageToken,
@@ -256,12 +262,13 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     }
                 }
 
-                if (typeof opts?.onPageBatch === 'function' && res.conversations.length > 0) {
+                if (typeof opts?.onPageBatch === 'function' && (res.conversations.length > 0
+                    || (opts.includePinned && !res._debug))) {
                     const decision = await opts.onPageBatch(res.conversations, {
                         page: i + 1,
-                        hasMore: !!res?.nextPageToken
+                        hasMore: !!res?.nextPageToken || listKind === 'pinned'
                     });
-                    if (decision && decision.shouldStop) {
+                    if (decision && decision.shouldStop && listKind === 'recent') {
                         diagLog.stopReason = decision.reason || "已与历史水位线闭环咬合，早退终止";
                         diagLog.totalConversations = all.length;
                         diagLog.endTime = new Date().toISOString();
@@ -297,6 +304,18 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     diagLog.stopReason = `第 ${i + 1} 页列表响应无法解析，不能确认历史已耗尽`;
                     stoppedEarly = true;
                     completionReason = 'error';
+                } else if (listKind === 'pinned' && !res.nextPageToken) {
+                    // Empty pinned history does not mean the account is empty.
+                    if (onProgress) onProgress({ page: i + 1, added, total: all.length, hasMore: true, batch: [] });
+                    listKind = 'recent';
+                    token = null;
+                    seenTokens.clear();
+                    continue;
+                } else if (res.nextPageToken) {
+                    // A sparse page with a cursor is not proof of exhaustion.
+                    diagLog.stopReason = `第 ${i + 1} 页返回空列表但仍有游标，不能确认历史已耗尽`;
+                    stoppedEarly = true;
+                    completionReason = 'error';
                 } else {
                     diagLog.stopReason = `第 ${i + 1} 页返回 0 条数据，Google 服务端已无更早历史`;
                     completionReason = 'natural_exhaustion';
@@ -309,10 +328,16 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 page: i + 1,
                 added,
                 total: all.length,
-                hasMore: !!res.nextPageToken,
+                hasMore: !!res.nextPageToken || listKind === 'pinned',
                 batch: res.conversations
             });
             if (!res.nextPageToken) {
+                if (listKind === 'pinned') {
+                    listKind = 'recent';
+                    token = null;
+                    seenTokens.clear();
+                    continue;
+                }
                 diagLog.stopReason = `第 ${i + 1} 页未返回下页游标 nextPageToken，Google 服务端游标已到底`;
                 reachedMax = false;
                 completionReason = 'natural_exhaustion';

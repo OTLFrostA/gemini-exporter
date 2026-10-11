@@ -28,6 +28,16 @@ async function fixture(run: (data: Record<string, unknown>) => Promise<void>) {
 }
 const baseline = { headTimestamp: 1700000000000, conversationCount: 2 };
 
+test('recent-only version 1 coverage cannot certify the pinned-and-recent scan', async () => fixture(async data => {
+    data.gemini_scan_coverage = { version: 1, revision: 10, accountId: 'account-a', complete: true,
+        baseline, lastStatus: 'complete', activeRunId: null };
+    assert.equal(await StorageService.getScanCoverage('u0'), null);
+    const run = await StorageService.beginScanCoverage('u0', 'account-a');
+    assert.equal(run.previous, null);
+    assert.equal((await StorageService.getScanCoverage('u0'))?.complete, false);
+    assert.equal((await StorageService.getScanCoverage('u0'))?.version, 2);
+}));
+
 test('legacy checkpoints cannot establish coverage; partial first scans and retries stay incomplete', async () => fixture(async () => {
     assert.equal(await StorageService.getScanCoverage('u0'), null);
     for (const status of ['partial_limit', 'aborted', 'error'] as const) {
