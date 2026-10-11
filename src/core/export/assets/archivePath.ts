@@ -6,7 +6,7 @@ export function safeDecodeURIComponent(str: string): string {
     try {
         return decodeURIComponent(escaped);
     } catch {
-        return escaped.replace(/%([0-9a-fA-F]{2})/g, (match, hex) => {
+        return escaped.replace(/%([0-9a-fA-F]{2})/g, (match: string, hex: string) => {
             const code = parseInt(hex, 16);
             if (code < 128) return String.fromCharCode(code);
             return match;

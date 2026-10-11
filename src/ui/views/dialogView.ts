@@ -277,14 +277,14 @@ export function renderExportFailureBanner(failedList: FailedChat[], onRetry?: ()
     if (titleEl) {
         titleEl.textContent = typeof t === 'function' ? t('exportFailureBannerTitle') : '部分会话导出失败';
     }
-    const btnRetry = $('btnRetryFailed') as HTMLButtonElement | null;
+    const btnRetry = $('btnRetryFailed');
     if (btnRetry) {
         btnRetry.textContent = typeof t === 'function' ? t('btnRetryFailedCount', _lastFailedChats.length) : `重试失败项 (${_lastFailedChats.length})`;
         if (onRetry) {
             btnRetry.onclick = () => onRetry();
         }
     }
-    const btnCopy = $('btnCopyFailedLog') as HTMLButtonElement | null;
+    const btnCopy = $('btnCopyFailedLog');
     if (btnCopy) {
         btnCopy.textContent = typeof t === 'function' ? t('btnCopyFailedLog') : '复制错误';
         btnCopy.onclick = async () => {
@@ -309,7 +309,7 @@ export function renderExportFailureBanner(failedList: FailedChat[], onRetry?: ()
             }
         };
     }
-    const btnDismiss = $('btnDismissFailure') as HTMLButtonElement | null;
+    const btnDismiss = $('btnDismissFailure');
     if (btnDismiss) {
         btnDismiss.onclick = () => {
             card.style.display = 'none';

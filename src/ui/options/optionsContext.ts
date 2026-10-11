@@ -24,7 +24,7 @@ import { I18n } from '../../core/utils/i18n.js';
 import { getI18n as commonGetI18n } from '../uiCommon.js';
 
 export const getI18n = () => commonGetI18n() || I18n;
-export const t = (key: string, ...args: any[]): string => {
+export const t = (key: string, ...args: unknown[]): string => {
     const i18n = getI18n();
     return i18n && typeof i18n.t === 'function' ? i18n.t(key, ...args) : key;
 };
