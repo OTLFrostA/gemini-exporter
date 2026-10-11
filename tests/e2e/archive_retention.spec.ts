@@ -24,12 +24,14 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
         if (!window.__workbenchLoadStore) throw new Error('Workbench unavailable');
         await window.__workbenchLoadStore(true);
     });
-    await expect(page.locator('#archiveNotice')).toContainText(/Local bodies: 1.*Metadata only: 1|本地有正文：1.*仅元数据：1/);
+    await expect(page.locator('#archiveNotice')).toContainText(/Detected conversations deleted from the cloud|检测到有对话已从云端删除/);
     await page.selectOption('#format', 'markdown');
     await page.check('#includeZip');
-    await page.check('#skipExported'); // The explicit local-copy export must override skip-existing.
+    await page.uncheck('#skipExported'); // Re-export the retained archive through the regular export controls.
+    await page.locator('[data-chat-id="metadata_only"] input[type=checkbox]').uncheck();
+    await page.locator('[data-chat-id="archive_local"] input[type=checkbox]').check();
     const downloaded = page.waitForEvent('download');
-    await page.locator('#archiveNotice button').filter({ hasText: /Keep and export|保留并导出/ }).click();
+    await page.locator('#btnExport').click();
     const download = await downloaded, file = await download.path();
     expect(file).toBeTruthy();
     const zip = await JSZip.loadAsync(fs.readFileSync(file!));
@@ -41,7 +43,7 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
     expect(attachment).toBeTruthy(); expect((await zip.files[attachment!].async('uint8array')).length).toBeGreaterThan(0);
     await expect(page.locator('#log')).toContainText(/local snapshot|本地快照/);
     await expect(page.locator('#list .item')).toHaveCount(2);
-    const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Clean local|清理本地/ });
+    const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Delete local records|删除本地记录/ });
     page.once('dialog', dialog => dialog.dismiss()); await cleanup.click();
     const before = await page.evaluate(async () => chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountSlot: 'u0', conversationId: 'archive_local' } } }));
     expect(before.value.conversation.messages).toHaveLength(2);

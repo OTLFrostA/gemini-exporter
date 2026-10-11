@@ -423,9 +423,8 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     await expect(page.locator('#list .item')).toHaveCount(3);
     await expect(page.locator('#list .item[data-chat-id="del_eph_9999"] .cloud-status')).toBeVisible();
     await expect(page.locator('#archiveNotice')).toBeVisible();
-    await page.locator('#archiveNotice summary').click();
-    await expect(page.locator('#archiveNotice')).toContainText(/Metadata only|仅元数据/);
-    const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Clean local|清理本地/ });
+    await expect(page.locator('#archiveNotice')).toContainText(/Detected conversations deleted from the cloud|检测到有对话已从云端删除/);
+    const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Delete local records|删除本地记录/ });
     page.once('dialog', dialog => dialog.dismiss());
     await cleanup.click();
     await expect(page.locator('#list .item')).toHaveCount(3);
