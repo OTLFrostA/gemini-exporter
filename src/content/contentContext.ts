@@ -20,6 +20,7 @@ export type ContentEvent = 'credentials' | 'abort' | 'reset' | 'scanStart' | 'sc
 
 export class ContentContext {
     private _aborted = false;
+    private _cancelledAt = 0;
     private _activeClient: ActiveClientContract | null = null;
     private _deepScanPromise: Promise<any> | null = null;
     private _credentials: GeminiCredentials | null = null;
@@ -49,7 +50,10 @@ export class ContentContext {
         return this._aborted;
     }
 
+    public getCancelledAt(): number { return this._cancelledAt; }
+
     public setAborted(val: boolean): void {
+        if (val) this._cancelledAt = Date.now();
         this._aborted = val;
         if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterAborted = val;
@@ -57,7 +61,7 @@ export class ContentContext {
     }
 
     public abort(): void {
-        this._aborted = true;
+        this.setAborted(true);
         if (this._devMode && typeof window !== 'undefined') {
             (window as any).__gemExporterAborted = true;
         }

@@ -1,6 +1,6 @@
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
-import type { ScanCoverageRun } from '../core/storage/scanCoverage.js';
+import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
 import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
@@ -250,8 +250,21 @@ export async function ingestRpcList(items: GeminiProviderConversationItem[], slo
 }
 
 /** Both passive and active pages pass through this trigger-independent boundary. */
-export async function ingestPageObservation(page: PageObservation<GeminiProviderConversationItem>, slot: string): Promise<RpcListIngestResult> {
-    return ingestRpcList(page.items, slot);
+export async function ingestPageObservation(page: PageObservation<GeminiProviderConversationItem>, slot: string,
+    runId?: string): Promise<RpcListIngestResult> {
+    const Storage = getStorage();
+    const canCommit = () => (typeof location === 'undefined' || getAccountSlot() === slot)
+        && (page.accountId === null || sniffUserProfileFromDom()?.accountId === page.accountId)
+        && (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
+        && (runId === undefined || !contentContext.isAborted());
+    if (!canCommit()) throw new Error('Page observation belongs to a stale account or cancelled request');
+    if (page.accountId === null) return ingestRpcList(page.items, slot);
+    const context: ScanCoverage = await Storage.preparePageCoverage(slot, page.accountId, page.providerId);
+    const receipt = await ingestRpcList(page.items, slot);
+    if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) return receipt;
+    if (!await Storage.recordPageCoverage(slot, page, context, page.streamId === 'recent', ['pinned', 'recent'], runId, canCommit)
+        && runId !== undefined) throw new Error('Coverage was cleared, cancelled or superseded');
+    return receipt;
 }
 
 function persistConversationBatch(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<RpcListIngestResult> {
@@ -479,7 +492,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 }
                 await assertSchemaWritable();
                 const receipt = info.observation
-                    ? await ingestPageObservation({ ...info.observation, accountId }, slot)
+                    ? await ingestPageObservation({ ...info.observation, accountId }, slot, runId)
                     : await ingestRpcList(batch, slot);
                 if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) {
                     throw new Error('List page could not be fully persisted; coverage was not advanced');
@@ -531,6 +544,23 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         }
         coverageFinished = true;
 
+        if (hitGoogleLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            try {
+                const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
+                if (!existing?.[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]) {
+                    // Persist STORAGE_KEYS.PENDING_TAKEOUT_PROMPT via StorageService
+                    const setPending = Storage?.setPendingTakeoutPrompt || StorageService.setPendingTakeoutPrompt;
+                    await setPending({
+                        slot,
+                        count: all.items.length,
+                        hitGoogleLimit: hitGoogleLimit,
+                        timestamp: Date.now()
+                    });
+                }
+            } catch (e) {
+                if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
+            }
+        }
         if (all && all.items && all.items.length) {
             // Each page batch was already incrementally upserted via onPageBatch;
             // avoid a second full O(n log n) pass here.
@@ -545,23 +575,6 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
             const finishText = complete
                 ? (zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`)
                 : (zh ? `同步未完成，已保存 ${mergedLen} 条，可重试（${incompleteReason}）` : `Sync incomplete: ${mergedLen} saved; retry (${incompleteReason})`);
-            if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-                try {
-                    const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
-                    if (!existing?.[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]) {
-                        // Persist STORAGE_KEYS.PENDING_TAKEOUT_PROMPT via StorageService
-                        const setPending = Storage?.setPendingTakeoutPrompt || StorageService.setPendingTakeoutPrompt;
-                        void setPending({
-                            slot,
-                            count: mergedLen,
-                            hitGoogleLimit: hitGoogleLimit,
-                            timestamp: Date.now()
-                        });
-                    }
-                } catch (e) {
-                    if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
-                }
-            }
             try {
                 const completeTitle = finishText;
                 const _p = chrome.runtime.sendMessage({

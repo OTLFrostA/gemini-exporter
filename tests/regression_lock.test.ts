@@ -189,6 +189,7 @@ function createHookSandbox() {
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         setTimeout: () => 0,
         URLSearchParams, Request,
+        sniffUserProfileFromDom: require('../src/content/accountSniffer.js').sniffUserProfileFromDom,
         readGeminiListRequest: require('../src/core/provider/gemini/listObservation.js').readGeminiListRequest
     };
     vm.createContext(sandbox);
@@ -719,7 +720,7 @@ test('audit fix: tabService strictly isolates non-u0 slots without silent cross-
     }
 });
 
-test('network RPC lists preserve the payload account slot at the shared ingestion boundary', async () => {
+test('network RPC lists from another account slot are rejected at the shared ingestion boundary', async () => {
     const bridge = require('../src/content/messageBridge.js');
     let receivedSlot = '';
     const api = bridge.init({
@@ -731,7 +732,9 @@ test('network RPC lists preserve the payload account slot at the shared ingestio
     });
     const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_slot_isolation', 'Title']]])]]);
     await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u1' } } });
-    assert.strictEqual(receivedSlot, 'u1', 'u1 response must never be saved into the active u0 slot');
+    assert.strictEqual(receivedSlot, '', 'a stale u1 response must not reach the active u0 observer');
+    await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u0' } } });
+    assert.strictEqual(receivedSlot, 'u0');
 });
 
 // ============================================================================

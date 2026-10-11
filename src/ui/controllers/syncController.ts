@@ -55,9 +55,7 @@ function _runScan(
 
         const hitGoogleLimit = !!(
             res?.hitGoogleLimit ||
-            res?.diagnostics?.hitGoogleLimit ||
-            isServerRateOrQuotaLimit(res?.diagnostics?.stopReason) ||
-            isServerRateOrQuotaLimit(res?.error)
+            res?.diagnostics?.hitGoogleLimit
         );
 
         if (res.status && res.status !== 'complete' && res.status !== 'up_to_date') {

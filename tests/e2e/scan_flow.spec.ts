@@ -19,7 +19,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
             };
           </script>
         </head>
-        <body>Gemini Mock Active Tab</body>
+        <body><button aria-label="Google Account: Scan (scan@example.com)">Scan</button>Gemini Mock Active Tab</body>
         </html>`
       });
     });
@@ -84,7 +84,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     }) as Record<string, any>;
     const convs = (storageData.gemini_conversations || []) as any[];
     expect(convs.length).toBe(4);
-    expect(storageData.gemini_scan_coverage).toMatchObject({ version: 2, complete: true, lastStatus: 'complete',
+    expect(storageData.gemini_scan_coverage).toMatchObject({ version: 3, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
       activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
     expect(convs.find((c: any) => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
     await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 4 conversations|正在追踪 4 条对话/);

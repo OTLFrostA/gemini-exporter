@@ -1,3 +1,4 @@
+import { sniffUserProfileFromDom } from './accountSniffer.js';
 import { readGeminiListRequest } from '../core/provider/gemini/listObservation.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
@@ -229,7 +230,7 @@ declare global {
         }
     }
 
-    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown, body?: unknown, truncated = false, requestedAt = 0): void {
+    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown, body?: unknown, truncated = false, requestedAt = 0, requestAccountId: string | null = null): void {
         try {
             // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
             // not take part in this test — including it makes the filter always pass
@@ -241,6 +242,7 @@ declare global {
                 text: text.slice(0, 3000000), // Protect against memory spikes
                 listRequest: readGeminiListRequest(body),
                 requestedAt,
+                requestAccountId,
                 truncated: truncated || text.length > 3000000,
                 slot,
                 url: toUrlString(url)
@@ -310,6 +312,7 @@ declare global {
             init?: RequestInit
         ): Promise<Response> {
             const requestedAt = Date.now();
+            const requestAccountId = toUrlString(input).includes('batchexecute') ? sniffUserProfileFromDom()?.accountId ?? null : null;
             let requestBody: unknown;
             if (typeof Request !== 'undefined' && input instanceof Request) {
                 requestBody = input.body;
@@ -317,9 +320,11 @@ declare global {
                 requestBody = input.body;
             }
             const body: unknown = (init && init.body) || requestBody;
-            const capturedBody = typeof body === 'string' ? Promise.resolve(body)
-                : typeof Request !== 'undefined' && input instanceof Request
-                    ? input.clone().text().catch(() => '') : Promise.resolve('');
+            let capturedBody = Promise.resolve(typeof body === 'string' ? body : '');
+            if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
+                && input.url.includes('batchexecute')) {
+                try { capturedBody = input.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }
+            }
 
             try {
                 captureFromUrl(input, body);
@@ -339,7 +344,7 @@ declare global {
                     readCappedText(cloned).then(async ({ text: txt, truncated }) => {
                         try {
                             detectDeletedConversation(input, body, txt);
-                            broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt);
+                            broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt, requestAccountId);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }
@@ -392,6 +397,7 @@ declare global {
                 const url = this.__hookUrl;
                 const body = args[0];
                 const requestedAt = Date.now();
+                const requestAccountId = toUrlString(url).includes('batchexecute') ? sniffUserProfileFromDom()?.accountId ?? null : null;
                 captureFromUrl(url, body);
 
                 const u = toUrlString(url);
@@ -399,7 +405,7 @@ declare global {
                     this.addEventListener('load', () => {
                         try {
                             detectDeletedConversation(url, body, this.responseText);
-                            broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt);
+                            broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt, requestAccountId);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }

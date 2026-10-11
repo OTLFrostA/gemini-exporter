@@ -31,7 +31,7 @@ export function geminiListObservation(result: ListParseResult, request: GeminiLi
         || !(request.requestCursor === null || typeof request.requestCursor === 'string')) request = null;
     // Display timestamp fallbacks are intentionally excluded from ordering evidence.
     const raw = Array.isArray(result._raw) ? result._raw : [];
-    const rows: unknown[] | null = Array.isArray(raw[GEMINI_JSPB_SCHEMA.INNER.LIST_SECONDARY]) ? raw[GEMINI_JSPB_SCHEMA.INNER.LIST_SECONDARY] : Array.isArray(raw[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST]) ? raw[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST] : null;
+    const rows: unknown[] | null = Array.isArray(result._raw) && raw.length === 0 ? [] : Array.isArray(raw[GEMINI_JSPB_SCHEMA.INNER.LIST_SECONDARY]) ? raw[GEMINI_JSPB_SCHEMA.INNER.LIST_SECONDARY] : Array.isArray(raw[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST]) ? raw[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST] : null;
     const keys = result.conversations.map((item, index) => {
         const row = rows?.[index];
         const time = Array.isArray(row) && Array.isArray(row[5]) && row[5].length === 2
@@ -39,10 +39,10 @@ export function geminiListObservation(result: ListParseResult, request: GeminiLi
             ? payloadToMs(row[5]) : null;
         return { id: item.id, time: time ?? 0 };
     });
-    const valid = !truncated && !result._debug && rows !== null && rows.length === result.conversations.length
-        && keys.every(key => key.id.length >= 3 && key.time > 0) && new Set(keys.map(key => key.id)).size === keys.length;
+    const valid = (result.nextPageToken === null || keys.length > 0) && !truncated && !result._debug && rows !== null && rows.length === result.conversations.length
+        && keys.every(key => key.id.length >= 3) && new Set(keys.map(key => key.id)).size === keys.length;
     return { providerId: 'gemini', accountId, streamId: request?.streamId ?? 'unknown', items: result.conversations,
         requestCursor: request?.requestCursor ?? null, nextCursor: result.nextPageToken,
         requestedAt, requestKnown: request !== null, valid,
-        ordered: valid && request?.streamId === 'recent' && keys.every((key, i) => i === 0 || keys[i - 1].time > key.time), keys };
+        ordered: valid && request?.streamId === 'recent' && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time > key.time), keys };
 }
