@@ -1,3 +1,5 @@
+import { geminiListObservation } from '../../provider/gemini/listObservation.js';
+import type { PageObservation } from '../../sync/pageObservation.js';
 import { isResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
@@ -19,6 +21,7 @@ export interface PaginationProgressInfo {
 export interface PaginationPageBatchInfo {
     page: number;
     hasMore: boolean;
+    observation?: PageObservation<ConversationListItem>;
 }
 
 export interface PaginationStopDecision {
@@ -222,6 +225,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 completionReason = 'aborted';
                 break;
             }
+            const requestedAt = Date.now();
             let res: ListParseResult;
             try {
                 res = await client.getConversationList(token, targetSid,
@@ -266,7 +270,8 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     || (opts.includePinned && !res._debug))) {
                     const decision = await opts.onPageBatch(res.conversations, {
                         page: i + 1,
-                        hasMore: !!res?.nextPageToken || listKind === 'pinned'
+                        hasMore: !!res?.nextPageToken || listKind === 'pinned',
+                        observation: geminiListObservation(res, { streamId: listKind, requestCursor: token }, null, false, requestedAt)
                     });
                     if (decision && decision.shouldStop && listKind === 'recent') {
                         diagLog.stopReason = decision.reason || "已与历史水位线闭环咬合，早退终止";

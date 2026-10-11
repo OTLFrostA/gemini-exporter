@@ -1,3 +1,4 @@
+import type { GeminiListRequestContext } from '../provider/gemini/listObservation.js';
 import { CrossWorldEvents, type CrossWorldEventType } from './protocol.js';
 
 export { CrossWorldEvents, type CrossWorldEventType };
@@ -17,6 +18,9 @@ export interface GeminiConversationDeletedPayload {
 }
 
 export interface GeminiNetworkBatchexecutePayload {
+    listRequest?: GeminiListRequestContext | null;
+    truncated?: boolean;
+    requestedAt?: number;
     text: string;
     slot: string;
     url: string;

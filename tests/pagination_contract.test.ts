@@ -86,7 +86,7 @@ test('list: dedupe, callback batch, progress and diagnostic token evidence keep 
         onPageBatch: async (batch, info) => { batches.push({ ids: batch.map(c => c.id), ...info }); }
     });
     assert.deepEqual(result.conversations.map(c => c.id), ['one', 'two']);
-    assert.deepEqual(batches, [{ ids: ['one'], page: 1, hasMore: true }, { ids: ['one', 'two'], page: 2, hasMore: false }]);
+    assert.deepEqual(batches.map(({ observation, ...batch }: any) => batch), [{ ids: ['one'], page: 1, hasMore: true }, { ids: ['one', 'two'], page: 2, hasMore: false }]);
     assert.deepEqual(progress.map(({ page, added, total, hasMore }) => ({ page, added, total, hasMore })),
         [{ page: 1, added: 1, total: 1, hasMore: true }, { page: 2, added: 1, total: 2, hasMore: false }]);
     assert.strictEqual(progress[1].batch, second.conversations);

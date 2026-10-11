@@ -1,25 +1,5 @@
 [
   {
-    "id": "urban_bus_headway_bunching_control",
-    "domain": "transport_operations_bus_headway_control",
-    "title": "Bus headway control: passenger queues and service regularity",
-    "features": [
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "algorithms",
-      "statistics"
-    ],
-    "turns": [
-      "Derive a simple model for bus headway evolution and passenger waiting time using inline and display LaTeX. Explain the feedback that causes bus bunching.",
-      "Give a worked quantitative example with uneven headways, boarding rates and stop dwell times. Compare mean passenger waiting time before and after a holding intervention.",
-      "Write a complete Python simulation with fixed random seed for passenger arrivals and bus service. Report a waiting time summary and regularity metrics across replications.",
-      "Create a Markdown comparison table for schedule based control, headway based holding, limited stop service and dispatch intervention, including benefits and operational constraints.",
-      "Design an evaluation plan for deploying headway control on an urban route. Include demand uncertainty, fairness between on board and waiting passengers, monitoring and failure recovery."
-    ]
-  },
-  {
     "id": "warehouse_order_batching_walk_distance",
     "domain": "logistics_order_batching",
     "title": "Warehouse picking batches and walking distance",
@@ -198,27 +178,6 @@
       "写完整 Python/NumPy 仿真，固定随机种子完成 QPSK、IFFT、循环前缀、信道、噪声和均衡，输出比特错误率及 EVM。禁止省略核心函数，加入无噪声恢复、功率归一化和前缀长度三类断言。",
       "用 Markdown 表格比较前缀不足、载波频偏、采样偏差和信道估计偏差的误差特征，给出可区分这些错误的数值检查，并用 LaTeX 推导一个简化频偏引起的子载波泄漏例子。",
       "写一份较长的工程教学报告，汇总链路预算、前缀开销、导频密度与统计置信区间，解释仿真如何支持或不能支持实际系统结论。提供逐项复现实验步骤和失败诊断清单。"
-    ]
-  },
-  {
-    "id": "ecology_mark_recapture_detection_bias",
-    "title": "生态抽样：标记重捕与探测偏差",
-    "domain": "ecology_mark_recapture_detection_bias",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "请实际生成一张原创生态教学示意图：虚构保护区分为林地、草地、湿地三块，标出两次非侵入式相机采样、个体识别和重捕匹配流程，采用中英双语标注。图中动物和数量都是假想样本。",
-      "用 LaTeX 推导两次标记重捕的超几何似然及 Chapman 修正估计，解释封闭种群、独立采样和同质探测概率假设，并以假想小样本计算估计值和方差。",
-      "提供完整 Python 标准库代码，用固定随机种子模拟三类栖息地的不同探测概率，对比未分层和分层估计的偏差。加入零重捕、空栖息地和全部个体被识别的边界测试。",
-      "用 Markdown 表格比较同质探测、栖息地分层、时间变探测和行为响应模型，列出可识别参数、需要的观测、偏差方向与诊断证据。给出两组假想样本计算，避免伪造真实物种数据。",
-      "写较长的教学研究设计报告，讨论识别误差、设备故障、迁入迁出和采样努力的影响，给出不确定性表达、数据审计、敏感性分析与复现清单。声明不能把模拟结果解释为真实保护区的种群估计。"
     ]
   },
   {
@@ -407,6 +366,46 @@
       "Write complete runnable Python using only the standard library for successive shortest augmenting paths with potentials. Include a deterministic example, explicit assertions for capacity and conservation, and blank lines between functions.",
       "Create a Markdown comparison table for cycle canceling, successive shortest paths and network simplex, including assumptions, complexity and negative-cost handling. Include an English-Chinese glossary.",
       "Explain how to verify optimality using reduced costs and complementary slackness. Provide an infeasible example, a reproducible test plan and precise limits of the algorithm when lower bounds or negative cycles are present."
+    ]
+  },
+  {
+    "id": "origami_rigid_fold_vertex_compatibility",
+    "domain": "origami_rigid_fold_geometry",
+    "title": "Origami geometry: rigid fold vertex compatibility",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Actually generate an original educational origami image with a four crease vertex, mountain and valley fold marks, and sector angles. Do not substitute a web image. Explain flat folding versus rigid folding.",
+      "Derive the Kawasaki sector angle condition and Maekawa mountain versus valley count condition in LaTeX. Give numerical examples and explain why necessary conditions do not guarantee every rigid motion.",
+      "Provide complete runnable Python using the standard library to validate four sector angles and generate examples with a fixed random seed. Include tolerance, degeneracy checks and numerical output.",
+      "Create a Markdown comparison table of rigid origami, elastic sheet folding and developable surface approximations: degrees of freedom, assumptions, computation and failure conditions. Add a bilingual glossary.",
+      "Write a detailed validation report with angle perturbations, permutations, zero angles and precision experiments. Include formulas, test data tables and reproducible code. Distinguish geometric conditions from mechanical realizability."
+    ]
+  },
+  {
+    "id": "number_theory_extended_gcd_lattice_basis",
+    "domain": "number_theory_diophantine_lattice",
+    "title": "Integer algorithms: extended gcd and Diophantine solution lattices",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive extended Euclidean algorithm invariants and the Bezout identity in LaTeX. Explain how they solve two variable linear Diophantine equations with a worked numerical example.",
+      "For 84x+30y=18, derive all integer solutions and count those within specified finite bounds. Compare truncation toward zero versus floor division for negative boundary calculations.",
+      "Provide complete standard library Python for sign safe extended gcd, parametric solutions and bounded solution counting. Include zero coefficients, negative coefficients and unsatisfiable cases with executable tests.",
+      "Create a Markdown comparison table for extended gcd, enumeration, integer programming and lattice basis methods with input ranges, complexity and correctness assumptions. Add a bilingual glossary.",
+      "Design fixed seed differential tests against exhaustive small integer enumeration. Write a detailed report with LaTeX complexity analysis, failure case tables and full reproducible code, distinguishing proof from empirical verification."
     ]
   }
 ]
