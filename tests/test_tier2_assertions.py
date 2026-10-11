@@ -309,6 +309,26 @@ value = 2 ** 3
                         exported.replace('    finish()', '\tfinish()')):
             self.assertFalse(assert_turn_content(changed, evidence)[0])
 
+    def test_execution_records_are_separate_and_require_exact_independent_dom_evidence(self):
+        code = 'if ready:\n    run()\n\n\nfinish()'
+        evidence = [{'prompt': 'Run and explain.', 'response': 'Final answer', 'code_blocks': [],
+                     'execution_blocks': [{'code': code, 'stdout': 'result: 7\nsecond line'}]}]
+        exported = document(evidence).replace('Final answer', f'```python?code_reference&code_event_index=1\n{code}\n```\n\n```text?code_stdout&code_event_index=1\nresult: 7\nsecond line\n```\n\nFinal answer')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace('    run()', '  run()'), exported.replace('result: 7', 'result: 8'),
+                        exported.replace('Final answer', ''), exported.replace('\n\n\nfinish()', '\n\nfinish()')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
+        no_execution_evidence = copy.deepcopy(evidence); no_execution_evidence[0]['execution_blocks'] = []
+        self.assertFalse(assert_turn_content(exported, no_execution_evidence)[0])
+        self.assertFalse(assert_turn_content(document(evidence), evidence)[0])
+
+    def test_execution_marker_inside_regular_code_is_authored_content(self):
+        code = 'python?code_reference&code_event_index=1\nWas this visual helpful?'
+        evidence = [{'prompt': 'Show the literal marker.', 'response': code, 'code_blocks': [code]}]
+        exported = document(evidence).replace(code, f'```text\n{code}\n```')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace('Was this visual helpful?', ''), evidence)[0])
+
 
 class ScanAndImportTests(unittest.TestCase):
     def test_complete_fast_scan_passes_without_sampling_busy_state(self):

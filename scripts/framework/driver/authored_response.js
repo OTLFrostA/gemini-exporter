@@ -1,8 +1,16 @@
 // Read the authored answer independently of the extension's parser/exporter.
 // This function is embedded in the live CDP driver and exercised in a browser.
 (root) => {
-    if (!root) return { text: '', hasImages: false, codeBlocks: [] };
+    if (!root) return { text: '', hasImages: false, codeBlocks: [], executionBlocks: [] };
+    // Execution disclosures are accessible source evidence, even when collapsed.
+    // Verify exported protocol-tagged execution blocks separately from prose.
+    const executions = [...root.querySelectorAll('code-block')].filter(block => block.querySelector('.code-result-container'));
+    const executionBlocks = executions.map(block => ({
+        code: block.querySelector('.code-container')?.textContent || '',
+        stdout: block.querySelector('.code-result-container')?.textContent || '',
+    }));
     const clone = root.cloneNode(true);
+    const clonedExecutions = [...clone.querySelectorAll('code-block')].filter(block => block.querySelector('.code-result-container'));
     const originals = [root, ...root.querySelectorAll('*')];
     const copies = [clone, ...clone.querySelectorAll('*')];
     originals.forEach((element, index) => {
@@ -12,6 +20,8 @@
             copies[index].remove();
         }
     });
+    clonedExecutions.forEach(block => block.remove());
+    clone.querySelectorAll('follow-up, elicitations-group, mini-app').forEach(element => element.remove());
     // Gemini keeps the original LaTeX here; rendered glyph order is lossy.
     clone.querySelectorAll('[data-math]').forEach(element => {
         const source = element.getAttribute('data-math') || '';
@@ -26,5 +36,6 @@
         text: (clone.textContent || '').trim(),
         hasImages,
         codeBlocks: [...clone.querySelectorAll('pre')].map(pre => (pre.querySelector('code') || pre).textContent || ''),
+        executionBlocks,
     };
 }

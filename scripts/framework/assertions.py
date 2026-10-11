@@ -91,6 +91,9 @@ def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool
             return False, f"第 {idx + 1} 轮真实用户 Prompt 缺失"
         response = normalized_answer(turn.get('response', ''))
         actual = normalized_answer(model['content'], markdown=True)
+        execution = lambda events: [{key: event[key].replace('\r\n', '\n').strip('\n') for key in ('code', 'stdout')} for event in events]
+        if execution(turn.get('execution_blocks', [])) != execution(markdown_answer_evidence(model['content'])['executionBlocks']):
+            return False, f"第 {idx + 1} 轮代码执行记录与实际网页证据不匹配"
         if 'code_blocks' in turn:
             code = lambda blocks: [value.replace('\r\n', '\n').strip('\n') for value in blocks]
             if code(turn['code_blocks']) != code(markdown_answer_evidence(model['content'])['codeBlocks']):
@@ -543,7 +546,8 @@ class CDPAssertions:
                                 return False, f"{cid} 内容未增量更新，仍为旧文件", summary
                             for old, new in zip(old_messages, new_messages):
                                 if (old['role'] != new['role'] or normalized_answer(old['content'], True) != normalized_answer(new['content'], True)
-                                        or markdown_answer_evidence(old['content'])['codeBlocks'] != markdown_answer_evidence(new['content'])['codeBlocks']):
+                                        or markdown_answer_evidence(old['content'])['codeBlocks'] != markdown_answer_evidence(new['content'])['codeBlocks']
+                                        or markdown_answer_evidence(old['content'])['executionBlocks'] != markdown_answer_evidence(new['content'])['executionBlocks']):
                                     return False, f"{cid} 追加后原有轮次内容被改变或丢失", summary
                         summary.setdefault('documents', {})[cid] = {'path': mf[3], 'text': text, 'sha256': hashlib.sha256(text.encode()).hexdigest()}
 

@@ -1,25 +1,5 @@
 [
   {
-    "id": "reliability_engineering_weibull_censored_lifetime",
-    "domain": "reliability_engineering_censored_survival",
-    "title": "Reliability engineering: censored Weibull lifetime inference",
-    "features": [
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "statistics"
-    ],
-    "description": "Lifetime likelihoods, censoring, uncertainty and reproducible engineering diagnostics.",
-    "turns": [
-      "Define a two-parameter Weibull lifetime model for a fictional pump endurance experiment. Use LaTeX for density, survival and hazard functions, and explain units and physical interpretation.",
-      "Derive the log likelihood for independently right-censored lifetimes. State the independence assumptions and discuss identifiability when the observed number of failures is small.",
-      "Write runnable Python to fit log-transformed shape and scale parameters to an explicitly invented small censored dataset. Show convergence diagnostics and reject negative or zero lifetimes.",
-      "Use a Markdown table to compare Kaplan-Meier estimates, exponential and Weibull parametric models, and accelerated lifetime testing. Cover assumptions, uncertainty and extrapolation limitations.",
-      "Design a parametric bootstrap for the reliability at a fixed mission duration. Explain confidence intervals, model misspecification and how a monitoring plan should detect departures from the fitted hazard."
-    ]
-  },
-  {
     "id": "airport_queueing_staffing_uncertainty",
     "domain": "operations_research_airport_queueing",
     "title": "Airport screening: queueing capacity and staffing uncertainty",
@@ -199,29 +179,6 @@
       "用 Python 编写自包含的网格模拟器，比较贪心覆盖、带电量约束的最短路与滚动时域策略，以固定种子生成障碍与巡检需求，输出路线、有效采样率、能耗和回充次数。",
       "用 Markdown 表格比较单机器人与双机器人分区、静态巡检与按不确定性主动采样的适用条件、通信需求和主要失效模式；给出动态新增任务时的计算代价分析。",
       "写一份长篇部署与验证报告，涵盖临时封路、定位漂移、采样传感器故障和充电站不可达，设计安全停靠、任务重分配和数据完整性机制，提供可复现的测试清单与定量指标。"
-    ]
-  },
-  {
-    "id": "electrochemistry_porous_electrode_impedance",
-    "domain": "electrochemistry_porous_electrode_impedance",
-    "title": "多孔电极阻抗：传输线模型与参数辨识",
-    "features": [
-      "imagen",
-      "multimodal",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "原创电极剖面图、分布阻抗推导、频域计算、Nyquist 图数据与可辨识性分析",
-    "turns": [
-      "请实际生成一张原创科学剖面图，展示多孔电极中的电解液通道、固体骨架、界面双电层和离子传输路径。生成图片后，用中文解释各部分作用，并注明该图是概念示意而非测量结果。",
-      "从电荷守恒和线性化界面响应推导一维多孔电极传输线方程，用 LaTeX 定义单位长度离子电阻和界面导纳，写出有限厚度电极阻抗及不同边界条件，检查低频和高频极限。",
-      "编写可运行 Python 代码计算合成电极的频域阻抗，给出固定参数、对数频率网格、Nyquist 与 Bode 数据和单位检查，讨论复数平方根的分支选择。",
-      "使用固定随机种子生成带噪声阻抗数据，并用 scipy.optimize 做复数残差最小二乘拟合；分析电极厚度、电阻和电容的参数混淆，给出雅可比或灵敏度检验。",
-      "用 Markdown 表格比较理想电容、常相位元件和有限长度扩散模型的频率特征，提出区分离子传输和界面反应限制的实验方案，明确模型假设、误差来源和无法从单次阻抗谱确定的结论。"
     ]
   },
   {
@@ -408,6 +365,49 @@
       "Write complete runnable standard-library Python to explore reachable states, detect safety violations and report a counterexample trace. Add strongly connected component analysis for liveness under explicitly documented fairness conditions.",
       "Use a Markdown table to compare invariants, reachability, response properties and fairness assumptions across finite tests, graph exploration and temporal model checking.",
       "Write a long verification audit with equations, state tables and pseudocode. Explain state explosion, abstraction, environment assumptions and how to replay and minimize a counterexample without claiming exhaustive verification from random tests."
+    ]
+  },
+  {
+    "id": "plant_hydraulics_stomatal_water_balance",
+    "domain": "plant_hydraulics_transport",
+    "title": "Plant hydraulics: xylem transport and stomatal water balance",
+    "description": "Imaginary plant transport model with generated anatomy schematic, balance equations and numerical audits.",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an actual scientific teaching diagram of a fictional plant leaf and stem showing xylem transport, water potential gradients, stomata and evaporation. Use clear English labels and distinguish it as a conceptual schematic rather than experimental evidence.",
+      "Derive a simple steady water-flow network and a transient leaf water-balance model in LaTeX. Define conductance, capacitance and water-potential units; distinguish stated assumptions from physiological facts.",
+      "Write complete runnable standard-library Python to integrate the hypothetical leaf water balance, with a fixed forcing schedule, step-size convergence and conservation checks. Include dry and wet boundary-condition tests.",
+      "Use a Markdown table to compare steady and transient models, linear and nonlinear conductance, identifiability, required observations and model limitations.",
+      "Write a long simulated model-verification report with equations, tables and pseudocode. Separate parameter uncertainty, observation noise and structural model error without interpreting fictional inputs as real crop recommendations."
+    ]
+  },
+  {
+    "id": "graph_algorithms_offline_dynamic_connectivity",
+    "domain": "graph_algorithms_dynamic_connectivity",
+    "title": "Offline dynamic connectivity: rollback union-find",
+    "description": "Time-indexed undirected graphs, interval trees and exact rollback-state verification.",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define offline dynamic connectivity for an undirected multigraph with add, remove and query events. Formalize edge-active intervals in LaTeX, including duplicate edges, self-loops and disconnected vertices.",
+      "Derive a segment-tree-over-time algorithm using rollback union-find. Explain why path compression changes rollback invariants and justify the running time with explicit assumptions.",
+      "Write complete runnable standard-library Python implementing the algorithm. Add a slow BFS oracle and fixed-seed randomized checks for duplicate insertions, removals, self-loops and queries before any edges exist.",
+      "Use a Markdown table to compare BFS per query, union-find for insertions only, rollback union-find offline and fully dynamic online methods across semantics, time costs and implementation constraints.",
+      "Write a long algorithm audit with complexity equations, state tables, pseudocode and minimized counterexample traces. Show how to validate rollback snapshots and distinguish testing evidence from a correctness proof."
     ]
   }
 ]

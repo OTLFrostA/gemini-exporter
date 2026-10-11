@@ -531,6 +531,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 text: authored.text,
                 hasImages: authored.hasImages,
                 codeBlocks: authored.codeBlocks,
+                executionBlocks: authored.executionBlocks,
                 modelCount: models.length
             }};
         }})()
@@ -560,7 +561,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             has_images=has_images,
             duration=duration,
             chat_id=curr_id,
-            metadata={"model_count": resp_data.get("modelCount", 1), "code_blocks": resp_data.get("codeBlocks", [])}
+            metadata={"model_count": resp_data.get("modelCount", 1), "code_blocks": resp_data.get("codeBlocks", []),
+                      "execution_blocks": resp_data.get("executionBlocks", [])}
         )
 
     def settled_conversation_evidence(self, chat_id: str, prompts: List[str], timeout: float = 60.0) -> List[Dict[str, Any]]:
@@ -589,6 +591,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                         return {{
                             prompt: read(users[index].querySelector('.query-text') || users[index]).text,
                             response: answer.text, has_images: answer.hasImages, code_blocks: answer.codeBlocks,
+                            execution_blocks: answer.executionBlocks,
                         }};
                     }}),
                 }};

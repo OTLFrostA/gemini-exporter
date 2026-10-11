@@ -12,6 +12,7 @@ function literal(node) {
     return node.value ?? node.children?.map(literal).join('') ?? '';
 }
 let referenceNumbers = new Set();
+const executionNodes = new WeakSet();
 function authored(node) {
     const chunks = [];
     function add(text, verbatim = false, boundary = false) {
@@ -20,6 +21,7 @@ function authored(node) {
         else chunks.push({ text, verbatim, boundary });
     }
     function visit(current) {
+        if (executionNodes.has(current)) return;
         if (current.type === 'text') add(current.value);
         // Code/math form immutable boundaries, preserving literal operators.
         else if (['code', 'inlineCode'].includes(current.type)) add(current.value, true);
@@ -59,11 +61,24 @@ const tree = fromMarkdown(JSON.parse(input), {
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
 });
 const codeBlocks = [];
+const executions = new Map();
 function collectCode(node) {
-    if (node.type === 'code') codeBlocks.push(node.value);
+    if (node.type === 'code') {
+        const match = /^[\w+-]+\?(code_reference|code_stdout)&code_event_index=(\d+)$/.exec(node.lang || '');
+        if (match) {
+            const key = match[1] === 'code_reference' ? 'code' : 'stdout';
+            const event = executions.get(match[2]) || {};
+            if (key in event) throw new Error('Duplicate execution source');
+            event[key] = node.value;
+            executions.set(match[2], event);
+            executionNodes.add(node);
+        } else codeBlocks.push(node.value);
+    }
     node.children?.forEach(collectCode);
 }
 collectCode(tree);
+const executionBlocks = [...executions.values()];
+if (executionBlocks.some(event => !('code' in event) || !('stdout' in event))) throw new Error('Incomplete execution source');
 function removeAssetCaptions(node) {
     node.children?.forEach(removeAssetCaptions);
     // Generated image tiles export a filename caption after the image. It is
@@ -86,4 +101,4 @@ if (tail?.type === 'blockquote') {
         tree.children.pop();
     }
 }
-process.stdout.write(JSON.stringify({ text: authored(tree), codeBlocks }));
+process.stdout.write(JSON.stringify({ text: authored(tree), codeBlocks, executionBlocks }));
