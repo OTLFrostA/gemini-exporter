@@ -4,7 +4,6 @@ import uuid
 import random
 import hashlib
 import zipfile
-import json
 from typing import Tuple, Optional, Dict, Any
 
 from scripts.framework.cases.base import FeatureTestCase, TestContext
@@ -132,11 +131,7 @@ description: "Dynamically created test attachment to verify multi-format user up
 
                 # Freeze final visible answers independently, before any export.
                 # Retain per-stream captures to diagnose late rendering changes.
-                record['stream_turn_evidence'] = record['turn_evidence']
-                record['turn_evidence'] = driver.settled_conversation_evidence(
-                    session.chat_id, [turn['prompt'] for turn in record['stream_turn_evidence']])
-                with open(os.path.join(ctx.output_dir, f'{session.chat_id}_turn_evidence.json'), 'w', encoding='utf-8') as evidence_file:
-                    json.dump(record, evidence_file, ensure_ascii=False, indent=2)
+                ctx.freeze_turn_evidence(driver, record)
                 real_title = session.get_title() or sc_title
                 record['title'] = real_title
                 ctx.chat_records.append(record)

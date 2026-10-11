@@ -86,12 +86,23 @@ class TestContext:
         if record.get("chat_id") and record["chat_id"] != result.chat_id:
             raise RuntimeError("回复会话 ID 与目标会话不一致")
         record["chat_id"] = result.chat_id
-        record.setdefault("turn_evidence", []).append({
+        evidence = {
             "prompt": result.prompt, "response": result.model_response,
             "has_images": result.has_images,
             **({"code_blocks": result.metadata["code_blocks"]} if "code_blocks" in result.metadata else {}),
             **({"execution_blocks": result.metadata["execution_blocks"]} if "execution_blocks" in result.metadata else {}),
-        })
+        }
+        record.setdefault("turn_evidence", []).append(evidence)
+        if 'stream_turn_evidence' in record:
+            record['stream_turn_evidence'].append(evidence)
+
+    def freeze_turn_evidence(self, driver, record: Dict[str, Any]) -> None:
+        """Freeze complete in-place evidence for initial and appended turns."""
+        record.setdefault('stream_turn_evidence', list(record['turn_evidence']))
+        record['turn_evidence'] = driver.settled_conversation_evidence(
+            record['chat_id'], [turn['prompt'] for turn in record['stream_turn_evidence']])
+        with open(os.path.join(self.output_dir, f"{record['chat_id']}_turn_evidence.json"), 'w', encoding='utf-8') as evidence_file:
+            json.dump(record, evidence_file, ensure_ascii=False, indent=2)
 
     @property
     def ext_id(self) -> Optional[str]:
