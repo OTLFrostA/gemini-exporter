@@ -90,6 +90,7 @@ class TestContext:
             "prompt": result.prompt, "response": result.model_response,
             "has_images": result.has_images,
             **({"code_blocks": result.metadata["code_blocks"]} if "code_blocks" in result.metadata else {}),
+            **({"execution_blocks": result.metadata["execution_blocks"]} if "execution_blocks" in result.metadata else {}),
         })
 
     @property
