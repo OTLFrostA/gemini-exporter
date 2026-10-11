@@ -225,12 +225,29 @@ export async function touchActiveConversation(
     return res;
 }
 
-let __storageWriteQueue = Promise.resolve<any>(0);
+export interface RpcListIngestResult {
+    count: number;
+    accepted: number;
+    rejected: number;
+    persisted: number;
+}
+
+const emptyIngest = (rejected = 0): RpcListIngestResult => ({ count: 0, accepted: 0, rejected, persisted: 0 });
+let __storageWriteQueue = Promise.resolve<RpcListIngestResult>(emptyIngest());
 let __lastKnownCount = 0;
 let __syncOnceInFlight = false;
 
 export function upsertConversations(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<number> {
-    if (!incomingItems || !incomingItems.length) return Promise.resolve(0);
+    return persistConversationBatch(incomingItems, source, forceWrite, targetSlot).then(result => result.count);
+}
+
+/** Both RPC acquisition paths commit through the same merge and storage transaction. */
+export function ingestRpcList(items: GeminiProviderConversationItem[], slot: string): Promise<RpcListIngestResult> {
+    return persistConversationBatch(items, 'network-list', true, slot);
+}
+
+function persistConversationBatch(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<RpcListIngestResult> {
+    if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
     // If incoming items lack valid IDs or are malformed (e.g. schema drift resulting
@@ -247,10 +264,10 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 
     if (validIncoming.length === 0) {
         console.warn('[Gemini Exporter] Fail-Closed: incoming batch has no valid conversation IDs, aborting storage write to protect existing data.');
-        return Promise.resolve(0);
+        return Promise.resolve(emptyIngest(incomingItems.length));
     }
 
-    __storageWriteQueue = __storageWriteQueue.catch(() => 0).then(async () => {
+    __storageWriteQueue = __storageWriteQueue.catch(() => emptyIngest()).then(async () => {
         try {
             const slot = targetSlot || getAccountSlot();
             const Storage = getStorage();
@@ -261,6 +278,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             // transaction. The old shape read outside the lock, so two tabs
             // could build on the same stale snapshot and the later write would
             // silently discard the earlier tab's updates (lost update).
+            let accepted = 0;
             const tx = await Storage.transactConversations(slot, (existing: any[]) => {
                 const map = new Map<string, any>();
                 existing.forEach((c: any) => {
@@ -278,6 +296,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                     c.id = nid;
                     const old = map.get(nid);
                     if (old?.cloudAvailability === 'deleted') return;
+                    accepted++;
 
                     const res = mergeConversation(old, c, {
                         source,
@@ -292,7 +311,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
                     res.merged.source = source || (old && old.source) || 'unknown';
                     res.merged.accountSlot = slot;
 
-                    if (old?.cloudAvailability === 'unlisted' && source === 'batchexecute') res.merged.cloudAvailability = undefined;
+                    if (old?.cloudAvailability === 'unlisted' && (source === 'batchexecute' || source === 'network-list')) res.merged.cloudAvailability = undefined;
                     map.set(nid, res.merged);
                 });
 
@@ -304,12 +323,14 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
             });
 
             const mergedLength = tx.list.length;
+            const result: RpcListIngestResult = { count: mergedLength, accepted,
+                rejected: incomingItems.length - accepted, persisted: tx.written ? accepted : 0 };
             if (!tx.written) {
                 if (__lastKnownCount !== mergedLength) {
                     updateBadge(mergedLength, incomingItems.length);
                     __lastKnownCount = mergedLength;
                 }
-                return mergedLength;
+                return result;
             }
 
             await Storage.setLastSync(slot, Date.now(), mergedLength);
@@ -339,7 +360,7 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 
             updateBadge(mergedLength, incomingItems.length);
             __lastKnownCount = mergedLength;
-            return mergedLength;
+            return result;
         } catch (e: unknown) {
             console.error('[Gemini Exporter] upsertConversations failed', e);
             throw e;
@@ -393,7 +414,7 @@ export async function ingestListBatch(
     // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice
     const participateInWatermark = options?.participateInWatermark === true;
 
-    const count = await upsertConversations(incomingItems, source, true, slot);
+    const { count } = await ingestRpcList(incomingItems, slot);
 
     // 控制面建立或校准水位基线
     if (participateInWatermark && options?.isFullScanComplete) {
@@ -785,6 +806,7 @@ export const SyncEngine = {
     scheduleActiveChatDetailFetch,
     touchActiveConversation,
     upsertConversations,
+    ingestRpcList,
     ingestListBatch,
     resetSessionSlice,
     syncOnce,
