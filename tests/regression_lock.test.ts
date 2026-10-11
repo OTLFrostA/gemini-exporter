@@ -188,7 +188,8 @@ function createHookSandbox() {
         document: { querySelectorAll: () => [] },
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         setTimeout: () => 0,
-        URLSearchParams
+        URLSearchParams, Request,
+        readGeminiListRequest: require('../src/core/provider/gemini/listObservation.js').readGeminiListRequest
     };
     vm.createContext(sandbox);
     vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });
@@ -431,7 +432,7 @@ test('hookCredentials - broadcastBatchexecute filter only relays LIST and DETAIL
     assert.strictEqual(await wasRelayed(detailBatchexecute), true, 'Detail RPC must pass filter');
 });
 
-test('hookCredentials - Request input is not recognized as URL under (url || "").toString() semantics', async () => {
+test('hookCredentials - arbitrary Request-like objects are not treated as browser Requests', async () => {
     const { posted, win } = createHookSandbox();
     win.__nextResponseText = ')]}\'\n\n[["wrb.fr","MaZiqc","[]",null]]';
 
@@ -469,6 +470,18 @@ test('hookCredentials - Request input is not recognized as URL under (url || "")
     await new Promise(r => setTimeout(r, 50));
     assert.ok(posted.length > 0, 'String URL must be recognized and intercepted');
     assert.ok(posted.some(p => p.msg.type === 'GEMINI_CREDENTIALS'), 'Credentials must be captured from string URL');
+});
+
+test('hookCredentials - real Request inputs preserve list cursor context', async () => {
+    const { posted, win } = createHookSandbox();
+    win.__nextResponseText = JSON.stringify([['wrb.fr', 'MaZiqc', '[]', null]]);
+    const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, 'cursor', [0, null, 1]]), null, 'generic']]]) });
+    await win.fetch(new Request('https://gemini.google.com/u/0/batchexecute', { method: 'POST', body }));
+    await new Promise(r => setTimeout(r, 50));
+    const relay = posted.find(p => p.msg.type === 'GEMINI_NETWORK_BATCHEXECUTE');
+    assert.deepEqual(JSON.parse(JSON.stringify(relay.msg.payload.listRequest)), { streamId: 'recent', requestCursor: 'cursor' });
+    assert.equal(relay.msg.payload.truncated, false);
+    assert.ok(relay.msg.payload.requestedAt > 0);
 });
 
 test('hookCredentials - fetch body preserves (init.body || requestBody) fallback semantics for falsy init.body', async () => {

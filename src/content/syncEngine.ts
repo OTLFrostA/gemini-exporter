@@ -1,3 +1,4 @@
+import type { PageObservation } from '../core/sync/pageObservation.js';
 import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
 import type { ScanCoverageRun } from '../core/storage/scanCoverage.js';
 import type { ScanStatus } from '../types/ui.js';
@@ -248,6 +249,11 @@ export async function ingestRpcList(items: GeminiProviderConversationItem[], slo
     return persistConversationBatch(items, 'network-list', true, slot);
 }
 
+/** Both passive and active pages pass through this trigger-independent boundary. */
+export async function ingestPageObservation(page: PageObservation<GeminiProviderConversationItem>, slot: string): Promise<RpcListIngestResult> {
+    return ingestRpcList(page.items, slot);
+}
+
 function persistConversationBatch(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<RpcListIngestResult> {
     if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
 
@@ -472,7 +478,9 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                     throw new Error('Sync was superseded or pagination is not contiguous; retry');
                 }
                 await assertSchemaWritable();
-                const receipt = await ingestRpcList(batch, slot);
+                const receipt = info.observation
+                    ? await ingestPageObservation({ ...info.observation, accountId }, slot)
+                    : await ingestRpcList(batch, slot);
                 if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) {
                     throw new Error('List page could not be fully persisted; coverage was not advanced');
                 }
@@ -609,6 +617,7 @@ export const SyncEngine = {
     touchActiveConversation,
     upsertConversations,
     ingestRpcList,
+    ingestPageObservation,
     syncOnce,
     syncConversations,
     compareConversations

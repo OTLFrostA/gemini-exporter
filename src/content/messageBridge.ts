@@ -1,3 +1,6 @@
+import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
+import { sniffUserProfileFromDom } from './accountSniffer.js';
+import type { PageObservation } from '../core/sync/pageObservation.js';
 import { extractBlockText } from '../core/domain/content/unknownFallback.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
@@ -19,6 +22,7 @@ import type {
 } from '../core/protocol/events.js';
 
 export interface MessageBridgeDeps {
+    ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
     ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string) => Promise<RpcListIngestResult>;
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
@@ -69,7 +73,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     } = _deps;
 
     if (d.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
-        const { text, slot } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
+        const { text, slot, listRequest, truncated, requestedAt } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
         if (!text) return;
         try {
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
@@ -78,9 +82,12 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             if (text.includes(Proto.RPCS.LIST)) {
                 try {
                     const listRes = parseList(text);
-                    if (listRes && listRes.conversations && listRes.conversations.length) {
+                    if (listRes && listRes.conversations) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        if (_deps.ingestRpcList) {
+                        if (_deps.ingestPageObservation) {
+                            await _deps.ingestPageObservation(geminiListObservation(listRes, listRequest ?? null,
+                                sniffUserProfileFromDom()?.accountId ?? null, truncated, requestedAt), targetSlot);
+                        } else if (_deps.ingestRpcList) {
                             await _deps.ingestRpcList(listRes.conversations, targetSlot);
                         }
                     }

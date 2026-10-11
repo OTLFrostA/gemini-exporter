@@ -1,3 +1,4 @@
+import { readGeminiListRequest } from '../core/provider/gemini/listObservation.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
 import type {
@@ -46,6 +47,7 @@ declare global {
     function toUrlString(url: string | URL | Request | null | undefined): string {
         if (!url) return '';
         if (typeof url === 'string') return url;
+        if (typeof Request !== 'undefined' && url instanceof Request) return url.url;
         return url.toString();
     }
 
@@ -227,7 +229,7 @@ declare global {
         }
     }
 
-    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown): void {
+    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown, body?: unknown, truncated = false, requestedAt = 0): void {
         try {
             // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
             // not take part in this test — including it makes the filter always pass
@@ -237,6 +239,9 @@ declare global {
             const slot = getSlotFromUrl(url);
             const payload: GeminiNetworkBatchexecutePayload = {
                 text: text.slice(0, 3000000), // Protect against memory spikes
+                listRequest: readGeminiListRequest(body),
+                requestedAt,
+                truncated: truncated || text.length > 3000000,
                 slot,
                 url: toUrlString(url)
             };
@@ -304,6 +309,7 @@ declare global {
             input: RequestInfo | URL,
             init?: RequestInit
         ): Promise<Response> {
+            const requestedAt = Date.now();
             let requestBody: unknown;
             if (typeof Request !== 'undefined' && input instanceof Request) {
                 requestBody = input.body;
@@ -311,6 +317,9 @@ declare global {
                 requestBody = input.body;
             }
             const body: unknown = (init && init.body) || requestBody;
+            const capturedBody = typeof body === 'string' ? Promise.resolve(body)
+                : typeof Request !== 'undefined' && input instanceof Request
+                    ? input.clone().text().catch(() => '') : Promise.resolve('');
 
             try {
                 captureFromUrl(input, body);
@@ -327,10 +336,10 @@ declare global {
                 const u = toUrlString(input);
                 if (u.includes('batchexecute')) {
                     const cloned = response.clone();
-                    readCappedText(cloned).then(({ text: txt }) => {
+                    readCappedText(cloned).then(async ({ text: txt, truncated }) => {
                         try {
                             detectDeletedConversation(input, body, txt);
-                            broadcastBatchexecute(input, txt);
+                            broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }
@@ -382,6 +391,7 @@ declare global {
             try {
                 const url = this.__hookUrl;
                 const body = args[0];
+                const requestedAt = Date.now();
                 captureFromUrl(url, body);
 
                 const u = toUrlString(url);
@@ -389,7 +399,7 @@ declare global {
                     this.addEventListener('load', () => {
                         try {
                             detectDeletedConversation(url, body, this.responseText);
-                            broadcastBatchexecute(url, this.responseText);
+                            broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }
