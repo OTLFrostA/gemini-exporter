@@ -2,7 +2,7 @@ import type { AccountSlots, IAccountView } from '../../types/ui.js';
 import { $, t } from '../uiCommon.js';
 
 export function render(accountSlots: AccountSlots, currentSlot: string): void {
-    const sel = $('accountSlotSelect') as HTMLSelectElement | null;
+    const sel = $('accountSlotSelect');
     if (!sel) return;
     const slots = Object.keys(accountSlots || {});
     if (slots.length <= 1 && (!slots.includes('u1') && !slots.includes('u2'))) {
