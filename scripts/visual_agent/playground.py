@@ -144,9 +144,11 @@ class VisualPlayground:
             self.env.setup_download_behavior(output_dir=self.output_dir, cdp=self.cdp)
         else:
             try:
-                self.cdp.call("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": self.output_dir})
-            except Exception:
-                pass
+                res = self.cdp.call("Page.setDownloadBehavior", {"behavior": "allow", "downloadPath": self.output_dir})
+                if isinstance(res, dict) and "error" in res:
+                    print(f"⚠️ Page.setDownloadBehavior failed: {res['error']}")
+            except Exception as e:
+                print(f"⚠️ Page.setDownloadBehavior exception: {e}")
 
     def _setup_viewport(self):
         """Force standardized physical viewport and remove scaling distortions."""
@@ -518,7 +520,6 @@ class VisualPlayground:
 
         elif cond in ("zip_downloaded", "export_complete"):
             download_dir = kwargs.get("download_dir") or self.output_dir
-            sys_downloads = os.path.expanduser("~/Downloads")
             expected_pattern = kwargs.get("pattern", "gemini_export_*.zip")
             min_mtime = kwargs.get("min_mtime", 0.0)
             start_wait = time.time()
@@ -543,20 +544,6 @@ class VisualPlayground:
                         newest = max(matches, key=os.path.getmtime)
                         if os.path.getmtime(newest) >= min_mtime and os.path.getsize(newest) > 0:
                             found_file = newest
-                            break
-
-                if os.path.isdir(sys_downloads):
-                    matches = glob.glob(os.path.join(sys_downloads, expected_pattern))
-                    if matches:
-                        newest = max(matches, key=os.path.getmtime)
-                        if os.path.getmtime(newest) >= min_mtime and os.path.getsize(newest) > 0:
-                            dest_zip = os.path.join(self.output_dir, os.path.basename(newest))
-                            if os.path.abspath(newest) != os.path.abspath(dest_zip):
-                                import shutil
-                                shutil.copy2(newest, dest_zip)
-                                found_file = dest_zip
-                            else:
-                                found_file = newest
                             break
 
             elapsed = time.time() - t0

@@ -24,7 +24,7 @@
         }
     });
     clonedExecutions.forEach(block => block.remove());
-    clone.querySelectorAll('follow-up, elicitations-group, mini-app').forEach(element => element.remove());
+    clone.querySelectorAll('follow-up, elicitations-group, mini-app, thought-container, thought-box, .thought-container, .thought-wrapper, .model-thought, [data-thought]').forEach(element => element.remove());
     // Gemini keeps the original LaTeX here; rendered glyph order is lossy.
     clone.querySelectorAll('[data-math]').forEach(element => {
         const source = element.getAttribute('data-math') || '';

@@ -201,15 +201,114 @@ class DiskContentTests(unittest.TestCase):
         self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
         cdp.eval.assert_not_called()
 
+    def test_cdp_download_directory_configuration_failure(self):
+        # 1. 模拟 CDP 返回错误响应
+        cdp_err = MagicMock()
+        cdp_err.call.return_value = {'error': {'code': -32000, 'message': 'Browser.setDownloadBehavior denied'}}
+        self.assertIsNone(CDPActions.trigger_export_zip(cdp_err, str(self.root), max_wait=1))
+        cdp_err.eval.assert_not_called()
+
+        # 2. 模拟 CDP 调用抛出连接或协议异常
+        cdp_exc = MagicMock()
+        cdp_exc.call.side_effect = RuntimeError("WebSocket connection dropped")
+        self.assertIsNone(CDPActions.trigger_export_zip(cdp_exc, str(self.root), max_wait=1))
+        cdp_exc.eval.assert_not_called()
+
+        # 3. 严格禁止通过系统默认 ~/Downloads 目录搜索或回退旧文件
+        with patch('glob.glob', return_value=['/Users/user/Downloads/gemini_export_leaked.zip']):
+            self.assertIsNone(CDPActions.trigger_export_zip(cdp_err, str(self.root), max_wait=1))
+
     def test_role_headings_inside_code_are_not_turns(self):
         evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
         text = document().replace(REPLY, '```markdown\n## 👤 You\n```\n' + REPLY)
         self.assertTrue(assert_turn_content(text, evidence)[0])
 
+    def test_hidden_thinking_content_is_excluded_from_authored_body(self):
+        authored_response = '系统在受扰动后将沿极限环收敛，其李雅普诺夫指数满足严格负定。'
+        hidden_thinking = '思考过程：首先推导雅可比矩阵特征值，然后验证迹与行列式符号。'
+        evidence_with_thinking = [{'prompt': '分析系统稳定性。', 'response': hidden_thinking + authored_response}]
+        evidence_clean = [{'prompt': '分析系统稳定性。', 'response': authored_response}]
+        exported = f"""## 👤 You
+分析系统稳定性。
+## 🤖 Assistant
+{authored_response}
+"""
+        ok, msg = assert_turn_content(exported, evidence_with_thinking)
+        self.assertFalse(ok)
+        self.assertIn("全文不匹配", msg)
+        self.assertTrue(assert_turn_content(exported, evidence_clean)[0])
+
+    def test_inline_and_block_latex_semantic_comparison(self):
+        inline_formula = r"E = mc^2"
+        block_formula = r"\int_{-\infty}^{+\infty} e^{-x^2} dx = \sqrt{\pi}"
+        evidence = [{'prompt': '给出核心物理与数学公式。',
+                     'response': f"行内能量公式{inline_formula}。高斯积分块级公式如下：{block_formula}证明完毕。"}]
+        exported = f"""## 👤 You
+给出核心物理与数学公式。
+## 🤖 Assistant
+行内能量公式 ${inline_formula}$。高斯积分块级公式如下：
+
+$$
+{block_formula}
+$$
+
+证明完毕。
+"""
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("mc^2", "mc^3"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace(r"\sqrt{\pi}", r"\pi"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace(f"$$\n{block_formula}\n$$", ""), evidence)[0])
+
+    def test_code_block_exact_preservation_and_comparison(self):
+        code = "def solve_matrix(a, b):\n    # First step\n    if a is None:\n        return b\n\n    return a @ b"
+        evidence = [{'prompt': '给出矩阵求解函数。',
+                     'response': f"代码实现如下：{code}调用结束。",
+                     'code_blocks': [code]}]
+        exported = f"""## 👤 You
+给出矩阵求解函数。
+## 🤖 Assistant
+代码实现如下：
+```python
+{code}
+```
+调用结束。
+"""
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("        return b", "    return b"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("\n\n    return a @ b", "\n    return a @ b"), evidence)[0])
+
     def test_short_actual_answer_requires_its_whole_body(self):
         evidence = [{'prompt': '给一句建议', 'response': '以真实负载验证容量上限。', 'has_images': False}]
         self.assertTrue(assert_turn_content(document(evidence), evidence)[0])
         self.assertFalse(assert_turn_content(document(evidence).replace('以真实负载验证容量上限。', '验证容量。'), evidence)[0])
+
+    def test_long_answer_middle_omission_fails(self):
+        head = "首段引言与背景：阐述物理场耦合与偏微分方程初边值条件。" * 15
+        middle = "核心中间推导步骤：构造格林函数并完成边界积分奇异性消除计算。" * 20
+        tail = "尾部终局结论与数值验证：相对误差小于万分之一，理论与仿真一致。" * 15
+        full_response = head + middle + tail
+        evidence = [{'prompt': '给出完整长篇场论推导。', 'response': full_response}]
+        exported_full = f"## 👤 You\n给出完整长篇场论推导。\n## 🤖 Assistant\n{full_response}\n"
+        self.assertTrue(assert_turn_content(exported_full, evidence)[0])
+        # 中段核心推导缺失（即使头尾片段存在），必须严格报错失败
+        exported_omitted = exported_full.replace(middle, "")
+        ok, msg = assert_turn_content(exported_omitted, evidence)
+        self.assertFalse(ok)
+        self.assertIn("全文不匹配", msg)
+
+    def test_long_answer_tail_truncation_fails(self):
+        head = "引言与参数设置概述。" * 20
+        middle = "流体动力学纳维-斯托克斯方程渐近展开与二阶摄动求解。" * 20
+        tail = "终态收敛性与边界层厚度渐近解结论。" * 10
+        full_response = head + middle + tail
+        evidence = [{'prompt': '推导渐近展开。', 'response': full_response}]
+        exported_full = f"## 👤 You\n推导渐近展开。\n## 🤖 Assistant\n{full_response}\n"
+        self.assertTrue(assert_turn_content(exported_full, evidence)[0])
+        # 尾部截断必须严格报错失败
+        exported_truncated = exported_full.replace(tail, "")
+        ok, msg = assert_turn_content(exported_truncated, evidence)
+        self.assertFalse(ok)
+        self.assertIn("全文不匹配", msg)
 
     def test_long_answer_requires_middle_and_tail_not_just_two_fragments(self):
         response = 'Opening explanation. ' * 20 + 'Essential middle calculation. ' * 10 + 'Required final conclusion.'
@@ -346,6 +445,34 @@ value = 2 ** 3
         exported = document(evidence).replace(code, f'```text\n{code}\n```')
         self.assertTrue(assert_turn_content(exported, evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace('Was this visual helpful?', ''), evidence)[0])
+
+    def test_real_retained_failure_sample_diagnosis_and_verification(self):
+        evidence_dir = Path(__file__).resolve().parents[1] / "temp/codex_sync_repair_2026-10-10/final-evidence"
+        if not evidence_dir.exists():
+            return
+
+        # 1. 验证保留的真实 5 轮超长回答样本 (material.md 与 material-dom.json)
+        mat_dom = evidence_dir / "material-dom.json"
+        mat_md = evidence_dir / "material.md"
+        if mat_dom.exists() and mat_md.exists():
+            dom_data = json.loads(mat_dom.read_text(encoding='utf-8'))
+            md_text = mat_md.read_text(encoding='utf-8')
+            # 确认第 5 轮为万字级真实超长回答
+            self.assertGreater(len(dom_data[4]['response']), 10000)
+            ok, msg = assert_turn_content(md_text, dom_data)
+            self.assertTrue(ok, f"真实 5 轮超长样本断言应通过: {msg}")
+
+        # 2. 诊断分析保留的真实差异样本 (settled-attempt/60c9b0834e0cf63f_turn_evidence.json)
+        settled_ev_path = evidence_dir / "settled-attempt/60c9b0834e0cf63f_turn_evidence.json"
+        if settled_ev_path.exists() and mat_md.exists():
+            settled_data = json.loads(settled_ev_path.read_text(encoding='utf-8'))
+            t1_settled = settled_data['turn_evidence'][0]['response']
+            # 定位差异：证明测试采集中混入了非正文 mini-app / follow-up 交互控件
+            self.assertIn("Was this visual helpful?", t1_settled)
+            # 混入控件的样本必须被断言拦截，证明未放宽断言，而是准确拦截采集污染
+            ok, msg = assert_turn_content(md_text, settled_data['turn_evidence'])
+            self.assertFalse(ok)
+            self.assertIn("第 1 轮真实 AI 回复全文不匹配", msg)
 
 
 class ScanAndImportTests(unittest.TestCase):
