@@ -706,29 +706,19 @@ test('audit fix: tabService strictly isolates non-u0 slots without silent cross-
     }
 });
 
-test('Bug repro - network batchexecute slot isolation dropped', async () => {
-    const contentPath = path.resolve(__dirname, '../src/content/content.js');
-    const bridgePath = path.resolve(__dirname, '../src/content/messageBridge.js');
-    const code = (fs.existsSync(bridgePath) ? fs.readFileSync(bridgePath, 'utf8') : '') + '\n' + fs.readFileSync(contentPath, 'utf8');
-
-    assert.ok(code.includes('const { text, slot }'), 'should destructure slot from payload');
-
-    const networkListCalls = [...code.matchAll(/upsertConversations\s*\(\s*listRes\.conversations\s*,\s*['"]network-list['"]/g)];
-    assert.ok(networkListCalls.length >= 1, 'should have upsertConversations for network-list');
-
-    const lines = code.split('\n');
-    let bugLine = null;
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes("upsertConversations(listRes.conversations, 'network-list')") ||
-            lines[i].includes('upsertConversations(listRes.conversations, "network-list")')) {
-            const ctx = lines.slice(Math.max(0, i - 5), i + 6).join('\n');
-            if (!ctx.includes('slot')) {
-                bugLine = lines[i].trim();
-                break;
-            }
+test('network RPC lists preserve the payload account slot at the shared ingestion boundary', async () => {
+    const bridge = require('../src/content/messageBridge.js');
+    let receivedSlot = '';
+    const api = bridge.init({
+        getAccountSlot: () => 'u0',
+        ingestRpcList: async (items: unknown[], slot: string) => {
+            receivedSlot = slot;
+            return { count: items.length, accepted: items.length, rejected: 0, persisted: items.length };
         }
-    }
-    assert.strictEqual(bugLine, null, `Bug: network-list upsert ignores slot, found: "${bugLine}" (会导致u1数据写入u0)`);
+    });
+    const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_slot_isolation', 'Title']]])]]);
+    await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u1' } } });
+    assert.strictEqual(receivedSlot, 'u1', 'u1 response must never be saved into the active u0 slot');
 });
 
 // ============================================================================
