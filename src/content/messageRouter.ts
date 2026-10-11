@@ -62,12 +62,21 @@ export function init({
     const resolveDetailTitle = (msgs: Array<{ role: string; content: string }>, id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
 
     async function recordCloudDeletion(slot: string, cid: string): Promise<void> {
-        Sync?.markConfirmedDeleted?.(slot, cid);
-        if (Storage?.updateConversation) await Storage.updateConversation(slot, cid, { cloudAvailability: 'deleted' });
+        // Side effects must never suppress the confirmed deletion returned to exporters.
+        try {
+            Sync?.markConfirmedDeleted?.(slot, cid);
+        } catch (error: unknown) {
+            console.warn('[Gemini Exporter] cloud deletion memory marker failed', cid, getErrorMessage(error));
+        }
+        try {
+            if (Storage?.updateConversation) await Storage.updateConversation(slot, cid, { cloudAvailability: 'deleted' });
+        } catch (error: unknown) {
+            console.warn('[Gemini Exporter] cloud deletion status persistence failed; local archive retained', cid, getErrorMessage(error));
+        }
         try {
             const pending = chrome.runtime.sendMessage({ action: 'syncUpdate', slot, from: 'cloud-deleted-archive-retained' });
             if (pending) void Promise.resolve(pending).catch(() => {});
-        } catch { /* UI can reload the durable status later. */ }
+        } catch { /* A missing UI must not suppress confirmed deletion. */ }
     }
 
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
