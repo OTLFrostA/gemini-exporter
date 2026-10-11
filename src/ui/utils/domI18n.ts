@@ -50,17 +50,17 @@ export function applyI18n(container?: Element | Document): void {
         const titleKey = el.getAttribute('data-i18n-title');
         if (titleKey) {
             const val = t(titleKey);
-            if (val && 'title' in el) (el as HTMLElement).title = val;
+            if (val && 'title' in el) el.title = val;
         }
         const placeholderKey = el.getAttribute('data-i18n-placeholder');
         if (placeholderKey) {
             const val = t(placeholderKey);
-            if (val && 'placeholder' in el) (el as HTMLInputElement).placeholder = val;
+            if (val && 'placeholder' in el) el.placeholder = val;
         }
     };
 
-    if (root !== document && root.nodeType === 1) {
-        applyToElement(root as Element);
+    if (root !== document && root.nodeType === 1 && 'getAttribute' in root) {
+        applyToElement(root);
     }
 
     if (typeof root.querySelectorAll === 'function') {
@@ -76,8 +76,8 @@ export function applyLangToggleUI(opts: {
     labelEn?: HTMLElement | null;
 } = {}): void {
     const currentLang = getLang();
-    const langToggle = opts.toggle || (document.getElementById('langToggle') as HTMLInputElement | null);
-    if (langToggle) {
+    const langToggle = opts.toggle || document.getElementById('langToggle');
+    if (langToggle && 'checked' in langToggle) {
         langToggle.checked = (currentLang === 'en');
     }
     const labelZh = opts.labelZh || document.getElementById('labelLangZh');

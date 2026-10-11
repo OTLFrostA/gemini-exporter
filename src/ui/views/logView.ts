@@ -37,10 +37,10 @@ export function render(): void {
     if (typeof document === 'undefined') return;
     const el = _renderEl || document.getElementById('log');
     if (!el) return;
-    const filterInput = document.getElementById('logFilter') as HTMLInputElement | null;
-    const kw = (filterInput ? filterInput.value : '').trim().toLowerCase();
-    const levelSelect = document.getElementById('logLevel') as HTMLSelectElement | null;
-    const lvl = levelSelect ? levelSelect.value : 'all';
+    const filterInput = document.getElementById('logFilter');
+    const kw = (filterInput && 'value' in filterInput && typeof filterInput.value === 'string' ? filterInput.value : '').trim().toLowerCase();
+    const levelSelect = document.getElementById('logLevel');
+    const lvl = levelSelect && 'value' in levelSelect ? levelSelect.value : 'all';
     let list = buf;
     if (lvl === 'error') list = list.filter(x => x.level === 'error');
     else if (lvl === 'warn') list = list.filter(x => x.level === 'warn' || x.level === 'error');
