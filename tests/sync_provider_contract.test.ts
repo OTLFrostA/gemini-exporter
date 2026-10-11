@@ -323,3 +323,13 @@ test('sync safety: a limited first scan and retry never claim complete coverage'
         assert.ok(records.some(record => record.id === 'chat_old'));
     }
 });
+
+
+test('sync safety: missing producer completeness cannot establish trusted coverage', async () => {
+    const input = page();
+    Reflect.deleteProperty(input, 'exhaustive');
+    Reflect.deleteProperty(input, 'completionReason');
+    const { result, trace } = await scan(input);
+    assert.equal(result?.status, 'error');
+    assert.deepEqual(trace.checkpointWrites, []);
+});

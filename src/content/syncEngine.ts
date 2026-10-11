@@ -426,7 +426,7 @@ export interface ProviderSyncResult {
 function scanStatus(all: GeminiProviderPageResult): ScanStatus {
     if (contentContext.isAborted() || all.completionReason === 'aborted') return 'aborted';
     if (all.hitGoogleLimit || all.diagnostics?.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
-    if (isPaginationExhaustive(all)) return 'complete';
+    if (all.exhaustive === true && all.completionReason === 'natural_exhaustion' && isPaginationExhaustive(all)) return 'complete';
     return 'error';
 }
 
