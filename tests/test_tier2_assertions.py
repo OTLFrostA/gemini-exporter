@@ -127,6 +127,26 @@ class DiskContentTests(unittest.TestCase):
 
 
 
+    def test_zip_download_is_routed_on_the_live_export_connection(self):
+        cdp = MagicMock()
+        cdp.call.return_value = {'id': 1, 'result': {}}
+        path = self.root / 'gemini_export_fresh.zip'
+        def export_now(*args, **kwargs):
+            path.write_bytes(b'fresh ZIP bytes')
+        cdp.eval.side_effect = export_now
+        with patch('scripts.framework.actions.time.sleep'):
+            result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
+        self.assertEqual(result, str(path))
+        cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
+            'behavior': 'allow', 'downloadPath': str(self.root), 'eventsEnabled': True})
+
+    def test_download_routing_failure_cannot_click_or_reuse_old_zip(self):
+        (self.root / 'gemini_export_old.zip').write_bytes(b'old ZIP bytes')
+        cdp = MagicMock()
+        cdp.call.return_value = {'error': {'message': 'denied'}}
+        self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
+        cdp.eval.assert_not_called()
+
     def test_role_headings_inside_code_are_not_turns(self):
         evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
         text = document().replace(REPLY, '```markdown\n## 👤 You\n```\n' + REPLY)
