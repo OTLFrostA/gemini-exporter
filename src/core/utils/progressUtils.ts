@@ -10,7 +10,6 @@ export interface ExportProgressInput {
     title?: string;
     assetsDownloaded?: number;
     assetsTotal?: number;
-    [key: string]: any;
 }
 
 export function formatExportProgress(
