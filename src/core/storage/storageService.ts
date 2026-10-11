@@ -1,3 +1,5 @@
+import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
+import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import { getDomainConversationResult } from './domain/nativePersistence.js';
@@ -71,6 +73,7 @@ export interface StorageKeys {
     syncKey: string;
     countKey: string;
     checkpointKey: string;
+    coverageKey: string;
 }
 
 
@@ -119,6 +122,7 @@ function getStorageKeys(slot?: string | null): StorageKeys {
         expKey: s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`,
         syncKey: s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`,
         countKey: s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`,
+        coverageKey: s === 'u0' ? STORAGE_KEYS.SCAN_COVERAGE : `${STORAGE_KEYS.SCAN_COVERAGE}_${s}`,
         checkpointKey: s === 'u0' ? 'gemini_scan_checkpoint' : `gemini_scan_checkpoint_${s}`
     };
 }
@@ -366,7 +370,7 @@ async function removeConversation(slot: string | null | undefined, conversationI
 
 async function clearConversations(slot?: string | null): Promise<void> {
     await withConversationLock(async () => {
-        const { convKey, countKey, checkpointKey, expKey } = getStorageKeys(slot);
+        const { convKey, countKey, checkpointKey, coverageKey, expKey } = getStorageKeys(slot);
         const existing = await getConversations(slot);
         await assertSchemaWritable();
         const ids = [...new Set([...await pendingDeletions(slot), ...(existing || []).map(c => normalizedConversationId(c)).filter(Boolean)])];
@@ -380,7 +384,7 @@ async function clearConversations(slot?: string | null): Promise<void> {
             [expKey]: {}
         };
         await chrome.storage.local.set(toSet);
-        await chrome.storage.local.remove([checkpointKey]);
+        await chrome.storage.local.remove([checkpointKey, coverageKey]);
         await updateAccountSlot(slot, { count: 0 });
     });
 }
@@ -762,21 +766,54 @@ async function setLastSync(slot: string | null | undefined, timestamp?: number |
     });
 }
 
-async function getScanCheckpoint(slot?: string | null): Promise<number | null> {
-    const { checkpointKey } = getStorageKeys(slot);
-    const data = await chrome.storage.local.get<Record<string, unknown>>([checkpointKey]);
-    const cp = data[checkpointKey];
-    return typeof cp === 'number' && cp > 0 ? cp : null;
+async function getScanCoverage(slot?: string | null): Promise<ScanCoverage | null> {
+    const { coverageKey } = getStorageKeys(slot);
+    const data = await chrome.storage.local.get<Record<string, unknown>>([coverageKey]);
+    return readScanCoverage(data[coverageKey]);
 }
 
-async function setScanCheckpoint(slot: string | null | undefined, timestamp: number | null): Promise<void> {
+/** Freeze the previous coverage and invalidate older runs under the existing cross-tab write lock. */
+async function beginScanCoverage(slot: string, accountId: string | null): Promise<ScanCoverageRun> {
     return withConversationLock(async () => {
-        const { checkpointKey } = getStorageKeys(slot);
-        if (timestamp === null || timestamp === undefined || timestamp <= 0) {
-            await chrome.storage.local.remove([checkpointKey]);
-        } else {
-            await chrome.storage.local.set({ [checkpointKey]: timestamp });
+        await assertSchemaWritable();
+        const previous = await getScanCoverage(slot);
+        const sameAccount = accountId !== null && previous?.accountId === accountId;
+        const runId = crypto.randomUUID();
+        const coverage: ScanCoverage = { version: 1, revision: (previous?.revision ?? 0) + 1,
+            accountId, complete: sameAccount && !!previous?.complete,
+            baseline: sameAccount ? previous?.baseline ?? null : null,
+            lastStatus: sameAccount ? previous?.lastStatus ?? null : null, activeRunId: runId };
+        const { coverageKey } = getStorageKeys(slot);
+        await chrome.storage.local.set({ [coverageKey]: coverage });
+        return { runId, previous: sameAccount ? previous : null };
+    });
+}
+
+async function isScanCoverageCurrent(slot: string, runId: string): Promise<boolean> {
+    return (await getScanCoverage(slot))?.activeRunId === runId;
+}
+
+/** A stale or cleared run cannot replace newer coverage or mark newer records unlisted. */
+async function finishScanCoverage(slot: string, runId: string, status: ScanStatus,
+    baseline: ScanCoverageBaseline | null = null, visibleIds?: readonly string[], canCommit?: () => boolean): Promise<boolean> {
+    return withConversationLock(async () => {
+        await assertSchemaWritable();
+        const current = await getScanCoverage(slot);
+        if (!current || current.activeRunId !== runId || canCommit?.() === false) return false;
+        const { coverageKey, convKey } = getStorageKeys(slot);
+        const exhaustive = status === 'complete' && baseline !== null;
+        const next: ScanCoverage = { ...current, activeRunId: null, lastStatus: status,
+            complete: exhaustive || current.complete, baseline: exhaustive ? baseline : current.baseline };
+        const write: Record<string, unknown> = { [coverageKey]: next };
+        if (exhaustive && visibleIds) {
+            const visible = new Set(visibleIds.map(normId));
+            const existing = await getConversations(slot);
+            write[convKey] = existing.map(item => isObjectRecord(item) && !item.isTakeoutOnly && !visible.has(normalizedConversationId(item))
+                && item.cloudAvailability !== 'deleted' ? { ...item, cloudAvailability: 'unlisted' } : item);
         }
+        if (canCommit?.() === false) return false;
+        await chrome.storage.local.set(write);
+        return true;
     });
 }
 
@@ -870,8 +907,10 @@ export {
     migrateExportAliases,
     getLastSync,
     setLastSync,
-    getScanCheckpoint,
-    setScanCheckpoint,
+    getScanCoverage,
+    beginScanCoverage,
+    isScanCoverageCurrent,
+    finishScanCoverage,
     getAccountSlots,
     updateAccountSlot,
     getDevMode,
@@ -918,8 +957,10 @@ export const StorageService = {
     migrateExportAliases,
     getLastSync,
     setLastSync,
-    getScanCheckpoint,
-    setScanCheckpoint,
+    getScanCoverage,
+    beginScanCoverage,
+    isScanCoverageCurrent,
+    finishScanCoverage,
     getAccountSlots,
     updateAccountSlot,
     getDevMode,

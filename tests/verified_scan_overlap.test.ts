@@ -19,12 +19,12 @@ test('production scan entry admits one pagination call while another scan is pen
     (global as any).document = { getElementById: () => null };
     (global as any).location = { href: 'https://gemini.google.com/app', pathname: '/app' };
     (global as any).chrome = { runtime: { sendMessage: async () => {} } };
-    __setModuleOverride('StorageService', { getScanCheckpoint: async () => null });
+    __setModuleOverride('StorageService', { beginScanCoverage: async () => ({ runId: 'test-run', previous: null }), finishScanCoverage: async () => true });
     defaultGeminiProvider.listConversations = async () => {
         calls++;
         entered();
         await gate;
-        return { conversations: [], total: 0, stoppedEarly: true, diagnostics: null } as any;
+        return { items: [], conversations: [], total: 0, stoppedEarly: true, exhaustive: false, completionReason: 'error', diagnostics: null } as any;
     };
     try {
         const first = tryBatchExecuteFull();

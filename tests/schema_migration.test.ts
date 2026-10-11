@@ -201,13 +201,13 @@ test('P1-13f: 未冻结时 assertSchemaWritable() 为空操作', async () => {
     } finally { m.restore(); }
 });
 
-test('P1-13g: schema 冻结时 ingestListBatch 拒绝写入（fail-closed，防 #505 回退）', async () => {
+test('P1-13g: schema 冻结时 ingestRpcList 拒绝写入（fail-closed，防 #505 回退）', async () => {
     const m = installMock();
     try {
         m.localStore['gemini_schema_version'] = 999;
         // 冻结拦截必须发生在任何存储写入之前
         await assert.rejects(
-            SyncEngine.ingestListBatch([{ id: 'x', title: 'X', timestamp: 1 }], 'test'),
+            SyncEngine.ingestRpcList([{ id: 'valid-id', title: 'X', timestamp: 1 }], 'u0'),
             (e: any) => {
                 assert.ok(e instanceof Error, '应抛出 Error');
                 assert.ok(
@@ -218,7 +218,7 @@ test('P1-13g: schema 冻结时 ingestListBatch 拒绝写入（fail-closed，防 
                 return true;
             }
         );
-        assert.strictEqual(SyncEngine && typeof SyncEngine.ingestListBatch, 'function');
+        assert.strictEqual(SyncEngine && typeof SyncEngine.ingestRpcList, 'function');
     } finally { m.restore(); }
 });
 
