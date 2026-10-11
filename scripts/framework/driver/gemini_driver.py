@@ -9,12 +9,15 @@ import os
 import time
 import base64
 import mimetypes
+from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Callable, Tuple
 
 from scripts.framework.actions import CDPActions
 from scripts.framework.selectors import GeminiSelectors
 from scripts.framework.gateway import get_gateway
 from .platform_driver import ChatPlatformDriver, TurnResult, PlatformCapabilities, PlatformRegistry
+
+_AUTHORED_RESPONSE = Path(__file__).with_name('authored_response.js').read_text()
 
 
 class GeminiChatSession:
@@ -521,11 +524,12 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             // label. A short real answer cannot match if UI chrome is captured.
             const body = last.querySelector('{GeminiSelectors.MODEL_RESPONSE_BODY}');
             if (!body) return {{ text: '', hasImages: false, modelCount: models.length }};
-            const text = (body.textContent || '').trim();
-            const imgs = last.querySelectorAll('{GeminiSelectors.IMAGES}');
+            const content = body.querySelector('.markdown-main-panel') || body;
+            const authored = ({_AUTHORED_RESPONSE})(content);
             return {{
-                text: text,
-                hasImages: imgs.length > 0,
+                text: authored.text,
+                hasImages: authored.hasImages,
+                codeBlocks: authored.codeBlocks,
                 modelCount: models.length
             }};
         }})()
@@ -555,7 +559,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             has_images=has_images,
             duration=duration,
             chat_id=curr_id,
-            metadata={"model_count": resp_data.get("modelCount", 1)}
+            metadata={"model_count": resp_data.get("modelCount", 1), "code_blocks": resp_data.get("codeBlocks", [])}
         )
 
     def new_chat(self, timeout: float = 20.0) -> GeminiChatSession:

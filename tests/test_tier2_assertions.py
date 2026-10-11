@@ -107,6 +107,9 @@ class DiskContentTests(unittest.TestCase):
         (self.root / 'assets').mkdir()
         (self.root / 'assets/diagram.png').write_bytes(b'nonempty image bytes')
         self.assertTrue(self.check(image))
+        self.md.write_text(self.md.read_text() + '\nFabricated extra answer text.\n')
+        self.assertFalse(self.check(image))
+        self.md.write_text(document(image).replace('## 🤖 Assistant\n\n', '## 🤖 Assistant\n\n![Image](assets/diagram.png)'))
         image[0]['has_images'] = False
         self.assertFalse(self.check(image))
 
@@ -122,14 +125,133 @@ class DiskContentTests(unittest.TestCase):
         self.assertTrue(CDPActions.flush_live_save_to_disk(cdp, str(self.root))['ok'])
         self.assertEqual((self.root / 'gemini_export/old.md').stat().st_mtime, 100)
 
+
+
     def test_role_headings_inside_code_are_not_turns(self):
+        evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
         text = document().replace(REPLY, '```markdown\n## 👤 You\n```\n' + REPLY)
-        self.assertTrue(assert_turn_content(text, EVIDENCE)[0])
+        self.assertTrue(assert_turn_content(text, evidence)[0])
 
     def test_short_actual_answer_requires_its_whole_body(self):
         evidence = [{'prompt': '给一句建议', 'response': '以真实负载验证容量上限。', 'has_images': False}]
         self.assertTrue(assert_turn_content(document(evidence), evidence)[0])
         self.assertFalse(assert_turn_content(document(evidence).replace('以真实负载验证容量上限。', '验证容量。'), evidence)[0])
+
+    def test_long_answer_requires_middle_and_tail_not_just_two_fragments(self):
+        response = 'Opening explanation. ' * 20 + 'Essential middle calculation. ' * 10 + 'Required final conclusion.'
+        evidence = [{'prompt': 'Explain the whole calculation.', 'response': response}]
+        self.assertTrue(assert_turn_content(document(evidence), evidence)[0])
+        for shortened in ('Opening explanation. ' * 20,
+                          response.replace('Essential middle calculation. ' * 10, ''),
+                          response.removesuffix('Required final conclusion.')):
+            with self.subTest(shortened=shortened[-40:]):
+                self.assertFalse(assert_turn_content(document(evidence).replace(response, shortened), evidence)[0])
+
+    def test_source_math_code_tables_and_numbered_lists_match_in_full(self):
+        response = "波速v = \\frac{c}{\\sqrt{\\varepsilon_r}}。完整代码print('ok')\nvalue = '<br>'计算结论甲乙"
+        evidence = [{'prompt': '推导并给出完整代码', 'response': response}]
+        exported = """## 👤 You
+推导并给出完整代码
+## 🤖 Assistant
+波速 $v = \\frac{c}{\\sqrt{\\varepsilon_r}}$。
+1. 完整代码
+```python
+print('ok')
+value = '<br>'
+```
+2. 计算结论
+
+| 甲<br>乙 |
+| --- |
+"""
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for modified in (exported.replace('frac', 'sqrt'), exported.replace('v =', 'v +'),
+                         exported.replace("print('ok')", "print('wrong')"),
+                         exported.replace("value = '<br>'", "value + '<br>'"),
+                         exported.replace('甲<br>乙', '甲')):
+            self.assertFalse(assert_turn_content(modified, evidence)[0])
+
+    def test_gemini_bold_and_source_chip_presentation_preserves_authored_body(self):
+        response = "保存鱼类(Fish)和叶片(Leaf)的结构。完整结论print('[[1]]')value = 2 ** 3"
+        evidence = [{'prompt': 'Explain the diagram.', 'response': response}]
+        exported = """## 👤 You
+Explain the diagram.
+## 🤖 Assistant
+保存**鱼类(Fish)和叶片(Leaf)**的结构。[\\[1\\]]完整结论
+```python
+print('[[1]]')
+value = 2 ** 3
+```
+
+> 🌐 **Sources:**
+> [1] [Example](https://example.com/source)
+"""
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace('完整结论', ''), exported.replace('2 ** 3', '2 * 3'),
+                        exported.replace("print('[[1]]')", "print('[]')")):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
+
+    def test_authored_source_like_text_and_unpaired_operators_are_preserved(self):
+        response = "The literal marker is [[1]]; write 2 ** 3 in prose."
+        evidence = [{'prompt': 'Explain literals.', 'response': response}]
+        self.assertTrue(assert_turn_content(document(evidence), evidence)[0])
+        self.assertFalse(assert_turn_content(document(evidence).replace('[[1]]', ''), evidence)[0])
+        self.assertFalse(assert_turn_content(document(evidence).replace('**', '*'), evidence)[0])
+
+    def test_bold_spanning_math_and_code_keeps_literal_operators(self):
+        response = r'真实分布 P 与模型 Q。示例 2**3。集合 |\Sigma|。'
+        evidence = [{'prompt': 'Explain.', 'response': response}]
+        body = r'**真实分布 $P$ 与模型 $Q$**。示例 **`2**3`**。集合 $\vert{}\Sigma\vert{}$。'
+        exported = document(evidence).replace(response, body)
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace('2**3', '2*3'), exported.replace('Sigma', 'Lambda'),
+                        exported.replace('与模型', '')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
+
+    def test_math_alias_normalization_never_changes_literal_code(self):
+        code = r'print("\vert{}")'
+        evidence = [{'prompt': 'Show code.', 'response': code, 'code_blocks': [code]}]
+        exported = document(evidence).replace(code, f'```python\n{code}\n```')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace(r'\vert{}', '|'), evidence)[0])
+
+    def test_only_generated_trailing_source_metadata_is_excluded(self):
+        evidence = [{'prompt': 'Explain the result.', 'response': 'Complete explanation.Final conclusion.'}]
+        exported = "## 👤 You\nExplain the result.\n## 🤖 Assistant\nComplete explanation.[\\[1\\]]Final conclusion.\n\n> 🌐 **Sources:**\n> [1] [Article](https://example.com/article)\n"
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace('Final conclusion.', ''), evidence)[0])
+        # Similar source prose inside the body and literal source footers in code
+        # are authored content, rather than metadata to discard.
+        for body in ('> 🌐 **Sources:**\n> [1] Article\n\nAfter the quoted sources.',
+                     '```text\n🌐 Sources:\n[1] Article\n```'):
+            expected = [{'prompt': 'Explain the result.', 'response': '🌐 Sources:[1] Article' + ('After the quoted sources.' if body.startswith('>') else '')}]
+            self.assertTrue(assert_turn_content('## 👤 You\nExplain the result.\n## 🤖 Assistant\n'+body, expected)[0])
+
+    def test_math_row_spacing_and_image_tile_labels_are_metadata_but_resources_are_required(self):
+        formula = r'\begin{cases}a=1\\b=2\end{cases}'
+        code = "if ready:\n    result = r'\\\\[2ex]'"
+        evidence = [{'prompt': 'Explain the result.', 'response': 'Equation'+formula+'Program'+code+'Conclusion',
+                     'has_images': True, 'code_blocks': [code]}]
+        displayed = formula.replace('\\\\', '\\\\[2ex]')
+        body = f'Equation\n$$\n{displayed}\n$$\nProgram\n```python\n{code}\n```\nConclusion\n\n![diagram.png](assets/diagram.png)\n\ndiagram.png\n'
+        exported = document(evidence).replace(evidence[0]['response'], body)
+        self.md.write_text(exported)
+        self.assertFalse(self.check(evidence))  # metadata normalization cannot hide a missing asset
+        (self.root/'assets').mkdir()
+        (self.root/'assets/diagram.png').write_bytes(b'nonempty image bytes')
+        self.assertTrue(self.check(evidence))
+        for changed in (exported.replace('a=1', 'a=2'), exported.replace("result = r'\\\\[2ex]'", "result = r'\\\\[4ex]'"),
+                        exported.replace('Conclusion', '')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
+
+    def test_visible_code_indentation_and_line_boundaries_cannot_be_normalized_away(self):
+        code = 'if ready:\n    run()\n    finish()'
+        evidence = [{'prompt': 'Give runnable code.', 'response': 'Program'+code, 'code_blocks': [code]}]
+        exported = document(evidence).replace(evidence[0]['response'], f'Program\n```python\n{code}\n```')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace('    run()', '  run()'), exported.replace('run()\n', 'run() '),
+                        exported.replace('    finish()', '\tfinish()')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
 
 
 class ScanAndImportTests(unittest.TestCase):
