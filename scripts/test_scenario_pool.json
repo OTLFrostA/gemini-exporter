@@ -1,25 +1,5 @@
 [
   {
-    "id": "robotics_warehouse_multi_agent_pathfinding",
-    "domain": "robotics_warehouse_multi_agent_pathfinding",
-    "title": "Warehouse robot multi-agent path planning and congestion scheduling",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Discrete graph modeling, conflict-based search, executable simulation, performance tables and a long design report.",
-    "turns": [
-      "Model multi-agent warehouse path planning as constrained optimization on a discrete space-time graph. Use LaTeX to define vertex conflicts, edge-swap conflicts and two common objectives.",
-      "Explain the high-level and low-level mechanisms of conflict-based search. Give precise pseudocode and discuss completeness, optimality and worst-case complexity.",
-      "Write standalone runnable Python simulating robots on a grid with a narrow corridor. Compare prioritized planning and conflict-based search, reporting routes, collision counts and total movement cost.",
-      "Use a Markdown table to compare conflict-based search, prioritized planning, reservation tables and rolling-horizon planning. Analyze changes in robot count and obstacle density.",
-      "Produce a long design report covering dynamic orders, congestion, charging tasks and temporary aisle closures. Define reproducible evaluation metrics, failure handling and a staged implementation plan."
-    ]
-  },
-  {
     "id": "integrated_photonic_ring_resonator_coupled_mode",
     "domain": "photonics_ring_resonator_spectroscopy",
     "title": "集成光子环形谐振器：耦合模理论、透射光谱与参数辨识",
@@ -200,30 +180,6 @@
       "Write complete Python code with a fixed random seed comparing greedy batching and a small exact search. Print a numerical table and verify capacity and order coverage.",
       "Create a Markdown table comparing single order picking, wave picking, zone picking and dynamic batching, including workload, latency and coordination costs.",
       "Design an evaluation plan for a hypothetical warehouse with uncertain demand. Include confidence intervals, congestion, ergonomic constraints, fairness and fallback operations."
-    ]
-  },
-  {
-    "id": "acoustics_anechoic_chamber_impulse_response",
-    "domain": "acoustics_anechoic_room_calibration",
-    "title": "Acoustics: anechoic chamber impulse-response calibration",
-    "description": "Fictional teaching chamber, a generated acoustic layout, measured impulse-response inference, executable Python and bilingual tables.",
-    "features": [
-      "imagen",
-      "multimodal",
-      "attachments",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive a linear time-invariant acoustic impulse-response model for a fictional anechoic teaching chamber. Define pressure, sound speed, units, boundary assumptions and limits using LaTeX.",
-      "Use image generation to create one realistic annotated illustration of the teaching chamber with a loudspeaker, microphone grid, absorber wedges and a calibration signal path. Also include a concise Markdown table explaining each component.",
-      "Explain how a logarithmic sine sweep estimates the impulse response. Derive the regularized frequency-domain inverse filter in LaTeX and discuss noise and conditioning.",
-      "Provide runnable Python using NumPy and Matplotlib to simulate a delayed impulse response plus noise, estimate it, and compare recovered delay and frequency response. Include code blocks and an input/output table.",
-      "Compare swept-sine, MLS and direct impulse calibration in a Markdown table. Give a bilingual English/Chinese limitations section with inline and display equations, then a concise reproducible lab checklist."
     ]
   },
   {
@@ -416,6 +372,49 @@
       "枚举小规模无根二叉树并对合成数据评分，用固定随机种子生成字符矩阵，记录并列最优树，说明树数增长和搜索复杂度；加入状态重命名不变性与叶标签置换检查。",
       "用 Markdown 表格比较完全可观测、随机缺失、集中缺失和高同形性数据的评分、并列最优数量及解释限制；所有数据必须明确为合成，不推断真实物种关系。",
       "写完整方法报告，讨论等权假设、性状相关性、根的位置、并列解与自助法解释，附复杂度分析、可复现评估伪代码和中英文术语表。"
+    ]
+  },
+  {
+    "id": "acoustic_metamaterial_helmholtz_array",
+    "domain": "acoustics_helmholtz_metamaterial_design",
+    "title": "声学超材料：亥姆霍兹共振器阵列与隔声设计",
+    "features": [
+      "imagen",
+      "multimodal",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖共振器阻抗与传递矩阵、Python 合成频响、科学剖面生图、设计比较表格和制造误差分析。",
+    "turns": [
+      "用 LaTeX 推导单个亥姆霍兹共振器的等效声质量、声顺性和共振频率，说明颈部端部修正、黏滞损耗和适用近似；所有尺寸与材料参数均使用明确标注的假想值。",
+      "请生成一张科学概念插画：声学超材料板的剖面，包含不同颈长与腔体体积的亥姆霍兹共振器阵列，以蓝色波纹表示入射声、橙色表示共振腔内能量耗散，配简洁图例和白色背景，不使用真实品牌。",
+      "用 Python 和 numpy 编写可运行代码，通过传递矩阵计算三种共振器布局在 100 到 1500 Hz 的透射损失，输出峰值频率与带宽，用固定随机种子模拟尺寸误差，并检查能量守恒。",
+      "用 Markdown 表格对比单频共振器、梯度腔体阵列、多孔吸声层和组合结构的带宽、厚度、加工公差与低频性能；区分模型推算与实验测量结论。",
+      "写一份完整的隔声验证方案，讨论温度变化、气流、非线性与密封缺陷，给出参数辨识、阻抗管测量、误差预算及可复现的验收指标，使用 LaTeX 说明关键公式。"
+    ]
+  },
+  {
+    "id": "orchard_robot_sampling_energy_routes",
+    "domain": "robotics_orchard_sampling_energy_optimization",
+    "title": "果园巡检机器人：采样覆盖与电量约束路径规划",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "覆盖果园网格巡检、混合整数规划、可运行路径模拟、策略对比与动态故障恢复。",
+    "turns": [
+      "把一个假想果园的行间通道表示为图，为巡检机器人建立兼顾采样覆盖率、行驶距离和剩余电量的优化模型，用 LaTeX 明确目标函数、流守恒、充电站与时间窗约束。",
+      "推导不同地形和坡度下的简化能耗估计，比较按最短距离规划与按能耗规划的差异，给出一组可手算的小型实例以及两条路线的完整核验。",
+      "用 Python 编写自包含的网格模拟器，比较贪心覆盖、带电量约束的最短路与滚动时域策略，以固定种子生成障碍与巡检需求，输出路线、有效采样率、能耗和回充次数。",
+      "用 Markdown 表格比较单机器人与双机器人分区、静态巡检与按不确定性主动采样的适用条件、通信需求和主要失效模式；给出动态新增任务时的计算代价分析。",
+      "写一份长篇部署与验证报告，涵盖临时封路、定位漂移、采样传感器故障和充电站不可达，设计安全停靠、任务重分配和数据完整性机制，提供可复现的测试清单与定量指标。"
     ]
   }
 ]
