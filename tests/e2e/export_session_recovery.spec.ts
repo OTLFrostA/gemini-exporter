@@ -177,13 +177,11 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     const banner = optionsPage.locator('#exportSessionBanner');
     await expect(banner).not.toBeVisible();
 
-    const btnScan = optionsPage.locator('#btnIncrementalScan');
-    const btnDeepScan = optionsPage.locator('#btnDeepScan');
+    const btnScan = optionsPage.locator('#btnSyncAll');
     const btnExport = optionsPage.locator('#btnExport');
 
     // Buttons must be naturally disabled while ExportEngine is active
     await expect(btnScan).toBeDisabled();
-    await expect(btnDeepScan).toBeDisabled();
     await expect(btnExport).toBeDisabled();
 
     const list = optionsPage.locator('#list');
@@ -226,7 +224,6 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
 
     // Export completes, naturally re-enabling all action buttons
     await expect(btnScan).toBeEnabled({ timeout: 10000 });
-    await expect(btnDeepScan).toBeEnabled();
     await expect(btnExport).toBeEnabled();
     await expect(list.locator('input[type=checkbox]').first()).toBeEnabled();
   });

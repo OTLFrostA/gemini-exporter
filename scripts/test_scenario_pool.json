@@ -1,26 +1,5 @@
 [
   {
-    "id": "integrated_photonic_ring_resonator_coupled_mode",
-    "domain": "photonics_ring_resonator_spectroscopy",
-    "title": "集成光子环形谐振器：耦合模理论、透射光谱与参数辨识",
-    "features": [
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖时域耦合模推导、临界耦合、Python 光谱与拟合、器件对比表格及参数可辨识性分析",
-    "turns": [
-      "从时域耦合模理论推导单总线环形光学谐振器的复振幅方程与稳态透射函数，明确内禀损耗率、外耦合率、失谐量及输入输出振幅的归一化方式，用 LaTeX 展示推导并检查能量守恒。",
-      "推导欠耦合、临界耦合与过耦合时的消光比、加载品质因数和群时延表达式；解释为什么只测透射强度可能无法唯一判断内禀损耗与外耦合率。",
-      "用 Python 编写可运行代码，生成三种耦合状态下的带噪声透射光谱，使用 scipy.optimize 拟合共振频率和总衰减率，输出参数估计与残差，并给出合成数据的固定随机种子。",
-      "讨论背向散射引起顺时针与逆时针模式耦合的双峰分裂，写出二模耦合矩阵及本征值，说明拟合单峰模型会如何偏置品质因数估计。",
-      "用 Markdown 表格对比硅、氮化硅和薄膜铌酸锂环形谐振器在材料吸收、热光响应、电光调制、制造误差敏感性方面的定性差异，并设计同时采集幅度与相位以改善参数可辨识性的实验方案。"
-    ]
-  },
-  {
     "id": "structural_vibration_tuned_mass_damper_robustness",
     "domain": "mechanical_tuned_mass_damper_dynamics",
     "title": "结构振动：调谐质量阻尼器与鲁棒参数设计",
@@ -201,29 +180,6 @@
       "Provide complete runnable Python with NumPy to generate an AR(1) process, fit a rolling forecast, calibrate blocked residual intervals and report coverage and interval width. Include Markdown tables of configurations.",
       "Compare ordinary split conformal, rolling residual quantiles and blocked calibration in a Markdown table, including assumptions, failure modes and computational cost. Add an English/Chinese glossary.",
       "Design a reproducible sensitivity experiment over autocorrelation, drift and block length. Include precise pseudo-code, LaTeX formulas for conditional and marginal empirical coverage, and a detailed interpretation of failures without claiming guarantees from simulation."
-    ]
-  },
-  {
-    "id": "geophysics_ground_penetrating_radar_layer_inversion",
-    "title": "探地雷达：分层介质回波与介电参数反演",
-    "domain": "geophysics_ground_penetrating_radar",
-    "features": [
-      "imagen",
-      "multimodal",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖真实生成剖面图、波传播推导、合成回波代码、反演比较与长篇不确定性分析。",
-    "turns": [
-      "请实际生成一张原创科学剖面图，展示探地雷达天线沿三层土壤表面移动，电磁脉冲在地下界面反射并返回接收天线。用不同颜色区分干土、湿土和基岩，标明发射、反射及走时路径；请输出生成的图片，并用中英文解释图中结构，所有深度均为虚构教学示意。",
-      "以非磁性、低损耗分层介质为假设，用 LaTeX 推导波速、相对介电常数、双程走时和层厚关系，解释斜入射与导电损耗何时使简单深度换算失效。给出单位检查和可手算的两层数值例子。",
-      "用 Python/NumPy 编写可运行的合成雷达 A-scan 程序，包含 Ricker 子波、界面反射系数、传播延迟、衰减和固定随机种子的噪声。输出完整代码并展示如何从峰值走时估算层厚，明确实际分辨率限制。",
-      "用 Markdown 表格比较峰值拾取、互相关时延估计、最小二乘拟合和贝叶斯反演的输入条件、计算成本、噪声敏感性与可辨识性。用 LaTeX 说明未知层厚与介电常数之间的参数耦合，并用中文和 English 术语对照解释。",
-      "撰写详细技术报告，为上述虚构分层场景设计采样与反演验证流程，涵盖天线频率、空间采样、速度标定、多路径与非唯一解。给出置信区间计算代码和参数敏感性表格，区分合成演示与真实地质证据。"
     ]
   },
   {
@@ -415,6 +371,49 @@
       "用 Python 编写自包含的网格模拟器，比较贪心覆盖、带电量约束的最短路与滚动时域策略，以固定种子生成障碍与巡检需求，输出路线、有效采样率、能耗和回充次数。",
       "用 Markdown 表格比较单机器人与双机器人分区、静态巡检与按不确定性主动采样的适用条件、通信需求和主要失效模式；给出动态新增任务时的计算代价分析。",
       "写一份长篇部署与验证报告，涵盖临时封路、定位漂移、采样传感器故障和充电站不可达，设计安全停靠、任务重分配和数据完整性机制，提供可复现的测试清单与定量指标。"
+    ]
+  },
+  {
+    "id": "electrochemistry_porous_electrode_impedance",
+    "domain": "electrochemistry_porous_electrode_impedance",
+    "title": "多孔电极阻抗：传输线模型与参数辨识",
+    "features": [
+      "imagen",
+      "multimodal",
+      "physics",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "原创电极剖面图、分布阻抗推导、频域计算、Nyquist 图数据与可辨识性分析",
+    "turns": [
+      "请实际生成一张原创科学剖面图，展示多孔电极中的电解液通道、固体骨架、界面双电层和离子传输路径。生成图片后，用中文解释各部分作用，并注明该图是概念示意而非测量结果。",
+      "从电荷守恒和线性化界面响应推导一维多孔电极传输线方程，用 LaTeX 定义单位长度离子电阻和界面导纳，写出有限厚度电极阻抗及不同边界条件，检查低频和高频极限。",
+      "编写可运行 Python 代码计算合成电极的频域阻抗，给出固定参数、对数频率网格、Nyquist 与 Bode 数据和单位检查，讨论复数平方根的分支选择。",
+      "使用固定随机种子生成带噪声阻抗数据，并用 scipy.optimize 做复数残差最小二乘拟合；分析电极厚度、电阻和电容的参数混淆，给出雅可比或灵敏度检验。",
+      "用 Markdown 表格比较理想电容、常相位元件和有限长度扩散模型的频率特征，提出区分离子传输和界面反应限制的实验方案，明确模型假设、误差来源和无法从单次阻抗谱确定的结论。"
+    ]
+  },
+  {
+    "id": "graphics_homogeneous_clipping_perspective",
+    "domain": "computer_graphics_homogeneous_clipping",
+    "title": "齐次裁剪与透视插值：从投影矩阵到光栅化",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "投影约定、齐次裁剪、属性透视校正、数值稳健性和可重复验证",
+    "turns": [
+      "从右手坐标系推导透视投影矩阵，明确相机朝向、近远裁剪面、齐次坐标和 NDC 深度范围。用 LaTeX 展示变换顺序，解释为什么透视除法不能提前到齐次裁剪之前。",
+      "推导三角形与齐次裁剪平面的交点参数，说明顶点位于相机后方或 w 接近零时的处理。写出完整的 Sutherland–Hodgman 齐次裁剪伪代码，并分析退化边与浮点容差。",
+      "用 Python 实现齐次裁剪和三角扇重建，提供跨越近裁剪面、跨越视锥侧面、完全可见与完全不可见的固定输入，并用断言验证裁剪后顶点满足所有平面约束。",
+      "从屏幕重心坐标推导纹理坐标的透视正确插值公式，给出可运行代码对比线性屏幕插值与透视插值，解释深度插值、倒数 w 和属性插值的不同约定。",
+      "用 Markdown 表格比较不同投影深度约定、普通与反向深度的数值精度特征，设计验证裁剪接缝、共享边一致性和远近深度精度的测试方案，指出具体实现中应统一的坐标与符号规则。"
     ]
   }
 ]

@@ -164,16 +164,15 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         void (async () => {
             const stopKeepAlive = startKeepAlive();
             try {
-                const timeoutMs = (msg.mode === 'full' || msg.mode === 'auto') ? 300000 : 90000;
+                const timeoutMs = 300000;
                 const deepScanMsg: DeepScanMessage = {
                     action: 'deepScan',
-                    maxIter: msg.maxIter || 150,
-                    mode: msg.mode || 'auto'
+                    maxIter: msg.maxIter || 150
                 };
                 const res = await sendToGeminiTab(deepScanMsg, msg.accountSlot, timeoutMs);
                 sendResponse(res);
             } catch (e: unknown) {
-                sendResponse({ success: false, error: getErrorMessage(e) });
+                sendResponse({ success: false, status: 'error', error: getErrorMessage(e) });
             } finally {
                 stopKeepAlive();
             }

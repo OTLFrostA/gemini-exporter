@@ -97,7 +97,7 @@ test('provider contract: typed batch/progress options and Gemini slot policy are
     const upstream = result('unchanged_boundary');
     const signal = new AbortController().signal;
     let observedProgress = false;
-    const options: GeminiProviderListOptions = { maxPages: 2, incremental: true, forceFull: true, targetSid: 'u2', signal,
+    const options: GeminiProviderListOptions = { maxPages: 2, incremental: true, targetSid: 'u2', signal,
         onPageBatch: async (batch, info) => {
             assert.equal(batch[0].titleSource, 'rpc');
             assert.deepEqual(info, { page: 1, hasMore: true });

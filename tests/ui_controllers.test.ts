@@ -135,8 +135,7 @@ test('ExportController / GeminiUtils.formatExportProgress - formats conversation
 // ---------------------------------------------------------------------------
 test('syncController - exports and isScanning state management', () => {
     assert.ok(SyncController);
-    assert.strictEqual(typeof SyncController.startIncrementalScan, 'function');
-    assert.strictEqual(typeof SyncController.startDeepScan, 'function');
+    assert.strictEqual(typeof SyncController.startSync, 'function');
     assert.strictEqual(typeof SyncController.stopScan, 'function');
     assert.strictEqual(typeof SyncController.setScanRunning, 'function');
 
@@ -165,7 +164,7 @@ test('syncController - formats Receiving end does not exist with friendly refres
     );
 });
 
-test('syncController - startIncrementalScan dispatches friendly message on connection error', async () => {
+test('syncController - startSync dispatches friendly message on connection error', async () => {
     const origChrome = (globalThis as any).chrome;
     try {
         let loggedMsg = '';
@@ -185,7 +184,7 @@ test('syncController - startIncrementalScan dispatches friendly message on conne
         };
 
         await new Promise<void>((resolve) => {
-            SyncController.startIncrementalScan('u0', {
+            SyncController.startSync('u0', {
                 onLog: (msg: string, lvl: string) => {
                     loggedMsg = msg;
                     loggedLevel = lvl;

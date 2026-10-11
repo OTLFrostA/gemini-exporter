@@ -146,8 +146,8 @@ class DeepScanPaginationCase(FeatureTestCase):
         super().__init__(
             feature_id="feat_deep_scan_pagination",
             domain=FeatureDomain.TAKEOUT,
-            name="全量拉取历史分页同步",
-            description="点击【全量拉取历史】按钮，分页拉取所有云端会话，进度条正常推进至 100%",
+            name="会话同步分页覆盖",
+            description="点击【同步会话】按钮，分页扫描网页端可访问会话并验证自然耗尽",
             critical=True,
             prerequisites=[]
         )
@@ -155,7 +155,7 @@ class DeepScanPaginationCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp_opt = ctx.connect_options()
         try:
-            print("   🔄 触发【全量拉取历史】(btnDeepScan)...")
+            print("   🔄 触发【同步会话】(btnSyncAll)...")
             evidence = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             scan_ok, message = assert_scan_result(evidence)
             if not scan_ok:

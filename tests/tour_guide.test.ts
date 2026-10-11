@@ -259,7 +259,7 @@ function createMockElement(id: string) {
 }
 
 test('tourGuide - action-triggered step advancement across all steps', async () => {
-    const mockScanBtn = createMockElement('btnIncrementalScan');
+    const mockScanBtn = createMockElement('btnSyncAll');
     const mockList = createMockElement('list');
     const mockFormat = createMockElement('format');
     mockElements.set('format', mockFormat);
@@ -267,7 +267,7 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     const mockLiveSaveToggle = createMockElement('liveSaveDiskToggle');
     const mockFeedbackBtn = createMockElement('btnFeedback');
 
-    mockElements.set('btnIncrementalScan', mockScanBtn);
+    mockElements.set('btnSyncAll', mockScanBtn);
     mockElements.set('list', mockList);
     mockElements.set('btnExport', mockExportBtn);
     mockElements.set('liveSaveDiskToggle', mockLiveSaveToggle);
@@ -278,7 +278,7 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
     await TourGuide.goToStep(1);
     assert.strictEqual(TourGuide.getCurrentStep(), 1);
 
-    // Simulate user clicking #btnIncrementalScan
+    // Simulate user clicking #btnSyncAll
     mockScanBtn.click();
     await waitForStep(2);
     assert.strictEqual(TourGuide.getCurrentStep(), 2, 'Should advance to step 2 after sync click');
@@ -309,10 +309,10 @@ test('tourGuide - action-triggered step advancement across all steps', async () 
 });
 
 test('tourGuide - listener cleanup when navigating backwards', async () => {
-    const mockScanBtn = createMockElement('btnIncrementalScan');
+    const mockScanBtn = createMockElement('btnSyncAll');
     const mockList = createMockElement('list');
 
-    mockElements.set('btnIncrementalScan', mockScanBtn);
+    mockElements.set('btnSyncAll', mockScanBtn);
     mockElements.set('list', mockList);
 
     await TourGuide.goToStep(1);

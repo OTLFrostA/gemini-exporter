@@ -22,10 +22,7 @@ export interface GeminiProviderReadinessContext {
 export interface GeminiProviderReadiness extends ProviderReadiness {
     accountSlot?: string;
 }
-export interface GeminiProviderListOptions extends PaginationOptions {
-    /** Content watermark policy, forwarded unchanged; pagination does not read it. */
-    forceFull?: boolean;
-}
+export type GeminiProviderListOptions = PaginationOptions;
 export interface GeminiProviderDetailOptions {
     targetSid?: string | null;
     slot?: string | null;

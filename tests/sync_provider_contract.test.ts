@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tryBatchExecuteFull } from '../src/content/syncEngine.js';
+import { syncConversations } from '../src/content/syncEngine.js';
 import type { ProviderSyncResult } from '../src/content/syncEngine.js';
 import { contentContext } from '../src/content/contentContext.js';
 import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
@@ -15,7 +15,7 @@ import { GeminiProtocol } from '../src/core/protocol/protocol.js';
 
 type Assert<T extends true> = T;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
-const typedResult: Assert<Equal<Awaited<ReturnType<typeof tryBatchExecuteFull>>, ProviderSyncResult | null>> = true;
+const typedResult: Assert<Equal<Awaited<ReturnType<typeof syncConversations>>, ProviderSyncResult | null>> = true;
 const typedDiagnostics: Assert<Equal<ProviderSyncResult['diagnostics'], GeminiPaginationDiagnostics>> = true;
 const NOW = 1700000000000;
 function item(id = 'chat_visible'): GeminiProviderConversationItem {
@@ -39,7 +39,6 @@ function page(reason: PaginationCompletionReason = 'natural_exhaustion'): Gemini
 }
 interface Setup {
     checkpoint?: number | null;
-    forceFull?: boolean;
     abort?: boolean;
     slidingLimit?: number;
     failWrite?: boolean;
@@ -138,7 +137,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     contentContext.setDeepScanPromise(null);
     contentContext.setAborted(false);
     try {
-        const result = await tryBatchExecuteFull({ forceFull: setup.forceFull ?? true, maxPages: 4 });
+        const result = await syncConversations({ maxPages: 4 });
         assert.equal(contentContext.getDeepScanPromise(), null);
         assert.equal(contentContext.getActiveClient(), null);
         return { result, trace, records };
@@ -229,11 +228,10 @@ test('sync provider: explicit false completeness, Google evidence and cancellati
 });
 
 test('sync provider: legacy timestamps cannot authorize an unverified overlap early stop', async () => {
-    const { result, trace, records } = await scan(page('unchanged_boundary'), { checkpoint: NOW + 1000, forceFull: false });
+    const { result, trace, records } = await scan(page('unchanged_boundary'), { checkpoint: NOW + 1000 });
     assert.equal(result?.status, 'error');
     assert.deepEqual(trace.decisions, [undefined]);
     assert.equal(trace.options?.incremental, false);
-    assert.equal(trace.options?.forceFull, true);
     assert.equal(trace.options?.maxPages, 4);
     assert.equal(trace.options?.targetSid, null);
     assert.deepEqual(trace.checkpointWrites, []);
@@ -302,7 +300,7 @@ test('sync safety: later pages with newer updates are saved even when the first 
     const timed = (id: string, delta: number) => ({ ...item(id), timestamp: NOW + delta, updatedAt: NOW + delta });
     const first = { conversations: [timed('head120', 120), timed('head110', 110), timed('old090', 90)], nextPageToken: 'tC_more' };
     const later = { conversations: [timed('late105', 105)], nextPageToken: null };
-    const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, forceFull: false, wirePages: [first, later] });
+    const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, wirePages: [first, later] });
     assert.equal(result?.status, 'complete');
     assert.equal(result?.diagnostics.totalPagesFetched, 2);
     assert.equal(records.find(record => record.id === 'late105')?.timestamp, NOW + 105);
@@ -313,7 +311,7 @@ test('sync safety: a limited first scan and retry never claim complete coverage'
     const limited: ListParseResult = { conversations: [], nextPageToken: null,
         _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
     for (let attempt = 0; attempt < 2; attempt++) {
-        const { result, trace, records } = await scan(page(), { forceFull: false, wirePages: [
+        const { result, trace, records } = await scan(page(), { wirePages: [
             { conversations: [item()], nextPageToken: 'tC_limit' }, limited
         ] });
         assert.equal(result?.status, 'partial_limit');

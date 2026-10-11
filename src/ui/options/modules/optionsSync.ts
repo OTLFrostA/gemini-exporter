@@ -31,37 +31,14 @@ function bindSyncButtons(): void {
     const Controller = getExportController();
     const SyncCtrl = getSyncController();
 
-    $('btnIncrementalScan')?.addEventListener('click', () => {
+    $('btnSyncAll')?.addEventListener('click', () => {
         if (Controller && Controller.isRunning()) return;
         const slot = Store ? Store.getCurrentSlot() : 'u0';
 
         if (SyncCtrl) {
-            SyncCtrl.startIncrementalScan(slot, {
+            SyncCtrl.startSync(slot, {
                 onStart: () => {
-                    ProgressView.show(5, typeof t === 'function' ? t('syncingLatest') : '正在同步最新会话...');
-                },
-                onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
-                onFinished: ({ message }: any) => {
-                    ProgressView.complete(message);
-                    ProgressView.hide(2500);
-                    if (__loadStore) void __loadStore();
-                },
-                onError: (err: any, errMsg?: string) => {
-                    ProgressView.update(0, errMsg);
-                    if (__loadStore) void __loadStore();
-                }
-            });
-        }
-    });
-
-    $('btnDeepScan')?.addEventListener('click', () => {
-        if (Controller && Controller.isRunning()) return;
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
-
-        if (SyncCtrl) {
-            SyncCtrl.startDeepScan(slot, {
-                onStart: () => {
-                    ProgressView.show(5, typeof t === 'function' ? t('deepSyncing') : '正在全量扫描历史...');
+                    ProgressView.show(5, typeof t === 'function' ? t('syncingConversations') : '正在同步会话...');
                 },
                 onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
                 onFinished: async ({ message, res, count, hitGoogleLimit }: any) => {

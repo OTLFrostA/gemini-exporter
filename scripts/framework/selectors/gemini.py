@@ -79,7 +79,7 @@ class WorkbenchSelectors:
 
     BTN_SELECT_ALL: str = '#btnSelectAll'
     BTN_SELECT_NONE: str = '#btnSelectNone'
-    BTN_DEEP_SCAN: str = '#btnDeepScan'
+    BTN_SYNC_ALL: str = '#btnSyncAll'
     BTN_EXPORT: str = '#btnExport'
     LOG: str = '#log'
 

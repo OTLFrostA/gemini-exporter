@@ -136,10 +136,10 @@ class ExtensionActions:
                 """)
                 time.sleep(0.5)
 
-            # Step 2: 触发 #btnIncrementalScan
+            # Step 2: 触发 #btnSyncAll
             cdp.eval("""
             (() => {
-                const btn = document.getElementById('btnIncrementalScan');
+                const btn = document.getElementById('btnSyncAll');
                 if (btn) btn.click();
             })()
             """)
@@ -402,14 +402,14 @@ class ExtensionActions:
 
     @staticmethod
     def trigger_deep_scan(cdp_opt, max_wait: int = 330) -> Dict[str, Any]:
-        """Observe the real UI-triggered full request and its original response.
+        """Observe the real UI-triggered sync request and its original response.
 
         The temporary observer forwards arguments/results unchanged. It never
         synthesizes sync state and does not depend on a transient disabled button.
         """
         prep = cdp_opt.eval(f"""
         (() => {{
-            const btn = document.querySelector('{WorkbenchSelectors.BTN_DEEP_SCAN}');
+            const btn = document.querySelector('{WorkbenchSelectors.BTN_SYNC_ALL}');
             if (!btn || btn.disabled) return {{ error: 'Deep scan button missing/disabled' }};
             const original = chrome.runtime.sendMessage;
             const evidence = {{ started: false, finished: false }};
@@ -417,7 +417,7 @@ class ExtensionActions:
             window.__tier2ScanOriginal = original;
             chrome.runtime.sendMessage = function(...args) {{
                 const msg = args[0];
-                if (msg?.action !== 'deepScan' || msg.mode !== 'full') return original.apply(this, args);
+                if (msg?.action !== 'deepScan') return original.apply(this, args);
                 evidence.started = true;
                 const capture = response => {{
                     evidence.response = response;
@@ -447,7 +447,7 @@ class ExtensionActions:
                 if evidence.get('finished'):
                     return evidence
                 if not evidence.get('started') and time.monotonic() - start >= 3:
-                    return {**evidence, 'error': 'Click did not start a full scan request'}
+                    return {**evidence, 'error': 'Click did not start a sync request'}
                 time.sleep(0.25)
             return {**evidence, 'error': 'Full scan response timed out'}
         finally:
