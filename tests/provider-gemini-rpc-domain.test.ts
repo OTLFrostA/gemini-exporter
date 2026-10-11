@@ -20,6 +20,17 @@ function turn(prompt = 'Question', seconds: number | null = 1700000000, candidat
 const native = (data: string) => parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data });
 const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(block => extractBlockText(block)).join('\n');
 
+test('raw RPC code keeps consecutive blank lines through Domain and Markdown export', () => {
+    const code = 'import math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())';
+    const answer = `Explanation\n\n\`\`\`python\n${code}\n\`\`\`\n\nConclusion`;
+    const { conversation } = native(rpc([[turn('Show the program', 1700000000, [['rc_answer', [[answer]]]])]]));
+    const block = conversation.messages[1].content.find(node => node.type === 'code');
+    assert.ok(block?.type === 'code');
+    assert.equal(block.code, code);
+    const markdown = renderDocumentMarkdown(composeDomainDocument(conversation).document, {});
+    assert.ok(markdown.includes(`\`\`\`python\n${code}\n\`\`\``));
+});
+
 test('raw RPC input constructs Domain content, reasoning and citations directly', () => {
     const body = [['**Answer** [1]'], ['THOUGHT', 'Check **facts**'], ['https://example.test/source', 'Source']];
     const result = native(rpc([[turn('Question', 1700000000, [['rc_answer', body]])], null, 'Authored title']));

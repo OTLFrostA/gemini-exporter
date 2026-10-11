@@ -48,7 +48,8 @@ export function stripInternalChipMarkdown(text?: string | null): string {
     cleaned = cleaned.replace(followUpSelfClosingRe, '');
     cleaned = cleaned.replace(generateWidgetPairedRe, '');
     cleaned = cleaned.replace(generateWidgetSelfClosingRe, '');
-    cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
+    // This also receives complete Markdown answers, including fenced code.
+    // Preserve authored whitespace; global blank-line cleanup changes code.
     return cleaned;
 }
 
