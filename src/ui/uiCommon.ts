@@ -55,8 +55,8 @@ export const WORKBENCH_ACTION_BUTTON_IDS = [
 
 export function setWorkbenchControlsDisabled(disabled: boolean): void {
     for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
-        const el = document.getElementById(id) as HTMLButtonElement | null;
-        if (el) el.disabled = !!disabled;
+        const el = document.getElementById(id);
+        if (el && 'disabled' in el) el.disabled = !!disabled;
     }
     const listEl = document.getElementById('list');
     if (listEl) {

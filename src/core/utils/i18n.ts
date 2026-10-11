@@ -23,8 +23,9 @@ async function initLanguage(): Promise<string> {
     ensureLocales();
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            const data = await chrome.storage.local.get(STORAGE_KEYS.LANG);
-            const savedLang = typeof data?.[STORAGE_KEYS.LANG] === 'string' ? (data[STORAGE_KEYS.LANG] as string) : null;
+            const data = await chrome.storage.local.get<Record<string, unknown>>(STORAGE_KEYS.LANG);
+            const storedLang = data?.[STORAGE_KEYS.LANG];
+            const savedLang = typeof storedLang === 'string' ? storedLang : null;
             if (savedLang && LOCALES[savedLang]) {
                 currentLang = savedLang;
             } else {
@@ -61,7 +62,7 @@ function onLanguageChange(fn: (lang: string) => void): void {
 
 function t(key: string, ...args: unknown[]): string {
     ensureLocales();
-    let str: any = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
+    let str = LOCALES[currentLang]?.[key] || LOCALES['zh']?.[key] || LOCALES['en']?.[key] || key;
     if (typeof str !== 'string') return String(str);
     if (args.length) {
         args.forEach((val, idx) => {

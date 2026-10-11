@@ -4,7 +4,7 @@ export function positionElements(spotlightEl: HTMLElement | null, popoverEl: HTM
     if (!spotlightEl || !popoverEl || typeof window === 'undefined') return;
 
     const target = step.getTarget ? step.getTarget() : null;
-    if (target && target.isConnected && (target as HTMLElement).offsetParent !== null) {
+    if (target && target.isConnected && (!('offsetParent' in target) || target.offsetParent !== null)) {
         const rect = target.getBoundingClientRect();
         const pad = 6;
 

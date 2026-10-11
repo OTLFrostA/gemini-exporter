@@ -46,7 +46,7 @@ export const STEPS: TourStep[] = [
         id: 'select',
         getTarget: () => {
             const firstCheckbox = document.querySelector('#list .item input[type=checkbox]');
-            return firstCheckbox ? (firstCheckbox.closest('.item') as HTMLElement) : (document.getElementById('btnSelectAll') as HTMLElement);
+            return firstCheckbox ? firstCheckbox.closest('.item') : document.getElementById('btnSelectAll');
         },
         placement: 'left',
         titleKey: 'tourStep3Title',
@@ -57,8 +57,8 @@ export const STEPS: TourStep[] = [
             const listEl = document.getElementById('list');
             if (listEl) {
                 const onListChange = (e: Event): void => {
-                    const target = e.target as HTMLInputElement | null;
-                    if (target && target.type === 'checkbox' && target.checked) {
+                    const target = e.target;
+                    if (target && 'type' in target && target.type === 'checkbox' && 'checked' in target && target.checked) {
                         setTimeout(advance, 250);
                     }
                 };
