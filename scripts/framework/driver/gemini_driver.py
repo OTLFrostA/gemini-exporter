@@ -9,6 +9,7 @@ import os
 import time
 import base64
 import mimetypes
+import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union, Callable, Tuple
 
@@ -561,6 +562,57 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             chat_id=curr_id,
             metadata={"model_count": resp_data.get("modelCount", 1), "code_blocks": resp_data.get("codeBlocks", [])}
         )
+
+    def settled_conversation_evidence(self, chat_id: str, prompts: List[str], timeout: float = 60.0) -> List[Dict[str, Any]]:
+        """Read all final turns in place; never navigate or use exported content.
+
+        Earlier bubbles can finish math/Markdown rendering after their stream
+        settles. Freeze the complete conversation before comparing disk output.
+        """
+        if not chat_id or not prompts:
+            raise ValueError('Conversation identity and sent prompts are required')
+        deadline = time.monotonic() + timeout
+        previous = None
+        stable = 0
+        while time.monotonic() < deadline:
+            state = self.cdp.eval(f"""
+            (() => {{
+                const read = (\n{_AUTHORED_RESPONSE}\n);
+                const users = [...document.querySelectorAll('user-query')];
+                const models = [...document.querySelectorAll('model-response')];
+                return {{
+                    chat_id: location.pathname.split('/app/')[1]?.split('/')[0] || '',
+                    streaming: !!document.querySelector({json.dumps(GeminiSelectors.STREAMING_INDICATORS)}),
+                    turns: users.length !== models.length ? [] : models.map((model, index) => {{
+                        const body = model.querySelector('model-response-content');
+                        const answer = read(body?.querySelector('.markdown-main-panel') || body);
+                        return {{
+                            prompt: read(users[index].querySelector('.query-text') || users[index]).text,
+                            response: answer.text, has_images: answer.hasImages, code_blocks: answer.codeBlocks,
+                        }};
+                    }}),
+                }};
+            }})()
+            """) or {}
+            if state.get('chat_id') and state['chat_id'] != chat_id.removeprefix('c_'):
+                raise RuntimeError('Final webpage evidence belongs to a different conversation')
+            turns = state.get('turns', [])
+            valid = (state.get('chat_id') == chat_id.removeprefix('c_') and state.get('streaming') is False
+                     and len(turns) == len(prompts)
+                     and all(' '.join(turn.get('prompt', '').split()) == ' '.join(prompt.split())
+                             and isinstance(turn.get('response'), str) and isinstance(turn.get('code_blocks'), list)
+                             and (turn['response'] or turn.get('has_images'))
+                             for turn, prompt in zip(turns, prompts)))
+            if valid:
+                snapshot = json.dumps(turns, sort_keys=True, ensure_ascii=False)
+                stable = stable + 1 if snapshot == previous else 1
+                previous = snapshot
+                if stable >= 3:
+                    return turns
+            else:
+                previous, stable = None, 0
+            time.sleep(0.5)
+        raise RuntimeError('Complete final webpage evidence did not settle with the sent prompts')
 
     def new_chat(self, timeout: float = 20.0) -> GeminiChatSession:
         """

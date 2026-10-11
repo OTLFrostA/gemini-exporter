@@ -25,6 +25,7 @@ from scripts.framework.cases.export import (
 )
 from scripts.framework.cases.takeout import validate_takeout_records, TakeoutZipImportCase
 from scripts.framework.driver.platform_driver import TurnResult
+from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
 from scripts.framework.scenario_provider import OnlineScenarioProvider
 
@@ -48,6 +49,41 @@ def scan_evidence():
         'stopReason': '第 2 页未返回下页游标 nextPageToken，Google 服务端游标已到底',
         'pageHistory': [{'page': 1, 'hasNextPageToken': True}, {'page': 2, 'hasNextPageToken': False}],
     }}}
+
+
+class SettledEvidenceTests(unittest.TestCase):
+    def state(self):
+        return {'chat_id': CID, 'streaming': False, 'turns': [
+            {'prompt': 'Explain pressure.', 'response': REPLY, 'has_images': False, 'code_blocks': ['if ready:\n    run()']}]}
+
+    def test_late_rendering_must_settle_without_navigation_or_export_feedback(self):
+        final = self.state()
+        streaming = copy.deepcopy(final); streaming['streaming'] = True
+        transient = copy.deepcopy(final); transient['turns'][0]['response'] = 'Unfinished rendering'
+        cdp = MagicMock(); cdp.eval.side_effect = [streaming, transient, final, final, final]
+        with patch('scripts.framework.driver.gemini_driver.time.sleep'):
+            result = GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
+        self.assertEqual(result, final['turns'])
+        self.assertEqual(cdp.eval.call_count, 5)
+        cdp.call.assert_not_called()
+
+    def test_other_conversation_evidence_is_rejected(self):
+        cdp = MagicMock(); state = self.state(); state['chat_id'] = OTHER; cdp.eval.return_value = state
+        with self.assertRaises(RuntimeError):
+            GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
+
+    def test_missing_turns_changed_prompts_and_empty_answers_cannot_settle(self):
+        for change in ('missing', 'prompt', 'empty'):
+            with self.subTest(change=change):
+                state = self.state()
+                if change == 'missing': state['turns'] = []
+                elif change == 'prompt': state['turns'][0]['prompt'] = 'A different sent prompt'
+                else: state['turns'][0]['response'] = ''
+                cdp = MagicMock(); cdp.eval.return_value = state
+                with patch('scripts.framework.driver.gemini_driver.time.sleep'), \
+                     patch('scripts.framework.driver.gemini_driver.time.monotonic', side_effect=[0, 0, 2]):
+                    with self.assertRaises(RuntimeError):
+                        GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'], timeout=1)
 
 
 class DiskContentTests(unittest.TestCase):
