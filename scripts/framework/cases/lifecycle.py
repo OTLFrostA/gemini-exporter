@@ -55,6 +55,7 @@ class ContinuedChatPromotionCase(FeatureTestCase):
             turn_res = session.send_turn(add_turn, max_wait=120)
             if turn_res.success:
                 ctx.record_turn(ctx.chat_records[0], turn_res)
+                ctx.freeze_turn_evidence(driver, ctx.chat_records[0])
                 ctx.chat_records[0]["turns"].append(add_turn)
                 return True, "老会话追加提问成功完成并触发 STREAM_COMPLETE", None
             return False, f"追加提问失败: {turn_res.error}", None

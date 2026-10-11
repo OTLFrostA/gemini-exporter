@@ -194,6 +194,7 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
             if not turn_res.success:
                 return False, f"老会话继续追加提问失败: {turn_res.error}", None
             ctx.record_turn(ctx.chat_records[0], turn_res)
+            ctx.freeze_turn_evidence(driver, ctx.chat_records[0])
             ctx.chat_records[0]["turns"].append(follow_up_prompt)
             print("      ✓ 继续追加提问流式回复已落地，等待实时保存落盘...")
         finally:

@@ -52,6 +52,24 @@ def scan_evidence():
 
 
 class SettledEvidenceTests(unittest.TestCase):
+    def test_append_freeze_preserves_stream_history_and_records_all_final_turns(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ctx = TestContext(output_dir=directory)
+            record = {'chat_id': CID}
+            ctx.record_turn(record, TurnResult(True, 'First prompt', 'Stream capture', chat_id=CID))
+            driver = MagicMock()
+            first = {'prompt': 'First prompt', 'response': 'Final first answer', 'has_images': False, 'code_blocks': [], 'execution_blocks': []}
+            last = {'prompt': 'Append prompt', 'response': 'Final appended answer', 'has_images': False, 'code_blocks': [], 'execution_blocks': []}
+            driver.settled_conversation_evidence.side_effect = [[first], [first, last]]
+            ctx.freeze_turn_evidence(driver, record)
+            ctx.record_turn(record, TurnResult(True, 'Append prompt', 'Transient append', chat_id=CID))
+            ctx.freeze_turn_evidence(driver, record)
+            self.assertEqual(record['turn_evidence'], [first, last])
+            self.assertEqual([t['response'] for t in record['stream_turn_evidence']], ['Stream capture', 'Transient append'])
+            driver.settled_conversation_evidence.assert_called_with(CID, ['First prompt', 'Append prompt'])
+            saved = json.loads((Path(directory)/f'{CID}_turn_evidence.json').read_text())
+            self.assertEqual(saved, record)
+
     def state(self):
         return {'chat_id': CID, 'streaming': False, 'turns': [
             {'prompt': 'Explain pressure.', 'response': REPLY, 'has_images': False, 'code_blocks': ['if ready:\n    run()']}]}

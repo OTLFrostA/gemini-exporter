@@ -525,8 +525,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             // label. A short real answer cannot match if UI chrome is captured.
             const body = last.querySelector('{GeminiSelectors.MODEL_RESPONSE_BODY}');
             if (!body) return {{ text: '', hasImages: false, modelCount: models.length }};
-            const content = body.querySelector('.markdown-main-panel') || body;
-            const authored = ({_AUTHORED_RESPONSE})(content);
+            const authored = ({_AUTHORED_RESPONSE})(last);
             return {{
                 text: authored.text,
                 hasImages: authored.hasImages,
@@ -586,8 +585,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                     chat_id: location.pathname.split('/app/')[1]?.split('/')[0] || '',
                     streaming: !!document.querySelector({json.dumps(GeminiSelectors.STREAMING_INDICATORS)}),
                     turns: users.length !== models.length ? [] : models.map((model, index) => {{
-                        const body = model.querySelector('model-response-content');
-                        const answer = read(body?.querySelector('.markdown-main-panel') || body);
+                        const answer = read(model);
                         return {{
                             prompt: read(users[index].querySelector('.query-text') || users[index]).text,
                             response: answer.text, has_images: answer.hasImages, code_blocks: answer.codeBlocks,

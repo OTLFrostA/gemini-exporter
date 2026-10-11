@@ -1,25 +1,5 @@
 [
   {
-    "id": "airport_queueing_staffing_uncertainty",
-    "domain": "operations_research_airport_queueing",
-    "title": "Airport screening: queueing capacity and staffing uncertainty",
-    "features": [
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "algorithms",
-      "statistics"
-    ],
-    "turns": [
-      "Derive an M/M/c queueing model for airport security screening using inline and display LaTeX. Define arrival rate, service rate, utilization and steady state assumptions, and explain instability.",
-      "Show a worked example comparing two staffing levels at the same passenger arrival rate. Calculate a waiting probability and expected queue delay and interpret the result.",
-      "Write a complete Python discrete event simulation using only the standard library. Use a fixed seed, multiple replications and report mean delay and a confidence interval.",
-      "Create a Markdown table comparing fixed staffing, threshold based flex staffing and scheduled staffing under peaky demand, including model limitations, costs and service outcomes.",
-      "Explain how to assess bursty arrival data and choose staffing when the Poisson assumption fails. Include sensitivity analysis, a quantitative service target and a practical deployment checklist."
-    ]
-  },
-  {
     "id": "urban_bus_headway_bunching_control",
     "domain": "transport_operations_bus_headway_control",
     "title": "Bus headway control: passenger queues and service regularity",
@@ -199,27 +179,6 @@
       "用 Python 实现齐次裁剪和三角扇重建，提供跨越近裁剪面、跨越视锥侧面、完全可见与完全不可见的固定输入，并用断言验证裁剪后顶点满足所有平面约束。",
       "从屏幕重心坐标推导纹理坐标的透视正确插值公式，给出可运行代码对比线性屏幕插值与透视插值，解释深度插值、倒数 w 和属性插值的不同约定。",
       "用 Markdown 表格比较不同投影深度约定、普通与反向深度的数值精度特征，设计验证裁剪接缝、共享边一致性和远近深度精度的测试方案，指出具体实现中应统一的坐标与符号规则。"
-    ]
-  },
-  {
-    "id": "glass_photoelasticity_stress_optic_teaching",
-    "title": "光弹性：透明试件应力条纹与相位反演",
-    "domain": "glass_materials_photoelastic_stress",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "请实际生成一张原创教学图片：一个虚构的偏振光弹性装置，透明矩形试件中央有圆孔，两侧加载，画出偏振片、检偏器、相机以及彩色等色条纹，标注这些对象。所有参数为假想值，图片用于教学。",
-      "在平面应力假设下，用 LaTeX 推导应力光学定律、相位延迟与主应力差的关系。给出量纲检查，解释零阶条纹和相位包裹的区别，不引用虚构实测数据。",
-      "写可直接运行的 Python/NumPy 程序，用固定随机种子模拟主应力差、相位测量噪声和相位展开，输出误差统计。完整提供函数、输入数组、边界处理以及至少三条数值断言。",
-      "用 Markdown 表格比较四步移相、旋转检偏器和数字相位展开，列出硬件、相位歧义、噪声敏感性和失败条件。针对前面的假想参数计算一组数值例子。",
-      "写一份较长的教学实验报告，解释厚度误差、应力光学系数不确定性、圆孔边缘失真和刚体运动的影响，给出可重复的校准、验证与数据记录清单。明确所有样本和数值均为教学模拟。"
     ]
   },
   {
@@ -408,6 +367,46 @@
       "Write complete runnable standard-library Python implementing the algorithm. Add a slow BFS oracle and fixed-seed randomized checks for duplicate insertions, removals, self-loops and queries before any edges exist.",
       "Use a Markdown table to compare BFS per query, union-find for insertions only, rollback union-find offline and fully dynamic online methods across semantics, time costs and implementation constraints.",
       "Write a long algorithm audit with complexity equations, state tables, pseudocode and minimized counterexample traces. Show how to validate rollback snapshots and distinguish testing evidence from a correctness proof."
+    ]
+  },
+  {
+    "id": "food_science_emulsion_droplet_stability",
+    "domain": "food_science_emulsion_colloid_stability",
+    "title": "Emulsion stability: droplets, creaming and coalescence",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an educational cutaway image of a hypothetical oil-in-water food emulsion showing dispersed droplets, a continuous phase, creaming and coalescence. Use short English labels, then explain each process in Chinese.",
+      "Derive Stokes creaming velocity in inline and display LaTeX, stating the low Reynolds number and dilute suspension assumptions. Work through a numerical example and distinguish creaming from coalescence.",
+      "Write complete runnable Python with NumPy and a fixed seed to sample a droplet size distribution, calculate creaming velocities and compare mean and percentile migration distances. Preserve clear functions and blank lines between them.",
+      "Create a Markdown table comparing homogenization, viscosity adjustment, emulsifier selection and density matching, including mechanisms, assumptions and tradeoffs. Include an English-Chinese terminology column.",
+      "Design a reproducible accelerated stability experiment for a fictional emulsion. Specify measurements, uncertainty, mathematical acceptance criteria and failure interpretation without extrapolating beyond model assumptions."
+    ]
+  },
+  {
+    "id": "optimization_min_cost_flow_dual_potentials",
+    "domain": "optimization_network_flow_dual_potentials",
+    "title": "Minimum cost flow: residual networks and dual potentials",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate a capacitated minimum cost flow problem using inline and display LaTeX. Define supplies, conservation, capacities and costs, and derive the role of node potentials and reduced costs.",
+      "Work through a small numerical residual-network example with reverse arcs. Show an augmenting path, its bottleneck, the updated flow and a check of conservation and objective cost.",
+      "Write complete runnable Python using only the standard library for successive shortest augmenting paths with potentials. Include a deterministic example, explicit assertions for capacity and conservation, and blank lines between functions.",
+      "Create a Markdown comparison table for cycle canceling, successive shortest paths and network simplex, including assumptions, complexity and negative-cost handling. Include an English-Chinese glossary.",
+      "Explain how to verify optimality using reduced costs and complementary slackness. Provide an infeasible example, a reproducible test plan and precise limits of the algorithm when lower bounds or negative cycles are present."
     ]
   }
 ]

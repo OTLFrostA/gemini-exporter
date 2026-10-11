@@ -2,6 +2,9 @@
 // This function is embedded in the live CDP driver and exercised in a browser.
 (root) => {
     if (!root) return { text: '', hasImages: false, codeBlocks: [], executionBlocks: [] };
+    // A streamed answer may have multiple Markdown panels. Read the complete
+    // response body, excluding model-level headers and feedback outside it.
+    root = root.querySelector('model-response-content') || root;
     // Execution disclosures are accessible source evidence, even when collapsed.
     // Verify exported protocol-tagged execution blocks separately from prose.
     const executions = [...root.querySelectorAll('code-block')].filter(block => block.querySelector('.code-result-container'));
