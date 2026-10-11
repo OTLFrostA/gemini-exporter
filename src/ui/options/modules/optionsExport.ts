@@ -296,12 +296,13 @@ export async function startExportPipeline(
         } else {
             const failedList = Array.isArray(result?.failedChats) ? result.failedChats : [];
             const failedCount = failedList.length;
+            const failedAttachmentCount = Array.isArray(result?.failedAttachments) ? result.failedAttachments.length : 0;
             const successCount = typeof result?.landedChats === 'number'
                 ? result.landedChats
                 : (typeof result?.exportedCount === 'number' ? result.exportedCount : Math.max(0, selected.length - failedCount));
 
             let finishMsg = '';
-            if (failedCount > 0) {
+            if (failedCount > 0 || failedAttachmentCount > 0) {
                 if (typeof t === 'function') {
                     const translated = t('exportCompletedPartial', successCount, failedCount);
                     if (translated && translated !== 'exportCompletedPartial') {
@@ -314,6 +315,7 @@ export async function startExportPipeline(
                         ? `Export finished: ${successCount} succeeded, ${failedCount} failed.`
                         : `导出完成：成功 ${successCount} 篇，失败 ${failedCount} 篇。`;
                 }
+                if (failedAttachmentCount > 0) finishMsg += ` ${t('exportAttachmentsFailed', failedAttachmentCount)}`;
                 log(finishMsg, 'warn');
                 renderExportFailureBanner(failedList);
             } else if (successCount === 0 && (result?.skipped || 0) > 0) {

@@ -175,10 +175,11 @@ export async function resolveChat(value: unknown, requested: BatchWorkerRequeste
     const id = normId(requested.id);
     const evidence = isObjectRecord(value) ? value : {};
     if (evidence.isDeleted === true || isConfirmedDeletedError(evidence.error)) {
+        requested.cloudAvailability = 'deleted';
+        if (list) list.cloudAvailability = 'deleted';
         const storage = __resolveModule<Partial<Pick<typeof StorageService, 'updateConversation'>>>('StorageService', StorageService);
         try {
             await storage?.updateConversation?.(slot, id, { cloudAvailability: 'deleted' });
-            if (list) list.cloudAvailability = 'deleted';
             const pending = (options.messageSender || resolveRuntimeSender())?.({ action: 'syncUpdate', slot, from: 'cloud-deleted-archive-retained' });
             if (pending) void Promise.resolve(pending).catch(() => {});
         } catch (error) { onLog(`Could not save cloud availability: ${getErrorMessage(error)}. Local archive retained.`, 'warn'); }
