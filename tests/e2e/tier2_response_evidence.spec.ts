@@ -37,3 +37,66 @@ value = '&lt;br&gt;'</code></pre></code-block>
     expect(evidence.executionBlocks).toEqual([{code: "print('executed')\n    value = 1", stdout: 'executed\n'}]);
     expect(await page.locator('#answer').innerHTML()).toBe(before);
 });
+
+test('live evidence excludes hidden and collapsed thinking content from authored text', async ({ page }) => {
+    await page.setContent(`<model-response id="answer"><model-response-content><div class="markdown-main-panel">
+        <thought-container style="display:none">
+            <p>Evaluating internal reasoning path A vs path B.</p>
+            <pre><code>scratchpad = {'step': 1}</code></pre>
+        </thought-container>
+        <div class="thought-wrapper" hidden>
+            <span>Candidate thought: this should be omitted from final answer.</span>
+        </div>
+        <div class="model-thought" style="visibility:hidden">
+            <span>Hidden internal thought chain.</span>
+        </div>
+        <p>This is the authored answer paragraph.</p>
+        <code-block><pre><code>result = compute_final_output()</code></pre></code-block>
+    </div></model-response-content></model-response>`);
+
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('#answer')) as { text: string; hasImages: boolean; codeBlocks: string[]; executionBlocks: {code: string; stdout: string}[] };
+    }, source);
+
+    expect(evidence.text).toContain('This is the authored answer paragraph.');
+    expect(evidence.text).toContain('result = compute_final_output()');
+    expect(evidence.text).not.toMatch(/reasoning path|scratchpad|Candidate thought|thought chain|omitted/);
+    expect(evidence.codeBlocks).toEqual(['result = compute_final_output()']);
+});
+
+test('live evidence preserves inline and block LaTeX formulas', async ({ page }) => {
+    await page.setContent(`<model-response id="answer"><model-response-content><div class="markdown-main-panel">
+        <p>质能方程：<span data-math="E = mc^2"><span aria-hidden="true">Emc2</span></span>，微积分基本定理：</p>
+        <div data-math="\\int_{a}^{b} f(x)\\,dx = F(b) - F(a)"><span aria-hidden="true">rendered integral</span></div>
+        <p>结论成立。</p>
+    </div></model-response-content></model-response>`);
+
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('#answer')) as { text: string; hasImages: boolean; codeBlocks: string[]; executionBlocks: {code: string; stdout: string}[] };
+    }, source);
+
+    expect(evidence.text).toContain('E = mc^2');
+    expect(evidence.text).toContain('\\int_{a}^{b} f(x)\\,dx = F(b) - F(a)');
+    expect(evidence.text).not.toContain('Emc2');
+    expect(evidence.text).not.toContain('rendered integral');
+});
+
+test('live evidence preserves exact code block indentation and internal line breaks', async ({ page }) => {
+    const authoredCode = 'def process(data):\n    if not data:\n        return None\n\n    # Preserve empty line above\n    return [x * 2 for x in data]';
+    await page.setContent(`<model-response id="answer"><model-response-content><div class="markdown-main-panel">
+        <p>下面是实现函数：</p>
+        <code-block><div class="code-block-decoration">Python<button>Copy</button></div><pre><code>${authoredCode.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre></code-block>
+    </div></model-response-content></model-response>`);
+
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('#answer')) as { text: string; hasImages: boolean; codeBlocks: string[]; executionBlocks: {code: string; stdout: string}[] };
+    }, source);
+
+    expect(evidence.codeBlocks).toEqual([authoredCode]);
+    expect(evidence.text).toContain('下面是实现函数：');
+    expect(evidence.text).not.toContain('Copy');
+});
+
