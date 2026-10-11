@@ -92,3 +92,10 @@ test('chipUtils - stripInternalChipMarkdown strips immersive_entry_chip and pres
     assert.strictEqual(stripInternalChipMarkdown(onlyChip).trim(), '', 'Doc with only chip URL should result in empty text');
 });
 
+test('chipUtils - internal UI cleanup preserves consecutive blank lines and code indentation', () => {
+    const code = '```python\nimport math\n\n\nclass Encoder:\n    def encode(self):\n        return 1\n\n\n\nprint(Encoder().encode())\n```';
+    assert.strictEqual(stripInternalChipMarkdown(code), code);
+    const answer = `Explanation\nhttps://googleusercontent.com/deep_research/ref123\n\n${code}\n\n\nConclusion`;
+    assert.strictEqual(stripInternalChipMarkdown(answer), `Explanation\n\n${code}\n\n\nConclusion`);
+});
+
