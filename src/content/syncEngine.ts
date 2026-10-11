@@ -1,4 +1,5 @@
 import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
+import type { ScanCoverageRun } from '../core/storage/scanCoverage.js';
 import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
@@ -242,7 +243,8 @@ export function upsertConversations(incomingItems: any[], source: string, forceW
 }
 
 /** Both RPC acquisition paths commit through the same merge and storage transaction. */
-export function ingestRpcList(items: GeminiProviderConversationItem[], slot: string): Promise<RpcListIngestResult> {
+export async function ingestRpcList(items: GeminiProviderConversationItem[], slot: string): Promise<RpcListIngestResult> {
+    await assertSchemaWritable();
     return persistConversationBatch(items, 'network-list', true, slot);
 }
 
@@ -369,167 +371,6 @@ function persistConversationBatch(incomingItems: any[], source: string, forceWri
     return __storageWriteQueue;
 }
 
-export interface IngestListResult {
-    count: number;
-    reachedWatermark: boolean;
-    establishedBaseline: boolean;
-    newWatermark: number | null;
-}
-
-export interface IngestListOptions {
-    slot?: string;
-    isPage1?: boolean;
-    isFullScanComplete?: boolean;
-    forceFull?: boolean;
-    /**
-     * Phase A (P1-3): 只有扫描控制面才参与 watermark/slice。
-     * 默认为 false —— 嗅探（数据面）只写数据，不碰 __sessionSlices、不推进 checkpoint。
-     * 只有 onPageBatch / 完整扫描收尾显式传 true。
-     */
-    participateInWatermark?: boolean;
-}
-
-interface SessionSlice {
-    headTimestamp: number;
-    minTimestamp: number;
-    updatedAt: number;
-}
-
-const __sessionSlices = new Map<string, SessionSlice>();
-
-export function resetSessionSlice(slot?: string): void {
-    const s = slot || getAccountSlot();
-    __sessionSlices.delete(s);
-}
-
-export async function ingestListBatch(
-    incomingItems: any[],
-    source: string,
-    options?: IngestListOptions
-): Promise<IngestListResult> {
-    // P1-13: schema frozen 时写路径 fail-closed（读路径不受影响）
-    await assertSchemaWritable();
-    const slot = options?.slot || getAccountSlot();
-    const Storage = getStorage();
-    // Phase A (P1-3): 嗅探是数据面，默认不参与 watermark/slice
-    const participateInWatermark = options?.participateInWatermark === true;
-
-    const { count } = await ingestRpcList(incomingItems, slot);
-
-    // 控制面建立或校准水位基线
-    if (participateInWatermark && options?.isFullScanComplete) {
-        const slice = __sessionSlices.get(slot);
-        let baselineTs: number | null = null;
-        if (slice && slice.headTimestamp > 0) {
-            baselineTs = slice.headTimestamp;
-        } else if (incomingItems && incomingItems.length > 0) {
-            const tsList = incomingItems.map((c: any) => c.timestamp).filter((t: any) => typeof t === 'number' && t > 0);
-            if (tsList.length > 0) baselineTs = Math.max(...tsList);
-        } else {
-            // Empty account: natural completion of full scan with 0 conversations anchors baseline to current time
-            baselineTs = Date.now();
-        }
-        if (baselineTs && Storage && typeof Storage.setScanCheckpoint === 'function') {
-            await Storage.setScanCheckpoint(slot, baselineTs);
-            console.log(`[Gemini Exporter] Watermark Baseline established at ${new Date(baselineTs).toISOString()} (${baselineTs}) for slot ${slot}`);
-        }
-        __sessionSlices.delete(slot);
-        return {
-            count: incomingItems?.length || 0,
-            reachedWatermark: true,
-            establishedBaseline: true,
-            newWatermark: baselineTs
-        };
-    }
-
-    // 嗅探（数据面）不参与 slice/checkpoint 水位逻辑
-    if (!participateInWatermark) {
-        const currentCp = Storage && typeof Storage.getScanCheckpoint === 'function'
-            ? await Storage.getScanCheckpoint(slot)
-            : null;
-        return { count, reachedWatermark: false, establishedBaseline: false, newWatermark: currentCp };
-    }
-
-    const timestamps = (incomingItems || [])
-        .map((c: any) => c.timestamp)
-        .filter((t: any): t is number => typeof t === 'number' && t > 0);
-
-    if (timestamps.length === 0) {
-        const currentCp = Storage && typeof Storage.getScanCheckpoint === 'function'
-            ? await Storage.getScanCheckpoint(slot)
-            : null;
-        return { count, reachedWatermark: false, establishedBaseline: false, newWatermark: currentCp };
-    }
-
-    const batchMax = Math.max(...timestamps);
-    const batchMin = Math.min(...timestamps);
-    const now = Date.now();
-
-    let slice = __sessionSlices.get(slot);
-    const isSliceActive = slice && (now - slice.updatedAt < 120000);
-
-    if (options?.isPage1 || !isSliceActive || !slice) {
-        slice = { headTimestamp: batchMax, minTimestamp: batchMin, updatedAt: now };
-        __sessionSlices.set(slot, slice);
-    } else {
-        // Multi-page chaining: subsequent pages in descending chronological order
-        // extend the contiguous paging interval downwards.
-        if (batchMax <= slice.headTimestamp + 60000) {
-            slice.minTimestamp = Math.min(slice.minTimestamp, batchMin);
-            slice.headTimestamp = Math.max(slice.headTimestamp, batchMax);
-            slice.updatedAt = now;
-        } else {
-            slice = { headTimestamp: batchMax, minTimestamp: batchMin, updatedAt: now };
-            __sessionSlices.set(slot, slice);
-        }
-    }
-
-    const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
-        ? await Storage.getScanCheckpoint(slot)
-        : null;
-
-    // Cold start: no baseline established yet! In this state, NEVER advance or create checkpoint during mid-scan or sniffing.
-    if (currentCheckpoint === null) {
-        return {
-            count,
-            reachedWatermark: false,
-            establishedBaseline: false,
-            newWatermark: null
-        };
-    }
-
-    if (options?.forceFull) {
-        return {
-            count,
-            reachedWatermark: false,
-            establishedBaseline: false,
-            newWatermark: currentCheckpoint
-        };
-    }
-
-    // Check if the contiguous slice has reached or crossed the current checkpoint strictly (no tolerance deadzone)
-    if (slice.minTimestamp <= currentCheckpoint) {
-        const newWatermark = Math.max(currentCheckpoint, slice.headTimestamp);
-        if (newWatermark > currentCheckpoint && Storage && typeof Storage.setScanCheckpoint === 'function') {
-            await Storage.setScanCheckpoint(slot, newWatermark);
-            console.log(`[Gemini Exporter] Watermark advanced from ${new Date(currentCheckpoint).toISOString()} to ${new Date(newWatermark).toISOString()} (${newWatermark}) for slot ${slot}`);
-        }
-        return {
-            count,
-            reachedWatermark: true,
-            establishedBaseline: false,
-            newWatermark
-        };
-    }
-
-    return {
-        count,
-        reachedWatermark: false,
-        establishedBaseline: false,
-        newWatermark: currentCheckpoint
-    };
-}
-
 export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
@@ -574,29 +415,6 @@ export async function syncOnce(): Promise<number> {
     }
 }
 
-/**
- * 决定本次会话列表同步用增量还是全量 —— 还原为增量最根本的语义。
- *
- * 增量 = 从新往旧连续扫描，直到本轮连续摄入区间与历史水位线闭环咬合才停。
- * 停止判定在 ingestListBatch 里做（slice.minTimestamp <= checkpoint 时停并推进
- * checkpoint）。旧的"连续 5 条未变化就停"分页兜底已被删除，
- * 唯一的停止机制就是水位闭环。
- *
- * 不再做基线预判：无基线时所有条目都会被判"有变化"，扫描自然走到服务端
- * 尽头才停，等价于一次全量 —— 用条数 proxy 时间戳存在性的基线检查是多余的。
- * 也不再给增量设单独的小页数上限：上限只防死循环（服务端游标异常导致永不
- * 收敛），与全量取同一上限，正常流程永远碰不到。
- */
-export function resolveListSyncMode(
-    forceOpts?: { forceFull?: boolean; maxPages?: number }
-): { useIncremental: boolean; maxPages: number } {
-    const useIncremental = !forceOpts?.forceFull;
-    return {
-        useIncremental,
-        maxPages: forceOpts?.maxPages || 2000,
-    };
-}
-
 export interface ProviderSyncResult {
     count: number;
     diagnostics: GeminiPaginationDiagnostics;
@@ -605,10 +423,9 @@ export interface ProviderSyncResult {
     error?: string;
 }
 
-function scanStatus(all: GeminiProviderPageResult, stoppedByWatermark: boolean): ScanStatus {
+function scanStatus(all: GeminiProviderPageResult): ScanStatus {
     if (contentContext.isAborted() || all.completionReason === 'aborted') return 'aborted';
     if (all.hitGoogleLimit || all.diagnostics?.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
-    if (stoppedByWatermark && all.completionReason === 'unchanged_boundary') return 'up_to_date';
     if (isPaginationExhaustive(all)) return 'complete';
     return 'error';
 }
@@ -620,6 +437,10 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
     const scanPromise = new Promise<void>(r => { _resolve = r; });
     contentContext.setDeepScanPromise(scanPromise);
 
+    const slot = getAccountSlot();
+    const Storage = getStorage();
+    let coverageRun: ScanCoverageRun | null = null;
+    let coverageFinished = false;
     try {
         document.getElementById('geminiExportBadge')?.classList.add('syncing');
         const provider = resolveProvider() as ApplicationProvider | undefined;
@@ -631,40 +452,28 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         contentContext.setActiveClient(provider);
         contentContext.setAborted(false);
 
-        const slot = getAccountSlot();
-        resetSessionSlice(slot);
-        const Storage = getStorage();
-        const { maxPages: effectiveMaxPages } = resolveListSyncMode(forceOpts);
-
-        const currentCheckpoint = Storage && typeof Storage.getScanCheckpoint === 'function'
-            ? await Storage.getScanCheckpoint(slot)
-            : null;
-        const isForceFull = !!forceOpts?.forceFull;
-        const effectiveForceFull = isForceFull || (currentCheckpoint === null);
-
-        let stoppedByWatermark = false;
-        let page1Batch: GeminiProviderConversationItem[] = [];
+        const accountId = sniffUserProfileFromDom()?.accountId ?? null;
+        coverageRun = await Storage.beginScanCoverage(slot, accountId);
+        const runId = coverageRun.runId;
+        const effectiveMaxPages = forceOpts?.maxPages || 2000;
+        let expectedPage = 1;
+        // No verified Provider ordering contract exists yet. Legacy timestamps
+        // and repeated IDs cannot prove that later pages contain no updates.
         const all: GeminiProviderPageResult = await provider.listConversations({
             maxPages: effectiveMaxPages,
-            forceFull: effectiveForceFull,
+            forceFull: true,
             onPageBatch: async (batch, info) => {
-                if (info.page === 1) {
-                    page1Batch = batch;
+                if (getAccountSlot() !== slot || (accountId !== null && sniffUserProfileFromDom()?.accountId !== accountId)) {
+                    throw new Error('Account changed during sync; retry in the current account');
                 }
-                const ingestRes = await ingestListBatch(batch, 'batchexecute', {
-                    slot,
-                    isPage1: info.page === 1,
-                    forceFull: effectiveForceFull,
-                    // Phase A (P1-3): 扫描控制面参与 watermark/slice
-                    participateInWatermark: true
-                });
-
-                if (!effectiveForceFull && ingestRes.reachedWatermark) {
-                    stoppedByWatermark = true;
-                    return {
-                        shouldStop: true,
-                        reason: '已与历史水位线闭环咬合，增量同步完成'
-                    };
+                if (contentContext.isAborted()) throw new Error('Sync aborted');
+                if (info.page !== expectedPage++ || !await Storage.isScanCoverageCurrent(slot, runId)) {
+                    throw new Error('Sync was superseded or pagination is not contiguous; retry');
+                }
+                await assertSchemaWritable();
+                const receipt = await ingestRpcList(batch, slot);
+                if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) {
+                    throw new Error('List page could not be fully persisted; coverage was not advanced');
                 }
             },
             onProgress: (prog) => {
@@ -688,22 +497,8 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 }
             },
             targetSid: null,
-            incremental: !effectiveForceFull
+            incremental: false
         });
-
-        // Required producer completeness plus the existing error/limit/abort vetoes.
-        const isFullExhaustive = effectiveForceFull && !contentContext.isAborted() && isPaginationExhaustive(all);
-
-        // Listing absence is only uncertainty; keep bodies, resources and export records.
-        // Commit availability before advancing the completed-scan checkpoint.
-        if (isFullExhaustive && Storage?.transactConversations) {
-            const visible = new Set(all.items.map(item => normId(item.id)));
-            await Storage.transactConversations(slot, existing => ({
-                list: existing.map(item => isStoredObject(item) && !Array.isArray(item) && typeof item.id === 'string'
-                    && !item.isTakeoutOnly && !visible.has(normId(item.id)) && item.cloudAvailability !== 'deleted'
-                    ? { ...item, cloudAvailability: 'unlisted' } : item), changed: 0
-            }));
-        }
 
         // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
         const diagnostics: GeminiPaginationDiagnostics = all?.diagnostics;
@@ -713,16 +508,19 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             await setDiag(diagnostics);
         }
 
-        // If this was a full scan that finished naturally and exhaustively (not stopped early, not hit limit, not aborted)
-        if (isFullExhaustive && !stoppedByWatermark) {
-            await ingestListBatch(page1Batch, 'batchexecute', {
-                slot,
-                isFullScanComplete: true,
-                forceFull: isForceFull,
-                // Phase A (P1-3): 扫描收尾建立水位基线，属于控制面
-                participateInWatermark: true
-            });
+        const finalStatus = scanStatus(all);
+        const timestamps = all.items.map(item => item.timestamp).filter((ts): ts is number =>
+            typeof ts === 'number' && Number.isFinite(ts) && ts > 0);
+        const baseline = finalStatus === 'complete' ? {
+            headTimestamp: timestamps.length ? timestamps.reduce((max, ts) => Math.max(max, ts), 0) : null,
+            conversationCount: all.items.length
+        } : null;
+        if (!await Storage.finishScanCoverage(slot, runId, finalStatus, baseline, all.items.map(item => item.id),
+            () => !contentContext.isAborted() && getAccountSlot() === slot
+                && (accountId === null || sniffUserProfileFromDom()?.accountId === accountId))) {
+            throw new Error('Sync was superseded or local history was cleared; retry');
         }
+        coverageFinished = true;
 
         if (all && all.items && all.items.length) {
             // Each page batch was already incrementally upserted via onPageBatch;
@@ -730,7 +528,7 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             const mergedLen = all.items.length;
             const isLimit = hitGoogleLimit;
             const zh = isZh();
-            const status = scanStatus(all, stoppedByWatermark);
+            const status = finalStatus;
             const complete = status === 'complete' || status === 'up_to_date';
             const incompleteReason = status === 'partial_limit'
                 ? (zh ? '已达服务端限制' : 'server limit reached')
@@ -775,11 +573,15 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
                 ...(complete ? {} : { error: diagnostics.stopReason || status }) };
         }
         if (all && diagnostics) {
-            const status = scanStatus(all, stoppedByWatermark);
+            const status = finalStatus;
             return { count: 0, diagnostics, hitGoogleLimit, status,
                 ...(['complete', 'up_to_date'].includes(status) ? {} : { error: diagnostics.stopReason || status }) };
         }
     } catch (e: unknown) {
+        if (coverageRun && !coverageFinished) {
+            try { await Storage.finishScanCoverage(slot, coverageRun.runId, contentContext.isAborted() ? 'aborted' : 'error'); }
+            catch (coverageError) { console.error('[Gemini Exporter] Could not record failed scan', coverageError); }
+        }
         const errMsg = getErrorMessage(e);
         if (contentContext.isDevMode()) console.debug('[Gemini Exporter] batch exec fail', errMsg);
         throw e;
@@ -787,7 +589,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         // The floating badge reports stored conversations; scan outcomes stay in workbench messages.
         await refreshInitialBadge();
         document.getElementById('geminiExportBadge')?.classList.remove('syncing');
-        resetSessionSlice();
         contentContext.setActiveClient(null);
         contentContext.setDeepScanPromise(null);
         if (_resolve) _resolve();
@@ -807,8 +608,6 @@ export const SyncEngine = {
     touchActiveConversation,
     upsertConversations,
     ingestRpcList,
-    ingestListBatch,
-    resetSessionSlice,
     syncOnce,
     tryBatchExecuteFull,
     compareConversations

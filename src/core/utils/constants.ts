@@ -12,6 +12,7 @@ export const STORAGE_KEYS = {
     CREDENTIALS_MAP: 'gemini_credentials_map',
     CREDENTIALS: 'gemini_credentials',
     ACCOUNT_SLOTS: 'gemini_account_slots',
+    SCAN_COVERAGE: 'gemini_scan_coverage',
     LAST_SYNC_DIAGNOSTICS: 'gemini_last_sync_diagnostics',
     LAST_EXPORT_SESSION: 'gemini_last_export_session',
     LIVE_SAVE_CONFIG: 'live_save_config',

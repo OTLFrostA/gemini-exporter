@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ingestRpcList, ingestListBatch } from '../src/content/syncEngine.js';
+import { ingestRpcList } from '../src/content/syncEngine.js';
 import { init } from '../src/content/messageBridge.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
@@ -39,7 +39,7 @@ test('RPC lists from the bridge and scanner persist identical titles, time, sour
     assert.equal(sniffed[0].title, 'Server title');
     assert.equal(sniffed[0].source, 'network-list');
     assert.equal(sniffed[0].cloudAvailability, undefined);
-    await ingestListBatch(batch(), 'batchexecute', { slot: 'u2' });
+    await ingestRpcList(batch(), 'u2');
     assert.deepEqual(state.records, sniffed);
     assert.equal(state.checkpoints, 0);
 }));

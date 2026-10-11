@@ -5,7 +5,7 @@ import { getDomainConversationResult } from '../src/core/storage/domain/nativePe
 import { resolveChat, fetchChatDetail } from '../src/core/engine/export/batchWorker.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
-import { upsertConversations, ingestListBatch } from '../src/content/syncEngine.js';
+import { upsertConversations, ingestRpcList } from '../src/content/syncEngine.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 
 test('cloud-deleted archive exports durable body and resource bytes without fetching cloud or deleting metadata', async () => {
@@ -52,7 +52,7 @@ test('failed persistence never advances checkpoint, keeps previous records, and 
         async getScanCheckpoint() { return checkpoint; }, async setScanCheckpoint(_slot: string, ts: number) { checkpoint = ts; }
     });
     try {
-        await assert.rejects(ingestListBatch([{ id: 'incoming', title: 'Incoming', timestamp: 2000 }], 'batchexecute', { slot: 'u0', participateInWatermark: true, isPage1: true }), /Injected/);
+        await assert.rejects(ingestRpcList([{ id: 'incoming', title: 'Incoming', titleSource: 'rpc', titles: { rpc: 'Incoming' }, createdAt: null, updatedAt: 2000, timestamp: 2000, chatTime: 2000, messageCount: 1, url: '' }], 'u0'), /Injected/);
         assert.equal(checkpoint, 1000); assert.deepEqual(records.map(c => c.id), ['existing']);
         fail = false;
         await upsertConversations([{ id: 'retry', title: 'Retry' }], 'retry', true, 'u0');

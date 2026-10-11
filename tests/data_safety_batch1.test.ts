@@ -174,8 +174,8 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
     assert.strictEqual(mockStore.gemini_scan_checkpoint, undefined, 'Scan checkpoint must be removed');
     assert.deepStrictEqual(mockStore.exportedIds, {}, 'Exported records must be emptied');
 
-    const checkpoint = await StorageService.getScanCheckpoint('u0');
-    assert.strictEqual(checkpoint, null, 'getScanCheckpoint must return null after clearConversations');
+    const checkpoint = await StorageService.getScanCoverage('u0');
+    assert.strictEqual(checkpoint, null, 'getScanCoverage must return null after clearConversations');
 });
 
 // 4. MessageBridge: Invalid ID validation on deletion

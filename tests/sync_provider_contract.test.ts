@@ -44,6 +44,7 @@ interface Setup {
     slidingLimit?: number;
     failWrite?: boolean;
     language?: 'zh' | 'en';
+    wirePages?: ListParseResult[];
 }
 async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     const original = ProviderRegistry.get('gemini');
@@ -65,8 +66,13 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     };
     const store = {
         async getConversations(slot: string) { trace.slots.push(slot); return records; },
-        async getScanCheckpoint(slot: string) { trace.slots.push(slot); return checkpoint; },
-        async setScanCheckpoint(slot: string, value: number) { trace.slots.push(slot); checkpoint = value; trace.checkpointWrites.push(value); },
+        async beginScanCoverage(slot: string) { trace.slots.push(slot); return { runId: 'fixture-run', previous: null }; },
+        async isScanCoverageCurrent(slot: string) { trace.slots.push(slot); return true; },
+        async finishScanCoverage(slot: string, _runId: string, status: string, baseline?: { headTimestamp: number | null }) {
+            trace.slots.push(slot);
+            if (status === 'complete' && baseline) trace.checkpointWrites.push(baseline.headTimestamp ?? 0);
+            return true;
+        },
         async transactConversations(slot: string, apply: (existing: Conversation[]) => { list: Conversation[]; changed: number } | null) {
             trace.slots.push(slot);
             if (setup.failWrite) throw new Error('Injected quota failure');
@@ -93,6 +99,19 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         async fetchConversationDetail() { throw new Error('unexpected detail request'); },
         async listConversations(options) {
             trace.options = options || null;
+            if (setup.wirePages) {
+                let index = 0;
+                const adapter = new GeminiProvider({
+                    async getAllConversations(opts) {
+                        return getAllConversations({ async getConversationList() {
+                            assert.ok(index < setup.wirePages!.length, 'must stop at the actual terminal response');
+                            return setup.wirePages![index++];
+                        } }, opts);
+                    },
+                    async getConversationDetail() { throw new Error('unexpected detail'); }
+                });
+                return adapter.listConversations(options);
+            }
             trace.decisions.push(await options?.onPageBatch?.(input.items, { page: 1, hasMore: true }));
             options?.onProgress?.({ page: 1, added: input.items.length, total: input.items.length, hasMore: false,
                 stoppedEarly: input.stoppedEarly, batch: input.items });
@@ -209,15 +228,15 @@ test('sync provider: explicit false completeness, Google evidence and cancellati
     }
 });
 
-test('sync provider: watermark callback stop retains the same reason and incremental controls', async () => {
+test('sync provider: legacy timestamps cannot authorize an unverified overlap early stop', async () => {
     const { result, trace, records } = await scan(page('unchanged_boundary'), { checkpoint: NOW + 1000, forceFull: false });
-    assert.equal(result?.status, 'up_to_date');
-    assert.deepEqual(trace.decisions, [{ shouldStop: true, reason: '已与历史水位线闭环咬合，增量同步完成' }]);
-    assert.equal(trace.options?.incremental, true);
-    assert.equal(trace.options?.forceFull, false);
+    assert.equal(result?.status, 'error');
+    assert.deepEqual(trace.decisions, [undefined]);
+    assert.equal(trace.options?.incremental, false);
+    assert.equal(trace.options?.forceFull, true);
     assert.equal(trace.options?.maxPages, 4);
     assert.equal(trace.options?.targetSid, null);
-    assert.equal(trace.reconcileCalls, 0);
+    assert.deepEqual(trace.checkpointWrites, []);
     assert.ok(records.some(c => c.id === 'chat_old'));
 });
 
@@ -276,4 +295,31 @@ test('sync safety: real pagination edge results pass through adapter without rec
     assert.ok(result);
     assert.deepEqual(trace.checkpointWrites, [NOW]);
     assert.ok(records.some(c => c.id === 'chat_old'));
+});
+
+
+test('sync safety: later pages with newer updates are saved even when the first page crosses the legacy checkpoint', async () => {
+    const timed = (id: string, delta: number) => ({ ...item(id), timestamp: NOW + delta, updatedAt: NOW + delta });
+    const first = { conversations: [timed('head120', 120), timed('head110', 110), timed('old090', 90)], nextPageToken: 'tC_more' };
+    const later = { conversations: [timed('late105', 105)], nextPageToken: null };
+    const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, forceFull: false, wirePages: [first, later] });
+    assert.equal(result?.status, 'complete');
+    assert.equal(result?.diagnostics.totalPagesFetched, 2);
+    assert.equal(records.find(record => record.id === 'late105')?.timestamp, NOW + 105);
+    assert.deepEqual(trace.checkpointWrites, [NOW + 120]);
+});
+
+test('sync safety: a limited first scan and retry never claim complete coverage', async () => {
+    const limited: ListParseResult = { conversations: [], nextPageToken: null,
+        _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const { result, trace, records } = await scan(page(), { forceFull: false, wirePages: [
+            { conversations: [item()], nextPageToken: 'tC_limit' }, limited
+        ] });
+        assert.equal(result?.status, 'partial_limit');
+        assert.equal(result?.diagnostics.totalPagesFetched, 2);
+        assert.deepEqual(trace.checkpointWrites, []);
+        assert.ok(records.some(record => record.id === 'chat_visible'));
+        assert.ok(records.some(record => record.id === 'chat_old'));
+    }
 });
