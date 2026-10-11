@@ -100,3 +100,21 @@ test('live evidence preserves exact code block indentation and internal line bre
     expect(evidence.text).not.toContain('Copy');
 });
 
+
+test('real norm alias evidence keeps double bars distinct from absolute value and literal prose', async ({ page }) => {
+    const fixture = JSON.parse(readFileSync('tests/fixtures/provider/math/gemini_norm_alias.json', 'utf8')) as { domSource: string; rpcSource: string };
+    const literal = String.raw`Literal prose \Vert{} and code \Vert{} must stay exact.`;
+    await page.setContent('<model-response id="answer"><model-response-content><div class="markdown-main-panel"><span id="norm" data-math=""></span><p id="literal"></p><span id="absolute" data-math=""></span></div></model-response-content></model-response>');
+    await page.evaluate(({ fixture, literal }) => {
+        document.querySelector('#norm')!.setAttribute('data-math', fixture.domSource);
+        document.querySelector('#literal')!.textContent = literal;
+        document.querySelector('#absolute')!.setAttribute('data-math', String.raw`\vert{}x\vert{} + \Vert{x}`);
+    }, { fixture, literal });
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('#answer')) as { text: string };
+    }, source);
+    expect(evidence.text).toBe(fixture.rpcSource + literal + String.raw`|x| + \Vert{x}`);
+    expect(evidence.text).toContain(String.raw`\|\vec{ab}\|`);
+    expect(evidence.text).not.toContain(String.raw`|\vec{ab}|`);
+});

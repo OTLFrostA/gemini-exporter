@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { decodeGeminiStructuredNode, decodeGeminiStructuredPayload } from '../src/core/parsers/gemini/rpc/structuredContent.js';
+import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+
+test('captured execution panels survive structured RPC, Domain and physical Markdown grammar with exact code/stdout', () => {
+    const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_execution_nodes.json', 'utf8')) as { nodes: [{ '39': [string, string, number, null, number] }][] };
+    const content = parseGeminiBody('', decodeGeminiStructuredPayload(fixture.nodes));
+    assert.equal(content.length, 2);
+    assert.ok(content.every(node => node.type === 'code'));
+    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'execution', title: 'Execution', timestamp: null, assets: [],
+        messages: [{ id: 'm', role: 'assistant', content }] };
+    const serialized = renderDocumentMarkdown(composeDomainDocument(domain).document, {});
+    const result = spawnSync('node', ['scripts/framework/markdown_evidence.mjs'], { input: JSON.stringify(serialized), encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    const evidence = JSON.parse(result.stdout) as { executionBlocks: { code: string; stdout: string }[]; codeBlocks: string[] };
+    const canonical = (text: string) => text.replace(/^\n+|\n+$/g, '');
+    assert.deepEqual(evidence.executionBlocks.map(event => ({ code: canonical(event.code), stdout: canonical(event.stdout) })), [{ code: canonical(fixture.nodes[0][0]['39'][0]), stdout: canonical(fixture.nodes[1][0]['39'][0]) }]);
+    assert.deepEqual(evidence.codeBlocks, []);
+});
+test('unrecognized execution extension layouts fall back rather than inventing source or hiding body', () => {
+    for (const event of [[], ['code', 'python', 1, null, 2], ['code', 'python', 0, null, 0], ['code', 'python\nunsafe', 1, null, 0]]) {
+        assert.equal(decodeGeminiStructuredNode([{ '39': event }]), null);
+    }
+    assert.deepEqual(decodeGeminiStructuredNode([{ 'attachment': [] }]), { nodeType: 0 });
+});

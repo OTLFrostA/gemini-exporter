@@ -841,22 +841,16 @@ async function isScanCoverageCurrent(slot: string, runId: string): Promise<boole
 }
 
 async function finishScanCoverage(slot: string, runId: string, status: ScanStatus,
-    baseline: ScanCoverageBaseline | null = null, visibleIds?: readonly string[], canCommit?: () => boolean): Promise<boolean> {
+    baseline: ScanCoverageBaseline | null = null, _visibleIds?: readonly string[], canCommit?: () => boolean): Promise<boolean> {
     return withConversationLock(async () => {
         await assertSchemaWritable();
         const current = await getScanCoverage(slot);
         if (!current || current.activeRunId !== runId || canCommit?.() === false) return false;
-        const { coverageKey, convKey } = getStorageKeys(slot);
+        const { coverageKey } = getStorageKeys(slot);
         const exhaustive = status === 'complete' && baseline !== null;
         const next: ScanCoverage = { ...current, activeRunId: null, lastStatus: status,
             baseline: exhaustive ? baseline : current.baseline };
         const write: Record<string, unknown> = { [coverageKey]: next };
-        if (exhaustive && visibleIds) {
-            const visible = new Set(visibleIds.map(normId));
-            const existing = await getConversations(slot);
-            write[convKey] = existing.map(item => isObjectRecord(item) && !item.isTakeoutOnly && !visible.has(normalizedConversationId(item))
-                && item.cloudAvailability !== 'deleted' ? { ...item, cloudAvailability: 'unlisted' } : item);
-        }
         if (canCommit?.() === false) return false;
         await chrome.storage.local.set(write);
         return true;

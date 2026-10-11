@@ -25,7 +25,7 @@ function authored(node) {
         if (current.type === 'text') add(current.value);
         // Code/math form immutable boundaries, preserving literal operators.
         else if (['code', 'inlineCode'].includes(current.type)) add(current.value, true);
-        else if (['math', 'inlineMath'].includes(current.type)) add(current.value.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\vert\{\}/g, '|'), true);
+        else if (['math', 'inlineMath'].includes(current.type)) add(current.value.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\Vert\{\}/g, '\\|').replace(/\\vert\{\}/g, '|'), true);
         else if (current.type === 'html') add(/^<br\s*\/?>$/i.test(current.value) ? '' : current.value, true);
         else current.children?.forEach(visit);
         if (['paragraph', 'heading', 'tableCell', 'code', 'math'].includes(current.type)) add('', true, true);

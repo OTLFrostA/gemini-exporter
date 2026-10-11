@@ -115,3 +115,18 @@ test('unknown identities and invalid evidence cannot initialize coverage; cancel
     assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, false);
     for (const value of [123, {}, { version: 1 }, { version: 2 }, { version: 3 }]) assert.equal(readScanCoverage(value), null);
 }));
+
+test('completed or incremental scan absence never changes archives, other accounts, bodies, resources or export records', async () => fixture(async data => {
+    data.gemini_conversations = [{ id: 'absent', title: 'Archived', timestamp: 1 },
+        { id: 'deleted', title: 'Deleted archive', timestamp: 2, cloudAvailability: 'deleted' },
+        { id: 'offline', title: 'Takeout archive', timestamp: 3, isTakeoutOnly: true }];
+    data.gemini_conversations_u1 = [{ id: 'absent', title: 'Other account', timestamp: 9 }];
+    data.exportedIds = { absent: { status: 'ok' } };
+    data.domainBodies = { absent: { messages: ['Saved answer'], assets: [1, 2, 3] } };
+    const untouched = structuredClone(data);
+    for (const status of ['complete', 'up_to_date', 'partial_limit'] as const) {
+        const run = await StorageService.beginScanCoverage('u0', 'account-a');
+        await StorageService.finishScanCoverage('u0', run.runId, status, baseline, ['only-visible']);
+        for (const key of Object.keys(untouched)) if (key !== 'gemini_scan_checkpoint') assert.deepEqual(data[key], untouched[key]);
+    }
+}));

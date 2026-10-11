@@ -70,7 +70,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
 });
 
-test('unlisted export fetches fresh cloud content first and falls back to a local snapshot only after failure', async () => {
+test('normal export fetches fresh cloud content first and falls back to a local snapshot only after failure', async () => {
     __clearDomainMemory();
     const local = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Stale snapshot' }] });
     const fresh = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Fresh cloud answer' }] });
@@ -84,7 +84,7 @@ test('unlisted export fetches fresh cloud content first and falls back to a loca
             } });
             const logs: string[] = [];
             const result = await new ExportOrchestrator().run({ selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
-                conversations: [{ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1, cloudAvailability: 'unlisted' }], worker: BatchWorker
+                conversations: [{ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 }], worker: BatchWorker
             }, { onLog: message => logs.push(message) });
             assert.equal(result.landedChats, 1);
             assert.equal(result.failedChats.length, 0);
@@ -97,7 +97,7 @@ test('unlisted export fetches fresh cloud content first and falls back to a loca
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
 });
 
-test('unlisted snapshot records stay partial and skipExported retries cloud; fresh cloud and normal deleted local exports remain ok', async () => {
+test('normal snapshot records stay partial and skipExported retries cloud; fresh cloud and normal deleted local exports remain ok', async () => {
     __clearDomainMemory();
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
@@ -105,7 +105,7 @@ test('unlisted snapshot records stay partial and skipExported retries cloud; fre
     await saveDomainConversation('u0', local);
     let calls = 0;
     let available = false;
-    const list: Conversation = { id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1, cloudAvailability: 'unlisted' };
+    const list: Conversation = { id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 };
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
         calls++; return available ? { success: true, data: fresh } : { success: false, error: 'HTTP 503' };
     } });
@@ -256,4 +256,19 @@ test('sync UI never reaches success completion for partial_limit / aborted / err
         clicks.btnStopScan();
         assert.notEqual(bar.style.width, '100%', 'stop request must not show success');
     } finally { await new Promise(resolve => setImmediate(resolve)); setScanRunning(false); __clearModuleOverrides(); restore(); }
+});
+
+test('a failed cloud fetch without a same-account body remains a failed export', async () => {
+    __clearDomainMemory();
+    const { records } = exportMocks();
+    const foreign = historicalFixture({ id: 'missing_local', title: 'Other account', messages: [{ role: 'user', content: 'Private other-account answer' }] });
+    await saveDomainConversation('u1', foreign);
+    __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
+    try {
+        const result = await new ExportOrchestrator().run({ selected: [{ id: 'missing_local' }], currentSlot: 'u0', includeAssets: false,
+            conversations: [{ id: 'missing_local', title: 'Unavailable', timestamp: 1 }], worker: BatchWorker });
+        assert.equal(result.landedChats, 0);
+        assert.equal(result.failedChats.length, 1);
+        assert.equal(records.missing_local, undefined);
+    } finally { __clearModuleOverrides(); __clearDomainMemory(); }
 });

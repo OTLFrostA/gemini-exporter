@@ -822,15 +822,12 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         const res = isObjectRecord(rawRes) ? rawRes : null;
                         const success = typeof res?.success === 'boolean' ? res.success : Boolean(res?.success);
-                        if ((!res || !success) && listC?.cloudAvailability !== 'unlisted') {
+                        if (!res || !success) {
                             const fetchErr = typeof res?.error === 'string' ? res.error : 'unknown';
                             onLog(I18n.t('logFetchFailed', fetchErr), 'warn');
-                            failedChats.push({ id: requestedItem.id, title: requestedItem.title || requestedItem.id, error: fetchErr });
-                            onLog(I18n.t('logExportSkipped', requestedItem.title || requestedItem.id, fetchErr), 'warn');
-                            completedCount++;
-                            updateProgress(completedCount, requestedItem.title || requestedItem.id);
-                            continue;
                         }
+                        // resolveChat checks durable Domain/Takeout bodies before deciding
+                        // failure. A list absence label is never a prerequisite for recovery.
 
                         skipped += (typeof res?.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
                         let candidate: unknown;
@@ -856,7 +853,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        const usedUnlistedSnapshot = listC?.cloudAvailability === 'unlisted'
+                        const usedLocalSnapshot = listC?.cloudAvailability !== 'deleted' && !listC?.isTakeoutOnly
                             && (!isWorkerChat(chatCandidate) || !chatCandidate.conversation.messages.length);
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
@@ -997,7 +994,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 }
                                 const baseStatus = (actualMsgCount === 0) ? 'empty' : 'ok';
                                 const driftStatus = chatRecordStatusWithDrift(baseStatus, chatDrift);
-                                const statusOverride = isChatTruncated || usedUnlistedSnapshot || driftStatus === 'partial'
+                                const statusOverride = isChatTruncated || usedLocalSnapshot || driftStatus === 'partial'
                                     ? 'partial' : undefined;
 
                                 const authoritativeChatTime = Math.max(
@@ -1061,7 +1058,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             messageCount: computeExportMessageCount(chat),
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,
-                            status: mainWriteError ? 'failed' : usedUnlistedSnapshot || chatFailedAssetsSet.has(nid) ? 'partial' : 'success',
+                            status: mainWriteError ? 'failed' : usedLocalSnapshot || chatFailedAssetsSet.has(nid) ? 'partial' : 'success',
                             ...(driftNotable ? {
                                 parseStatus: chatRecordStatusWithDrift('ok', chatDrift),
                                 schemaDrift: chatDrift.schemaDrift,

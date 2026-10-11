@@ -8,7 +8,7 @@
   <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_zh&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20%E5%BA%94%E7%94%A8%E5%95%86%E5%BA%97-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome 应用商店">
   </a>
-  <img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.7.0-orange.svg?style=for-the-badge" alt="版本: 1.7.0">
+  <img src="https://img.shields.io/badge/%E7%89%88%E6%9C%AC-1.8.0-orange.svg?style=for-the-badge" alt="版本: 1.8.0">
   <img src="https://img.shields.io/badge/%E5%BC%80%E6%BA%90%E5%8D%8F%E8%AE%AE-MIT-green.svg?style=for-the-badge" alt="开源协议: MIT">
 </p>
 
@@ -144,8 +144,8 @@ graph LR
 
 ### 2. 批量管理与导出全部对话 (Workbench)
 1. 点击插件图标中的 **“去控制台批量导出 ↗”**（或右键插件图标选择“选项”）。
-2. 初次使用可跟随 6 步 **新手引导教程** 熟悉核心功能。
-3. 点击 **“同步最新会话”**（快速增量同步）或 **“全量拉取历史”**（扫描所有云端历史）。
+2. 初次使用可跟随 7 步 **新手引导教程** 熟悉核心功能。
+3. 点击 **“同步会话”**：首次保存网页端可访问的历史，后续只扫描新增活动，连接到已保存的范围后停止。若 Google 限制更早历史，可导入 Google Takeout 补全。本次未出现的会话仍保留本地归档；没有新增活动的老会话改名，可能在之后访问或导出时才更新。
 4. 勾选想要导出的对话（支持按状态过滤：*全部* / *未导出* / *有更新待重导* / *已导出*）。
 5. 选择导出格式（**Markdown**、**HTML** 或 **JSON**），点击 **“导出选中 → ZIP”** 打包下载（也可选择直接写入本地文件夹）。
 

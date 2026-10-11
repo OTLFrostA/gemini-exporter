@@ -320,7 +320,8 @@ declare global {
                 requestBody = input.body;
             }
             const body: unknown = (init && init.body) || requestBody;
-            let capturedBody = Promise.resolve(typeof body === 'string' ? body : '');
+            let capturedBody = Promise.resolve(typeof body === 'string' ? body
+                : body instanceof URLSearchParams ? body.toString() : '');
             if (typeof body !== 'string' && typeof Request !== 'undefined' && input instanceof Request
                 && input.url.includes('batchexecute')) {
                 try { capturedBody = input.clone().text().catch(() => ''); } catch { /* metadata unavailable */ }

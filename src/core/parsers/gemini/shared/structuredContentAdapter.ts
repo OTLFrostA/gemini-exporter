@@ -168,6 +168,11 @@ function convertCellChildren(children: GeminiStructuredNode[]): InlineNode[] | n
             const converted = convertGeminiInlines(child.text, child.annotations);
             if (converted === null) return null;
             inlines.push(...converted);
+        } else if (child.nodeType === 12) {
+            // Native display math can occur inside a table cell. Preserve its
+            // source instead of falling back and reinterpreting other cell text.
+            if (typeof child.FTa !== 'string') return null;
+            inlines.push({ type: 'inlineMath', source: child.FTa });
         } else if (child.nodeType === 13) {
             inlines.push({ type: 'lineBreak', kind: 'hard' });
         } else {
@@ -316,6 +321,12 @@ export function geminiStructuredToContent(
                     ...(headerRows.length ? { headerRows } : {}),
                     rows: dataRows,
                 });
+                break;
+            }
+
+            case 24: {
+                if (typeof node.id !== 'string' || !node.id || typeof node.title !== 'string') return null;
+                blocks.push({ type: 'file', assetId: node.id, label: node.title });
                 break;
             }
 

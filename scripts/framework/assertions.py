@@ -139,6 +139,36 @@ def assert_scan_result(evidence: Dict[str, Any]) -> Tuple[bool, str]:
     return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
 
 
+def assert_incremental_scan_result(evidence, before, after):
+    """Require real runtime completion plus durable account-scoped closure evidence."""
+    response = evidence.get('response') or {}
+    diag = response.get('diagnostics') or {}
+    if (not evidence.get('started') or not evidence.get('finished') or evidence.get('error')
+            or response.get('success') is not True or response.get('error')
+            or response.get('status') != 'up_to_date' or diag.get('incremental') is not True
+            or diag.get('stopReason') != 'Connected to verified activity coverage'
+            or not diag.get('endTime') or not diag.get('pageHistory')
+            or diag.get('totalPagesFetched', 0) < 2
+            or diag.get('hitGoogleLimit') or response.get('hitGoogleLimit')):
+        return False, f"Incremental scan lacks real successful closure: {evidence}"
+    for record in (before, after):
+        recent = record.get('streams', {}).get('recent', {})
+        if (record.get('version') != 3 or not record.get('accountId')
+                or record.get('providerId') != 'gemini' or record.get('initialized') is not True
+                or recent.get('initialized') is not True or not recent.get('range')):
+            return False, f"Missing durable activity coverage: {record}"
+    if (any(before.get(key) != after.get(key) for key in ('accountId', 'providerId', 'generation'))
+            or not before.get('generation') or after.get('activeRunId') is not None
+            or after.get('lastStatus') != 'up_to_date'
+            or before.get('historyComplete') != after.get('historyComplete')):
+        return False, 'Account/generation/history changed during incremental closure'
+    old = before['streams']['recent']['range']
+    new = after['streams']['recent']['range']
+    if new.get('tail') != old.get('tail') or new.get('head', {}).get('time', 0) < old.get('head', {}).get('time', 0):
+        return False, 'Incremental scan lost previously persisted activity coverage'
+    return True, f"Incremental closure verified: {diag.get('totalPagesFetched')} pages"
+
+
 class CDPAssertions:
     @staticmethod
     def assert_pdf_math_compiled(text: str) -> Tuple[bool, str]:

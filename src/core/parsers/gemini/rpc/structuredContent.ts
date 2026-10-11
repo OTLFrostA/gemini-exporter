@@ -76,6 +76,8 @@ export interface GeminiAttachmentNode {
     }>;
 }
 
+export interface GeminiFileNode { nodeType: 24; id: string; title: string }
+
 export type GeminiStructuredNode =
     | GeminiTextNode
     | GeminiMathBlockNode
@@ -86,7 +88,8 @@ export type GeminiStructuredNode =
     | GeminiUnorderedListNode
     | GeminiOrderedListNode
     | GeminiQuoteNode
-    | GeminiAttachmentNode;
+    | GeminiAttachmentNode
+    | GeminiFileNode;
 
 export interface GeminiStructuredDocument {
     children: GeminiStructuredNode[];
@@ -193,6 +196,9 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                     ...(typeof node.info === "string" ? { info: node.info } : {})
                 };
             }
+            case 24:
+                return typeof node.id === 'string' && node.id && typeof node.title === 'string'
+                    ? { nodeType: 24, id: node.id, title: node.title } : null;
             case 19:
             case 13:
             case 0:
@@ -285,6 +291,14 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             ? mathPayload[0]
             : "";
         return { nodeType: 12, FTa: fta };
+    }
+
+    // A generated code-document chip retains its position and source identity.
+    if (Array.isArray(w[24]) && w[24].length === 1) {
+        const chip: unknown = w[24][0];
+        if (Array.isArray(chip) && chip[7] === 26 && typeof chip[1] === 'string' && chip[1]
+            && typeof chip[3] === 'string') return { nodeType: 24, id: chip[1], title: chip[3] };
+        return null;
     }
 
     // Field 23: Line break
@@ -413,6 +427,19 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                 ...(annotations.length ? { annotations } : {})
             };
         }
+    }
+
+    // Captured live execution panels use extension 39 in the field-0 envelope.
+    // Preserve their original code/stdout fence identity instead of treating
+    // every extension object as an attachment and silently dropping its body.
+    const extension = w[0];
+    if (extension && typeof extension === 'object' && !Array.isArray(extension) && '39' in extension) {
+        const event: unknown = (extension as Record<string, unknown>)['39'];
+        if (!Array.isArray(event) || event.length !== 5 || typeof event[0] !== 'string'
+            || typeof event[1] !== 'string' || !/^[\w+-]+$/.test(event[1])
+            || !Number.isInteger(event[2]) || event[2] < 1 || event[3] !== null || ![0, 1].includes(event[4])) return null;
+        return { nodeType: 1, code: event[0],
+            info: `${event[1]}?${event[4] === 0 ? 'code_reference' : 'code_stdout'}&code_event_index=${event[2]}` };
     }
 
     // Field 0 or 2: Attachments / follow-up chips

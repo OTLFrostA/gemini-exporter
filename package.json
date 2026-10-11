@@ -1,20 +1,17 @@
 {
   "name": "gemini-exporter",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "100% Free & open-source • 100% local, no tracking • One-click export all chats • PDF, HTML & Markdown • Hands-off background export",
   "main": "background.js",
   "scripts": {
     "build": "node build.js",
     "package": "node build.js --pack",
-
     "lint": "oxlint -A all -W typescript/no-explicit-any -W typescript/no-unsafe-assignment -W typescript/no-unsafe-argument -W typescript/no-unsafe-call -W typescript/no-unsafe-member-access -W typescript/no-unsafe-return -W typescript/no-unsafe-type-assertion -D typescript/no-floating-promises --type-aware src/",
     "type-check": "tsc --noEmit",
-
     "test": "node scripts/check-zero-any.cjs && npm run type-check && npm run test:unit && node build.js && playwright test",
     "test:unit": "python3 tests/run_tests.py",
     "test:changed": "python3 scripts/run_changed_tests.py",
     "test:tier2": "python3 scripts/test_live_chat_and_export.py",
-
     "release": "gh workflow run release.yml --ref main"
   },
   "keywords": [

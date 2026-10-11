@@ -143,8 +143,73 @@ export const GM_MD_001_FENCE_NORMALIZATION: MarkdownCompatRule = Object.freeze({
  * Active Markdown compatibility rules.
  * Initial state was empty; GM-MD-001 admitted per Section 4 & 31 admission policy.
  */
+/** Real Gemini emits raw absolute-value bars inside table math, before GFM lexing. */
+export function normalizeTableMathPipes(source: string): string {
+    const lines = source.split('\n');
+    const pipeCount = (line: string): number => {
+        let count = 0;
+        for (let i = 0; i < line.length; i++) if (line[i] === '|') {
+            let slashes = 0; for (let j = i - 1; j >= 0 && line[j] === '\\'; j--) slashes++;
+            if (slashes % 2 === 0) count++;
+        }
+        return count;
+    };
+    const mathPipes = (line: string): string => {
+        let code = ''; let result = ''; let offset = 0;
+        for (let i = 0; i < line.length; i++) {
+            if (line[i] === '\\') { i++; continue; }
+            if (line[i] === '`') {
+                const run = /^`+/.exec(line.slice(i))![0];
+                if (!code) code = run; else if (code === run) code = '';
+                i += run.length - 1; continue;
+            }
+            if (code || line[i] !== '$' || line[i + 1] === '$') continue;
+            let end = i + 1;
+            for (; end < line.length; end++) {
+                if (line[end] === '\\') { end++; continue; }
+                if (line[end] === '$') break;
+            }
+            const content = line.slice(i + 1, end);
+            if (end >= line.length || line[end + 1] === '$' || content !== content.trim()) continue;
+            const fixed = content.replace(/(\\*)\|/g, (match, slashes: string) => slashes.length % 2 === 0 ? slashes + '\\vert{}' : match);
+            result += line.slice(offset, i + 1) + fixed + '$'; offset = end + 1; i = end;
+        }
+        return result + line.slice(offset);
+    };
+    let fence = ''; let width: number | null = null;
+    for (let i = 0; i < lines.length; i++) {
+        const marker = /^\s*(`{3,}|~{3,})/.exec(lines[i])?.[1];
+        if (marker) {
+            if (!fence) fence = marker;
+            else if (marker[0] === fence[0] && marker.length >= fence.length) fence = '';
+            width = null; continue;
+        }
+        if (fence) continue;
+        if (/^\s*\|\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|\s*$/.test(lines[i]) && i > 0) {
+            const count = pipeCount(lines[i]); const header = mathPipes(lines[i - 1]);
+            if (/^\s*\|.*\|\s*$/.test(header) && pipeCount(header) === count) { lines[i - 1] = header; width = count; }
+            else width = null;
+            continue;
+        }
+        if (width !== null && /^\s*\|.*\|\s*$/.test(lines[i])) {
+            const row = mathPipes(lines[i]);
+            if (pipeCount(row) === width) lines[i] = row;
+        } else width = null;
+    }
+    return lines.join('\n');
+}
+
+export const GM_MD_002_TABLE_MATH_PIPES: MarkdownCompatRule = Object.freeze({
+    id: 'GM-MD-002', domain: 'markdown',
+    evidence: 'tests/fixtures/provider/math/gm_md_002_evidence.md',
+    observedAt: '2026-10-11T17:31:25Z',
+    description: 'Live oblique-shock report used unescaped absolute-value bars inside table math. GFM split the header into extra columns and lost the table. Replace only math bars in rows whose resulting column count matches the physical delimiter row.',
+    transform: normalizeTableMathPipes,
+});
+
 export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Object.freeze([
     GM_MD_001_FENCE_NORMALIZATION,
+    GM_MD_002_TABLE_MATH_PIPES,
 ]);
 
 /**
