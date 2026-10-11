@@ -295,6 +295,7 @@ const __enFactory = (): LocaleDictionary => {
             btnModalOpenTakeoutWeb: "🌐 Open Google Takeout (Gemini Pre-selected)",
             btnModalDismissTakeout: "Got it, don't show again",
             exportCompletedPartial: "Export finished: {0} succeeded, {1} failed.",
+            exportAttachmentsFailed: "Attachments failed: {0}.",
             exportFailureBannerTitle: "Some conversations failed to export",
             btnRetryFailed: "Retry Failed",
             btnRetryFailedCount: "Retry Failed ({0})",

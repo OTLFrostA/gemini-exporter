@@ -295,6 +295,7 @@ const __zhFactory = (): LocaleDictionary => {
             btnModalOpenTakeoutWeb: "🌐 前往 Google Takeout (已自动勾选 Gemini)",
             btnModalDismissTakeout: "我知道了，不再提示",
             exportCompletedPartial: "导出完成：成功 {0} 篇，失败 {1} 篇。",
+            exportAttachmentsFailed: "附件失败 {0} 个。",
             exportFailureBannerTitle: "部分会话导出失败",
             btnRetryFailed: "重试失败项",
             btnRetryFailedCount: "重试失败项 ({0})",

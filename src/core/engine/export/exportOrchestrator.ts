@@ -168,6 +168,7 @@ export { applyExportTitleWriteback };
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
+    isWorkerChat,
     type BatchWorkerModule,
     type WorkerChatResolveInput
 } from "./batchWorker.js";
@@ -855,6 +856,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
+                        const usedUnlistedSnapshot = listC?.cloudAvailability === 'unlisted'
+                            && (!isWorkerChat(chatCandidate) || !chatCandidate.conversation.messages.length);
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
@@ -910,7 +913,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                         }
                                         if (!assetPipeline) throw new Error('Resource acquisition is unavailable');
                                         const saved = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal,
-                                            localOnly: listC?.cloudAvailability === 'deleted' });
+                                            localOnly: listC?.cloudAvailability === 'deleted' || requestedItem.cloudAvailability === 'deleted' });
                                         if (saved.failReason === 'aborted') throw new DOMException('Resource acquisition aborted', 'AbortError');
                                         if (!saved.saved) throw new Error(saved.failReason || 'Resource could not be delivered');
                                         return { path: normalizeArchivePath(saved.localName) };
@@ -994,9 +997,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 }
                                 const baseStatus = (actualMsgCount === 0) ? 'empty' : 'ok';
                                 const driftStatus = chatRecordStatusWithDrift(baseStatus, chatDrift);
-                                const statusOverride = isChatTruncated
-                                    ? 'partial'
-                                    : (driftStatus === 'partial' ? 'partial' : undefined);
+                                const statusOverride = isChatTruncated || usedUnlistedSnapshot || driftStatus === 'partial'
+                                    ? 'partial' : undefined;
 
                                 const authoritativeChatTime = Math.max(
                                     computeAuthoritativeTimestamp(listC) || 0,
@@ -1059,7 +1061,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             messageCount: computeExportMessageCount(chat),
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,
-                            status: mainWriteError ? 'failed' : chatFailedAssetsSet.has(nid) ? 'partial' : 'success',
+                            status: mainWriteError ? 'failed' : usedUnlistedSnapshot || chatFailedAssetsSet.has(nid) ? 'partial' : 'success',
                             ...(driftNotable ? {
                                 parseStatus: chatRecordStatusWithDrift('ok', chatDrift),
                                 schemaDrift: chatDrift.schemaDrift,
