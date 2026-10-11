@@ -73,7 +73,7 @@ function _runScan(
                     ? t('syncFinishedWithLimit', count)
                     : `已拉取约 ${count} 条会话（已达 Google 网页端上限），更早记录建议使用 Google Takeout 导入补全。`;
             } else {
-                finishMsg = typeof t === 'function' ? t('syncFinished', count) : `同步完成，共 ${count} 条`;
+                finishMsg = typeof t === 'function' ? t(res.status === 'up_to_date' ? 'syncUpToDate' : 'syncFinished', count) : `同步完成，共 ${count} 条`;
             }
             if (onLog) onLog(finishMsg, 'info');
             if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });

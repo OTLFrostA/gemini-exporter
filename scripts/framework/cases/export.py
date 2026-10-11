@@ -427,17 +427,25 @@ class StaleTabImageExportCase(FeatureTestCase):
                     return False, f"已刷新标签页尚未注入内容脚本: {setup}", setup
 
                 # A clean install can show onboarding; dismiss it before choosing one known Imagen chat.
-                selected = cdp_opt.eval(f"""(() => {{
-                    document.getElementById('tourSkipBtn')?.click();
-                    document.getElementById('btnSelectNone')?.click();
-                    const item = Array.from(document.querySelectorAll('#list .item'))
-                        .find(el => el.dataset.chatId === '{image_chat['id']}');
-                    const cb = item?.querySelector('input[type=checkbox]');
-                    if (!cb) return false;
-                    cb.checked = true;
-                    cb.dispatchEvent(new Event('change', {{bubbles: true}}));
-                    return true;
-                }})()""")
+                selected = cdp_opt.eval(f"""(async () => {{
+                    // A content-script ping proves injection, not completion of
+                    // Gemini's asynchronous list response/account hydration.
+                    // Wait for the real observed target; never seed or skip it.
+                    for (let attempt = 0; attempt < 80; attempt++) {{
+                        const item = Array.from(document.querySelectorAll('#list .item'))
+                            .find(el => el.dataset.chatId === '{image_chat['id']}');
+                        const cb = item?.querySelector('input[type=checkbox]');
+                        if (cb) {{
+                            document.getElementById('tourSkipBtn')?.click();
+                            document.getElementById('btnSelectNone')?.click();
+                            cb.checked = true;
+                            cb.dispatchEvent(new Event('change', {{bubbles: true}}));
+                            return true;
+                        }}
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                    }}
+                    return false;
+                }})()""", await_promise=True, timeout=25)
                 if not selected:
                     return False, "旧标签页测试未找到指定 Imagen 会话", setup
 

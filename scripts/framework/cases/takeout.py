@@ -11,7 +11,7 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
-from scripts.framework.assertions import CDPAssertions, assert_scan_result
+from scripts.framework.assertions import CDPAssertions, assert_scan_result, assert_incremental_scan_result
 from scripts.framework.archive_resources import resource_references, resolve_archive_reference
 
 
@@ -156,6 +156,10 @@ class DeepScanPaginationCase(FeatureTestCase):
         cdp_opt = ctx.connect_options()
         try:
             print("   🔄 触发【同步会话】(btnSyncAll)...")
+            # Initialize ONLY sync coverage for the first-scan fixture. Archives,
+            # imported bodies, assets and export records remain intact. This keeps
+            # the original full-pagination/title-upgrade assertions mandatory.
+            cdp_opt.eval("(async () => { await chrome.storage.local.remove('gemini_scan_coverage'); })()", await_promise=True)
             evidence = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             scan_ok, message = assert_scan_result(evidence)
             if not scan_ok:
@@ -170,8 +174,17 @@ class DeepScanPaginationCase(FeatureTestCase):
                 missing = [cid for cid in ids if cid.removeprefix('c_') not in known]
                 if missing:
                     return False, f"全量扫描结果缺少已知在线会话: {missing}", evidence
+            read_coverage = "(async () => (await chrome.storage.local.get('gemini_scan_coverage')).gemini_scan_coverage)()"
+            before = cdp_opt.eval(read_coverage, await_promise=True) or {}
+            incremental = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
+            after = cdp_opt.eval(read_coverage, await_promise=True) or {}
+            ok, closure_message = assert_incremental_scan_result(incremental, before, after)
+            result = {'initial': evidence, 'incremental': incremental, 'before': before, 'after': after}
+            if not ok:
+                return False, closure_message, result
             ctx.shared_data['deep_scan_evidence'] = evidence
-            return True, message, evidence
+            ctx.shared_data['incremental_scan_evidence'] = result
+            return True, message + '; ' + closure_message, result
         finally:
             cdp_opt.close()
 

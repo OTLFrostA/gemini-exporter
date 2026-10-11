@@ -6,6 +6,9 @@ import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationD
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
 export interface GeminiAttachmentEvidence {
     type: string;
+    id?: string;
+    fileName?: string;
+    dataBuffer?: Uint8Array;
     src?: string;
     name?: string;
     title?: string;

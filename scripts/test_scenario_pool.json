@@ -1,47 +1,5 @@
 [
   {
-    "id": "statistics_conformal_time_series_block_calibration",
-    "domain": "statistics_conformal_time_series",
-    "title": "Statistics: conformal prediction under temporal dependence",
-    "description": "Time-series coverage assumptions, blocked calibration, runnable simulation, mathematical derivations and multilingual comparison tables.",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "statistics"
-    ],
-    "turns": [
-      "Explain split conformal prediction for a fictional stationary scalar time series. Define the conformity scores and finite-sample quantile using LaTeX, separating exchangeability from temporal dependence assumptions.",
-      "Derive a blocked calibration scheme and carefully distinguish guarantees under stated assumptions from empirical coverage. Show how block length, calibration size and drift affect the interval.",
-      "Provide complete runnable Python with NumPy to generate an AR(1) process, fit a rolling forecast, calibrate blocked residual intervals and report coverage and interval width. Include Markdown tables of configurations.",
-      "Compare ordinary split conformal, rolling residual quantiles and blocked calibration in a Markdown table, including assumptions, failure modes and computational cost. Add an English/Chinese glossary.",
-      "Design a reproducible sensitivity experiment over autocorrelation, drift and block length. Include precise pseudo-code, LaTeX formulas for conditional and marginal empirical coverage, and a detailed interpretation of failures without claiming guarantees from simulation."
-    ]
-  },
-  {
-    "id": "computational_geometry_polygon_clipping_robust_predicates",
-    "title": "计算几何：多边形裁剪与稳健方向谓词",
-    "domain": "computational_geometry_robust_polygon_clipping",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "multimodal"
-    ],
-    "description": "覆盖几何谓词误差推导、长 Python 实现、退化案例、算法表格和中英文混排报告。",
-    "turns": [
-      "从二维点的有向面积出发，用 LaTeX 推导 orientation(a,b,c) 行列式、线段相交判定和凸多边形半平面表示。明确共线、端点相交与零面积输入的语义，给出带中文解释的手算例子。",
-      "分析浮点消去如何破坏几何谓词的符号，推导尺度相关误差界，区分任意 epsilon 阈值、区间过滤与精确有理数兜底。请讨论接近共线的大坐标数据，并提供中英文术语表。",
-      "用 Python 标准库实现凸多边形裁剪，包含方向统一、半平面裁剪、交点计算、重复顶点处理以及 Fraction 精确谓词兜底。给出完整可运行代码与面积守恒检查，覆盖逆时针和顺时针输入。",
-      "用 Markdown 表格比较 Sutherland–Hodgman、Weiler–Atherton、平面扫描和栅格化近似在凹多边形、孔洞、退化输入、复杂度与精度方面的适用范围。用 Mermaid 绘制过滤谓词到精确计算的流程。",
-      "撰写长篇稳健性验证报告，设计固定随机种子的对称性、幂等性、平移与缩放性质测试，并覆盖共边、单点接触、近零面积和高动态范围坐标。给出生成器代码、失败案例表格与误差指标，说明当前凸裁剪原型的能力边界。"
-    ]
-  },
-  {
     "id": "coding_theory_ldpc_erasure_decoding_density_evolution",
     "title": "编码理论：LDPC 擦除译码与密度演化",
     "domain": "coding_theory_ldpc_binary_erasure_channel",
@@ -200,29 +158,6 @@
     ]
   },
   {
-    "id": "granular_silo_janssen_wall_friction",
-    "domain": "granular_mechanics_silo_pressure",
-    "title": "Granular mechanics: Janssen pressure and wall friction",
-    "description": "Imaginary granular storage model with generated cross section, balance equations and numerical uncertainty.",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an actual scientific teaching cross-section illustration of an imaginary cylindrical silo containing dry grains. Label depth, bulk density, wall friction, wall-normal stress and vertical stress in English; distinguish it as an idealized diagram, not engineering certification.",
-      "Derive the Janssen vertical stress equation from a differential force balance using LaTeX. Define the lateral stress ratio, wall friction and saturation length, and check the zero-friction hydrostatic limit.",
-      "Write complete runnable standard-library Python comparing the analytic stress profile with an explicit numerical integration, including step-size convergence and assertions in the zero-friction limit.",
-      "Use a Markdown table to compare hydrostatic and Janssen assumptions, geometry sensitivity, boundary conditions and the limits of the constant lateral stress ratio.",
-      "Write a long hypothetical model audit with equations, tables and pseudocode. Analyze density and friction uncertainty, dimensional checks, loading history and why this simple model cannot certify an actual silo."
-    ]
-  },
-  {
     "id": "formal_methods_ltl_finite_state_automata",
     "domain": "formal_methods_temporal_logic",
     "title": "Temporal logic: transition systems and counterexample traces",
@@ -240,29 +175,6 @@
       "Write complete runnable standard-library Python to explore reachable states, detect safety violations and report a counterexample trace. Add strongly connected component analysis for liveness under explicitly documented fairness conditions.",
       "Use a Markdown table to compare invariants, reachability, response properties and fairness assumptions across finite tests, graph exploration and temporal model checking.",
       "Write a long verification audit with equations, state tables and pseudocode. Explain state explosion, abstraction, environment assumptions and how to replay and minimize a counterexample without claiming exhaustive verification from random tests."
-    ]
-  },
-  {
-    "id": "plant_hydraulics_stomatal_water_balance",
-    "domain": "plant_hydraulics_transport",
-    "title": "Plant hydraulics: xylem transport and stomatal water balance",
-    "description": "Imaginary plant transport model with generated anatomy schematic, balance equations and numerical audits.",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "physics",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an actual scientific teaching diagram of a fictional plant leaf and stem showing xylem transport, water potential gradients, stomata and evaporation. Use clear English labels and distinguish it as a conceptual schematic rather than experimental evidence.",
-      "Derive a simple steady water-flow network and a transient leaf water-balance model in LaTeX. Define conductance, capacitance and water-potential units; distinguish stated assumptions from physiological facts.",
-      "Write complete runnable standard-library Python to integrate the hypothetical leaf water balance, with a fixed forcing schedule, step-size convergence and conservation checks. Include dry and wet boundary-condition tests.",
-      "Use a Markdown table to compare steady and transient models, linear and nonlinear conductance, identifiability, required observations and model limitations.",
-      "Write a long simulated model-verification report with equations, tables and pseudocode. Separate parameter uncertainty, observation noise and structural model error without interpreting fictional inputs as real crop recommendations."
     ]
   },
   {
@@ -404,6 +316,86 @@
       "Provide complete runnable standard library Python using deterministic cryptographic hashes and explicit uniform conversion. Test weight ratios, zero weights and membership changes with a fixed seed key corpus.",
       "Create a Markdown comparison table for modulo hashing, hash rings, jump hashing and weighted rendezvous by balance, movement, weight support and operational cost. Add a bilingual glossary.",
       "Write a detailed experimental report measuring load deviation and reassignment fractions for heterogeneous weights. Include formulas, reproducible code and result tables. Discuss correlated keys, finite samples and implementation stability."
+    ]
+  },
+  {
+    "id": "materials_bimetal_strip_thermal_curvature",
+    "domain": "materials_thermoelastic_bilayer",
+    "title": "Thermoelastic bilayers: curvature, uncertainty and reversible actuation",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Create an original annotated technical illustration of a bimetal strip in a thermostatic actuator. Show two bonded layers, a temperature change and the neutral axis, with no brand logos. Then define a small-deflection mechanical model and list its assumptions.",
+      "Derive thermal curvature from force and moment balance using separate layer stiffnesses, thicknesses and expansion coefficients. Include complete LaTeX equations and dimensional checks.",
+      "Provide runnable Python to solve the bilayer force and moment equations over temperature and thickness ratio, including numerical tests of equal expansion and equal material limits.",
+      "Compare three fictional bilayers in a Markdown table with explicitly assumed mechanical properties and thermal coefficients. Give an English and Chinese technical glossary and explain reversibility limits.",
+      "Design a numerical uncertainty and sensitivity study of curvature versus thickness ratio. Include reproducible code, error-budget equations and a clear acceptance table; distinguish model uncertainty from material data uncertainty."
+    ]
+  },
+  {
+    "id": "database_multiversion_snapshot_write_skew",
+    "domain": "databases_mvcc_isolation",
+    "title": "Database isolation: write skew, serialization graphs and MVCC snapshots",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Explain snapshot isolation using a fictional seat-reservation database. Define versions, transaction read and write sets, and a consistency invariant with LaTeX; include a concrete two-transaction example.",
+      "Construct a write-skew schedule, derive its serialization graph and distinguish conflict serializability from snapshot consistency. Show the schedule as a Markdown table.",
+      "Write complete runnable Python implementing a tiny deterministic MVCC simulator with begin, read, write and commit. Include tests for lost updates, write skew and non-conflicting transactions.",
+      "Compare snapshot isolation, strict two-phase locking and serializable snapshot isolation in a Markdown table. Explain blocking, aborted work and anomaly detection with an English and Chinese glossary.",
+      "Design an exhaustive schedule enumeration for three transactions and four keys. Give detailed pseudo-code, graph-cycle equations, runnable tests and a reproducible results table; justify every anomaly classification."
+    ]
+  },
+  {
+    "id": "cartography_cube_map_projection_seams",
+    "domain": "cartography_spherical_cube_mapping",
+    "title": "Spherical cartography: cube-map face coordinates and seam continuity",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an actual image using Imagen: an original annotated educational illustration of a globe surrounded by its six cube-map faces, indicating shared edges and axes. Then define the coordinate frames and explain the mapping assumptions in prose.",
+      "Derive forward direction-to-face and inverse face-to-direction maps in LaTeX. State the exact tie-breaking rule on edges and corners, and prove reconstruction up to normalization.",
+      "Provide complete runnable Python with only the standard library to map vectors to cube faces and back, with randomized round-trip tests and explicit edge/corner cases.",
+      "Compare cube-map, equirectangular and octahedral parameterizations in a Markdown table covering area distortion, seam rules, storage and interpolation. Add an English and Chinese glossary.",
+      "Write a detailed numerical audit of seam continuity and finite precision. Include error norms, test vectors, threshold tables and reproducible code without suggesting rendering agreement proves geometric correctness."
+    ]
+  },
+  {
+    "id": "algebra_smith_normal_form_integer_modules",
+    "domain": "algebra_integer_module_normal_forms",
+    "title": "Integer modules: Smith normal form, invariant factors and Diophantine feasibility",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Explain Smith normal form for a small integer matrix and define unimodular row/column transformations, invariant factors and divisibility conditions using LaTeX.",
+      "Derive a constructive elementary-operation algorithm for two-by-two and three-by-three integer matrices. Track transformation matrices explicitly and discuss why naive remainder reduction can break divisibility.",
+      "Provide complete runnable Python implementing exact-integer reduction with independently verified U*A*V=D tests, unimodular determinant checks and randomly generated small cases.",
+      "Compare Smith and Hermite normal forms in a Markdown table covering uniqueness conventions, preserved modules and computational costs. Give an English and Chinese glossary.",
+      "Design a reproducible Diophantine-system feasibility audit using invariant factors. Include exact examples, counterexamples, solution parameterizations, rank-deficient cases and a thorough validation table."
     ]
   }
 ]

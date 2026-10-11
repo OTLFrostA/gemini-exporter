@@ -1,3 +1,4 @@
+import { CoverageSession, emptyStream } from '../core/sync/streamCoverage.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
 import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
@@ -442,9 +443,10 @@ export interface ProviderSyncResult {
     error?: string;
 }
 
-function scanStatus(all: GeminiProviderPageResult): ScanStatus {
+function scanStatus(all: GeminiProviderPageResult, verifiedIncrementalStop = false): ScanStatus {
     if (contentContext.isAborted() || all.completionReason === 'aborted') return 'aborted';
     if (all.hitGoogleLimit || all.diagnostics?.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
+    if (verifiedIncrementalStop && all.completionReason === 'unchanged_boundary') return 'up_to_date';
     if (all.exhaustive === true && all.completionReason === 'natural_exhaustion' && isPaginationExhaustive(all)) return 'complete';
     return 'error';
 }
@@ -476,9 +478,12 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         const runId = coverageRun.runId;
         const effectiveMaxPages = options?.maxPages || 2000;
         let expectedPage = 1;
-        // Pinned and recent lists are separate server cursor chains. Renames do
-        // not advance the list timestamp, so time/ID overlap cannot prove that
-        // the older tail is unchanged. Read both chains to their natural ends.
+        const previousRecent = coverageRun.previous?.streams.recent;
+        const incremental = previousRecent?.initialized === true;
+        const recentSession = new CoverageSession();
+        let verifiedIncrementalStop = false;
+        // Pinned is unordered and scanned independently. Recent closes against
+        // frozen activity coverage; renames without activity may remain stale.
         const all: GeminiProviderPageResult = await provider.listConversations({
             maxPages: effectiveMaxPages,
             includePinned: true,
@@ -491,11 +496,17 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                     throw new Error('Sync was superseded or pagination is not contiguous; retry');
                 }
                 await assertSchemaWritable();
-                const receipt = info.observation
-                    ? await ingestPageObservation({ ...info.observation, accountId }, slot, runId)
-                    : await ingestRpcList(batch, slot);
+                const page = info.observation ? { ...info.observation, accountId } : null;
+                const receipt = page ? await ingestPageObservation(page, slot, runId) : await ingestRpcList(batch, slot);
                 if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) {
                     throw new Error('List page could not be fully persisted; coverage was not advanced');
+                }
+                if (page?.streamId === 'recent') {
+                    recentSession.observe(emptyStream(), page, true);
+                    if (previousRecent && recentSession.connects(previousRecent, null, page.requestCursor)) {
+                        verifiedIncrementalStop = true;
+                        return { shouldStop: true, reason: 'Connected to verified activity coverage' };
+                    }
                 }
             },
             onProgress: (prog) => {
@@ -519,7 +530,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 }
             },
             targetSid: null,
-            incremental: false
+            incremental
         });
 
         // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
@@ -530,7 +541,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
             await setDiag(diagnostics);
         }
 
-        const finalStatus = scanStatus(all);
+        const finalStatus = scanStatus(all, verifiedIncrementalStop);
         const timestamps = all.items.map(item => item.timestamp).filter((ts): ts is number =>
             typeof ts === 'number' && Number.isFinite(ts) && ts > 0);
         const baseline = finalStatus === 'complete' ? {
@@ -573,7 +584,9 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 ? (zh ? '已达服务端限制' : 'server limit reached')
                 : status === 'aborted' ? (zh ? '已停止' : 'stopped') : (zh ? '出现错误' : 'an error occurred');
             const finishText = complete
-                ? (zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`)
+                ? status === 'up_to_date'
+                    ? (zh ? `增量同步完成，本次检查 ${mergedLen} 条` : `Sync up to date, ${mergedLen} checked`)
+                    : (zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`)
                 : (zh ? `同步未完成，已保存 ${mergedLen} 条，可重试（${incompleteReason}）` : `Sync incomplete: ${mergedLen} saved; retry (${incompleteReason})`);
             try {
                 const completeTitle = finishText;

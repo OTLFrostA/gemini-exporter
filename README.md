@@ -8,7 +8,7 @@
   <a href="https://chromewebstore.google.com/detail/gemini-exporter/ldpbiafkgjlaooeplkiooljccpalpkgf?utm_source=github&utm_medium=readme_en&utm_campaign=github_repo" target="_blank">
     <img src="https://img.shields.io/badge/Chrome%20Web%20Store-Gemini%20Exporter-blue?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Chrome Web Store">
   </a>
-  <img src="https://img.shields.io/badge/Version-1.7.0-orange.svg?style=for-the-badge" alt="Version: 1.7.0">
+  <img src="https://img.shields.io/badge/Version-1.8.0-orange.svg?style=for-the-badge" alt="Version: 1.8.0">
   <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="License: MIT">
 </p>
 
@@ -145,8 +145,8 @@ Install directly from the official Chrome Web Store with one click:
 
 ### 2. Batch Export All Chats (Workbench)
 1. Click the extension icon and select **"Go to Workbench"** (or right-click the icon and choose "Options").
-2. Follow the 6-step **Onboarding Tour** on your first visit.
-3. Click **"Sync Latest"** (for quick incremental sync) or **"Deep Scan"** (to fetch full cloud history).
+2. Follow the 7-step **Onboarding Tour** on your first visit.
+3. Click **"Sync All"**. The first scan saves all accessible history; later scans fetch new activity until they reconnect to saved coverage. If Google limits older history, import Google Takeout to fill the gap. A scan never removes local archives just because a chat is absent. Older title-only renames may appear on a later visit or export.
 4. Select the conversations you want to export (or filter by *All* / *Unexported* / *Needs Re-export* / *Exported*).
 5. Choose your export format (**Markdown**, **HTML**, or **JSON**) and click **"Export Selected → ZIP"** (or export directly into a local folder).
 

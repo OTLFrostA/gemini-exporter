@@ -25,7 +25,7 @@ const {
 
 test('Compatibility Rules: GM-MD-001 is admitted with full provenance metadata', () => {
     assert.strictEqual(Array.isArray(GEMINI_MARKDOWN_COMPAT_RULES), true);
-    assert.strictEqual(GEMINI_MARKDOWN_COMPAT_RULES.length, 1, 'Markdown compat rules must contain admitted GM-MD-001');
+    assert.strictEqual(GEMINI_MARKDOWN_COMPAT_RULES.length, 2, 'Markdown compat rules must contain the two evidenced rules');
     assert.strictEqual(Object.isFrozen(GEMINI_MARKDOWN_COMPAT_RULES), true, 'Markdown compat rules array must be frozen');
 
     const rule = GEMINI_MARKDOWN_COMPAT_RULES[0];
@@ -34,6 +34,13 @@ test('Compatibility Rules: GM-MD-001 is admitted with full provenance metadata',
     assert.strictEqual(typeof rule.observedAt, 'string');
     assert.ok(rule.description.length > 20, 'Rule must have descriptive explanation');
     assert.strictEqual(rule, GM_MD_001_FENCE_NORMALIZATION);
+
+    const tableRule = GEMINI_MARKDOWN_COMPAT_RULES[1];
+    assert.strictEqual(tableRule.id, 'GM-MD-002');
+    assert.strictEqual(tableRule.domain, 'markdown');
+    assert.ok(tableRule.description.length > 20);
+    assert.ok(Object.isFrozen(tableRule));
+    assert.ok(fs.existsSync(path.resolve(__dirname, '..', tableRule.evidence)));
 
     // Evidence file must physically exist
     const evidencePath = path.resolve(__dirname, '..', rule.evidence);

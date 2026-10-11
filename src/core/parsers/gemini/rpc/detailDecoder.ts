@@ -1,3 +1,4 @@
+import { extractGeneratedFiles } from './generatedFiles.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
 import type { GeminiUtilsModule } from "../../../utils/utils.js";
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
@@ -362,11 +363,16 @@ function parseCandidateResponse(
     const candImages = media.responseImages(cand, [answerBody, rawAnswerDocument, structuredContent], responseText, imageSeq);
     const filteredImages = filterNewImages(candImages, dedupSet);
 
+    const generatedFiles = extractGeneratedFiles(cand);
     let docsMeta: DeepResearchDocMeta[] = extractDocumentsMeta(candidateBlock);
-    if (!docsMeta.length && !docDedupSet.size) {
-        docsMeta = extractDocumentsMeta(inner);
+    if (!docsMeta.length) {
+        // The conversation envelope contains documents from other turns too.
+        // Only the correlated answer document may supply missing chip metadata.
+        docsMeta = extractDocumentsMeta([cand, rawAnswerDocument]);
     }
     const docs = docsMeta.filter((docItem: DeepResearchDocMeta) => {
+        if (generatedFiles.some(file => file.id === docItem.id)
+            || generatedFiles.length > 0 && docItem.source === 'heuristic-flat') return false;
         const key = docItem.id || docItem.chipUrl;
         if (!key || docDedupSet.has(key)) return false;
         const isRc = /^rc_/.test(docItem.id) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(docItem.id);
@@ -459,7 +465,7 @@ function parseCandidateResponse(
         };
     }) : void 0;
 
-    const attachments: GeminiAttachmentEvidence[] = [];
+    const attachments: GeminiAttachmentEvidence[] = [...generatedFiles];
     if (formattedImages) {
         for (const img of formattedImages) {
             attachments.push({
@@ -482,6 +488,7 @@ function parseCandidateResponse(
             if (d.contentMarkdown || (d.url && !isInternalChipUrl(d.url))) {
                 attachments.push({
                     type: "file",
+                    id: d.id,
                     name: d.title || d.id,
                     title: d.title,
                     url: d.url,

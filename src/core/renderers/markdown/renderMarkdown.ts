@@ -56,7 +56,13 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 return url ? `[${inlines(node.children, tableCell)}](${url})` : inlines(node.children, tableCell);
             }
             case 'image': return image(node.resourceId, node.alt);
-            case 'inlineMath': return `$${node.source}$`;
+            case 'inlineMath': {
+                // GFM escapes a pipe before inline math is parsed. Spell bars
+                // as TeX commands in cells to preserve norms and table columns.
+                const source = tableCell ? node.source.replace(/(\\*)\|/g, (_match, slashes: string) =>
+                    slashes.length % 2 ? slashes.slice(0, -1) + '\\Vert{}' : slashes + '\\vert{}') : node.source;
+                return `$${source}$`;
+            }
             case 'citation': return citation(node);
             case 'placeholder': return placeholder(node);
             case 'lineBreak': return node.kind === 'hard' ? '  \n' : '\n';

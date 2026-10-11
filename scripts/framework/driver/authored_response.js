@@ -28,8 +28,9 @@
     // Gemini keeps the original LaTeX here; rendered glyph order is lossy.
     clone.querySelectorAll('[data-math]').forEach(element => {
         const source = element.getAttribute('data-math') || '';
-        // Gemini drops optional row spacing from its displayed TeX source.
-        element.replaceWith(document.createTextNode(source.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\vert\{\}/g, '|')));
+        // Gemini expands norm aliases and drops optional row spacing in displayed TeX.
+        // Keep double norm bars distinct from single absolute-value bars.
+        element.replaceWith(document.createTextNode(source.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\Vert\{\}/g, '\\|').replace(/\\vert\{\}/g, '|')));
     });
     // Gemini wraps generated images in a clickable button. Read image evidence
     // before removing control text; disk assertions still require real assets.

@@ -14,7 +14,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.framework.assertions import (
-    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content,
+    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result,
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
@@ -388,6 +388,25 @@ value = 2 ** 3
         self.assertTrue(assert_turn_content(exported, evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace(r'\vert{}', '|'), evidence)[0])
 
+    def test_norm_bars_cannot_be_replaced_by_absolute_value_bars(self):
+        formula = r'\|x\|_2 + |D(a,b,c)|'
+        evidence = [{'prompt': 'Explain norms.', 'response': formula}]
+        exported = document(evidence).replace(formula, f'${formula}$')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace(r'\|x\|', '|x|'), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace('|D(a,b,c)|', r'\|D(a,b,c)\|'), evidence)[0])
+
+    def test_norm_alias_canonicalization_only_applies_to_math(self):
+        evidence = [{'prompt': 'Explain.', 'response': r'\|x\|_2'}]
+        exported = document(evidence).replace(r'\|x\|_2', r'$\Vert{}x\Vert{}_2$')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace('Vert', 'vert'), evidence)[0])
+        literal = r'print("\Vert{}")'
+        code_evidence = [{'prompt': 'Explain.', 'response': literal, 'code_blocks': [literal]}]
+        code_export = document(code_evidence).replace(literal, f'```python\n{literal}\n```')
+        self.assertTrue(assert_turn_content(code_export, code_evidence)[0])
+        self.assertFalse(assert_turn_content(code_export.replace(r'\Vert{}', r'\|'), code_evidence)[0])
+
     def test_only_generated_trailing_source_metadata_is_excluded(self):
         evidence = [{'prompt': 'Explain the result.', 'response': 'Complete explanation.Final conclusion.'}]
         exported = "## 👤 You\nExplain the result.\n## 🤖 Assistant\nComplete explanation.[\\[1\\]]Final conclusion.\n\n> 🌐 **Sources:**\n> [1] [Article](https://example.com/article)\n"
@@ -476,6 +495,27 @@ value = 2 ** 3
 
 
 class ScanAndImportTests(unittest.TestCase):
+    def test_incremental_requires_runtime_and_durable_same_account_closure(self):
+        evidence = scan_evidence()
+        evidence['response']['status'] = 'up_to_date'
+        diag = evidence['response']['diagnostics']
+        diag['incremental'] = True
+        diag['stopReason'] = 'Connected to verified activity coverage'
+        coverage = {'version': 3, 'providerId': 'gemini', 'accountId': 'a', 'generation': 'g',
+                    'initialized': True, 'historyComplete': False, 'activeRunId': None, 'lastStatus': 'up_to_date',
+                    'streams': {'recent': {'initialized': True, 'range': {'head': {'id': 'h', 'time': 100}, 'tail': {'id': 't', 'time': 10}}}}}
+        self.assertTrue(assert_incremental_scan_result(evidence, coverage, copy.deepcopy(coverage))[0])
+        for field in ('accountId', 'generation', 'historyComplete', 'activeRunId', 'lastStatus'):
+            changed = copy.deepcopy(coverage)
+            changed[field] = 'wrong'
+            self.assertFalse(assert_incremental_scan_result(evidence, coverage, changed)[0], field)
+        lost = copy.deepcopy(coverage)
+        lost['streams']['recent']['range']['tail']['time'] = 20
+        self.assertFalse(assert_incremental_scan_result(evidence, coverage, lost)[0])
+        self.assertFalse(assert_incremental_scan_result(evidence, {}, coverage)[0])
+        diag['stopReason'] = 'Token loop'
+        self.assertFalse(assert_incremental_scan_result(evidence, coverage, coverage)[0])
+
     def test_complete_fast_scan_passes_without_sampling_busy_state(self):
         self.assertTrue(assert_scan_result(scan_evidence())[0])
         cdp = MagicMock()
