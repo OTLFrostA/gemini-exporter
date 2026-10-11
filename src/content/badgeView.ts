@@ -159,9 +159,8 @@ export function ensureBadge(opts: { isZh?: () => boolean; onClick?: (e: MouseEve
     const zh = opts.isZh ? opts.isZh() : true;
     const div = document.createElement('div');
     div.id = 'geminiExportBadge';
-    const initText = (__lastKnownCount !== null)
-        ? (zh ? `已同步 ${__lastKnownCount} 条` : `${__lastKnownCount} synced`)
-        : (zh ? '就绪' : 'Ready');
+    const count = __lastKnownCount ?? 0;
+    const initText = zh ? `正在追踪 ${count} 条对话` : `Tracking ${count} conversations`;
     div.innerHTML = `<span class="pulse"></span><span id="geminiExportBadgeText">${initText}</span>`;
     div.title = zh ? '点此打开批量导出页 (可拖拽移动)' : 'Click to open Export Workbench (Drag to move)';
     makeBadgeDraggable(div, opts.onClick);
@@ -201,7 +200,7 @@ export function updateBadge(
         if (overrideText) {
             targetText = overrideText;
         } else {
-            targetText = zh ? `已同步 ${mergedLen} 条` : `${mergedLen} synced`;
+            targetText = zh ? `正在追踪 ${mergedLen} 条对话` : `Tracking ${mergedLen} conversations`;
         }
         if (txt.textContent !== targetText) {
             txt.textContent = targetText;
@@ -243,7 +242,7 @@ export function showLiveSaveFeedback(title?: string, isZh = true): void {
             __liveSaveTimer = null;
             badge.classList.remove('live-saved');
             if (txt.textContent?.startsWith('✓')) {
-                txt.textContent = prevText || (__lastKnownCount !== null ? (isZh ? `已同步 ${__lastKnownCount} 条` : `${__lastKnownCount} synced`) : (isZh ? '就绪' : 'Ready'));
+                txt.textContent = prevText || (isZh ? `正在追踪 ${__lastKnownCount ?? 0} 条对话` : `Tracking ${__lastKnownCount ?? 0} conversations`);
             }
         }, 2200);
     } catch (e) {
@@ -276,7 +275,7 @@ export function showLiveSaveWarning(message?: string, isZh = true): void {
             __liveSaveWarningTimer = null;
             badge.classList.remove('live-save-warning');
             if (txt.textContent === warnText) {
-                txt.textContent = prevText || (__lastKnownCount !== null ? (isZh ? `已同步 ${__lastKnownCount} 条` : `${__lastKnownCount} synced`) : (isZh ? '就绪' : 'Ready'));
+                txt.textContent = prevText || (isZh ? `正在追踪 ${__lastKnownCount ?? 0} 条对话` : `Tracking ${__lastKnownCount ?? 0} conversations`);
             }
         }, 6000);
     } catch (e) {

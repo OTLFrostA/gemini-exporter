@@ -43,10 +43,13 @@ interface Setup {
     abort?: boolean;
     slidingLimit?: number;
     failWrite?: boolean;
+    language?: 'zh' | 'en';
 }
 async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     const original = ProviderRegistry.get('gemini');
-    const globals = ['document', 'location', 'chrome'] as const;
+    const originalLanguage = contentContext.getLanguage();
+    contentContext.setLanguage(setup.language || 'zh');
+    const globals = ['document', 'location', 'chrome', 'localStorage'] as const;
     const descriptors = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
     let records: Conversation[] = [
         { id: 'chat_old', title: 'Old server chat', timestamp: NOW - 1000, accountSlot: 'u2' },
@@ -55,12 +58,13 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     const initialCheckpoint = setup.checkpoint === undefined ? null : setup.checkpoint;
     let checkpoint = initialCheckpoint;
     const trace = {
-        reconcileCalls: 0, slots: [] as string[], checkpointWrites: [] as number[],
+        reconcileCalls: 0, slots: [] as string[], checkpointWrites: [] as number[], badgeTexts: [] as string[],
         diagnostics: [] as unknown[], progress: [] as unknown[],
         prompts: [] as { slot: string; count: number; hitGoogleLimit: boolean; timestamp: number }[],
         decisions: [] as (PaginationStopDecision | void)[], options: null as GeminiProviderListOptions | null
     };
     const store = {
+        async getConversations(slot: string) { trace.slots.push(slot); return records; },
         async getScanCheckpoint(slot: string) { trace.slots.push(slot); return checkpoint; },
         async setScanCheckpoint(slot: string, value: number) { trace.slots.push(slot); checkpoint = value; trace.checkpointWrites.push(value); },
         async transactConversations(slot: string, apply: (existing: Conversation[]) => { list: Conversation[]; changed: number } | null) {
@@ -96,8 +100,15 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
             return input;
         }
     };
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: { getElementById: () => null, querySelectorAll: () => [], querySelector: () => null } });
+    let badgeValue = '';
+    const badgeText = { get textContent() { return badgeValue; }, set textContent(value: string) { badgeValue = value; trace.badgeTexts.push(value); } };
+    const badge = { isConnected: true, style: {}, classList: { add() {}, remove() {}, contains: () => false } };
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: {
+        getElementById: (id: string) => id === 'geminiExportBadgeText' ? badgeText : id === 'geminiExportBadge' ? badge : null,
+        querySelectorAll: () => [], querySelector: () => null
+    } });
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://gemini.google.com/u/2/app', pathname: '/u/2/app' } });
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => null, setItem() {} } });
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
         runtime: { sendMessage: async (message: unknown) => { trace.progress.push(message); } },
         storage: { local: { get: async () => ({}) } }
@@ -115,13 +126,39 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     } finally {
         if (original) ProviderRegistry.register(original);
         else ProviderRegistry.unregister('gemini');
-        __clearModuleOverrides(); contentContext.setAborted(false);
+        __clearModuleOverrides(); contentContext.setAborted(false); contentContext.setLanguage(originalLanguage);
         for (const [key, descriptor] of descriptors) {
             if (descriptor) Object.defineProperty(globalThis, key, descriptor);
             else Reflect.deleteProperty(globalThis, key);
         }
     }
 }
+
+test('floating badge only shows the stored tracked total while scan outcomes remain available to the workbench', async () => {
+    for (const language of ['zh', 'en'] as const) {
+        for (const reason of ['natural_exhaustion', 'hit_google_limit', 'aborted', 'error'] as const) {
+            const input = page(reason);
+            input.items = Array.from({ length: 600 }, (_, i) => item(`tracked_${i}`));
+            input.total = 600;
+            input.diagnostics.totalConversations = 600;
+            const { result, trace, records } = await scan(input, { language });
+            const expected = language === 'zh' ? '正在追踪 602 条对话' : 'Tracking 602 conversations';
+            assert.equal(records.length, 602, 'includes retained cloud and Takeout records beyond this scan');
+            assert.ok(trace.badgeTexts.length > 0);
+            assert.ok(trace.badgeTexts.every(text => text === expected), `${reason}: ${trace.badgeTexts.join(' | ')}`);
+            const terminal = [...trace.progress].reverse().find(message => (message as { status?: string }).status) as { status: string; title: string; percent: number; done: number };
+            assert.equal(terminal.status, result?.status);
+            if (reason === 'natural_exhaustion') {
+                assert.equal(terminal.percent, 100);
+                assert.equal(terminal.done, 1);
+            } else {
+                assert.notEqual(terminal.percent, 100);
+                assert.notEqual(terminal.done, 1);
+                assert.match(terminal.title, language === 'zh' ? /同步未完成，已保存 600 条/ : /Sync incomplete: 600 saved/);
+            }
+        }
+    }
+});
 
 test('sync provider: complete cloud data preserves unseen local archives and Takeout/time/title/slot data', async () => {
     assert.equal(typedResult && typedDiagnostics, true);

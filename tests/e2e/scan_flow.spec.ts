@@ -82,6 +82,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     const convs = (storageData.gemini_conversations || []) as any[];
     expect(convs.length).toBe(3);
     expect(convs.find((c: any) => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
+    await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 3 conversations|正在追踪 3 条对话/);
   });
 });
 
