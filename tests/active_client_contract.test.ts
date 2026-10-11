@@ -125,3 +125,25 @@ test('ActiveClient contract - messageRouter stopDeepScan invokes abort() when pr
     // Cleanup
     delete (global as any).window.__gemExporterActiveClient;
 });
+
+test('scan failures and cancellation return an explicit terminal status through the message router', async () => {
+    const { SyncEngine } = require('../src/content/syncEngine.js');
+    const { contentContext } = require('../src/content/contentContext.js');
+    const original = SyncEngine.syncConversations;
+    try {
+        for (const status of ['error', 'aborted', 'partial_limit']) {
+            listeners.length = 0;
+            SyncEngine.syncConversations = async () => {
+                contentContext.setAborted(status === 'aborted');
+                throw new Error(status === 'partial_limit' ? 'HTTP 429 rate limit' : 'Injected failure');
+            };
+            initMessageRouter({});
+            const response = await dispatchMessage({ action: 'deepScan' });
+            assert.strictEqual(response.success, false);
+            assert.strictEqual(response.status, status);
+        }
+    } finally {
+        SyncEngine.syncConversations = original;
+        contentContext.setAborted(false);
+    }
+});

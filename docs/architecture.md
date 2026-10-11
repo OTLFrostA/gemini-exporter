@@ -9,7 +9,7 @@
 1. [一、模块化系统架构全景 (Modular Subsystem Architecture)](#一模块化系统架构全景-modular-subsystem-architecture)
 2. [二、AST 逻辑分布与架构映射矩阵 (AST Logical Distribution & Architecture Mapping)](#二ast-逻辑分布与架构映射矩阵-ast-logical-distribution--architecture-mapping)
 3. [三、核心数据流全链路时序图与数据源汇规范 (Core Data Flows, Sources & Sinks)](#三核心数据流全链路时序图与数据源汇规范-core-data-flows-sources--sinks)
-   - [3.1 会话增量同步与全量拉取数据流 (Incremental & Deep Scan Sync Flow)](#31-会话增量同步与全量拉取数据流-incremental--deep-scan-sync-flow)
+   - [3.1 统一会话同步与历史覆盖 (Unified Conversation Sync & Coverage)](#31-统一会话同步与历史覆盖-unified-conversation-sync--coverage)
    - [3.2 实时无感自动保存数据流 (Real-Time Live Auto-Save Flow)](#32-实时无感自动保存数据流-real-time-live-auto-save-flow)
    - [3.3 批量并发导出与流式打包数据流 (Batch Export Pipeline Flow)](#33-批量并发导出与流式打包数据流-batch-export-pipeline-flow)
    - [3.4 Google Takeout 历史脱机合流数据流 (Takeout Offline Ingestion Flow)](#34-google-takeout-历史脱机合流数据流-takeout-offline-ingestion-flow)
@@ -56,7 +56,7 @@ graph TD
             CS_Bridge["messageBridge.ts<br/>(跨世界事件桥接器)"]
             CS_LiveObs["liveSaveObserver.ts<br/>(流式输出/DOM 变更监视器)"]
             CS_LiveCoord["liveSaveCoordinator.ts<br/>(实时无感保存调度器)"]
-            CS_SyncEng["syncEngine.ts<br/>(分页扫描/增量同步引擎)"]
+            CS_SyncEng["syncEngine.ts<br/>(统一分页扫描引擎)"]
             CS_DomScraper["domScraper.ts<br/>(网页 DOM 回退解析抓取器)"]
             CS_Badge["badgeView.ts<br/>(右下角悬浮状态提示徽章)"]
         end
@@ -189,7 +189,7 @@ graph TD
 | `src/content/messageBridge.ts` | Content Script | `MessageBridge`, `handleWindowMessage` | 监听主世界 `postMessage`，校验来源，解包凭据、流式事件、删除 RPC 并分发给内部引擎。 | `hookCredentials.ts` | `syncEngine`, `liveSaveCoordinator`, `liveSaveObserver` | `CS_Bridge` |
 | `src/content/liveSaveObserver.ts` | Content Script | `LiveSaveObserver`, `init`, `cleanup` | 监听 Gemini 对话流式生成与 DOM 变更，在生成结束时触发冷却防抖并调用协调器。 | `messageBridge`, DOM MutationObserver | `liveSaveCoordinator` | `CS_LiveObs` |
 | `src/content/liveSaveCoordinator.ts` | Content Script | `LiveSaveCoordinator`, `init`, `executeLiveSave` | 实时保存总调度：拉取会话完整轮次，排重并调用 FileSystem 句柄或向后台分发写入，刷新徽章。 | `liveSaveObserver` | `liveStorageManager`, `liveSaveWriter`, `badgeView`, `bg` | `CS_LiveCoord` |
-| `src/content/syncEngine.ts` | Content Script | `SyncEngine`（`syncOnce` / `tryBatchExecuteFull` / `upsertConversations` / `ingestListBatch`…） | 负责前台对话列表抓取，协调增量同步与全量分页扫描，并将结果交由 SSoT 合并入库。 | `content.ts`, `syncController` | `geminiClient`, `storageService`, `utils` | `CS_SyncEng` |
+| `src/content/syncEngine.ts` | Content Script | `SyncEngine`（`syncOnce` / `syncConversations` / `upsertConversations` / `ingestRpcList`…） | 主动扫描与被动 RPC 列表复用摄入入口；扫描覆盖状态独立于缓存，只有成功持久化和明确耗尽才能提交。 | `content.ts`, `syncController` | `geminiClient`, `storageService`, `utils` | `CS_SyncEng` |
 | `src/content/domScraper.ts` | Content Script | `DomScraper`（`parseDoc` / `contentFetchChatDetail` / `getConversationLinks`…） | 当 RPC 不可用或离线时，直接从宿主页面 DOM 树结构化提取会话提问、回复、附件与元数据。 | `liveSaveCoordinator`, `popup.ts` | 规范化 `ConversationDetail` 实体 | `CS_DomScraper` |
 | `src/content/badgeView.ts` | Content Script | `BadgeView`, `ensureBadge`, `updateBadge` | 在 Gemini 页面右下角渲染无侵入式浮动徽章，实时显示同步进度与保存状态。 | `content.ts`, `liveSaveCoordinator` | 宿主页面 DOM (`#geminiExportBadge`) | `CS_Badge` |
 | `src/content/assetFetcher.ts` | Content Script | `AssetFetcher`（`fetchGgChain` / `toHighRes` / `handleGetFileBlob` / `inferImageExt`…） | 处理用户上传附件与 AI 生成图片的高清源 URL 解析与 Blob 二进制下载。 | `liveSaveCoordinator`, `domScraper` | ArrayBuffer / Blob 二进制流 | `CS_LiveCoord` |
@@ -269,7 +269,7 @@ graph TD
 | `src/ui/views/dialogView.ts` | UI: View | `DialogView`, `showConfirm`, `showRecoveryDialog` | 会话恢复提示条、二次确认弹窗与错误提示。 | UI 各 Controller | 模态交互对话框 DOM | `OPT_Views` |
 | `src/ui/views/logView.ts` | UI: View | `LogView`, `appendLog` | 可折叠开发者诊断控制台视图，支持实时调试日志滚动输出。 | 全 UI 模块 | DOM (`#logContainer`) | `OPT_Views` |
 | `src/ui/controllers/exportController.ts` | UI: Controller | `ExportController`（`runExport` / `abort` / `setRunning` / `isRunning`…） | 导出控制器，聚合用户选择、校验本地目录句柄、驱动 `ExportOrchestrator`。 | `optionsExport.ts` | `exportOrchestrator.ts`, `progressView.ts` | `OPT_Controllers` |
-| `src/ui/controllers/syncController.ts` | UI: Controller | `SyncController`（`startIncrementalScan` / `startDeepScan` / `stopScan`…） | 同步控制器，通过 `tabService` 唤起前台内容脚本或后台发起增量/全量拉取。 | `optionsSync.ts` | `syncEngine.ts`, `conversationsStore.ts` | `OPT_Controllers` |
+| `src/ui/controllers/syncController.ts` | UI: Controller | `SyncController`（`startSync` / `stopScan`…） | 单按钮同步控制器，统一扫描超时，准确呈现完成、限流、中断和错误。 | `optionsSync.ts` | `syncEngine.ts`, `conversationsStore.ts` | `OPT_Controllers` |
 | `src/ui/controllers/takeoutController.ts` | UI: Controller | `TakeoutController`（`handleTakeoutImport`） | Takeout 控制器，驱动 `TakeoutEngine` 进行离线解压并将合并结果入库。 | `optionsTakeout.ts` | `takeoutEngine.ts`, `storageService.ts` | `OPT_Controllers` |
 | `src/ui/controllers/dirHandleController.ts` | UI: Controller | `DirHandleController`（`requestDirHandle` / `reauthorizeDirHandle` / `verifyDirPermission` / `restoreSavedDirHandle`…） | 调用原生 `window.showDirectoryPicker()`，保存句柄至 IndexedDB 并检验读写权限。 | `optionsExport.ts` | `idbHandleStore.ts` | `OPT_Controllers` |
 | `src/ui/tour/tourGuide.ts` | UI: Tour | `TourGuide`, `startTour`, `nextStep` | 6 步交互式新手向导引擎，计算遮罩镂空高亮与气泡定位。 | `optionsInit.ts` | 引导蒙层与定位计算 | `OPT_Tour` |
@@ -285,70 +285,44 @@ graph TD
 
 ## 三、核心数据流全链路时序图与数据源汇规范 (Core Data Flows, Sources & Sinks)
 
-### 3.1 会话增量同步与全量拉取数据流 (Incremental & Deep Scan Sync Flow)
+### 3.1 统一会话同步与历史覆盖 (Unified Conversation Sync & Coverage)
 
-本数据流负责将云端历史同步到本地，支持从前台内容脚本发起（增量感知），也支持从 Options 工作台发起（全量深度拉取）。
+本数据流发现并保存当前账号在 Gemini 网页端可访问的会话列表。工作台只有一个「同步会话 / Sync All」按钮；正文和附件仍由详情获取与导出链路保存。
 
-* **数据源 (Data Source)**：
-  - Google Gemini 官方 `batchexecute` RPC 接口（`https://gemini.google.com/_/BardChatUi/data/batchexecute`）；
-  - 负载：RPC 编码 payload `[[["MaZiqc","[\"...\",...]",null,"generic"]]]`；
-  - 鉴权参数：从当前活跃 Cookie 与 Session 提取的 `at` (XSRF)、`f.sid`、`bl`。
-* **数据汇 (Data Sink)**：
-  - `chrome.storage.local`：写入对应的账号 Slot **轻量元数据索引**（键名 `gemini_conversations_${slot}`，只保留 `id`、`title`、`timestamp`、`updatedAt`、`snippet`、`count`，彻底解除 10MB 配额瓶颈）；
-  - `IndexedDB` (`gemini_conversation_details` 实体仓库)：透明承载完整对话轮次（`turns`）与附件元数据；
-  - Options 工作台 DOM：响应式更新 `ConversationsStore`，驱动 `ListView` 增量刷新。
-* **核心处理与容错逻辑**：
-  1. `TabService.getGeminiTab(slot)` 严格查找目标 slot 标签页，杜绝跨账号盲投；
-  2. `GeminiClient` 携带分页游标发送请求；
-  3. 若遇到 HTTP 400 且返回报文包含 XSRF 凭据失效特征，`RetryPolicy` 自动触发隔离世界经 `getAtFromPage` 读 DOM 重新抓取 Token 并进行退避重试；
-  4. `parseList` 解析返回的嵌套多维 JSPB 数组，提取会话 ID、标题及时间戳；
-  5. `TitleUtils.resolveTitle` 与 `MergeUtils.mergeConversation` 作为 **单点真理 (SSoT)** 执行多源合并，若远端权威标题存在则自动替换 Takeout 临时标题；
-  6. **两级存储分离写入**：`StorageService` 拆分轻量列表索引至 `chrome.storage.local`，将实体对话轮次下沉至 IndexedDB `conversationDetailStore`；
-  7. 检测用户或后台发送的 `AbortSignal`，若中断则立即保存已拉取的游标并优雅终止。
+* **统一摄入**：网页自然 RPC 和主动分页请求均使用现有 `parseList`，随后调用同一个 `ingestRpcList(items, slot)`，复用原有合并和存储事务。摄入回执区分接收、拒绝和实际写入条目，写入异常向主动扫描传播；被动事件边界捕获并记录异常。
+* **独立 Coverage**：账号级状态保存于 `gemini_scan_coverage`（u0）或 `gemini_scan_coverage_uN`，记录完整性、服务端时间基线、条目数和最近结束原因。旧 checkpoint 与普通嗅探记录不能证明连续历史已覆盖。空账号自然耗尽记完整空列表，时间基线为 null。
+* **完成证据**：只有 Provider 明确返回自然耗尽且 exhaustive 为 true，并且每页已成功持久化、未取消、未切换账号，才提交本轮完整覆盖。尚未验证 Provider 的全局更新时间排序契约，因此不采用时间戳或连续重复条数提前停止；分页继续到自然终点或明确限制。
+* **并发与保留**：扫描启动时冻结之前的覆盖，每轮使用独立运行标识。Coverage 和缺席状态的提交复用跨标签页写入锁；较旧运行或清空本地数据后的运行不能覆盖新状态。列表缺席只记 unlisted，不删除本地正文、资源或导出记录。
+* **返回与重试**：对外区分 complete、up_to_date、partial_limit、aborted、error；当前未开放基于重叠的 up_to_date 早停。部分保存不能显示「全部完成」。取消保留已经写入的数据，重试从列表第一页开始，不保存可恢复游标。
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant UI as Options/Popup (UI)
-    participant Sync as SyncController
-    participant Tab as TabService (Strict Slot Match)
-    participant CS as SyncEngine (Content Script)
-    participant Client as GeminiClient & RetryPolicy
-    participant RPC as Google Gemini batchexecute RPC
-    participant SSoT as TitleUtils & MergeUtils (SSoT)
-    participant Store as StorageService (两级存储主控)
-    participant Local as chrome.storage.local (轻量索引)
-    participant IDB as conversationDetailStore (IndexedDB 详情库)
+    participant UI as Sync All / Stop
+    participant CS as syncConversations
+    participant Provider as GeminiProvider / GeminiAPIClient
+    participant RPC as Gemini MaZiqc RPC
+    participant Ingest as ingestRpcList
+    participant Store as Existing Merge / Storage
+    participant Coverage as Account Coverage
 
-    UI->>Sync: 用户点击【全量拉取历史】(Deep Scan)
-    Sync->>Tab: getGeminiTab(slot) 严格匹配目标账号标签页
-    alt 找到对应账号的存活标签页
-        Tab->>CS: 派发 deepScan 消息 (附带 slot)
-        loop 分页抓取直到游标为空或遇到已拉取锚点
-            CS->>Client: getConversationList(cursor, slot)
-            Client->>RPC: POST batchexecute (MaZiqc)
-            alt HTTP 400 (Token 过期)
-                Client->>Client: 隔离世界经 getAtFromPage 读 DOM 重新抓取 at/sid 凭据并指数退避
-                Client->>RPC: 重新发送 POST 请求
-            end
-            RPC-->>Client: 返回原始 Protobuf/JSPB 文本
-            Client-->>CS: parseList 结构化会话列表项
-            CS->>SSoT: mergeConversation (去重与权威标题仲裁)
-            CS->>Store: saveConversations(slot, list) 两级持久化
-            par 两级存储分离写入
-                Store->>Local: 写入轻量会话元数据索引 (去除 turns, < 10MB 配额安全)
-                Store->>IDB: 实体详情下沉入库 (持久化完整 turns 与消息体)
-            end
-            CS-->>UI: 实时回传扫描进度 (更新 ProgressView)
-        end
-        CS-->>Sync: 扫描完成 (返回最新会话全量数据)
-    else 标签页不存在或槽位不匹配
-        Sync->>UI: 提示请在浏览器中打开对应 slot 账号标签页
+    UI->>CS: deepScan (accountSlot, no mode)
+    CS->>Coverage: beginScanCoverage (freeze previous, create run ID)
+    loop Until natural exhaustion or explicit limit/error/abort
+        CS->>Provider: listConversations / onPageBatch
+        Provider->>RPC: Request next cursor
+        RPC-->>Provider: List response
+        Provider->>Provider: Existing parseList
+        Provider->>CS: Parsed batch
+        CS->>Coverage: Verify current run
+        CS->>Ingest: ingestRpcList(items, slot)
+        Ingest->>Store: Existing merge and atomic transaction
+        Store-->>CS: Persistence receipt
     end
-    Sync->>UI: 触发 ConversationsStore 刷新，ListView 重新渲染
+    Note over RPC,Store: Passive captures use the same parseList and ingestRpcList, without changing Coverage
+    CS->>Coverage: Commit actual outcome under cross-tab lock
+    CS-->>UI: Complete / limited / aborted / error
 ```
-
----
 
 ### 3.2 实时无感自动保存与无头权限降权数据流 (Real-Time Live Auto-Save Flow with Permission-Degraded Value+Config Recovery)
 

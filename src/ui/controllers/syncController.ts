@@ -38,20 +38,16 @@ export function isServerRateOrQuotaLimit(text?: string | null): boolean {
 }
 
 function _runScan(
-    mode: 'incremental' | 'full',
     slot: string,
     { onStart, onProgress, onLog, onFinished, onError }: ScanCallbacks = {},
-    i18nKey: string,
-    fallbackMsgFn: (count: number) => string
 ): void {
     if (scanRunning) return;
     setScanRunning(true);
     if (onStart) onStart();
 
-    // UI-to-background timeout is buffered higher than the background tab RPC timeout
-    // (300s full, 90s incremental) to prevent scanRunning from getting permanently stuck.
-    const uiTimeoutMs = mode === 'full' ? 330000 : 120000;
-    const msg: DeepScanMessage = { action: 'deepScan', mode, accountSlot: slot || 'u0' };
+    // Allow the background tab request to expire before releasing the UI lock.
+    const uiTimeoutMs = 330000;
+    const msg: DeepScanMessage = { action: 'deepScan', accountSlot: slot || 'u0' };
     sendTypedMessage(msg, uiTimeoutMs).then((raw: unknown) => {
         if (!isScanResponse(raw)) throw new Error('Gemini returned unreadable sync data. Refresh its page and try again.');
         const res = raw;
@@ -79,7 +75,7 @@ function _runScan(
                     ? t('syncFinishedWithLimit', count)
                     : `已拉取约 ${count} 条会话（已达 Google 网页端上限），更早记录建议使用 Google Takeout 导入补全。`;
             } else {
-                finishMsg = typeof t === 'function' ? t(i18nKey, count) : fallbackMsgFn(count);
+                finishMsg = typeof t === 'function' ? t('syncFinished', count) : `同步完成，共 ${count} 条`;
             }
             if (onLog) onLog(finishMsg, 'info');
             if (onFinished) onFinished({ count, res, message: finishMsg, hitGoogleLimit });
@@ -97,12 +93,8 @@ function _runScan(
     });
 }
 
-export function startIncrementalScan(slot: string, callbacks: ScanCallbacks = {}): void {
-    _runScan('incremental', slot, callbacks, 'syncFinished', count => `增量同步完成，共 ${count} 条`);
-}
-
-export function startDeepScan(slot: string, callbacks: ScanCallbacks = {}): void {
-    _runScan('full', slot, callbacks, 'deepSyncFinished', count => `全量拉取完成，共 ${count} 条`);
+export function startSync(slot: string, callbacks: ScanCallbacks = {}): void {
+    _runScan(slot, callbacks);
 }
 
 export function stopScan(slot: string, { onStopped, onLog }: StopScanCallbacks = {}): void {
@@ -118,8 +110,7 @@ export function stopScan(slot: string, { onStopped, onLog }: StopScanCallbacks =
 export const SyncController: SyncControllerContract & { formatSyncErrorMessage?: (err: string) => string } = {
     isScanning,
     setScanRunning,
-    startIncrementalScan,
-    startDeepScan,
+    startSync,
     stopScan,
     formatSyncErrorMessage
 };

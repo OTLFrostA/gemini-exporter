@@ -11,7 +11,6 @@ export interface BackgroundMessage {
     globalOffset?: number;
     globalTotal?: number;
     maxIter?: number;
-    mode?: 'auto' | 'full' | 'incremental';
     tabId?: number;
     percent?: number;
     done?: number;

@@ -40,7 +40,7 @@ class TestSelectorsSuite(unittest.TestCase):
         self.assertTrue(bool(WorkbenchSelectors.CHECKED_CHECKBOX))
         self.assertTrue(bool(WorkbenchSelectors.BTN_SELECT_ALL))
         self.assertTrue(bool(WorkbenchSelectors.BTN_SELECT_NONE))
-        self.assertTrue(bool(WorkbenchSelectors.BTN_DEEP_SCAN))
+        self.assertTrue(bool(WorkbenchSelectors.BTN_SYNC_ALL))
         self.assertTrue(bool(WorkbenchSelectors.BTN_EXPORT))
         self.assertTrue(bool(WorkbenchSelectors.TOUR_POPOVER))
 

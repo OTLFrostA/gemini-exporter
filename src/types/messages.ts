@@ -155,7 +155,6 @@ export interface AbortSyncMessage extends BaseMessage {
 
 export interface DeepScanMessage extends BaseMessage {
     action: 'deepScan';
-    mode?: 'incremental' | 'full' | 'auto';
     maxIter?: number;
     accountSlot?: string;
 }

@@ -5,7 +5,7 @@ import { sendTypedMessage, isMessageAction, getErrorMessage } from '../src/core/
 import { sendToGeminiTab, sendToAITab, checkGeminiStatus, openGeminiPage, reloadGeminiTab } from '../src/core/utils/tabService.js';
 import { isScanResponse, readPopupFetchResult } from '../src/core/utils/messageResponses.js';
 import type { PopupFetchResult, PopupExportInput } from '../src/core/utils/messageResponses.js';
-import { startDeepScan, startIncrementalScan, isScanning, setScanRunning } from '../src/ui/controllers/syncController.js';
+import { startSync, isScanning, setScanRunning } from '../src/ui/controllers/syncController.js';
 import type { BaseMessage, FetchChatMessage } from '../src/types/messages.js';
 import type { ScanCallbacks, ScanResponse } from '../src/types/ui.js';
 
@@ -18,14 +18,13 @@ type Contracts = [
     Assert<Equal<Awaited<ReturnType<typeof sendToAITab>>, unknown>>,
     Assert<Equal<Parameters<typeof sendToGeminiTab>[0], unknown>>,
     Assert<Equal<typeof sendTypedMessage extends ArbitraryResponseSender ? true : false, false>>,
-    Assert<Equal<Parameters<typeof startDeepScan>[1], ScanCallbacks | undefined>>,
-    Assert<Equal<Parameters<typeof startIncrementalScan>[1], ScanCallbacks | undefined>>,
+    Assert<Equal<Parameters<typeof startSync>[1], ScanCallbacks | undefined>>,
     Assert<Equal<ReturnType<typeof readPopupFetchResult>, PopupFetchResult>>,
     Assert<Equal<Awaited<ReturnType<typeof openGeminiPage>>, unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof reloadGeminiTab>>, unknown>>,
     Assert<Equal<PopupExportInput['conversation']['messages'][number]['role'], 'user' | 'assistant' | 'system' | 'developer' | 'unknown'>>
 ];
-const contracts: Contracts = [true, true, true, true, true, true, true, true, true, true, true];
+const contracts: Contracts = [true, true, true, true, true, true, true, true, true, true];
 function actionOnly(input: unknown): void {
     if (isMessageAction(input, 'fetchChat')) {
         const narrow: Assert<Equal<typeof input, { action: 'fetchChat' }>> = true;
@@ -108,7 +107,7 @@ test('scan consumer never completes malformed replies and always releases its ru
             } });
             try {
                 let completed = false;
-                const err = await new Promise<Error>(resolve => startDeepScan('u0', {
+                const err = await new Promise<Error>(resolve => startSync('u0', {
                     onFinished() { completed = true; resolve(new Error('Unexpected successful completion')); },
                     onError(error) { resolve(error); }
                 }));
@@ -127,7 +126,7 @@ test('scan consumer never completes malformed replies and always releases its ru
             } });
             try {
                 const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) =>
-                    startIncrementalScan('u0', { onFinished: resolve, onError: reject }));
+                    startSync('u0', { onFinished: resolve, onError: reject }));
                 assert.equal(result.res, validSuccess);
                 assert.equal(result.count, validSuccess.count || validSuccess.total || 0);
                 assert.equal(isScanning(), false);
@@ -157,7 +156,7 @@ test('scan UI reports partial limits, cancellation and errors as incomplete, ret
             const response = { success: false, count: 3, status, error: 'remaining pages unavailable' };
             const restoreChrome = replaceGlobal('chrome', { runtime: { sendMessage(_msg: unknown, callback: (value: unknown) => void) { callback(response); } } });
             try {
-                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startDeepScan('u0', {
+                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startSync('u0', {
                     onFinished: () => reject(new Error('Incomplete sync entered the success callback')),
                     onError: (_err, message, details) => resolve({ message, details })
                 }));

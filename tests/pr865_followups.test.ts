@@ -219,7 +219,7 @@ test('sync UI never reaches success completion for partial_limit / aborted / err
         if (id === 'bar') return bar;
         if (id === 'progText') return text;
         if (id === 'progWrap') return wrap;
-        if (['btnDeepScan', 'btnIncrementalScan', 'btnStopScan'].includes(id)) return {
+        if (['btnSyncAll', 'btnStopScan'].includes(id)) return {
             style: {}, addEventListener: (_event: string, callback: () => void) => { clicks[id] = callback; }
         };
         return null;
@@ -234,7 +234,7 @@ test('sync UI never reaches success completion for partial_limit / aborted / err
     try {
         await OptionsSync.init({ loadStore: async () => { reloads++; }, log: () => {}, maybePromptTakeout: () => { prompts++; } });
         for (status of ['partial_limit', 'aborted', 'error']) {
-            for (const button of ['btnDeepScan', 'btnIncrementalScan']) {
+            for (const button of ['btnSyncAll']) {
                 clicks[button]();
                 listener({ action: 'scanProgress', status, percent: 100, done: 1, count: 3, title: 'Incomplete', hitGoogleLimit: status === 'partial_limit' });
                 assert.notEqual(bar.style.width, '100%', `${status} broadcast`);
@@ -243,11 +243,11 @@ test('sync UI never reaches success completion for partial_limit / aborted / err
                 assert.equal(wrap.style.display, 'block', 'incomplete result remains visible');
             }
         }
-        assert.equal(reloads, 6, 'saved partial data is reloaded');
+        assert.equal(reloads, 3, 'saved partial data is reloaded');
         assert.ok(prompts > 0, 'partial limit still offers Takeout');
         for (status of ['complete', 'up_to_date']) {
             success = true;
-            clicks.btnDeepScan();
+            clicks.btnSyncAll();
             await new Promise(resolve => setImmediate(resolve));
             assert.equal(bar.style.width, '100%');
             listener({ action: 'scanProgress', status, percent: 100, done: 1, title: 'Complete' });

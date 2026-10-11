@@ -20,24 +20,18 @@ export const STEPS: TourStep[] = [
     },
     {
         id: 'sync',
-        getTarget: () => document.getElementById('btnIncrementalScan') || null,
+        getTarget: () => document.getElementById('btnSyncAll') || null,
         placement: 'bottom',
         titleKey: 'tourStep2Title',
         descKey: 'tourStep2Desc',
         hintKey: 'tourHintClickButton',
         setupAction: (advance: () => void) => {
             const cleanups: (() => void)[] = [];
-            const btnScan = document.getElementById('btnIncrementalScan');
+            const btnScan = document.getElementById('btnSyncAll');
             if (btnScan) {
                 const onScanClick = () => setTimeout(advance, 300);
                 btnScan.addEventListener('click', onScanClick);
                 cleanups.push(() => btnScan.removeEventListener('click', onScanClick));
-            }
-            const btnDeep = document.getElementById('btnDeepScan');
-            if (btnDeep) {
-                const onDeepClick = () => setTimeout(advance, 300);
-                btnDeep.addEventListener('click', onDeepClick);
-                cleanups.push(() => btnDeep.removeEventListener('click', onDeepClick));
             }
             return () => cleanups.forEach(c => c());
         }

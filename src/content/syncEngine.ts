@@ -430,7 +430,7 @@ function scanStatus(all: GeminiProviderPageResult): ScanStatus {
     return 'error';
 }
 
-export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; maxPages?: number }): Promise<ProviderSyncResult | null> {
+export async function syncConversations(options?: { maxPages?: number }): Promise<ProviderSyncResult | null> {
     if (contentContext.getDeepScanPromise()) return null;
 
     let _resolve: (() => void) | undefined;
@@ -455,13 +455,12 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         const accountId = sniffUserProfileFromDom()?.accountId ?? null;
         coverageRun = await Storage.beginScanCoverage(slot, accountId);
         const runId = coverageRun.runId;
-        const effectiveMaxPages = forceOpts?.maxPages || 2000;
+        const effectiveMaxPages = options?.maxPages || 2000;
         let expectedPage = 1;
         // No verified Provider ordering contract exists yet. Legacy timestamps
         // and repeated IDs cannot prove that later pages contain no updates.
         const all: GeminiProviderPageResult = await provider.listConversations({
             maxPages: effectiveMaxPages,
-            forceFull: true,
             onPageBatch: async (batch, info) => {
                 if (getAccountSlot() !== slot || (accountId !== null && sniffUserProfileFromDom()?.accountId !== accountId)) {
                     throw new Error('Account changed during sync; retry in the current account');
@@ -609,7 +608,7 @@ export const SyncEngine = {
     upsertConversations,
     ingestRpcList,
     syncOnce,
-    tryBatchExecuteFull,
+    syncConversations,
     compareConversations
 };
 

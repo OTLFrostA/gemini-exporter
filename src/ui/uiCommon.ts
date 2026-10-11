@@ -43,8 +43,7 @@ export const hasI18n = (): boolean => {
 
 export const WORKBENCH_ACTION_BUTTON_IDS = [
     'btnExport',
-    'btnIncrementalScan',
-    'btnDeepScan',
+    'btnSyncAll',
     'btnImportTakeout',
     'btnSetDir',
     'btnClearExported',

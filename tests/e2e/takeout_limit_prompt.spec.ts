@@ -137,8 +137,8 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     });
     await expect(modal).toBeHidden();
 
-    // 3. Click full deep scan button (#btnDeepScan)
-    await page.click('#btnDeepScan');
+    // 3. Click full deep scan button (#btnSyncAll)
+    await page.click('#btnSyncAll');
 
     // 4. Verify modal automatically appears with hitGoogleLimit title and count
     await expect(modal).toBeVisible({ timeout: 15000 });

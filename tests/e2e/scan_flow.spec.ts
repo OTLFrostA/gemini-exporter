@@ -57,6 +57,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await optionsPage.evaluate(async () => {
       await chrome.storage.local.set({
         gemini_conversations: [],
+        gemini_scan_checkpoint: 9999999999999,
         exportedIds: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {
@@ -64,8 +65,8 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       }
     });
 
-    // 3. Click "Sync Latest" / "增量同步" button
-    await optionsPage.click('#btnIncrementalScan');
+    // 3. The single sync button must scan despite an untrusted legacy checkpoint
+    await optionsPage.click('#btnSyncAll');
 
     // 4. Verify list is populated with all 3 scanned conversations
     const listItems = optionsPage.locator('#list .item');
@@ -77,12 +78,20 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
 
     // 5. Verify conversations are stored in storage
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations']);
+      return await chrome.storage.local.get(['gemini_conversations', 'gemini_scan_coverage']);
     }) as Record<string, any>;
     const convs = (storageData.gemini_conversations || []) as any[];
     expect(convs.length).toBe(3);
+    expect(storageData.gemini_scan_coverage).toMatchObject({ complete: true, lastStatus: 'complete',
+      activeRunId: null, baseline: { conversationCount: 3, headTimestamp: 1700000200000 } });
     expect(convs.find((c: any) => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
     await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 3 conversations|正在追踪 3 条对话/);
+    await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
+    await optionsPage.click('#btnSyncAll');
+    await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
+    await expect(listItems).toHaveCount(3);
+    const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['gemini_scan_coverage']));
+    expect(repeated.gemini_scan_coverage).toMatchObject({ complete: true, revision: 2, activeRunId: null });
   });
 });
 

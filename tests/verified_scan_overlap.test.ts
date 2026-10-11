@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
 const { defaultGeminiProvider } = require('../src/core/provider/gemini/geminiProvider.js');
 const { contentContext } = require('../src/content/contentContext.js');
-const { tryBatchExecuteFull } = require('../src/content/syncEngine.js');
+const { syncConversations } = require('../src/content/syncEngine.js');
 
 test('production scan entry admits one pagination call while another scan is pending', async () => {
     const oldDocument = (global as any).document;
@@ -27,9 +27,9 @@ test('production scan entry admits one pagination call while another scan is pen
         return { items: [], conversations: [], total: 0, stoppedEarly: true, exhaustive: false, completionReason: 'error', diagnostics: null } as any;
     };
     try {
-        const first = tryBatchExecuteFull();
+        const first = syncConversations();
         await started;
-        const second = await tryBatchExecuteFull();
+        const second = await syncConversations();
         assert.strictEqual(second, null);
         assert.strictEqual(calls, 1);
         release();

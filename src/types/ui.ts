@@ -248,8 +248,7 @@ export interface TakeoutControllerContract {
 export interface SyncControllerContract {
     isScanning: () => boolean;
     setScanRunning: (running: boolean) => void;
-    startIncrementalScan: (slot: string, callbacks?: ScanCallbacks) => void;
-    startDeepScan: (slot: string, callbacks?: ScanCallbacks) => void;
+    startSync: (slot: string, callbacks?: ScanCallbacks) => void;
     stopScan: (slot: string, callbacks?: StopScanCallbacks) => void;
 }
 

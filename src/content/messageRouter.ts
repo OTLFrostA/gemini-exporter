@@ -104,16 +104,15 @@ export function init({
             void (async () => {
                 try {
                     let res: any = null;
-                    if (Sync && Sync.tryBatchExecuteFull) {
-                        res = await Sync.tryBatchExecuteFull({
-                            forceFull: msg.mode === 'full'
-                        });
+                    if (Sync && Sync.syncConversations) {
+                        res = await Sync.syncConversations();
                     }
                     if (!res) {
                         respond({
                             success: false,
+                            status: 'error',
                             count: 0,
-                            error: 'deep scan did not produce a result (already running or provider unavailable)'
+                            error: 'sync did not produce a result (already running or provider unavailable)'
                         });
                         return;
                     }
@@ -128,7 +127,7 @@ export function init({
                 } catch (e: unknown) {
                     const errStr = getErrorMessage(e);
                     const isLimit = isRateLimited({ success: false, error: errStr });
-                    respond({ success: false, error: errStr, hitGoogleLimit: isLimit });
+                    respond({ success: false, status: contentContext.isAborted() ? 'aborted' : isLimit ? 'partial_limit' : 'error', error: errStr, hitGoogleLimit: isLimit });
                 }
             })();
             return true;
