@@ -1,6 +1,8 @@
 import { extractBlockText } from '../core/domain/content/unknownFallback.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
+import type { GeminiProviderConversationItem } from '../core/provider/gemini/geminiContracts.js';
+import type { RpcListIngestResult } from './syncEngine.js';
 import { contentContext } from './contentContext.js';
 import { parseList } from '../core/parsers/gemini/rpc/parseList.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
@@ -17,6 +19,7 @@ import type {
 } from '../core/protocol/events.js';
 
 export interface MessageBridgeDeps {
+    ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string) => Promise<RpcListIngestResult>;
     upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
@@ -77,10 +80,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const listRes = parseList(text);
                     if (listRes && listRes.conversations && listRes.conversations.length) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        // Phase A (P1-3): 嗅探是数据面 —— 直写存储，不进 scan slice、不推进
-                        // checkpoint。forceWrite=true 沿用此前经 ingestListBatch 的实际写语义。
-                        if (typeof upsertConversations === 'function') {
-                            await upsertConversations(listRes.conversations, 'network-list', true, targetSlot);
+                        if (_deps.ingestRpcList) {
+                            await _deps.ingestRpcList(listRes.conversations, targetSlot);
                         }
                     }
                 } catch (e) {
