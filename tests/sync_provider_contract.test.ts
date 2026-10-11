@@ -44,6 +44,7 @@ interface Setup {
     failWrite?: boolean;
     language?: 'zh' | 'en';
     wirePages?: ListParseResult[];
+    pinnedPages?: ListParseResult[];
 }
 async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     const original = ProviderRegistry.get('gemini');
@@ -100,9 +101,13 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
             trace.options = options || null;
             if (setup.wirePages) {
                 let index = 0;
+                let pinnedIndex = 0;
                 const adapter = new GeminiProvider({
                     async getAllConversations(opts) {
-                        return getAllConversations({ async getConversationList() {
+                        return getAllConversations({ async getConversationList(_token, _sid, filter) {
+                            if (Array.isArray(filter) && filter[0] === 1) {
+                                return setup.pinnedPages?.[pinnedIndex++] ?? { conversations: [], nextPageToken: null };
+                            }
                             assert.ok(index < setup.wirePages!.length, 'must stop at the actual terminal response');
                             return setup.wirePages![index++];
                         } }, opts);
@@ -232,6 +237,7 @@ test('sync provider: legacy timestamps cannot authorize an unverified overlap ea
     assert.equal(result?.status, 'error');
     assert.deepEqual(trace.decisions, [undefined]);
     assert.equal(trace.options?.incremental, false);
+    assert.equal(trace.options?.includePinned, true);
     assert.equal(trace.options?.maxPages, 4);
     assert.equal(trace.options?.targetSid, null);
     assert.deepEqual(trace.checkpointWrites, []);
@@ -302,7 +308,7 @@ test('sync safety: later pages with newer updates are saved even when the first 
     const later = { conversations: [timed('late105', 105)], nextPageToken: null };
     const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, wirePages: [first, later] });
     assert.equal(result?.status, 'complete');
-    assert.equal(result?.diagnostics.totalPagesFetched, 2);
+    assert.equal(result?.diagnostics.totalPagesFetched, 3);
     assert.equal(records.find(record => record.id === 'late105')?.timestamp, NOW + 105);
     assert.deepEqual(trace.checkpointWrites, [NOW + 120]);
 });
@@ -315,7 +321,7 @@ test('sync safety: a limited first scan and retry never claim complete coverage'
             { conversations: [item()], nextPageToken: 'tC_limit' }, limited
         ] });
         assert.equal(result?.status, 'partial_limit');
-        assert.equal(result?.diagnostics.totalPagesFetched, 2);
+        assert.equal(result?.diagnostics.totalPagesFetched, 3);
         assert.deepEqual(trace.checkpointWrites, []);
         assert.ok(records.some(record => record.id === 'chat_visible'));
         assert.ok(records.some(record => record.id === 'chat_old'));
@@ -330,4 +336,19 @@ test('sync safety: missing producer completeness cannot establish trusted covera
     const { result, trace } = await scan(input);
     assert.equal(result?.status, 'error');
     assert.deepEqual(trace.checkpointWrites, []);
+});
+
+test('sync covers pinned-only chats and persists a later-page rename with an unchanged timestamp', async () => {
+    const pinned = { ...item('pinned_only'), timestamp: NOW - 10000, updatedAt: NOW - 10000 };
+    const renamed = { ...item('chat_old'), title: 'Renamed on another device', titles: { rpc: 'Renamed on another device' },
+        timestamp: NOW - 1000, updatedAt: NOW - 1000 };
+    const { result, records, trace } = await scan(page(), { pinnedPages: [{ conversations: [pinned], nextPageToken: null }],
+        wirePages: [{ conversations: [item()], nextPageToken: 'tC_old' }, { conversations: [renamed], nextPageToken: null }] });
+    assert.equal(result?.status, 'complete');
+    assert.equal(result?.count, 3);
+    assert.equal(result?.diagnostics.totalPagesFetched, 3);
+    assert.equal(records.find(record => record.id === 'chat_old')?.title, 'Renamed on another device');
+    assert.equal(records.find(record => record.id === 'chat_old')?.timestamp, NOW - 1000);
+    assert.ok(records.some(record => record.id === 'pinned_only'));
+    assert.deepEqual(trace.checkpointWrites, [NOW]);
 });

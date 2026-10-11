@@ -457,10 +457,12 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         const runId = coverageRun.runId;
         const effectiveMaxPages = options?.maxPages || 2000;
         let expectedPage = 1;
-        // No verified Provider ordering contract exists yet. Legacy timestamps
-        // and repeated IDs cannot prove that later pages contain no updates.
+        // Pinned and recent lists are separate server cursor chains. Renames do
+        // not advance the list timestamp, so time/ID overlap cannot prove that
+        // the older tail is unchanged. Read both chains to their natural ends.
         const all: GeminiProviderPageResult = await provider.listConversations({
             maxPages: effectiveMaxPages,
+            includePinned: true,
             onPageBatch: async (batch, info) => {
                 if (getAccountSlot() !== slot || (accountId !== null && sniffUserProfileFromDom()?.accountId !== accountId)) {
                     throw new Error('Account changed during sync; retry in the current account');

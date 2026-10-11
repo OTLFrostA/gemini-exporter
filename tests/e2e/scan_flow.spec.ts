@@ -30,18 +30,18 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       ["c_scan_002", "Rust 高性能异步网络编程", [1700000100, 0], [1700000100, 0], 6],
       ["c_scan_003", "微服务架构与分布式事务", [1700000200, 0], [1700000200, 0], 8]
     ];
-    const mockListInner = JSON.stringify([
-      null,
-      mockListItems,
-      null // null nextPageToken indicates end of list
-    ]);
-    const mockRpcResponse = `)]}'\n\n[["wrb.fr","MaZiqc",${JSON.stringify(mockListInner)}]]`;
-
+    const requestedKinds: string[] = [];
+    const pinnedItem = ['c_scan_pinned', '置顶的较早会话', null, null, null, [1600000000, 0]];
     await geminiPage.route('**/batchexecute*', async (route) => {
+      const wire = new URLSearchParams(route.request().postData() || '').get('f.req');
+      const args = JSON.parse(JSON.parse(wire!)[0][0][1]);
+      const pinned = args[2][0] === 1;
+      requestedKinds.push(pinned ? 'pinned' : 'recent');
+      const inner = pinned ? JSON.stringify([null, [pinnedItem], null]) : JSON.stringify([null, mockListItems, null]);
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: mockRpcResponse
+        body: `)]}'\n\n[["wrb.fr","MaZiqc",${JSON.stringify(inner)}]]`
       });
     });
 
@@ -68,9 +68,11 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     // 3. The single sync button must scan despite an untrusted legacy checkpoint
     await optionsPage.click('#btnSyncAll');
 
-    // 4. Verify list is populated with all 3 scanned conversations
+    // 4. The pinned chat exists only in its own RPC chain.
     const listItems = optionsPage.locator('#list .item');
-    await expect(listItems).toHaveCount(3, { timeout: 10000 });
+    await expect(listItems).toHaveCount(4, { timeout: 10000 });
+    await expect(optionsPage.locator('[data-chat-id="scan_pinned"]')).toContainText('置顶的较早会话');
+    await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
 
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('量子计算与超导量子比特');
     await expect(optionsPage.locator('[data-chat-id="scan_002"]')).toContainText('Rust 高性能异步网络编程');
@@ -81,17 +83,21 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       return await chrome.storage.local.get(['gemini_conversations', 'gemini_scan_coverage']);
     }) as Record<string, any>;
     const convs = (storageData.gemini_conversations || []) as any[];
-    expect(convs.length).toBe(3);
-    expect(storageData.gemini_scan_coverage).toMatchObject({ complete: true, lastStatus: 'complete',
-      activeRunId: null, baseline: { conversationCount: 3, headTimestamp: 1700000200000 } });
+    expect(convs.length).toBe(4);
+    expect(storageData.gemini_scan_coverage).toMatchObject({ version: 2, complete: true, lastStatus: 'complete',
+      activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
     expect(convs.find((c: any) => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
-    await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 3 conversations|正在追踪 3 条对话/);
+    await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 4 conversations|正在追踪 4 条对话/);
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
+    // Renaming an old item does not change its timestamp or move it ahead of the head.
+    mockListItems[0][1] = '改名后的老会话';
     await optionsPage.click('#btnSyncAll');
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
-    await expect(listItems).toHaveCount(3);
+    await expect(listItems).toHaveCount(4);
+    await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('改名后的老会话');
     const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['gemini_scan_coverage']));
     expect(repeated.gemini_scan_coverage).toMatchObject({ complete: true, revision: 2, activeRunId: null });
+    expect(requestedKinds).toEqual(['pinned', 'recent', 'pinned', 'recent']);
   });
 });
 

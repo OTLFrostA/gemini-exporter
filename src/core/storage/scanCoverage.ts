@@ -6,7 +6,7 @@ export interface ScanCoverageBaseline {
     conversationCount: number;
 }
 export interface ScanCoverage {
-    version: 1;
+    version: 2;
     revision: number;
     accountId: string | null;
     complete: boolean;
@@ -26,7 +26,8 @@ function nullableString(value: unknown): value is string | null {
     return value === null || (typeof value === 'string' && value.length > 0);
 }
 export function readScanCoverage(value: unknown): ScanCoverage | null {
-    if (!object(value) || value.version !== 1 || !Number.isSafeInteger(value.revision)
+    // Version 1 only covered the recent chain and cannot certify all cloud chats.
+    if (!object(value) || value.version !== 2 || !Number.isSafeInteger(value.revision)
         || typeof value.revision !== 'number' || value.revision < 1
         || !nullableString(value.accountId) || !nullableString(value.activeRunId)
         || typeof value.complete !== 'boolean') return null;
