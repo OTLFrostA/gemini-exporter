@@ -1,25 +1,5 @@
 [
   {
-    "id": "distributed_systems_crdt_causal_metadata",
-    "domain": "distributed_systems_crdt_convergence",
-    "title": "CRDTs: causal metadata, concurrent merging and convergence proofs",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Formal CRDT definitions, vector clocks, executable simulation, comparison tables and a recovery report.",
-    "turns": [
-      "For a fictional offline collaborative checklist, define partial orders, semilattices, join and state-based CRDT convergence conditions in LaTeX. Distinguish concurrency from ordered operations precisely.",
-      "Derive observed-remove set add tags and removal contexts. Define vector-clock comparison and explain why timestamp-only deletion can lose concurrent additions.",
-      "Write runnable Python using only the standard library to simulate three replicas, duplicate messages, reordering, partitions and reconnection. Use randomized checks for commutativity, associativity and idempotence.",
-      "Use a Markdown table to compare grow-only sets, 2P-sets, OR-sets, LWW registers and multivalue registers across storage costs, conflict semantics, causal metadata and garbage-collection assumptions.",
-      "Write a long technical report with formulas, message-trace tables and garbage-collection pseudocode. Analyze snapshots, upgrades, long-offline replicas and deletion-tombstone compaction for convergence and data retention."
-    ]
-  },
-  {
     "id": "reliability_engineering_weibull_censored_lifetime",
     "domain": "reliability_engineering_censored_survival",
     "title": "Reliability engineering: censored Weibull lifetime inference",
@@ -199,29 +179,6 @@
       "枚举小规模无根二叉树并对合成数据评分，用固定随机种子生成字符矩阵，记录并列最优树，说明树数增长和搜索复杂度；加入状态重命名不变性与叶标签置换检查。",
       "用 Markdown 表格比较完全可观测、随机缺失、集中缺失和高同形性数据的评分、并列最优数量及解释限制；所有数据必须明确为合成，不推断真实物种关系。",
       "写完整方法报告，讨论等权假设、性状相关性、根的位置、并列解与自助法解释，附复杂度分析、可复现评估伪代码和中英文术语表。"
-    ]
-  },
-  {
-    "id": "acoustic_metamaterial_helmholtz_array",
-    "domain": "acoustics_helmholtz_metamaterial_design",
-    "title": "声学超材料：亥姆霍兹共振器阵列与隔声设计",
-    "features": [
-      "imagen",
-      "multimodal",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖共振器阻抗与传递矩阵、Python 合成频响、科学剖面生图、设计比较表格和制造误差分析。",
-    "turns": [
-      "用 LaTeX 推导单个亥姆霍兹共振器的等效声质量、声顺性和共振频率，说明颈部端部修正、黏滞损耗和适用近似；所有尺寸与材料参数均使用明确标注的假想值。",
-      "请生成一张科学概念插画：声学超材料板的剖面，包含不同颈长与腔体体积的亥姆霍兹共振器阵列，以蓝色波纹表示入射声、橙色表示共振腔内能量耗散，配简洁图例和白色背景，不使用真实品牌。",
-      "用 Python 和 numpy 编写可运行代码，通过传递矩阵计算三种共振器布局在 100 到 1500 Hz 的透射损失，输出峰值频率与带宽，用固定随机种子模拟尺寸误差，并检查能量守恒。",
-      "用 Markdown 表格对比单频共振器、梯度腔体阵列、多孔吸声层和组合结构的带宽、厚度、加工公差与低频性能；区分模型推算与实验测量结论。",
-      "写一份完整的隔声验证方案，讨论温度变化、气流、非线性与密封缺陷，给出参数辨识、阻抗管测量、误差预算及可复现的验收指标，使用 LaTeX 说明关键公式。"
     ]
   },
   {
@@ -408,6 +365,49 @@
       "Write complete runnable standard-library Python for round-robin allocation, EF1 checks and exhaustive Pareto-improvement search for small instances. Fix the random seed and assert behavior for zero values, ties and fewer items than participants.",
       "Use a Markdown table to compare EF, EF1, EFX, proportionality and Pareto optimality across definitions, compatibility, verification cost and guarantees of round-robin. Distinguish proofs from observations on the example.",
       "Write a long algorithm audit with complexity derivations, counterexample tables, pseudocode and property-based test designs. Explain how participant order, tie-breaking, random seeds and nonadditive preferences affect conclusions."
+    ]
+  },
+  {
+    "id": "granular_silo_janssen_wall_friction",
+    "domain": "granular_mechanics_silo_pressure",
+    "title": "Granular mechanics: Janssen pressure and wall friction",
+    "description": "Imaginary granular storage model with generated cross section, balance equations and numerical uncertainty.",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "physics",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an actual scientific teaching cross-section illustration of an imaginary cylindrical silo containing dry grains. Label depth, bulk density, wall friction, wall-normal stress and vertical stress in English; distinguish it as an idealized diagram, not engineering certification.",
+      "Derive the Janssen vertical stress equation from a differential force balance using LaTeX. Define the lateral stress ratio, wall friction and saturation length, and check the zero-friction hydrostatic limit.",
+      "Write complete runnable standard-library Python comparing the analytic stress profile with an explicit numerical integration, including step-size convergence and assertions in the zero-friction limit.",
+      "Use a Markdown table to compare hydrostatic and Janssen assumptions, geometry sensitivity, boundary conditions and the limits of the constant lateral stress ratio.",
+      "Write a long hypothetical model audit with equations, tables and pseudocode. Analyze density and friction uncertainty, dimensional checks, loading history and why this simple model cannot certify an actual silo."
+    ]
+  },
+  {
+    "id": "formal_methods_ltl_finite_state_automata",
+    "domain": "formal_methods_temporal_logic",
+    "title": "Temporal logic: transition systems and counterexample traces",
+    "description": "Small fictional protocol model, quantified temporal semantics, executable state exploration and trace validation.",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a small fictional request-acknowledgement protocol as a finite labeled transition system. State safety and liveness properties in LaTeX using explicit temporal-logic semantics, including deadlocks and infinite traces.",
+      "Derive how reachability checks differ from eventual acknowledgement under fairness assumptions. Give concrete good and bad traces, distinguishing assumptions from guarantees.",
+      "Write complete runnable standard-library Python to explore reachable states, detect safety violations and report a counterexample trace. Add strongly connected component analysis for liveness under explicitly documented fairness conditions.",
+      "Use a Markdown table to compare invariants, reachability, response properties and fairness assumptions across finite tests, graph exploration and temporal model checking.",
+      "Write a long verification audit with equations, state tables and pseudocode. Explain state explosion, abstraction, environment assumptions and how to replay and minimize a counterexample without claiming exhaustive verification from random tests."
     ]
   }
 ]
