@@ -69,12 +69,7 @@ export async function refreshInitialBadge(): Promise<void> {
         const slot = getAccountSlot();
         const Storage = getStorage();
         const convs = Storage ? await Storage.getConversations(slot) : [];
-        if (convs && convs.length > 0) {
-            updateBadge(convs.length, 0);
-        } else {
-            const zh = isZh();
-            updateBadge(0, 0, zh ? '就绪 (0 条)' : 'Ready (0)');
-        }
+        updateBadge(convs.length, 0);
     } catch (e) {
         if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine] refreshInitialBadge error', e);
     }
@@ -653,14 +648,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             },
             onProgress: (prog) => {
                 const zh = isZh();
-                const badge = document.getElementById('geminiExportBadgeText');
-                if (badge) {
-                    if (prog.stoppedEarly) {
-                        badge.textContent = zh ? `已同步 ${prog.total} 条 ✓` : `${prog.total} synced ✓`;
-                    } else {
-                        badge.textContent = zh ? `正在同步: 已获取 ${prog.total} 条${prog.hasMore ? '…' : ''}` : `Syncing: ${prog.total} fetched${prog.hasMore ? '…' : ''}`;
-                    }
-                }
                 try {
                     const page = prog.page || 1;
                     const estPercent = prog.hasMore ? Math.min(5 + page * 2, 95) : 98;
@@ -722,7 +709,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             const mergedLen = all.items.length;
             const isLimit = hitGoogleLimit;
             const zh = isZh();
-            const badge = document.getElementById('geminiExportBadgeText');
             const status = scanStatus(all, stoppedByWatermark);
             const complete = status === 'complete' || status === 'up_to_date';
             const incompleteReason = status === 'partial_limit'
@@ -731,7 +717,6 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
             const finishText = complete
                 ? (zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`)
                 : (zh ? `同步未完成，已保存 ${mergedLen} 条，可重试（${incompleteReason}）` : `Sync incomplete: ${mergedLen} saved; retry (${incompleteReason})`);
-            if (badge) badge.textContent = finishText;
             if (isLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 try {
                     const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
@@ -775,11 +760,11 @@ export async function tryBatchExecuteFull(forceOpts?: { forceFull?: boolean; max
         }
     } catch (e: unknown) {
         const errMsg = getErrorMessage(e);
-        const badge = document.getElementById('geminiExportBadgeText');
-        if (badge) badge.textContent = isZh() ? `同步失败，可重试：${errMsg}` : `Sync failed; retry: ${errMsg}`;
         if (contentContext.isDevMode()) console.debug('[Gemini Exporter] batch exec fail', errMsg);
         throw e;
     } finally {
+        // The floating badge reports stored conversations; scan outcomes stay in workbench messages.
+        await refreshInitialBadge();
         document.getElementById('geminiExportBadge')?.classList.remove('syncing');
         resetSessionSlice();
         contentContext.setActiveClient(null);

@@ -100,7 +100,7 @@ test('badgeView - DOM creation and text update', () => {
         assert.strictEqual(badge.id, 'geminiExportBadge');
 
         BadgeView.updateBadge(15, 0, null, false, { isZh: () => true, getAccountSlot: () => 'u0' });
-        assert.strictEqual(mockTxt.textContent, '已同步 15 条');
+        assert.strictEqual(mockTxt.textContent, '正在追踪 15 条对话');
         assert.strictEqual(BadgeView.getLastKnownCount(), 15);
     } finally {
         (globalThis as any).document = origDoc;
