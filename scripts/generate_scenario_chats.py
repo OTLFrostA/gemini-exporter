@@ -106,8 +106,8 @@ def run_scenarios(dataset_path, port=CDP_DEFAULT_PORT, delay=2, only_id=None):
     results = []
 
     try:
-        # 严格校验并锁定模型为 3.8 Flash + Extended thinking
-        print("🔒 校验锁定模型环境 (3.8 Flash + Extended thinking)...")
+        # 严格校验并锁定模型为 3.8 Flash + High
+        print("🔒 校验锁定模型环境 (3.8 Flash + High)...")
         driver.ensure_model(target_model="3.8 Flash", target_thinking=True)
 
         for idx, sc in enumerate(scenarios, 1):

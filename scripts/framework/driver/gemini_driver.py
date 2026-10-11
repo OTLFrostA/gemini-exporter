@@ -136,7 +136,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         """
         严格校验并锁定 Gemini 模型与思考模式。
         如果 target_model="3.8 Flash"，严格检查菜单中是否存在 3.8 Flash 选项。
-        如果 target_thinking=True，严格检查菜单中是否存在 Extended thinking (深度思考) 选项。
+        如果 target_thinking=True，严格检查菜单中是否存在 High (高强度思考) 选项。
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
         cdp = self.cdp
@@ -173,14 +173,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 time.sleep(0.5)
                 continue
 
-            full_desc = f"{status.get('label', '')} {status.get('text', '')}".lower()
-            is_lite = "flash-lite" in full_desc or "lite" in full_desc
-            has_model = ("flash" in full_desc and not is_lite) if "flash" in target_model.lower() else (target_model.lower() in full_desc)
-            has_thinking = ("extended" in full_desc or "thinking" in full_desc) if target_thinking else True
-
-            if has_model and has_thinking and not force_menu_check:
-                return True
-
+            # The picker button only says "Flash"; verify version and thinking
+            # level from the selected menu items on every check.
             opened = cdp.eval(f"""
             (() => {{
                 const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
@@ -231,7 +225,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 target_model_label = target_model
 
             has_thinking_opt = any(
-                ("extended" in it["text"].lower() and "thinking" in it["text"].lower())
+                (it["text"].lower().split(" ", 1)[0] == "high")
                 for it in menu_info
             )
 
@@ -239,7 +233,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             if not has_target_model_opt:
                 missing.append(f"{target_model_label} 模型选项")
             if target_thinking and not has_thinking_opt:
-                missing.append("Extended thinking (深度思考) 选项")
+                missing.append("High (高强度思考) 选项")
 
             if missing:
                 cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
@@ -253,8 +247,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 ("3.8" in it["text"].lower() and "flash" in it["text"].lower() and "lite" not in it["text"].lower() and it["isSelected"])
                 for it in menu_info
             )
-            is_thinking_selected = any(
-                ("extended" in it["text"].lower() and "thinking" in it["text"].lower() and it["isSelected"])
+            is_thinking_selected = not target_thinking or any(
+                (it["text"].lower().split(" ", 1)[0] == "high" and it["isSelected"])
                 for it in menu_info
             )
 
@@ -272,7 +266,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                     const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
                     for (const el of items) {{
                         const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('3.8 flash') || (t.includes('3.8') && t.includes('flash'))) {{
+                        if (t.includes('3.8') && t.includes('flash') && !t.includes('lite')) {{
                             el.click();
                             return;
                         }}
@@ -299,7 +293,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                     const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
                     for (const el of items) {{
                         const t = (el.textContent || '').trim().toLowerCase();
-                        if (t.includes('extended thinking') || (t.includes('extended') && t.includes('thinking'))) {{
+                        if (/^high(?:\\s|$)/.test(t)) {{
                             el.click();
                             return;
                         }}
@@ -311,22 +305,14 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
             cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
             time.sleep(0.4)
-            force_menu_check = False
 
-        final_status = ""
-        check_final_start = time.time()
-        while time.time() - check_final_start < 5.0:
-            final_status = cdp.eval(f"""
-            (() => {{
-                const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
-                return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')).toLowerCase() : '';
-            }})()
-            """) or ""
-            if "flash" in final_status and ("extended" in final_status or "thinking" in final_status):
-                return True
-            time.sleep(0.5)
-
-        raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + Extended thinking！当前状态: '{final_status}'。测试已被主动终止。")
+        final_status = cdp.eval(f"""
+        (() => {{
+            const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
+            return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')) : '';
+        }})()
+        """) or ""
+        raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + High！当前状态: '{final_status}'。测试已被主动终止。")
 
     def execute_turn_pipeline(
         self,
@@ -457,7 +443,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
     def prepare_turn_environment(self, is_image: bool = False) -> bool:
         """
         发帖前环境准备：
-        1. 确保模型为 3.8 Flash + Extended thinking
+        1. 确保模型为 3.8 Flash + High
         2. 挂载网络流式完成事件监听器
         """
         self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
