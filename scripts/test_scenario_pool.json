@@ -1,25 +1,5 @@
 [
   {
-    "id": "warehouse_order_batching_walk_distance",
-    "domain": "logistics_order_batching",
-    "title": "Warehouse picking batches and walking distance",
-    "features": [
-      "math",
-      "latex",
-      "tables",
-      "code",
-      "algorithms",
-      "statistics"
-    ],
-    "turns": [
-      "Derive a model for warehouse order batching that minimizes walking distance under cart capacity and due time constraints, using inline and display LaTeX.",
-      "Work through a small numerical example with six orders, three aisles and explicit quantities. Show feasible batches and compare sequential picking with combined routes.",
-      "Write complete Python code with a fixed random seed comparing greedy batching and a small exact search. Print a numerical table and verify capacity and order coverage.",
-      "Create a Markdown table comparing single order picking, wave picking, zone picking and dynamic batching, including workload, latency and coordination costs.",
-      "Design an evaluation plan for a hypothetical warehouse with uncertain demand. Include confidence intervals, congestion, ergonomic constraints, fairness and fallback operations."
-    ]
-  },
-  {
     "id": "statistics_conformal_time_series_block_calibration",
     "domain": "statistics_conformal_time_series",
     "title": "Statistics: conformal prediction under temporal dependence",
@@ -197,29 +177,6 @@
       "写只用 Python 标准库的完整编码与擦除恢复程序，实现模逆、插值和输入校验。给出固定随机种子的随机消息测试、最大可恢复擦除测试及不足观测时必须失败的测试。",
       "用 Markdown 表格比较求值编码、系统编码、复制和 XOR 奇偶校验，列出冗余、擦除能力、运算成本及假设。用前面的参数计算存储开销，解释擦除与未知错误的区别。",
       "写一份较长的工程教学报告，讨论校验和定位擦除、分片元数据、符号序和截断输入的风险，提出可重复的恢复验证流程。保留完整公式与代码引用，避免宣称该简化实现已经适合生产部署。"
-    ]
-  },
-  {
-    "id": "aerodynamics_oblique_shock_wind_tunnel",
-    "domain": "aerodynamics_oblique_shock_visualization",
-    "title": "Oblique shocks: wind tunnel geometry and pressure ratios",
-    "features": [
-      "imagen",
-      "multimodal",
-      "physics",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "New wind tunnel teaching scenario with real image generation, numeric root finding and uncertainty analysis.",
-    "turns": [
-      "Generate an actual scientific teaching illustration of a supersonic wind tunnel with a wedge producing an oblique shock. Label incoming flow, wedge angle, shock angle and pressure taps in English. Clearly identify it as an idealized schematic. Use the image generation tool rather than only describing an image.",
-      "Derive the ideal-gas theta-beta-M relation, normal Mach number and pressure ratio in LaTeX. Define every variable and unit, distinguishing weak, strong and detached shocks.",
-      "Write complete runnable Python using only the standard library to find weak and strong shock angles by bracket scanning and bisection for explicitly stated hypothetical upstream conditions. Check equation residuals and handle absent roots.",
-      "Use a Markdown table to compare weak shocks, strong shocks, normal shocks and detached shocks across geometry, downstream state, numerical detection and model limits.",
-      "Write a long hypothetical wind-tunnel verification report with formulas, tables and pseudocode. Propagate wedge-angle and upstream-Mach uncertainty into pressure ratios and design root-tolerance convergence checks. Do not treat the schematic as experimental data."
     ]
   },
   {
@@ -406,6 +363,47 @@
       "Provide complete standard library Python for sign safe extended gcd, parametric solutions and bounded solution counting. Include zero coefficients, negative coefficients and unsatisfiable cases with executable tests.",
       "Create a Markdown comparison table for extended gcd, enumeration, integer programming and lattice basis methods with input ranges, complexity and correctness assumptions. Add a bilingual glossary.",
       "Design fixed seed differential tests against exhaustive small integer enumeration. Write a detailed report with LaTeX complexity analysis, failure case tables and full reproducible code, distinguishing proof from empirical verification."
+    ]
+  },
+  {
+    "id": "acoustics_room_reflection_ray_geometry",
+    "domain": "acoustics_geometric_room_reflections",
+    "title": "Room acoustics: reflection rays and reverberation estimates",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Actually generate an original educational acoustic ray diagram of a rectangular concert room showing a source, listener and first order wall reflections. Label the geometry and explain the image source method.",
+      "Derive image source coordinates and path lengths using LaTeX. Give a numerical rectangular room example with sound speed, arrival times and reflection coefficients.",
+      "Provide complete runnable standard library Python computing direct and first order reflected paths, arrival times and attenuation. Include geometric degeneracy tests and fixed seed receiver locations.",
+      "Create a Markdown table comparing ray tracing, image sources, modal analysis and wave solvers by frequency range, assumptions, computational cost and failure modes. Add a bilingual glossary.",
+      "Write a detailed sensitivity report for wall absorption, room size and receiver position. Include equations, data tables and reproducible simulation code. Distinguish discrete ray approximations from measured reverberation."
+    ]
+  },
+  {
+    "id": "distributed_weighted_rendezvous_hashing",
+    "domain": "distributed_systems_weighted_rendezvous_hashing",
+    "title": "Weighted rendezvous hashing and shard movement",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms",
+      "statistics"
+    ],
+    "turns": [
+      "Derive weighted rendezvous hashing from exponential races in LaTeX. State independence and hashing assumptions, and explain shard assignment probabilities.",
+      "Give a worked numerical example of three weighted servers. Show how adding or removing a server changes assignments while preserving unaffected rankings.",
+      "Provide complete runnable standard library Python using deterministic cryptographic hashes and explicit uniform conversion. Test weight ratios, zero weights and membership changes with a fixed seed key corpus.",
+      "Create a Markdown comparison table for modulo hashing, hash rings, jump hashing and weighted rendezvous by balance, movement, weight support and operational cost. Add a bilingual glossary.",
+      "Write a detailed experimental report measuring load deviation and reassignment fractions for heterogeneous weights. Include formulas, reproducible code and result tables. Discuss correlated keys, finite samples and implementation stability."
     ]
   }
 ]

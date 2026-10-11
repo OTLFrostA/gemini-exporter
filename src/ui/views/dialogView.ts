@@ -169,7 +169,7 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
         }
     }
 
-    const count = options.count || 600;
+    const count = options.count ?? 600;
     const hitGoogleLimit = !!options.hitGoogleLimit;
     const onImportTakeout = options.onImportTakeout;
 

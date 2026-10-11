@@ -4,7 +4,6 @@ import { isResourceConversationParseResult } from '../../parsers/parsingResult.j
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { getErrorMessage, isDevMode, normId } from "../../utils/utils.js";
-import { isRateLimited } from "../../engine/export/rateLimiter.js";
 import type { ConversationListItem, ListParseResult, ListParseDiagnostics } from "../../parsers/gemini/rpc/parseList.js";
 import type { DetailParseResult } from "./detailTypes.js";
 
@@ -233,13 +232,15 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
             } catch (err: unknown) {
                 console.warn(`[Gemini Exporter] getAllConversations page ${i + 1} stopped:`, getErrorMessage(err));
                 const aborted = isAborted() || (typeof err === 'object' && err !== null && 'name' in err && err.name === 'AbortError');
-                const isLimit = !aborted && isRateLimited(err);
+                const message = getErrorMessage(err);
+                const isLimit = !aborted && /(?:code\s*=\s*1096|BardErrorInfo:\s*cursor expired)/i.test(message)
+                    && !/(?:\b429\b|too many requests|resource_exhausted)/i.test(message);
                 if (isLimit) {
                     diagLog.hitGoogleLimit = true;
                 }
                 diagLog.stopReason = aborted ? `用户手动终止同步: ${getErrorMessage(err)}` : `网络或服务异常: ${getErrorMessage(err)}`;
                 reachedMax = false;
-                if (all.length > 0) {
+                if (all.length > 0 || isLimit) {
                     interruptedByError = true;
                     completionReason = aborted ? 'aborted' : isLimit ? 'hit_google_limit' : 'error';
                     break;
@@ -297,6 +298,10 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                         };
                     }
                 }
+            }
+            if (res._raw !== undefined && !geminiListObservation(res, { streamId: listKind, requestCursor: token }, null).valid) {
+                diagLog.stopReason = 'Malformed list page; saved data retained, coverage was not advanced';
+                reachedMax = false; stoppedEarly = true; completionReason = 'error'; break;
             }
             if (!res?.conversations || res.conversations.length === 0) {
                 const isGoogleLimit = res?._debug?.bardError || res?._debug?.error === "BARD_ERROR_INFO";

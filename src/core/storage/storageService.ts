@@ -1,3 +1,5 @@
+import { CoverageSession, emptyStream } from '../sync/streamCoverage.js';
+import type { PageObservation } from '../sync/pageObservation.js';
 import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
 import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
@@ -381,10 +383,11 @@ async function clearConversations(slot?: string | null): Promise<void> {
         const toSet: Record<string, unknown> = {
             [convKey]: [],
             [countKey]: 0,
-            [expKey]: {}
+            [expKey]: {},
+            [coverageKey]: { resetAt: Date.now() }
         };
         await chrome.storage.local.set(toSet);
-        await chrome.storage.local.remove([checkpointKey, coverageKey]);
+        await chrome.storage.local.remove([checkpointKey]);
         await updateAccountSlot(slot, { count: 0 });
     });
 }
@@ -772,20 +775,64 @@ async function getScanCoverage(slot?: string | null): Promise<ScanCoverage | nul
     return readScanCoverage(data[coverageKey]);
 }
 
-/** Freeze the previous coverage and invalidate older runs under the existing cross-tab write lock. */
+const pageSessions = new Map<string, CoverageSession>();
+
+async function preparePageCoverage(slot: string, accountId: string | null, providerId = 'gemini', resetUnknown = false): Promise<ScanCoverage> {
+    return withConversationLock(async () => {
+        await assertSchemaWritable();
+        const current = await getScanCoverage(slot);
+        if (!resetUnknown && current && current.accountId === accountId && current.providerId === providerId) return current;
+        const { coverageKey } = getStorageKeys(slot);
+        const raw = (await chrome.storage.local.get<Record<string, unknown>>([coverageKey]))[coverageKey];
+        const resetAt = current?.resetAt ?? (isObjectRecord(raw) && typeof raw.resetAt === 'number' ? raw.resetAt : 0);
+        const next: ScanCoverage = { version: 3, providerId, revision: current?.revision ?? 1, generation: crypto.randomUUID(),
+            resetAt, accountId, initialized: false, historyComplete: false, streams: {}, complete: false,
+            baseline: null, lastStatus: null, activeRunId: null };
+        await chrome.storage.local.set({ [coverageKey]: next });
+        return next;
+    });
+}
+
+/** Page data must have been fully persisted before entering this transaction. */
+async function recordPageCoverage<T>(slot: string, page: PageObservation<T>, context: ScanCoverage,
+    requireOrder: boolean, expectedStreams: readonly string[], runId?: string, canCommit?: () => boolean): Promise<boolean> {
+    return withConversationLock(async () => {
+        await assertSchemaWritable();
+        const current = await getScanCoverage(slot);
+        if (!current || current.generation !== context.generation || current.providerId !== page.providerId
+            || page.accountId === null || current.accountId !== page.accountId || canCommit?.() === false
+            || runId !== undefined && current.activeRunId !== runId
+            || !Number.isFinite(page.requestedAt) || page.requestedAt <= current.resetAt) return false;
+        const sessionKey = JSON.stringify([slot, current.generation, page.providerId, page.accountId, page.streamId, runId ?? 'passive']);
+        let session = pageSessions.get(sessionKey);
+        if (!session) {
+            session = new CoverageSession(); pageSessions.set(sessionKey, session);
+            if (pageSessions.size > 64) pageSessions.delete(pageSessions.keys().next().value!);
+        }
+        const previous = current.streams[page.streamId] ?? emptyStream();
+        const stream = session.observe(previous, page, requireOrder);
+        if (stream === previous) return true;
+        const streams = { ...current.streams, [page.streamId]: stream };
+        const historyComplete = expectedStreams.every(id => streams[id]?.historyComplete === true);
+        const next = { ...current, streams, initialized: Object.values(streams).some(value => value.initialized),
+            historyComplete, complete: historyComplete };
+        if (canCommit?.() === false) return false;
+        await chrome.storage.local.set({ [getStorageKeys(slot).coverageKey]: next });
+        return true;
+    });
+}
+
+/** Freeze the previous coverage and invalidate older active runs under the cross-tab lock. */
 async function beginScanCoverage(slot: string, accountId: string | null): Promise<ScanCoverageRun> {
+    const prepared = await preparePageCoverage(slot, accountId, 'gemini', accountId === null);
     return withConversationLock(async () => {
         await assertSchemaWritable();
         const previous = await getScanCoverage(slot);
-        const sameAccount = accountId !== null && previous?.accountId === accountId;
+        if (!previous || previous.generation !== prepared.generation) throw new Error('Coverage was cleared or account changed');
         const runId = crypto.randomUUID();
-        const coverage: ScanCoverage = { version: 2, revision: (previous?.revision ?? 0) + 1,
-            accountId, complete: sameAccount && !!previous?.complete,
-            baseline: sameAccount ? previous?.baseline ?? null : null,
-            lastStatus: sameAccount ? previous?.lastStatus ?? null : null, activeRunId: runId };
-        const { coverageKey } = getStorageKeys(slot);
-        await chrome.storage.local.set({ [coverageKey]: coverage });
-        return { runId, previous: sameAccount ? previous : null };
+        const coverage = { ...previous, revision: previous.revision + (previous.activeRunId || previous.lastStatus ? 1 : 0), activeRunId: runId };
+        await chrome.storage.local.set({ [getStorageKeys(slot).coverageKey]: coverage });
+        return { runId, previous: accountId !== null && (previous.initialized || previous.lastStatus !== null) ? previous : null };
     });
 }
 
@@ -793,7 +840,6 @@ async function isScanCoverageCurrent(slot: string, runId: string): Promise<boole
     return (await getScanCoverage(slot))?.activeRunId === runId;
 }
 
-/** A stale or cleared run cannot replace newer coverage or mark newer records unlisted. */
 async function finishScanCoverage(slot: string, runId: string, status: ScanStatus,
     baseline: ScanCoverageBaseline | null = null, visibleIds?: readonly string[], canCommit?: () => boolean): Promise<boolean> {
     return withConversationLock(async () => {
@@ -803,7 +849,7 @@ async function finishScanCoverage(slot: string, runId: string, status: ScanStatu
         const { coverageKey, convKey } = getStorageKeys(slot);
         const exhaustive = status === 'complete' && baseline !== null;
         const next: ScanCoverage = { ...current, activeRunId: null, lastStatus: status,
-            complete: exhaustive || current.complete, baseline: exhaustive ? baseline : current.baseline };
+            baseline: exhaustive ? baseline : current.baseline };
         const write: Record<string, unknown> = { [coverageKey]: next };
         if (exhaustive && visibleIds) {
             const visible = new Set(visibleIds.map(normId));
@@ -908,6 +954,8 @@ export {
     getLastSync,
     setLastSync,
     getScanCoverage,
+    preparePageCoverage,
+    recordPageCoverage,
     beginScanCoverage,
     isScanCoverageCurrent,
     finishScanCoverage,
@@ -958,6 +1006,8 @@ export const StorageService = {
     getLastSync,
     setLastSync,
     getScanCoverage,
+    preparePageCoverage,
+    recordPageCoverage,
     beginScanCoverage,
     isScanCoverageCurrent,
     finishScanCoverage,

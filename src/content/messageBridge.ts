@@ -73,7 +73,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     } = _deps;
 
     if (d.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
-        const { text, slot, listRequest, truncated, requestedAt } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
+        const { text, slot, listRequest, truncated, requestedAt, requestAccountId } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
         if (!text) return;
         try {
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
@@ -83,10 +83,13 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 try {
                     const listRes = parseList(text);
                     if (listRes && listRes.conversations) {
-                        const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
+                        const targetSlot = slot === 'default' ? 'u0' : slot || (getAccountSlot ? getAccountSlot() : 'u0');
+                        const currentAccountId = sniffUserProfileFromDom()?.accountId ?? null;
+                        if (getAccountSlot && targetSlot !== getAccountSlot()) return;
+                        if (requestAccountId != null && requestAccountId !== currentAccountId) return;
                         if (_deps.ingestPageObservation) {
                             await _deps.ingestPageObservation(geminiListObservation(listRes, listRequest ?? null,
-                                sniffUserProfileFromDom()?.accountId ?? null, truncated, requestedAt), targetSlot);
+                                requestAccountId ?? null, truncated, requestedAt), targetSlot);
                         } else if (_deps.ingestRpcList) {
                             await _deps.ingestRpcList(listRes.conversations, targetSlot);
                         }

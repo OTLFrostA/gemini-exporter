@@ -73,7 +73,7 @@ test('list: empty page and terminal populated page are naturally exhaustive', as
     }
 });
 
-test('list: dedupe, callback batch, progress and diagnostic token evidence keep their meanings', async () => {
+test('list: invalid populated transport preserves dedupe, persisted batches and diagnostics without announcing completion', async () => {
     const debug: NonNullable<ListParseResult['_debug']> = {
         error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'raw', topParsed: null
     };
@@ -88,8 +88,9 @@ test('list: dedupe, callback batch, progress and diagnostic token evidence keep 
     assert.deepEqual(result.conversations.map(c => c.id), ['one', 'two']);
     assert.deepEqual(batches.map(({ observation, ...batch }: any) => batch), [{ ids: ['one'], page: 1, hasMore: true }, { ids: ['one', 'two'], page: 2, hasMore: false }]);
     assert.deepEqual(progress.map(({ page, added, total, hasMore }) => ({ page, added, total, hasMore })),
-        [{ page: 1, added: 1, total: 1, hasMore: true }, { page: 2, added: 1, total: 2, hasMore: false }]);
-    assert.strictEqual(progress[1].batch, second.conversations);
+        [{ page: 1, added: 1, total: 1, hasMore: true }]);
+    assert.equal(result.completionReason, 'error');
+    assert.equal(result.exhaustive, false);
     assert.deepEqual(result.diagnostics.pageHistory[1].requestedToken, { len: 9, preview: 'tC_cursor...' });
     assert.strictEqual(result.diagnostics.pageHistory[1].debugInfo, debug);
     assert.equal(result.diagnostics.totalPagesFetched, 2);
@@ -129,15 +130,16 @@ test('list: token loops and max-page stops preserve fetched partial data and blo
     }
 });
 
-test('list: Bard error evidence and later HTTP 429 are incomplete Google-limit results', async () => {
+test('list: explicit Bard boundaries prompt Takeout while HTTP 429 remains a transient error', async () => {
     for (const last of [
         { ...page([]), _debug: { error: 'BARD_ERROR_INFO' as const, bardError: '["BardErrorInfo",1096]', textLen: 0, rawPreview: '', topParsed: null } },
         new Error('HTTP 429 Too Many Requests')
     ]) {
         const result = await getAllConversations(listClient([page(['one'], 'tC_more'), last]), { incremental: true });
-        assert.equal(result.completionReason, 'hit_google_limit');
-        assert.equal(result.hitGoogleLimit, true);
-        assert.equal(result.diagnostics.hitGoogleLimit, true);
+        const boundary = !(last instanceof Error);
+        assert.equal(result.completionReason, boundary ? 'hit_google_limit' : 'error');
+        assert.equal(result.hitGoogleLimit, boundary);
+        assert.equal(result.diagnostics.hitGoogleLimit, boundary);
         assert.equal(result.exhaustive, false);
         assert.equal(isPaginationExhaustive(result), false);
         assert.equal(result.total, 1);

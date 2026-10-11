@@ -24,3 +24,10 @@ test('fallback timestamps, equal timestamps, malformed or truncated responses ca
     assert.equal(geminiListObservation(parsed, null, 'account').requestKnown, false);
     assert.equal(readGeminiListRequest(body([2, null, 1])), null);
 });
+
+test('captured empty Gemini list payload [] is valid exhaustion, while unknown nonempty shapes are not', () => {
+    const empty = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']]));
+    assert.equal(geminiListObservation(empty, { streamId: 'pinned', requestCursor: null }, 'account').valid, true);
+    assert.equal(geminiListObservation(empty, { streamId: 'recent', requestCursor: null }, 'account').ordered, true);
+    assert.equal(geminiListObservation({ conversations: [], nextPageToken: null, _raw: [null, { unexpected: true }] }, { streamId: 'recent', requestCursor: null }, 'account').valid, false);
+});

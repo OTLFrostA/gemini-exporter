@@ -106,5 +106,11 @@
   "src/core/engine/formatters/jsonFormatter.ts",
   "src/core/engine/export/batchWorker.ts",
   "src/core/engine/export/parseDrift.ts",
-  "src/core/resources/resourceResult.ts"
+  "src/core/resources/resourceResult.ts",
+  "src/core/sync/pageObservation.ts",
+  "src/core/sync/streamCoverage.ts",
+  "src/core/storage/scanCoverage.ts",
+  "src/core/provider/gemini/listObservation.ts",
+  "tests/stream_coverage.test.ts",
+  "tests/observed_page_ingest.test.ts"
 ]

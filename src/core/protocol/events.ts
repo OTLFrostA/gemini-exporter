@@ -21,6 +21,7 @@ export interface GeminiNetworkBatchexecutePayload {
     listRequest?: GeminiListRequestContext | null;
     truncated?: boolean;
     requestedAt?: number;
+    requestAccountId?: string | null;
     text: string;
     slot: string;
     url: string;
