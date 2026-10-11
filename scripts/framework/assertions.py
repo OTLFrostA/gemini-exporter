@@ -12,6 +12,8 @@ import time
 import hashlib
 import html
 import unicodedata
+import subprocess
+from functools import lru_cache
 from pathlib import Path
 from typing import Tuple, Optional, Dict, Any, List
 
@@ -31,6 +33,28 @@ def normalized_text(text: str) -> str:
     text = re.sub(r'\[([^\]]+)\]\([^)]*\)', r'\1', text)
     text = re.sub(r'\\([\\`*_{}\[\]()#+.!|>-])', r'\1', text)
     return ''.join(c for c in unicodedata.normalize('NFKC', html.unescape(text)) if c.isalnum())
+
+
+@lru_cache(maxsize=64)
+def markdown_answer_evidence(text: str) -> Dict[str, Any]:
+    parser = Path(__file__).with_name('markdown_evidence.mjs')
+    result = subprocess.run(['node', str(parser)], input=json.dumps(text),
+                            capture_output=True, text=True, check=True, timeout=20)
+    return json.loads(result.stdout)
+
+
+@lru_cache(maxsize=64)
+def normalized_answer(text: str, markdown: bool = False) -> str:
+    """Compare the entire authored answer, including code/math punctuation.
+
+    Remove Markdown presentation through its grammar, not fragment heuristics.
+    DOM evidence independently restores LaTeX and excludes collapsed tool/UI text.
+    Image entities/resources are checked separately on physical disk.
+    """
+    if markdown:
+        text = markdown_answer_evidence(text)['text']
+    return ''.join(c for c in unicodedata.normalize('NFKC', text)
+                   if not c.isspace() and c not in '\u200b\ufeff')
 
 
 def markdown_messages(text: str) -> List[Dict[str, str]]:
@@ -65,23 +89,15 @@ def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool
         prompt = normalized_text(turn.get('prompt', ''))
         if not prompt or prompt not in normalized_text(user['content']):
             return False, f"第 {idx + 1} 轮真实用户 Prompt 缺失"
-        response = normalized_text(turn.get('response', ''))
-        actual = normalized_text(model['content'])
-        if len(response) >= 24:
-            # Two substantial fragments, or the whole short answer. Only search
-            # this model turn; a matching user prompt/older response cannot pass.
-            width = min(64, len(response))
-            anchors = list(dict.fromkeys(response[i:i + width] for i in range(0, len(response) - width + 1, width)))
-            found = sum(anchor in actual for anchor in anchors)
-            if found < min(2, len(anchors)):
-                return False, f"第 {idx + 1} 轮真实 AI 回复实质片段缺失 ({found}/{min(2, len(anchors))})"
-        elif response:
-            # A legitimately concise answer has no long fragment. Compare its
-            # entire body instead of rejecting a model asked for one sentence.
-            if not turn.get('has_images') and response != actual:
-                return False, f"第 {idx + 1} 轮简短 AI 回复不完整或不匹配"
-            if turn.get('has_images') and response not in actual:
-                return False, f"第 {idx + 1} 轮图片说明缺失"
+        response = normalized_answer(turn.get('response', ''))
+        actual = normalized_answer(model['content'], markdown=True)
+        if 'code_blocks' in turn:
+            code = lambda blocks: [value.replace('\r\n', '\n').strip('\n') for value in blocks]
+            if code(turn['code_blocks']) != code(markdown_answer_evidence(model['content'])['codeBlocks']):
+                return False, f"第 {idx + 1} 轮代码不匹配（包含缩进和换行）"
+        if response or actual:
+            if response != actual:
+                return False, f"第 {idx + 1} 轮真实 AI 回复全文不匹配 (网页={len(response)}, 导出={len(actual)})"
         elif not turn.get('has_images'):
             return False, f"第 {idx + 1} 轮缺少实际回复文本或图片证据"
         if turn.get('has_images') and not re.search(r'!\[[^\]]*\]\([^)]+\)', model['content']):
@@ -526,7 +542,8 @@ class CDPAssertions:
                             if hashlib.sha256(before.encode()).digest() == hashlib.sha256(text.encode()).digest() or len(new_messages) <= len(old_messages):
                                 return False, f"{cid} 内容未增量更新，仍为旧文件", summary
                             for old, new in zip(old_messages, new_messages):
-                                if old['role'] != new['role'] or normalized_text(old['content']) != normalized_text(new['content']):
+                                if (old['role'] != new['role'] or normalized_answer(old['content'], True) != normalized_answer(new['content'], True)
+                                        or markdown_answer_evidence(old['content'])['codeBlocks'] != markdown_answer_evidence(new['content'])['codeBlocks']):
                                     return False, f"{cid} 追加后原有轮次内容被改变或丢失", summary
                         summary.setdefault('documents', {})[cid] = {'path': mf[3], 'text': text, 'sha256': hashlib.sha256(text.encode()).hexdigest()}
 

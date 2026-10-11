@@ -89,6 +89,7 @@ class TestContext:
         record.setdefault("turn_evidence", []).append({
             "prompt": result.prompt, "response": result.model_response,
             "has_images": result.has_images,
+            **({"code_blocks": result.metadata["code_blocks"]} if "code_blocks" in result.metadata else {}),
         })
 
     @property
