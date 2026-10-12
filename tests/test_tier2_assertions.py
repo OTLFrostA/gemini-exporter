@@ -14,7 +14,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.framework.assertions import (
-    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result,
+    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result, assert_passive_coverage, assert_activity_sync_result,
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
@@ -515,6 +515,83 @@ class ScanAndImportTests(unittest.TestCase):
         self.assertFalse(assert_incremental_scan_result(evidence, {}, coverage)[0])
         diag['stopReason'] = 'Token loop'
         self.assertFalse(assert_incremental_scan_result(evidence, coverage, coverage)[0])
+
+    def activity_fixture(self):
+        coverage = {'version': 3, 'providerId': 'gemini', 'accountId': 'a', 'generation': 'g',
+                    'initialized': True, 'historyComplete': True, 'activeRunId': None, 'lastStatus': 'up_to_date',
+                    'streams': {'recent': {'initialized': True, 'range': {
+                        'head': {'id': CID, 'time': 100}, 'tail': {'id': 'tail', 'time': 10}}}}}
+        initial = {'coverage': coverage, 'rows': [{'id': CID, 'timestamp': 100, 'titleSource': 'rpc'},
+                    {'id': 'tail', 'timestamp': 10, 'titleSource': 'rpc'}], 'exportIds': [CID]}
+        after = copy.deepcopy(initial)
+        after['coverage']['streams']['recent']['range']['head'] = {'id': OTHER, 'time': 120}
+        after['rows'][0]['timestamp'] = 110
+        after['rows'].append({'id': OTHER, 'timestamp': 120, 'titleSource': 'rpc'})
+        scan = scan_evidence()
+        scan['response']['status'] = 'up_to_date'
+        scan['response']['diagnostics'].update(incremental=True, stopReason='Connected to verified activity coverage')
+        full = scan_evidence()
+        full['response']['diagnostics']['totalPagesFetched'] = 8
+        return {'state': initial, 'scan': full}, copy.deepcopy(initial), scan, after
+
+    def test_passive_requires_actual_same_account_rpc_and_persisted_endpoints(self):
+        baseline, _, _, _ = self.activity_fixture()
+        after = copy.deepcopy(baseline['state'])
+        after['coverage']['lastStatus'] = None
+        pages = [{'streamId': 'recent', 'accountId': 'a', 'requestedAt': 1, 'truncated': False}]
+        self.assertTrue(assert_passive_coverage({'coverage': None}, after, pages)[0])
+        for changes in ({'accountId': 'other'}, {'requestedAt': 0}, {'truncated': True}, {'streamId': 'pinned'}):
+            with self.subTest(changes=changes):
+                self.assertFalse(assert_passive_coverage({'coverage': None}, after, [dict(pages[0], **changes)])[0])
+        self.assertFalse(assert_passive_coverage({'coverage': None}, after, [])[0])
+        for key, value in (('activeRunId', 'active'), ('lastStatus', 'up_to_date'), ('accountId', None)):
+            broken = copy.deepcopy(after)
+            broken['coverage'][key] = value
+            self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0], key)
+        broken = copy.deepcopy(after)
+        broken['rows'] = []
+        self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0])
+        broken = copy.deepcopy(after)
+        broken['coverage']['streams']['recent']['range']['tail']['time'] = 101
+        self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0])
+
+    def test_activity_sync_requires_new_and_promoted_activity_with_shorter_scan(self):
+        baseline, before, scan, after = self.activity_fixture()
+        self.assertTrue(assert_activity_sync_result(baseline, before, scan, after, [CID, OTHER])[0])
+        for cid in (CID, OTHER):
+            broken = copy.deepcopy(after)
+            row = next(row for row in broken['rows'] if row['id'] == cid)
+            row['timestamp'] = 100
+            self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [cid])[0])
+        for key in ('accountId', 'generation'):
+            broken = copy.deepcopy(baseline)
+            broken['state']['coverage'][key] = 'wrong'
+            self.assertFalse(assert_activity_sync_result(broken, before, scan, after, [CID])[0])
+        broken = copy.deepcopy(after)
+        broken['coverage']['streams']['recent']['range']['head']['time'] = 100
+        self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [OTHER])[0])
+        broken = copy.deepcopy(scan)
+        broken['response']['diagnostics']['totalPagesFetched'] = 8
+        self.assertFalse(assert_activity_sync_result(baseline, before, broken, after, [OTHER])[0])
+        broken['response']['diagnostics']['stopReason'] = 'Token loop'
+        self.assertFalse(assert_activity_sync_result(baseline, before, broken, after, [OTHER])[0])
+
+    def test_activity_sync_preserves_partial_coverage_without_claiming_complete(self):
+        baseline, before, scan, after = self.activity_fixture()
+        for state in (baseline['state'], before, after):
+            state['coverage']['historyComplete'] = False
+        self.assertTrue(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
+        after['coverage']['historyComplete'] = True
+        self.assertFalse(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
+
+    def test_activity_sync_cannot_prune_archives_or_export_records(self):
+        baseline, before, scan, after = self.activity_fixture()
+        for key in ('rows', 'exportIds'):
+            broken = copy.deepcopy(after)
+            broken[key] = [row for row in broken[key] if not isinstance(row, dict) or row['id'] != 'tail'] if key == 'rows' else []
+            self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [OTHER])[0], key)
+        before['rows'].append({'id': 'offline-only', 'timestamp': 5})
+        self.assertFalse(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
 
     def test_complete_fast_scan_passes_without_sampling_busy_state(self):
         self.assertTrue(assert_scan_result(scan_evidence())[0])

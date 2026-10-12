@@ -1,25 +1,5 @@
 [
   {
-    "id": "coding_theory_ldpc_erasure_decoding_density_evolution",
-    "title": "编码理论：LDPC 擦除译码与密度演化",
-    "domain": "coding_theory_ldpc_binary_erasure_channel",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖 Tanner 图、擦除概率递推、Python 译码器、复杂度表格与有限长度失效分析。",
-    "turns": [
-      "从二元擦除信道出发，用 LaTeX 定义 LDPC 校验矩阵、Tanner 图和消息传递译码规则。用一个小型校验矩阵手工演示擦除符号恢复，区分擦除与随机翻转错误。",
-      "推导规则 LDPC 码在无限长度树状邻域假设下的密度演化递推，明确边视角度分布以及译码阈值的定义。说明有限长度短环为何破坏独立性假设，不将渐近阈值当作有限长度性能保证。",
-      "用 Python 标准库与 NumPy 编写可复现的擦除信道模拟和 peeling 译码器。包含固定随机种子、合法校验矩阵检查、已恢复符号一致性断言，以及不同擦除率下的块失败率估计。输出完整可运行代码。",
-      "使用 Markdown 表格对比 peeling 译码、Gaussian elimination 与 belief propagation 在二元擦除信道下的复杂度、残余停止集处理、内存与结果保证。加入英文和中文术语对照，并给出误差条的 LaTeX 计算公式。",
-      "撰写详细实验报告，对块长度、变量节点度、短环和停止集进行敏感性分析。提供停止集搜索伪代码、可复现参数表及失败轨迹说明，分清理论推导、模拟估计和未经证明的工程猜测。"
-    ]
-  },
-  {
     "id": "wavelet_compression_rate_distortion",
     "domain": "signal_processing_wavelet_rate_distortion",
     "title": "小波压缩：阈值稀疏化与率失真分析",
@@ -195,27 +175,6 @@
       "Write complete runnable standard-library Python implementing the algorithm. Add a slow BFS oracle and fixed-seed randomized checks for duplicate insertions, removals, self-loops and queries before any edges exist.",
       "Use a Markdown table to compare BFS per query, union-find for insertions only, rollback union-find offline and fully dynamic online methods across semantics, time costs and implementation constraints.",
       "Write a long algorithm audit with complexity equations, state tables, pseudocode and minimized counterexample traces. Show how to validate rollback snapshots and distinguish testing evidence from a correctness proof."
-    ]
-  },
-  {
-    "id": "food_science_emulsion_droplet_stability",
-    "domain": "food_science_emulsion_colloid_stability",
-    "title": "Emulsion stability: droplets, creaming and coalescence",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an educational cutaway image of a hypothetical oil-in-water food emulsion showing dispersed droplets, a continuous phase, creaming and coalescence. Use short English labels, then explain each process in Chinese.",
-      "Derive Stokes creaming velocity in inline and display LaTeX, stating the low Reynolds number and dilute suspension assumptions. Work through a numerical example and distinguish creaming from coalescence.",
-      "Write complete runnable Python with NumPy and a fixed seed to sample a droplet size distribution, calculate creaming velocities and compare mean and percentile migration distances. Preserve clear functions and blank lines between them.",
-      "Create a Markdown table comparing homogenization, viscosity adjustment, emulsifier selection and density matching, including mechanisms, assumptions and tradeoffs. Include an English-Chinese terminology column.",
-      "Design a reproducible accelerated stability experiment for a fictional emulsion. Specify measurements, uncertainty, mathematical acceptance criteria and failure interpretation without extrapolating beyond model assumptions."
     ]
   },
   {
@@ -396,6 +355,48 @@
       "Provide complete runnable Python implementing exact-integer reduction with independently verified U*A*V=D tests, unimodular determinant checks and randomly generated small cases.",
       "Compare Smith and Hermite normal forms in a Markdown table covering uniqueness conventions, preserved modules and computational costs. Give an English and Chinese glossary.",
       "Design a reproducible Diophantine-system feasibility audit using invariant factors. Include exact examples, counterexamples, solution parameterizations, rank-deficient cases and a thorough validation table."
+    ]
+  },
+  {
+    "id": "metallurgy_binary_eutectic_lever_rule",
+    "domain": "metallurgy_binary_phase_diagram",
+    "title": "Binary alloys: phase diagrams and lever-rule reasoning",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Synthetic phase-diagram illustration, mass balance, reproducible phase fractions, tables and solidification report.",
+    "turns": [
+      "Generate an original educational illustration of a fictional binary eutectic alloy phase diagram with clearly separated liquid, alpha, beta and two-phase regions. Explain the schematic axes and labels in English and Chinese, and explicitly identify all numerical values as hypothetical.",
+      "Use LaTeX to derive the lever rule from total mass and solute conservation. Work through one hypothetical tie-line example, state the concentration basis and verify both phase fractions sum to one.",
+      "Write complete runnable Python using only the standard library to compute phase fractions for hypothetical tie lines. Validate physical bounds and reject inconsistent endpoints; include deterministic assertions and a bisection routine for a fictional temperature-dependent boundary.",
+      "Create a Markdown table comparing equilibrium cooling, finite-rate solidification and diffusion-limited segregation. Separate model assumptions from measured facts and include bilingual terminology and dimensional checks.",
+      "Write a detailed methods report about numerical conditioning near a phase boundary, uncertainty propagation and why a schematic diagram cannot predict a real alloy. Include algorithm pseudocode, reproducible synthetic parameter tables and LaTeX error estimates."
+    ]
+  },
+  {
+    "id": "compiler_ssa_dominance_frontier_phi",
+    "domain": "compilers_static_single_assignment",
+    "title": "Compiler analysis: dominance frontiers and SSA construction",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Control-flow graphs, fixed-point dominance, Python SSA construction, comparative tables and invariant analysis.",
+    "turns": [
+      "Define dominators and immediate dominators on a synthetic control-flow graph using LaTeX set equations. Include a branch merge and loop, explicitly identify reachable nodes, and distinguish dominance from postdominance.",
+      "Derive an iterative fixed-point dominator algorithm and dominance-frontier construction. Hand-calculate a small graph with a back edge, state the initialization and termination invariant, and explain treatment of unreachable blocks.",
+      "Write complete runnable Python standard-library code for dominators, dominance frontiers and iterated phi placement. Include deterministic graph examples, assertions for entry and unreachable nodes, and a variable defined on two branches.",
+      "Use a Markdown table to compare naive fixed-point dominance, tree-based dominance and pruned versus unpruned SSA. Describe time and space bounds with clear assumptions, and include English and Chinese terminology.",
+      "Write a detailed compiler methods report about renaming stacks, loop phi nodes and preserving semantics during SSA destruction. Include counterexample graphs, pseudocode, reproducible tests and a LaTeX invariant, separating proved properties from implementation heuristics."
     ]
   }
 ]

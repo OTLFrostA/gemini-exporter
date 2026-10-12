@@ -169,6 +169,53 @@ def assert_incremental_scan_result(evidence, before, after):
     return True, f"Incremental closure verified: {diag.get('totalPagesFetched')} pages"
 
 
+def assert_passive_coverage(before, after, observations):
+    coverage = after.get('coverage') or {}
+    recent = coverage.get('streams', {}).get('recent', {})
+    span = recent.get('range') or {}
+    rows = {row.get('id') for row in after.get('rows', [])}
+    if (before.get('coverage') is not None or coverage.get('version') != 3
+            or coverage.get('providerId') != 'gemini' or not coverage.get('accountId')
+            or coverage.get('initialized') is not True or recent.get('initialized') is not True
+            or coverage.get('activeRunId') is not None or coverage.get('lastStatus') is not None
+            or not span or span.get('head', {}).get('time', 0) < span.get('tail', {}).get('time', 0)
+            or span.get('tail', {}).get('time', 0) <= 0
+            or any(span.get(end, {}).get('id') not in rows for end in ('head', 'tail'))
+            or not any(p.get('streamId') == 'recent' and p.get('accountId') == coverage['accountId']
+                       and not p.get('truncated') and p.get('requestedAt', 0) > 0 for p in observations)):
+        return False, 'Natural passive RPC did not establish persisted same-account coverage'
+    return True, 'Natural passive coverage verified without active scan'
+
+
+def assert_activity_sync_result(baseline, before, scan, after, target_ids):
+    ok, message = assert_incremental_scan_result(scan, before.get('coverage') or {}, after.get('coverage') or {})
+    if not ok:
+        return False, message
+    initial = baseline.get('state') or {}
+    original = initial.get('coverage') or {}
+    current = after['coverage']
+    if not target_ids or any(original.get(k) != current.get(k) for k in ('accountId', 'providerId', 'generation')):
+        return False, 'Activity check lacks targets or changed account/coverage generation'
+    old_rows = {r['id']: r for r in initial.get('rows', [])}
+    new_rows = {r['id']: r for r in after.get('rows', [])}
+    frozen_head = original.get('streams', {}).get('recent', {}).get('range', {}).get('head', {}).get('time', 0)
+    for cid in target_ids:
+        old_time = old_rows.get(cid, {}).get('timestamp', frozen_head)
+        row = new_rows.get(cid) or {}
+        if (row.get('titleSource') != 'rpc' or row.get('timestamp', 0) <= old_time
+                or current['streams']['recent']['range']['head']['time'] < row.get('timestamp', 0)):
+            return False, f'Real activity was not saved or coverage did not advance: {cid}'
+    for state in (initial, before):
+        if (not {r['id'] for r in state.get('rows', [])}.issubset(new_rows)
+                or not set(state.get('exportIds', [])).issubset(after.get('exportIds', []))):
+            return False, 'Incremental scan removed archived conversations or export records'
+    pages = scan['response']['diagnostics']['totalPagesFetched']
+    full_pages = baseline.get('scan', {}).get('response', {}).get('diagnostics', {}).get('totalPagesFetched', 0)
+    if full_pages <= pages:
+        return False, f'Incremental scan did not avoid the older tail: incremental={pages}, full={full_pages}'
+    return True, f'Real activity sync verified: {len(target_ids)} targets, {pages} pages vs full {full_pages}; archives retained'
+
+
 class CDPAssertions:
     @staticmethod
     def assert_pdf_math_compiled(text: str) -> Tuple[bool, str]:
