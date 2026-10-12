@@ -26,9 +26,9 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
 
     // Mock Gemini list response (MaZiqc)
     const mockListItems = [
-      ["c_scan_001", "量子计算与超导量子比特", [1700000000, 0], [1700000000, 0], 4],
-      ["c_scan_002", "Rust 高性能异步网络编程", [1700000100, 0], [1700000100, 0], 6],
-      ["c_scan_003", "微服务架构与分布式事务", [1700000200, 0], [1700000200, 0], 8]
+      ["c_scan_003", "微服务架构与分布式事务", [1700000200, 0], [1700000200, 0], 8, [1700000200, 0]],
+      ["c_scan_002", "Rust 高性能异步网络编程", [1700000100, 0], [1700000100, 0], 6, [1700000100, 0]],
+      ["c_scan_001", "量子计算与超导量子比特", [1700000000, 0], [1700000000, 0], 4, [1700000000, 0]]
     ];
     const requestedKinds: string[] = [];
     const pinnedItem = ['c_scan_pinned', '置顶的较早会话', null, null, null, [1600000000, 0]];
@@ -90,7 +90,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 4 conversations|正在追踪 4 条对话/);
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     // Renaming an old item does not change its timestamp or move it ahead of the head.
-    mockListItems[0][1] = '改名后的老会话';
+    mockListItems[2][1] = '改名后的老会话';
     await optionsPage.click('#btnSyncAll');
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     await expect(listItems).toHaveCount(4);

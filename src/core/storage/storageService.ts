@@ -1,4 +1,4 @@
-import { CoverageSession, emptyStream } from '../sync/streamCoverage.js';
+import { CoverageSession, emptyStream, type StreamCoverage } from '../sync/streamCoverage.js';
 import type { PageObservation } from '../sync/pageObservation.js';
 import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
 import type { ScanStatus } from '../../types/ui.js';
@@ -776,6 +776,8 @@ async function getScanCoverage(slot?: string | null): Promise<ScanCoverage | nul
 }
 
 const pageSessions = new Map<string, CoverageSession>();
+const pageSessionKey = (slot: string, coverage: ScanCoverage, streamId: string) =>
+    JSON.stringify([slot, coverage.generation, coverage.providerId, coverage.accountId, streamId]);
 
 async function preparePageCoverage(slot: string, accountId: string | null, providerId = 'gemini', resetUnknown = false): Promise<ScanCoverage> {
     return withConversationLock(async () => {
@@ -803,7 +805,7 @@ async function recordPageCoverage<T>(slot: string, page: PageObservation<T>, con
             || page.accountId === null || current.accountId !== page.accountId || canCommit?.() === false
             || runId !== undefined && current.activeRunId !== runId
             || !Number.isFinite(page.requestedAt) || page.requestedAt <= current.resetAt) return false;
-        const sessionKey = JSON.stringify([slot, current.generation, page.providerId, page.accountId, page.streamId, runId ?? 'passive']);
+        const sessionKey = pageSessionKey(slot, current, page.streamId);
         let session = pageSessions.get(sessionKey);
         if (!session) {
             session = new CoverageSession(); pageSessions.set(sessionKey, session);
@@ -819,6 +821,18 @@ async function recordPageCoverage<T>(slot: string, page: PageObservation<T>, con
         if (canCommit?.() === false) return false;
         await chrome.storage.local.set({ [getStorageKeys(slot).coverageKey]: next });
         return true;
+    });
+}
+
+/** Query the same committed page chain; passive observations alone never complete a scan. */
+async function hasScanCoverageOverlap<T>(slot: string, runId: string, head: PageObservation<T>,
+    previous: StreamCoverage, canCommit?: () => boolean): Promise<boolean> {
+    return withConversationLock(async () => {
+        const current = await getScanCoverage(slot);
+        if (!current || current.activeRunId !== runId || current.accountId === null
+            || current.accountId !== head.accountId || current.providerId !== head.providerId
+            || head.requestedAt <= current.resetAt || canCommit?.() === false) return false;
+        return pageSessions.get(pageSessionKey(slot, current, head.streamId))?.connects(previous, head) ?? false;
     });
 }
 
@@ -950,6 +964,7 @@ export {
     getScanCoverage,
     preparePageCoverage,
     recordPageCoverage,
+    hasScanCoverageOverlap,
     beginScanCoverage,
     isScanCoverageCurrent,
     finishScanCoverage,
@@ -1002,6 +1017,7 @@ export const StorageService = {
     getScanCoverage,
     preparePageCoverage,
     recordPageCoverage,
+    hasScanCoverageOverlap,
     beginScanCoverage,
     isScanCoverageCurrent,
     finishScanCoverage,

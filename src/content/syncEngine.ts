@@ -1,4 +1,3 @@
-import { CoverageSession, emptyStream } from '../core/sync/streamCoverage.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
 import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
@@ -480,7 +479,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         let expectedPage = 1;
         const previousRecent = coverageRun.previous?.streams.recent;
         const incremental = previousRecent?.initialized === true;
-        const recentSession = new CoverageSession();
+        let recentHead: PageObservation<GeminiProviderConversationItem> | null = null;
         let verifiedIncrementalStop = false;
         // Pinned is unordered and scanned independently. Recent closes against
         // frozen activity coverage; renames without activity may remain stale.
@@ -501,9 +500,11 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) {
                     throw new Error('List page could not be fully persisted; coverage was not advanced');
                 }
-                if (page?.streamId === 'recent') {
-                    recentSession.observe(emptyStream(), page, true);
-                    if (previousRecent && recentSession.connects(previousRecent, null, page.requestCursor)) {
+                if (page?.streamId === 'recent' && page.requestKnown && page.valid && page.ordered) {
+                    if (page.requestCursor === null) recentHead = page;
+                    if (previousRecent && recentHead && await Storage.hasScanCoverageOverlap(slot, runId, recentHead, previousRecent,
+                        () => !contentContext.isAborted() && getAccountSlot() === slot
+                            && (accountId === null || sniffUserProfileFromDom()?.accountId === accountId))) {
                         verifiedIncrementalStop = true;
                         return { shouldStop: true, reason: 'Connected to verified activity coverage' };
                     }
