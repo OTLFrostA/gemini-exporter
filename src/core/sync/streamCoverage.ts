@@ -15,7 +15,7 @@ const samePage = (a: PageObservation<unknown>, b: PageObservation<unknown>) =>
 export class CoverageSession {
     private pages = new Map<string | null, PageObservation<unknown>>();
     private conflicts = new Set<string | null>();
-    observe<T>(previous: StreamCoverage, page: PageObservation<T>, requireOrder: boolean): StreamCoverage {
+    observe<T>(previous: StreamCoverage, page: PageObservation<T>, requireOrder: boolean, replaceHead = true): StreamCoverage {
         if (!page.requestKnown || !page.valid) return previous;
         if (page.nextCursor !== null && page.nextCursor === page.requestCursor) {
             this.conflicts.add(page.requestCursor); this.pages.delete(page.requestCursor);
@@ -23,6 +23,9 @@ export class CoverageSession {
         }
         const prior = this.pages.get(page.requestCursor);
         if (prior && !samePage(prior, page)) {
+            // A late passive head may use a different page size and cursor.
+            // Keep the active scan's anchor while its token pages are arriving.
+            if (page.requestCursor === null && !replaceHead) return previous;
             // The head has no stable token and is replaced by the current snapshot.
             // Retain token pages so passive evidence can precede a new active head.
             // Conflicting non-head tokens remain quarantined for this generation.
@@ -75,7 +78,7 @@ export class CoverageSession {
             if (visited.has(current.requestCursor) || !current.requestKnown || !current.valid
                 || requireOrder && !current.ordered) break;
             visited.add(current.requestCursor);
-            if (requireOrder && keys.length && current.keys.length && keys[keys.length - 1].time <= current.keys[0].time) break;
+            if (requireOrder && keys.length && current.keys.length && keys[keys.length - 1].time < current.keys[0].time) break;
             // Reject the entire conflicting page, retaining only the verified prefix.
             if (new Set(current.keys.map(key => key.id)).size !== current.keys.length || current.keys.some(key => ids.has(key.id))) break;
             for (const key of current.keys) { ids.add(key.id); keys.push(key); }

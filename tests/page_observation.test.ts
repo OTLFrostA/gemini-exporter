@@ -14,11 +14,11 @@ test('active and passive normalization retain identical independent cursor and o
         assert.equal(geminiListObservation(result, request, 'account').ordered, streamId === 'recent');
     }
 });
-test('fallback timestamps, equal timestamps, malformed or truncated responses cannot certify ordering', () => {
+test('fallback timestamps, rising times, malformed or truncated responses cannot certify ordering', () => {
     const request = { streamId: 'recent' as const, requestCursor: null };
     const fallback = row('abcdef123', 1700000020); fallback[2] = fallback[5]; fallback[5] = null;
     assert.equal(geminiListObservation(parseList(wire([fallback])), request, 'account').ordered, false);
-    const parsed = parseList(wire([row('abcdef123', 1700000020), row('abcdef456', 1700000020)]));
+    const parsed = parseList(wire([row('abcdef123', 1700000010), row('abcdef456', 1700000020)]));
     assert.equal(geminiListObservation(parsed, request, 'account').ordered, false);
     assert.equal(geminiListObservation(parsed, request, 'account', true).valid, false);
     assert.equal(geminiListObservation(parsed, null, 'account').requestKnown, false);
@@ -30,4 +30,19 @@ test('captured empty Gemini list payload [] is valid exhaustion, while unknown n
     assert.equal(geminiListObservation(empty, { streamId: 'pinned', requestCursor: null }, 'account').valid, true);
     assert.equal(geminiListObservation(empty, { streamId: 'recent', requestCursor: null }, 'account').ordered, true);
     assert.equal(geminiListObservation({ conversations: [], nextPageToken: null, _raw: [null, { unexpected: true }] }, { streamId: 'recent', requestCursor: null }, 'account').valid, false);
+});
+
+test('different conversations with equal official timestamps retain ordering evidence', () => {
+    const request = { streamId: 'recent' as const, requestCursor: null };
+    const parsed = parseList(wire([row('abcdef123', 1700000020), row('abcdef456', 1700000020), row('abcdef789', 1700000010)]));
+    const observation = geminiListObservation(parsed, request, 'account');
+    assert.equal(observation.valid, true);
+    assert.equal(observation.ordered, true);
+    assert.equal(observation.keys[0].time, observation.keys[1].time);
+    const sameMillisecond = row('abcdef456', 1700000020);
+    sameMillisecond[5] = [1700000020, 100];
+    assert.equal(geminiListObservation(parseList(wire([sameMillisecond, row('abcdef123', 1700000020)])), request, 'account').ordered, true);
+    const duplicate = geminiListObservation(parseList(wire([row('abcdef123', 1700000020), row('abcdef123', 1700000020)])), request, 'account');
+    assert.equal(duplicate.valid, false);
+    assert.equal(duplicate.ordered, false);
 });

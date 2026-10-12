@@ -44,5 +44,5 @@ export function geminiListObservation(result: ListParseResult, request: GeminiLi
     return { providerId: 'gemini', accountId, streamId: request?.streamId ?? 'unknown', items: result.conversations,
         requestCursor: request?.requestCursor ?? null, nextCursor: result.nextPageToken,
         requestedAt, requestKnown: request !== null, valid,
-        ordered: valid && request?.streamId === 'recent' && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time > key.time), keys };
+        ordered: valid && request?.streamId === 'recent' && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time >= key.time), keys };
 }

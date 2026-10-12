@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -14,7 +15,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.framework.assertions import (
-    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result, assert_passive_coverage, assert_activity_sync_result,
+    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result, assert_full_scan_coverage, assert_passive_coverage, assert_activity_sync_result,
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
@@ -371,6 +372,19 @@ value = 2 ** 3
         self.assertFalse(assert_turn_content(document(evidence).replace('[[1]]', ''), evidence)[0])
         self.assertFalse(assert_turn_content(document(evidence).replace('**', '*'), evidence)[0])
 
+    def test_visible_literal_bold_delimiters_require_physical_source(self):
+        response = '本表所有数值均为**【虚构示例】**（用于解释）。结论准确。'
+        evidence = [{'prompt': 'Explain the table.', 'response': response}]
+        exported = document(evidence).replace('**', r'\*\*')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace(r'\*\*', ''), exported.replace(r'\*\*', r'\*'),
+                        exported.replace(r'\*\*【', '【'), exported.replace(r'】\*\*', '】'),
+                        exported.replace('（', ''), exported.replace('结论准确。', ''),
+                        exported.replace('虚构示例', '真实数据')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
+        rendered = [{'prompt': 'Explain the table.', 'response': response.replace('**', '')}]
+        self.assertTrue(assert_turn_content(exported.replace(r'\*\*', '**'), rendered)[0])
+
     def test_bold_spanning_math_and_code_keeps_literal_operators(self):
         response = r'真实分布 P 与模型 Q。示例 2**3。集合 |\Sigma|。'
         evidence = [{'prompt': 'Explain.', 'response': response}]
@@ -458,6 +472,20 @@ value = 2 ** 3
         self.assertFalse(assert_turn_content(exported, no_execution_evidence)[0])
         self.assertFalse(assert_turn_content(document(evidence), evidence)[0])
 
+    def test_silent_execution_requires_exact_dom_source_and_cannot_hide_lost_stdout(self):
+        code = '# This program intentionally emits no output.'
+        evidence = [{'prompt': 'Execute.', 'response': 'Done.', 'code_blocks': [],
+                     'execution_blocks': [{'code': code, 'stdout': ''}]}]
+        exported = document(evidence).replace('Done.', f'```python?code_reference&code_event_index=1\n{code}\n```\n\nDone.')
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace(code, '# different'), document(evidence), exported.replace('Done.', '')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
+        has_output = copy.deepcopy(evidence)
+        has_output[0]['execution_blocks'][0]['stdout'] = 'actual output'
+        self.assertFalse(assert_turn_content(exported, has_output)[0])
+        with self.assertRaises(subprocess.CalledProcessError):
+            assert_turn_content(exported.replace('code_reference', 'code_stdout'), evidence)
+
     def test_execution_marker_inside_regular_code_is_authored_content(self):
         code = 'python?code_reference&code_event_index=1\nWas this visual helpful?'
         evidence = [{'prompt': 'Show the literal marker.', 'response': code, 'code_blocks': [code]}]
@@ -533,6 +561,28 @@ class ScanAndImportTests(unittest.TestCase):
         full = scan_evidence()
         full['response']['diagnostics']['totalPagesFetched'] = 8
         return {'state': initial, 'scan': full}, copy.deepcopy(initial), scan, after
+
+    def test_natural_traversal_requires_durable_complete_coverage(self):
+        baseline, _, _, _ = self.activity_fixture()
+        coverage = copy.deepcopy(baseline['state']['coverage'])
+        coverage.update(complete=True, lastStatus='complete')
+        coverage['streams']['recent']['historyComplete'] = True
+        coverage['streams']['pinned'] = {'initialized': True, 'historyComplete': True, 'range': None}
+        self.assertTrue(assert_full_scan_coverage(baseline['scan'], coverage)[0])
+        for field in ('historyComplete', 'complete', 'initialized'):
+            broken = copy.deepcopy(coverage)
+            broken[field] = False
+            self.assertFalse(assert_full_scan_coverage(baseline['scan'], broken)[0], field)
+        for stream in ('pinned', 'recent'):
+            broken = copy.deepcopy(coverage)
+            broken['streams'][stream]['historyComplete'] = False
+            self.assertFalse(assert_full_scan_coverage(baseline['scan'], broken)[0], stream)
+        broken = copy.deepcopy(coverage)
+        broken['activeRunId'] = 'unfinished'
+        self.assertFalse(assert_full_scan_coverage(baseline['scan'], broken)[0])
+        partial = copy.deepcopy(baseline['scan'])
+        partial['response']['diagnostics']['stopReason'] = 'rate limited'
+        self.assertFalse(assert_full_scan_coverage(partial, coverage)[0])
 
     def test_passive_requires_actual_same_account_rpc_and_persisted_endpoints(self):
         baseline, _, _, _ = self.activity_fixture()

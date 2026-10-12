@@ -36,15 +36,15 @@ def normalized_text(text: str) -> str:
 
 
 @lru_cache(maxsize=64)
-def markdown_answer_evidence(text: str) -> Dict[str, Any]:
+def markdown_answer_evidence(text: str, visible_reference: str = '') -> Dict[str, Any]:
     parser = Path(__file__).with_name('markdown_evidence.mjs')
-    result = subprocess.run(['node', str(parser)], input=json.dumps(text),
+    result = subprocess.run(['node', str(parser)], input=json.dumps({'text': text, 'visibleReference': visible_reference}),
                             capture_output=True, text=True, check=True, timeout=20)
     return json.loads(result.stdout)
 
 
 @lru_cache(maxsize=64)
-def normalized_answer(text: str, markdown: bool = False) -> str:
+def normalized_answer(text: str, markdown: bool = False, visible_reference: str = '') -> str:
     """Compare the entire authored answer, including code/math punctuation.
 
     Remove Markdown presentation through its grammar, not fragment heuristics.
@@ -52,7 +52,7 @@ def normalized_answer(text: str, markdown: bool = False) -> str:
     Image entities/resources are checked separately on physical disk.
     """
     if markdown:
-        text = markdown_answer_evidence(text)['text']
+        text = markdown_answer_evidence(text, visible_reference)['text']
     return ''.join(c for c in unicodedata.normalize('NFKC', text)
                    if not c.isspace() and c not in '\u200b\ufeff')
 
@@ -90,7 +90,7 @@ def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool
         if not prompt or prompt not in normalized_text(user['content']):
             return False, f"第 {idx + 1} 轮真实用户 Prompt 缺失"
         response = normalized_answer(turn.get('response', ''))
-        actual = normalized_answer(model['content'], markdown=True)
+        actual = normalized_answer(model['content'], markdown=True, visible_reference=turn.get('response', ''))
         execution = lambda events: [{key: event[key].replace('\r\n', '\n').strip('\n') for key in ('code', 'stdout')} for event in events]
         if execution(turn.get('execution_blocks', [])) != execution(markdown_answer_evidence(model['content'])['executionBlocks']):
             return False, f"第 {idx + 1} 轮代码执行记录与实际网页证据不匹配"
@@ -137,6 +137,22 @@ def assert_scan_result(evidence: Dict[str, Any]) -> Tuple[bool, str]:
             or diag.get('hitGoogleLimit') or response.get('hitGoogleLimit')):
         return False, f"全量扫描缺少完整耗尽证据（可能部分完成/限流）: {diag}"
     return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
+
+
+def assert_full_scan_coverage(evidence, coverage):
+    ok, message = assert_scan_result(evidence)
+    if not ok:
+        return False, message
+    if (coverage.get('version') != 3 or coverage.get('providerId') != 'gemini'
+            or not coverage.get('accountId') or not coverage.get('generation')
+            or coverage.get('initialized') is not True or coverage.get('historyComplete') is not True
+            or coverage.get('complete') is not True or coverage.get('activeRunId') is not None
+            or coverage.get('lastStatus') != 'complete'
+            or any(coverage.get('streams', {}).get(stream, {}).get('initialized') is not True
+                   or coverage.get('streams', {}).get(stream, {}).get('historyComplete') is not True
+                   for stream in ('pinned', 'recent'))):
+        return False, 'Natural traversal ended without durable complete coverage: ' + str(coverage)
+    return True, message + '; pinned/recent Coverage fully certified'
 
 
 def assert_incremental_scan_result(evidence, before, after):

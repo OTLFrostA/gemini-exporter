@@ -1,25 +1,5 @@
 [
   {
-    "id": "wavelet_compression_rate_distortion",
-    "domain": "signal_processing_wavelet_rate_distortion",
-    "title": "小波压缩：阈值稀疏化与率失真分析",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "正交小波能量关系、可复现压缩代码、失真指标表格和边界效应长报告。",
-    "turns": [
-      "从正交 Haar 小波变换出发，用 LaTeX 推导能量守恒与系数截断误差，明确有限信号长度、边界处理和阈值规则，区分硬阈值与软阈值。",
-      "使用 Python/NumPy 实现多层 Haar 变换与逆变换，对固定种子的合成信号进行系数截断与均匀量化，检查无损变换重建误差并给出完整可运行代码。",
-      "推导每层系数量化和索引编码的位数预算，用伪代码描述在总位数约束下分配量化精度的贪心方案，说明近似假设和无法保证全局最优的情形。",
-      "用 Markdown 表格比较不同阈值下的均方误差、峰值误差、保留系数比例和实际编码长度；所有数字明确标注为虚构示例或该代码实测结果。",
-      "撰写技术报告，分析尖峰、阶跃、噪声和非平稳振荡对率失真曲线的影响，讨论边界伪影、指标误导和可复现实验设计，附中英文术语表及自动验证伪代码。"
-    ]
-  },
-  {
     "id": "phylogenetics_fitch_parsimony_ambiguity",
     "domain": "computational_biology_phylogenetic_parsimony",
     "title": "系统发育算法：Fitch 简约法与缺失字符处理",
@@ -194,27 +174,6 @@
       "Write complete runnable Python using only the standard library for successive shortest augmenting paths with potentials. Include a deterministic example, explicit assertions for capacity and conservation, and blank lines between functions.",
       "Create a Markdown comparison table for cycle canceling, successive shortest paths and network simplex, including assumptions, complexity and negative-cost handling. Include an English-Chinese glossary.",
       "Explain how to verify optimality using reduced costs and complementary slackness. Provide an infeasible example, a reproducible test plan and precise limits of the algorithm when lower bounds or negative cycles are present."
-    ]
-  },
-  {
-    "id": "origami_rigid_fold_vertex_compatibility",
-    "domain": "origami_rigid_fold_geometry",
-    "title": "Origami geometry: rigid fold vertex compatibility",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Actually generate an original educational origami image with a four crease vertex, mountain and valley fold marks, and sector angles. Do not substitute a web image. Explain flat folding versus rigid folding.",
-      "Derive the Kawasaki sector angle condition and Maekawa mountain versus valley count condition in LaTeX. Give numerical examples and explain why necessary conditions do not guarantee every rigid motion.",
-      "Provide complete runnable Python using the standard library to validate four sector angles and generate examples with a fixed random seed. Include tolerance, degeneracy checks and numerical output.",
-      "Create a Markdown comparison table of rigid origami, elastic sheet folding and developable surface approximations: degrees of freedom, assumptions, computation and failure conditions. Add a bilingual glossary.",
-      "Write a detailed validation report with angle perturbations, permutations, zero angles and precision experiments. Include formulas, test data tables and reproducible code. Distinguish geometric conditions from mechanical realizability."
     ]
   },
   {
@@ -397,6 +356,48 @@
       "Write complete runnable Python standard-library code for dominators, dominance frontiers and iterated phi placement. Include deterministic graph examples, assertions for entry and unreachable nodes, and a variable defined on two branches.",
       "Use a Markdown table to compare naive fixed-point dominance, tree-based dominance and pruned versus unpruned SSA. Describe time and space bounds with clear assumptions, and include English and Chinese terminology.",
       "Write a detailed compiler methods report about renaming stacks, loop phi nodes and preserving semantics during SSA destruction. Include counterexample graphs, pseudocode, reproducible tests and a LaTeX invariant, separating proved properties from implementation heuristics."
+    ]
+  },
+  {
+    "id": "optics_brewster_jones_polarization",
+    "domain": "optics_polarization_interface_geometry",
+    "title": "Polarization optics: Brewster angle and Jones matrices",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Original polarization illustration, dielectric-interface equations, runnable matrix calculations, comparison tables and an uncertainty report.",
+    "turns": [
+      "Generate an original educational image showing a hypothetical laser beam incident on a dielectric interface near the Brewster angle, with incident, reflected and transmitted rays and clearly distinguished s and p polarization directions. Explain the schematic in English and Chinese; label all numerical parameters as synthetic.",
+      "Use LaTeX to derive the Brewster-angle condition and define the Jones vectors and coordinate conventions for a lossless isotropic interface. Work one hypothetical refractive-index example and check the angular and unit conventions.",
+      "Write complete runnable Python with NumPy to compute normalized Jones-vector transformations and a synthetic intensity sweep. Include deterministic assertions for limiting angles, polarization normalization and valid refractive indices, and explicitly distinguish amplitude from power coefficients.",
+      "Create a Markdown table comparing Jones and Mueller descriptions, assumptions about coherence and polarization, input dimensions and failure cases. Add bilingual terminology and clearly label any illustrative numerical results.",
+      "Write a detailed laboratory-methods report using only hypothetical data. Analyze angular calibration, near-zero reflected p intensity and numerical sensitivity; provide pseudocode, LaTeX uncertainty estimates and a reproducible parameter table, and explain which effects the idealized model excludes."
+    ]
+  },
+  {
+    "id": "control_discrete_observability_gramian",
+    "domain": "control_theory_observability_reconstruction",
+    "title": "Discrete control systems: observability and state reconstruction",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Linear-system observability, Gramian derivations, executable reconstruction code, comparative tables and numerical-conditioning analysis.",
+    "turns": [
+      "Define finite-horizon observability for a synthetic discrete-time linear system using LaTeX. Construct a small two-state example and derive its stacked output equations, distinguishing observability from controllability and stability.",
+      "Derive the finite-horizon observability Gramian and prove the rank criterion for exact state reconstruction in the noiseless model. Hand-calculate an observable and an unobservable example, stating the horizon and assumptions explicitly.",
+      "Write complete runnable Python with NumPy for simulation and least-squares initial-state reconstruction. Use fixed random seeds for synthetic observation noise, check dimensions and matrix rank, and include deterministic exact-recovery and deliberately unobservable test cases.",
+      "Use a Markdown table to compare direct inversion, QR and singular-value decomposition for reconstruction. Include time and memory bounds with assumptions, threshold selection, English/Chinese terminology and an example sensitivity comparison.",
+      "Write a detailed technical report about near-unobservability, sensor placement and horizon length. Include reproducible synthetic parameter tables, algorithm pseudocode, a LaTeX error bound and explicit distinctions between structural observability, numerical conditioning and unsupported performance claims."
     ]
   }
 ]

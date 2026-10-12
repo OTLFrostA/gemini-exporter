@@ -38,6 +38,24 @@ value = '&lt;br&gt;'</code></pre></code-block>
     expect(await page.locator('#answer').innerHTML()).toBe(before);
 });
 
+test('live evidence captures silent execution source separately without leaking hidden thinking', async ({ page }) => {
+    await page.setContent(`<model-response id="answer"><model-response-content>
+        <code-block><div class="code-block" style="display:none"><pre><code class="code-container"># silent execution</code></pre></div></code-block>
+        <thought-container style="display:none"><code-block><div class="code-block" style="display:none"><pre><code class="code-container"># hidden thought</code></pre></div></code-block></thought-container>
+        <code-block><div class="code-block"><pre><code class="code-container">print('visible program')</code></pre></div></code-block>
+        <p>Complete final answer.</p>
+    </model-response-content></model-response>`);
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('#answer')) as { text: string; codeBlocks: string[]; executionBlocks: {code: string; stdout: string}[] };
+    }, source);
+    expect(evidence.executionBlocks).toEqual([{code: '# silent execution', stdout: ''}]);
+    expect(evidence.codeBlocks).toEqual(["print('visible program')"]);
+    expect(evidence.text).toContain('Complete final answer.');
+    expect(evidence.text).not.toContain('# silent execution');
+    expect(evidence.text).not.toContain('# hidden thought');
+});
+
 test('live evidence excludes hidden and collapsed thinking content from authored text', async ({ page }) => {
     await page.setContent(`<model-response id="answer"><model-response-content><div class="markdown-main-panel">
         <thought-container style="display:none">
