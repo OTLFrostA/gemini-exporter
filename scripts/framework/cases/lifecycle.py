@@ -6,6 +6,7 @@ from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions
+from scripts.framework.cases.sync import read_sync_state, verify_activity_sync
 
 try:
     from scripts.cdp_client import CDPConnection
@@ -40,6 +41,10 @@ class ContinuedChatPromotionCase(FeatureTestCase):
             try:
                 if not CDPActions.setup_live_save(cdp_opt_prep, enabled=False):
                     return False, "无法关闭实时落盘以验证已更新状态", None
+                state = read_sync_state(cdp_opt_prep)
+                ctx.shared_data['pre_promotion_sync_baseline'] = {
+                    'state': state, 'scan': ctx.shared_data.get('deep_scan_evidence')
+                    or ctx.shared_data.get('pre_chat_sync_baseline', {}).get('scan')}
             finally:
                 cdp_opt_prep.close()
         except Exception as e:
@@ -93,6 +98,8 @@ class UpdatedBadgeDisplayCase(FeatureTestCase):
             badge_ok, badge_msg, _ = CDPAssertions.assert_badge_status(cdp_opt, s1_id, "updated")
 
             if order_ok and badge_ok:
+                baseline = ctx.shared_data.get('pre_promotion_sync_baseline') or {}
+                verify_activity_sync(ctx, baseline, [s1_id], 'promoted_chat_incremental_sync')
                 return True, f"真实置顶与徽章双重断言通过: {order_msg}; {badge_msg}", None
             return False, f"真实断言未通过: Order={order_msg} | Badge={badge_msg}", None
         finally:

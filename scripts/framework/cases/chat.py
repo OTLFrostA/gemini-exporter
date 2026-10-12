@@ -11,6 +11,7 @@ from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.selectors import GeminiSelectors
 from scripts.framework.assertions import assert_turn_content
+from scripts.framework.cases.sync import prepare_activity_baseline, verify_activity_sync
 
 try:
     from scripts.cdp_client import CDPConnection
@@ -55,6 +56,7 @@ class ChatGenerationCase(FeatureTestCase):
         cdp_gemini = ctx.connect_gemini()
         try:
             driver = ctx.get_gemini_driver(cdp_gemini)
+            baseline = prepare_activity_baseline(ctx, cdp_gemini)
             # 模型前置门禁断言
             try:
                 driver.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=True)
@@ -183,6 +185,7 @@ description: "Dynamically created test attachment to verify multi-format user up
                         return False, f"实时落盘开启失败: {live_setup_err}", None
 
             ctx.shared_data["imagen_found"] = imagen_found
+            verify_activity_sync(ctx, baseline, [r['chat_id'] for r in ctx.chat_records], 'new_chat_incremental_sync')
             return True, "2 次会话全部轮次正常生成落地", {"chat_records": ctx.chat_records}
         finally:
             cdp_gemini.close()
