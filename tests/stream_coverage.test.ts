@@ -44,13 +44,13 @@ test('trusted time overlap merges different IDs, while disjoint pages need a cur
         { head: { id: 'different-120', time: 120 }, tail: { id: 'id70', time: 70 } });
     assert.equal(overlapping.connects(baseline, differentIds), true);
 });
-test('unknown context, missing keys, ties, cursor loops, truncated pages and broken cross-page ordering cannot authorize early stop', () => {
+test('unknown context, missing keys, rising times, cursor loops, truncated pages and broken cross-page ordering cannot authorize early stop', () => {
     const baseline = new CoverageSession().observe(emptyStream(), page([100, 90], null, 'old'), true);
-    for (const mutation of ['context', 'keys', 'tie', 'loop', 'truncated'] as const) {
+    for (const mutation of ['context', 'keys', 'rising', 'loop', 'truncated'] as const) {
         const candidate = page([120, 100], null, 'next');
         if (mutation === 'context') candidate.requestKnown = false;
         if (mutation === 'keys') candidate.ordered = false;
-        if (mutation === 'tie') { candidate.keys[0].time = 100; candidate.ordered = false; }
+        if (mutation === 'rising') { candidate.keys[0].time = 90; candidate.ordered = false; }
         if (mutation === 'loop') candidate.requestCursor = 'next';
         if (mutation === 'truncated') candidate.valid = false;
         const session = new CoverageSession(); session.observe(baseline, candidate, true);
@@ -125,4 +125,61 @@ test('unordered independent streams and empty accounts certify only natural cont
     assert.equal(complete.initialized, true); assert.equal(complete.historyComplete, true); assert.equal(complete.range, null);
     assert.equal(new CoverageSession().observe(emptyStream(), page([]), true).historyComplete, true);
     assert.equal(new CoverageSession().observe(emptyStream(), { ...page([]), valid: false }, true).initialized, false);
+});
+
+test('equal times within and across cursor-connected pages rebuild a complete range', () => {
+    const first = page([100, 90], null, 'next');
+    const last = page([90, 80, 80], 'next');
+    last.keys.forEach((key, index) => key.id = 'last-' + index);
+    const stale = { initialized: true, historyComplete: true,
+        range: { head: { id: 'stale-head', time: 200 }, tail: { id: 'stale-tail', time: 150 } } };
+    for (const order of [[first, last], [last, first]]) {
+        const session = new CoverageSession();
+        const partial = session.observe(stale, order[0], true);
+        const complete = session.observe(partial, order[1], true);
+        assert.deepEqual(complete, { initialized: true, historyComplete: true,
+            range: { head: first.keys[0], tail: last.keys[2] } });
+    }
+});
+test('equal times allow verified overlap but still require cursors and distinct conversation IDs', () => {
+    const baseline = { initialized: true, historyComplete: false,
+        range: { head: { id: 'old-head', time: 90 }, tail: { id: 'old-tail', time: 70 } } };
+    const first = page([120, 110], null, 'next');
+    const bridge = page([110, 90, 90], 'next', 'unread');
+    bridge.keys.forEach((key, index) => key.id = 'bridge-' + index);
+    const session = new CoverageSession();
+    session.observe(baseline, first, true);
+    session.observe(baseline, { ...bridge, requestCursor: 'unrelated' }, true);
+    assert.equal(session.connects(baseline, first), false);
+    const merged = session.observe(baseline, bridge, true);
+    assert.equal(session.connects(baseline, first), true);
+    assert.equal(merged.range!.head.time, 120);
+    assert.equal(merged.range!.tail.time, 70);
+    assert.equal(merged.historyComplete, false);
+    for (const invalid of [
+        { ...bridge, keys: [{ id: first.keys[1].id, time: 110 }, { id: 'other', time: 90 }] },
+        { ...bridge, keys: [{ id: 'too-new', time: 111 }, { id: 'other', time: 90 }] },
+    ]) {
+        const rejected = new CoverageSession();
+        rejected.observe(baseline, first, true);
+        rejected.observe(baseline, invalid, true);
+        assert.equal(rejected.connects(baseline, first), false);
+    }
+});
+
+test('a passive head with another cursor cannot replace the active full-scan anchor', () => {
+    const active = page([100, 90], null, 'active-next');
+    const passive = page([105, 100], null, 'passive-next');
+    passive.keys.forEach((key, index) => key.id = 'passive-' + index);
+    const tail = page([90, 80], 'active-next');
+    tail.keys.forEach((key, index) => key.id = 'tail-' + index);
+    const session = new CoverageSession();
+    const first = session.observe(emptyStream(), active, true);
+    assert.deepEqual(session.observe(first, passive, true, false), first);
+    const complete = session.observe(first, tail, true, false);
+    assert.equal(complete.historyComplete, true);
+    assert.deepEqual(complete.range, { head: active.keys[0], tail: tail.keys[1] });
+    const refreshed = session.observe(complete, passive, true);
+    assert.equal(refreshed.range!.head.time, 105);
+    assert.equal(refreshed.historyComplete, true);
 });

@@ -13,6 +13,12 @@ function literal(node) {
 }
 let referenceNumbers = new Set();
 const executionNodes = new WeakSet();
+let visibleReference = '';
+const compact = text => text.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '');
+// Gemini sometimes displays literal ** delimiters instead of rendering bold.
+// Keep them only when that exact physical source span is also visible in the
+// independent DOM evidence. Missing delimiters still fail full-text equality.
+const visibleLiteral = text => visibleReference.includes(compact(text));
 function authored(node) {
     const chunks = [];
     function add(text, verbatim = false, boundary = false) {
@@ -37,7 +43,7 @@ function authored(node) {
     function flush() {
         result += group
         // Gemini's intraword bold can span several CommonMark inline nodes.
-        .replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, '$1')
+        .replace(/\*\*(?=\S)([\s\S]*?\S)\*\*/g, (raw, body) => visibleLiteral(raw) ? raw : body)
         .replace(/\[\[(\d+(?:\],\s*\[\d+)*)\]\]/g, (text, numbers) =>
             numbers.match(/\d+/g).every(number => referenceNumbers.has(number)) ? '' : text)
         .replace(/\u0000(\d+)\u0000/g, (_, index) => protectedValues[Number(index)]);
@@ -56,7 +62,10 @@ function authored(node) {
 
 let input = '';
 for await (const chunk of process.stdin) input += chunk;
-const tree = fromMarkdown(JSON.parse(input), {
+const parsed = JSON.parse(input);
+const evidence = typeof parsed === 'string' ? { text: parsed, visibleReference: '' } : parsed;
+visibleReference = compact(evidence.visibleReference ?? '');
+const tree = fromMarkdown(evidence.text, {
     extensions: [gfm(), math()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
 });
@@ -78,7 +87,10 @@ function collectCode(node) {
 }
 collectCode(tree);
 const executionBlocks = [...executions.values()];
-if (executionBlocks.some(event => !('code' in event) || !('stdout' in event))) throw new Error('Incomplete execution source');
+if (executionBlocks.some(event => !('code' in event))) throw new Error('Incomplete execution source');
+// Gemini may execute a comment-only program without emitting stdout. Missing
+// nonempty output still fails comparison with the independently captured DOM.
+executionBlocks.forEach(event => event.stdout ??= '');
 function removeAssetCaptions(node) {
     node.children?.forEach(removeAssetCaptions);
     // Generated image tiles export a filename caption after the image. It is

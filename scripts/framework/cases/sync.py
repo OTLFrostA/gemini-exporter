@@ -4,7 +4,7 @@ import os
 import time
 
 from scripts.framework.actions import CDPActions
-from scripts.framework.assertions import assert_scan_result, assert_passive_coverage, assert_activity_sync_result
+from scripts.framework.assertions import assert_full_scan_coverage, assert_passive_coverage, assert_activity_sync_result
 
 
 def read_sync_state(cdp):
@@ -83,8 +83,8 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         print('      ✓ 网页自然加载建立 Coverage，未点击 Sync All')
         reset_only_coverage(cdp_opt)
         full = CDPActions.trigger_deep_scan(cdp_opt)
-        ok, message = assert_scan_result(full)
         state = read_sync_state(cdp_opt)
+        ok, message = assert_full_scan_coverage(full, state.get('coverage') or {})
         baseline = {'scan': full, 'state': state}
         save_sync_evidence(ctx, 'pre_chat_sync_baseline', baseline)
         if not ok:

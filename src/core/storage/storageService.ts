@@ -812,7 +812,7 @@ async function recordPageCoverage<T>(slot: string, page: PageObservation<T>, con
             if (pageSessions.size > 64) pageSessions.delete(pageSessions.keys().next().value!);
         }
         const previous = current.streams[page.streamId] ?? emptyStream();
-        const stream = session.observe(previous, page, requireOrder);
+        const stream = session.observe(previous, page, requireOrder, runId !== undefined || current.activeRunId === null);
         if (stream === previous) return true;
         const streams = { ...current.streams, [page.streamId]: stream };
         const historyComplete = expectedStreams.every(id => streams[id]?.historyComplete === true);

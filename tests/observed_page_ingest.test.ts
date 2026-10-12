@@ -169,3 +169,28 @@ test('invalid or failed pages cannot extend an existing interval and a retry rec
     await StorageService.clearConversations('u0');
     assert.equal(await StorageService.hasScanCoverageOverlap('u0', run.runId, head.page, frozen), false);
 }));
+
+test('late passive heads persist normally without severing an active full scan, and passive tails still complete it', async () => fixture(async () => {
+    const run = await StorageService.beginScanCoverage('u0', account);
+    const pinned = geminiListObservation(parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']])),
+        { streamId: 'pinned', requestCursor: null }, account, false, Date.now() + 1);
+    await ingestPageObservation(pinned, 'u0', run.runId);
+    const head = observed([100, 90], null, 'tC_active_next', 'active');
+    await ingestPageObservation(head.page, 'u0', run.runId);
+    const anchored = (await StorageService.getScanCoverage('u0'))!.streams.recent;
+    const passive = observed([105, 100], null, 'tC_passive_next', 'passive');
+    await ingestPageObservation(passive.page, 'u0');
+    assert.deepEqual((await StorageService.getScanCoverage('u0'))!.streams.recent, anchored);
+    assert.equal((await StorageService.getConversations('u0')).length, 4);
+    const tail = observed([90, 80], 'tC_active_next', null, 'tail');
+    await ingestPageObservation(tail.page, 'u0');
+    const complete = (await StorageService.getScanCoverage('u0'))!;
+    assert.equal(complete.historyComplete, true);
+    assert.equal(complete.streams.pinned.historyComplete, true);
+    assert.equal(complete.streams.recent.historyComplete, true);
+    assert.deepEqual(complete.streams.recent.range, { head: head.page.keys[0], tail: tail.page.keys[1] });
+    assert.equal((await StorageService.getConversations('u0')).length, 6);
+    await StorageService.finishScanCoverage('u0', run.runId, 'complete', { conversationCount: 4, headTimestamp: head.page.keys[0].time });
+    await ingestPageObservation(passive.page, 'u0');
+    assert.equal((await StorageService.getScanCoverage('u0'))!.streams.recent.range!.head.time, passive.page.keys[0].time);
+}));

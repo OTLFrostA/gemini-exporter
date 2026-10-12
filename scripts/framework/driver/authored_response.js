@@ -7,13 +7,19 @@
     root = root.querySelector('model-response-content') || root;
     // Execution disclosures are accessible source evidence, even when collapsed.
     // Verify exported protocol-tagged execution blocks separately from prose.
-    const executions = [...root.querySelectorAll('code-block')].filter(block => block.querySelector('.code-result-container'));
+    const isExecution = block => !!block.querySelector('.code-result-container')
+        || (!!block.querySelector('.code-container') && [...block.querySelectorAll('.code-block')]
+            .some(panel => getComputedStyle(panel).display === 'none')
+            && !block.closest('thought-container, thought-box, .thought-container, .thought-wrapper, .model-thought, [data-thought]'));
+    // Silent executions have a collapsed source panel but no output element.
+    // Collect their actual DOM source too; never invent a nonempty stdout.
+    const executions = [...root.querySelectorAll('code-block')].filter(isExecution);
     const executionBlocks = executions.map(block => ({
         code: block.querySelector('.code-container')?.textContent || '',
         stdout: block.querySelector('.code-result-container')?.textContent || '',
     }));
     const clone = root.cloneNode(true);
-    const clonedExecutions = [...clone.querySelectorAll('code-block')].filter(block => block.querySelector('.code-result-container'));
+    const clonedExecutions = [...clone.querySelectorAll('code-block')].filter((_, index) => isExecution(root.querySelectorAll('code-block')[index]));
     const originals = [root, ...root.querySelectorAll('*')];
     const copies = [clone, ...clone.querySelectorAll('*')];
     originals.forEach((element, index) => {
