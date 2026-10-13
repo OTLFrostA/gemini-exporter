@@ -7,6 +7,7 @@ and Subgraph Pruning (子图剪枝) in scripts/framework.
 """
 
 import os
+import io
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
@@ -197,6 +198,46 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         r_full = FrameworkRunner()
         self.assertTrue(r_full.needs_gemini)
         self.assertTrue(r_full.needs_live_scenarios)
+
+    def test_all_planned_cases_must_pass_including_noncritical(self):
+        for failed in (None, 'feat_language_toggle'):
+            with self.subTest(failed=failed):
+                dag = FrameworkRunner._assemble_dag()
+                ctx = TestContext()
+                for fid, case in dag.cases.items():
+                    case.execute = MagicMock(return_value=(fid != failed, 'injected result', None))
+                    case.teardown = MagicMock()
+                with patch('sys.stdout', new=io.StringIO()):
+                    self.assertEqual(dag.run(ctx), failed is None)
+                self.assertEqual(len(dag.cases), 24)
+                if failed:
+                    self.assertFalse(dag.cases[failed].critical)
+                    self.assertEqual(ctx.registry.get_result(failed).status, TestStatus.FAIL)
+
+    def test_noncritical_target_and_failed_dependency_fail_selected_run(self):
+        for dependent in (False, True):
+            with self.subTest(dependent=dependent):
+                dag = DAGRunner()
+                root = DummyTestCase('root', FeatureDomain.WORKBENCH, critical=False)
+                root.execute = MagicMock(return_value=(False, 'injected failure', None))
+                dag.register(root)
+                if dependent:
+                    dag.register(DummyTestCase('target', FeatureDomain.WORKBENCH,
+                                               prereqs=['root'], critical=False))
+                ctx = TestContext()
+                with patch('sys.stdout', new=io.StringIO()):
+                    self.assertFalse(dag.run(ctx, target_ids=['target' if dependent else 'root']))
+                if dependent:
+                    self.assertEqual(ctx.registry.get_result('target').status, TestStatus.SKIP)
+
+    def test_noncritical_missing_dependency_skip_fails_full_run(self):
+        dag = DAGRunner()
+        dag.register(DummyTestCase('target', FeatureDomain.WORKBENCH,
+                                   prereqs=['missing'], critical=False))
+        ctx = TestContext()
+        with patch('sys.stdout', new=io.StringIO()):
+            self.assertFalse(dag.run(ctx))
+        self.assertEqual(ctx.registry.get_result('target').status, TestStatus.SKIP)
 
     def test_dag_execution_with_pruning_skip_status(self):
         """验证执行子图剪枝时，未选中的节点被正确记录为 SKIP，且不影响整体通过状态"""

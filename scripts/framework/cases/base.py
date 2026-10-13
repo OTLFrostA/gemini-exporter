@@ -340,15 +340,14 @@ class DAGRunner:
         # 生成最终检验矩阵
         print("\n" + ctx.registry.generate_matrix_report())
 
-        # 校验关键特性
-        has_failed_critical = False
+        # Every case in the execution plan must pass. Pruned cases are outside
+        # this plan; dependency skips and noncritical failures remain failures.
+        all_passed = True
         for case in ordered_cases:
-            if case.critical:
-                res = ctx.registry.get_result(case.feature_id)
-                if not res or res.status != TestStatus.PASS:
-                    has_failed_critical = True
-                    status_str = res.status.value if res else "未执行"
-                    print(f"❌ 关键特性 [{case.feature_id}] ({case.name}) 未通过 (状态: {status_str})！")
-                    break
+            res = ctx.registry.get_result(case.feature_id)
+            if not res or res.status != TestStatus.PASS:
+                all_passed = False
+                status_str = res.status.value if res else "未执行"
+                print(f"❌ 计划特性 [{case.feature_id}] ({case.name}) 未通过 (状态: {status_str})！")
 
-        return not has_failed_critical
+        return all_passed
