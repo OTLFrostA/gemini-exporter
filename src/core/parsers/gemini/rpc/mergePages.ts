@@ -1,5 +1,5 @@
 import type { DomainAsset, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
-import { assertDomainClosure } from '../../../domain/closure.js';
+import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
 
@@ -14,7 +14,6 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
     const acquisitionHints: Record<string, ResourceConversationParseResult['acquisitionHints'][string]> = {};
     for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
         const page = pages[pageIndex];
-        assertDomainClosure(page.conversation);
         if (page.conversation.id !== first.id || page.conversation.providerId !== first.providerId) throw new TypeError('Cannot merge pages from different conversations');
         const aliases = new Map<string, string>();
         for (const asset of page.conversation.assets) {
@@ -47,7 +46,6 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
     const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()], createdAt, updatedAt,
         timestamp: typeof updatedAt === 'number' ? updatedAt : first.timestamp,
         completeness: truncatedReason || rejected ? { status: 'partial', reason: truncatedReason ?? 'Some source turns could not be decoded' } : { status: 'unknown' } };
-    assertDomainClosure(conversation);
-    return { conversation, resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+    return { conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : [])] };
 }

@@ -1,10 +1,11 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { formatContent } from '../src/core/engine/chatFormatter.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 const native: ResourceConversationParseResult = {
-    conversation: { providerId: 'test-provider', id: 'opaque-id', title: 'Portable archive', timestamp: 0, createdAt: 0,
+    conversation: validateParserDomain({ providerId: 'test-provider', id: 'opaque-id', title: 'Portable archive', timestamp: 0, createdAt: 0,
         completeness: { status: 'partial', reason: 'Selected range' }, provenance: { source: 'fixture' }, assets: [
             { id: 'image', kind: 'image', name: 'image.png', mediaType: 'image/png', source: { uri: 'https://example.test/image.png' } },
             { id: 'file', kind: 'file', name: 'report.pdf', mediaType: 'application/pdf', byteLength: 42 } ],
@@ -12,7 +13,7 @@ const native: ResourceConversationParseResult = {
             { id: 'answer', role: 'assistant', timestamp: 0, model: 'Source model',
                 content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }, { type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'source' }] }],
                 reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Reasoning' }] }],
-                attachmentIds: ['file'], citations: [{ id: 'source', title: 'Evidence', url: 'https://example.test/source' }] }] },
+                attachmentIds: ['file'], citations: [{ id: 'source', title: 'Evidence', url: 'https://example.test/source' }] }] }),
     diagnostics: [{ severity: 'warning', code: 'TEST_WARNING', message: 'Separate problem record' }],
     resourceHints: { image: { archivePath: 'assets/image.png' }, file: { archivePath: 'files/report.pdf' } },
     acquisitionHints: { image: { url: 'https://example.test/image.png' } },

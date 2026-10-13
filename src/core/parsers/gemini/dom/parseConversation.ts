@@ -5,7 +5,7 @@ import type { ResourceConversationParseResult } from '../../parsingResult.js';
 import { parseDomContent } from './content.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
-import { assertDomainClosure } from '../../../domain/closure.js';
+import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 
 export interface GeminiDomRaw { document: Document; id: string; url?: string }
 export interface GeminiDomParseResult extends ResourceConversationParseResult {
@@ -88,8 +88,7 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
         provenance: { source: 'gemini-dom' }, completeness: { status: 'partial', reason: 'DOM observation contains only the currently available page fragment' },
         timestamp: dates.length ? Math.max(...dates) : null, createdAt: dates.length ? Math.min(...dates) : null, updatedAt: dates.length ? Math.max(...dates) : null,
         url: raw.url ?? `https://gemini.google.com/app/${id}`, messages: resources.messages, assets: resources.assets };
-    assertDomainClosure(conversation);
-    return { conversation, resourceHints: {}, acquisitionHints: resources.acquisitionHints,
+    return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics: diagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),
         transport: { fallbackUsed, nodeCount: nodes.length, htmlLen: doc.documentElement?.outerHTML?.length ?? 0 } };
 }

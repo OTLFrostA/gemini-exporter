@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { saveDomainConversation, __clearDomainMemory, getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
@@ -10,11 +11,11 @@ import type { ResourceConversationParseResult } from '../src/core/parsers/parsin
 
 test('cloud-deleted archive exports durable body and resource bytes without fetching cloud or deleting metadata', async () => {
     __clearDomainMemory();
-    const source: ResourceConversationParseResult = { conversation: { providerId: 'gemini', id: 'retained', title: 'Saved conversation', timestamp: 1,
+    const source: ResourceConversationParseResult = { conversation: validateParserDomain({ providerId: 'gemini', id: 'retained', title: 'Saved conversation', timestamp: 1,
         assets: [{ id: 'image', kind: 'image', source: { uri: 'assets/image.png' } }], messages: [
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
-        ] }, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+        ] }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
     await saveDomainConversation('u0', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
     await saveDomainConversation('u1', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }));
     let deleted = false; let fetched = false;

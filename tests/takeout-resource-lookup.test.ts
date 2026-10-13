@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AssetPipeline, type AssetPipelineItem } from '../src/core/engine/assetPipeline.js';
@@ -12,8 +13,8 @@ const generation = { chatId, generationOrdinal: 2, time: 1700000000123, prompt: 
 const source = (id: string, ordinal?: number): DomainAsset => ({ id, kind: 'image', name: 'diagram.png',
     source: { uri: `Takeout/Gemini Apps/${id}.png` }, generation: { ...generation, imageOrdinal: ordinal } });
 const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
-    conversation: { providerId: 'gemini', id: chatId, title: 'Lookup', timestamp: 1700000000000,
-        provenance: { source: 'gemini-takeout' }, messages: [], assets },
+    conversation: validateParserDomain({ providerId: 'gemini', id: chatId, title: 'Lookup', timestamp: 1700000000000,
+        provenance: { source: 'gemini-takeout' }, messages: [], assets }),
     diagnostics: [], acquisitionHints: {}, resourceHints: Object.fromEntries(assets.map(asset =>
         [asset.id, { archivePath: asset.source!.uri! }])),
 });

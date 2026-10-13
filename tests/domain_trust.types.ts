@@ -11,3 +11,13 @@ function typeContract(domain: DomainConversationDetail, raw: unknown): void {
     void [forged, restored, compatible];
 }
 void typeContract;
+
+import type { GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import type { GeminiDomParseResult } from '../src/core/parsers/gemini/dom/parseConversation.js';
+import type { GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
+import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+function parserOutputs(rpc: GeminiRpcParseResult, dom: GeminiDomParseResult, takeout: GeminiTakeoutParseResult, legacy: ResourceConversationParseResult): void {
+    const all: TrustedDomain[] = [rpc.conversation, dom.conversation, takeout.conversation, legacy.conversation];
+    void all;
+}
+void parserOutputs;

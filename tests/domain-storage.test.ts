@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { __clearDomainMemory, saveDomainConversation, cacheDomainResource, getStoredDomain, storageIdentity, getDomainResource, removeStoredDomain, storedParseResult } from '../src/core/storage/domain/domainStore.js';
@@ -11,7 +12,7 @@ import { __setSchemaFrozenForTest } from '../src/core/storage/schemaState.js';
 
 beforeEach(() => { __clearDomainMemory(); __clearMemoryStore(); });
 function source(id = 'chat', count = 2): ResourceConversationParseResult {
-    return { conversation: { providerId: 'gemini', id, title: 'Stored title', timestamp: 1700000000000, assets: [{ id: 'asset', kind: 'image', source: { uri: 'source.png' } }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) }, resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
+    return { conversation: validateParserDomain({ providerId: 'gemini', id, title: 'Stored title', timestamp: 1700000000000, assets: [{ id: 'asset', kind: 'image', source: { uri: 'source.png' } }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) }), resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
 }
 test('v2 stores structured Domain intact and excludes render/parse transport state', async () => {
     const parsed = source();

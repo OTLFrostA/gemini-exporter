@@ -2,7 +2,7 @@ import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
 import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../../domain/titleAuthority.js';
-import { assertDomainClosure } from '../../domain/closure.js';
+import { validateParserDomain } from '../../domain/runtimeValidation.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import { parseImportedBody } from '../../parsers/shared/importedContentAdapter.js';
 import { parseGeminiBody, parseLegacyReasoning } from '../../parsers/gemini/shared/contentAdapter.js';
@@ -123,6 +123,8 @@ function flattenLegacyTurns(conversation: ConversationRecordInput): Conversation
 export interface ConversationRecordParseContext extends ConversationParseContext {
     /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
     generatedMedia?: readonly unknown[];
+    /** Migration coverage correction is applied before final schema validation. */
+    completenessOverride?: DomainConversationDetail['completeness'];
 }
 
 /** Compatibility preparation evidence is outside the shared semantic parse result. */
@@ -193,6 +195,7 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         timestamp: typeof conversation.timestamp === 'number' && Number.isFinite(conversation.timestamp) ? conversation.timestamp : null,
         ...(typeof conversation.source === 'string' && conversation.source.trim() ? { provenance: { source: conversation.source } } : {}),
         ...copyCompleteness(conversation),
+        ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),
         ...(conversation.updatedAt === null || typeof conversation.updatedAt === 'number' || typeof conversation.updatedAt === 'string' ? { updatedAt: conversation.updatedAt } : {}),
         ...(conversation.createdAt === null || typeof conversation.createdAt === 'number' || typeof conversation.createdAt === 'string' ? { createdAt: conversation.createdAt } : {}),
         ...(typeof conversation.chatTime === 'number' || typeof conversation.chatTime === 'string' ? { chatTime: conversation.chatTime } : {}),
@@ -203,6 +206,5 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         ...(isObjectRecord(conversation.titles) ? { titles: Object.fromEntries(Object.entries(conversation.titles).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) } : {}),
         messages: resources.messages,
     };
-    assertDomainClosure(domain);
-    return { conversation: domain, resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
+    return { conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
 }

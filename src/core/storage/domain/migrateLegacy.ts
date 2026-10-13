@@ -1,5 +1,4 @@
 import { needsDomainBroker } from './transport.js';
-import { readStorageDomain } from './validate.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { openDetailDB, DETAIL_STORE, __getMemoryStore } from '../conversationDetailStore.js';
 import { parseLegacyStorageConversation } from '../../parsers/legacyStorage/parseConversation.js';
@@ -51,12 +50,11 @@ export async function migrateLegacyDomains(): Promise<DomainMigrationReport> {
         const raw = { metadata: row, ...(ambiguous ? {} : { detail: detailById.get(id) }) };
         let parsed: ResourceConversationParseResult;
         try {
-            parsed = parseLegacyStorageConversation(raw, { providerId: 'gemini' });
+            parsed = parseLegacyStorageConversation(raw, { providerId: 'gemini',
+                ...(ambiguous ? { completenessOverride: { status: 'partial', reason: 'Legacy detail has no account identity and is referenced by multiple accounts.' } } : {}) });
             if (ambiguous) {
-                parsed.conversation.completeness = { status: 'partial', reason: 'Legacy detail has no account identity and is referenced by multiple accounts.' };
                 report.issues.push({ key, code: 'LEGACY_AMBIGUOUS_ACCOUNT', message: 'Unscoped detail retained; not assigned to any account' });
             }
-            readStorageDomain(parsed.conversation);
         } catch (error) {
             // A malformed source is preserved and reported; a durable write failure must abort.
             if (!(error instanceof TypeError)) throw error;

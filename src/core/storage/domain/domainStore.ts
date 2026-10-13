@@ -25,7 +25,7 @@ export function domainStorageKey(identity: DomainStorageIdentity): string {
     const valid = storageIdentity(identity.providerId, identity.accountSlot, identity.conversationId);
     return JSON.stringify([valid.providerId, valid.accountSlot, valid.conversationId]);
 }
-function checked(record: DomainStorageRecord): DomainStorageRecord {
+function checked(record: DomainStorageRecord) {
     if (!record || !['source', 'legacy-storage'].includes(record.origin)) throw new TypeError('Invalid Domain storage origin');
     if (record.storageVersion !== DOMAIN_STORAGE_VERSION || record.domainVersion !== DOMAIN_CONTRACT_VERSION) throw new TypeError('Unsupported Domain storage version');
     if (typeof record.revision !== 'string' || !record.revision || !Number.isFinite(record.savedAt)) throw new TypeError('Invalid Domain storage envelope');

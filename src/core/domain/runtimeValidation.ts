@@ -56,7 +56,8 @@ function block(v: unknown): boolean {
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), provenance: optional(shape({ rawRole: optional(text), providerRequestId: optional(text) })), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domain = shape({ providerId: text, id: text, title: text, timestamp: nullable(number), assets: array(asset), messages: array(message), provenance: optional(shape({ source: optional(text) })), completeness: optional(shape({ status: enumeration('complete', 'partial', 'unknown'), reason: optional(text) })), updatedAt: optional(v => v === null || text(v) || number(v)), createdAt: optional(v => v === null || text(v) || number(v)), chatTime: optional(v => text(v) || number(v)), lastSeen: optional(v => text(v) || number(v)), url: optional(text), href: optional(text), titleSource: optional(text), titles: optional(dictionary(optional(text))) });
+const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, timestamp: nullable(number), assets: array(asset), messages: array(message), provenance: optional(shape({ source: optional(text) })), completeness: optional(shape({ status: enumeration('complete', 'partial', 'unknown'), reason: optional(text) })), updatedAt: optional(v => v === null || text(v) || number(v)), createdAt: optional(v => v === null || text(v) || number(v)), chatTime: optional(v => text(v) || number(v)), lastSeen: optional(v => text(v) || number(v)), url: optional(text), href: optional(text), titleSource: optional(text), titles: optional(dictionary(optional(text))) };
+const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */
 declare const trustedDomain: unique symbol;
@@ -71,8 +72,11 @@ function serializeDomain(value: unknown): string | undefined {
     });
 }
 function assertSchema(value: unknown): asserts value is DomainConversationDetail {
-    if (!domain(value)) throw new TypeError('Invalid persisted Domain contract');
-    if (!(value as DomainConversationDetail).id.trim()) throw new TypeError('Empty stored conversation identity');
+    if (!domain(value)) {
+        const field = object(value) ? Object.keys(value).find(k => !Object.hasOwn(domainFields, k))
+            ?? Object.entries(domainFields).find(([k, check]) => !check(value[k]))?.[0] : undefined;
+        throw new TypeError(`Invalid persisted Domain contract${field ? ': ' + field : ''}`);
+    }
 }
 
 /** Parser finalization validates the graph without cloning or changing its content. */
@@ -89,6 +93,7 @@ export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     const clone: unknown = json === undefined ? undefined : JSON.parse(json);
     assertSchema(value);
     assertSchema(clone);
+    if (!clone.id.trim()) throw new TypeError('Empty stored conversation identity');
     assertDomainClosure(clone);
     return clone as TrustedDomain;
 }

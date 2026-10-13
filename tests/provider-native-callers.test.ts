@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,9 +21,9 @@ function page(request: string, seconds: number, cursor: string | null = null) {
     return parseGeminiRpcConversation(rpc([[turn], cursor, 'Title']), { providerId: 'gemini', targetConvId: 'native' });
 }
 const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({
-    conversation: { providerId: 'gemini', id: 'native', title: 'Title', timestamp, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
+    conversation: validateParserDomain({ providerId: 'gemini', id: 'native', title: 'Title', timestamp, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
         content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }],
-        assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { source: { uri } } : {}) }] },
+        assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { source: { uri } } : {}) }] }),
     diagnostics: [], resourceHints: {}, acquisitionHints: {},
 });
 
