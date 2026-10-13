@@ -1,3 +1,4 @@
+import type { GeminiProviderClient } from '../core/provider/gemini/geminiContracts.js';
 export interface GeminiCredentials {
     at?: string;
     bl?: string;
@@ -9,14 +10,26 @@ export interface GeminiCredentials {
 
 export interface ActiveClientContract {
     abort?: () => void;
-    getAllConversations?: (...args: any[]) => Promise<any>;
-    getConversationDetail?: (...args: any[]) => Promise<any>;
+    getAllConversations?: (...args: Parameters<GeminiProviderClient['getAllConversations']>) => Promise<unknown>;
+    getConversationDetail?: (...args: Parameters<GeminiProviderClient['getConversationDetail']>) => Promise<unknown>;
     [key: string]: any;
 }
 
 export type TimerHandle = any;
 
 export type ContentEvent = 'credentials' | 'abort' | 'reset' | 'scanStart' | 'scanEnd' | 'langChange' | 'devModeChange';
+
+/** Only emitted payloads have a fixed shape; events without producers stay opaque. */
+export interface ContentEventArgs {
+    credentials: [GeminiCredentials | null];
+    abort: [];
+    langChange: [string];
+    devModeChange: [boolean];
+    reset: unknown[];
+    scanStart: unknown[];
+    scanEnd: unknown[];
+}
+
 
 export class ContentContext {
     private _aborted = false;
@@ -195,6 +208,7 @@ export class ContentContext {
         }
     }
 
+    public on<K extends ContentEvent>(event: K, listener: (...args: ContentEventArgs[K]) => void): () => void;
     public on(event: string, listener: (...args: any[]) => void): () => void {
         let set = this._listeners.get(event);
         if (!set) {
@@ -207,6 +221,7 @@ export class ContentContext {
         };
     }
 
+    public emit<K extends ContentEvent>(event: K, ...args: ContentEventArgs[K]): void;
     public emit(event: string, ...args: any[]): void {
         const set = this._listeners.get(event);
         if (set) {

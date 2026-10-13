@@ -1,3 +1,4 @@
+import type { PreparePdfItemContext } from './prepareItem.js';
 import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type {
     ArtifactWriteReport,
@@ -77,12 +78,12 @@ export interface PdfExporterOptions {
      */
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     includeAssets?: boolean;
-    takeoutEngine?: any;
-    assetPipeline?: any;
-    fetchAssetDelegate?: (params: any) => Promise<any>;
-    fetchAsset?: (params: any) => Promise<any>;
-    getGeminiTab?: (slot?: string) => Promise<any>;
-    sendToGeminiTab?: (message: any, slot?: string, timeoutMs?: number) => Promise<any>;
+    takeoutEngine?: PreparePdfItemContext['takeoutEngine'];
+    assetPipeline?: PreparePdfItemContext['assetPipeline'];
+    fetchAssetDelegate?: PreparePdfItemContext['fetchAssetDelegate'];
+    fetchAsset?: PreparePdfItemContext['fetchAsset'];
+    getGeminiTab?: PreparePdfItemContext['getGeminiTab'];
+    sendToGeminiTab?: PreparePdfItemContext['sendToGeminiTab'];
     maxAssetRetries?: number;
 }
 

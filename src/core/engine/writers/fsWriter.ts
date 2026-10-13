@@ -1,5 +1,6 @@
+import type { DirectoryHandle } from './directoryHandle.js';
 
-import type { IExportWriter } from './writerInterface.js';
+import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
 import { sanitizeFileName as utilsSanitizeFileName, sanitizeRelativePath as utilsSanitizeRelativePath } from '../../utils/utils.js';
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 
@@ -35,7 +36,7 @@ async function ensureSubDir(root: any, subPath: string): Promise<any> {
 }
 
 class FsWriter implements IExportWriter {
-    rootDirHandle: any;
+    rootDirHandle: FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>;
     folderName: string;
     batchDirHandle: any;
     // Serialize concurrent writes targeting the same target path
@@ -46,7 +47,7 @@ class FsWriter implements IExportWriter {
     static sanitizeFileName = sanitizeFileName;
     static sanitizeRelativePath = sanitizeRelativePath;
 
-    constructor(dirHandle: any, folderName: string = DEFAULT_EXPORT_FOLDER_NAME) {
+    constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined, folderName: string = DEFAULT_EXPORT_FOLDER_NAME) {
         if (!dirHandle) throw new Error('Directory handle is required for FsWriter');
         this.rootDirHandle = dirHandle;
         this.folderName = folderName;
@@ -70,7 +71,7 @@ class FsWriter implements IExportWriter {
         return this.batchDirHandle;
     }
 
-    async writeFile(relativePath: string, content?: any, options?: any): Promise<string> {
+    async writeFile(relativePath: string, content?: WriteFileContent | null, options?: WriteFileOptions): Promise<string> {
         // Single supported form: (relativePath, content, options?).
         // The legacy (subDirPath, fileName, content) overload was retired:
         // it had zero production callers (live-save uses the separate
@@ -79,8 +80,8 @@ class FsWriter implements IExportWriter {
         const lastSlash = clean.lastIndexOf('/');
         const actualSubDir = lastSlash !== -1 ? clean.slice(0, lastSlash) : '';
         const actualFileName = lastSlash !== -1 ? clean.slice(lastSlash + 1) : clean;
-        let actualContent: any = content;
-        const opts: any = options || {};
+        let actualContent: WriteFileContent | null | undefined = content;
+        const opts = options || {};
 
         if (opts && opts.base64 && typeof actualContent === 'string') {
             const binStr = atob(actualContent);
