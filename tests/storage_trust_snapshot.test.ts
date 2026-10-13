@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { DOMAIN_STORAGE_VERSION, DOMAIN_CONTRACT_VERSION } from '../src/core/storage/domain/contracts.js';
 import { readStoredAcquisitionHints } from '../src/core/storage/domain/transport.js';
-import { saveDomainRequest, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { saveDomainRequest, __clearDomainMemory, storageIdentity, domainStorageKey, storedParseResult } from '../src/core/storage/domain/domainStore.js';
 
 test('Broker context is selected explicitly; malformed fields cannot be cast into native results', async () => {
     assert.deepEqual(readStoredAcquisitionHints({ image: { url: 'source', resolvedUrl: 'derived', localName: 'export/path' } }), { image: { url: 'source' } });
@@ -43,4 +45,36 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
     const api: { run: () => Promise<{ counts: number[]; isolated: string; body: string }> } =
         new Function('module', 'require', bundle.outputFiles[0].text + '; return instrumentedStorage;')(undefined, createRequire(process.cwd() + '/package.json'));
     assert.deepEqual(await api.run(), { counts: [1, 2, 2, 3], isolated: 'Original', body: 'Body' });
+});
+
+test('one record copy isolates trusted graph, acquisition candidates and typed resource bytes', async () => {
+    const identity = storageIdentity('gemini', 'u0', 'copy-case');
+    const conversation = validateParserDomain({ providerId: 'gemini', id: 'copy-case', title: 'Original', timestamp: null,
+        messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }],
+        assets: [{ id: 'asset', kind: 'file', source: { uri: 'opaque:original' } }] });
+    const original: import('../src/core/storage/domain/contracts.js').TrustedDomainStorageRecord = { key: domainStorageKey(identity), identity, conversation, origin: 'source' as const,
+        storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, savedAt: 1, revision: 'copy',
+        resources: [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]) }], acquisitionHints: { asset: { candidates: ['opaque:original'] } } };
+    const clone = globalThis.structuredClone; let calls = 0; let copiedBytes: Uint8Array | undefined;
+    globalThis.structuredClone = <T>(value: T): T => {
+        calls++; const copied = clone(value);
+        if (copied && typeof copied === 'object') {
+            const resources: unknown = Reflect.get(copied, 'resources');
+            if (Array.isArray(resources) && resources[0] && typeof resources[0] === 'object') {
+                const bytes: unknown = Reflect.get(resources[0], 'bytes');
+                if (bytes instanceof Uint8Array) copiedBytes = bytes;
+            }
+        }
+        return copied;
+    };
+    let adapted: ReturnType<typeof storedParseResult>;
+    try { adapted = storedParseResult(original); } finally { globalThis.structuredClone = clone; }
+    assert.equal(calls, 1);
+    adapted.conversation.title = 'Changed';
+    adapted.acquisitionHints.asset.candidates![0] = 'changed';
+    assert.equal(original.conversation.title, 'Original');
+    assert.equal(original.acquisitionHints.asset.candidates![0], 'opaque:original');
+    original.resources[0].bytes[0] = 99;
+    assert.ok(copiedBytes);
+    assert.deepEqual([...copiedBytes], [1, 2, 3]);
 });

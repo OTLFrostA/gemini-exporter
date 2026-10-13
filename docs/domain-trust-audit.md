@@ -47,7 +47,7 @@ Trusted means structurally validated at the source boundary. It does not mean co
 | One stored-record recovery | 2 | 1 |
 | Trusted storage record adaptation | 0 | 0 |
 | Authenticated native/Broker adaptation | 0 | 0 |
-| Composer, JSON/OpenAI JSON, HTML, Markdown, PDF preparation | 0 | 0 |
+| Composer, Standard JSON, HTML, Markdown, PDF preparation | 0 | 0 |
 
 An existing physical record read during an update is a separate restoration operation and must still be checked. JSON serialization, cloning and export rendering still traverse data; these counts are not an end-to-end performance benchmark. The DOM counter fixture isolates finalization; existing DOM and Playwright tests separately check fidelity.
 
@@ -61,10 +61,10 @@ This is an architecture regression gate, not a hostile-code sandbox. It cannot r
 
 Each implementation PR passed full `npm test` (unit tests, scoped lint/type checks, build and all 95 Playwright tests) before submission. GitHub required CI passed before each merge. The final gate adds negative architecture probes, source/read/write/transport/export call-count assertions and scoped unsafe-operation lint. Existing invalid-input, isolation, failure, attachment and export tests remain in place.
 
-The following broader acceptance failures were independently reproduced on unchanged code and remain separate work:
+The closeout addresses the integration of Standard JSON removal with the count test: merged main had a stale OpenAI-format invocation even though the separate PR checks passed. Current counters retain Standard JSON, HTML, Markdown and PDF preparation. Verification must include merged-main CI, not just branch CI. The following baseline results distinguish corrected test contracts from the separate live acceptance work:
 
-- Global `npm run lint`: two existing `no-floating-promises` errors in `src/core/storage/schemaState.ts`; the trust-specific enforced lint passes. Existing global warnings are not presented as a clean lint result.
-- Real profile upgrade from the official 1.7.0 ZIP: 4/5 stages pass. The old official release does not persist the required body/image baseline, so cloud-blocked offline recovery cannot pass. Same profile/identity, flags, new activity/export and failure-not-marked-exported checks pass. Tracked separately in PR 896 and the existing Notion upgrade issue.
+- The earlier global lint baseline had two `no-floating-promises` errors in `src/core/storage/schemaState.ts`. Current main uses explicit asynchronous badge failure handling; lint and trust-specific enforced lint pass. Existing global warnings remain.
+- Real profile upgrade from the official 1.7.0 ZIP originally reported 4/5 PASS and failed offline recovery of bodies/images never persisted by that runtime. The closeout harness now inventories original disk bodies and byte hashes, requires their preservation after upgrade/restart, and reexports only persisted bodies offline. Missing original bodies are explicitly `not_applicable`, never successful recovery. Their offline export is still attempted as a negative check: native failure, no fake body file, and unchanged existing export records are required. The verified official run reports `passed_with_na`: four stages PASS and one NA. Same profile/identity, metadata, export records, new activity/export and failure-not-marked-exported checks remain enforced. Positive and loss/corruption counterexamples test the persistence contract without seeding the real old profile.
 - Full no-skip live Tier 2: same-account passive RPC coverage never initializes, blocking formal scenario generation; dependent stages are scheduler-skipped and the run is overall FAIL. The existing fast-skip feature also fails because the expected ephemeral record is absent. Real deletion/archive retention, Takeout/title upgrade, full/incremental scan and downloaded six-conversation multimodal ZIP assertions pass. These partial successes do not constitute a full Tier 2 PASS.
 
 No live expectation or mandatory stage was weakened. Scenario pool checks remain mandatory; when blocked before scenario consumption its 20/20 level is unchanged. Logs and downloaded private evidence remain local rather than being committed. Notion records the distinction between code delivery and the blocked broader acceptance conditions.

@@ -63,7 +63,7 @@ test('count actual Schema passes and Closure calls separately at every trust bou
                 const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.id)));
                 const parsed=await measure('AdaptRecord',()=>storedParseResult(record));
                 await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion:1,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion:1,results:[parsed]}));});
-                await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');formatContent(parsed,'json_openai');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
+                await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
                 return rows;
             }` }, plugins: [{ name: 'test-only-actual-schema-closure-counters', setup(builder) {
                 builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents: readFileSync(args.path, 'utf8').replace(

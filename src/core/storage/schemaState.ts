@@ -25,9 +25,9 @@ function warnSchemaFrozen(): void {
     try {
         const action = (typeof chrome !== "undefined" && chrome.action) || null;
         if (action && typeof action.setBadgeText === "function") {
-            void action.setBadgeText({ text: "!" });
+            void Promise.resolve(action.setBadgeText({ text: "!" })).catch(error => console.warn("Unable to display frozen storage badge", error));
             if (typeof action.setBadgeBackgroundColor === "function") {
-                void action.setBadgeBackgroundColor({ color: "#C53929" });
+                void Promise.resolve(action.setBadgeBackgroundColor({ color: "#C53929" })).catch(error => console.warn("Unable to color frozen storage badge", error));
             }
         }
     } catch {}
