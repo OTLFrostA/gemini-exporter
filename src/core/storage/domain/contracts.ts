@@ -1,3 +1,4 @@
+import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
 import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 
@@ -25,5 +26,7 @@ export interface DomainStorageRecord {
     /** Cache metadata only; absent on older records. Never part of the Domain. */
     resourceDigests?: Record<string, { sourceUri: string; sha256?: string; sourcePath?: string }>;
 }
+/** Only recovery/writing establishes this in-memory contract; disk bytes stay unbranded. */
+export interface TrustedDomainStorageRecord extends Omit<DomainStorageRecord, 'conversation'> { conversation: TrustedDomain }
 export interface DomainMigrationIssue { key: string; code: string; message: string }
 export interface DomainMigrationReport { converted: number; issues: DomainMigrationIssue[] }

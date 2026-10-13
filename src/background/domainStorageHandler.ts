@@ -1,7 +1,6 @@
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
-import { getStoredDomain, saveDomainConversation, cacheDomainResource, getDomainResource, removeStoredDomain, backupLegacyValue, storageIdentity } from '../core/storage/domain/domainStore.js';
-import { encodeDomainRecord, encodeBytes, decodeBytes } from '../core/storage/domain/transport.js';
-import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
+import { getStoredDomain, saveDomainRequest, cacheDomainResource, getDomainResource, removeStoredDomain, backupLegacyValue, storageIdentity } from '../core/storage/domain/domainStore.js';
+import { encodeDomainRecord, encodeBytes, decodeBytes, readStoredAcquisitionHints } from '../core/storage/domain/transport.js';
 import type { StoredDomainResource } from '../core/storage/domain/contracts.js';
 
 function object(value: unknown): Record<string, unknown> {
@@ -20,12 +19,14 @@ export function handleDomainStorageMessage(message: unknown, sender: chrome.runt
             const request = object(message), payload = object(request.payload);
             if (request.command === 'save') {
                 const raw = object(payload.parsed);
-                const parsed = { conversation: raw.conversation, acquisitionHints: object(raw.acquisitionHints), resourceHints: {}, diagnostics: [] } as ResourceConversationParseResult;
+                const parsed = { conversation: raw.conversation, acquisitionHints: readStoredAcquisitionHints(raw.acquisitionHints) };
+                if (payload.resources !== undefined && !Array.isArray(payload.resources)) throw new TypeError('Invalid transported resources');
+                if (payload.migration !== undefined && typeof payload.migration !== 'boolean') throw new TypeError('Invalid migration envelope');
                 const resources: StoredDomainResource[] = Array.isArray(payload.resources) ? payload.resources.map(value => {
                     const item = object(value);
                     return { assetId: text(item.assetId), bytes: decodeBytes(item.bytes), ...(typeof item.sourcePath === 'string' ? { sourcePath: item.sourcePath } : {}) };
                 }) : [];
-                const record = await saveDomainConversation(text(payload.accountSlot), parsed, resources, payload.migration === true);
+                const record = await saveDomainRequest(text(payload.accountSlot), parsed, resources, payload.migration === true);
                 respond({ ok: true, value: record ? encodeDomainRecord(record) : null }); return;
             }
             if (request.command === 'backup') {

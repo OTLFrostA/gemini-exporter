@@ -1,0 +1,46 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { build } from 'esbuild';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { readStoredAcquisitionHints } from '../src/core/storage/domain/transport.js';
+import { saveDomainRequest, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+
+test('Broker context is selected explicitly; malformed fields cannot be cast into native results', async () => {
+    assert.deepEqual(readStoredAcquisitionHints({ image: { url: 'source', resolvedUrl: 'derived', localName: 'export/path' } }), { image: { url: 'source' } });
+    for (const value of [null, [], { image: null }, { image: { url: 1 } }, { image: { candidates: ['valid', 1] } }]) {
+        assert.throws(() => readStoredAcquisitionHints(value), TypeError);
+    }
+    const proto = JSON.parse('{"__proto__":{"url":"source"}}');
+    assert.deepEqual(Object.keys(readStoredAcquisitionHints(proto)), ['__proto__']);
+    __clearDomainMemory();
+    await assert.rejects(saveDomainRequest('u0', { conversation: { providerId: 'gemini' }, acquisitionHints: {} }), TypeError);
+});
+test('writes isolate and validate once; recovery validates once; trusted adaptation does not revisit AST', async () => {
+    const bundle = await build({ write: false, bundle: true, platform: 'node', format: 'iife', globalName: 'instrumentedStorage', logLevel: 'silent',
+        stdin: { resolveDir: process.cwd(), loader: 'ts', contents: `
+            import { saveDomainConversation,getStoredDomain,storedParseResult,storageIdentity,__clearDomainMemory } from './src/core/storage/domain/domainStore.ts';
+            import { validateParserDomain,countSnapshots } from './src/core/domain/runtimeValidation.ts';
+            export async function run() {
+                __clearDomainMemory();
+                const source={conversation:validateParserDomain({providerId:'gemini',id:'independent',title:'Original',timestamp:null,assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
+                await saveDomainConversation('u0',source);
+                const write=countSnapshots();
+                source.conversation.messages[0].content[0].children[0].text='Mutated source';
+                const record=await getStoredDomain(storageIdentity('gemini','u0','independent'));
+                const read=countSnapshots();
+                const parsed=storedParseResult(record);
+                const adaptation=countSnapshots();
+                parsed.conversation.title='Changed';
+                const isolated=record.conversation.title;
+                await saveDomainConversation('u0',parsed);
+                return {counts:[write,read,adaptation,countSnapshots()],isolated,body:record.conversation.messages[0].content[0].children[0].text};
+            }` }, plugins: [{ name: 'test-only-storage-counter', setup(builder) {
+                builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents:
+                    readFileSync(args.path, 'utf8').replace('export function restoreDomainSnapshot(value: unknown): TrustedDomain {',
+                        'let snapshots=0; export const countSnapshots=()=>snapshots; export function restoreDomainSnapshot(value: unknown): TrustedDomain { snapshots++;') }));
+            } }] });
+    const api: { run: () => Promise<{ counts: number[]; isolated: string; body: string }> } =
+        new Function('module', 'require', bundle.outputFiles[0].text + '; return instrumentedStorage;')(undefined, createRequire(process.cwd() + '/package.json'));
+    assert.deepEqual(await api.run(), { counts: [1, 2, 2, 3], isolated: 'Original', body: 'Body' });
+});

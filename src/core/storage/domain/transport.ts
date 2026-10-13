@@ -1,3 +1,4 @@
+import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 import type { DomainStorageRecord } from './contracts.js';
 
 export type DomainStoreCommand = 'get' | 'save' | 'resource' | 'remove' | 'backup' | 'cache';
@@ -31,4 +32,23 @@ export function decodeDomainRecord(value: unknown): DomainStorageRecord {
         if (!r || typeof r !== 'object' || !('assetId' in r) || typeof r.assetId !== 'string' || !('bytes' in r)) throw new TypeError('Invalid transported resource');
         return { assetId: r.assetId, bytes: decodeBytes(r.bytes), ...('sourcePath' in r && typeof r.sourcePath === 'string' ? { sourcePath: r.sourcePath } : {}) };
     }) } as DomainStorageRecord;
+}
+
+/** Select persistable acquisition context from a Broker envelope without casting a native result. */
+export function readStoredAcquisitionHints(value: unknown): ResourceAcquisitionHints {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid stored acquisition context');
+    const entries: [string, ResourceAcquisitionHint][] = [];
+    for (const [id, raw] of Object.entries(value)) {
+        const hint: unknown = raw;
+        if (!hint || typeof hint !== 'object' || Array.isArray(hint)) throw new TypeError('Invalid stored acquisition context');
+        const field = (key: string): unknown => Reflect.get(hint, key);
+        const url = field('url'), sourceUrl = field('sourceUrl'), src = field('src'), candidates = field('candidates');
+        if ([url, sourceUrl, src].some(v => v !== undefined && typeof v !== 'string')
+            || (candidates !== undefined && (!Array.isArray(candidates) || !candidates.every((v: unknown): v is string => typeof v === 'string')))) {
+            throw new TypeError('Invalid stored acquisition context');
+        }
+        entries.push([id, { ...(typeof url === 'string' ? { url } : {}), ...(typeof sourceUrl === 'string' ? { sourceUrl } : {}),
+            ...(typeof src === 'string' ? { src } : {}), ...(Array.isArray(candidates) && candidates.every((v: unknown): v is string => typeof v === 'string') ? { candidates: candidates.slice() } : {}) }]);
+    }
+    return Object.fromEntries(entries);
 }
