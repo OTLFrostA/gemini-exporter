@@ -992,6 +992,9 @@ def test_tier2_assertions_suite():
     res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_pdf_evidence.py")], capture_output=True, text=True)
     assert res.returncode == 0, f"PDF complete content assertions failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 PDF complete content counterexamples passed")
+    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_upgrade_profile.py")], capture_output=True, text=True)
+    assert res.returncode == 0, f"Real profile upgrade harness guards failed: {res.stderr or res.stdout}"
+    print("  ✓ Real profile upgrade harness package/profile guards passed")
 
 
 def test_impact_analyzer_suite():
