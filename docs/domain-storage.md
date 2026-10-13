@@ -4,8 +4,8 @@ The semantic persistence pipeline is now:
 
 ```text
 old chrome/IndexedDB record → legacy-storage parser → Domain → v2 repository
-new raw source → native parser → Domain → v2 repository
-v2 repository → Domain → Document AST → renderer
+new raw source → native parser → TrustedDomain → v2 repository
+v2 repository → shared snapshot restoration → TrustedDomain → Document AST → renderer
 ```
 
 `gemini_schema_version = 2` marks the application migration. The repository lives
@@ -38,6 +38,12 @@ Diagnostics, RPC debug/pagination state, export destinations and ZIP file handle
 are excluded. Domain is strictly validated at both write and read boundaries,
 including field shapes, content nodes, resource/citation closure and finite
 numbers. Unknown future versions fail closed.
+
+Persisted `DomainStorageRecord` remains an unbranded JSON contract. Every physical record recovery establishes `TrustedDomainStorageRecord` with `restoreDomainSnapshot` (re-exported as `readStorageDomain`). Restoration intentionally retains two Schema passes, before and after JSON serialization, and one Closure pass. This is one trust-restoration operation, not one total tree traversal. Writes perform the same detached-snapshot checks because a type-only brand does not freeze caller objects; reading an existing physical record during a write requires its own restoration.
+
+Trusted internal record adaptation retains envelope/version, identity, acquisition/resource/digest bindings and detached-copy isolation without repeating Domain AST validation. Content scripts use a current-version authenticated Broker reply adapter after the background restores a record. Raw Broker saves still establish trust at the background write snapshot boundary. The communication version is outside Domain and does not change any storage/Domain/IndexedDB version. Page `postMessage` is never that authenticated channel: origin/source checks plus raw protocol field checks lead to Parser input, not TrustedDomain.
+
+See [the trust audit](domain-trust-audit.md) for authorized entries, remaining assertions, measured Schema/Closure counts, and qualified validation results.
 
 The `revisions` store retains nonidentical captured snapshots. An identical
 capture does not append another revision. Shorter snapshots, older timestamps

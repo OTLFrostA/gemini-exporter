@@ -1,0 +1,59 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { resolve, relative } from 'node:path';
+import { API } from 'typescript/unstable/sync';
+import { trustBoundaryViolations } from '../helpers/domainTrustBoundary.js';
+
+const root = resolve(__dirname, '../..');
+function files(dir: string): string[] { return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    const path = resolve(dir, entry.name); return entry.isDirectory() ? files(path) : /\.[cm]?[jt]s$/.test(entry.name) ? [path] : [];
+}); }
+test('Domain schema, closure, trust assertions and authenticated entrypoints stay at their owners', () => {
+    const api = new API({ cwd: root });
+    try {
+        const snapshot = api.updateSnapshot({ openProjects: [resolve(root, 'tsconfig.json')] });
+        const project = snapshot.getProject(resolve(root, 'tsconfig.json'))!;
+        const problems = files(resolve(root, 'src')).flatMap(path => trustBoundaryViolations(project.program.getSourceFile(path)!, relative(resolve(root, 'src'), path), project.checker));
+        assert.deepEqual(problems, []);
+        snapshot.dispose();
+    } finally { api.close(); }
+});
+test('compiler-based gate rejects independent bypasses, including aliases, without matching comments or strings', () => {
+    const cases = [
+        `import {assertDomainClosure as check} from './closure'; check(raw);`,
+        `import * as checks from './closure'; const check=checks.assertDomainClosure;check(raw);`,
+        `checks['assertDomainClosure'](raw);`,
+        `(checks.assertDomainClosure)(raw);`,
+        `const {assertDomainClosure:check}=checks;check(raw);`,
+        `import {validateParserDomain as trust} from './validation';trust(raw);`,
+        `export {restoreDomainSnapshot as trust} from './validation';`,
+        `const result=raw as TrustedDomain;`,
+        `import type {TrustedDomain as Closed} from './domain';type Native=Closed;const result=raw as Native;`,
+        `function nativeResult(raw:unknown){return (raw as unknown) as ResourceConversationParseResult;}`,
+        `function shallow(value:unknown):value is ResourceConversationParseResult{return !!value;}`,
+        `const result:TrustedDomain=JSON.parse(text);`,
+        `function decode(text:string):TrustedDomain{return (JSON.parse(text));}`,
+        `const decode=(text:string):ResourceConversationParseResult=>JSON.parse(text);`,
+        `const schema={providerId:v=>true,id:v=>true,title:v=>true,timestamp:v=>true,messages:v=>true,assets:v=>true};`,
+        `requestNativeDetail(()=>Promise.resolve(pageEvent.data));`,
+        `callDomainBroker('get', raw);`,
+    ];
+    const virtual = new Map(cases.map((source, index) => [resolve(root, `tests/arch/__domain_probe_${index}.ts`), source]));
+    const quiet = resolve(root, 'tests/arch/__domain_probe_quiet.ts');
+    virtual.set(quiet, `// assertDomainClosure(raw);\nconst text='raw as TrustedDomain'; /* function f(v:unknown):v is TrustedDomain{} */`);
+    const api = new API({ cwd: root, fs: { readFile: path => virtual.get(path), fileExists: path => virtual.has(path) ? true : undefined } });
+    try {
+        const snapshot = api.updateSnapshot({ openFiles: [...virtual.keys()] });
+        for (const [path, source] of virtual) {
+            const ast = snapshot.getDefaultProjectForFile(path)!.program.getSourceFile(path)!;
+            const issues = trustBoundaryViolations(ast, 'core/engine/probe.ts');
+            if (path === quiet) assert.deepEqual(issues, []);
+            else assert.ok(issues.length > 0, source);
+        }
+        // Even an otherwise authorized module cannot add a double trust assertion.
+        const double = snapshot.getDefaultProjectForFile([...virtual.keys()][9])!.program.getSourceFile([...virtual.keys()][9])!;
+        assert.ok(trustBoundaryViolations(double, 'core/utils/nativeDetailTransport.ts').some(issue => issue.includes('double trust assertion')));
+        snapshot.dispose();
+    } finally { api.close(); }
+});

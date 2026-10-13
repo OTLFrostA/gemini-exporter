@@ -7,4 +7,5 @@ for (const file of files) fs.accessSync(path.join(root, file));
 const cli = path.join(path.dirname(require.resolve('oxlint/package.json')), 'bin', 'oxlint');
 const result = spawnSync(process.execPath, [cli, '-A', 'all', '-D', 'typescript/no-explicit-any', '--no-ignore', '--disable-nested-config', ...files], { cwd: root, stdio: 'inherit' });
 if (result.error) throw result.error;
-process.exit(result.status ?? 1);
+if (result.status !== 0) process.exit(result.status ?? 1);
+require('./check-domain-trust-lint.cjs');
