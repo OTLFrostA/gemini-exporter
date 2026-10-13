@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ const resources = { image: '/assets/image.png' };
 
 test('PDF backend derives policies and metadata from immutable JSON display data', () => {
     const input = fixture(); const before = JSON.stringify(input); freeze(input);
-    const { document } = composeDomainDocument(input);
+    const { document } = composeDomainDocument(validateParserDomain(input));
     const restored: DocumentAst = JSON.parse(JSON.stringify(document)); freeze(document);
     const payload = renderDocumentTypst(document, resources);
     assert.deepEqual(renderDocumentTypst(restored, resources), payload); assert.equal(JSON.stringify(input), before);
@@ -37,7 +38,7 @@ test('PDF backend derives policies and metadata from immutable JSON display data
 
 test('real PDF engine changes page policy without recomposing the document', async () => {
     const input = fixture(); input.messages = [{ id: 'a', role: 'assistant', content: Array.from({ length: 25 }, (_, index) => ({ type: 'paragraph', children: [{ type: 'text', text: `Passage ${index}. ` + 'Page layout remains an engine responsibility. '.repeat(8) }] })) }];
-    const { document } = composeDomainDocument(input); const originalJson = JSON.stringify(document);
+    const { document } = composeDomainDocument(validateParserDomain(input)); const originalJson = JSON.stringify(document);
     const layout = defaultPdfLayout(); layout.page.heightMm = 150;
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
     const context = { assets: { resolve: async () => null }, signal: new AbortController().signal, reportProgress: () => undefined };
@@ -62,7 +63,7 @@ test('PDF missing placements preserve authored numeric captions and descriptions
         { type: 'file', assetId: 'missing', label: 'Missing.pdf', description: [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }] },
     ];
     input.assets.push({ id: 'missing', kind: 'file' });
-    const { document } = composeDomainDocument(input);
+    const { document } = composeDomainDocument(validateParserDomain(input));
     const payload = renderDocumentTypst(document, {});
     const image = payload.messages[1].blocks[0], file = payload.messages[1].blocks[1];
     assert.deepEqual(image.type === 'unknown' && image.details, [{ type: 'strong', children: [{ type: 'text', text: '123' }] }]);

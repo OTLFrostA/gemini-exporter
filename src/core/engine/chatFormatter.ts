@@ -1,18 +1,21 @@
 import type { ResourceResult, ResourceDelivery } from '../resources/resourceResult.js';
-import { isResourceConversationParseResult } from '../parsers/parsingResult.js';
-import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
-import type { DomainConversationDetail } from '../domain/conversationDetail.js';
-import { validateParserDomain } from '../domain/runtimeValidation.js';
+import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../parsers/parsingResult.js';
+import type { TrustedDomain } from '../domain/runtimeValidation.js';
 import { exportDomainHtml, exportDomainMarkdown, type DomainHtmlExportOptions, type DomainMarkdownExportOptions } from '../export/exportDomainDocument.js';
 import { convertHtmlToMarkdown } from '../parsers/shared/html/htmlToMarkdown.js';
 import { toOpenAIJson, toJsonStandard, toJsonRaw } from './formatters/jsonFormatter.js';
 
 export interface FormattedResult { content: string; ext: string; mime: string }
-export type ChatExportInput = ResourceConversationParseResult | DomainConversationDetail;
+export type ChatExportInput = ResourceConversationParseResult | TrustedDomain;
 export function nativeExportInput(input: ChatExportInput): ResourceConversationParseResult {
-    if ('conversation' in input && isResourceConversationParseResult(input)) return input;
-    // Transitional builder API: removed once downstream inputs are typed in PR5.
-    return { conversation: validateParserDomain(input), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+    if ('conversation' in input) {
+        if (!isResourceConversationParseResult(input)) throw new TypeError('Malformed native conversation result');
+        return input;
+    }
+    // Defend the API envelope against malformed runtime calls without restoring Domain trust.
+    if (typeof input.providerId !== 'string' || typeof input.id !== 'string' || typeof input.title !== 'string'
+        || !Array.isArray(input.messages) || !Array.isArray(input.assets)) throw new TypeError('Malformed trusted Domain input');
+    return { conversation: input, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
 export async function formatHtmlDocument(input: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
     const { conversation } = nativeExportInput(input);

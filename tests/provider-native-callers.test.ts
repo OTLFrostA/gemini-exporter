@@ -200,7 +200,7 @@ test('compatibility table projection preserves pipe and backslash content withou
             headerRows: [{ cells: [{ children: [{ type: 'text', text: 'Content' }] }, { children: [{ type: 'text', text: 'Sentinel' }] }] }],
             rows: samples.map(sample => ({ cells: [{ children: [sample.node] }, { children: [{ type: 'text', text: 'kept' }] }] })) }] }],
     };
-    const markdown = projectDomainRecord(domain).messages![0].content;
+    const markdown = projectDomainRecord(validateParserDomain(domain)).messages![0].content;
     const tree = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
     const table = tree.children.find(node => node.type === 'table')!;
     const visible = (node: import('mdast').Nodes): string => node.type === 'html' ? '' : 'value' in node ? node.value : 'children' in node ? node.children.map(visible).join('') : '';

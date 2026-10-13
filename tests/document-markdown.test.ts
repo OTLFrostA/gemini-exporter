@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -19,8 +20,8 @@ function freeze(value: unknown): void {
 
 test('Markdown backend projects spans while the neutral tree retains all headers', () => {
     const input = fixture(); const before = JSON.stringify(input); freeze(input);
-    const composed = composeDomainDocument(input);
-    assert.deepEqual(composeDomainDocument(input), composed);
+    const composed = composeDomainDocument(validateParserDomain(input));
+    assert.deepEqual(composeDomainDocument(validateParserDomain(input)), composed);
     assert.equal(JSON.stringify(input), before);
     const table = composed.document.messages[0].blocks[0]; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
@@ -32,7 +33,7 @@ test('Markdown backend projects spans while the neutral tree retains all headers
 });
 
 test('Markdown consumes only JSON display choices, explicit time and prepared paths', () => {
-    const { document } = composeDomainDocument(fixture());
+    const { document } = composeDomainDocument(validateParserDomain(fixture()));
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     const resources = { a: 'assets/a.png' };
     assert.equal(renderDocumentMarkdown(restored, resources), renderDocumentMarkdown(document, resources));
@@ -52,12 +53,12 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
 });
 
 test('Markdown composition owns unavailability and emits diagnostics without remote embedding', () => {
-    const { document, diagnostics } = composeDomainDocument(fixture());
+    const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()));
     assert.equal(diagnostics.length, 0);
     const output = renderDocumentMarkdown(document, {});
     assert.ok(output.includes('[Image unavailable:')); assert.ok(output.includes('**123**'));
     assert.ok(!output.includes('https://remote'));
-    assert.deepEqual(composeDomainDocument(fixture()).document, document);
+    assert.deepEqual(composeDomainDocument(validateParserDomain(fixture())).document, document);
 });
 
 test('Markdown backend cannot import semantic models, registries or clocks', () => {
@@ -67,7 +68,7 @@ test('Markdown backend cannot import semantic models, registries or clocks', () 
 });
 
 test('Markdown front matter preserves string scalars and rejects invalid keys', () => {
-    const { document } = composeDomainDocument(fixture());
+    const { document } = composeDomainDocument(validateParserDomain(fixture()));
     const frontMatter = [{ key: 'tags', value: ['true', 'null', 'yes', 'example-export'] }];
     assert.ok(renderDocumentMarkdown(document, {}, { frontMatter }).includes('tags:\n  - "true"\n  - "null"\n  - "yes"\n  - example-export'));
     const invalid = [{ key: 'bad\nkey', value: 'value' }];

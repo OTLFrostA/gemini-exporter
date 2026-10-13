@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
 import assert from 'node:assert/strict';
@@ -42,7 +43,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
                 { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
             ] }],
     };
-    const markdown = renderDocumentMarkdown(composeDomainDocument(domain).document, {});
+    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));
     const tree = parseMarkdownAst(markdown);

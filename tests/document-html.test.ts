@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
@@ -24,8 +25,8 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
     const before = JSON.stringify(input);
     freeze(input);
     const resources = Object.freeze({ img: 'assets/img.png' });
-    const first = composeDomainDocument(input);
-    assert.deepEqual(composeDomainDocument(input), first);
+    const first = composeDomainDocument(validateParserDomain(input));
+    assert.deepEqual(composeDomainDocument(validateParserDomain(input)), first);
     assert.equal(JSON.stringify(input), before);
     const { document } = first;
     assert.equal(document.header.providerLabel, 'example');
@@ -44,7 +45,7 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
 
 test('JSON roundtrip and explicit presentation edits work without semantic input', () => {
     const resources = { img: 'assets/img.png' };
-    const { document } = composeDomainDocument(fixture());
+    const { document } = composeDomainDocument(validateParserDomain(fixture()));
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     assert.deepEqual(restored, document);
     assert.deepEqual(renderDocumentHtml(restored, resources), renderDocumentHtml(document, resources));
@@ -67,7 +68,7 @@ test('table alignment follows logical columns for colSpan and rowSpan', () => {
         { cells: [{ children: [{ type: 'text', text: 'span' }], colSpan: 2, rowSpan: 2 }, { children: [{ type: 'text', text: 'last' }] }] },
         { cells: [{ children: [{ type: 'text', text: 'under' }] }] },
     ] }];
-    const { document } = composeDomainDocument(input);
+    const { document } = composeDomainDocument(validateParserDomain(input));
     const table = document.messages[0].blocks[0];
     assert.equal(table.type, 'table');
     if (table.type === 'table') {
@@ -80,7 +81,7 @@ test('table alignment follows logical columns for colSpan and rowSpan', () => {
 });
 
 test('backend decides unavailable resources, preserves caption, and keeps nested diagnostics', () => {
-    const { document, diagnostics } = composeDomainDocument(fixture());
+    const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()));
     assert.equal(diagnostics.length, 0);
     assert.ok(renderDocumentHtml(document, {}).diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
     const html = renderDocumentHtml(document, {}).html;
@@ -91,7 +92,7 @@ test('backend decides unavailable resources, preserves caption, and keeps nested
 });
 
 test('renderer requires prepared bindings and escapes text and URL attributes', () => {
-    const { document } = composeDomainDocument(fixture());
+    const { document } = composeDomainDocument(validateParserDomain(fixture()));
     assert.ok(renderDocumentHtml(document, {}).html.includes('gem-missing-asset'));
     const html = renderDocumentHtml(document, { img: 'assets/a" onload="evil.png' }).html;
     assert.ok(html.includes('&quot;'));
@@ -105,7 +106,7 @@ test('renderer requires prepared bindings and escapes text and URL attributes', 
 
 test('empty state is composed and locale is explicit', () => {
     const input = fixture(); input.messages = [];
-    const { document } = composeDomainDocument(input);
+    const { document } = composeDomainDocument(validateParserDomain(input));
     assert.equal(document.emptyNotice, undefined);
     assert.ok(renderDocumentHtml(document, {}, { locale: 'en' }).html.includes('Empty conversation or fetch failed.'));
     document.emptyNotice = 'A different notice';
@@ -126,7 +127,7 @@ test('production HTML facade uses prepared archive paths consistently', async ()
 });
 
 test('backend accepts safe custom bindings and reports unsafe bindings as unavailable', () => {
-    const { document } = composeDomainDocument(fixture());
+    const { document } = composeDomainDocument(validateParserDomain(fixture()));
     const custom = renderDocumentHtml(document, { img: 'assets/custom.png' });
     assert.deepEqual(custom.diagnostics.filter(d => d.code === 'HTML_ASSET_UNRESOLVED'), []);
     assert.ok(custom.html.includes('src="assets/custom.png"'));

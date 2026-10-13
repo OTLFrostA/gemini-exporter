@@ -430,11 +430,15 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
     });
 }
 
-test('Document composer consumes only reasoning and citations even if aliases leak at runtime', async () => {
+test('source validation rejects reasoning/citation aliases before document composition', async () => {
     const clean = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] };
     const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
-    assert.deepEqual((await composeFixture(leaked)).document, (await composeFixture(clean)).document);
+    await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
+    const document = (await composeFixture(clean)).document;
+    assert.equal(document.messages[0].blocks[0].type, 'disclosure');
+    assert.equal(document.messages[0].sources.items[0].href, 'https://example.com');
     const absent = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };
     const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
-    assert.deepEqual((await composeFixture(aliasesOnly)).document, (await composeFixture(absent)).document);
+    await assert.rejects(composeFixture(aliasesOnly), /Invalid persisted Domain contract: messages/);
+    assert.equal((await composeFixture(absent)).document.messages[0].blocks.some((block: { type: string }) => block.type === 'disclosure'), false);
 });

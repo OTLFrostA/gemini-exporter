@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -15,7 +16,7 @@ test('captured execution panels survive structured RPC, Domain and physical Mark
     assert.ok(content.every(node => node.type === 'code'));
     const domain: DomainConversationDetail = { providerId: 'gemini', id: 'execution', title: 'Execution', timestamp: null, assets: [],
         messages: [{ id: 'm', role: 'assistant', content }] };
-    const serialized = renderDocumentMarkdown(composeDomainDocument(domain).document, {});
+    const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     const result = spawnSync('node', ['scripts/framework/markdown_evidence.mjs'], { input: JSON.stringify(serialized), encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     const evidence = JSON.parse(result.stdout) as { executionBlocks: { code: string; stdout: string }[]; codeBlocks: string[] };

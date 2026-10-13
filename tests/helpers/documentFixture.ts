@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './nativeFixture.js';
 
 
@@ -6,7 +7,7 @@ import { prepareDomainResources } from '../../src/core/export/assets/prepareDoma
 
 /** Exercise the public semantic and resource boundaries independently. */
 export async function composeFixture(domain: DomainConversationDetail, resourceHints: LegacyResourceHints = {}) {
-    return { ...composeDomainDocument(domain), resources: await prepareDomainResources(await fixtureResourceResults(domain, resourceHints)) };
+    return { ...composeDomainDocument(validateParserDomain(domain)), resources: await prepareDomainResources(await fixtureResourceResults(domain, resourceHints)) };
 }
 
 import type { ConversationRecordInput } from '../../src/core/compatibility/record/conversationRecord.js';

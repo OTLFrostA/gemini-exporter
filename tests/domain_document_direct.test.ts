@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -73,7 +74,7 @@ test('composer trusts literal Domain content and does not reinterpret Markdown o
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
     ] };
-    const ast = composeDomainDocument(domain, { documentLanguage: 'zh' }).document;
+    const ast = composeDomainDocument(validateParserDomain(domain), { documentLanguage: 'zh' }).document;
     assert.equal(ast.header.providerLabel, 'custom');
     assert.equal(ast.documentLanguage, 'zh');
     assert.deepEqual(ast.messages[0].blocks, domain.messages[0].content);
@@ -85,12 +86,12 @@ test('reasoning placement prevents another attachment copy and dangling citation
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
         ] };
-    const ast = composeDomainDocument(domain).document;
+    const ast = composeDomainDocument(validateParserDomain(domain)).document;
     assert.equal(ast.messages[0].blocks.length, 1);
     assert.equal(ast.messages[1].blocks.length, 1);
     const broken = structuredClone(domain);
     broken.messages[0].content = [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'unknown' }] }];
-    assert.throws(() => composeDomainDocument(broken), /Unregistered Domain citation/);
+    assert.throws(() => composeDomainDocument(validateParserDomain(broken)), /Unregistered Domain citation/);
 });
 
 test('direct export dependency closure cannot load Canonical conversation normalization/composition', () => {

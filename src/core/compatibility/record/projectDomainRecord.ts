@@ -1,8 +1,8 @@
 import type { Conversation, ChatMessage, Attachment } from '../../../types/conversation.js';
-import type { DomainConversationDetail, DomainMessage, DomainAsset } from '../../domain/conversationDetail.js';
+import type { DomainMessage, DomainAsset } from '../../domain/conversationDetail.js';
+import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import type { InlineNode } from '../../domain/content/inline.js';
-import { assertDomainClosure } from '../../domain/closure.js';
 import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 
 /** External record serialization converts native blocks into message strings. */
@@ -55,8 +55,7 @@ function messageMarkdown(message: DomainMessage, assets: Map<string, DomainAsset
 }
 
 /** One-way output projection for the final OpenAI JSON serializer. It never parses source syntax. */
-export function projectDomainRecord(domain: DomainConversationDetail, paths: Readonly<Record<string, string>> = {}, acquisitionHints: ResourceAcquisitionHints = {}, unavailable: ReadonlySet<string> = new Set()): Conversation {
-    assertDomainClosure(domain);
+export function projectDomainRecord(domain: TrustedDomain, paths: Readonly<Record<string, string>> = {}, acquisitionHints: ResourceAcquisitionHints = {}, unavailable: ReadonlySet<string> = new Set()): Conversation {
     const assets = new Map(domain.assets.map(asset => [asset.id, asset]));
     const attachment = (asset: DomainAsset): Attachment => ({ assetId: asset.id, type: asset.kind === 'image' ? 'image' : 'file',
         ...(asset.source?.uri ? { url: asset.source.uri, sourceUrl: asset.source.uri, src: asset.source.uri } : {}),

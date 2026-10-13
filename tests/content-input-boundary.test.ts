@@ -119,7 +119,7 @@ test('existing OpenAI imports parse generic Markdown and Takeout imports interpr
     ]);
 });
 
-test('Domain consumers use literal AST semantics even when raw provider syntax leaks at runtime', async () => {
+test('source gate rejects leaked provider syntax while trusted AST retains literal semantics', async () => {
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
         reasoning: paragraph('Reasoning'), citations: [{ id: 'citation-0', url: 'https://example.test/source' }],
     };
@@ -127,9 +127,8 @@ test('Domain consumers use literal AST semantics even when raw provider syntax l
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
         thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
     };
-    const actual = await composeFixture({ ...metadata, providerId: 'gemini', assets: [], messages: [leaked] });
-    assert.deepEqual(actual.document, expected.document);
-    const body = actual.document.messages[0].blocks.find(block => block.type === 'paragraph');
+    await assert.rejects(composeFixture({ ...metadata, providerId: 'gemini', assets: [], messages: [leaked] }), /Invalid persisted Domain contract: messages/);
+    const body = expected.document.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });
 

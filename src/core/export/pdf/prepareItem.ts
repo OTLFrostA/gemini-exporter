@@ -1,5 +1,5 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
-import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
+import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import { nativeExportInput } from '../../engine/chatFormatter.js';
 import {
     BatchWorker,
@@ -39,8 +39,11 @@ declare global {
 export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
 export const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
 
-interface PdfSelectedItemObject { id?: string | number | null; title?: string | null }
-export type PdfSelectedItem = string | PdfSelectedItemObject | ResourceConversationParseResult | DomainConversationDetail;
+interface PdfSelectedItemObject { id?: string | number | null; title?: string | null; conversation?: never; providerId?: never }
+export type PdfSelectedItem = string | PdfSelectedItemObject | ResourceConversationParseResult;
+
+/** Explicit adapter for an already trusted graph; metadata and raw objects cannot establish trust. */
+export function pdfDomainSelection(conversation: TrustedDomain): ResourceConversationParseResult { return nativeExportInput(conversation); }
 
 type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
 type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
@@ -54,7 +57,7 @@ interface PdfTakeoutFallbackEngine {
         lookup: TakeoutResourceLookup,
         slot?: string | null
     ) => Promise<Uint8Array | null>;
-    getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => ResourceConversationParseResult | null[];
+    getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => unknown[];
 }
 
 type PdfTakeoutEngine =
@@ -199,9 +202,7 @@ async function prepareNativePdfItem(
     selectedItem: PdfSelectedItem,
     context: PreparePdfItemContext = {},
 ): Promise<PreparedPdfItemResult> {
-    const nativeSelected = typeof selectedItem === 'object' && selectedItem && 'providerId' in selectedItem
-        ? nativeExportInput(selectedItem as DomainConversationDetail)
-        : typeof selectedItem === 'object' && selectedItem && 'conversation' in selectedItem ? selectedItem : null;
+    const nativeSelected = typeof selectedItem === 'object' && selectedItem.conversation ? selectedItem : null;
     const source = nativeSelected?.conversation;
     const rawId = source?.id ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
     const id = source && source.providerId !== 'gemini' ? source.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');

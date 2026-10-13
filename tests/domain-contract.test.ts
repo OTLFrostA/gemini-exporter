@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Domain/composer contracts, including the shared title authority rules. */
@@ -22,17 +23,17 @@ test('Domain closure rejects missing provider identity and duplicate resource id
 });
 test('composer rejects empty and duplicate authored message IDs but assigns positions only for display', () => {
     const value = domain(); value.messages.push(structuredClone(value.messages[0]));
-    assert.throws(() => composeDomainDocument(value), /MSG_DUP_ID/);
+    assert.throws(() => composeDomainDocument(validateParserDomain(value)), /MSG_DUP_ID/);
     value.messages.pop(); value.messages[0].id = '';
-    assert.throws(() => composeDomainDocument(value), /MSG_BAD_ID/);
+    assert.throws(() => composeDomainDocument(validateParserDomain(value)), /MSG_BAD_ID/);
     delete value.messages[0].id;
     const original = structuredClone(value);
-    assert.equal(composeDomainDocument(value).document.messages[0].id, 'msg-0');
+    assert.equal(composeDomainDocument(validateParserDomain(value)).document.messages[0].id, 'msg-0');
     assert.deepEqual(value, original);
 });
 test('unknown content and message order survive a JSON round trip across all backends', () => {
     const value = domain(); value.messages.push({ id: 'second', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second message' }] }] });
-    const document = composeDomainDocument(value).document;
+    const document = composeDomainDocument(validateParserDomain(value)).document;
     assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(value))).document, document);
     for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {}), JSON.stringify(renderDocumentTypst(document, {}))]) {
         assert.ok(output.includes('Visible fallback'));
@@ -42,7 +43,7 @@ test('unknown content and message order survive a JSON round trip across all bac
 test('HTML and Markdown sanitize hostile link protocols without rejecting visible labels', () => {
     for (const href of ['javascript:alert(1)', 'vbscript:evil', 'data:text/html,evil']) {
         const value = domain(); value.messages[0].content = [{ type: 'paragraph', children: [{ type: 'link', href, children: [{ type: 'text', text: 'Safe label' }] }] }];
-        const document = composeDomainDocument(value).document;
+        const document = composeDomainDocument(validateParserDomain(value)).document;
         for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {})]) {
             assert.ok(output.includes('Safe label'));
             assert.ok(!output.includes(href));
