@@ -13,6 +13,7 @@ from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions, assert_archive_targets
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
+from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
 
 DESIGNATED_HISTORICAL_CHATS = [
@@ -625,6 +626,18 @@ class HtmlExportDownloadCase(FeatureTestCase):
             if len(html_files) == 0:
                 return False, f"导出的 ZIP 中未包含任何 .html 文件 (文件清单: {namelist[:5]})", None
 
+            verified_turns = 0
+            for record in ctx.chat_records:
+                cid = record.get('chat_id', '').removeprefix('c_')
+                matches = [n for n in html_files if os.path.basename(n).endswith(f'_{cid[-6:]}.html')]
+                if not cid or len(matches) != 1 or not record.get('turn_evidence'):
+                    return False, f"HTML 缺少唯一会话文件或真实网页证据: {cid}", None
+                with open(os.path.join(extract_dir, matches[0]), encoding='utf-8') as exported:
+                    ok, message = assert_html_turn_content(exported.read(), record['turn_evidence'])
+                if not ok:
+                    return False, f"{cid}: {message}", None
+                verified_turns += len(record['turn_evidence'])
+
             # 校验每一个 HTML 文件的规范结构
             zero_byte_count = 0
             for hf in html_files:
@@ -666,9 +679,10 @@ class HtmlExportDownloadCase(FeatureTestCase):
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 HTML 文件", None
 
-            return True, f"HTML 独立网页导出成功落盘并解压验证通过 (HTML文件数: {len(html_files)}, ZIP大小: {zip_size} bytes, 规范结构 100%)", {
+            return True, f"HTML 独立网页导出成功落盘并解压验证通过 (HTML文件数: {len(html_files)}, ZIP大小: {zip_size} bytes, 规范结构与 {verified_turns} 轮真实内容核验)", {
                 "zip_path": downloaded_zip,
                 "html_count": len(html_files),
+                "verified_turns": verified_turns,
                 "zip_size": zip_size
             }
         finally:
