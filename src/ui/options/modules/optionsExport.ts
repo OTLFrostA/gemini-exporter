@@ -1,4 +1,4 @@
-import type { ExportProgress, ExportRecord, FailedChat } from '../../../types/ui.js';
+import type { ExportProgress, ExportRecord, FailedChat, UIExportOptions } from '../../../types/ui.js';
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
     t,
@@ -153,13 +153,13 @@ export async function persistTitleUpdate(chatId: string, newTitle: string, sourc
 }
 
 export async function startExportPipeline(
-    selected: any[],
+    selected: Array<Exclude<UIExportOptions['selected'][number], string>>,
     format: string,
     skip: boolean,
     includeIndex: boolean,
     includeAssets: boolean,
     includeZip: boolean,
-    dirHandle: any
+    dirHandle: UIExportOptions['dirHandle']
 ): Promise<void> {
     const Store = getStore();
     const Controller = getController();
@@ -486,7 +486,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                     async () => {
                         decisionMade = true;
                         try {
-                            let newHandle: any = null;
+                            let newHandle: UIExportOptions['dirHandle'] = null;
                             if (DirHandle) {
                                 newHandle = await DirHandle.requestDirHandle();
                                 const dirLabel = $('dirLabel');

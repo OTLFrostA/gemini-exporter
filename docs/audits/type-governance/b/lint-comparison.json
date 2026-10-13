@@ -1,0 +1,2055 @@
+{
+  "before": 1671,
+  "after": 1532,
+  "delta": -139,
+  "by_rule_file": [
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/background/liveSaveHandler.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/assetFetcher.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/badgeView.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/bootstrap.ts",
+      "severity": "warning",
+      "before": 16,
+      "after": 16,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/contentContext.ts",
+      "severity": "warning",
+      "before": 12,
+      "after": 8,
+      "delta": -4
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/domScraper.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/messageBridge.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 3,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/messageRouter.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/content/syncEngine.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 9,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/api/client/retryPolicy.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 2,
+      "delta": -4
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/api/client/rpcClient.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/diagnostics/diagnosticSnapshot.ts",
+      "severity": "warning",
+      "before": 14,
+      "after": 14,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/engine/export/exportCompletion.ts",
+      "severity": "warning",
+      "before": 8,
+      "after": 6,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/engine/export/rateLimiter.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/engine/writers/fsWriter.ts",
+      "severity": "warning",
+      "before": 12,
+      "after": 6,
+      "delta": -6
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/engine/writers/writerInterface.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 4,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 3,
+      "delta": -6
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/export/pdf/pdfExporter.ts",
+      "severity": "warning",
+      "before": 16,
+      "after": 7,
+      "delta": -9
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/export/typst/fonts/localFontProvider.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/parsers/gemini/rpc/detailDecoder.ts",
+      "severity": "warning",
+      "before": 11,
+      "after": 11,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 9,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/renderers/typst/mitex/mitexLoader.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/renderers/typst/mitex/vendor/mitex_wasm_bg.d.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/storage/formatStore.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/storage/idbHandleStore.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 9,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/storage/liveStorageManager.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/storage/schemaMigration.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/storage/sessionStore.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/storage/userPreferences.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/utils/moduleOverrides.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/core/utils/utils.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/controllers/exportController.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/controllers/takeoutController.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/options/modules/optionsExport.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 6,
+      "delta": -3
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/options/modules/optionsInit.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/options/modules/optionsSettings.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/options/modules/optionsSync.ts",
+      "severity": "warning",
+      "before": 10,
+      "after": 10,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/options/modules/optionsTakeout.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/popup/popup.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/state/conversationsStore.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/tour/tourGuide.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-explicit-any)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/background/liveSaveHandler.ts",
+      "severity": "warning",
+      "before": 11,
+      "after": 11,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/assetFetcher.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/badgeView.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/bootstrap.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/contentContext.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/messageBridge.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/messageRouter.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/content/syncEngine.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/api/client/rpcClient.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/diagnostics/diagnosticSnapshot.ts",
+      "severity": "warning",
+      "before": 10,
+      "after": 10,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/engine/export/exportCompletion.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 0,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/gemini/rpc/detailDecoder.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/gemini/rpc/extractors.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/gemini/rpc/parseList.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/gemini/rpc/payload.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/gemini/rpc/sourceAttachments.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/gemini/rpc/structuredContent.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/provider/gemini/listObservation.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/renderers/typst/mitex/mitexLoader.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/storage/conversationDetailStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/storage/domain/domainStore.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/storage/formatStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/core/storage/userPreferences.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/controllers/dirHandleController.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/controllers/exportController.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/controllers/takeoutController.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/options/modules/optionsExport.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 2,
+      "delta": -4
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/options/modules/optionsInit.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/options/modules/optionsSettings.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/options/modules/optionsSync.ts",
+      "severity": "warning",
+      "before": 11,
+      "after": 11,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/options/modules/optionsTakeout.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/popup/popup.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/state/conversationsStore.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/tour/tourGuide.ts",
+      "severity": "warning",
+      "before": 8,
+      "after": 8,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-argument)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/background/background.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/background/liveSaveHandler.ts",
+      "severity": "warning",
+      "before": 28,
+      "after": 28,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/assetFetcher.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/badgeView.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/bootstrap.ts",
+      "severity": "warning",
+      "before": 17,
+      "after": 17,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/contentContext.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/messageBridge.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 3,
+      "delta": -1
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/messageRouter.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/content/syncEngine.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/api/client/retryPolicy.ts",
+      "severity": "warning",
+      "before": 13,
+      "after": 6,
+      "delta": -7
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/api/client/rpcClient.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/compatibility/record/parseConversationRecord.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/diagnostics/diagnosticSnapshot.ts",
+      "severity": "warning",
+      "before": 22,
+      "after": 22,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/engine/export/exportCompletion.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/engine/writers/fsWriter.ts",
+      "severity": "warning",
+      "before": 12,
+      "after": 5,
+      "delta": -7
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 3,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/export/pdf/pdfExporter.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 1,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/export/typst/fonts/localFontProvider.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/gemini/rpc/detailDecoder.ts",
+      "severity": "warning",
+      "before": 20,
+      "after": 20,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/gemini/rpc/extractors.ts",
+      "severity": "warning",
+      "before": 23,
+      "after": 23,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/gemini/rpc/parseList.ts",
+      "severity": "warning",
+      "before": 7,
+      "after": 7,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/gemini/rpc/sourceAttachments.ts",
+      "severity": "warning",
+      "before": 25,
+      "after": 25,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/gemini/rpc/structuredContent.ts",
+      "severity": "warning",
+      "before": 13,
+      "after": 13,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 8,
+      "after": 8,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/parsers/shared/resources/resolveResources.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/provider/gemini/listObservation.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/renderers/typst/mitex/mitexLoader.ts",
+      "severity": "warning",
+      "before": 7,
+      "after": 7,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/renderers/typst/mitex/vendor/mitex_wasm_bg.js",
+      "severity": "warning",
+      "before": 41,
+      "after": 41,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/storage/domain/domainStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/storage/idbHandleStore.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/storage/sessionStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/storage/userPreferences.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/core/utils/moduleOverrides.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/controllers/dirHandleController.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/controllers/exportController.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/controllers/takeoutController.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/options/modules/optionsExport.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 0,
+      "delta": -4
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/options/modules/optionsInit.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/options/modules/optionsSettings.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/options/modules/optionsSync.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/options/modules/optionsTakeout.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/options/options.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/popup/popup.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/state/conversationsStore.ts",
+      "severity": "warning",
+      "before": 25,
+      "after": 25,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/tour/tourGuide.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-assignment)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/background/liveSaveHandler.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/content/contentContext.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/api/client/retryPolicy.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 0,
+      "delta": -3
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/engine/export/exportCompletion.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 0,
+      "delta": -2
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/engine/writers/fsWriter.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 6,
+      "delta": -3
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/export/pdf/pdfExporter.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/parsers/gemini/rpc/detailDecoder.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/parsers/gemini/rpc/sourceAttachments.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/renderers/typst/mitex/mitexLoader.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/core/renderers/typst/mitex/vendor/mitex_wasm_bg.js",
+      "severity": "warning",
+      "before": 28,
+      "after": 28,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/controllers/dirHandleController.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/controllers/exportController.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/controllers/takeoutController.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/options/modules/optionsInit.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/options/modules/optionsSettings.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/options/modules/optionsSync.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/state/conversationsStore.ts",
+      "severity": "warning",
+      "before": 16,
+      "after": 16,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-call)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 7,
+      "after": 7,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/background/background.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/background/liveSaveHandler.ts",
+      "severity": "warning",
+      "before": 58,
+      "after": 58,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/assetFetcher.ts",
+      "severity": "warning",
+      "before": 14,
+      "after": 14,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/badgeView.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/bootstrap.ts",
+      "severity": "warning",
+      "before": 34,
+      "after": 34,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/contentContext.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/domScraper.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/messageBridge.ts",
+      "severity": "warning",
+      "before": 10,
+      "after": 6,
+      "delta": -4
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/messageRouter.ts",
+      "severity": "warning",
+      "before": 24,
+      "after": 24,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/content/syncEngine.ts",
+      "severity": "warning",
+      "before": 16,
+      "after": 16,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/api/client/pagination.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/api/client/retryPolicy.ts",
+      "severity": "warning",
+      "before": 33,
+      "after": 7,
+      "delta": -26
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/api/client/rpcClient.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/diagnostics/diagnosticSnapshot.ts",
+      "severity": "warning",
+      "before": 20,
+      "after": 20,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/engine/export/exportCompletion.ts",
+      "severity": "warning",
+      "before": 29,
+      "after": 25,
+      "delta": -4
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/engine/export/rateLimiter.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/engine/writers/fsWriter.ts",
+      "severity": "warning",
+      "before": 14,
+      "after": 7,
+      "delta": -7
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/engine/writers/writerInterface.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 19,
+      "after": 7,
+      "delta": -12
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/export/pdf/pdfExporter.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/export/typst/fonts/localFontProvider.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/parsers/gemini/rpc/detailDecoder.ts",
+      "severity": "warning",
+      "before": 36,
+      "after": 36,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/parsers/gemini/rpc/sourceAttachments.ts",
+      "severity": "warning",
+      "before": 7,
+      "after": 7,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 32,
+      "after": 32,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/provider/gemini/listObservation.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/renderers/typst/mitex/mitexLoader.ts",
+      "severity": "warning",
+      "before": 8,
+      "after": 8,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/renderers/typst/mitex/vendor/mitex_wasm_bg.js",
+      "severity": "warning",
+      "before": 55,
+      "after": 55,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/storage/domain/domainStore.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/storage/formatStore.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/storage/schemaMigration.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/storage/sessionStore.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/core/utils/utils.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/controllers/dirHandleController.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/controllers/exportController.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 9,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/controllers/takeoutController.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/options/modules/optionsExport.ts",
+      "severity": "warning",
+      "before": 17,
+      "after": 6,
+      "delta": -11
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/options/modules/optionsInit.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/options/modules/optionsSettings.ts",
+      "severity": "warning",
+      "before": 21,
+      "after": 21,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/options/modules/optionsSync.ts",
+      "severity": "warning",
+      "before": 23,
+      "after": 23,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/options/modules/optionsTakeout.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/popup/popup.ts",
+      "severity": "warning",
+      "before": 13,
+      "after": 13,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/state/conversationsStore.ts",
+      "severity": "warning",
+      "before": 33,
+      "after": 33,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/tour/tourGuide.ts",
+      "severity": "warning",
+      "before": 17,
+      "after": 17,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-member-access)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 12,
+      "after": 12,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/content/bootstrap.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/export/typst/fonts/localFontProvider.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/parsers/gemini/rpc/extractors.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/renderers/typst/mitex/mitexLoader.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/renderers/typst/mitex/vendor/mitex_wasm_bg.js",
+      "severity": "warning",
+      "before": 8,
+      "after": 8,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/storage/sessionStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/core/utils/moduleOverrides.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/ui/controllers/dirHandleController.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/ui/controllers/exportController.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/ui/controllers/takeoutController.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/ui/state/conversationsStore.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-return)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 7,
+      "after": 7,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/background/domainStorageHandler.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/background/liveSaveHandler.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/content/bootstrap.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/content/messageBridge.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/content/messageRouter.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/content/syncEngine.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/compatibility/record/parseConversationRecord.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/compatibility/takeout/takeoutParser.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/diagnostics/diagnosticSnapshot.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/domain/closure.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/domain/runtimeValidation.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/engine/writers/zipWriter.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/assets/sha256.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/pdf/pdfExporter.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/pdf/pipeline/compileStage.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/pdf/pipeline/deliveryStage.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/pdf/pipeline/orchestrator.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/pdf/pipeline/runner.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/typst/fonts/localFontProvider.ts",
+      "severity": "warning",
+      "before": 7,
+      "after": 7,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/typst/sandboxProtocol.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/export/typst/typstSandboxCompiler.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/dom/content.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/dom/parseConversation.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/rpc/detailDecoder.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/rpc/extractors.ts",
+      "severity": "warning",
+      "before": 6,
+      "after": 6,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/rpc/parseList.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/rpc/sourceAttachments.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/rpc/structuredContent.ts",
+      "severity": "warning",
+      "before": 11,
+      "after": 11,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/shared/structuredContentAdapter.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/gemini/takeout/parseZip.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/legacyStorage/parseConversation.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/parsers/shared/markdown/mdastToContent.ts",
+      "severity": "warning",
+      "before": 13,
+      "after": 13,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/protocol/protocol.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/conversationDetailStore.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/domain/domainStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/domain/transport.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/formatStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/scanCoverage.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/schemaMigration.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/sessionStore.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/storage/userPreferences.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/utils/nativeDetailTransport.ts",
+      "severity": "warning",
+      "before": 1,
+      "after": 1,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/core/utils/utils.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/options/modules/optionsExport.ts",
+      "severity": "warning",
+      "before": 15,
+      "after": 15,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/options/modules/optionsInit.ts",
+      "severity": "warning",
+      "before": 10,
+      "after": 10,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/options/modules/optionsSettings.ts",
+      "severity": "warning",
+      "before": 18,
+      "after": 18,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/options/modules/optionsSync.ts",
+      "severity": "warning",
+      "before": 4,
+      "after": 4,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/options/modules/optionsTakeout.ts",
+      "severity": "warning",
+      "before": 5,
+      "after": 5,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/options/options.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/popup/popup.ts",
+      "severity": "warning",
+      "before": 9,
+      "after": 9,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/sandbox/typstCompileEntry.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/tour/tourGuide.ts",
+      "severity": "warning",
+      "before": 2,
+      "after": 2,
+      "delta": 0
+    },
+    {
+      "rule": "typescript(no-unsafe-type-assertion)",
+      "file": "src/ui/views/listView.ts",
+      "severity": "warning",
+      "before": 3,
+      "after": 3,
+      "delta": 0
+    }
+  ]
+}

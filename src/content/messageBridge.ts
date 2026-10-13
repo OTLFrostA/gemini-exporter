@@ -1,3 +1,4 @@
+import type { ConversationMergeInput } from '../core/utils/mergeUtils.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
@@ -16,10 +17,15 @@ import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
 
+/** Detail deltas copy updatedAt into timestamp, including its existing string form. */
+export type MessageBridgeConversationInput = Omit<ConversationMergeInput, 'timestamp'> & {
+    timestamp?: ConversationMergeInput['timestamp'] | ConversationMergeInput['updatedAt'];
+};
+
 export interface MessageBridgeDeps {
     ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
     ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string) => Promise<RpcListIngestResult>;
-    upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
+    upsertConversations?: (items: MessageBridgeConversationInput[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
     getAccountSlot?: () => string;
@@ -238,7 +244,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
                     // touchActiveConversation in syncEngine.ts).
-                    const item: any = {
+                    const item: ConversationMergeInput = {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
