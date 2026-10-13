@@ -31,12 +31,12 @@ export type { TakeoutStore, TakeoutParseResult, TakeoutResourceLookup };
 
 export interface TakeoutEngineModule {
     getTakeoutOfflineChat: typeof getTakeoutOfflineChat;
-    getTakeoutFallbackMedia: (chatId: string, lookup: TakeoutResourceLookup, slot?: string | null) => Promise<Uint8Array | null>;
-    getTakeoutMediaForChat: (chatId: string, slot?: string | null) => any[];
-    extractC2PATimestamp: (bufferOrArray: any) => number | null;
-    parseTakeoutZip: (file: any, onProgress?: ((pct: number, msg: string) => void) | null, slot?: string | null) => Promise<TakeoutParseResult>;
-    clearTakeoutData: (slot?: string | null) => void;
-    getStore: (slot?: string | null) => TakeoutStore;
+    getTakeoutFallbackMedia: typeof getTakeoutFallbackMedia;
+    getTakeoutMediaForChat: typeof getTakeoutMediaForChat;
+    extractC2PATimestamp: typeof extractC2PATimestamp;
+    parseTakeoutZip: typeof parseTakeoutZip;
+    clearTakeoutData: typeof clearTakeoutData;
+    getStore: typeof getStore;
     __slotTakeouts: Map<string, TakeoutStore>;
 }
 

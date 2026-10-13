@@ -4,12 +4,14 @@ export interface FlightEvent {
     isoTime: string;
     subsystem: 'content' | 'background' | 'workbench' | 'storage' | 'export';
     action: string;
-    details?: Record<string, any>;
+    details?: Record<string, unknown>;
 }
 
 const SENSITIVE_KEY_RE = /(?:token|cred|cookie|secret|snlm0e|password|passwd|bearer|auth|api[-_]?key|private[-_]?key)/i;
 
-function sanitizeValue(val: any, depth = 0): any {
+function sanitizeValue(val: Record<string, unknown>): Record<string, unknown>;
+function sanitizeValue(val: unknown, depth?: number): unknown;
+function sanitizeValue(val: unknown, depth = 0): unknown {
     if (depth > 3) return '[nested]';
     if (val === null || val === undefined) return val;
     if (typeof val === 'string') {
@@ -28,7 +30,7 @@ function sanitizeValue(val: any, depth = 0): any {
         return val.map(v => sanitizeValue(v, depth + 1));
     }
     if (typeof val === 'object') {
-        const out: Record<string, any> = {};
+        const out: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(val)) {
             if (SENSITIVE_KEY_RE.test(k)) {
                 out[k] = '[REDACTED]';
@@ -49,7 +51,7 @@ class FlightRecorderImpl {
     public record(
         subsystem: 'content' | 'background' | 'workbench' | 'storage' | 'export',
         action: string,
-        details?: Record<string, any>
+        details?: Record<string, unknown>
     ): void {
         const now = Date.now();
         const safeDetails = details ? sanitizeValue(details) : undefined;

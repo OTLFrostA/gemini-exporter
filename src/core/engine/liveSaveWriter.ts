@@ -26,20 +26,20 @@ export interface LiveSaveWriteInput {
 }
 
 export interface LiveSaveWriterDeps {
-    fsWriterClass?: new (dirHandle: any, rootDir: string) => FsWriter;
+    fsWriterClass?: new (dirHandle: FileSystemDirectoryHandle, rootDir: string) => FsWriter;
     formatter?: Pick<typeof ChatFormatter, 'formatMarkdownDocument'>;
     buildFileName?: (safeTitle: string, nid: string, ext: string) => string;
 }
 
 export interface LiveSaveWriter {
-    init(): Promise<void>;
+    init(): Promise<FileSystemDirectoryHandle | void>;
     writeFile(subDir: string, fileName: string, data: string | Uint8Array): Promise<string | void>;
 }
 
 const LIVE_SAVE_ROOT_DIR = DEFAULT_EXPORT_FOLDER_NAME;
 
 export async function createLiveSaveWriter(
-    dirHandle: any,
+    dirHandle: FileSystemDirectoryHandle,
     deps: LiveSaveWriterDeps = {}
 ): Promise<LiveSaveWriter> {
     const WriterCls = deps.fsWriterClass || FsWriter;

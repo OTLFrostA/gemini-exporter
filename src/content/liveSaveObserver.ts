@@ -10,7 +10,7 @@ export interface LiveSaveObserverOptions {
 }
 
 let __mutationObserver: MutationObserver | null = null;
-let __debounceTimer: any = null;
+let __debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let __isGenerating = false;
 let __pendingConversationId: string | null = null;
 let __options: LiveSaveObserverOptions = {};
@@ -49,8 +49,8 @@ export function checkIsGeneratingDOM(): boolean {
         'mat-icon[fonticon="pause"]'
     ];
     for (const sel of stopSelectors) {
-        const el = document.querySelector(sel);
-        if (el && (el as HTMLElement).offsetParent !== null) {
+        const el = document.querySelector<HTMLElement>(sel);
+        if (el && el.offsetParent !== null) {
             return true;
         }
     }
@@ -64,7 +64,7 @@ export function checkIsGeneratingDOM(): boolean {
         '.streaming'
     ];
     for (const sel of streamingSelectors) {
-        const el = document.querySelector(sel);
+        const el = document.querySelector<HTMLElement>(sel);
         if (el) return true;
     }
 

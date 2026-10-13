@@ -38,7 +38,7 @@ interface LiveSaveStorageManager {
     getLiveConfig: () => Promise<LiveSaveConfig>;
     setLiveConfig: (patch: Partial<LiveSaveConfig>) => Promise<LiveSaveConfig>;
     getLiveDirHandle: () => Promise<DirectoryHandle | FileSystemDirectoryHandle | null>;
-    saveLiveDirHandle?: (handle: DirectoryHandle | FileSystemDirectoryHandle | null) => Promise<boolean>;
+    saveLiveDirHandle?: (handle: DirectoryHandle | null) => Promise<boolean>;
 }
 
 interface LiveSaveScraper {

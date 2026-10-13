@@ -8,8 +8,8 @@ export { FEEDBACK_URL };
  */
 export function initSessionAccessLevel(): void {
     try {
-        if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session && (chrome.storage as any).session.setAccessLevel) {
-            (chrome.storage as any).session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.setAccessLevel) {
+            chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' }).catch(() => {});
         }
     } catch (e) {
         if (typeof console !== 'undefined' && console.debug) console.debug('[GemExporter:lifecycle]', e);

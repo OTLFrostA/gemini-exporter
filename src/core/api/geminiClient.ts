@@ -29,7 +29,7 @@ import type { DetailParseResult } from "./client/detailTypes.js";
 
 export interface GeminiAPIClientOptions {
     signal?: AbortSignal | null;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 function getProtocol(): GeminiProtocolModule {
@@ -69,8 +69,8 @@ const pagination = GeminiClientPagination;
             if (callSignal && callSignal.aborted) return true;
             if (this.signal && this.signal.aborted) return true;
             return !!(
-                (typeof globalThis !== "undefined" && (globalThis as any).__gemExporterAborted) ||
-                (typeof window !== "undefined" && (window as any).__gemExporterAborted)
+                (typeof globalThis !== "undefined" && globalThis.__gemExporterAborted) ||
+                (typeof window !== "undefined" && window.__gemExporterAborted)
             );
         }
 
@@ -151,7 +151,7 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
+                if (retry429.aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
 
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
@@ -251,7 +251,7 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                if ((retry429 as any).aborted) throw new Error("用户取消：429 退避等待被中断 (fetchConversationPage)");
+                if (retry429.aborted) throw new Error("用户取消：429 退避等待被中断 (fetchConversationPage)");
 
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);

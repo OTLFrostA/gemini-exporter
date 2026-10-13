@@ -15,11 +15,11 @@ export function convertHtmlToMarkdown(html?: string | null): string {
     if (!/<(?:pre|code|p|h[1-6]|ul|ol|li|blockquote|strong|b|em|i|table)[\s>]/i.test(html)) return html;
 
     let res = html;
-    res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match, lang, code) => {
+    res = res.replace(/<pre><code(?:\s+class=["'](?:language-)?([a-z0-9_-]+)["'])?>([\s\S]*?)<\/code><\/pre>/gi, (_match: string, lang: string | undefined, code: string) => {
         const cleanCode = unescapeHtml(code);
         return `\n\`\`\`${lang || ''}\n${cleanCode.trim()}\n\`\`\`\n`;
     });
-    res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match, code) => {
+    res = res.replace(/<code>([\s\S]*?)<\/code>/gi, (_match: string, code: string) => {
         return `\`${unescapeHtml(code)}\``;
     });
     // Protect fenced and inline code blocks before processing HTML tags
@@ -29,12 +29,12 @@ export function convertHtmlToMarkdown(html?: string | null): string {
         return `\uFFFDCODE${__codeSpans.length - 1}\uFFFD`;
     };
     const __restoreCode = (str: string): string =>
-        str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m, i) => __codeSpans[Number(i)]);
+        str.replace(/\uFFFDCODE(\d+)\uFFFD/g, (_m: string, i: string) => __codeSpans[Number(i)]);
     res = res.replace(/```[\s\S]*?```/g, __stashCode).replace(/`[^`\n]+`/g, __stashCode);
-    res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m, lvl, txt) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
+    res = res.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_m: string, lvl: string, txt: string) => `\n${'#'.repeat(parseInt(lvl, 10))} ${txt.trim()}\n`);
     res = res.replace(/<(strong|b)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '**$2**');
     res = res.replace(/<(em|i)(?=[\s/>])[^>]*>([\s\S]*?)<\/\1>/gi, '*$2*');
-    res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match, tableContent) => {
+    res = res.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_match: string, tableContent: string) => {
         const rows: string[] = [];
         const trMatches = tableContent.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
         let isFirstRow = true;

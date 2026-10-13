@@ -13,12 +13,12 @@ let currentStep = 0;
 let isActive = false;
 let spotlightMode = false;
 let activeSpotlightVersion = '';
-let activeSpotlightOptions: any = null;
+let activeSpotlightOptions: Parameters<TourGuideContract['startFeatureSpotlight']>[2] | null = null;
 let overlayEl: HTMLElement | null = null;
 let spotlightEl: HTMLElement | null = null;
 let popoverEl: HTMLElement | null = null;
-let pollTimer: any = null;
-let lastTabStatus: any = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+let lastTabStatus: string | null = null;
 let activeActionCleanup: (() => void) | null | undefined = null;
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
@@ -101,9 +101,9 @@ function createElements(): void {
 
     document.body.appendChild(overlayEl);
 
-    document.removeEventListener('keydown', handleKeydown as any);
+    document.removeEventListener('keydown', handleKeydown);
     window.removeEventListener('resize', handleResize);
-    document.addEventListener('keydown', handleKeydown as any);
+    document.addEventListener('keydown', handleKeydown);
     window.addEventListener('resize', handleResize);
 }
 
@@ -124,7 +124,7 @@ function removeElements(): void {
     activeSpotlightOptions = null;
 
     if (typeof document !== 'undefined') {
-        document.removeEventListener('keydown', handleKeydown as any);
+        document.removeEventListener('keydown', handleKeydown);
     }
     if (typeof window !== 'undefined') {
         window.removeEventListener('resize', handleResize);
@@ -442,7 +442,7 @@ export async function startFeatureSpotlight(
     createElements();
     isActive = true;
 
-    const stepIndex = STEPS.findIndex((s: any) => s.id === stepId);
+    const stepIndex = STEPS.findIndex((s) => s.id === stepId);
     currentStep = stepIndex >= 0 ? stepIndex : 0;
     const step = STEPS[currentStep];
 
