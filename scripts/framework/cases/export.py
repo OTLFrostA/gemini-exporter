@@ -12,6 +12,7 @@ from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
 from scripts.framework.assertions import CDPAssertions, assert_archive_targets
+from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
 
@@ -731,7 +732,9 @@ class PdfExportDownloadCase(FeatureTestCase):
             console.log(JSON.stringify({
                 pageCount: res.pageCount,
                 textLength: res.text.length,
-                text: res.text
+                text: res.text,
+                contentRuns: res.contentRuns,
+                imageXObjectCount: res.imageXObjectCount
             }));
             """,
             extractor,
@@ -780,6 +783,18 @@ class PdfExportDownloadCase(FeatureTestCase):
                 return False, targets_msg, check_res
             if len(pdf_files) == 0:
                 return False, f"导出的 ZIP 中未包含任何 .pdf 文件 (文件清单: {namelist[:5]})", None
+
+            verified_turns = 0
+            for record in ctx.chat_records:
+                cid = record.get('chat_id', '').removeprefix('c_')
+                matches = [n for n in pdf_files if os.path.basename(n).endswith(f'_{cid[-6:]}.pdf')]
+                if not cid or len(matches) != 1 or not record.get('turn_evidence'):
+                    return False, f"PDF 缺少唯一会话文件或真实网页证据: {cid}", None
+                info = self._extract_pdf_info(os.path.join(extract_dir, matches[0]))
+                ok, message = assert_pdf_turn_content(info, record['turn_evidence'])
+                if not ok:
+                    return False, f"{cid}: {message}", info
+                verified_turns += len(record['turn_evidence'])
 
             # 校验每一个 PDF 文件合法的二进制结构
             zero_byte_count = 0
@@ -851,9 +866,10 @@ class PdfExportDownloadCase(FeatureTestCase):
             if zero_byte_count > 0:
                 return False, f"发现 {zero_byte_count} 个 0 字节的 PDF 文件", None
 
-            return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制与内容合规 100%)", {
+            return True, f"PDF 真实编译导出成功落盘并解压验证通过 (PDF文件数: {len(pdf_files)}, ZIP大小: {zip_size} bytes, 二进制与 {verified_turns} 轮真实内容核验)", {
                 "zip_path": downloaded_zip,
                 "pdf_count": len(pdf_files),
+                "verified_turns": verified_turns,
                 "zip_size": zip_size
             }
         finally:
