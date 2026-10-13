@@ -1,3 +1,4 @@
+import type { ConversationMergeInput } from '../core/utils/mergeUtils.js';
 import type { DomDetail, DetailFailure } from '../types/detailTransport.js';
 import { parseGeminiDomConversation } from '../core/parsers/gemini/dom/parseConversation.js';
 import { contentContext } from './contentContext.js';
@@ -69,18 +70,18 @@ export function getScrollContainer(): HTMLElement | null {
         'div.history-container'
     ];
     for (const s of selectors) {
-        const el = document.querySelector(s) as HTMLElement;
+        const el = document.querySelector<HTMLElement>(s);
         if (el) return el;
     }
     return null;
 }
 
-export function getConversationLinks(): any[] {
+export function getConversationLinks(): ConversationMergeInput[] {
     if (typeof document === 'undefined') return [];
-    const items: any[] = [];
-    const links = document.querySelectorAll('a[href*="/app/"]');
+    const items: ConversationMergeInput[] = [];
+    const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/app/"]');
     for (const a of Array.from(links)) {
-        const href = (a as HTMLAnchorElement).href || a.getAttribute('href') || '';
+        const href = a.href || a.getAttribute('href') || '';
         const m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
         if (m) {
             const id = normId(m[2]);
@@ -105,8 +106,8 @@ export function getConversationLinks(): any[] {
 
 export function tryExpandRecents(): void {
     try {
-        const btn = document.querySelector('button[aria-label="Toggle Recents"]') || document.querySelector('[aria-label="Toggle Recents"]');
-        if (btn && (btn as HTMLElement).getAttribute('aria-expanded') === 'false') (btn as HTMLElement).click();
+        const btn = document.querySelector<HTMLElement>('button[aria-label="Toggle Recents"]') || document.querySelector<HTMLElement>('[aria-label="Toggle Recents"]');
+        if (btn && btn.getAttribute('aria-expanded') === 'false') btn.click();
     } catch (e) {
         if (contentContext.isDevMode()) console.debug('[GemExporter:domScraper.ts]', e);
     }

@@ -70,7 +70,7 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
 
     // Gaia ID from Google Wiz global data (oTI7oc) if accessible
     try {
-        const win = (documentObj.defaultView || (typeof window !== 'undefined' ? window : null)) as any;
+        const win = (documentObj.defaultView || (typeof window !== 'undefined' ? window : null));
         const wiz = win?._WIZ_global_data || win?.WIZ_global_data || win?.__WIZ_global_data;
         if (wiz && typeof wiz === 'object') {
             const oTI7oc = wiz['oTI7oc'];

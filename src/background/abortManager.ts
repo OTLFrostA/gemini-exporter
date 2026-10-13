@@ -33,8 +33,8 @@ export function getSlotAbortSignal(slot: string = 'u0'): AbortSignal {
 export async function restoreAbortFlags(): Promise<void> {
     const p = (async () => {
         try {
-            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session && (chrome.storage as any).session.get) {
-                const data = await (chrome.storage as any).session.get(null);
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session && chrome.storage.session.get) {
+                const data: Record<string, unknown> = await chrome.storage.session.get(null);
                 for (const k of Object.keys(data || {})) {
                     const m = k.match(/^gemini_abort_(.+)$/);
                     if (m && data[k]) {
@@ -86,8 +86,8 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
         __bgAborts.set(s, true);
         try { getOrCreateController(s).abort(); } catch { /* intentional */ }
         try {
-            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
-                (chrome.storage as any).session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) {
+                chrome.storage.session.set({ [`gemini_abort_${s}`]: true }).catch(() => {});
             }
         } catch {
             /* intentional: session storage fallback */
@@ -97,8 +97,8 @@ export async function setSlotAborted(slot: string = 'u0', val: boolean = true): 
         // 已 abort 的 controller 无法复用，必须新建
         __bgControllers.set(s, new AbortController());
         try {
-            if (typeof chrome !== 'undefined' && chrome.storage && (chrome.storage as any).session) {
-                (chrome.storage as any).session.remove([`gemini_abort_${s}`]).catch(() => {});
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.session) {
+                chrome.storage.session.remove([`gemini_abort_${s}`]).catch(() => {});
             }
         } catch {
             /* intentional: session storage fallback */

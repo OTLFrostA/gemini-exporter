@@ -1,4 +1,4 @@
-import type { DirHandleControllerContract } from '../../types/ui.js';
+import type { DirHandleControllerContract, DirectoryHandle } from '../../types/ui.js';
 import { t } from '../uiCommon.js';
 import { getErrorMessage } from '../../core/utils/messaging.js';
 
@@ -10,22 +10,22 @@ import {
 } from '../../core/storage/idbHandleStore.js';
 export { getStoredDirHandle, saveStoredDirHandle };
 
-let currentDirHandle: any = null;
-let pendingPermissionHandle: any = null;
+let currentDirHandle: DirectoryHandle | null = null;
+let pendingPermissionHandle: DirectoryHandle | null = null;
 
-export async function verifyDirPermission(handle: any, options?: { allowRequest?: boolean }): Promise<boolean> {
+export async function verifyDirPermission(handle: DirectoryHandle | null, options?: { allowRequest?: boolean }): Promise<boolean> {
     const r = await verifyDirPermissionDetailed(handle, options);
     return r.ok;
 }
 
 interface DirVerifyResult { ok: boolean; notFound: boolean; }
 
-async function verifyDirPermissionDetailed(handle: any, options?: { allowRequest?: boolean }): Promise<DirVerifyResult> {
+async function verifyDirPermissionDetailed(handle: DirectoryHandle | null, options?: { allowRequest?: boolean }): Promise<DirVerifyResult> {
     if (!handle) return { ok: false, notFound: false };
     try {
-        const opts = { mode: 'readwrite' };
+        const opts = { mode: 'readwrite' } as const;
         const hasActivation = typeof navigator !== 'undefined' &&
-            !!(navigator as any).userActivation && (navigator as any).userActivation.isActive;
+            !!navigator.userActivation && navigator.userActivation.isActive;
         if ((await handle.queryPermission(opts)) !== 'granted') {
             if ((options && options.allowRequest) || hasActivation) {
                 if ((await handle.requestPermission(opts)) !== 'granted') {
@@ -50,7 +50,7 @@ async function verifyDirPermissionDetailed(handle: any, options?: { allowRequest
     }
 }
 
-export async function restoreSavedDirHandle(): Promise<any> {
+export async function restoreSavedDirHandle(): Promise<DirectoryHandle | null> {
     try {
         const handle = await getStoredDirHandle();
         if (handle) {
@@ -81,7 +81,7 @@ export async function restoreSavedDirHandle(): Promise<any> {
     return null;
 }
 
-export function getPendingPermissionHandle(): any {
+export function getPendingPermissionHandle(): DirectoryHandle | null {
     return pendingPermissionHandle;
 }
 
@@ -89,7 +89,7 @@ export async function reauthorizeDirHandle(): Promise<boolean> {
     const handle = pendingPermissionHandle || (await getStoredDirHandle());
     if (!handle) return false;
     try {
-        const opts = { mode: 'readwrite' };
+        const opts = { mode: 'readwrite' } as const;
         if (typeof handle.requestPermission === 'function') {
             const perm = await handle.requestPermission(opts);
             if (perm === 'granted') {
@@ -106,11 +106,11 @@ export async function reauthorizeDirHandle(): Promise<boolean> {
     return false;
 }
 
-export async function requestDirHandle(): Promise<any> {
-    if (typeof window === 'undefined' || !(window as any).showDirectoryPicker) {
+export async function requestDirHandle(): Promise<DirectoryHandle> {
+    if (typeof window === 'undefined' || !window.showDirectoryPicker) {
         throw new Error(typeof t === 'function' ? t('browserNoDirPicker') : '当前浏览器不支持 FileSystem Access API 目录选择');
     }
-    const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
     currentDirHandle = handle;
     pendingPermissionHandle = null;
     setMemoryDirHandle(handle);
@@ -118,11 +118,11 @@ export async function requestDirHandle(): Promise<any> {
     return handle;
 }
 
-export function getDirHandle(): any {
+export function getDirHandle(): DirectoryHandle | null {
     return currentDirHandle || getMemoryDirHandle();
 }
 
-export function setDirHandle(handle: any): void {
+export function setDirHandle(handle: DirectoryHandle | null): void {
     currentDirHandle = handle;
     if (handle) pendingPermissionHandle = null;
     setMemoryDirHandle(handle);

@@ -1,8 +1,10 @@
+export interface ExportProgressInfo { current: number; total: number; pct: number; title: string; assetsDownloaded: number; assetsTotal: number }
+import type { ExportSessionData } from '../../storage/sessionStore.js';
 import { SessionStore } from '../../storage/sessionStore.js';
 
 export interface ProgressReporterOptions {
     totalChats?: number;
-    onProgress?: ((info: any) => void) | null;
+    onProgress?: ((info: ExportProgressInfo) => void) | null;
     onLog?: ((msg: string, level?: string) => void) | null;
 }
 
@@ -24,7 +26,7 @@ function calculateProgress(current: number, total: number, downloadedAssets: num
     return pct;
 }
 
-async function updateStorageSession(sessionData: any): Promise<void> {
+async function updateStorageSession(sessionData: Partial<ExportSessionData>): Promise<void> {
     await SessionStore.updateSession(sessionData);
 }
 
@@ -32,7 +34,7 @@ class ProgressReporter {
     totalChats: number;
     currentExportIdx: number;
     currentExportTitle: string;
-    onProgress: (info: any) => void;
+    onProgress: (info: ExportProgressInfo) => void;
     onLog: (msg: string, level?: string) => void;
     // Monotonic percentage tracker to prevent backward progress jumps
     private lastPct: number = 0;
@@ -85,7 +87,7 @@ class ProgressReporter {
         return pct;
     }
 
-    async updateSession(data: any): Promise<void> {
+    async updateSession(data: Partial<ExportSessionData>): Promise<void> {
         await updateStorageSession(data);
     }
 }

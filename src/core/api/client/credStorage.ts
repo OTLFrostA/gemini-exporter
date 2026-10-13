@@ -6,8 +6,8 @@ const CREDENTIAL_MAP_LOCK = 'gemini-exporter:write:credential-map';
 export function withCredMapLock<T>(fn: () => Promise<T>): Promise<T> {
     const run = () => {
         try {
-            const locks = typeof navigator !== 'undefined' ? (navigator as any).locks : null;
-            if (locks?.request) return locks.request(CREDENTIAL_MAP_LOCK, fn) as Promise<T>;
+            const locks = typeof navigator !== 'undefined' ? navigator.locks : null;
+            if (locks?.request) return locks.request(CREDENTIAL_MAP_LOCK, fn);
         } catch { /* non-browser contexts use the local chain */ }
         return fn();
     };

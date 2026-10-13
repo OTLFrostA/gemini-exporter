@@ -86,9 +86,9 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
             return;
         }
 
-        const item = target.closest('.item') as HTMLElement | null;
+        const item = target.closest<HTMLElement>('.item');
         if (item) {
-            const cb = item.querySelector('input[type=checkbox]') as HTMLInputElement | null;
+            const cb = item.querySelector<HTMLInputElement>('input[type=checkbox]');
             if (cb && !cb.disabled) {
                 cb.checked = !cb.checked;
                 cb.dispatchEvent(new Event('change', { bubbles: true }));
@@ -100,7 +100,7 @@ function ensureListDelegation(list: HTMLElement & { _delegated?: boolean }): voi
         if (list.dataset?.selectionDisabled === 'true') return;
         const target = e.target as HTMLElement;
         if (target.matches('input[type=checkbox]')) {
-            const item = (typeof (target as any).closest === 'function' ? (target as any).closest('.item') : null) as HTMLElement | null;
+            const item = typeof target.closest === 'function' ? target.closest<HTMLElement>('.item') : null;
             const chatId = item?.dataset?.chatId;
             const cb = target as HTMLInputElement;
             if (chatId) {
@@ -200,10 +200,10 @@ export function render(
     }
 
     const htmlArr: string[] = [];
-    const idxMap = new Map(conversations.map((c, idx) => [c as object, idx] as const));
+    const idxMap = new Map(conversations.map((c, idx) => [c, idx] as const));
 
     filtered.forEach((c) => {
-        const origIdx = idxMap.get(c as object) ?? -1;
+        const origIdx = idxMap.get(c) ?? -1;
         const nid = normId(c.id);
         const rec = expMap[nid] || null;
         const isFailedInSession = !!(
@@ -230,7 +230,7 @@ export function render(
 
         let dateStr = '';
         const effTs = getEffectiveTimestamp(c);
-        const ts = effTs || (c as any).updatedAt || c.timestamp;
+        const ts = effTs || c.updatedAt || c.timestamp;
         if (ts) {
             try {
                 const d = typeof ts === 'string' ? new Date(ts) : new Date(Number(ts));
@@ -260,7 +260,7 @@ export function render(
 
         const cloudLabel = c.cloudAvailability === 'deleted' ? t('archiveCloudDeleted') : c.cloudAvailability === 'unlisted' ? t('archiveUnlisted') : '';
         const cloudBadge = cloudLabel ? `<span class="cloud-status" style="font-size:10px; color:var(--muted); margin-left:8px;">${escapeHtml(cloudLabel)}</span>` : '';
-        const rawUrl = (c as any).url;
+        const rawUrl = c.url;
         const url = (typeof rawUrl === 'string' && /^https?:\/\//i.test(rawUrl.trim()))
             ? rawUrl.trim()
             : `https://gemini.google.com/app/${encodeURIComponent(c.id)}`;
@@ -281,7 +281,7 @@ export function render(
     list.innerHTML = htmlArr.join('');
 }
 
-export function updateItemExportStatus(chatId: string, exportRecord?: ExportRecord | null): void {
+export function updateItemExportStatus(chatId: string, exportRecord?: Partial<ExportRecord> | null): void {
     if (!chatId) return;
     const nid = normId(chatId);
     const esc = (v: string): string =>
@@ -301,14 +301,14 @@ export function updateItemExportStatus(chatId: string, exportRecord?: ExportReco
         : (typeof t === 'function' ? t(b.i18nKey) : b.defaultLabel);
     const badgeText = (bText && bText !== b.i18nKey) ? bText : b.defaultLabel;
 
-    let badge = item.querySelector ? item.querySelector('.badge') as HTMLElement | null : null;
+    let badge = item.querySelector ? item.querySelector<HTMLElement>('.badge') : null;
     if (badge) {
         badge.className = b.className;
         badge.textContent = badgeText;
-        if ((badge as HTMLElement).style) {
-            (badge as HTMLElement).style.background = b.bg;
-            (badge as HTMLElement).style.borderColor = b.border;
-            (badge as HTMLElement).style.color = b.color;
+        if (badge.style) {
+            badge.style.background = b.bg;
+            badge.style.borderColor = b.border;
+            badge.style.color = b.color;
         }
     } else {
         const titleContainer = item.querySelector ? item.querySelector('div') : null;
@@ -334,7 +334,7 @@ export function updateStat(conversations?: Conversation[]): void {
             return canonicalSelectedIds!.has(c.id) || canonicalSelectedIds!.has(nid) || canonicalSelectedIds!.has('c_' + nid);
         }).length;
     } else {
-        checked = document.querySelectorAll('#list input[type=checkbox]:checked').length;
+        checked = document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').length;
     }
     const statEl = $('selectedStat');
     if (statEl) {
@@ -352,8 +352,8 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
         if (selected.length > 0) return selected;
     }
     const selected: Conversation[] = [];
-    document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
-        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+    document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').forEach((cb) => {
+        const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) {
             const found = convs.find(c => normId(c.id) === normId(chatId));
@@ -362,7 +362,7 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
                 return;
             }
         }
-        const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
+        const idx = parseInt(cb.dataset?.idx || '-1', 10);
         if (idx >= 0 && convs[idx]) {
             selected.push(convs[idx]);
         }
@@ -375,8 +375,8 @@ export function getSelectedIds(): Set<string> {
         return new Set(canonicalSelectedIds);
     }
     const ids = new Set<string>();
-    document.querySelectorAll('#list input[type=checkbox]:checked').forEach((cb) => {
-        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+    document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').forEach((cb) => {
+        const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) ids.add(chatId);
     });
@@ -385,15 +385,15 @@ export function getSelectedIds(): Set<string> {
 
 export function selectAll(conversations?: Conversation[]): void {
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
-    document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        (cb as HTMLInputElement).checked = true;
-        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+    document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
+        cb.checked = true;
+        const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) {
             canonicalSelectedIds!.add(chatId);
             canonicalSelectedIds!.add(normId(chatId));
         } else {
-            const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
+            const idx = parseInt(cb.dataset?.idx || '-1', 10);
             const convs = conversations || currentConversationsRef || [];
             if (idx >= 0 && convs[idx]) {
                 canonicalSelectedIds!.add(convs[idx].id);
@@ -406,9 +406,9 @@ export function selectAll(conversations?: Conversation[]): void {
 
 export function deselectAll(conversations?: Conversation[]): void {
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
-    document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        (cb as HTMLInputElement).checked = false;
-        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+    document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
+        cb.checked = false;
+        const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
         if (chatId) {
             const nid = normId(chatId);
@@ -416,7 +416,7 @@ export function deselectAll(conversations?: Conversation[]): void {
             canonicalSelectedIds!.delete(nid);
             canonicalSelectedIds!.delete('c_' + nid);
         } else {
-            const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
+            const idx = parseInt(cb.dataset?.idx || '-1', 10);
             const convs = conversations || currentConversationsRef || [];
             if (idx >= 0 && convs[idx]) {
                 const nid = normId(convs[idx].id);
@@ -433,17 +433,17 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
-    document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        const idx = parseInt((cb as HTMLElement).dataset?.idx || '-1', 10);
+    document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
+        const idx = parseInt(cb.dataset?.idx || '-1', 10);
         const c = convList[idx];
         if (!c) {
-            (cb as HTMLInputElement).checked = false;
+            cb.checked = false;
             return;
         }
         const nid = normId(c.id);
         const rec = expMap[nid] || null;
         const check = !rec;
-        (cb as HTMLInputElement).checked = check;
+        cb.checked = check;
         if (check) {
             canonicalSelectedIds!.add(c.id);
             canonicalSelectedIds!.add(nid);
@@ -459,10 +459,10 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
 export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
     const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
     canonicalSelectedIds = new Set(idSet);
-    document.querySelectorAll('#list input[type=checkbox]').forEach((cb) => {
-        const item = typeof (cb as any).closest === 'function' ? ((cb as any).closest('.item') as HTMLElement | null) : null;
+    document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
+        const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = normId(item?.dataset?.chatId);
-        (cb as HTMLInputElement).checked = !!chatId && idSet.has(chatId);
+        cb.checked = !!chatId && idSet.has(chatId);
     });
     updateStat(conversations || currentConversationsRef);
 }

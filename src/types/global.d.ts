@@ -1,4 +1,4 @@
-declare var define: any;
+declare var define: unknown;
 declare function importScripts(...urls: string[]): void;
 declare const __EXT_VERSION__: string;
 
@@ -25,6 +25,16 @@ declare var WIZ_global_data: Record<string, string> | undefined;
 declare var __WIZ_global_data: Record<string, string> | undefined;
 
 interface Window {
+    showDirectoryPicker?: (options?: { mode?: 'read' | 'readwrite' }) => Promise<import('../core/engine/writers/directoryHandle.js').DirectoryHandle>;
+    __workbenchLoadStore?: (force?: boolean, customSelected?: Set<string>) => Promise<void>;
+    ConversationsStore?: typeof import('../ui/state/conversationsStore.js').default;
+    DialogView?: typeof import('../ui/views/dialogView.js').default;
+    TourGuide?: typeof import('../ui/tour/tourGuide.js').default;
+    FsWriter?: typeof import('../core/engine/writers/fsWriter.js').default;
+    TakeoutController?: typeof import('../ui/controllers/takeoutController.js').default;
+    SyncController?: typeof import('../ui/controllers/syncController.js').default;
+    ExportController?: typeof import('../ui/controllers/exportController.js').default;
+    __mitex?: Pick<typeof import('../core/renderers/typst/mathConverter.js'), 'initMitexWasm' | 'isMitexReady' | 'convertMathWithMitex'>;
     __gemExporterAborted?: boolean;
     __gemExporterActiveClient?: import('../content/contentContext.js').ActiveClientContract | null;
     __gemExporterContentContext?: import('../content/contentContext.js').ContentContext;
@@ -53,4 +63,9 @@ interface Window {
     __WIZ_global_data?: Record<string, string>;
 }
 
+interface HTMLElement {
+    __initialRefreshed?: boolean;
+}
 
+declare var __liveSaveStorageWatcherBound: boolean | undefined;
+declare var __gemExporterAborted: boolean | undefined;

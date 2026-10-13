@@ -1,6 +1,6 @@
 import type { IProgressView } from '../../types/ui.js';
 
-let _hideTimer: any = null;
+let _hideTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getEl(id: string): HTMLElement | null {
     if (typeof document === 'undefined') return null;

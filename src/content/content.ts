@@ -25,7 +25,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
 
     if (typeof window === 'undefined') return;
 
-    const w = window as any;
+    const w = window;
 
     if (typeof w.__gemExporterDeepScanPromise === 'undefined') w.__gemExporterDeepScanPromise = null;
 
@@ -54,10 +54,10 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     const Router = MessageRouter;
     const Badge = BadgeView;
     const Bridge = MessageBridge;
-    const Storage = StorageService as any;
+    const Storage = StorageService;
     const Scraper = DomScraper;
     const Assets = AssetFetcher;
-    const Utils = GeminiUtils as any;
+    const Utils = GeminiUtils;
 
     function getAccountSlot(): string {
         return Sync ? Sync.getAccountSlot() : 'u0';
@@ -69,7 +69,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
 
     function ensureBadge(): HTMLElement | null {
         if (Badge && Badge.ensureBadge) {
-            const b = Badge.ensureBadge({ isZh, onClick: undefined }) as any;
+            const b = Badge.ensureBadge({ isZh, onClick: undefined });
             if (b && !b.__initialRefreshed) {
                 b.__initialRefreshed = true;
                 if (Sync && Sync.refreshInitialBadge) {
@@ -83,14 +83,14 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
 
     try {
         if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            chrome.storage.local.get([STORAGE_KEYS.LANG, STORAGE_KEYS.DEV_MODE], d => {
+            chrome.storage.local.get([STORAGE_KEYS.LANG, STORAGE_KEYS.DEV_MODE], (d: Record<string, unknown>) => {
                 const lang = String(d[STORAGE_KEYS.LANG] || ((navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en'));
                 if (Sync && Sync.setLanguage) Sync.setLanguage(lang);
                 contentContext.setDevMode(!!d[STORAGE_KEYS.DEV_MODE]);
                 w.__gemExporterDevMode = !!d[STORAGE_KEYS.DEV_MODE];
                 if (Sync && Sync.refreshInitialBadge) void Sync.refreshInitialBadge();
             });
-            const onStorageChanged = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+            const onStorageChanged = (changes: { [key: string]: { newValue?: unknown } }, area: string) => {
                 if (area === 'local' && changes[STORAGE_KEYS.LANG]) {
                     const newLang = String(changes[STORAGE_KEYS.LANG].newValue || 'zh');
                     if (Sync && Sync.setLanguage) Sync.setLanguage(newLang);

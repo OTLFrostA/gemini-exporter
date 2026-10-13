@@ -1,7 +1,7 @@
 import { contentContext } from './contentContext.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
-let __syncDebounceTimer: any = null;
+let __syncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let __lastObservedUrl = typeof location !== 'undefined' ? location.href : '';
 let __historyUrlCallback: (() => void) | null = null;
 
@@ -31,7 +31,7 @@ export function cleanup(): void {
     }
 
     if (typeof window !== 'undefined') {
-        const w = window as any;
+        const w = window;
         w.__gemExporterUrlWatcher = null;
         w.__gemExporterSyncInterval = null;
         w.__gemExporterTitleObserver = null;
@@ -58,20 +58,20 @@ export function debouncedSync(syncCallback?: () => void, delay = 350): void {
 export function hookHistoryEvents(onUrlChanged: () => void): void {
     if (typeof window === 'undefined' || typeof history === 'undefined') return;
 
-    const w = window as any;
+    const w = window;
     if (!w.__gemExporterHistoryHooked) {
         w.__gemExporterHistoryHooked = true;
         const originalPushState = history.pushState;
         const originalReplaceState = history.replaceState;
 
-        history.pushState = function(...args: any[]) {
-            const res = originalPushState.apply(this, args as unknown as [any, string, string | undefined]);
+        history.pushState = function(...args: Parameters<History['pushState']>) {
+            const res = originalPushState.apply(this, args);
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };
 
-        history.replaceState = function(...args: any[]) {
-            const res = originalReplaceState.apply(this, args as unknown as [any, string, string | undefined]);
+        history.replaceState = function(...args: Parameters<History['replaceState']>) {
+            const res = originalReplaceState.apply(this, args);
             window.dispatchEvent(new Event('gemini:locationchange'));
             return res;
         };

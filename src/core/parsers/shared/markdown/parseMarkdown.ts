@@ -88,8 +88,8 @@ export function parseMarkdownToInlines(
     const blocks = mdastRootToBlocks(tree, parseCtx, text);
     const inlines: InlineNode[] = [];
     for (const b of blocks) {
-        if ('children' in b && Array.isArray((b as any).children)) {
-            inlines.push(...(b as any).children);
+        if ('children' in b && Array.isArray(b.children)) {
+            inlines.push(...b.children);
         }
     }
     return inlines;

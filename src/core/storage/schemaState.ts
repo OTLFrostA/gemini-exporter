@@ -25,9 +25,9 @@ function warnSchemaFrozen(): void {
     try {
         const action = (typeof chrome !== "undefined" && chrome.action) || null;
         if (action && typeof action.setBadgeText === "function") {
-            action.setBadgeText({ text: "!" });
+            void action.setBadgeText({ text: "!" });
             if (typeof action.setBadgeBackgroundColor === "function") {
-                action.setBadgeBackgroundColor({ color: "#C53929" });
+                void action.setBadgeBackgroundColor({ color: "#C53929" });
             }
         }
     } catch {}

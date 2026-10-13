@@ -1,3 +1,22 @@
+export interface AssetFetchRequest {
+    url?: string;
+    candidates?: string[];
+    fileName?: string;
+    preferBuffer?: boolean;
+}
+export interface AssetFetchResponse {
+    success: boolean;
+    dataUrl?: string;
+    dataBuffer?: ArrayBuffer;
+    blobBuffer?: ArrayBuffer;
+    dataBase64?: string;
+    blobBase64?: string;
+    mime?: string;
+    mimeType?: string;
+    size?: number;
+    url?: string;
+    error?: string;
+}
 import { contentContext } from './contentContext.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
@@ -121,8 +140,8 @@ export function toHighRes(url: string, variant = 's1024-rj'): string {
 
 export function toDataUrl(blob: Blob): Promise<string> {
     if (typeof FileReader === 'undefined') {
-        if (typeof Buffer !== 'undefined' && typeof (blob as any).arrayBuffer === 'function') {
-            return (blob as any).arrayBuffer().then((buf: ArrayBuffer) => {
+        if (typeof Buffer !== 'undefined' && typeof blob.arrayBuffer === 'function') {
+            return blob.arrayBuffer().then((buf: ArrayBuffer) => {
                 const b64 = Buffer.from(buf).toString('base64');
                 const type = blob.type || 'application/octet-stream';
                 return `data:${type};base64,${b64}`;
@@ -154,7 +173,7 @@ export function extractGucUrl(text: string): string | null {
     return m2 ? m2[0].replace(/\\u003d/g, '=').replace(/\\u0026/g, '&') : null;
 }
 
-export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => void): Promise<void> {
+export async function handleGetFileBlob(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
     try {
         let candidates: string[] = [];
         if (msg.candidates && Array.isArray(msg.candidates)) candidates.push(...msg.candidates);
@@ -162,9 +181,9 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
 
         try {
             if (typeof document !== 'undefined') {
-                const links = document.querySelectorAll('a[href*="googleusercontent"], a[href*="usercontent.google"], a[href*="drive.google"], a[download]');
+                const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="googleusercontent"], a[href*="usercontent.google"], a[href*="drive.google"], a[download]');
                 for (const a of Array.from(links)) {
-                    const href = (a as HTMLAnchorElement).href || a.getAttribute('href') || '';
+                    const href = a.href || a.getAttribute('href') || '';
                     const txt = (a.textContent || a.getAttribute('aria-label') || '').trim();
                     if (!href) continue;
                     if (msg.fileName && (txt.includes(msg.fileName) || href.includes(encodeURIComponent(msg.fileName)))) candidates.push(href);
@@ -241,7 +260,7 @@ export async function handleGetFileBlob(msg: any, sendResponse: (resp: any) => v
     }
 }
 
-export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => void): Promise<void> {
+export async function handleGetImageBlob(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
     try {
         const rawUrl = msg.url;
         if (!rawUrl) {
@@ -330,7 +349,7 @@ export async function handleGetImageBlob(msg: any, sendResponse: (resp: any) => 
     }
 }
 
-export async function downloadAssetDirect(msg: any, sendResponse: (resp: any) => void): Promise<void> {
+export async function downloadAssetDirect(msg: AssetFetchRequest, sendResponse: (resp: AssetFetchResponse) => void): Promise<void> {
     try {
         const url = msg.url;
         if (!url) {
@@ -433,7 +452,7 @@ export function inferImageExt(mimeType?: string, url?: string): string {
 export async function fetchImageBuffer(url: string, timeoutMs = 12000): Promise<FetchedImageAsset | null> {
     if (!url || typeof url !== 'string') return null;
     return new Promise((resolve) => {
-        let timer: any = null;
+        let timer: ReturnType<typeof setTimeout> | null = null;
         let settled = false;
 
         const cleanup = () => {
