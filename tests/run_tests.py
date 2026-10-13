@@ -985,6 +985,10 @@ def test_tier2_assertions_suite():
     res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_tier2_assertions.py")], capture_output=True, text=True)
     assert res.returncode == 0, f"Tier 2 assertion counterexamples failed: {res.stderr or res.stdout}"
     print("  ✓ Tier 2 content/completeness assertions and fault counterexamples passed")
+    res = subprocess.run([sys.executable, os.path.join(BASE_DIR, "tests", "test_html_evidence.py")], capture_output=True, text=True)
+    assert res.returncode == 0, f"HTML disk content assertions failed: {res.stderr or res.stdout}"
+    print("  ✓ Tier 2 physical HTML content counterexamples passed")
+
 
 def test_impact_analyzer_suite():
     import subprocess
