@@ -1,4 +1,4 @@
-import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../../parsers/parsingResult.js';
+import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
 import { nativeExportInput } from '../../engine/chatFormatter.js';
 import {
@@ -39,7 +39,7 @@ declare global {
 export const PDF_NO_MESSAGES = 'PDF_NO_MESSAGES';
 export const PDF_DETAIL_FETCH_FAILED = 'PDF_DETAIL_FETCH_FAILED';
 
-interface PdfSelectedItemObject { id?: string | number | null; title?: string | null; [key: string]: unknown }
+interface PdfSelectedItemObject { id?: string | number | null; title?: string | null }
 export type PdfSelectedItem = string | PdfSelectedItemObject | ResourceConversationParseResult | DomainConversationDetail;
 
 type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
@@ -48,13 +48,13 @@ type PdfFetchAsset = NonNullable<AssetPipelineOptions['fetchAsset']>;
 type PdfFetchAssetDelegate = NonNullable<AssetPipelineOptions['fetchAssetDelegate']>;
 
 interface PdfTakeoutFallbackEngine {
-    getTakeoutOfflineChat?: (chatId: string, slot?: string | null) => unknown;
+    getTakeoutOfflineChat?: (chatId: string, slot?: string | null) => ResourceConversationParseResult | null;
     getTakeoutFallbackMedia?: (
         chatId: string,
         lookup: TakeoutResourceLookup,
         slot?: string | null
     ) => Promise<Uint8Array | null>;
-    getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => unknown[];
+    getTakeoutMediaForChat?: (chatId: string, slot?: string | null) => ResourceConversationParseResult | null[];
 }
 
 type PdfTakeoutEngine =
@@ -72,7 +72,7 @@ export function toRenderDiagnostic(d: DocumentDiagnostic): RenderDiagnostic {
     };
 }
 
-export function hasUsableMessages(value: unknown): boolean {
+export function hasUsableMessages(value: NativeConversationInput): boolean {
     return isResourceConversationParseResult(value) && value.conversation.messages.length > 0;
 }
 
@@ -201,7 +201,7 @@ async function prepareNativePdfItem(
 ): Promise<PreparedPdfItemResult> {
     const nativeSelected = typeof selectedItem === 'object' && selectedItem && 'providerId' in selectedItem
         ? nativeExportInput(selectedItem as DomainConversationDetail)
-        : isResourceConversationParseResult(selectedItem) ? selectedItem : null;
+        : typeof selectedItem === 'object' && selectedItem && 'conversation' in selectedItem ? selectedItem : null;
     const source = nativeSelected?.conversation;
     const rawId = source?.id ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
     const id = source && source.providerId !== 'gemini' ? source.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');

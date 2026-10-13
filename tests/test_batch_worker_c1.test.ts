@@ -30,8 +30,8 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     // 1. Direct TabService success
     const mockDirectTabService = {
         sendToGeminiTab: async () => ({
-            success: true,
-            data: { id: 'chat_direct_1', title: 'Direct Tab Chat', messages: [] }
+            success: true, domainEnvelopeVersion: 1,
+            data: historicalFixture({ id: 'chat_direct_1', title: 'Direct Tab Chat', messages: [] })
         })
     };
     let runtimeCalled = false;
@@ -51,7 +51,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { tabService: mockDirectTabService, messageSender: mockRuntimeSender }
     );
     assert.equal(directResult.success, true);
-    assert.equal(directResult.results?.[0]?.title, 'Direct Tab Chat');
+    assert.equal(directResult.results?.[0]?.conversation?.title, 'Direct Tab Chat');
     assert.equal(runtimeCalled, false, 'Runtime sender must not be called when direct transport succeeds');
 
     // 2. Explicit direct error: must return error directly and NOT fall back to runtime sender
@@ -92,7 +92,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { tabService: mockDirectMalformedTabService, messageSender: mockRuntimeSender }
     );
     assert.equal(malformedResult.success, false);
-    assert.equal(malformedResult.error, 'Malformed direct response envelope');
+    assert.match(malformedResult.error, /unreadable/i);
     assert.equal(runtimeCalled, false, 'Malformed direct response envelope must settle without falling back');
 
     // 4. TabService throws or absent -> cascades to messageSender (runtime/chrome fallback)
@@ -105,8 +105,8 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     const mockFallbackSender = (msg: unknown, callback?: (res: unknown) => void) => {
         remotePayload = msg;
         callback?.({
-            success: true,
-            results: [{ id: 'chat_remote_1', title: 'Remote Fallback Chat', messages: [] }]
+            success: true, domainEnvelopeVersion: 1,
+            results: [historicalFixture({ id: 'chat_remote_1', title: 'Remote Fallback Chat', messages: [] })]
         });
     };
     const fallbackResult = await fetchChatDetail(
@@ -120,7 +120,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { tabService: mockFailingTabService, messageSender: mockFallbackSender }
     );
     assert.equal(fallbackResult.success, true);
-    assert.equal(fallbackResult.results?.[0]?.title, 'Remote Fallback Chat');
+    assert.equal(fallbackResult.results?.[0]?.conversation?.title, 'Remote Fallback Chat');
     assert.ok(remotePayload, 'Fallback sender must be invoked');
 });
 
@@ -172,27 +172,25 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
     assert.match(String(midFlightResult.error), /abort/i);
 });
 
-test('C1 review: direct payload and runtime response retain identity and missing fields', async () => {
+test('C1 review: malformed raw replies are reportable failures rather than native results', async () => {
     const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
     const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => ({ success: true, data: payload }) }
+        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 1, data: payload }) }
     });
-    assert.equal(direct.results[0], payload);
-    assert.equal(Object.hasOwn(payload, 'id'), false);
-    const envelope = { results: [payload], error: 0, extension: 'retained' };
+    assert.equal(direct.success, false);
+    assert.equal(direct.results, undefined);
     const runtime = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
         tabService: { sendToGeminiTab: async () => null },
-        messageSender: (_msg: unknown, callback: (value: unknown) => void) => callback(envelope)
+        messageSender: (_msg: unknown, callback: (value: unknown) => void) => callback({ results: [payload], error: 0 })
     });
-    assert.equal(runtime, envelope);
-    assert.equal(Object.hasOwn(runtime, 'success'), false);
-    const rawError = { error: { code: 403 }, extension: 'error payload' };
+    assert.equal(runtime.success, false);
+    assert.equal(runtime.results, undefined);
     const error = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => rawError }
+        tabService: { sendToGeminiTab: async () => ({ error: { code: 403 } }) }
     });
-    assert.equal(error, rawError);
+    assert.equal(error.success, false);
+    assert.equal(typeof error.error, 'string');
 });
-
 
 test('runtime detail recovery prefers native online, then native Takeout, then durable Domain', async () => {
     const id = 'cascade_test'; const slot = 'runtime-cascade';

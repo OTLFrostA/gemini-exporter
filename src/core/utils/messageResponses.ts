@@ -1,4 +1,5 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../parsers/parsingResult.js';
+import type { NativeDetailReply } from './nativeDetailTransport.js';
 import type { ScanResponse } from '../../types/ui.js';
 
 export function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -34,21 +35,20 @@ export function isScanResponse(value: unknown): value is ScanResponse {
 
 /** Popup consumes the same closed native result as the full workbench. */
 export type PopupExportInput = ResourceConversationParseResult;
-function isPopupExportInput(value: unknown): value is PopupExportInput { return isResourceConversationParseResult(value); }
 
 export type PopupFetchResult =
     | { success: true; chat: PopupExportInput }
     | { success: false; error: string };
 
 /** Retain the existing envelope and direct-chat fallback without asserting a parsed detail type. */
-export function readPopupFetchResult(value: unknown): PopupFetchResult {
-    if (!isObjectRecord(value) || typeof value.success !== 'boolean') {
+export function readPopupFetchResult(value: NativeDetailReply | (ResourceConversationParseResult & { success: boolean; error?: string })): PopupFetchResult {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.success !== 'boolean') {
         return { success: false, error: 'Gemini returned an unreadable conversation reply. Refresh its page and try again.' };
     }
     if (!value.success) {
         return { success: false, error: typeof value.error === 'string' && value.error ? value.error : '未知错误' };
     }
-    const chat = value.data || value;
-    return isPopupExportInput(chat) ? { success: true, chat }
+    const chat = 'conversation' in value ? value : value.data ?? value.chat;
+    return isResourceConversationParseResult(chat) ? { success: true, chat }
         : { success: false, error: 'Gemini returned unreadable conversation data. Refresh its page and try again.' };
 }

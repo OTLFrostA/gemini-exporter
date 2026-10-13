@@ -92,7 +92,7 @@ async function transaction<T>(mode: IDBTransactionMode, run: (current: IDBObject
 }
 export async function getStoredDomain(identity: DomainStorageIdentity): Promise<TrustedDomainStorageRecord | null> {
     const key = domainStorageKey(identity);
-    if (needsDomainBroker()) { const value = await callDomainBroker('get', { identity }); return value ? checked(decodeDomainRecord(value)) : null; }
+    if (needsDomainBroker()) { const value = await callDomainBroker('get', { identity }); return value ? checkedBindings(decodeDomainRecord(value), value.conversation) : null; }
     if (typeof indexedDB === 'undefined') return memory.has(key) ? checked(memory.get(key)!) : null;
     const value = await transaction<DomainStorageRecord | null>('readonly', (store, result) => {
         const req = store.get(key); req.onsuccess = () => result(req.result ?? null);
@@ -178,7 +178,7 @@ export function saveDomainConversation(accountSlot: string, parsed: ResourceConv
 export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean): Promise<TrustedDomainStorageRecord | null>;
 export async function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = [], migration = false): Promise<TrustedDomainStorageRecord | null> {
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
-    if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountSlot, parsed: { conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checked(decodeDomainRecord(value)); }
+    if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountSlot, parsed: { conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checkedBindings(decodeDomainRecord(value), value.conversation); }
     return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration);
 }
 

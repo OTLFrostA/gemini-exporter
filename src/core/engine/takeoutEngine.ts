@@ -30,7 +30,7 @@ import {
 export type { TakeoutStore, TakeoutParseResult, TakeoutResourceLookup };
 
 export interface TakeoutEngineModule {
-    getTakeoutOfflineChat: (chatId: string, slot?: string | null) => any;
+    getTakeoutOfflineChat: typeof getTakeoutOfflineChat;
     getTakeoutFallbackMedia: (chatId: string, lookup: TakeoutResourceLookup, slot?: string | null) => Promise<Uint8Array | null>;
     getTakeoutMediaForChat: (chatId: string, slot?: string | null) => any[];
     extractC2PATimestamp: (bufferOrArray: any) => number | null;

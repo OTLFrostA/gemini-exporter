@@ -93,7 +93,7 @@ test('popup validation preserves rich envelope/direct replies and rejects false 
         { success: true, data: {} }, { success: true, data: { id: 123, messages: [] } },
         { success: true, data: { title: {}, messages: [] } },
         { success: true, data: { messages: 'not an array' } }]) {
-        assert.equal(readPopupFetchResult(bad).success, false);
+        assert.equal(readPopupFetchResult(bad as never).success, false);
     }
     assert.deepEqual(readPopupFetchResult({ success: false, error: 'offline' }), { success: false, error: 'offline' });
 });

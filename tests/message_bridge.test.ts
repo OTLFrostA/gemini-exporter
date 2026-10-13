@@ -278,3 +278,21 @@ test('messageBridge - fallback to upsertConversations without client timestamp w
     assert.strictEqual(upsertedForceWrite, true, 'forceWrite must be true to ensure persistence');
     assert.strictEqual(upsertedSlot, 'u0');
 });
+
+test('messageBridge rejects malformed raw protocol fields before parser or stream handlers', async () => {
+    let touches = 0;
+    const api = MessageBridge.init({
+        onStreamStart: () => { touches++; }, onStreamComplete: () => { touches++; },
+        ingestPageObservation: async () => { touches++; return { merged: 0 }; }
+    });
+    for (const payload of [{ text: 123 }, { text: 'MaZiqc', slot: {} }, { text: 'MaZiqc', requestedAt: Infinity },
+        { text: 'MaZiqc', truncated: 'no' }, { text: 'MaZiqc', requestAccountId: 1 },
+        { text: 'MaZiqc', listRequest: { streamId: 'forged', requestCursor: null } }]) {
+        await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload } });
+    }
+    for (const type of ['GEMINI_STREAM_GENERATE_START', 'GEMINI_STREAM_GENERATE_COMPLETE']) {
+        await api.handleWindowMessage({ data: { type, payload: { id: {}, slot: 'u0' } } });
+        await api.handleWindowMessage({ data: { type, payload: { id: 'valid', slot: 1 } } });
+    }
+    assert.strictEqual(touches, 0);
+});

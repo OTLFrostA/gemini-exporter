@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
@@ -113,7 +114,7 @@ test('queued fetchBatch submitted before cancel must not restart after the in-fl
         if (msg.action === 'getConversationDetail') {
             detailCalls++;
             if (detailCalls === 1) releaseFirstDetail = () => cb({ success: false, error: 'cancelled' });
-            else cb({ success: true, data: { id: msg.conversationId, messages: [] } });
+            else cb({ success: true, domainEnvelopeVersion: 1, data: historicalFixture({ id: msg.conversationId, messages: [] }) });
         } else cb(tabReply);
     };
     const listener = lastListener();
@@ -144,8 +145,8 @@ test('same-slot batches do not overlap the shared abort controller in production
     tabResponder = (msg: any, cb: any) => {
         if (msg.action === 'getConversationDetail') {
             detailCalls++;
-            if (detailCalls === 1) releaseFirst = () => cb({ success: true, data: { id: 'first', messages: [] } });
-            else cb({ success: true, data: { id: 'second', messages: [] } });
+            if (detailCalls === 1) releaseFirst = () => cb({ success: true, domainEnvelopeVersion: 1, data: historicalFixture({ id: 'first', messages: [] }) });
+            else cb({ success: true, domainEnvelopeVersion: 1, data: historicalFixture({ id: 'second', messages: [] }) });
         } else cb(tabReply);
     };
     const listener = lastListener();
@@ -176,7 +177,7 @@ test('back-to-back batches submitted before the first starts both run without ca
     tabResponder = (msg: any, cb: any) => {
         if (msg.action === 'getConversationDetail') {
             sent.push(msg.conversationId);
-            cb({ success: true, data: { id: msg.conversationId, messages: [] } });
+            cb({ success: true, domainEnvelopeVersion: 1, data: historicalFixture({ id: msg.conversationId, messages: [] }) });
         } else cb(tabReply);
     };
     const listener = lastListener();

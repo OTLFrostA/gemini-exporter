@@ -159,7 +159,7 @@ export function init({
 
         if (msg.action === 'getConversationDetail') {
             const detailMsg = msg as GetConversationDetailMessage;
-            const respondDetail = (response: GetConversationDetailResponse) => respond(response);
+            const respondDetail = (response: GetConversationDetailResponse) => respond({ ...response, domainEnvelopeVersion: 1 });
             const cid = detailMsg.conversationId;
             if (!cid) {
                 respondDetail({ success: false, error: 'no id' });
