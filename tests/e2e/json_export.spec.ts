@@ -4,8 +4,8 @@ import * as path from 'path';
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
-test.describe('Deep E2E: Both native and OpenAI JSON exports', () => {
-  for (const format of ['json', 'json_openai']) {
+test.describe('Deep E2E: Standard JSON export', () => {
+  const format = 'json';
   test(`downloads ${format} with its declared structure and message roles`, async ({ context, extensionId }) => {
     // 1. Open mock Gemini page in the background with valid credentials and network routing
     const geminiPage = await context.newPage();
@@ -83,7 +83,7 @@ test.describe('Deep E2E: Both native and OpenAI JSON exports', () => {
 
     await expect(optionsPage.locator('#list .item')).toHaveCount(1);
 
-    // 3. Select JSON (OpenAI) format
+    // 3. Select Standard JSON format
     await optionsPage.selectOption('#format', format);
     await optionsPage.click('#btnSelectAll');
     expect(await optionsPage.locator('#list input[type=checkbox]:checked').count()).toBe(1);
@@ -109,30 +109,15 @@ test.describe('Deep E2E: Both native and OpenAI JSON exports', () => {
     const jsonContentRaw = await zip.files[jsonFileName!].async('text');
     const parsed = JSON.parse(jsonContentRaw);
 
-    // The complete archive retains native blocks; OpenAI JSON is an external message view.
+    // The standard archive retains native blocks.
     expect(parsed).toBeTruthy();
-    if (format === 'json') {
-      expect(parsed.format).toBe('gemini-exporter-domain');
-      expect(parsed.version).toBe(1);
-      expect(parsed.conversation.providerId).toBe('gemini');
-      expect(parsed.conversation.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
-      expect(JSON.stringify(parsed.conversation.messages)).toContain('一致性哈希');
-      expect(Array.isArray(parsed.conversation.messages[0].content)).toBe(true);
-      expect(parsed.transport).toBeUndefined();
-    } else {
-    expect(Array.isArray(parsed.messages)).toBe(true);
-    expect(parsed.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
-    expect(parsed.parsed).toBeUndefined();
-
-    const userMsg = parsed.messages.find((m: any) => m.role === 'user');
-    expect(userMsg).toBeTruthy();
-    expect(userMsg.content).toContain('一致性哈希');
-
-    const assistantMsg = parsed.messages.find((m: any) => m.role === 'assistant');
-    expect(assistantMsg).toBeTruthy();
-    expect(assistantMsg.content).toContain('一致性哈希（Consistent Hashing）是一种特殊的哈希算法');
-
-    }
+    expect(parsed.format).toBe('gemini-exporter-domain');
+    expect(parsed.version).toBe(1);
+    expect(parsed.conversation.providerId).toBe('gemini');
+    expect(parsed.conversation.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
+    expect(JSON.stringify(parsed.conversation.messages)).toContain('一致性哈希');
+    expect(Array.isArray(parsed.conversation.messages[0].content)).toBe(true);
+    expect(parsed.transport).toBeUndefined();
 
     // 6. Verify Workbench UI updated
     await expect(optionsPage.locator('[data-chat-id="json_exp_001"] .badge')).toContainText(/已导出|Exported/);
@@ -143,5 +128,4 @@ test.describe('Deep E2E: Both native and OpenAI JSON exports', () => {
     expect(storageData.exportedIds['json_exp_001']).toBeTruthy();
     expect(storageData.exportedIds['json_exp_001'].format).toBe(format);
   });
-  }
 });

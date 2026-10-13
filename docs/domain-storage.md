@@ -82,8 +82,8 @@ Takeout import also stores source-bound file bytes before reporting success.
 
 Export fallback reads account-scoped native Domain records; it never decodes the
 historical detail cache at runtime. Missing bodies remain retryable failures.
-Only old-storage migration interprets historical string records. OpenAI JSON
-conversion happens at final serialization, without an application projection.
+Only old-storage migration interprets historical string records. Standard JSON
+serializes native Domain directly, without an application projection.
 The old detail API remains for migration and characterization; native writes do
 not write a second legacy body. Scoped deletion removes both the
 selected record, its native revisions and acquired bytes while preserving other

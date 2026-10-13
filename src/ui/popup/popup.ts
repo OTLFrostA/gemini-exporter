@@ -26,8 +26,8 @@ let _activeSlot: string = 'u0';
 let _activeChatTitle: string = '';
 let _activeFormat = 'markdown';
 
-function updateFormatTabsUI(targetFormat: string, isDev?: boolean): void {
-    _activeFormat = targetFormat || 'markdown';
+function updateFormatTabsUI(targetFormat: string): void {
+    _activeFormat = FormatStore.normalizeFormat(targetFormat);
     const tabBtns = document.querySelectorAll('#formatTabs .tab-btn') as NodeListOf<HTMLButtonElement>;
     tabBtns.forEach(btn => {
         const val = btn.getAttribute('data-value');
@@ -36,11 +36,7 @@ function updateFormatTabsUI(targetFormat: string, isDev?: boolean): void {
         } else {
             btn.classList.remove('active');
         }
-        if (val === 'json_raw') {
-            btn.style.display = isDev ? '' : 'none';
-        }
     });
-    $('formatTabs')?.classList.toggle('has-dev', !!isDev);
     const activeLabel = $('activeFormatLabel');
     if (activeLabel) {
         const activeBtn = document.querySelector(`#formatTabs .tab-btn[data-value="${_activeFormat}"]`) as HTMLButtonElement | null;
@@ -171,8 +167,7 @@ const handleLangChange = async (targetLang: string): Promise<void> => {
         document.documentElement.lang = targetLang === 'zh' ? 'zh-CN' : 'en';
         if (typeof i18n.applyI18n === 'function') i18n.applyI18n();
         if (typeof i18n.applyLangToggleUI === 'function') i18n.applyLangToggleUI();
-        const isDev = document.body.classList.contains('dev-mode');
-        updateFormatTabsUI(_activeFormat, isDev);
+        updateFormatTabsUI(_activeFormat);
         await updateCount();
     }
 };
@@ -214,7 +209,7 @@ function initPopupEvents(): void {
     if (formatStore && formatStore.loadFormat) {
         void formatStore.loadFormat(formatSelect).then(({ format, isDev }: { format: string; isDev: boolean }) => {
             if (isDev) document.body.classList.add('dev-mode');
-            updateFormatTabsUI(format, isDev);
+            updateFormatTabsUI(format);
         });
     }
 
@@ -227,8 +222,7 @@ function initPopupEvents(): void {
                 if (fStore && typeof fStore.saveFormat === 'function') {
                     await fStore.saveFormat(val);
                 }
-                const isDev = document.body.classList.contains('dev-mode');
-                updateFormatTabsUI(val, isDev);
+                updateFormatTabsUI(val);
             }
         });
     });
@@ -239,8 +233,7 @@ function initPopupEvents(): void {
         if (fStore && typeof fStore.saveFormat === 'function') {
             void fStore.saveFormat(val);
         }
-        const isDev = document.body.classList.contains('dev-mode');
-        updateFormatTabsUI(val, isDev);
+        updateFormatTabsUI(val);
     });
 
     $('btnOptions')?.addEventListener('click', () => chrome.runtime.openOptionsPage());
@@ -290,8 +283,7 @@ function initPopupEvents(): void {
                     chat.conversation.title = cleanTitle(chat.conversation.title || _activeChatTitle);
 
                     // This action delivers one body file. It has no companion-file writer.
-                    const missing = chat.conversation.assets.filter(asset => format === 'html' || format === 'markdown'
-                        || format === 'json_openai' && !/^(?:https?:|data:)/i.test(asset.source?.uri ?? ''))
+                    const missing = chat.conversation.assets.filter(() => format === 'html' || format === 'markdown')
                         .map(asset => missingResource(asset.id, i18n.t('popupAttachmentsNotDelivered')));
                     const diagnostics = resourceDiagnostics(missing);
                     let formatted;
@@ -365,14 +357,13 @@ function initPopupEvents(): void {
                 }
                 if (changes[STORAGE_KEYS.FORMAT]) {
                     const newFmt = String(changes[STORAGE_KEYS.FORMAT].newValue || 'markdown');
-                    const isDev = document.body.classList.contains('dev-mode');
-                    updateFormatTabsUI(newFmt, isDev);
+                    updateFormatTabsUI(newFmt);
                 }
                 if (changes[STORAGE_KEYS.DEV_MODE]) {
                     const isDev = !!changes[STORAGE_KEYS.DEV_MODE].newValue;
                     if (isDev) document.body.classList.add('dev-mode');
                     else document.body.classList.remove('dev-mode');
-                    updateFormatTabsUI(_activeFormat, isDev);
+                    updateFormatTabsUI(_activeFormat);
                 }
                 if (changes.gemini_conversations || changes.gemini_last_count || changes.gemini_last_sync) {
                     void updateCount();

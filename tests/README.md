@@ -54,7 +54,7 @@ npx playwright test  # 运行当前全量 Playwright 用例 (需先 node build.j
 ### 3. 测试覆盖范围
 * **核心解析与状态管理**：`gemini_parser`、`takeout_engine`、`conversation_order`、`conversations_store`、`chat_formatter`、`html_export`、`format_store` 等；
 * **网络与恢复机制**：`gemini_client_retry`（HTTP 400 XSRF 重试、AbortSignal 干净终止、多页游标分页）、`storage_service`、`message_bridge`；
-* **端到端完整格式导出**：`export_zip.spec.ts`（Markdown 格式导出与解压断言）、`html_export.spec.ts`（1:1 独立 HTML 格式导出、主题切换与打印样式断言）、`json_export.spec.ts`（JSON OpenAI 格式导出与结构/角色断言）、`takeout_limit_prompt.spec.ts`、`page_sync.spec.ts`、`workbench_ui.spec.ts` 等。
+* **端到端完整格式导出**：`export_zip.spec.ts`（Markdown 格式导出与解压断言）、`html_export.spec.ts`（1:1 独立 HTML 格式导出、主题切换与打印样式断言）、`json_export.spec.ts`（Standard JSON 格式导出与完整 Domain 结构/角色断言）、`takeout_limit_prompt.spec.ts`、`page_sync.spec.ts`、`workbench_ui.spec.ts` 等。
 
 ---
 

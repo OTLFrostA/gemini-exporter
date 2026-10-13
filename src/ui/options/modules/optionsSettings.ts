@@ -4,7 +4,6 @@ import {
     t,
     getStore,
     getList,
-    getFormats,
     getStorage,
     getTour,
     getDirHandle as getDirHandleController,
@@ -83,17 +82,6 @@ export async function handleDevChange(devOn: boolean): Promise<void> {
     }
     if (devOn && __renderLog) __renderLog();
 
-    const Formats = getFormats();
-    if (Formats && Formats.handleDevToggle) {
-        const selectEl = $('format') as HTMLSelectElement | null;
-        if (selectEl) {
-            const result = Formats.handleDevToggle(devOn, selectEl.value);
-            if (result.changed) {
-                selectEl.value = result.format;
-                await Formats.saveFormat(result.format);
-            }
-        }
-    }
     const Store = getStore();
     if (Store) await Store.setDevMode(devOn);
 }

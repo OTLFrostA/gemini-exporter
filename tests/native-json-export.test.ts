@@ -28,17 +28,7 @@ test('complete JSON preserves the full native Domain and versioned resource dest
     for (const name of ['diagnostics', 'transport', 'acquisitionHints']) assert.equal(name in archive, false);
     assert.deepEqual(native, before);
 });
-test('OpenAI JSON converts roles, multimodal images and reasoning only at the output boundary', () => {
-    const before = structuredClone(native);
-    const archive = JSON.parse(formatContent(native, 'json_openai', delivered).content);
-    assert.equal(archive.created_at, '1970-01-01T00:00:00.000Z');
-    assert.deepEqual(archive.messages.map((m: { role: string }) => m.role), ['system', 'assistant']);
-    assert.ok(archive.messages[1].content.some((part: { type: string; image_url?: { url: string } }) => part.type === 'image_url' && part.image_url?.url === 'assets/image.png'));
-    assert.match(archive.messages[1].reasoning_content, /Reasoning/);
-    assert.deepEqual(native, before);
-});
-test('raw JSON requires actual provider evidence and never exports a synthetic snapshot', () => {
-    assert.throws(() => formatContent(native, 'json_raw'), /evidence is unavailable/);
+for (const format of ['json_openai', 'json_raw']) test(`removed format ${format} is rejected even with provider evidence`, () => {
     const raw = { ...native, transport: { decodedPayload: [null, ['source bytes']] } };
-    assert.deepEqual(JSON.parse(formatContent(raw, 'json_raw').content), raw.transport.decodedPayload);
+    assert.throws(() => formatContent(raw, format), /unsupported format/);
 });

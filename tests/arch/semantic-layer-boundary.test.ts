@@ -163,7 +163,7 @@ test('native parsing does not allocate export paths or sanitized filenames', () 
 });
 
 test('normal runtime cannot parse historical records or depend on application projections', () => {
-    const removed = new Set(['compatibility/legacyConversationAdapter.ts', 'compatibility/gemini/nativeDetailView.ts']);
+    const removed = new Set(['compatibility/legacyConversationAdapter.ts', 'compatibility/gemini/nativeDetailView.ts', 'compatibility/record/projectDomainRecord.ts']);
     const obsolete = new Set(['parseLegacyConversation', 'toDomainConversationDetail', 'createParsedConversationView', 'readParsedConversation', 'createNativeDetailView', 'ParsedConversationView']);
     for (const name of removed) assert.equal(existsSync(resolve(core, name)), false, `retired runtime adapter exists: ${name}`);
     for (const file of files(resolve(root, 'src'))) {
@@ -172,9 +172,6 @@ test('normal runtime cannot parse historical records or depend on application pr
         const text = readFileSync(file, 'utf8');
         for (const edge of dependencies(file, text)) {
             assert.ok(!removed.has(edge.target), `${name} imports ${edge.target}`);
-            if (edge.target === 'compatibility/record/projectDomainRecord.ts') {
-                assert.equal(name, 'engine/formatters/jsonFormatter.ts', `${name} projects Domain outside final JSON serialization`);
-            }
             if (/^compatibility\/record\/(?:parseConversationRecord|conversationRecord|legacyProvider)\.ts$/.test(edge.target)) {
                 assert.ok(migration, `${name} depends on the historical record boundary`);
             }

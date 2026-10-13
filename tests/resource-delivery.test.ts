@@ -32,7 +32,7 @@ function native(failure: string): ResourceConversationParseResult {
         { type: failure === 'file-write' ? 'file' : 'image', assetId: 'bad' },
     ] }] }), diagnostics: [], acquisitionHints: {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
 }
-for (const format of ['markdown', 'html', 'json', 'json_openai']) for (const failure of ['throw', 'empty', 'write', 'file-write', 'inline']) {
+for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw', 'empty', 'write', 'file-write', 'inline']) {
     test(`${format}: ${failure} preserves body, delivered references and partial status in actual ZIP`, async () => {
         const source = native(failure), before = structuredClone(source);
         __setModuleOverride('JSZip', JSZip);
@@ -73,17 +73,7 @@ for (const format of ['markdown', 'html', 'json', 'json_openai']) for (const fai
         if (format !== 'json') assert.match(body, /unavailable|不可用|missing-asset/i);
         const references = format === 'html' ? [...body.matchAll(/(?:src|href)="((?:assets|files)\/[^\"]+)"/g)].map(match => match[1])
             : format === 'markdown' ? [...body.matchAll(/\]\(((?:assets|files)\/[^)]+)\)/g)].map(match => match[1])
-            : format === 'json' ? Object.values(JSON.parse(body).resources).map(resource => (resource as { path: string }).path)
-            : [...body.matchAll(/<((?:assets|files)\/[^>]+)>/g)].map(match => match[1]);
-        if (format === 'json_openai') {
-            const output = JSON.parse(body);
-            for (const message of output.messages) for (const part of Array.isArray(message.content) ? message.content : []) {
-                if (part.type === 'image_url') {
-                    assert.ok(!part.image_url.url.startsWith('missing/'));
-                    if (!/^https?:/.test(part.image_url.url)) references.push(part.image_url.url);
-                }
-            }
-        }
+            : Object.values(JSON.parse(body).resources).map(resource => (resource as { path: string }).path);
         assert.equal(new Set(references).size, 2);
         for (const ref of references) assert.ok((await zip.files[`gemini_export/${decodeURIComponent(ref)}`].async('uint8array')).length > 0, ref);
         assert.deepEqual(source, before, 'source Domain and hints remain unchanged');
@@ -94,7 +84,6 @@ test('formatters cannot turn an unconfirmed destination plan into local referenc
     const html = await formatHtmlDocument(source), md = await formatMarkdownDocument(source);
     assert.ok(!html.content.includes('never-delivered.png')); assert.ok(!md.content.includes('never-delivered.png'));
     assert.equal(JSON.parse(formatContent(source, 'json').content).resources, undefined);
-    assert.ok(!formatContent(source, 'json_openai').content.includes('never-delivered.png'));
     assert.deepEqual(await prepareDomainResources([{ ok: false, resourceId: 'bad', reason: 'not written', code: 'RESOURCE_UNAVAILABLE' }]), {});
 });
 for (const failure of ['throw', 'empty', 'corrupt']) test(`PDF ${failure} preserves good mounts, placeholders and a partial delivered record`, async () => {
@@ -227,15 +216,6 @@ test('long companion filenames remain distinct after writer normalization and re
     }
 });
 
-test('OpenAI serialization does not retry a known failed remote image inside its multimodal content', () => {
-    const source = native('throw');
-    source.conversation.assets.find(asset => asset.id === 'bad')!.source = { uri: 'https://example.test/unavailable.png' };
-    const output = JSON.parse(formatContent(source, 'json_openai', [{ ok: false, resourceId: 'bad', code: 'RESOURCE_UNAVAILABLE', reason: '404' }]).content);
-    const parts = output.messages[0].content;
-    assert.ok(parts.some((part: { type: string; text?: string }) => part.type === 'text' && part.text?.includes('Image unavailable')));
-    assert.ok(!parts.some((part: { type: string; image_url?: { url: string } }) => part.image_url?.url === 'https://example.test/unavailable.png'));
-    assert.equal(source.conversation.assets.find(asset => asset.id === 'bad')!.source?.uri, 'https://example.test/unavailable.png');
-});
 
 for (const [kind, broken] of [
     ['PNG', new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],

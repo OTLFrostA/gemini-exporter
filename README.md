@@ -141,7 +141,7 @@ Install directly from the official Chrome Web Store with one click:
 ### 1. Quick Single-Chat Actions (Popup)
 1. Open any conversation on [Google Gemini](https://gemini.google.com).
 2. Click the **Gemini Exporter** icon in your browser toolbar.
-3. Select your preferred format tab (**Markdown**, **HTML**, **JSON (OpenAI)**, or **JSON (Standard)**) and click **"Export Current Page"** to download the active conversation immediately.
+3. Select your preferred format tab (**Markdown**, **HTML**, or **JSON (Standard)**) and click **"Export Current Page"** to download the active conversation immediately.
 
 ### 2. Batch Export All Chats (Workbench)
 1. Click the extension icon and select **"Go to Workbench"** (or right-click the icon and choose "Options").
