@@ -184,7 +184,7 @@ export interface IListView {
     deselectAll: (conversations?: Conversation[]) => void;
     selectUnexported: (conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>) => void;
     isRealTitle: (title: string, id?: string) => boolean;
-    updateItemExportStatus: typeof import('../ui/views/listView.js').updateItemExportStatus;
+    updateItemExportStatus: (chatId: string, exportRecord?: Partial<ExportRecord> | null) => void;
     selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
     checkIsUpdated?: (c: Partial<Conversation> | null | undefined, rec: ExportRecord | null | undefined) => boolean;
     resolveConversationExportState?: (c: Partial<Conversation> | null | undefined, rec?: Partial<ExportRecord> | null, options?: ResolveConversationExportStateOptions) => ConversationExportState;

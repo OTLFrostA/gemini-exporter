@@ -366,7 +366,7 @@ export function toTimestampMs(raw: unknown): number | null {
 
 // Server-authoritative only (updatedAt > timestamp > chatTime > createdAt).
 // lastSeen is client-observed and intentionally excluded so missing timestamps return 0 rather than a guess.
-export function getEffectiveTimestamp(chat?: Partial<Conversation> | null): number {
+export function getEffectiveTimestamp(chat?: Partial<Conversation> | Partial<Pick<Conversation, 'updatedAt' | 'timestamp' | 'chatTime' | 'createdAt'>> | null): number {
     if (!chat || typeof chat !== 'object') return 0;
     const candidates = [chat.updatedAt, chat.timestamp, chat.chatTime, chat.createdAt];
     for (const raw of candidates) {

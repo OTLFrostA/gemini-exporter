@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 import { bodyFacts, byteFacts, assertPersistedBaseline, upgradeOutcome } from './upgrade_baseline.mjs';
+import { NativeExportFailure, assertOfflineFailures, assertExpectedOfflineFailure } from './upgrade_failures.mjs';
 
 const require = createRequire(import.meta.url);
 const JSZip = require('../lib/jszip.min.js');
@@ -45,6 +46,7 @@ const turns = (slot, id) => Array.from({ length: id === ids(slot)[0] && revision
 ]).reverse();
 const rpc = (id, value) => ['wrb.fr', id, JSON.stringify(value)];
 const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+const accountShell = slot => `<script>window._WIZ_global_data={SNlM0e:'upgrade_${slot}',cfb2h:'upgrade_fixture'}</script><button aria-label="Google Account: Upgrade ${slot} (${slot}@upgrade.example)">Account</button>`;
 
 async function install(zipPath, name) {
   const bytes = await fs.readFile(zipPath);
@@ -98,8 +100,7 @@ async function launch() {
     if (offline) return route.abort('internetdisconnected');
     const url = new URL(route.request().url());
     const slot = url.pathname.includes('/u/1/') ? 'u1' : 'u0';
-    if (!url.pathname.includes('batchexecute')) return route.fulfill({ contentType: 'text/html', body:
-      `<script>window._WIZ_global_data={SNlM0e:'upgrade_${slot}',cfb2h:'upgrade_fixture'}</script><button aria-label="Google Account: Upgrade ${slot} (${slot}@upgrade.example)">Account</button>` });
+    if (!url.pathname.includes('batchexecute')) return route.fulfill({ contentType: 'text/html', body: accountShell(slot) });
     const data = new URLSearchParams(route.request().postData() || '').get('f.req');
     const packets = [];
     for (const call of data ? JSON.parse(data).flat() : []) {
@@ -138,10 +139,15 @@ async function options(slot) {
 async function connectAccount(slot) {
   const page = await context.newPage();
   const base = slot === 'u0' ? '' : '/u/1';
-  await page.goto(`https://gemini.google.com${base}/app`);
+  const url = `https://gemini.google.com${base}/app`;
+  // A restart closes the Gemini tabs. In the offline stage, supply only the
+  // account shell so the real content bridge can run; every body/resource
+  // request still reaches the context's disconnected route above.
+  if (offline) await page.route(url, route => route.fulfill({ contentType: 'text/html', body: accountShell(slot) }), { times: 1 });
+  await page.goto(url);
   // A native fetch passes through the real MAIN hook and credential bridge.
   await page.waitForTimeout(1000);
-  await page.evaluate(async ({ base, slot }) => fetch(`${base}/_/BardChatUi/data/batchexecute?f.sid=upgrade_${slot}&at=fixture`, { method: 'POST' }), { base, slot });
+  if (!offline) await page.evaluate(async ({ base, slot }) => fetch(`${base}/_/BardChatUi/data/batchexecute?f.sid=upgrade_${slot}&at=fixture`, { method: 'POST' }), { base, slot });
   return page;
 }
 
@@ -175,7 +181,17 @@ async function exportZip(page, slot, format, label, selected = [...ids(slot), ta
   for (const id of selected) await page.locator(`[data-chat-id="${id}"] input[type="checkbox"]`).check();
   const downloadPending = page.waitForEvent('download', { timeout: 120000 });
   const failurePending = page.locator('#exportFailureList').waitFor({ state: 'visible', timeout: 120000 })
-    .then(async () => { throw new Error('Native export failure: ' + await page.locator('#exportFailureList').innerText()); });
+    .then(async () => {
+      const evidence = await page.evaluate(() => ({
+        failedChats: window.DialogView.getLastFailedChats(),
+        rows: [...document.querySelectorAll('#exportFailureList > div')].map(row => row.title),
+      }));
+      assert.ok(Array.isArray(evidence.failedChats), 'Missing failure UI model');
+      assert.deepEqual(evidence.rows, evidence.failedChats.map(row =>
+        `${row.id}: ${row.title || row.id || 'Untitled'}${row.error ? ` (${row.error})` : ''}`),
+      'Failure UI does not match conversation evidence');
+      throw new NativeExportFailure(evidence.failedChats);
+    });
   await page.locator('#btnExport').click();
   const modal = page.locator('#btnModalContinueZip');
   if (await modal.isVisible()) await modal.click();
@@ -238,7 +254,7 @@ async function snapshot(page, label) {
   return state;
 }
 
-function retained(before, after) {
+async function retained(before, after) {
   for (const slot of accounts) {
     const key = 'gemini_conversations' + (slot === 'u0' ? '' : '_' + slot);
     const original = before.local[key];
@@ -255,7 +271,7 @@ function retained(before, after) {
       assert.deepEqual(after.local[exp]?.[id], record, 'Original export record changed/lost');
     }
   }
-  assertPersistedBaseline(before, after);
+  await assertPersistedBaseline(before, after);
   report.legacyPersistedByteRecords = byteFacts(before).length;
 }
 
@@ -307,18 +323,19 @@ try {
   });
   await stage('same profile and extension ID forward upgrade, persisted metadata/flags and restart', async () => {
     await install(arg('--candidate-zip'), 'candidate'); await launch();
-    const page = await options('u0'); retained(baseline, await snapshot(page, 'after-upgrade')); await page.close();
+    const page = await options('u0'); await retained(baseline, await snapshot(page, 'after-upgrade')); await page.close();
     await context.close(); context = null; await launch();
-    const reopened = await options('u0'); retained(baseline, await snapshot(reopened, 'after-restart')); await reopened.close();
+    const reopened = await options('u0'); await retained(baseline, await snapshot(reopened, 'after-restart')); await reopened.close();
   });
   await stage('legacy body/image availability after upgrade, with cloud refetch blocked', async () => {
     offline = true; // Never recover a body from fresh cloud traffic.
+    for (const slot of accounts) await connectAccount(slot);
     const bodies = bodyFacts(baseline);
     const bytes = byteFacts(baseline);
     report.offlineBaseline = { bodyConversations: bodies.map(({slot,id}) => ({slot,id})), byteRecords: bytes.length,
       unavailable: accounts.flatMap(slot => [...ids(slot),takeoutId(slot)].filter(id => !bodies.some(fact => fact.slot === slot && fact.id === id)).map(id => ({slot,id,status:'not_applicable',reason:'Old runtime did not persist a body'}))) };
     const checkpoint = await options('u0');
-    assertPersistedBaseline(baseline, await snapshot(checkpoint, 'offline-retained'));
+    await assertPersistedBaseline(baseline, await snapshot(checkpoint, 'offline-retained'));
     await checkpoint.close();
     // NA does not excuse a false successful export. Exercise unavailable
     // bodies offline and require native failure plus unchanged old flags.
@@ -328,21 +345,24 @@ try {
       const page = await options(slot);
       const key = slot === 'u0' ? 'exportedIds' : 'gemini_exported_' + slot;
       const before = await page.evaluate(key => chrome.storage.local.get(key), key);
+      let failedChats;
       try {
         const entries = await exportZip(page, slot, 'markdown', 'unavailable-offline', unavailable);
         assert.ok(!Object.keys(entries).some(name => unavailable.some(id => name.endsWith(`_${id.slice(-6)}.md`))), 'Unstored body falsely exported offline');
         const errors = Object.entries(entries).find(([name]) => name.endsWith('_export_errors.json'));
         assert.ok(errors, 'Missing native failure report for unavailable bodies');
-        const failed = JSON.parse(errors[1].toString()).failedChats;
-        for (const id of unavailable) assert.ok(failed.some(row => row.id === id), 'Missing unavailable-body failure');
+        failedChats = JSON.parse(errors[1].toString()).failedChats;
+        assertOfflineFailures(failedChats, unavailable);
       } catch (error) {
         // Only the explicit product failure UI is expected. Timeouts, package,
         // schema and harness errors remain real failed stages.
-        if (!String(error.message).startsWith('Native export failure:')) throw error;
+        assertExpectedOfflineFailure(error, unavailable);
+        failedChats = error.failedChats;
       }
       const after = await page.evaluate(key => chrome.storage.local.get(key), key);
       assert.deepEqual(after[key], before[key], 'Offline failure changed existing export records');
-      report.checks.push({ unavailableOfflineFailure: slot, ids: unavailable, originalExportRecordsUnchanged: true });
+      report.checks.push({ unavailableOfflineFailure: slot, ids: unavailable,
+        failures: failedChats.map(({ id, error }) => ({ id, error })), originalExportRecordsUnchanged: true });
       await page.close();
     }
     if (!bodies.length) {

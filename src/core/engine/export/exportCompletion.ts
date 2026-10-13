@@ -1,5 +1,5 @@
 import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
-import type { TitleSources } from '../../../types/conversation.js';
+import type { Conversation, TitleSources } from '../../../types/conversation.js';
 import { normId } from '../../utils/pathUtils.js';
 import {
     cleanTitle,
@@ -22,9 +22,26 @@ export interface ExportCompletionStorageAdapter {
     saveExportRecord?: (...args: Parameters<typeof StorageService.saveExportRecord<StandardExportRecord>>) => Promise<unknown>;
 }
 
+/** Completion metadata only: accepts native messages, legacy containers, and count-only facts.
+ * This structural contract does not establish Domain trust or validate raw storage. */
+export interface ExportCompletionFacts extends Partial<Pick<Conversation,
+    'id' | 'title' | 'titleSource' | 'titles' | 'timestamp' | 'updatedAt' | 'createdAt' | 'chatTime'
+>> {
+    messages?: Array<{ timestamp?: number | string | Date | null }> | number;
+    turns?: unknown[] | number;
+    messageCount?: number | string | null;
+    isEmpty?: boolean;
+    _empty?: boolean;
+    truncated?: boolean;
+    isTruncated?: boolean;
+    truncateReason?: string;
+}
+
+export type ExportCompletionConversation = ExportCompletionFacts | string | number | boolean | null | undefined;
+
 export interface BuildExportCompletionInput {
     /** The conversation object with messages/turns/timestamps */
-    conversation?: any;
+    conversation?: ExportCompletionConversation;
     /** Raw or normalized conversation ID */
     conversationId?: string | number | null;
     /** Export format (default: 'markdown') */
@@ -50,7 +67,7 @@ export interface BuildExportCompletionInput {
     truncateReason?: string;
 }
 
-export interface StandardExportRecord {
+export type StandardExportRecord = {
     title: string;
     exportedAt: string;
     format: string;
@@ -60,7 +77,6 @@ export interface StandardExportRecord {
     chatTime?: number;
     isTruncated?: boolean;
     truncateReason?: string;
-    [key: string]: any;
 }
 
 export interface StandardConversationUpdate {
@@ -84,7 +100,7 @@ export interface ExportCompletionResult {
 /**
  * Computes canonical message count across available message/turn containers.
  */
-export function computeExportMessageCount(conversation: any, explicitCount?: number): number {
+export function computeExportMessageCount(conversation: ExportCompletionConversation, explicitCount?: number): number {
     if (typeof explicitCount === 'number' && Number.isFinite(explicitCount) && explicitCount > 0) {
         return explicitCount;
     }
@@ -105,20 +121,21 @@ export function computeExportMessageCount(conversation: any, explicitCount?: num
 /**
  * Computes the authoritative timestamp for a conversation across candidate fields.
  */
-export function computeAuthoritativeTimestamp(conversation: any, explicitTime?: number | string | Date | null): number | undefined {
+export function computeAuthoritativeTimestamp(conversation: ExportCompletionConversation, explicitTime?: number | string | Date | null): number | undefined {
+    const metadata = conversation && typeof conversation === 'object' ? conversation : undefined;
     const tsFromExplicit = toTimestampMs(explicitTime);
     let tsFromMessages = 0;
-    if (Array.isArray(conversation?.messages)) {
-        for (const m of conversation.messages) {
+    if (Array.isArray(metadata?.messages)) {
+        for (const m of metadata.messages) {
             const mt = toTimestampMs(m?.timestamp);
             if (mt && mt > tsFromMessages) tsFromMessages = mt;
         }
     }
-    const tsFromChatTime = toTimestampMs(conversation?.chatTime);
-    const tsFromEffective = getEffectiveTimestamp(conversation);
-    const tsFromUpdated = toTimestampMs(conversation?.updatedAt);
-    const tsFromTimestamp = toTimestampMs(conversation?.timestamp);
-    const tsFromCreated = toTimestampMs(conversation?.createdAt);
+    const tsFromChatTime = toTimestampMs(metadata?.chatTime);
+    const tsFromEffective = getEffectiveTimestamp(metadata);
+    const tsFromUpdated = toTimestampMs(metadata?.updatedAt);
+    const tsFromTimestamp = toTimestampMs(metadata?.timestamp);
+    const tsFromCreated = toTimestampMs(metadata?.createdAt);
 
     const max = Math.max(
         tsFromExplicit ?? 0,
@@ -164,7 +181,7 @@ export function resolveExportRecordStatus(options: {
  * Applies runtime asset failure outcome to an existing canonical export record.
  * Preserves 'empty' or 'failed' status, upgrading successful 'ok' to 'partial'.
  */
-export function applyAssetFailureToExportRecord(record: any): void {
+export function applyAssetFailureToExportRecord(record: { status?: string; hasFailedAssets?: boolean } | null | undefined): void {
     if (!record || typeof record !== 'object') return;
     if (record.status !== 'empty' && record.status !== 'failed') {
         record.status = 'partial';
@@ -178,7 +195,7 @@ export function applyAssetFailureToExportRecord(record: any): void {
  * live-save and batch exports.
  */
 export function buildExportCompletion(input: BuildExportCompletionInput): ExportCompletionResult {
-    const chat = input.conversation || {};
+    const chat = input.conversation && typeof input.conversation === 'object' ? input.conversation : {};
     const rawId = input.conversationId || chat.id || '';
     const targetId = normId(rawId);
 
@@ -198,7 +215,7 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
 
     // Merge titles map: strictly gate canonical provenance domain
     const mergedTitles: Record<string, string> = {};
-    const addCanonicalTitles = (srcObj: any) => {
+    const addCanonicalTitles = (srcObj: unknown) => {
         if (srcObj && typeof srcObj === 'object') {
             for (const [k, v] of Object.entries(srcObj)) {
                 const reliableK = normalizeReliableTitleSource(k);
