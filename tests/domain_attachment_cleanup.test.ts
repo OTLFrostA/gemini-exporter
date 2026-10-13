@@ -206,12 +206,13 @@ test('binary views survive Domain JSON round trips without changing input bytes'
     assert.equal(messageAssets(domain, 0)?.[0].dataBase64, 'AQID');
 });
 
-test('Composer trusts explicit Domain resources and ignores runtime legacy aliases', async () => {
+test('shared source gate rejects runtime legacy aliases; Composer uses explicit Domain resources', async () => {
     const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
     const domain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] };
     const expected = await composeFixture(domain);
     const leaked = { ...domain, messages: [{ ...domain.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] };
-    assert.deepEqual((await composeFixture(leaked)).document, expected.document);
+    await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
+    assert.equal(collectDocumentResources(expected.document).referencedIds.size, 1);
     const explicit = { ...domain, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.messages[0], attachmentIds: [resource.id, 'second-report'] }] };
     assert.equal(collectDocumentResources((await composeFixture(explicit)).document).referencedIds.size, 2,
         'Composer must not reconcile alias evidence or infer resource identity');

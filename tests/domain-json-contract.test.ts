@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Runtime closure and JSON portability of actual Domain and Document AST fixtures. */
@@ -19,7 +20,7 @@ test('each Domain fixture is closed and JSON round-trip preserves every backend 
         const domain: DomainConversationDetail = JSON.parse(readFileSync(join(dir, file), 'utf8'));
         assertDomainClosure(domain);
         const before = JSON.stringify(domain);
-        const document = composeDomainDocument(domain).document;
+        const document = composeDomainDocument(validateParserDomain(domain)).document;
         const roundTrip = composeDomainDocument(JSON.parse(before)).document;
         assert.deepEqual(roundTrip, document, file);
         const backends = [renderDocumentHtml, renderDocumentMarkdown, renderDocumentTypst];

@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
@@ -25,7 +26,7 @@ function freeze(value: unknown): void {
 }
 
 test('HTML owns DOM identities and does not derive document language from UI locale', () => {
-    const document = composeDomainDocument(domain()).document;
+    const document = composeDomainDocument(validateParserDomain(domain())).document;
     assert.ok(document.messages.every(message => !('anchor' in message) && !('modelLabel' in message)));
     for (const locale of ['en', 'zh'] as const) {
         const html = renderDocumentHtml(document, {}, { locale }).html;
@@ -42,7 +43,7 @@ test('file badges use only supplied media type or kind, including misleading lab
     const file: Extract<DisplayBlock, { type: 'file' }> = { type: 'file', resourceId: 'f', label: 'misleading.pdf', kind: 'file' };
     assert.equal(fileBadge(file), 'FILE');
     assert.equal(fileBadge({ ...file, label: 'renamed.exe', mediaType: 'application/x-zip' }), 'ZIP');
-    const document = composeDomainDocument(domain()).document;
+    const document = composeDomainDocument(validateParserDomain(domain())).document;
     document.messages[0].blocks = [file, { ...file, mediaType: 'text/plain' }];
     const html = renderDocumentHtml(document, { f: 'assets/f' }).html;
     assert.match(html, /gem-att-badge">FILE<\/span>/);
@@ -55,13 +56,13 @@ test('display date selects the first valid fact and normalizes to UTC at composi
     const input = domain();
     Object.assign(input, { updatedAt: '2026-10-06T23:30:00-07:00', lastSeen: '2026-10-05', createdAt: '2026-10-04', timestamp: Date.parse('2026-10-03'), chatTime: '2026-10-02' });
     for (const [field, expected] of [['updatedAt', '2026-10-07'], ['lastSeen', '2026-10-05'], ['createdAt', '2026-10-04'], ['timestamp', '2026-10-03'], ['chatTime', '2026-10-02']] as const) {
-        const document = composeDomainDocument(input).document;
+        const document = composeDomainDocument(validateParserDomain(input)).document;
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
         Object.assign(input, { [field]: field === 'timestamp' ? null : 'invalid' });
     }
-    assert.equal(composeDomainDocument(input).document.header.date, undefined);
+    assert.equal(composeDomainDocument(validateParserDomain(input)).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
     assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document.header.date, '2026-10-07');
     source.updatedAt = 'invalid';
@@ -101,7 +102,7 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
         { type: 'file', assetId: 'file', description: [inline('description'), inline('inline')] },
     ];
     freeze(input);
-    const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(input).document));
+    const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(validateParserDomain(input)).document));
     document.messages[1].sources = { type: 'sources', heading: [{ type: 'image', resourceId: 'source-heading', alt: 'source-heading' }], items: [] };
     const detail: DisplayInline = { type: 'image', resourceId: 'details', alt: 'details' };
     document.messages[1].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'missing', text: 'Missing', details: [detail] });

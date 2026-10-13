@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
@@ -26,7 +27,7 @@ test('Domain semantic nodes are composed without reparsing and raw Markdown-look
         ],
     }] };
     const original = structuredClone(domain);
-    const { document } = composeDomainDocument(domain);
+    const { document } = composeDomainDocument(validateParserDomain(domain));
     assert.deepEqual(document.messages[0].blocks[0], domain.messages[0].content[0]);
     assert.deepEqual(document.messages[0].blocks[1], { type: 'unsupported', sourceType: 'semantic-extension', text: 'visible unknown' });
     assert.equal(collectDocumentResources(document).referencedIds.size, 0);
@@ -38,7 +39,7 @@ test('separate reasoning presentation does not reinterpret the Domain body', asy
         role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal body**' }] }],
         reasoning: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'formatted reasoning' }] }] }],
     }] };
-    const result = composeDomainDocument(domain);
+    const result = composeDomainDocument(validateParserDomain(domain));
     const [reasoning, body] = result.document.messages[0].blocks;
     assert.ok(reasoning.type === 'disclosure' && reasoning.blocks[0].type === 'paragraph');
     assert.equal(reasoning.blocks[0].children[0].type, 'strong');

@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
@@ -9,7 +10,7 @@ test('nested resource references are checked before composition; unavailable byt
     const domain: DomainConversationDetail = { providerId: 'test', id: 'conversation', title: 'Nested', timestamp: null, assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] };
     assert.throws(() => assertDomainClosure(domain), /Unregistered Domain asset 'missing' in messages\[0\]/);
     domain.assets.push({ id: 'missing', kind: 'image' });
-    const document = composeDomainDocument(domain).document;
+    const document = composeDomainDocument(validateParserDomain(domain)).document;
     const html = renderDocumentHtml(document, {});
     assert.equal(html.diagnostics.filter(d => d.code === 'HTML_ASSET_UNRESOLVED').length, 1);
     assert.ok(html.html.includes('Nested figure'));

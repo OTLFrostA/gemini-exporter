@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,7 +34,7 @@ test('Domain and serialized Markdown preserve the captured numeric row and all e
     const blocks = parseMarkdownToBlocks(preprocessGeminiMarkdown(raw), 'live', { sourceRef: { providerId: 'gemini', locator: 'live.5' }, diagnostics: [] });
     const domain: DomainConversationDetail = { providerId: 'gemini', id: 'live', title: 'Live', timestamp: null, assets: [],
         messages: [{ id: 'm', role: 'assistant', content: blocks }] };
-    const output = renderDocumentMarkdown(composeDomainDocument(domain).document, {});
+    const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     const table = parseMarkdownAst(output).children.find(node => node.type === 'table');
     assert.ok(table?.type === 'table');
     const content = (node: { value?: string; children?: unknown[] }): string => node.value ?? (node.children ?? []).map(child => content(child as typeof node)).join('');
@@ -58,7 +59,7 @@ function renderCapturedTable(wire: unknown): { blocks: BlockNode[]; output: stri
     assert.ok(blocks, 'all native table children must remain supported');
     const domain: DomainConversationDetail = { providerId: 'gemini', id: 'captured', title: 'Captured', timestamp: null, assets: [],
         messages: [{ id: 'm', role: 'assistant', content: blocks }] };
-    return { blocks, output: renderDocumentMarkdown(composeDomainDocument(domain).document, {}) };
+    return { blocks, output: renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {}) };
 }
 
 test('native display math inside a captured table does not reinterpret neighboring literal TeX', () => {

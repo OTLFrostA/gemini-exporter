@@ -1,5 +1,5 @@
 import type { ResourceResult, ResourceDelivery } from '../resources/resourceResult.js';
-import type { DomainConversationDetail } from '../domain/conversationDetail.js';
+import type { TrustedDomain } from '../domain/runtimeValidation.js';
 import { toIso } from '../domain/time.js';
 import { composeDomainDocument, type DomainCompositionOptions } from '../document/compose/composeDomainDocument.js';
 import { prepareDomainResources } from './assets/prepareDomainResources.js';
@@ -11,7 +11,7 @@ export interface DomainHtmlExportOptions extends HtmlRenderOptions, DomainCompos
 export interface DomainMarkdownExportOptions extends MarkdownRenderOptions, DomainCompositionOptions { lang?: 'zh' | 'en'; exportedAt?: string; resourceResults?: readonly ResourceResult<ResourceDelivery>[] }
 
 /** Orchestrate composition, resources and UI options without an intermediate conversation model. */
-export async function exportDomainHtml(conversation: DomainConversationDetail, options: DomainHtmlExportOptions = {}): Promise<string> {
+export async function exportDomainHtml(conversation: TrustedDomain, options: DomainHtmlExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
     const resources = await prepareDomainResources(options.resourceResults);
     return renderDocumentHtml(document, resources, {
@@ -20,7 +20,7 @@ export async function exportDomainHtml(conversation: DomainConversationDetail, o
     }).html;
 }
 
-export async function exportDomainMarkdown(conversation: DomainConversationDetail, options: DomainMarkdownExportOptions = {}): Promise<string> {
+export async function exportDomainMarkdown(conversation: TrustedDomain, options: DomainMarkdownExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
     const resources = await prepareDomainResources(options.resourceResults);
     const createdAt = toIso(conversation.createdAt ?? conversation.timestamp ?? conversation.chatTime);

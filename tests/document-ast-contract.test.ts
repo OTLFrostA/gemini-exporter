@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -17,7 +18,7 @@ test('every visual/parity corpus fixture satisfies the exact current DocumentAst
     }
     for (const file of readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'))) {
         const input: DomainConversationDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
-        entries.push({ value: composeDomainDocument(input).document, context: file });
+        entries.push({ value: composeDomainDocument(validateParserDomain(input)).document, context: file });
     }
     assertDocumentAsts(entries);
 });

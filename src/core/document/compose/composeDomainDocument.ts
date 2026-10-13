@@ -1,5 +1,4 @@
-import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
-import { assertDomainClosure } from '../../domain/closure.js';
+import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import { collectReferencedAssetIds } from '../../domain/content/collectAssetReferences.js';
 import { selectDisplayDate } from './displayDate.js';
 import { contentComposer } from './composeContent.js';
@@ -9,8 +8,7 @@ import type { DocumentAst } from '../ast/ast.js';
 export interface DomainCompositionOptions { documentLanguage?: string }
 
 /** Domain facts -> one format-neutral presentation tree. No resource acquisition or raw parsing. */
-export function composeDomainDocument(conversation: DomainConversationDetail, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: DocumentDiagnostic[] } {
-    assertDomainClosure(conversation);
+export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: DocumentDiagnostic[] } {
     const assets = new Map(conversation.assets.map(asset => [asset.id, asset]));
     const ids = new Set<string>();
     let citationNumber = 0;
