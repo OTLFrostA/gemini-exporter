@@ -113,7 +113,27 @@ python3 scripts/test_visual_agent.py --api --endpoint <url> [--model <name>] [--
 
 ---
 
-## 五、测试生命周期标记 (Test Lifetime: `@retire-when`)
+## 五、正式 1.7.0 原地升级回归
+
+在大版本重构发布前运行此专用浏览器回归。它使用真实发布的旧运行时、真实 Chrome 持久化 profile 和生产写入路径；两个账号的协议响应是确定性网络夹具，不需要 Google 登录。它不等同于带真实 Google 账号的 Tier 2，也不替代 Tier 2。不得用 storage seed 或全新安装替代它。
+
+```bash
+gh release download v1.7.0 --pattern gemini-exporter-v1.7.0.zip --dir temp/upgrade-assets
+npm run package
+npm run test:upgrade -- --old-zip temp/upgrade-assets/gemini-exporter-v1.7.0.zip --candidate-zip gemini-exporter-v1.8.0.zip --output-dir temp/upgrade-audit-new
+```
+
+输出目录必须不存在；已有目录会被拒绝，原始基线不会被覆盖。旧 ZIP SHA256 固定为正式 release 的 `b79ed42a1dc080094fd78ca991f69d1a04f5b7e19fe3c20f45a5aec57b0f83cf`。候选版本必须高于 1.7.0，报告记录两份包的版本/SHA、Chrome 版本、扩展 ID、测试代码 commit 和各阶段状态。
+
+旧版本通过真实同步按钮、Takeout 文件输入和下载流程建立两个账号的多轮历史、图片和导出记录。关闭浏览器后，原始 profile 被复制到 `baseline-profile/` 并计算整树 SHA；`baseline.json` 保存全部 local storage 和 IndexedDB 的只读快照（字节值转换为 SHA），设为只读。测试保留同一个安装路径、扩展 ID 和工作 profile，通过 Chrome 原生 `Extensions.loadUnpacked` 更新运行时，不执行卸载、删除 IndexedDB 或清空 storage。仅替换文件不足以保证 MV3 后台已更新。
+
+检查内容包括旧 ID/标题/时间戳及完整导出记录保全、重启后账号隔离、禁止重新拉取时的旧正文/图片可用性、新活动的增量 Markdown 导出、完整 HTML/PDF 逐轮正文/代码/数学结构，以及受控取详情失败的诊断与不误标成功。各阶段独立报告，任何失败都会保留总体失败和非零退出码；后续独立阶段通过不能把整体改为通过。物理 ZIP、错误日志和截图均保留供检查。
+
+**实际旧版边界：** 正式 1.7.0 的此次生产流程将列表和导出标记写入 local storage，但 Takeout 缓存使用页面内存；原始 IDB 快照没有持久化正文/图片记录。因而禁止云端补拉的升级内容检查目前失败。此失败不允许通过重新导入原 ZIP、手动 seed 或跳过该阶段消除；需要原始 Takeout/既有导出或可访问的云端来源恢复从未落盘的内容。不能把这些恢复动作描述成 profile 自身保全通过。当前正常联网增量、HTML/PDF 全文、两个账号隔离与失败不误标的独立阶段已通过真实浏览器运行。
+
+重型升级回归不加入每次 CI；CI 包含无浏览器的反例，确保未验证的旧包、缺少身份参数和覆盖已有基线都不能返回成功。
+
+## 六、测试生命周期标记 (Test Lifetime: `@retire-when`)
 
 为某个版本、某个修复**临时**加的回归锁（regression lock），必须打可 grep 的生命周期 tag，
 否则未来没人知道它什么时候可以退役。约定：
