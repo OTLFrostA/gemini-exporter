@@ -41,7 +41,7 @@ export function renderLog(): void {
     if (OptionsInit && OptionsInit.renderLog) OptionsInit.renderLog();
 }
 
-export const compareConversations = (a: any, b: any) => (OptionsInit && OptionsInit.compareConversations ? OptionsInit.compareConversations(a, b) : 0);
+export const compareConversations = (a: Parameters<typeof OptionsInit.compareConversations>[0], b: Parameters<typeof OptionsInit.compareConversations>[1]) => (OptionsInit && OptionsInit.compareConversations ? OptionsInit.compareConversations(a, b) : 0);
 
 export const isBad = (t: string | null | undefined, id?: string | null) => (OptionsInit && OptionsInit.isBad ? OptionsInit.isBad(t, id) : false);
 
@@ -64,12 +64,12 @@ export async function loadStore(force: boolean = false, customSelected?: Set<str
 }
 
 if (typeof window !== 'undefined') {
-    (window as any).__workbenchLoadStore = loadStore;
+    window.__workbenchLoadStore = loadStore;
 }
 
 export async function initWorkbench(): Promise<void> {
     if (typeof window !== 'undefined') {
-        (window as any).__workbenchLoadStore = loadStore;
+        window.__workbenchLoadStore = loadStore;
     }
 
     await ensureStorageReady();
@@ -186,15 +186,15 @@ const OptionsModule = {
 // __workbenchLoadStore, DialogView, ConversationsStore, TourGuide, FsWriter,
 // TakeoutController, SyncController. Other module mounts removed — use static imports.
 if (typeof window !== 'undefined') {
-    (window as any).__workbenchLoadStore = loadStore;
-    (window as any).ConversationsStore = ConversationsStore;
-    (window as any).DialogView = DialogView;
-    (window as any).TourGuide = TourGuide;
-    (window as any).FsWriter = FsWriter;
-    (window as any).TakeoutController = TakeoutController;
-    (window as any).SyncController = SyncController;
-    (window as any).ExportController = ExportController;
-    (window as any).__mitex = { initMitexWasm, isMitexReady, convertMathWithMitex };
+    window.__workbenchLoadStore = loadStore;
+    window.ConversationsStore = ConversationsStore;
+    window.DialogView = DialogView;
+    window.TourGuide = TourGuide;
+    window.FsWriter = FsWriter;
+    window.TakeoutController = TakeoutController;
+    window.SyncController = SyncController;
+    window.ExportController = ExportController;
+    window.__mitex = { initMitexWasm, isMitexReady, convertMathWithMitex };
 }
 
 export { OptionsModule };

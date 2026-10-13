@@ -25,7 +25,7 @@ export interface BuildExportCompletionInput {
     /** When export landed (ISO string, ms number, or Date) */
     exportedAt?: string | number | Date;
     /** Failed assets list or count */
-    failedAssets?: Array<{ file?: string; error?: string } | any> | number | null;
+    failedAssets?: unknown[] | number | null;
     /** Status override if known (e.g. 'empty', 'partial', 'ok', 'failed') */
     statusOverride?: 'ok' | 'partial' | 'empty' | 'failed';
     /** Explicit candidate title if available */

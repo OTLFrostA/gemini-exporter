@@ -185,8 +185,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     if (raw.type === CrossWorldEvents.STREAM_START) {
-        if (typeof (_deps as any)?.onStreamStart === 'function') {
-            (_deps as any).onStreamStart(id, slot);
+        if (typeof _deps?.onStreamStart === 'function') {
+            _deps.onStreamStart(id, slot);
         } else {
             const obs = LiveSaveObserver;
             if (obs && typeof obs.notifyStreamStart === 'function') {
@@ -198,8 +198,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             const nid = activeId;
             const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
             try {
-                if (typeof (_deps as any)?.touchActiveConversation === 'function') {
-                    await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
+                if (typeof _deps?.touchActiveConversation === 'function') {
+                    await _deps.touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
                 } else if (typeof upsertConversations === 'function') {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
@@ -219,8 +219,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     if (raw.type === CrossWorldEvents.STREAM_COMPLETE) {
-        if (typeof (_deps as any)?.onStreamComplete === 'function') {
-            (_deps as any).onStreamComplete(id, slot);
+        if (typeof _deps?.onStreamComplete === 'function') {
+            _deps.onStreamComplete(id, slot);
         } else {
             const obs = LiveSaveObserver;
             if (obs && typeof obs.notifyStreamComplete === 'function') {
@@ -232,8 +232,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             const nid = activeId;
             const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
             try {
-                if (typeof (_deps as any)?.touchActiveConversation === 'function') {
-                    await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
+                if (typeof _deps?.touchActiveConversation === 'function') {
+                    await _deps.touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
                 } else if (typeof upsertConversations === 'function') {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
@@ -244,8 +244,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         href: `https://gemini.google.com/app/${nid}`,
                         sidebarIndex: 0
                     };
-                    if (typeof (_deps as any)?.extractActiveChatTitle === 'function') {
-                        const titleObj = (_deps as any).extractActiveChatTitle(nid);
+                    if (typeof _deps?.extractActiveChatTitle === 'function') {
+                        const titleObj = _deps.extractActiveChatTitle(nid);
                         if (titleObj && titleObj.title && isRealTitle(titleObj.title, nid)) {
                             item.title = cleanTitle(titleObj.title);
                             const sourceTier = normalizeReliableTitleSource(titleObj.source) || 'dom';

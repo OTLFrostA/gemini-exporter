@@ -35,7 +35,7 @@ export interface SchemaMigrateResult { ok: boolean; frozen: boolean; error?: str
 async function listConversationSlots(): Promise<string[]> {
     const slots = new Set<string>(["u0"]);
     try {
-        const all = (await chrome.storage.local.get(null)) as Record<string, any>;
+        const all = (await chrome.storage.local.get(null)) as Record<string, unknown>;
         for (const k of Object.keys(all || {})) {
             if (k === "gemini_conversations") slots.add("u0");
             else if (k.startsWith("gemini_conversations_")) {
