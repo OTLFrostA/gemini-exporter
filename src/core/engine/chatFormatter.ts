@@ -3,7 +3,7 @@ import { isResourceConversationParseResult, type ResourceConversationParseResult
 import type { TrustedDomain } from '../domain/runtimeValidation.js';
 import { exportDomainHtml, exportDomainMarkdown, type DomainHtmlExportOptions, type DomainMarkdownExportOptions } from '../export/exportDomainDocument.js';
 import { convertHtmlToMarkdown } from '../parsers/shared/html/htmlToMarkdown.js';
-import { toOpenAIJson, toJsonStandard, toJsonRaw } from './formatters/jsonFormatter.js';
+import { toJsonStandard } from './formatters/jsonFormatter.js';
 
 export interface FormattedResult { content: string; ext: string; mime: string }
 export type ChatExportInput = ResourceConversationParseResult | TrustedDomain;
@@ -27,14 +27,11 @@ export async function formatMarkdownDocument(input: ChatExportInput, opts: Domai
 }
 export function formatContent(input: ChatExportInput, formatType: string, resources: readonly ResourceResult<ResourceDelivery>[] = []): FormattedResult {
     const result = nativeExportInput(input);
-    const content = formatType === 'json_openai' ? toOpenAIJson(result, resources)
-        : formatType === 'json' ? toJsonStandard(result, resources)
-        : formatType === 'json_raw' ? toJsonRaw(result)
-        : undefined;
-    if (content === undefined) throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
+    if (formatType !== 'json') throw new Error(`[chatFormatter] unsupported format: ${formatType}`);
+    const content = toJsonStandard(result, resources);
     return { content, ext: 'json', mime: 'application/json' };
 }
-export { convertHtmlToMarkdown, toOpenAIJson, toJsonStandard, toJsonRaw };
-export const ChatFormatter = { convertHtmlToMarkdown, toOpenAIJson, formatContent, formatHtmlDocument, formatMarkdownDocument };
+export { convertHtmlToMarkdown, toJsonStandard };
+export const ChatFormatter = { convertHtmlToMarkdown, formatContent, formatHtmlDocument, formatMarkdownDocument };
 export type ChatFormatterModule = typeof ChatFormatter;
 export default ChatFormatter;

@@ -208,8 +208,7 @@ test('P2: formatContent 未知格式显式抛错（不静默回落 markdown）',
     // 合法格式不受影响
     assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'markdown'), /unsupported format: markdown/);
     assert.strictEqual(ChatFormatter.formatContent(historicalFixture(chat), 'json').ext, 'json');
-    assert.strictEqual(ChatFormatter.formatContent(historicalFixture(chat), 'json_openai').ext, 'json');
-    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'json_raw'), /raw.*unavailable|raw.*payload|decoded/i);
+    assert.throws(() => ChatFormatter.formatContent(historicalFixture(chat), 'json_raw'), /unsupported format/);
 });
 
 // ---------- P2-11: sessionStore 并发 updateSession 不丢更新 ----------

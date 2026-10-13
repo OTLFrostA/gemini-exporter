@@ -77,8 +77,7 @@ src/
     compatibility/             Historical grammar, final JSON serialization and acquisition adapters
       gemini/                  Legacy media extraction/acquisition utilities
       takeout/                 Native import/cache and source-bound offline acquisition adapters
-      record/                  Historical storage record → Domain; final OpenAI output conversion
-        projectDomainRecord.ts One-way conversion used only by final OpenAI JSON serialization
+      record/                  Historical storage record → Domain
       archive/                 Existing localized ZIP guard errors
 
     diagnostics/               Parsing, composition and rendering problem records
@@ -87,7 +86,7 @@ src/
       exportEngine.ts          Batch export coordinator facade
       export/                  Workers, rate limiting, progress, recovery and completion
       takeoutEngine.ts         Existing Takeout import/cache facade
-      chatFormatter.ts         Async Domain → Document AST Markdown/HTML facade; synchronous JSON & OpenAI serialization
+      chatFormatter.ts         Async Domain → Document AST Markdown/HTML facade; synchronous Standard JSON serialization
       liveSaveWriter.ts        Async Document Markdown live-save formatting and FileSystem disk writes
       assetPipeline.ts         Media asset downloading & relative-path archive packaging
       writers/                 Pluggable Storage Writers

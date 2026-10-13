@@ -4,7 +4,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { projectDomainRecord } from '../src/core/compatibility/record/projectDomainRecord.js';
 import { getConversationDetail } from '../src/core/api/client/pagination.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
@@ -64,9 +63,8 @@ test('native token loops retain diagnostics and explicitly mark incomplete cover
     assert.equal(chatRecordStatusWithDrift('ok', extractChatParseDrift(detail)), 'partial');
 });
 
-test('native exports use Domain despite a deliberately corrupted compatibility body', async () => {
+test('native exports use Domain without invoking the historical record parser', async () => {
     const view = result('data:image/png;base64,iVBORw0KGgo=');
-    const projected = projectDomainRecord(view.conversation); projected.messages![0].content = 'CORRUPTED SNAPSHOT';
     const recordParser = require('../src/core/compatibility/record/parseConversationRecord.js') as { parseConversationRecord: (...args: unknown[]) => unknown };
     const old = recordParser.parseConversationRecord;
     recordParser.parseConversationRecord = () => { throw new Error('A native result cannot be reparsed as a record'); };
@@ -83,13 +81,10 @@ test('native exports use Domain despite a deliberately corrupted compatibility b
     } finally { recordParser.parseConversationRecord = old; }
 });
 
-test('final serializers preserve native JSON and isolate the external record projection', () => {
+test('standard JSON preserves native data without mutation', () => {
     const native = result('https://example.test/photo.png');
     const snapshot = structuredClone(native.conversation);
     const view = native;
-    const record = projectDomainRecord(native.conversation);
-    assert.equal('parsed' in record, false);
-    assert.equal(typeof record.messages![0].content, 'string');
     const json = JSON.parse(formatContent(view, 'json').content);
     assert.equal('parsed' in json, false);
     assert.deepEqual(json.conversation, native.conversation);
@@ -180,37 +175,6 @@ test('native pagination rejects mixed legacy message pages instead of dropping t
     const legacy = { id: 'native', messages: [{ role: 'model', content: 'old' }] };
     let index = 0;
     await assert.rejects(getConversationDetail({ async fetchConversationPage() { return [native, legacy][index++] as never; } }, 'native'), /native/);
-});
-
-test('compatibility table projection preserves pipe and backslash content without adding columns', async () => {
-    const { fromMarkdown } = await import('mdast-util-from-markdown');
-    const { gfm } = await import('micromark-extension-gfm');
-    const { gfmFromMarkdown } = await import('mdast-util-gfm');
-    const samples: Array<{ node: import('../src/core/domain/content/inline.js').InlineNode; text: string }> = [
-        { node: { type: 'text', text: 'a|b' }, text: 'a|b' },
-        { node: { type: 'text', text: 'a\\|b' }, text: 'a\\|b' },
-        { node: { type: 'text', text: 'a\\\\|b' }, text: 'a\\\\|b' },
-        { node: { type: 'strong', children: [{ type: 'text', text: 'a\\|b' }] }, text: 'a\\|b' },
-        { node: { type: 'inlineCode', code: 'a|b' }, text: 'a|b' },
-        { node: { type: 'inlineCode', code: 'a\\|b' }, text: 'a\\|b' },
-        { node: { type: 'inlineCode', code: 'a\\\\|b' }, text: 'a\\\\|b' },
-    ];
-    const domain: import('../src/core/domain/conversationDetail.js').DomainConversationDetail = {
-        providerId: 'gemini', id: 'projection', title: 'Projection', timestamp: null, assets: [], messages: [{ role: 'assistant', content: [{ type: 'table',
-            headerRows: [{ cells: [{ children: [{ type: 'text', text: 'Content' }] }, { children: [{ type: 'text', text: 'Sentinel' }] }] }],
-            rows: samples.map(sample => ({ cells: [{ children: [sample.node] }, { children: [{ type: 'text', text: 'kept' }] }] })) }] }],
-    };
-    const markdown = projectDomainRecord(validateParserDomain(domain)).messages![0].content;
-    const tree = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
-    const table = tree.children.find(node => node.type === 'table')!;
-    const visible = (node: import('mdast').Nodes): string => node.type === 'html' ? '' : 'value' in node ? node.value : 'children' in node ? node.children.map(visible).join('') : '';
-    assert.equal(table.children.length, samples.length + 1);
-    samples.forEach((sample, index) => {
-        const row = table.children[index + 1];
-        assert.equal(row.children.length, 2);
-        assert.equal(visible(row.children[0]), sample.text);
-        assert.equal(visible(row.children[1]), 'kept');
-    });
 });
 
 

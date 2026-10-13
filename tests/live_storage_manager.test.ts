@@ -166,7 +166,7 @@ test('non-Markdown formats suppress live save config and both write routes', asy
         set: async (patch: any) => { Object.assign(data, patch); }
     } } };
     try {
-        for (const format of ['pdf', 'html', 'json', 'json_openai', 'json_raw']) {
+        for (const format of ['pdf', 'html', 'json']) {
             data[STORAGE_KEYS.FORMAT] = format;
             data[STORAGE_KEYS.LIVE_SAVE_CONFIG] = { enabledDisk: true };
             assert.strictEqual((await LiveStorageManager.getLiveConfig()).enabledDisk, false);

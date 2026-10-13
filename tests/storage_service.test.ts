@@ -72,14 +72,13 @@ test('storage_service - reconcileConversations preserves takeout entries and pur
     }
 });
 
-test('format_store - normalizeFormat validates against allowed formats and devMode', () => {
+test('format_store - normalizeFormat validates against allowed formats', () => {
     const FormatStore = require('../src/core/storage/formatStore.js');
-    assert.strictEqual(FormatStore.normalizeFormat('markdown', false), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('json_openai', false), 'json_openai');
-    assert.strictEqual(FormatStore.normalizeFormat('unknown_format', false), 'markdown');
+    assert.strictEqual(FormatStore.normalizeFormat('markdown'), 'markdown');
+    assert.strictEqual(FormatStore.normalizeFormat('json_openai'), 'markdown');
+    assert.strictEqual(FormatStore.normalizeFormat('unknown_format'), 'markdown');
 
-    assert.strictEqual(FormatStore.normalizeFormat('json_raw', false), 'markdown');
-    assert.strictEqual(FormatStore.normalizeFormat('json_raw', true), 'json_raw');
+    assert.strictEqual(FormatStore.normalizeFormat('json_raw'), 'markdown');
 });
 
 test('storage_service - two-tier storage offloads messages to detail store and slims chrome.storage.local', async () => {

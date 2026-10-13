@@ -194,7 +194,7 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
       await chrome.storage.local.set({ live_save_config: { enabledDisk: true, format: 'markdown', includeAssets: true } });
     });
     await expect(toggle).toBeChecked();
-    for (const format of ['pdf', 'html', 'json', 'json_openai']) {
+    for (const format of ['pdf', 'html', 'json']) {
       await page.selectOption('#format', format);
       await expect(toggle).toBeDisabled();
       await expect(toggle).not.toBeChecked();

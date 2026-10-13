@@ -1,6 +1,6 @@
 import { setLiveConfig } from './liveStorageManager.js';
 
-export type ExportFormat = 'markdown' | 'html' | 'json_openai' | 'json' | 'json_raw' | string;
+export type ExportFormat = 'markdown' | 'html' | 'json' | string;
 
 export interface FormatStoreLoadResult {
     format: string;
@@ -8,26 +8,20 @@ export interface FormatStoreLoadResult {
     stored: string | null;
 }
 
-export interface DevToggleResult {
-    format: string;
-    changed: boolean;
-}
-
 export interface FormatStoreModule {
     ALLOWED_FORMATS: string[];
     DEFAULT_FORMAT: string;
     isAllowed: (val: string) => boolean;
-    normalizeFormat: (val: string, isDev?: boolean) => string;
+    normalizeFormat: (val: string) => string;
     validateAgainstSelect: (val: string, selectEl: any) => boolean;
     loadFormat: (selectEl?: any) => Promise<FormatStoreLoadResult>;
     saveFormat: (val: string) => Promise<string>;
-    getCurrentFormat: (isDev?: boolean, currentVal?: string) => string;
-    handleDevToggle: (devOn: boolean, currentFormatOrSelect: any) => DevToggleResult;
+    getCurrentFormat: (currentVal?: string) => string;
 }
 
 import { ALLOWED_FORMATS as CONST_ALLOWED_FORMATS, DEFAULT_FORMAT as CONST_DEFAULT_FORMAT, STORAGE_KEYS } from "../utils/constants.js";
 
-export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'html', 'json_openai', 'json', 'json_raw', 'pdf'];
+export const ALLOWED_FORMATS: string[] = CONST_ALLOWED_FORMATS || ['markdown', 'html', 'json', 'pdf'];
 export const DEFAULT_FORMAT: string = CONST_DEFAULT_FORMAT || 'markdown';
 const ALLOWED = ALLOWED_FORMATS;
 const DEFAULT = DEFAULT_FORMAT;
@@ -38,9 +32,8 @@ const DEFAULT = DEFAULT_FORMAT;
         return ALLOWED.includes(val);
     }
 
-    function normalizeFormat(val: string, isDev?: boolean): string {
+    function normalizeFormat(val: string): string {
         if (!isAllowed(val)) return DEFAULT;
-        if (val === 'json_raw' && !isDev) return DEFAULT;
         return val;
     }
 
@@ -57,7 +50,7 @@ const DEFAULT = DEFAULT_FORMAT;
             const isDev = !!data[STORAGE_KEYS.DEV_MODE];
             const stored = (data[STORAGE_KEYS.FORMAT] as string) || null;
             if (!stored) return { format: DEFAULT, isDev, stored: null };
-            const normalized = normalizeFormat(stored, isDev);
+            const normalized = normalizeFormat(stored);
             const finalVal = (selectEl && !validateAgainstSelect(normalized, selectEl)) ? DEFAULT : normalized;
             if (finalVal !== stored && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
                 await chrome.storage.local.set({ [STORAGE_KEYS.FORMAT]: finalVal });
@@ -85,26 +78,10 @@ const DEFAULT = DEFAULT_FORMAT;
         return operation;
     }
 
-    function getCurrentFormat(isDev?: boolean, currentVal?: string): string {
-        return normalizeFormat(currentVal !== undefined ? currentVal : DEFAULT, isDev);
+    function getCurrentFormat(currentVal?: string): string {
+        return normalizeFormat(currentVal !== undefined ? currentVal : DEFAULT);
     }
 
-    function handleDevToggle(devOn: boolean, currentFormatOrSelect: any): DevToggleResult {
-        if (currentFormatOrSelect && typeof currentFormatOrSelect === 'object' && 'value' in currentFormatOrSelect) {
-            if (!devOn && currentFormatOrSelect.value === 'json_raw') {
-                currentFormatOrSelect.value = DEFAULT;
-                saveFormat(DEFAULT).catch((err: any) => {
-                    console.warn('[FormatStore] Failed to save format on dev toggle:', err);
-                });
-                return { format: DEFAULT, changed: true };
-            }
-            return { format: currentFormatOrSelect.value, changed: false };
-        }
-        if (!devOn && currentFormatOrSelect === 'json_raw') {
-            return { format: DEFAULT, changed: true };
-        }
-        return { format: currentFormatOrSelect, changed: false };
-    }
 
 export {
     isAllowed,
@@ -112,8 +89,7 @@ export {
     validateAgainstSelect,
     loadFormat,
     saveFormat,
-    getCurrentFormat,
-    handleDevToggle
+    getCurrentFormat
 };
 
 export const FormatStore: FormatStoreModule = {
@@ -124,8 +100,7 @@ export const FormatStore: FormatStoreModule = {
     validateAgainstSelect,
     loadFormat,
     saveFormat,
-    getCurrentFormat,
-    handleDevToggle
+    getCurrentFormat
 };
 
 export default FormatStore;

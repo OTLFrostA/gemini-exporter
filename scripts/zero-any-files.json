@@ -81,7 +81,6 @@
   "src/core/utils/latexCompatibility.ts",
   "src/core/parsers/gemini/takeout/archiveResources.ts",
   "tests/takeout-archive-resources.test.ts",
-  "src/core/compatibility/record/projectDomainRecord.ts",
   "src/core/parsers/gemini/rpc/mergePages.ts",
   "src/core/parsers/gemini/dom/parseConversation.ts",
   "src/core/parsers/gemini/dom/content.ts",

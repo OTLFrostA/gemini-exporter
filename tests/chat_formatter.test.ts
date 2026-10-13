@@ -36,25 +36,6 @@ test('chat_formatter - formatMarkdownDocument', async () => {
     assert.ok(userIdx < modelIdx, 'User heading must precede model heading');
 });
 
-test('chat_formatter - formatContent json_openai', () => {
-    const mockChat = {
-        id: '12345678',
-        title: 'Test',
-        messages: [
-            { role: 'user', content: 'Hello' },
-            { role: 'model', content: 'Hi there!' }
-        ]
-    };
-
-    const res = ChatFormatter.formatContent(historicalFixture(mockChat), 'json_openai');
-    assert.strictEqual(res.ext, 'json');
-    const parsed = JSON.parse(res.content);
-    assert.strictEqual(parsed.messages.length, 2);
-    assert.strictEqual(parsed.messages[0].role, 'user');
-    assert.strictEqual(parsed.messages[0].content, 'Hello');
-    assert.strictEqual(parsed.messages[1].role, 'assistant');
-    assert.strictEqual(parsed.messages[1].content, 'Hi there!');
-});
 
 test('chat_formatter - convertHtmlToMarkdown converts html elements safely', () => {
     const rawHtml = '<p>Here is a code snippet:</p><pre><code class="language-js">console.log(&quot;hello&quot;);</code></pre><p>And some <b>bold</b> and <i>italic</i> text with <br/>break.</p>';
@@ -201,18 +182,15 @@ test('chat_formatter - natural language prompt > 400 chars with code keywords is
 });
 
 test('chat_formatter - decoupled formatters export valid focused functions', async () => {
-    const { toOpenAIJson, toJsonStandard, toJsonRaw } = require('../src/core/engine/formatters/jsonFormatter.js');
+    const { toJsonStandard } = require('../src/core/engine/formatters/jsonFormatter.js');
     const { convertHtmlToMarkdown } = require('../src/core/parsers/shared/html/htmlToMarkdown.js');
 
-    assert.strictEqual(typeof toOpenAIJson, 'function');
     assert.strictEqual(typeof toJsonStandard, 'function');
-    assert.strictEqual(typeof toJsonRaw, 'function');
     assert.strictEqual(typeof convertHtmlToMarkdown, 'function');
 
     const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
     assert.ok((await ChatFormatter.formatMarkdownDocument(historicalFixture(testChat))).content.includes('title: "Test"'));
     assert.throws(() => ChatFormatter.formatContent(historicalFixture(testChat), 'markdown'), /unsupported format/);
-    assert.ok(toOpenAIJson(historicalFixture(testChat)).includes('"content": "hello"'));
     assert.ok(toJsonStandard(historicalFixture(testChat)).includes('"id": "c1"'));
     assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));
 });

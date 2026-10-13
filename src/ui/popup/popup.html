@@ -22,7 +22,6 @@ button.ghost:disabled{background:#11121c;color:#6b7280;border-color:#1e2030}
 .tab-btn:hover{color:var(--text);background:rgba(255,255,255,0.05);}
 .tab-btn.active{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#ffffff;box-shadow:0 1px 4px rgba(0,0,0,0.4);}
 .tab-btn:disabled{opacity:0.35;cursor:not-allowed;pointer-events:none;}
-.tab-group.has-dev .tab-btn{font-size:10px;padding:5px 1px;}
 select{width:100%;background:#0e0f17;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 8px;margin-bottom:6px;font-size:11px}
 select:disabled{opacity:0.45;cursor:not-allowed;background:#10111a;color:#6b7280}
 .label.disabled{opacity:0.45}
@@ -84,18 +83,14 @@ input[type=checkbox].toggle:checked::after{transform:translateX(12px);background
     <button type="button" class="tab-btn active" data-value="markdown" data-i18n="fmtMarkdownTab">Markdown</button>
     <button type="button" class="tab-btn" data-value="pdf" data-i18n="fmtPdfTab">PDF</button>
     <button type="button" class="tab-btn" data-value="html" data-i18n="fmtHtmlTab">HTML</button>
-    <button type="button" class="tab-btn" data-value="json_openai" data-i18n="fmtJsonOpenAITab">JSON (OpenAI)</button>
     <button type="button" class="tab-btn" data-value="json" data-i18n="fmtJsonStandardTab">JSON (标准)</button>
-    <button type="button" class="tab-btn dev-only" data-value="json_raw" data-i18n="fmtJsonRawTab" style="display:none;">JSON (原始)</button>
   </div>
 
   <!-- Fallback/Sync select element -->
   <select id="format" style="display:none;">
     <option value="markdown" selected data-i18n="fmtMarkdown">Markdown (.md)</option>
     <option value="html" data-i18n="fmtHtml">HTML 独立网页 (.html)</option>
-    <option value="json_openai" data-i18n="fmtJsonOpenAI">JSON (OpenAI格式)</option>
     <option value="json" data-i18n="fmtJsonStandard">JSON (插件标准)</option>
-    <option value="json_raw" data-i18n="fmtJsonRaw">JSON (Gemini原始)</option>
   </select>
 
   <!-- Row 1: Export Current Page & Open Console Batch Export -->

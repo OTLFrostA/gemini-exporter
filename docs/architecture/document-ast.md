@@ -69,7 +69,7 @@ Numeric values are not automatically geometry: logical column indices, spans, he
 
 Contract tests render the same frozen JSON document through all three backends, verify rich table/caption preservation, independent content language/UI locale, raw code/file metadata, backend policy changes without recomposition, JSON roundtrip, input immutability and source-model import/type boundaries. Existing export, real-WASM, stress and visual tests remain regression gates. Backend adjacency inference is explicitly permitted; tests prohibit source-model dependencies rather than physical layout decisions.
 
-D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. D6 migrates production PDF preparation and payload orchestration to the same direct path. The subsequent cleanup migrated all active callers/tests and removed the obsolete Canonical conversation APIs and input adapters. Raw/Standard/OpenAI JSON remain data archive formats and do not pass through the presentation tree.
+D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoisting and removes the format-specific composer entry points. D5 migrates production HTML/Markdown to Domain-to-document composition, preserving Domain resource IDs and resolving citation markers before Domain. D6 migrates production PDF preparation and payload orchestration to the same direct path. The subsequent cleanup migrated all active callers/tests and removed the obsolete Canonical conversation APIs and input adapters. Standard JSON remains a data archive format and does not pass through the presentation tree.
 
 ## Direct Domain composition (D5)
 
@@ -77,7 +77,7 @@ D1–D3 isolated backend dependencies. D4 corrects their overly broad policy hoi
 
 Citation IDs are message-local Domain relationships. Textual web/grounding markers are resolved by input adapters (including reasoning and rich captions/descriptions); composers consume citation references and never scan text for provider marker syntax. Domain closure rejects duplicate citation IDs and unresolved references. Source UI strings remain backend-local. Authoritative title selection also happens at the legacy boundary rather than selecting raw title candidates during composition.
 
-The only conversation models are Domain facts/relationships and the logical Document AST. Complete JSON serializes native Domain, OpenAI-compatible JSON builds an external message view, and developer raw JSON requires actual provider evidence. These serializers remain outside the presentation pipeline.
+The only conversation models are Domain facts/relationships and the logical Document AST. Standard JSON serializes native Domain outside the presentation pipeline.
 
 ## Resource identity and export destinations
 

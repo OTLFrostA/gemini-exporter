@@ -39,7 +39,6 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(page.locator('#btnOptions')).toHaveText('Batch Export in Console ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('Current Conversation');
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON (OpenAI compatible)');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON (complete data)');
     expect(await page.locator('#langToggle').isChecked()).toBe(true);
 
@@ -55,7 +54,6 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(page.locator('#btnOptions')).toHaveText('去控制台批量导出 ↗');
     await expect(page.locator('#currentChatLabel')).toHaveText('当前会话');
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).toHaveText('Markdown');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveText('JSON（OpenAI 兼容）');
     await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveText('JSON（完整数据）');
     expect(await page.locator('#langToggle').isChecked()).toBe(false);
 
@@ -75,30 +73,25 @@ test.describe('Popup UI & Action Center Localization', () => {
     expect(await page.locator('#langToggle').isChecked()).toBe(false);
 
     // 6. Test Format Tabs click selection and storage persistence
-    await page.click('#formatTabs .tab-btn[data-value="json_openai"]');
-    await expect(page.locator('#formatTabs .tab-btn[data-value="json_openai"]')).toHaveClass(/active/);
+    await page.click('#formatTabs .tab-btn[data-value="json"]');
+    await expect(page.locator('#formatTabs .tab-btn[data-value="json"]')).toHaveClass(/active/);
     await expect(page.locator('#formatTabs .tab-btn[data-value="markdown"]')).not.toHaveClass(/active/);
-    await expect(page.locator('#activeFormatLabel')).toHaveText('JSON（OpenAI 兼容）');
+    await expect(page.locator('#activeFormatLabel')).toHaveText('JSON（完整数据）');
 
     const savedFmt = await page.evaluate(async () => {
       const d = await chrome.storage.local.get('gemini_export_format');
       return d.gemini_export_format;
     });
-    expect(savedFmt).toBe('json_openai');
+    expect(savedFmt).toBe('json');
 
-    // 7. Test dev-mode raw json tab visibility
-    const rawTabBefore = page.locator('#formatTabs .tab-btn[data-value="json_raw"]');
-    await expect(rawTabBefore).toBeHidden();
-
-    await page.evaluate(async () => {
-      await chrome.storage.local.set({ gemini_dev_mode: true });
-    });
-    await expect(rawTabBefore).toBeVisible();
-
-    await page.evaluate(async () => {
-      await chrome.storage.local.set({ gemini_dev_mode: false });
-    });
-    await expect(rawTabBefore).toBeHidden();
+    // Removed JSON formats remain absent in both modes.
+    for (const devMode of [true, false]) {
+      await page.evaluate(async (enabled) => {
+        await chrome.storage.local.set({ gemini_dev_mode: enabled });
+      }, devMode);
+      await expect(page.locator('#formatTabs .tab-btn')).toHaveCount(4);
+      await expect(page.locator('[data-value="json_openai"], [data-value="json_raw"], option[value="json_openai"], option[value="json_raw"]')).toHaveCount(0);
+    }
   });
 
   test('should synchronize format and language bidirectionally between options workbench and popup', async ({ context, extensionId }) => {
@@ -129,9 +122,9 @@ test.describe('Popup UI & Action Center Localization', () => {
     await expect(optionsPage.locator('#btnSelectAll')).toHaveText('全选');
     await expect(popupPage.locator('#btnCurrent')).toHaveText('📥 导出当前页面');
 
-    // 3. Format: Switch in popup to json_openai -> options workbench format select updates
-    await popupPage.click('#formatTabs .tab-btn[data-value="json_openai"]');
-    await expect(optionsPage.locator('#format')).toHaveValue('json_openai');
+    // 3. Format: Switch in popup to json -> options workbench format select updates
+    await popupPage.click('#formatTabs .tab-btn[data-value="json"]');
+    await expect(optionsPage.locator('#format')).toHaveValue('json');
 
     // 4. Format: Switch in options to json -> popup format tabs active state updates
     await optionsPage.selectOption('#format', 'json');
@@ -189,7 +182,7 @@ test('popup rejects malformed transport replies without download, releases guard
   await expect(page.locator('#btnCurrent')).toBeEnabled();
 });
 
-for (const format of ['html', 'markdown', 'json_openai']) test(`popup ${format} single-file export preserves body, reports missing attachments and emits no planned local reference`, async ({ context, extensionId }) => {
+for (const format of ['html', 'markdown', 'json']) test(`popup ${format} single-file export preserves body and emits no planned local reference`, async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.addInitScript(() => {
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{ id: 999, active: true,
@@ -209,7 +202,16 @@ for (const format of ['html', 'markdown', 'json_openai']) test(`popup ${format} 
     if (!file) throw new Error('Single-file export was not delivered');
     const body = await readFile(file, 'utf8');
     expect(body).toContain('Body survives'); expect(body).not.toContain('assets/never-delivered.png');
-    expect(body).toMatch(/unavailable|gem-missing-asset/);
-    await expect(page.locator('#log')).toContainText('Use the console');
+    if (format === 'json') {
+        const archive = JSON.parse(body);
+        expect(archive.format).toBe('gemini-exporter-domain');
+        expect(archive.version).toBe(1);
+        expect(archive.conversation.messages[0].role).toBe('assistant');
+        expect(archive.resources).toBeUndefined();
+        expect(archive.transport).toBeUndefined();
+    } else {
+        expect(body).toMatch(/unavailable|gem-missing-asset/);
+        await expect(page.locator('#log')).toContainText('Use the console');
+    }
     await expect(page.locator('#btnCurrent')).toBeEnabled();
 });
