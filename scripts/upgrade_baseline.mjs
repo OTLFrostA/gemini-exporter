@@ -25,12 +25,12 @@ export function bodyFacts(state) {
   });
   const details = state.databases?.gemini_exporter_details_idb?.stores?.conversation_details || [];
   return lists.flatMap(({ slot, row }) => {
-    const id = String(row.id).replace(/^c_/, '');
-    const candidates = [row, ...details.filter(detail => object(detail) && String(detail.id).replace(/^c_/, '') === id)];
+    const id = String(row.id).replace(/^c_/, '').trim();
+    const candidates = [row, ...details.filter(detail => object(detail) && String(detail.id).replace(/^c_/, '').trim() === id)];
     const size = value => Math.max(Array.isArray(value.messages) ? value.messages.length : 0, Array.isArray(value.turns) ? value.turns.length : 0);
     const source = candidates.reduce((best, value) => size(value) > size(best) ? value : best, row);
     if (!size(source)) return [];
-    if (source !== row) assert.equal(new Set(lists.filter(entry => String(entry.row.id).replace(/^c_/, '') === id).map(entry => entry.slot)).size, 1, 'Persisted body has ambiguous account ownership');
+    if (source !== row) assert.equal(new Set(lists.filter(entry => String(entry.row.id).replace(/^c_/, '').trim() === id).map(entry => entry.slot)).size, 1, 'Persisted body has ambiguous account ownership');
     const body = Object.fromEntries(['messages', 'turns'].filter(key => Array.isArray(source[key]) && source[key].length).map(key => [key, source[key]]));
     const texts = [];
     const collect = (value, key) => {
@@ -79,7 +79,7 @@ export async function assertPersistedBaseline(before, after) {
     const { parseLegacyStorageConversation, readStorageDomain } = await loadDomainContracts();
     const saved = readStorageDomain(record.conversation);
     assert.equal(saved.providerId, 'gemini', message);
-    assert.equal(String(saved.id).replace(/^c_/, ''), fact.id, message);
+    assert.equal(String(saved.id).replace(/^c_/, '').trim(), fact.id, message);
     const expected = parseLegacyStorageConversation(fact.raw, { providerId: 'gemini' }).conversation;
     assert.equal(canonical(saved.messages), canonical(expected.messages), message);
     assert.equal(canonical(saved.assets), canonical(expected.assets), message);

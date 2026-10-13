@@ -82,6 +82,10 @@ const conversation=parseLegacyStorageConversation({metadata:before.local.gemini_
 const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:2,domainVersion:1,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
 const migrated={local:empty.local,databases:{...before.databases,gemini_exporter_domain:{stores:{conversations:[record]}}}};
 await assertPersistedBaseline(before,migrated);
+const padded=structuredClone(before);padded.local.gemini_conversations[0].id=' c_a '.trim();
+await assertPersistedBaseline(padded,migrated); // Same production c_ normalization.
+const spaced=structuredClone(before);spaced.local.gemini_conversations[0].id=' a ';
+await assertPersistedBaseline(spaced,migrated); // Production normalizes surrounding whitespace.
 for(const change of [
  r=>{r.identity.accountSlot='u1';r.key=JSON.stringify(['gemini','u1','a']);},
  r=>{r.identity.conversationId='other';r.key=JSON.stringify(['gemini','u0','other']);r.conversation.id='other';},
