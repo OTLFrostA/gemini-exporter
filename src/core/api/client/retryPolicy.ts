@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from "../../utils/constants.js";
 import { withCredMapLock } from './credStorage.js';
 
 export interface Http400Params {
-    resp: { status: number; [key: string]: any };
+    resp: { status: number };
     snippet?: string;
     cred?: any;
     isRetried?: boolean;
@@ -28,7 +28,7 @@ export interface Http401Params {
 }
 
 export interface Http429Params {
-    resp: { status: number; headers?: { get?: (header: string) => string | null }; [key: string]: any };
+    resp: { status: number; headers?: { get?: (header: string) => string | null } };
     retryCount?: number;
     maxRetries?: number;
     label?: string;
