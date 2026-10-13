@@ -252,6 +252,7 @@ graph TD
 | `src/core/utils/constants.ts` | Core: Utils | `GeminiConstants`, `STORAGE_KEYS`, `DEFAULT_EXPORT_FOLDER_NAME` | 全局跨模块共享系统配置与存储键名真理源 (SSoT)。 | 全系统所有模块 | 配置常量定义 | `UT_SSoT` |
 | `src/core/utils/environment.ts` | Core: Utils | `isLocalDevelopment` | 运行时环境感知，基于 URL 参数及调试标记判定是否处于开发者调试模式。 | UI 模块, `utils.ts` | 调试环境布尔标记 | `UT_SSoT` |
 | `src/core/utils/messaging.ts` | Core: Utils | `sendTypedMessage`, `isMessageAction`, `getErrorMessage` | 强类型安全的跨世界与跨扩展上下文消息传递包装器，附带超时与异常提取。 | Background, Content, UI | `chrome.runtime.sendMessage` | `UT_SSoT` |
+| `src/core/utils/retryUtils.ts` | Core: Utils | `calculateBackoff`, `abortableSleep`, `BackoffOptions` | 纯退避重试与 AbortSignal 可中断延迟工具，消除 API Client 对导出引擎的反向依赖与循环引用。 | `retryPolicy.ts`, `rateLimiter.ts`, `assetPipeline.ts` | 延迟毫秒数与可中断休眠 | `UT_SSoT` |
 | `src/core/utils/moduleOverrides.ts` | Core: Utils | `__setModuleOverride`, `__resolveModule`, `__clearModuleOverrides` | 运行时模块重定向与轻量依赖注入容器，支持无头单元测试注入 Mock 实现。 | 全系统所有模块 | 动态依赖解析 | `UT_SSoT` |
 | `src/core/protocol/protocol.ts` | Core: Protocol | `GeminiProtocol`, `CrossWorldEvents` | 定义 wire 级 RPC 标识符 (`RPCS.LIST`, `RPCS.DELETE`)、跨世界事件名与关键断言。 | `hookCredentials`, `messageBridge` | 协议契约常量 | `MAIN_Hook`, `CS_Bridge` |
 | `src/core/protocol/events.ts` | Core: Protocol | `GeminiCredentialsPayload`, `GeminiStreamEvents` | 强类型事件 Payload 接口定义。 | 全协议层 | TypeScript 类型校验 | 契约层 |

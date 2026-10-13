@@ -144,8 +144,7 @@ export interface AssetPipelineInstance {
 import { sanitizeRelativePath } from "../utils/utils.js";
 import { I18n as I18nStatic } from "../utils/i18n.js";
 import { __resolveModule } from "../utils/moduleOverrides.js";
-import { calculateBackoff } from "./export/rateLimiter.js";
-import { interruptibleSleep } from "../api/client/retryPolicy.js";
+import { calculateBackoff, abortableSleep } from "../utils/retryUtils.js";
 import { getErrorMessage } from "../utils/messaging.js";
 
 export function sanitizeZipPath(p?: string | null): string {
@@ -537,7 +536,7 @@ class AssetPipeline implements AssetPipelineInstance {
                     if (attempt >= maxRetries) break;
                     const delayMs = calculateBackoff(attempt, { initialDelayMs: 1000, maxDelayMs: 10000, jitterMs: 500 });
                     this.onLog(`[${chat.title || chat.id}] 附件下载失败，${delayMs}ms 后重试 (${attempt + 1}/${maxRetries}): ${localName}`, 'warn');
-                    if (await interruptibleSleep(delayMs, signal)) { failReason = 'aborted'; break; }
+                    if (await abortableSleep(delayMs, signal)) { failReason = 'aborted'; break; }
                     attempt++;
                 }
             } catch (e: unknown) {

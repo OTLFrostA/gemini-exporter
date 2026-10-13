@@ -1,5 +1,5 @@
 import { GeminiClientCredentialManager, type GeminiCredentials, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
-import { calculateBackoff } from "../../engine/export/rateLimiter.js";
+import { calculateBackoff, abortableSleep } from "../../utils/retryUtils.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
 import { withCredMapLock } from './credStorage.js';
 
@@ -48,6 +48,7 @@ export interface GeminiClientRetryPolicyModule {
     handleHttp401: (params: Http401Params) => Promise<void>;
     handleHttp429: (params: Http429Params) => Promise<Http429Result>;
     interruptibleSleep: (ms: number, signal?: AbortSignal | null, isAborted?: () => boolean) => Promise<boolean>;
+    abortableSleep?: (ms: number, signal?: AbortSignal | null) => Promise<boolean>;
     parseRetryAfterMs: (value: string | null | undefined) => number | undefined;
 }
 
@@ -147,8 +148,11 @@ export interface GeminiClientRetryPolicyModule {
     const MAX_RETRY_AFTER_MS = 30000;
 
     async function interruptibleSleep(ms: number, signal?: AbortSignal | null, isAborted?: () => boolean): Promise<boolean> {
-        if (ms <= 0) return !!signal?.aborted || !!isAborted?.();
-        if (signal?.aborted || isAborted?.()) return true;
+        if (!isAborted) {
+            return abortableSleep(ms, signal);
+        }
+        if (ms <= 0) return !!signal?.aborted || !!isAborted();
+        if (signal?.aborted || isAborted()) return true;
         return await new Promise<boolean>((resolve) => {
             let done = false;
             let poll: ReturnType<typeof setInterval> | null = null;
@@ -164,13 +168,11 @@ export interface GeminiClientRetryPolicyModule {
                 cleanup();
                 resolve(aborted);
             };
-            const timer = setTimeout(() => finish(!!signal?.aborted || !!isAborted?.()), ms);
+            const timer = setTimeout(() => finish(!!signal?.aborted || !!isAborted()), ms);
             if (signal && typeof signal.addEventListener === "function") {
                 signal.addEventListener("abort", onAbort, { once: true });
             }
-            if (isAborted) {
-                poll = setInterval(() => { if (isAborted()) finish(true); }, 50);
-            }
+            poll = setInterval(() => { if (isAborted()) finish(true); }, 50);
         });
     }
 
@@ -218,6 +220,7 @@ export {
     handleHttp401,
     handleHttp429,
     interruptibleSleep,
+    abortableSleep,
     parseRetryAfterMs
 };
 
@@ -226,6 +229,7 @@ export const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
     handleHttp401,
     handleHttp429,
     interruptibleSleep,
+    abortableSleep,
     parseRetryAfterMs
 };
 

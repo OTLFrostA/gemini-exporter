@@ -63,6 +63,12 @@ import {
     isMessageAction,
     getErrorMessage
 } from './messaging.js';
+import {
+    calculateBackoff,
+    abortableSleep,
+    type BackoffOptions,
+    type RateLimiterOptions
+} from './retryUtils.js';
 
 export {
     sanitizeFileName,
@@ -116,7 +122,11 @@ export {
     type DeduplicateResult,
     sendTypedMessage,
     isMessageAction,
-    getErrorMessage
+    getErrorMessage,
+    calculateBackoff,
+    abortableSleep,
+    type BackoffOptions,
+    type RateLimiterOptions
 };
 
 export interface GeminiUtilsModule {
