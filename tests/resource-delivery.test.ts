@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
@@ -19,7 +20,7 @@ const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');
 afterEach(() => { __clearModuleOverrides(); mock.restoreAll(); });
 function native(failure: string): ResourceConversationParseResult {
-    return { conversation: { providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure', timestamp: null, assets: [
+    return { conversation: validateParserDomain({ providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure', timestamp: null, assets: [
         { id: 'good', kind: 'image', name: `${'delivered_'.repeat(10)}.png`, mediaType: 'image/png', source: { uri: 'https://example.test/good' } },
         { id: 'good-doc', kind: 'file', name: 'good.md', document: { contentMarkdown: '# Delivered companion' } },
         { id: 'bad', kind: failure === 'file-write' ? 'file' : 'image', name: 'bad.png',
@@ -29,7 +30,7 @@ function native(failure: string): ResourceConversationParseResult {
         { type: 'paragraph', children: [{ type: 'text', text: 'Conversation survives resource failure' }] },
         { type: 'image', assetId: 'good' }, { type: 'file', assetId: 'good-doc' },
         { type: failure === 'file-write' ? 'file' : 'image', assetId: 'bad' },
-    ] }] }, diagnostics: [], acquisitionHints: {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
+    ] }] }), diagnostics: [], acquisitionHints: {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
 }
 for (const format of ['markdown', 'html', 'json', 'json_openai']) for (const failure of ['throw', 'empty', 'write', 'file-write', 'inline']) {
     test(`${format}: ${failure} preserves body, delivered references and partial status in actual ZIP`, async () => {

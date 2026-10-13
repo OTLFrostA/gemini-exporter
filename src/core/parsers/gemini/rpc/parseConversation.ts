@@ -2,7 +2,7 @@ import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainConversationDetail, DomainGeneratedMediaIdentity, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
-import { assertDomainClosure } from '../../../domain/closure.js';
+import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
 import { closeLegacyCitations } from '../../shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
@@ -76,9 +76,8 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
         url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
         assets: resources.assets, messages: resources.messages,
     };
-    assertDomainClosure(conversation);
     return {
-        conversation, resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
+        conversation: validateParserDomain(conversation), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
         diagnostics: [
             ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
             ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),

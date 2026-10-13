@@ -2,7 +2,7 @@ import type { ResourceResult, ResourceDelivery } from '../resources/resourceResu
 import { isResourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import type { DomainConversationDetail } from '../domain/conversationDetail.js';
-import { assertDomainClosure } from '../domain/closure.js';
+import { validateParserDomain } from '../domain/runtimeValidation.js';
 import { exportDomainHtml, exportDomainMarkdown, type DomainHtmlExportOptions, type DomainMarkdownExportOptions } from '../export/exportDomainDocument.js';
 import { convertHtmlToMarkdown } from '../parsers/shared/html/htmlToMarkdown.js';
 import { toOpenAIJson, toJsonStandard, toJsonRaw } from './formatters/jsonFormatter.js';
@@ -11,8 +11,8 @@ export interface FormattedResult { content: string; ext: string; mime: string }
 export type ChatExportInput = ResourceConversationParseResult | DomainConversationDetail;
 export function nativeExportInput(input: ChatExportInput): ResourceConversationParseResult {
     if (isResourceConversationParseResult(input)) return input;
-    assertDomainClosure(input);
-    return { conversation: input, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+    // Transitional builder API: removed once downstream inputs are typed in PR5.
+    return { conversation: validateParserDomain(input), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
 export async function formatHtmlDocument(input: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
     const { conversation } = nativeExportInput(input);

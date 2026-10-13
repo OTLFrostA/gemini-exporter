@@ -1,3 +1,4 @@
+import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/parsers/gemini/takeout/parseZip.js';
@@ -10,8 +11,8 @@ import type { ConversationRecordInput } from '../src/core/compatibility/record/c
 
 // Raw decoders need no legacy Conversation, export hints, storage schema or Gemini input type.
 const syncRawParser: ConversationParser<{ text: string }> = (raw, context) => ({
-    conversation: { providerId: context.providerId, id: '', title: '', timestamp: null, assets: [],
-        messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] },
+    conversation: validateParserDomain({ providerId: context.providerId, id: '', title: '', timestamp: null, assets: [],
+        messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] }),
     diagnostics: [],
 });
 const asyncRawParser: ConversationParser<{ text: string }> = async (raw, context) => syncRawParser(raw, context);

@@ -1,4 +1,4 @@
-import type { DomainConversationDetail } from '../domain/conversationDetail.js';
+import type { TrustedDomain } from '../domain/runtimeValidation.js';
 import type { DocumentDiagnostic } from '../diagnostics/documentDiagnostic.js';
 
 /** Every raw parser knows its producer. No filename/source-string heuristics at this boundary. */
@@ -8,7 +8,7 @@ export interface ConversationParseContext {
 
 /** Shared parser output. Problems are side-channel records, never conversation fields. */
 export interface ConversationParseResult {
-    conversation: DomainConversationDetail;
+    conversation: TrustedDomain;
     diagnostics: DocumentDiagnostic[];
 }
 

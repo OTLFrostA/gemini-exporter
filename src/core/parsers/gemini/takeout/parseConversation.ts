@@ -3,7 +3,7 @@ import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { DocumentDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
 import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
-import { assertDomainClosure } from '../../../domain/closure.js';
+import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
 import { parseGeminiBody } from '../shared/contentAdapter.js';
@@ -131,12 +131,11 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout', titles: { takeout: title },
         provenance: { source: 'gemini-takeout' }, completeness: { status: 'partial', reason: 'MyActivity is an activity log, not a complete conversation transcript' },
         timestamp: updatedAt, createdAt, updatedAt, url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
-    assertDomainClosure(conversation);
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
         const bound = asset.source?.uri ? boundFiles.get(asset.source.uri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
-    return { conversation, resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
+    return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
         diagnostics: [...diagnostics, ...contentDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
 }

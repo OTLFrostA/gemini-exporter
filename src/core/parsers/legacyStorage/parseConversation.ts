@@ -1,6 +1,7 @@
 import { parseConversationRecord } from '../../compatibility/record/parseConversationRecord.js';
 import type { ConversationRecordInput } from '../../compatibility/record/conversationRecord.js';
 import type { ResourceConversationParseResult } from '../parsingResult.js';
+import type { ConversationRecordParseContext } from '../../compatibility/record/parseConversationRecord.js';
 import { normId } from '../../utils/pathUtils.js';
 
 export interface LegacyStorageRaw { metadata: unknown; detail?: unknown }
@@ -11,7 +12,7 @@ function record(value: unknown): Record<string, unknown> {
 function length(value: Record<string, unknown>): number { return Math.max(Array.isArray(value.messages) ? value.messages.length : 0, Array.isArray(value.turns) ? value.turns.length : 0); }
 
 /** The old disk schema is a source format. It never writes storage or synthesizes raw RPC. */
-export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: { providerId: string }): ResourceConversationParseResult {
+export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: ConversationRecordParseContext): ResourceConversationParseResult {
     const metadata = record(raw.metadata);
     if (typeof metadata.id !== 'string' && typeof metadata.id !== 'number') throw new TypeError('Legacy stored conversation has no identity');
     const id = context.providerId === 'gemini' ? normId(String(metadata.id)) : String(metadata.id);
@@ -22,9 +23,11 @@ export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: {
     // Required container checks do not silently discard malformed historical body data.
     for (const key of ['messages', 'turns']) if (body[key] !== undefined && !Array.isArray(body[key])) throw new TypeError(`Invalid legacy ${key}`);
     const input = { ...metadata, id, messages: body.messages, turns: body.turns } as ConversationRecordInput;
-    const parsed = parseConversationRecord(input, context);
-    if (!length(body) && Number(metadata.messageCount) > 0) {
-        parsed.conversation.completeness = { status: 'partial', reason: 'Legacy storage contains only conversation metadata; body was not stored.' };
+    const missingBody = !length(body) && Number(metadata.messageCount) > 0;
+    const parsed = parseConversationRecord(input, { ...context,
+        completenessOverride: context.completenessOverride ?? (missingBody
+            ? { status: 'partial', reason: 'Legacy storage contains only conversation metadata; body was not stored.' } : undefined) });
+    if (missingBody) {
         parsed.diagnostics.push({ severity: 'warning', code: 'LEGACY_BODY_NOT_STORED', message: 'Conversation body is absent from legacy storage' });
     }
     return parsed;
