@@ -334,7 +334,7 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => {
             fetchCalls++;
-            return { success: true };
+            return { success: true, results: [] };
         }
     });
 
@@ -640,7 +640,7 @@ test('ExportOrchestrator - resolves the original first candidate without changin
         useZip: true,
         includeAssets: false,
         worker: makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) }),
+            fetchChatDetail: async () => ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) } as never),
             resolveChat: async (chat: any) => {
                 receivedChat = chat;
                 return {
@@ -675,7 +675,7 @@ test('ExportOrchestrator - rejects a primitive first candidate without choosing 
         useZip: true,
         includeAssets: false,
         worker: makeTestWorker({
-            fetchChatDetail: async () => ({ success: true, results: [42, historicalFixture(validSecond)] }),
+            fetchChatDetail: async () => ({ success: true, results: [42, historicalFixture(validSecond)] } as never),
             resolveChat: async (value, ...args) => {
                 resolveCalls++;
                 return BatchWorker.resolveChat(value, ...args);
@@ -819,7 +819,7 @@ test('ExportOrchestrator - writes native document content without reinterpreting
     assert.ok(zipInstance.files['files/chat_doc_1_empty_chip.md'], 'Every supplied native document is written');
 });
 
-test('BatchWorker - validates native closure and refuses historical runtime records', async () => {
+test('BatchWorker - accepts typed native results; storage rejects a mutated graph', async () => {
     const { isWorkerChat } = require('../src/core/engine/export/batchWorker.js');
     const record = { id: 'boundary', title: 'Boundary', messages: [{ role: 'user', content: 'Question' }] };
     const native = historicalFixture(record);
@@ -828,7 +828,8 @@ test('BatchWorker - validates native closure and refuses historical runtime reco
     assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' })).isError, false);
     const invalid = structuredClone(native);
     invalid.conversation.messages[0].attachmentIds = ['missing'];
-    await assert.rejects(BatchWorker.resolveChat(invalid, { id: 'boundary' }), /asset|missing|reference/i);
+    const { saveDomainConversation } = require('../src/core/storage/domain/domainStore.js');
+    await assert.rejects(saveDomainConversation('u0', invalid), /asset|missing|reference/i);
 });
 
 test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {

@@ -398,6 +398,6 @@ function readTs(rel: string): string {
 }
 test('P1-039: batchFetcher honors server retryAfterMs hint', () => {
     const src = readTs('background/batchFetcher.ts');
-    assert.ok(src.includes('(res as any)?.retryAfterMs'), 'backoff must read res.retryAfterMs');
+    assert.ok(src.includes('res.retryAfterMs'), 'backoff must read res.retryAfterMs');
     assert.ok(src.includes('30000'), 'retryAfterMs must be clamped');
 });

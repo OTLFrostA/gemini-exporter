@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
@@ -66,8 +67,8 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         const mockSender = (msg: any, callback: any) => {
             sentMessage = msg;
             callback({
-                success: true,
-                results: [{ id: 'chat_999', title: 'Decoupled Remote Chat' }]
+                success: true, domainEnvelopeVersion: 1,
+                results: [historicalFixture({ id: 'chat_999', title: 'Decoupled Remote Chat' })]
             });
         };
 
@@ -87,7 +88,9 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         assert.ok(result && typeof result === 'object' && 'success' in result && 'results' in result);
         assert.strictEqual(result.success, true);
         assert.ok(Array.isArray(result.results));
-        assert.strictEqual(result.results![0].title, 'Decoupled Remote Chat');
+        const chat = result.results![0];
+        assert.ok(chat && 'conversation' in chat);
+        assert.strictEqual(chat.conversation.title, 'Decoupled Remote Chat');
     } finally {
         (global as any).chrome = origChrome;
         __setModuleOverride('TabService', undefined);

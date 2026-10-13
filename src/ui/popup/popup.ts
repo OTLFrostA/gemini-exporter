@@ -13,6 +13,7 @@ import {
     buildExportFileName
 } from '../../core/utils/pathUtils.js';
 import { $, getI18n } from '../uiCommon.js';
+import { requestNativeDetail } from '../../core/utils/nativeDetailTransport.js';
 import { readPopupFetchResult } from '../../core/utils/messageResponses.js';
 import { sendTypedMessage, getErrorMessage } from '../../core/utils/messaging.js';
 import { ProgressView } from '../views/progressView.js';
@@ -275,7 +276,7 @@ function initPopupEvents(): void {
                 __releaseExportGuard();
                 return;
             }
-            sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000).then(async (raw: unknown) => {
+            requestNativeDetail(() => sendTypedMessage({ action: 'fetchChat', conversationId: _activeConvId, accountSlot: _activeSlot }, 40000)).then(async (raw) => {
                 const res = readPopupFetchResult(raw);
                 try {
                     if (!res || !res.success) {

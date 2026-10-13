@@ -10,7 +10,8 @@ function object(value: unknown): Record<string, unknown> {
 function text(value: unknown): string { if (typeof value !== 'string') throw new TypeError('Invalid Domain storage identity'); return value; }
 
 /** Content scripts must use the extension-origin repository, never the host page's IndexedDB. */
-export function handleDomainStorageMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {
+export function handleDomainStorageMessage(message: unknown, sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void): boolean {
+    const respond = (value: { ok: boolean; value?: unknown; error?: string }): void => sendResponse({ ...value, domainEnvelopeVersion: 1 });
     if (!message || typeof message !== 'object' || !('action' in message) || message.action !== 'domainStorage') return false;
     if (sender.id !== chrome.runtime.id) { respond({ ok: false, error: 'Foreign Domain storage sender' }); return true; }
     void (async () => {

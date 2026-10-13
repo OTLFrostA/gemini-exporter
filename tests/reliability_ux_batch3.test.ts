@@ -1,3 +1,4 @@
+import { historicalFixture } from './helpers/nativeFixture.js';
 // tests/reliability_ux_batch3.test.ts
 // Tests for Batch 3: Reliability & UX (P1-3, P1-4, P1-7, D7)
 export {};
@@ -124,7 +125,7 @@ test('P1-4: cancelled batch cannot resurrect even if slot is later reset to unab
     TabService.sendToGeminiTab = async () => {
         sendCallCount++;
         await new Promise(r => setTimeout(r, 40));
-        return { success: true, data: { id: 'chat', messages: [] } };
+        return { success: true, domainEnvelopeVersion: 1, data: historicalFixture({ id: 'chat', messages: [] }) };
     };
 
     try {

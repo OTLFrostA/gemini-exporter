@@ -1,7 +1,7 @@
 // tests/batch_fetcher_abort.test.ts
 // B2: sendToGeminiTabCancellable 的 AbortSignal race —— mock slot abort，断言在途请求即时被取消，
 // 不再依赖 50ms 轮询；settled 后 controller 被清理，且重建的 signal 与 boolean 旗标保持同步。
-export {};
+import { historicalFixture } from './helpers/nativeFixture.js';
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -106,8 +106,8 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
     const origSend = TabService.sendToGeminiTab;
     TabService.getGeminiTab = async () => ({ id: 123 });
     TabService.sendToGeminiTab = async (msg: any, _slot?: string) => ({
-        success: true,
-        data: { id: msg.conversationId, title: 'ok-chat', messages: [] }
+        success: true, domainEnvelopeVersion: 1,
+        data: historicalFixture({ id: msg.conversationId, title: 'ok-chat', messages: [] })
     });
 
     try {
@@ -126,7 +126,7 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
         assert.strictEqual(response.success, true, 'non-aborted batch reports success');
         assert.strictEqual(response.aborted, false);
         assert.strictEqual(response.results.length, 1);
-        assert.strictEqual(response.results[0].id, 'chat1');
+        assert.strictEqual(response.results[0].conversation.id, 'chat1');
         assert.strictEqual(
             __bgControllers.has(slot), false,
             'controller must be cleaned up after settle even without abort'

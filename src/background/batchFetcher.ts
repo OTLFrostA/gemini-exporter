@@ -1,3 +1,6 @@
+import type { NativeDetailReply } from '../core/utils/nativeDetailTransport.js';
+import type { NativeConversationInput } from '../core/parsers/parsingResult.js';
+import { requestNativeDetail } from '../core/utils/nativeDetailTransport.js';
 import { TabService } from '../core/utils/tabService.js';
 import { isRateLimited, calculateBackoff, abortableSleep } from '../core/engine/export/rateLimiter.js';
 import { interruptibleSleep } from '../core/api/client/retryPolicy.js';
@@ -11,14 +14,14 @@ export const sendToGeminiTab = (msg: unknown, slot?: string, timeoutMs?: number)
 export const getGeminiTab = (slot?: string): Promise<chrome.tabs.Tab | null> =>
     TabService.getGeminiTab(slot);
 
-async function sendToGeminiTabCancellable(msg: any, slot: string): Promise<any> {
+async function sendToGeminiTabCancellable(msg: unknown, slot: string): Promise<NativeDetailReply | { __slotAborted: true }> {
     // B2: 用 AbortSignal 替代 50ms 轮询 —— 取消即时生效，不再有轮询延迟。
     // settled 后清理 controller：先 abort 释放 abortableSleep 的 24h 计时器，
     // 再从 map 删除（下次按需重建，重建时与 boolean 旗标同步）。
     const abortWait = abortableSleep(86400000, getSlotAbortSignal(slot))
-        .then(() => ({ __slotAborted: true }));
+        .then((): { __slotAborted: true } => ({ __slotAborted: true }));
     try {
-        return await Promise.race([sendToGeminiTab(msg, slot), abortWait]);
+        return await Promise.race([requestNativeDetail(() => sendToGeminiTab(msg, slot)), abortWait]);
     } finally {
         try { __bgControllers.get(slot)?.abort(); } catch { /* intentional */ }
         __bgControllers.delete(slot);
@@ -26,10 +29,10 @@ async function sendToGeminiTabCancellable(msg: any, slot: string): Promise<any> 
 }
 
 export async function fetchBatch(
-    list: any,
+    list: readonly (string | { id: string; title?: string; url?: string })[] | undefined,
     format?: string,
     skipExported?: boolean,
-    portSendResponse?: (response: any) => void,
+    portSendResponse?: (response: unknown) => void,
     globalOffset: number = 0,
     globalTotal: number = 0,
     accountSlot: string = 'u0'
@@ -41,7 +44,7 @@ export async function fetchBatch(
         const isAborted = () => isSlotAborted(slot) || getSlotEpoch(slot) !== batchEpoch;
 
         if (!list || !list.length) {
-            if (portSendResponse) portSendResponse({ success: true, results: [], skipped: 0 });
+            if (portSendResponse) portSendResponse({ success: true, domainEnvelopeVersion: 1, results: [], skipped: 0 });
             return;
         }
         const tab = await getGeminiTab(slot);
@@ -56,28 +59,30 @@ export async function fetchBatch(
         }
 
         const totalCount = globalTotal || list.length;
-        const results: any[] = [];
+        const results: NativeConversationInput[] = [];
         let done = 0;
 
         for (const item of list) {
             if (isAborted()) break;
-            const cid = item.id || item;
+            const metadata = typeof item === 'string' ? { id: item } : item;
+            const cid = metadata.id;
             try {
-                let res: any = null;
+                let res: NativeDetailReply | null = null;
                 let retryCount = 0;
                 const maxRetries = 3;
 
                 while (retryCount <= maxRetries && !isAborted()) {
-                    res = await sendToGeminiTabCancellable({
+                    const reply = await sendToGeminiTabCancellable({
                         action: 'getConversationDetail',
                         conversationId: cid
                     }, slot);
-                    if ((res as any)?.__slotAborted || isAborted()) { res = null; break; }
+                    if ('__slotAborted' in reply || isAborted()) { res = null; break; }
+                    res = reply;
 
                     const isRateLimit = isRateLimited(res);
 
                     if (isRateLimit && retryCount < maxRetries) {
-                        const rawAfter = (res as any)?.retryAfterMs;
+                        const rawAfter = res.retryAfterMs;
                         const retryAfterMs = (typeof rawAfter === "number" && rawAfter > 0)
                             ? Math.min(rawAfter, 30000)
                             : undefined;
@@ -94,13 +99,13 @@ export async function fetchBatch(
                 if (isAborted()) break;
 
                 if (res && res.success) {
-                    const chat = res.data || res.chat || res;
+                    const chat = res.data || res.chat;
                     results.push(chat);
                 } else {
                     results.push({
                         id: cid,
-                        title: item.title,
-                        url: item.url || `https://gemini.google.com/app/${cid}`,
+                        title: metadata.title,
+                        url: metadata.url || `https://gemini.google.com/app/${cid}`,
                         error: res?.error || '抓取失败',
                         _empty: true,
                         _debug: res?._debug || null,
@@ -110,8 +115,8 @@ export async function fetchBatch(
             } catch (e: unknown) {
                 results.push({
                     id: cid,
-                    title: item.title,
-                    url: item.url || `https://gemini.google.com/app/${cid}`,
+                    title: metadata.title,
+                    url: metadata.url || `https://gemini.google.com/app/${cid}`,
                     error: (e instanceof Error && e.message) ? e.message : '抓取异常',
                     _empty: true,
                     _debug: e instanceof Error ? (e.stack || null) : null,
@@ -123,7 +128,7 @@ export async function fetchBatch(
                 action: 'exportProgress',
                 done: globalOffset + done,
                 total: totalCount,
-                title: item.title,
+                title: metadata.title,
                 id: cid
             }).catch(() => {});
         }
@@ -132,6 +137,7 @@ export async function fetchBatch(
         if (portSendResponse) {
             portSendResponse({
                 success: !wasAborted,
+                domainEnvelopeVersion: 1,
                 aborted: wasAborted,
                 results,
                 skipped: 0,

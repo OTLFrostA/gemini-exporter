@@ -170,7 +170,7 @@ import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
     isWorkerChat,
     type BatchWorkerModule,
-    type WorkerChatResolveInput
+    type FetchChatDetailResult, type WorkerChatResolveInput
 } from "./batchWorker.js";
 import SessionRecovery, { type SessionRecoveryModule } from "./sessionRecovery.js";
 import rateLimitModule, {
@@ -202,10 +202,6 @@ import {
 
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
 export { EXT_VERSION, getExtensionVersion };
-
-function isResolverPropertyAccessCandidate(value: unknown): value is WorkerChatResolveInput {
-    return value !== null && (typeof value === 'object' || typeof value === 'function');
-}
 
 function toExportActivityRecord(value: unknown): ExportActivityRecord | null {
     if (!isObjectRecord(value)) return null;
@@ -783,7 +779,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     try {
                         const nid = normId(requestedItem.id);
                         const listC: Conversation | null = (conversations || []).find(c => normId(c.id) === nid) || null;
-                        let rawRes: unknown = null;
+                        let rawRes: FetchChatDetailResult | null = null;
                         let retryCount = 0;
                         const maxRateLimitRetries = 3;
 
@@ -793,7 +789,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             rawRes = await worker.fetchChatDetail({ ...requestedItem, cloudAvailability: listC?.cloudAvailability }, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
 
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
-                            if (isObjectRecord(rawRes) && rawRes.source === 'local-cache') onLog(I18n?.t?.('archiveExportingSnapshot', requestedItem.title || nid) || `Exporting local snapshot: ${nid}`, 'warn');
+                            if (rawRes && 'source' in rawRes && rawRes.source === 'local-cache') onLog(I18n?.t?.('archiveExportingSnapshot', requestedItem.title || nid) || `Exporting local snapshot: ${nid}`, 'warn');
 
                             const isLimited = (this.rateLimiter && typeof this.rateLimiter.isRateLimited === 'function')
                                 ? this.rateLimiter.isRateLimited(rawRes)
@@ -820,8 +816,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         if (this.aborted || (abortSignal && abortSignal.aborted)) break;
 
-                        const res = isObjectRecord(rawRes) ? rawRes : null;
-                        const success = typeof res?.success === 'boolean' ? res.success : Boolean(res?.success);
+                        const res = rawRes;
+                        const success = res?.success === true;
                         if (!res || !success) {
                             const fetchErr = typeof res?.error === 'string' ? res.error : 'unknown';
                             onLog(I18n.t('logFetchFailed', fetchErr), 'warn');
@@ -830,19 +826,19 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         // failure. A list absence label is never a prerequisite for recovery.
 
                         skipped += (typeof res?.skipped === 'number' && Number.isFinite(res.skipped) ? res.skipped : 0);
-                        let candidate: unknown;
+                        let candidate: WorkerChatResolveInput;
                         if (Array.isArray(res?.results) && res.results.length > 0) {
                             candidate = res.results[0];
                         } else if (res?.chat !== undefined && res.chat !== null) {
                             candidate = res.chat;
                         }
-                        if (!success) candidate = res;
+                        if (!success) candidate = res && !res.success ? { error: res.error, _debug: res._debug, _raw: res._raw, rawResponse: res.rawResponse, retryAfterMs: res.retryAfterMs } : { error: 'unknown' };
                         const chatCandidate = candidate;
 
                         const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
 
                         if (resolvedRes.isError) {
-                            const evidence = isObjectRecord(chatCandidate) ? chatCandidate : {};
+                            const evidence: Record<string, unknown> = isObjectRecord(chatCandidate) ? chatCandidate : {};
                             const transport = isObjectRecord(evidence.transport) ? evidence.transport : {};
                             failedChats.push({ id: nid, title: resolvedRes.displayTitle, error: resolvedRes.errMsg, debug: evidence._debug ?? transport.debug ?? null, raw: transport.decodedPayload ?? evidence._raw ?? evidence.raw ?? null, isDeleted: resolvedRes.isConfirmedDeleted });
                             if (typeof console !== 'undefined' && console.warn) {

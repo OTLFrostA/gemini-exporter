@@ -14,12 +14,7 @@ import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js
 import { TITLE_TIER_RANK, resolveDetailTitle, normalizeReliableTitleSource } from '../core/utils/titleUtils.js';
 import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
-import type {
-    GeminiNetworkBatchexecutePayload,
-    GeminiConversationDeletedPayload,
-    GeminiStreamStartPayload,
-    GeminiStreamCompletePayload
-} from '../core/protocol/events.js';
+
 
 export interface MessageBridgeDeps {
     ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
@@ -62,8 +57,15 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     if (typeof location !== 'undefined' && event.origin !== location.origin) return;
     // Restrict to same-window messages (does NOT authenticate the sender against page scripts).
     if (event.source && (typeof window === 'undefined' || event.source !== window)) return;
-    const d = event.data;
-    if (!d || typeof d !== 'object') return;
+    const raw: unknown = event.data;
+    if (!raw || typeof raw !== 'object' || !('type' in raw) || !('payload' in raw)) return;
+    const payload: unknown = raw.payload;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return;
+    const field = (key: string): unknown => Reflect.get(payload, key);
+    const slot = field('slot');
+    if (slot !== undefined && typeof slot !== 'string') return;
+    const id = field('id');
+    if (id !== undefined && id !== null && typeof id !== 'string') return;
 
     const {
         upsertConversations,
@@ -72,9 +74,19 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         cleanTitle = (t: string) => (t || '').trim()
     } = _deps;
 
-    if (d.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
-        const { text, slot, listRequest, truncated, requestedAt, requestAccountId } = (d.payload || {}) as Partial<GeminiNetworkBatchexecutePayload>;
-        if (!text) return;
+    if (raw.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
+        const text = field('text'), truncated = field('truncated'), requestedAt = field('requestedAt'), requestAccountId = field('requestAccountId');
+        if (typeof text !== 'string' || !text || (truncated !== undefined && typeof truncated !== 'boolean')
+            || (requestedAt !== undefined && (typeof requestedAt !== 'number' || !Number.isFinite(requestedAt)))
+            || (requestAccountId !== undefined && requestAccountId !== null && typeof requestAccountId !== 'string')) return;
+        const request = field('listRequest');
+        let listRequest: import('../core/provider/gemini/listObservation.js').GeminiListRequestContext | null = null;
+        if (request !== undefined && request !== null) {
+            if (typeof request !== 'object' || !('streamId' in request) || !('requestCursor' in request)
+                || (request.streamId !== 'recent' && request.streamId !== 'pinned')
+                || (request.requestCursor !== null && typeof request.requestCursor !== 'string')) return;
+            listRequest = { streamId: request.streamId, requestCursor: request.requestCursor };
+        }
         try {
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
             if (!Proto) return;
@@ -144,8 +156,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
-    if (d.type === CrossWorldEvents.CONVERSATION_DELETED) {
-        const { id } = (d.payload || {}) as Partial<GeminiConversationDeletedPayload>;
+    if (raw.type === CrossWorldEvents.CONVERSATION_DELETED) {
         const isValidConvId = typeof id === 'string' && id.trim().length > 0 && id.trim().length <= 128 && /^[a-zA-Z0-9_\-]+$/.test(id.trim());
         if (id && isValidConvId) {
             const cleanId = id.trim();
@@ -173,8 +184,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
-    if (d.type === CrossWorldEvents.STREAM_START) {
-        const { id, slot } = (d.payload || {}) as Partial<GeminiStreamStartPayload>;
+    if (raw.type === CrossWorldEvents.STREAM_START) {
         if (typeof (_deps as any)?.onStreamStart === 'function') {
             (_deps as any).onStreamStart(id, slot);
         } else {
@@ -208,8 +218,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         return;
     }
 
-    if (d.type === CrossWorldEvents.STREAM_COMPLETE) {
-        const { id, slot } = (d.payload || {}) as Partial<GeminiStreamCompletePayload>;
+    if (raw.type === CrossWorldEvents.STREAM_COMPLETE) {
         if (typeof (_deps as any)?.onStreamComplete === 'function') {
             (_deps as any).onStreamComplete(id, slot);
         } else {

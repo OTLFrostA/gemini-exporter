@@ -1,6 +1,7 @@
 import { StorageService } from '../../storage/storageService.js';
 import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
-import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../../parsers/parsingResult.js';
+import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
+import { requestNativeDetail, requestNativeBatch, type NativeBatchReply } from '../../utils/nativeDetailTransport.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
 import type { Conversation } from '../../../types/conversation.js';
 import type { TabServiceModule } from '../../../types/utils.js';
@@ -15,17 +16,17 @@ import { isConfirmedDeletedError } from '../../protocol/protocol.js';
 type MessageSenderFunction = (message: unknown, callback?: (response: unknown) => void) => Promise<unknown> | void;
 interface TabServiceLike { sendToGeminiTab?: (message: unknown, slot?: string, timeoutMs?: number) => Promise<unknown> }
 interface FetchChatDetailOptions { messageSender?: MessageSenderFunction | null; tabService?: TabServiceModule | TabServiceLike | null }
-export type FetchChatDetailResult = unknown;
+export type FetchChatDetailResult = NativeBatchReply;
 export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: Conversation['cloudAvailability'] };
 export type WorkerChat = ResourceConversationParseResult;
-export type WorkerChatResolveInput = unknown;
+export type WorkerChatResolveInput = NativeConversationInput;
 export type WorkerMessageAttachment = AssetPipelineItem;
 export type ResolveChatResult = {
     isError: false; chat: ResourceConversationParseResult; listTitle: string;
     isConfirmedDeleted: false; errMsg: null; convsNeedSave: boolean;
 } | { isError: true; displayTitle: string; isConfirmedDeleted: boolean; errMsg: string; convsNeedSave: false };
 interface ResolveChatOptions { messageSender?: MessageSenderFunction | null }
-interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => unknown }
+interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 function resolveRuntimeSender(): MessageSenderFunction | null {
     if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
@@ -79,21 +80,22 @@ export async function fetchChatDetail(
         const runFetch = async (): Promise<void> => {
             try {
                 if (tabService && typeof tabService.sendToGeminiTab === 'function') {
-                    const directRes = await tabService.sendToGeminiTab({
+                    let directMissing = false;
+                    const directRes = await requestNativeDetail(async () => { const reply = await tabService.sendToGeminiTab!({
                         action: 'getConversationDetail',
                         conversationId: nid,
                         accountSlot: currentSlot
-                    }, currentSlot);
+                    }, currentSlot); directMissing = reply === null || reply === undefined; return reply; });
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
-                    if (!settled) {
+                    if (!settled && !directMissing) {
                         if (isObjectRecord(directRes) && directRes.success) {
                             settled = true;
-                            const chat = directRes.data || directRes.chat || directRes;
+                            const chat = directRes.data ?? directRes.chat;
                             resolve({ success: true, results: [chat], skipped: 0 });
                             return;
                         } else if (isObjectRecord(directRes) && directRes.error) {
                             settled = true;
-                            resolve(directRes);
+                            resolve({ success: false, error: directRes.error || 'Detail fetch failed', rawResponse: directRes.rawResponse, retryAfterMs: directRes.retryAfterMs, _debug: directRes._debug, _raw: directRes._raw });
                             return;
                         } else if (directRes !== null && directRes !== undefined) {
                             settled = true;
@@ -128,9 +130,9 @@ export async function fetchChatDetail(
                         if (!settled) {
                             settled = true;
                             if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
-                                resolve({ success: false, error: chrome.runtime.lastError.message });
+                                resolve({ success: false, error: chrome.runtime.lastError.message || 'Runtime request failed' });
                             } else {
-                                resolve(response);
+                                void requestNativeBatch(async () => response).then(resolve);
                             }
                         }
                     });
@@ -155,8 +157,8 @@ export async function fetchChatDetail(
 }
 
 /** Resolve source or durable Domain bodies; historical strings are never export inputs. */
-export async function resolveConversationData(value: unknown, id: string, _list?: Partial<Conversation> | null,
-    takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}): Promise<unknown> {
+export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: Partial<Conversation> | null,
+    takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}): Promise<NativeConversationInput> {
     if (isResourceConversationParseResult(value) && value.conversation.messages.length) return value;
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
     if (isResourceConversationParseResult(offline) && offline.conversation.messages.length) { onLog('[Takeout] Recovered ' + id, 'info'); return offline; }
@@ -168,13 +170,13 @@ export async function resolveConversationData(value: unknown, id: string, _list?
     return value;
 }
 
-export async function resolveChat(value: unknown, requested: BatchWorkerRequestedItem, list?: Partial<Conversation> | null,
+export async function resolveChat(value: NativeConversationInput, requested: BatchWorkerRequestedItem, list?: Partial<Conversation> | null,
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0',
     onTitleUpdated: (id: string, title: string, source: string) => void = () => {},
     onLog: (message: string, level?: string) => void = () => {}, options: ResolveChatOptions = {}): Promise<ResolveChatResult> {
     const id = normId(requested.id);
-    const evidence = isObjectRecord(value) ? value : {};
-    if (evidence.isDeleted === true || isConfirmedDeletedError(evidence.error)) {
+    const evidence = value && !isResourceConversationParseResult(value) ? value : undefined;
+    if (evidence?.isDeleted === true || isConfirmedDeletedError(evidence?.error)) {
         requested.cloudAvailability = 'deleted';
         if (list) list.cloudAvailability = 'deleted';
         const storage = __resolveModule<Partial<Pick<typeof StorageService, 'updateConversation'>>>('StorageService', StorageService);
@@ -186,9 +188,9 @@ export async function resolveChat(value: unknown, requested: BatchWorkerRequeste
     }
     const result = await resolveConversationData(value, id, list, takeout, slot, onLog);
     if (!isResourceConversationParseResult(result) || !result.conversation.messages.length) {
-        const raw = isObjectRecord(result) ? result : {};
-        const error = typeof raw.error === 'string' ? raw.error : 'Conversation body is unavailable; fetch or migrate its source before exporting';
-        const deleted = raw.isDeleted === true || isConfirmedDeletedError(error);
+        const raw = result && !isResourceConversationParseResult(result) ? result : undefined;
+        const error = typeof raw?.error === 'string' ? raw.error : 'Conversation body is unavailable; fetch or migrate its source before exporting';
+        const deleted = raw?.isDeleted === true || isConfirmedDeletedError(error);
         if (deleted) {
             onLog(`Cloud conversation deleted: ${requested.title || id}. Local archive retained; no conversation body is available.`, 'warn');
         }

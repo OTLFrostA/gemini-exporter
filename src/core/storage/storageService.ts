@@ -3,7 +3,7 @@ import type { PageObservation } from '../sync/pageObservation.js';
 import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
 import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
-import { isResourceConversationParseResult, type ResourceConversationParseResult } from '../parsers/parsingResult.js';
+import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import { getDomainConversationResult } from './domain/nativePersistence.js';
 import { saveDomainConversation, removeStoredDomain, storageIdentity } from './domain/domainStore.js';
 import {
@@ -211,16 +211,10 @@ async function _setConversationsRaw(
 ): Promise<Conversation[] | StoredConversationRow[]> {
     const { convKey } = getStorageKeys(slot);
     const detailsToSave: ConversationDetailRecord[] = [];
-    const domainWrites: Array<() => Promise<unknown>> = [];
     const slimList = (list || []).map(value => {
         if (!value) return readStoredValue(value);
-        const native = isResourceConversationParseResult(value) ? value : undefined;
-        const c = native ? { id: native.conversation.id, title: native.conversation.title,
-            titleSource: native.conversation.titleSource, titles: native.conversation.titles,
-            url: native.conversation.url, timestamp: native.conversation.timestamp,
-            createdAt: native.conversation.createdAt, updatedAt: native.conversation.updatedAt,
-            messageCount: native.conversation.messages.length } : fields(value);
-        if (native) domainWrites.push(() => saveDomainConversation(normSlot(slot), native));
+        if (typeof value === 'object' && 'conversation' in value) throw new TypeError('Native results require setNativeConversations');
+        const c = fields(value);
         const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
         const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
         if (hasMessages || hasTurns) {
@@ -231,7 +225,7 @@ async function _setConversationsRaw(
                 updatedAt: c.updatedAt || c.timestamp || Date.now(),
                 savedAt: Date.now()
             };
-            if (!native) detailsToSave.push(detailRec);
+            detailsToSave.push(detailRec);
 
         }
         const bestCount = Math.max(
@@ -248,7 +242,6 @@ async function _setConversationsRaw(
         return copy;
     });
 
-    for (const write of domainWrites) await write();
     if (detailsToSave.length > 0) {
         try {
             await saveConversationDetailsBatch(detailsToSave);
@@ -264,6 +257,16 @@ async function _setConversationsRaw(
 
 async function setConversations(slot: string | null | undefined, list: Conversation[] | StoredConversationRow[]): Promise<void> {
     await withConversationLock(() => _setConversationsRaw(slot, list));
+}
+
+/** Native producer results use their own typed persistence path, never the raw metadata reader. */
+async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
+    await withConversationLock(async () => {
+        const metadata = list.map(({ conversation: c }) => ({ id: c.id, title: c.title, titleSource: c.titleSource,
+            titles: c.titles, url: c.url, timestamp: c.timestamp, createdAt: c.createdAt, updatedAt: c.updatedAt, messageCount: c.messages.length }));
+        for (const parsed of list) await saveDomainConversation(normSlot(slot), parsed);
+        await _setConversationsRaw(slot, metadata);
+    });
 }
 
 // Atomic read-merge-write for the conversation list.
@@ -950,6 +953,7 @@ export {
     getStorageKeys,
     getConversations,
     setConversations,
+    setNativeConversations,
     transactConversations,
     updateConversation,
     removeConversation,
@@ -1006,6 +1010,7 @@ export const StorageService = {
     getStorageKeys,
     getConversations,
     setConversations,
+    setNativeConversations,
     transactConversations,
     updateConversation,
     removeConversation,

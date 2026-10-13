@@ -10,7 +10,7 @@ import { toOpenAIJson, toJsonStandard, toJsonRaw } from './formatters/jsonFormat
 export interface FormattedResult { content: string; ext: string; mime: string }
 export type ChatExportInput = ResourceConversationParseResult | DomainConversationDetail;
 export function nativeExportInput(input: ChatExportInput): ResourceConversationParseResult {
-    if (isResourceConversationParseResult(input)) return input;
+    if ('conversation' in input && isResourceConversationParseResult(input)) return input;
     // Transitional builder API: removed once downstream inputs are typed in PR5.
     return { conversation: validateParserDomain(input), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
