@@ -36,13 +36,39 @@
         const source = element.getAttribute('data-math') || '';
         // Gemini expands norm aliases and drops optional row spacing in displayed TeX.
         // Keep double norm bars distinct from single absolute-value bars.
-        element.replaceWith(document.createTextNode(source.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\Vert\{\}/g, '\\|').replace(/\\vert\{\}/g, '|')));
+        const value = source.replace(/\\\\\s*\[[+-]?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:ex|em|pt|pc|px|cm|mm|in)\]/g, '\\\\').replace(/\\Vert\{\}/g, '\\|').replace(/\\vert\{\}/g, '|');
+        const replacement = document.createElement('span');
+        replacement.dataset.evidenceMath = value;
+        replacement.textContent = value;
+        element.replaceWith(replacement);
     });
     // Gemini wraps generated images in a clickable button. Read image evidence
     // before removing control text; disk assertions still require real assets.
     const hasImages = clone.querySelectorAll('img, [data-image-id]').length > 0;
     clone.querySelectorAll('button, .code-block-decoration, .cdk-visually-hidden, [aria-hidden="true"]').forEach(element => element.remove());
+    const pdfSegments = [];
+    let prose = '';
+    const flush = () => {
+        if (prose.trim()) pdfSegments.push({ kind: 'text', text: prose });
+        prose = '';
+    };
+    const walk = element => {
+        if (element.nodeType === Node.TEXT_NODE) { prose += element.textContent; return; }
+        if (element.nodeType !== Node.ELEMENT_NODE) return;
+        if (element.hasAttribute('data-evidence-math')) {
+            flush(); pdfSegments.push({ kind: 'math', text: element.dataset.evidenceMath }); return;
+        }
+        if (element.tagName === 'PRE') {
+            flush(); pdfSegments.push({ kind: 'code', text: (element.querySelector('code') || element).textContent }); return;
+        }
+        const boundary = /^(P|H[1-6]|LI|TH|TD|BLOCKQUOTE)$/.test(element.tagName);
+        if (boundary) flush();
+        element.childNodes.forEach(walk);
+        if (boundary) flush();
+    };
+    walk(clone); flush();
     return {
+        pdfSegments,
         text: (clone.textContent || '').trim(),
         hasImages,
         codeBlocks: [...clone.querySelectorAll('pre')].map(pre => (pre.querySelector('code') || pre).textContent || ''),

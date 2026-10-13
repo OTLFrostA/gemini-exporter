@@ -589,7 +589,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                         return {{
                             prompt: read(users[index].querySelector('.query-text') || users[index]).text,
                             response: answer.text, has_images: answer.hasImages, code_blocks: answer.codeBlocks,
-                            execution_blocks: answer.executionBlocks,
+                            execution_blocks: answer.executionBlocks, pdf_segments: answer.pdfSegments,
                         }};
                     }}),
                 }};
