@@ -320,6 +320,31 @@ try {
     const checkpoint = await options('u0');
     assertPersistedBaseline(baseline, await snapshot(checkpoint, 'offline-retained'));
     await checkpoint.close();
+    // NA does not excuse a false successful export. Exercise unavailable
+    // bodies offline and require native failure plus unchanged old flags.
+    for (const slot of accounts) {
+      const unavailable = report.offlineBaseline.unavailable.filter(fact => fact.slot === slot).map(fact => fact.id);
+      if (!unavailable.length) continue;
+      const page = await options(slot);
+      const key = slot === 'u0' ? 'exportedIds' : 'gemini_exported_' + slot;
+      const before = await page.evaluate(key => chrome.storage.local.get(key), key);
+      try {
+        const entries = await exportZip(page, slot, 'markdown', 'unavailable-offline', unavailable);
+        assert.ok(!Object.keys(entries).some(name => unavailable.some(id => name.endsWith(`_${id.slice(-6)}.md`))), 'Unstored body falsely exported offline');
+        const errors = Object.entries(entries).find(([name]) => name.endsWith('_export_errors.json'));
+        assert.ok(errors, 'Missing native failure report for unavailable bodies');
+        const failed = JSON.parse(errors[1].toString()).failedChats;
+        for (const id of unavailable) assert.ok(failed.some(row => row.id === id), 'Missing unavailable-body failure');
+      } catch (error) {
+        // Only the explicit product failure UI is expected. Timeouts, package,
+        // schema and harness errors remain real failed stages.
+        if (!String(error.message).startsWith('Native export failure:')) throw error;
+      }
+      const after = await page.evaluate(key => chrome.storage.local.get(key), key);
+      assert.deepEqual(after[key], before[key], 'Offline failure changed existing export records');
+      report.checks.push({ unavailableOfflineFailure: slot, ids: unavailable, originalExportRecordsUnchanged: true });
+      await page.close();
+    }
     if (!bodies.length) {
       offline = false;
       return { status: 'not_applicable', reason: `No persisted legacy bodies; ${bytes.length} original byte records checked for retention, no successful offline recovery claimed` };
