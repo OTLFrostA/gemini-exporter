@@ -112,5 +112,8 @@
   "src/core/provider/gemini/listObservation.ts",
   "tests/stream_coverage.test.ts",
   "tests/observed_page_ingest.test.ts",
-  "src/core/parsers/gemini/rpc/generatedFiles.ts"
+  "src/core/parsers/gemini/rpc/generatedFiles.ts",
+  "src/core/domain/runtimeValidation.ts",
+  "src/core/utils/nativeDetailTransport.ts",
+  "src/background/batchFetcher.ts"
 ]
