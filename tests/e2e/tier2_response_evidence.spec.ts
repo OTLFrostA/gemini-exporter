@@ -136,3 +136,19 @@ test('real norm alias evidence keeps double bars distinct from absolute value an
     expect(evidence.text).toContain(String.raw`\|\vec{ab}\|`);
     expect(evidence.text).not.toContain(String.raw`|\vec{ab}|`);
 });
+
+
+test('PDF source segments cover every authored character in prose, table cells, math and code', async ({ page }) => {
+    await page.setContent(`<model-response id="answer"><model-response-content><p>First <strong>sentence.</strong></p>
+        <table><tr><td>Cell A <span data-math="x/y">rendered</span> tail.</td><td>Cell B.</td></tr></table>
+        <pre><code>if x &lt; 3:\n    print("中文")</code></pre><p>Last sentence.</p>
+    </model-response-content></model-response>`);
+    const evidence = await page.evaluate(source => {
+        const read = new Function('return (\n' + source + '\n)')();
+        return read(document.querySelector('#answer')) as {text: string; pdfSegments: {kind: string; text: string}[]};
+    }, source);
+    expect(evidence.pdfSegments.map(segment => segment.text).join('').replace(/\s/g, '')).toBe(evidence.text.replace(/\s/g, ''));
+    expect(evidence.pdfSegments.filter(segment => segment.kind === 'math')).toEqual([{kind: 'math', text: 'x/y'}]);
+    expect(evidence.pdfSegments.filter(segment => segment.kind === 'code')).toEqual([{kind: 'code', text: 'if x < 3:\n    print("中文")'}]);
+    expect(evidence.pdfSegments.filter(segment => segment.kind === 'text').map(segment => segment.text)).toEqual(['First sentence.', 'Cell A ', ' tail.', 'Cell B.', 'Last sentence.']);
+});

@@ -1,25 +1,5 @@
 [
   {
-    "id": "orchard_robot_sampling_energy_routes",
-    "domain": "robotics_orchard_sampling_energy_optimization",
-    "title": "果园巡检机器人：采样覆盖与电量约束路径规划",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "覆盖果园网格巡检、混合整数规划、可运行路径模拟、策略对比与动态故障恢复。",
-    "turns": [
-      "把一个假想果园的行间通道表示为图，为巡检机器人建立兼顾采样覆盖率、行驶距离和剩余电量的优化模型，用 LaTeX 明确目标函数、流守恒、充电站与时间窗约束。",
-      "推导不同地形和坡度下的简化能耗估计，比较按最短距离规划与按能耗规划的差异，给出一组可手算的小型实例以及两条路线的完整核验。",
-      "用 Python 编写自包含的网格模拟器，比较贪心覆盖、带电量约束的最短路与滚动时域策略，以固定种子生成障碍与巡检需求，输出路线、有效采样率、能耗和回充次数。",
-      "用 Markdown 表格比较单机器人与双机器人分区、静态巡检与按不确定性主动采样的适用条件、通信需求和主要失效模式；给出动态新增任务时的计算代价分析。",
-      "写一份长篇部署与验证报告，涵盖临时封路、定位漂移、采样传感器故障和充电站不可达，设计安全停靠、任务重分配和数据完整性机制，提供可复现的测试清单与定量指标。"
-    ]
-  },
-  {
     "id": "graphics_homogeneous_clipping_perspective",
     "domain": "computer_graphics_homogeneous_clipping",
     "title": "齐次裁剪与透视插值：从投影矩阵到光栅化",
@@ -193,27 +173,6 @@
       "Provide complete runnable standard library Python using deterministic cryptographic hashes and explicit uniform conversion. Test weight ratios, zero weights and membership changes with a fixed seed key corpus.",
       "Create a Markdown comparison table for modulo hashing, hash rings, jump hashing and weighted rendezvous by balance, movement, weight support and operational cost. Add a bilingual glossary.",
       "Write a detailed experimental report measuring load deviation and reassignment fractions for heterogeneous weights. Include formulas, reproducible code and result tables. Discuss correlated keys, finite samples and implementation stability."
-    ]
-  },
-  {
-    "id": "materials_bimetal_strip_thermal_curvature",
-    "domain": "materials_thermoelastic_bilayer",
-    "title": "Thermoelastic bilayers: curvature, uncertainty and reversible actuation",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Create an original annotated technical illustration of a bimetal strip in a thermostatic actuator. Show two bonded layers, a temperature change and the neutral axis, with no brand logos. Then define a small-deflection mechanical model and list its assumptions.",
-      "Derive thermal curvature from force and moment balance using separate layer stiffnesses, thicknesses and expansion coefficients. Include complete LaTeX equations and dimensional checks.",
-      "Provide runnable Python to solve the bilayer force and moment equations over temperature and thickness ratio, including numerical tests of equal expansion and equal material limits.",
-      "Compare three fictional bilayers in a Markdown table with explicitly assumed mechanical properties and thermal coefficients. Give an English and Chinese technical glossary and explain reversibility limits.",
-      "Design a numerical uncertainty and sensitivity study of curvature versus thickness ratio. Include reproducible code, error-budget equations and a clear acceptance table; distinguish model uncertainty from material data uncertainty."
     ]
   },
   {
@@ -399,6 +358,46 @@
       "Provide standalone Python code using fractions.Fraction for exact row reduction, nullspace extraction and verification. Add deterministic tests for redundant reactions, disconnected species and a zero column, without relying on external packages.",
       "Use a Markdown table to compare the original abstract network with one having a redundant reverse reaction and one including a bookkeeping sink. Show species count, reaction count, rank, left-nullspace dimension and right-nullspace dimension.",
       "Write a long mathematical validation report on conservation, nonnegative state constraints, numerical rank tolerances and the difference between stoichiometric feasibility and kinetic behavior. Include reproducible pseudocode, counterexamples and a bilingual glossary."
+    ]
+  },
+  {
+    "id": "acoustics_room_modal_superposition",
+    "title": "Room acoustics: modal superposition and damping",
+    "domain": "acoustics_rectangular_cavity_modes",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original annotated cutaway illustration of a rectangular acoustic test chamber with three microphone positions. Explain the geometry and coordinate system for a fictional experiment.",
+      "Derive the rigid-wall cavity eigenfrequencies and pressure mode shapes using LaTeX. Define every variable and identify degeneracies in a chamber with dimensions 4 m by 3 m by 2.5 m.",
+      "Write complete Python code to enumerate the first 30 nonzero modes, group nearby frequencies and evaluate normalized microphone responses. Include assertions for index bounds and permutation symmetry.",
+      "Use a Markdown table to compare uniform and mode-dependent damping models, measurement placement and the observability of symmetric modes. Explain limitations of each assumption.",
+      "Develop a long reproducible validation report for synthetic impulse responses, including sampling rates, frequency resolution, damping estimates, noisy peak separation and failure diagnostics. Show the uncertainty calculations."
+    ]
+  },
+  {
+    "id": "combinatorics_matrix_tree_spanning_trees",
+    "title": "Spanning trees: Laplacian cofactors and exact counts",
+    "domain": "combinatorics_matrix_tree_theorem",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive the matrix-tree theorem for an undirected weighted graph using LaTeX and a small four-vertex example. Distinguish the Laplacian, reduced Laplacian and tree edge products.",
+      "Calculate the exact tree count for that graph by two independent methods: a reduced determinant and explicit tree enumeration. Show every intermediate integer and connectivity check.",
+      "Write complete Python code using exact rational or integer arithmetic for the determinant and a brute-force oracle on small graphs. Include disconnected, parallel-edge and single-vertex cases.",
+      "Compare cofactor evaluation, deletion-contraction and enumeration in a Markdown table. Derive how changing one edge weight affects the weighted sum and state assumptions for effective resistance.",
+      "Write a long verification report with fixed graph fixtures, random small-graph cross-checks, complexity analysis, numerical failure modes and a reproducible exact-arithmetic audit checklist."
     ]
   }
 ]

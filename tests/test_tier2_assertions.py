@@ -25,6 +25,7 @@ from scripts.framework.cases.export import (
     FastSkipExportedCase, select_format_targets,
 )
 from scripts.framework.cases.takeout import validate_takeout_records, TakeoutZipImportCase
+from scripts.framework.cases.sync import wait_for_prior_scan
 from scripts.framework.driver.platform_driver import TurnResult
 from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
@@ -636,6 +637,19 @@ class ScanAndImportTests(unittest.TestCase):
         broken = copy.deepcopy(after)
         broken['coverage']['streams']['recent']['range']['tail']['time'] = 101
         self.assertFalse(assert_passive_coverage({'coverage': None}, broken, pages)[0])
+
+    def test_passive_setup_waits_for_onboarding_scan_to_settle(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = [True, False, False]
+        with patch('scripts.framework.cases.sync.read_sync_state', side_effect=[
+                {'coverage': None}, {'coverage': {'activeRunId': 'running'}},
+                {'coverage': {'activeRunId': None, 'lastStatus': 'complete'}}]), \
+                patch('scripts.framework.cases.sync.time.sleep') as sleep:
+            wait_for_prior_scan(cdp)
+        self.assertEqual(sleep.call_count, 2)
+        with patch('scripts.framework.cases.sync.time.monotonic', side_effect=[0, 331]):
+            with self.assertRaisesRegex(RuntimeError, 'did not settle'):
+                wait_for_prior_scan(cdp)
 
     def test_activity_sync_requires_new_and_promoted_activity_with_shorter_scan(self):
         baseline, before, scan, after = self.activity_fixture()

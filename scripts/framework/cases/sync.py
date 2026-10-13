@@ -35,6 +35,18 @@ def reset_only_coverage(cdp):
     })()""", await_promise=True)
 
 
+def wait_for_prior_scan(cdp, timeout=330):
+    """The onboarding tour starts a real scan; do not reset its live ledger."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        scanning = cdp.eval('!!window.SyncController?.isScanning?.()')
+        coverage = read_sync_state(cdp).get('coverage') or {}
+        if not scanning and coverage.get('activeRunId') is None:
+            return
+        time.sleep(0.5)
+    raise RuntimeError('Prior onboarding scan did not settle before passive coverage reset')
+
+
 def prepare_activity_baseline(ctx, cdp_gemini):
     """Observe genuine webpage RPCs, then establish a full pre-chat baseline."""
     cdp_opt = ctx.connect_options()
@@ -54,6 +66,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         cdp_opt.close()
         raise RuntimeError('Could not install passive RPC evidence listener: ' + str(observer))
     try:
+        wait_for_prior_scan(cdp_opt)
         reset_only_coverage(cdp_opt)
         empty = read_sync_state(cdp_opt)
         if empty.get('coverage') is not None:

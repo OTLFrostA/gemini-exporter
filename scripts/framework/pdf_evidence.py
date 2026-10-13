@@ -6,6 +6,7 @@ are checked for count, nonempty tagged output and placement, not TeX/glyph
 semantic equality; the live compiler/fallback and resource checks remain.
 """
 from collections import Counter
+from bisect import bisect_left
 import re
 import unicodedata
 
@@ -75,14 +76,21 @@ def assert_pdf_turn_content(info, evidence):
                 if run['kind'] != kind or run['end'] <= cursor:
                     continue
                 raw = run['text']
-                # Handle only prose bold presentation; literal code operators
-                # and delimiters physically visible on the source page stay.
+                offsets = list(range(len(raw)))
                 if kind == 'text':
-                    raw = re.sub(r'\*\*(?=\S)([\s\S]*?\S)\*\*',
-                                 lambda match: match[0] if match[0] in compact(turn['response']) else match[1], raw)
-                at = raw.find(value, max(0, cursor - run['start']))
+                    # Export source-chip labels and unrendered bold delimiters
+                    # are presentation, unless this exact source segment has
+                    # them literally. Keep an offset map so later segments
+                    # cannot reuse already consumed content after normalization.
+                    removed = set()
+                    for marker in re.finditer(r'\[\d+\]|\*\*', raw):
+                        if marker[0] not in value:
+                            removed.update(range(marker.start(), marker.end()))
+                    offsets = [at for at in offsets if at not in removed]
+                    raw = ''.join(raw[at] for at in offsets)
+                at = raw.find(value, bisect_left(offsets, max(0, cursor - run['start'])))
                 if at >= 0:
-                    found = run['start'] + at + len(value)
+                    found = run['start'] + offsets[at + len(value) - 1] + 1
                     break
             if found is None:
                 return False, f'PDF turn {index + 1}: complete {kind} segment missing/out of order: {segment["text"][:70]!r}'
