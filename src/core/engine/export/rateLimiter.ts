@@ -1,15 +1,16 @@
-export interface RateLimiterOptions {
-    maxRetries?: number;
-    initialDelayMs?: number;
-    maxDelayMs?: number;
-    jitterMs?: number;
-    /**
-     * Honor a server-sent Retry-After: the computed delay is raised to at
-     * least this value (may exceed maxDelayMs, matching previous behavior
-     * in retryPolicy.handleHttp429).
-     */
-    retryAfterMs?: number;
-}
+import {
+    calculateBackoff,
+    abortableSleep,
+    type RateLimiterOptions,
+    type BackoffOptions
+} from '../../utils/retryUtils.js';
+
+export {
+    calculateBackoff,
+    abortableSleep,
+    type RateLimiterOptions,
+    type BackoffOptions
+};
 
 /** Minimal rate-limiter capability consumed by ExportOrchestrator. */
 export interface ExportRateLimiter {
@@ -60,19 +61,6 @@ export function isRateLimited(res: any): boolean {
     return err.includes('BardErrorInfo') || err.includes('1096') || err.includes('服务端上限');
 }
 
-export function calculateBackoff(retryCount: number, options?: RateLimiterOptions): number {
-    const initial = options?.initialDelayMs ?? 2000;
-    const max = options?.maxDelayMs ?? 30000;
-    const jitter = options?.jitterMs ?? 1000;
-    const delay = initial * Math.pow(2, retryCount) + Math.floor(Math.random() * jitter);
-    const capped = Math.min(max, delay);
-    const retryAfterMs = options?.retryAfterMs;
-    if (typeof retryAfterMs === 'number' && retryAfterMs > 0) {
-        return Math.max(capped, retryAfterMs);
-    }
-    return capped;
-}
-
 export async function withRateLimitRetry<T>(
     operation: () => Promise<T>,
     options?: RetryOptions
@@ -119,33 +107,6 @@ export async function withRateLimitRetry<T>(
             throw err;
         }
     }
-}
-
-/**
- * Sleep that can be cut short by an AbortSignal.
- * Resolves true when the wait was cut short by abort, false when the full
- * duration elapsed.
- *
- * Note: retryPolicy.ts ships its own copy (interruptibleSleep). It is not
- * imported here on purpose: retryPolicy already imports calculateBackoff
- * from this module, so importing back would create an import cycle.
- */
-export function abortableSleep(ms: number, signal?: AbortSignal | null): Promise<boolean> {
-    if (ms <= 0) return Promise.resolve(!!(signal && signal.aborted));
-    if (!signal) return new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms));
-    if (signal.aborted) return Promise.resolve(true);
-    return new Promise<boolean>((resolve) => {
-        const timer = setTimeout(() => {
-            signal.removeEventListener('abort', onAbort);
-            resolve(false);
-        }, ms);
-        const onAbort = () => {
-            clearTimeout(timer);
-            signal.removeEventListener('abort', onAbort);
-            resolve(true);
-        };
-        signal.addEventListener('abort', onAbort, { once: true });
-    });
 }
 
 export class RateLimitManager {
