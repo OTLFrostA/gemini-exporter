@@ -1,4 +1,4 @@
-import type { ExportProgress, ExportRecord } from '../../../types/ui.js';
+import type { ExportProgress, ExportRecord, FailedChat, UIExportOptions } from '../../../types/ui.js';
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
     t,
@@ -25,17 +25,17 @@ import { $ } from '../../uiCommon.js';
 
 export { normId, isRealTitle };
 
-let __loadStore: ((force?: boolean, customSelected?: Set<string>) => Promise<any>) | null = null;
+let __loadStore: OptionsExportOptions['loadStore'] | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
 let __getSearchFilter: () => string = () => '';
 let _isExporting = false;
 
-export function getLastFailedChats(): any[] {
+export function getLastFailedChats(): FailedChat[] {
     const Dialogs = getDialogs();
     return (Dialogs?.getLastFailedChats?.()) ?? DialogView.getLastFailedChats();
 }
 
-export function renderExportFailureBanner(failedList: any[]): void {
+export function renderExportFailureBanner(failedList: FailedChat[]): void {
     const Dialogs = getDialogs();
     if (typeof Dialogs?.renderExportFailureBanner === 'function') {
         Dialogs.renderExportFailureBanner(failedList, retryFailedExport);
@@ -126,7 +126,7 @@ export async function persistTitleUpdate(chatId: string, newTitle: string, sourc
     const visibleSlot = Store?.getCurrentSlot?.() || 'u0';
     const slot = exportSlot || visibleSlot;
     const currentConvs = Store && visibleSlot === slot ? Store.getConversations() : [];
-    const item = currentConvs.find((c: any) => normId(c.id) === normId(chatId));
+    const item = currentConvs.find((c) => normId(c.id) === normId(chatId));
     if ((!item && !exportSlot) || !isRealTitle(newTitle, chatId)) return;
     const utils = getUtils();
     const applyTitle = (chat: any) => {
@@ -153,13 +153,13 @@ export async function persistTitleUpdate(chatId: string, newTitle: string, sourc
 }
 
 export async function startExportPipeline(
-    selected: any[],
+    selected: Array<Exclude<UIExportOptions['selected'][number], string>>,
     format: string,
     skip: boolean,
     includeIndex: boolean,
     includeAssets: boolean,
     includeZip: boolean,
-    dirHandle: any
+    dirHandle: UIExportOptions['dirHandle']
 ): Promise<void> {
     const Store = getStore();
     const Controller = getController();
@@ -262,7 +262,7 @@ export async function startExportPipeline(
             onItemPendingAssets: (chatId: string) => {
                 if (Store?.getCurrentSlot?.() !== currentSlot) return;
                 if (List && typeof List.updateItemExportStatus === 'function') {
-                    List.updateItemExportStatus(chatId, { status: 'pending_assets' } as any);
+                    List.updateItemExportStatus(chatId, { status: 'pending_assets' });
                 }
             },
             onItemExported: async (chatId: string, titleOrRecord: ExportRecord | string, maybeRecord?: ExportRecord) => {
@@ -486,7 +486,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                     async () => {
                         decisionMade = true;
                         try {
-                            let newHandle: any = null;
+                            let newHandle: UIExportOptions['dirHandle'] = null;
                             if (DirHandle) {
                                 newHandle = await DirHandle.requestDirHandle();
                                 const dirLabel = $('dirLabel');

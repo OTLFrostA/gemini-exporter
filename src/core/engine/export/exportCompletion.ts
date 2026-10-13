@@ -1,3 +1,4 @@
+import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
 import type { TitleSources } from '../../../types/conversation.js';
 import { normId } from '../../utils/pathUtils.js';
 import {
@@ -15,6 +16,12 @@ import {
 export { normalizeReliableTitleSource, resolveReliableTitleSource };
 
 
+/** Persistence return values are ignored; partial adapters remain supported. */
+export interface ExportCompletionStorageAdapter {
+    finalizeConversationExport?: (...args: Parameters<typeof StorageService.finalizeConversationExport<StandardExportRecord>>) => Promise<unknown>;
+    saveExportRecord?: (...args: Parameters<typeof StorageService.saveExportRecord<StandardExportRecord>>) => Promise<unknown>;
+}
+
 export interface BuildExportCompletionInput {
     /** The conversation object with messages/turns/timestamps */
     conversation?: any;
@@ -25,7 +32,7 @@ export interface BuildExportCompletionInput {
     /** When export landed (ISO string, ms number, or Date) */
     exportedAt?: string | number | Date;
     /** Failed assets list or count */
-    failedAssets?: Array<{ file?: string; error?: string } | any> | number | null;
+    failedAssets?: unknown[] | number | null;
     /** Status override if known (e.g. 'empty', 'partial', 'ok', 'failed') */
     statusOverride?: 'ok' | 'partial' | 'empty' | 'failed';
     /** Explicit candidate title if available */
@@ -275,11 +282,11 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
  * Executes standardized export completion and persistence against a storage adapter.
  */
 export async function completeConversationExport(
-    storageAdapter: any,
+    storageAdapter: ExportCompletionStorageAdapter | null | undefined,
     slot: string | null | undefined,
     input: BuildExportCompletionInput,
     options?: {
-        onItemExported?: (id: string, record: any) => void;
+        onItemExported?: FinalizeExportOptions<StandardExportRecord>['onItemExported'];
         skipConversationUpdate?: boolean;
     }
 ): Promise<ExportCompletionResult> {

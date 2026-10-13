@@ -2,9 +2,17 @@ import type { DirectoryHandle } from './directoryHandle.js';
 
 export type WriteFileContent = string | Uint8Array | ArrayBuffer | Blob;
 
+/** Fields consumed by writers; additional JSZip file options pass through unchanged. */
+export interface WriteFileOptions {
+    base64?: boolean;
+    compression?: 'STORE' | 'DEFLATE';
+    compressionOptions?: { level?: number };
+    [key: string]: unknown;
+}
+
 export interface IExportWriter {
     /** Resolves to the actual relative path accepted by the writer. */
-    writeFile(relativePath: string, content: WriteFileContent, options?: any): Promise<string> | string;
+    writeFile(relativePath: string, content: WriteFileContent, options?: WriteFileOptions): Promise<string> | string;
     generateBlob?(onUpdate?: (pct: number) => void): Promise<Blob>;
     generateAsync?(options: { type: 'blob' }, onUpdate?: (metadata: { percent: number }) => void): Promise<Blob>;
     close?(): Promise<void>;
@@ -15,7 +23,7 @@ export interface IExportWriter {
 
 export interface WriterFactoryOptions {
     folderName?: string;
-    dirHandle?: any;
+    dirHandle?: ConstructorParameters<typeof FsWriter>[0];
     [key: string]: any;
 }
 
@@ -35,11 +43,11 @@ export function isWriter(obj: any): boolean {
 
 export function createWriter(type: 'zip' | 'fs' | string, options: WriterFactoryOptions = {}): IExportWriter {
     if (type === 'zip') {
-        const Cls = (ZipWriter as any)?.ZipWriter || ZipWriter;
+        const Cls = ZipWriter?.ZipWriter || ZipWriter;
         return new Cls(options.folderName || DEFAULT_EXPORT_FOLDER_NAME);
     }
     if (type === 'fs') {
-        const Cls = (FsWriter as any)?.FsWriter || FsWriter;
+        const Cls = FsWriter?.FsWriter || FsWriter;
         return new Cls(options.dirHandle, options.folderName || DEFAULT_EXPORT_FOLDER_NAME);
     }
     throw new Error(`Unsupported writer type: ${type}`);

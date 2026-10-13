@@ -1,3 +1,4 @@
+import type { ConversationMergeInput } from '../core/utils/mergeUtils.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
@@ -16,10 +17,15 @@ import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
 
+/** Detail deltas copy updatedAt into timestamp, including its existing string form. */
+export type MessageBridgeConversationInput = Omit<ConversationMergeInput, 'timestamp'> & {
+    timestamp?: ConversationMergeInput['timestamp'] | ConversationMergeInput['updatedAt'];
+};
+
 export interface MessageBridgeDeps {
     ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
     ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string) => Promise<RpcListIngestResult>;
-    upsertConversations?: (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
+    upsertConversations?: (items: MessageBridgeConversationInput[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
     getAccountSlot?: () => string;
@@ -185,8 +191,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     if (raw.type === CrossWorldEvents.STREAM_START) {
-        if (typeof (_deps as any)?.onStreamStart === 'function') {
-            (_deps as any).onStreamStart(id, slot);
+        if (typeof _deps?.onStreamStart === 'function') {
+            _deps.onStreamStart(id, slot);
         } else {
             const obs = LiveSaveObserver;
             if (obs && typeof obs.notifyStreamStart === 'function') {
@@ -198,8 +204,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             const nid = activeId;
             const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
             try {
-                if (typeof (_deps as any)?.touchActiveConversation === 'function') {
-                    await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
+                if (typeof _deps?.touchActiveConversation === 'function') {
+                    await _deps.touchActiveConversation(nid, targetSlot, { source: 'stream-start' });
                 } else if (typeof upsertConversations === 'function') {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
@@ -219,8 +225,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     }
 
     if (raw.type === CrossWorldEvents.STREAM_COMPLETE) {
-        if (typeof (_deps as any)?.onStreamComplete === 'function') {
-            (_deps as any).onStreamComplete(id, slot);
+        if (typeof _deps?.onStreamComplete === 'function') {
+            _deps.onStreamComplete(id, slot);
         } else {
             const obs = LiveSaveObserver;
             if (obs && typeof obs.notifyStreamComplete === 'function') {
@@ -232,20 +238,20 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             const nid = activeId;
             const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
             try {
-                if (typeof (_deps as any)?.touchActiveConversation === 'function') {
-                    await (_deps as any).touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
+                if (typeof _deps?.touchActiveConversation === 'function') {
+                    await _deps.touchActiveConversation(nid, targetSlot, { source: 'stream-complete' });
                 } else if (typeof upsertConversations === 'function') {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
                     // touchActiveConversation in syncEngine.ts).
-                    const item: any = {
+                    const item: ConversationMergeInput = {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         href: `https://gemini.google.com/app/${nid}`,
                         sidebarIndex: 0
                     };
-                    if (typeof (_deps as any)?.extractActiveChatTitle === 'function') {
-                        const titleObj = (_deps as any).extractActiveChatTitle(nid);
+                    if (typeof _deps?.extractActiveChatTitle === 'function') {
+                        const titleObj = _deps.extractActiveChatTitle(nid);
                         if (titleObj && titleObj.title && isRealTitle(titleObj.title, nid)) {
                             item.title = cleanTitle(titleObj.title);
                             const sourceTier = normalizeReliableTitleSource(titleObj.source) || 'dom';

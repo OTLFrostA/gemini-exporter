@@ -1,5 +1,5 @@
 
-import type { IExportWriter } from './writerInterface.js';
+import type { IExportWriter, WriteFileContent, WriteFileOptions } from './writerInterface.js';
 import { sanitizeRelativePath } from '../../utils/utils.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
 
@@ -18,6 +18,9 @@ export function isPrecompressedAsset(path: string): boolean {
 }
 
 import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
+
+/** Size probes are optional on the shared string/binary content contract. */
+type ZipContent = WriteFileContent & { byteLength?: number; length?: number };
 
 class ZipWriter implements IExportWriter {
     zip: any;
@@ -45,12 +48,12 @@ class ZipWriter implements IExportWriter {
         return sanitizeRelativePath(p, 'file');
     }
 
-    writeFile(relativePath: string, content?: any, options?: any): string {
+    writeFile(relativePath: string, content?: ZipContent | null, options?: WriteFileOptions): string {
         // Single supported form: (relativePath, content, options?).
         // The legacy (subDirPath, fileName, content) overload was retired:
         // it had zero production callers.
         const cleanPath = this.sanitizePath(relativePath);
-        const opts: any = options || {};
+        const opts = options || {};
 
         if (content) {
             if (typeof content === 'string') {
@@ -71,7 +74,7 @@ class ZipWriter implements IExportWriter {
         // to avoid duplicating memory in V8 during zip generation.
         // Phase B (B1): 压缩决策收敛在文件级 —— writeFile 时按文件决定 STORE/DEFLATE，
         // generateBlob 不再传全局 compression，文件级设置直接透传。
-        const fileOpts: any = { ...opts };
+        const fileOpts: WriteFileOptions = { ...opts };
         if (!fileOpts.compression) {
             fileOpts.compression = isPrecompressedAsset(cleanPath) ? 'STORE' : 'DEFLATE';
         }
@@ -97,7 +100,7 @@ class ZipWriter implements IExportWriter {
             try {
                 return await this.zip.generateInternalStream({
                     type: 'blob'
-                }).accumulate((meta: any) => {
+                }).accumulate((meta: { percent: number }) => {
                     if (onUpdate && typeof onUpdate === 'function') {
                         onUpdate(meta.percent);
                     }
@@ -109,7 +112,7 @@ class ZipWriter implements IExportWriter {
 
         return await this.zip.generateAsync({
             type: 'blob'
-        }, (meta: any) => {
+        }, (meta: { percent: number }) => {
             if (onUpdate && typeof onUpdate === 'function') {
                 onUpdate(meta.percent);
             }

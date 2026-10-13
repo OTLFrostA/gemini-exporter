@@ -1,17 +1,17 @@
-import { GeminiClientCredentialManager, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
+import { GeminiClientCredentialManager, type GeminiCredentials, type GeminiClientCredentialManagerModule } from "./credentialManager.js";
 import { calculateBackoff, abortableSleep } from "../../utils/retryUtils.js";
 import { STORAGE_KEYS } from "../../utils/constants.js";
 import { withCredMapLock } from './credStorage.js';
 
 export interface Http400Params {
-    resp: { status: number; [key: string]: any };
+    resp: { status: number };
     snippet?: string;
-    cred?: any;
+    cred?: Partial<GeminiCredentials> | null;
     isRetried?: boolean;
     getAtFromPage?: () => string;
     getBlFromPage?: () => string | null;
     loadCredMap?: () => Promise<any>;
-    getCredStorage?: () => any;
+    getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
 }
 
 export interface Http400Result {
@@ -21,14 +21,14 @@ export interface Http400Result {
 }
 
 export interface Http401Params {
-    cred?: any;
+    cred?: Partial<GeminiCredentials> | null;
     loadCredMap?: () => Promise<any>;
-    getCredStorage?: () => any;
+    getCredStorage?: GeminiClientCredentialManagerModule['getCredStorage'];
     refreshAtFromPage?: () => string | null;
 }
 
 export interface Http429Params {
-    resp: { status: number; headers?: { get?: (header: string) => string | null }; [key: string]: any };
+    resp: { status: number; headers?: { get?: (header: string) => string | null } };
     retryCount?: number;
     maxRetries?: number;
     label?: string;
