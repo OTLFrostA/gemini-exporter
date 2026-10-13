@@ -1,25 +1,5 @@
 [
   {
-    "id": "phylogenetics_fitch_parsimony_ambiguity",
-    "domain": "computational_biology_phylogenetic_parsimony",
-    "title": "系统发育算法：Fitch 简约法与缺失字符处理",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "纯合成字符矩阵的树上动态规划、可复现 Python 算法、复杂度表格和长方法报告。",
-    "turns": [
-      "以完全合成的四物种字符矩阵为例，用 LaTeX 定义无权最大简约法的目标函数，推导二叉树上 Fitch 算法的集合合并规则，并区分树的评分与搜索全局最优树。",
-      "使用独立可运行的 Python 实现 Fitch 算法，支持多态字符和缺失字符，提供确定性的节点编码、字符集表示与单个可手算例子，避免把缺失字符当作新状态。",
-      "枚举小规模无根二叉树并对合成数据评分，用固定随机种子生成字符矩阵，记录并列最优树，说明树数增长和搜索复杂度；加入状态重命名不变性与叶标签置换检查。",
-      "用 Markdown 表格比较完全可观测、随机缺失、集中缺失和高同形性数据的评分、并列最优数量及解释限制；所有数据必须明确为合成，不推断真实物种关系。",
-      "写完整方法报告，讨论等权假设、性状相关性、根的位置、并列解与自助法解释，附复杂度分析、可复现评估伪代码和中英文术语表。"
-    ]
-  },
-  {
     "id": "orchard_robot_sampling_energy_routes",
     "domain": "robotics_orchard_sampling_energy_optimization",
     "title": "果园巡检机器人：采样覆盖与电量约束路径规划",
@@ -193,27 +173,6 @@
       "Provide complete standard library Python for sign safe extended gcd, parametric solutions and bounded solution counting. Include zero coefficients, negative coefficients and unsatisfiable cases with executable tests.",
       "Create a Markdown comparison table for extended gcd, enumeration, integer programming and lattice basis methods with input ranges, complexity and correctness assumptions. Add a bilingual glossary.",
       "Design fixed seed differential tests against exhaustive small integer enumeration. Write a detailed report with LaTeX complexity analysis, failure case tables and full reproducible code, distinguishing proof from empirical verification."
-    ]
-  },
-  {
-    "id": "acoustics_room_reflection_ray_geometry",
-    "domain": "acoustics_geometric_room_reflections",
-    "title": "Room acoustics: reflection rays and reverberation estimates",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Actually generate an original educational acoustic ray diagram of a rectangular concert room showing a source, listener and first order wall reflections. Label the geometry and explain the image source method.",
-      "Derive image source coordinates and path lengths using LaTeX. Give a numerical rectangular room example with sound speed, arrival times and reflection coefficients.",
-      "Provide complete runnable standard library Python computing direct and first order reflected paths, arrival times and attenuation. Include geometric degeneracy tests and fixed seed receiver locations.",
-      "Create a Markdown table comparing ray tracing, image sources, modal analysis and wave solvers by frequency range, assumptions, computational cost and failure modes. Add a bilingual glossary.",
-      "Write a detailed sensitivity report for wall absorption, room size and receiver position. Include equations, data tables and reproducible simulation code. Distinguish discrete ray approximations from measured reverberation."
     ]
   },
   {
@@ -398,6 +357,48 @@
       "Write complete runnable Python with NumPy for simulation and least-squares initial-state reconstruction. Use fixed random seeds for synthetic observation noise, check dimensions and matrix rank, and include deterministic exact-recovery and deliberately unobservable test cases.",
       "Use a Markdown table to compare direct inversion, QR and singular-value decomposition for reconstruction. Include time and memory bounds with assumptions, threshold selection, English/Chinese terminology and an example sensitivity comparison.",
       "Write a detailed technical report about near-unobservability, sensor placement and horizon length. Include reproducible synthetic parameter tables, algorithm pseudocode, a LaTeX error bound and explicit distinctions between structural observability, numerical conditioning and unsupported performance claims."
+    ]
+  },
+  {
+    "id": "textile_periodic_weave_interlacement",
+    "title": "Periodic textile weaves: interlacement, floats and repeat geometry",
+    "domain": "textile_periodic_weave_geometry",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Synthetic warp/weft repeat diagrams, modular indexing, reproducible float analysis and structural comparison.",
+    "turns": [
+      "Generate an educational image of an invented 8 by 8 warp/weft weave repeat: distinguish blue warp and orange weft, show a top view and a small side view, use a clean white background. Keep the image conceptual rather than asserting measured fabric properties. Explain the meaning of over/under intersections in English.",
+      "Define a binary interlacement matrix W_ij using LaTeX and derive modular constructions for plain weave, a 2/2 twill and a 5-end satin. State coordinate conventions and how the repeat is tiled without phase discontinuities.",
+      "Write standalone Python code to generate these matrices and compute the longest cyclic warp and weft floats. Include deterministic checks for row and column wraparound and explain the time complexity.",
+      "Use a Markdown table to compare the three synthetic patterns by repeat size, interlacement density, float lengths and directional symmetry. Explain which quantities are purely geometric and which physical properties would require measurements.",
+      "Write a complete methodological report connecting the generated illustration to the matrix conventions, identifying possible diagram ambiguities, and proposing reproducible tests for translation invariance, phase choices and cyclic float analysis. Include English and Chinese terminology."
+    ]
+  },
+  {
+    "id": "stoichiometric_network_conservation_nullspace",
+    "title": "Stoichiometric conservation: nullspaces and reaction-network bookkeeping",
+    "domain": "chemistry_stoichiometric_conservation_networks",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "description": "Abstract synthetic reaction networks with exact linear algebra, conservation laws and reproducible numerical diagnostics.",
+    "turns": [
+      "For a purely abstract network A+B -> C and 2C -> D, define the stoichiometric matrix N with species as rows and reactions as columns. Use LaTeX to derive dx/dt=Nv and distinguish left-nullspace conservation laws from right-nullspace reaction cycles. Do not give laboratory procedures.",
+      "Compute the rank and exact left nullspace by hand, state a basis and verify each conservation law directly. Explain why a basis vector can contain signed coefficients while physically interpretable conserved totals may require nonnegative weights.",
+      "Provide standalone Python code using fractions.Fraction for exact row reduction, nullspace extraction and verification. Add deterministic tests for redundant reactions, disconnected species and a zero column, without relying on external packages.",
+      "Use a Markdown table to compare the original abstract network with one having a redundant reverse reaction and one including a bookkeeping sink. Show species count, reaction count, rank, left-nullspace dimension and right-nullspace dimension.",
+      "Write a long mathematical validation report on conservation, nonnegative state constraints, numerical rank tolerances and the difference between stoichiometric feasibility and kinetic behavior. Include reproducible pseudocode, counterexamples and a bilingual glossary."
     ]
   }
 ]

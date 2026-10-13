@@ -89,8 +89,11 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         save_sync_evidence(ctx, 'pre_chat_sync_baseline', baseline)
         if not ok:
             raise RuntimeError('Pre-chat full baseline failed: ' + message)
-        if not (state.get('coverage') or {}).get('streams', {}).get('recent', {}).get('range'):
+        recent = state['coverage']['streams']['recent']
+        if not recent.get('range') and recent.get('orderingInvalidated') is not True:
             raise RuntimeError('Full traversal did not establish trusted recent coverage')
+        if recent.get('orderingInvalidated') is True:
+            print('      ✓ 时间字段与分页顺序不一致：完整覆盖已认证，后续强制完整分页验收')
         print('      ✓ 发帖前完整遍历基线: ' + message
               + '; Coverage historyComplete=' + str(state['coverage'].get('historyComplete')))
         return baseline

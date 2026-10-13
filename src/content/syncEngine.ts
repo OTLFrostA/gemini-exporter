@@ -478,7 +478,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         const effectiveMaxPages = options?.maxPages || 2000;
         let expectedPage = 1;
         const previousRecent = coverageRun.previous?.streams.recent;
-        const incremental = previousRecent?.initialized === true;
+        const incremental = previousRecent?.initialized === true && !!previousRecent.range && !previousRecent.orderingInvalidated;
         let recentHead: PageObservation<GeminiProviderConversationItem> | null = null;
         let verifiedIncrementalStop = false;
         // Pinned is unordered and scanned independently. Recent closes against
@@ -502,7 +502,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 }
                 if (page?.streamId === 'recent' && page.requestKnown && page.valid && page.ordered) {
                     if (page.requestCursor === null) recentHead = page;
-                    if (previousRecent && recentHead && await Storage.hasScanCoverageOverlap(slot, runId, recentHead, previousRecent,
+                    if (incremental && previousRecent && recentHead && await Storage.hasScanCoverageOverlap(slot, runId, recentHead, previousRecent,
                         () => !contentContext.isAborted() && getAccountSlot() === slot
                             && (accountId === null || sniffUserProfileFromDom()?.accountId === accountId))) {
                         verifiedIncrementalStop = true;

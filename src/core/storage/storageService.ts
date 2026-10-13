@@ -860,6 +860,14 @@ async function finishScanCoverage(slot: string, runId: string, status: ScanStatu
         await assertSchemaWritable();
         const current = await getScanCoverage(slot);
         if (!current || current.activeRunId !== runId || canCommit?.() === false) return false;
+        if (status === 'complete' && (!current.historyComplete || !current.complete
+            || !['pinned', 'recent'].every(id => current.streams[id]?.historyComplete === true
+                && pageSessions.get(pageSessionKey(slot, current, id))?.exhausted()))) {
+            throw new Error('Natural traversal ended without durable complete coverage');
+        }
+        if (status === 'up_to_date' && (current.streams.recent?.orderingInvalidated || !current.streams.recent?.range)) {
+            throw new Error('Incremental completion requires trusted activity coverage');
+        }
         const { coverageKey } = getStorageKeys(slot);
         const exhaustive = status === 'complete' && baseline !== null;
         const next: ScanCoverage = { ...current, activeRunId: null, lastStatus: status,

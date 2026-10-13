@@ -120,7 +120,7 @@ def assert_archive_targets(names: List[str], target_ids: List[str], extension: s
     return True, f"ZIP 指定目标 {len(target_ids)} 个均存在"
 
 
-def assert_scan_result(evidence: Dict[str, Any]) -> Tuple[bool, str]:
+def assert_scan_result(evidence: Dict[str, Any], allow_incremental_attempt=False) -> Tuple[bool, str]:
     response = evidence.get('response') or {}
     diag = response.get('diagnostics') or {}
     if not evidence.get('started') or not evidence.get('finished') or evidence.get('error'):
@@ -132,15 +132,15 @@ def assert_scan_result(evidence: Dict[str, Any]) -> Tuple[bool, str]:
     # token loops, cancellation, parse errors, and network errors in diagnostics.
     natural = 'Google 服务端已无更早历史' in reason or 'Google 服务端游标已到底' in reason
     history = diag.get('pageHistory') or []
-    if (not natural or diag.get('incremental') is not False or not diag.get('endTime')
+    if (not natural or not (diag.get('incremental') is False or allow_incremental_attempt and diag.get('incremental') is True) or not diag.get('endTime')
             or not history or diag.get('totalPagesFetched', 0) < 1
             or diag.get('hitGoogleLimit') or response.get('hitGoogleLimit')):
         return False, f"全量扫描缺少完整耗尽证据（可能部分完成/限流）: {diag}"
     return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
 
 
-def assert_full_scan_coverage(evidence, coverage):
-    ok, message = assert_scan_result(evidence)
+def assert_full_scan_coverage(evidence, coverage, allow_incremental_attempt=False):
+    ok, message = assert_scan_result(evidence, allow_incremental_attempt)
     if not ok:
         return False, message
     if (coverage.get('version') != 3 or coverage.get('providerId') != 'gemini'
@@ -171,7 +171,8 @@ def assert_incremental_scan_result(evidence, before, after):
         recent = record.get('streams', {}).get('recent', {})
         if (record.get('version') != 3 or not record.get('accountId')
                 or record.get('providerId') != 'gemini' or record.get('initialized') is not True
-                or recent.get('initialized') is not True or not recent.get('range')):
+                or recent.get('initialized') is not True or not recent.get('range')
+                or recent.get('orderingInvalidated') is True):
             return False, f"Missing durable activity coverage: {record}"
     if (any(before.get(key) != after.get(key) for key in ('accountId', 'providerId', 'generation'))
             or not before.get('generation') or after.get('activeRunId') is not None
@@ -183,6 +184,24 @@ def assert_incremental_scan_result(evidence, before, after):
     if new.get('tail') != old.get('tail') or new.get('head', {}).get('time', 0) < old.get('head', {}).get('time', 0):
         return False, 'Incremental scan lost previously persisted activity coverage'
     return True, f"Incremental closure verified: {diag.get('totalPagesFetched')} pages"
+
+
+def assert_followup_scan_result(evidence, before, after):
+    """Keep incremental checks strict; accept exhaustion only with durable order invalidation."""
+    recent = after.get('streams', {}).get('recent', {})
+    if recent.get('orderingInvalidated') is not True:
+        return assert_incremental_scan_result(evidence, before, after)
+    # diagnostics.incremental describes the attempted acquisition mode. A run
+    # that discovers an inversion must still exhaust the entire cursor chain.
+    ok, message = assert_full_scan_coverage(evidence, after, allow_incremental_attempt=True)
+    if not ok:
+        return False, message
+    response = evidence.get('response') or {}
+    if (response.get('status') != 'complete' or recent.get('range') is not None
+            or not before.get('generation')
+            or any(before.get(k) != after.get(k) for k in ('accountId', 'providerId', 'generation'))):
+        return False, 'Exhaustive fallback lacks same-account order invalidation evidence'
+    return True, 'Timestamp ordering invalidated; exhaustive fallback verified; ' + message
 
 
 def assert_passive_coverage(before, after, observations):
@@ -204,7 +223,7 @@ def assert_passive_coverage(before, after, observations):
 
 
 def assert_activity_sync_result(baseline, before, scan, after, target_ids):
-    ok, message = assert_incremental_scan_result(scan, before.get('coverage') or {}, after.get('coverage') or {})
+    ok, message = assert_followup_scan_result(scan, before.get('coverage') or {}, after.get('coverage') or {})
     if not ok:
         return False, message
     initial = baseline.get('state') or {}
@@ -214,12 +233,14 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
         return False, 'Activity check lacks targets or changed account/coverage generation'
     old_rows = {r['id']: r for r in initial.get('rows', [])}
     new_rows = {r['id']: r for r in after.get('rows', [])}
-    frozen_head = original.get('streams', {}).get('recent', {}).get('range', {}).get('head', {}).get('time', 0)
+    frozen_head = (original.get('streams', {}).get('recent', {}).get('range') or {}).get('head', {}).get('time', 0)
+    frozen_head = frozen_head or (original.get('baseline') or {}).get('headTimestamp', 0) or 0
+    span = current['streams']['recent'].get('range')
     for cid in target_ids:
         old_time = old_rows.get(cid, {}).get('timestamp', frozen_head)
         row = new_rows.get(cid) or {}
         if (row.get('titleSource') != 'rpc' or row.get('timestamp', 0) <= old_time
-                or current['streams']['recent']['range']['head']['time'] < row.get('timestamp', 0)):
+                or span and span['head']['time'] < row.get('timestamp', 0)):
             return False, f'Real activity was not saved or coverage did not advance: {cid}'
     for state in (initial, before):
         if (not {r['id'] for r in state.get('rows', [])}.issubset(new_rows)
@@ -227,9 +248,9 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
             return False, 'Incremental scan removed archived conversations or export records'
     pages = scan['response']['diagnostics']['totalPagesFetched']
     full_pages = baseline.get('scan', {}).get('response', {}).get('diagnostics', {}).get('totalPagesFetched', 0)
-    if full_pages <= pages:
+    if scan['response'].get('status') == 'up_to_date' and full_pages <= pages:
         return False, f'Incremental scan did not avoid the older tail: incremental={pages}, full={full_pages}'
-    return True, f'Real activity sync verified: {len(target_ids)} targets, {pages} pages vs full {full_pages}; archives retained'
+    return True, message + f'; real activity saved for {len(target_ids)} targets; archives retained'
 
 
 class CDPAssertions:

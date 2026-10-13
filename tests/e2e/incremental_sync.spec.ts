@@ -164,3 +164,43 @@ test('passive evidence arriving during the active head request fills the shared 
         expect((await read()).streams.recent.range).toEqual({ head: { id: 'shared120', time: 1700000120000 }, tail: { id: 'old70', time: 1700000070000 } });
     } finally { releaseHead(); }
 });
+
+for (const inversion of ['within-page', 'cross-page'] as const) {
+    test(`timestamp ${inversion} inversion exhausts history and later ordered pages cannot revive early stop`, async ({ context, extensionId }) => {
+        const gemini = await context.newPage();
+        await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Order (order@example.com)">Account</button>` }));
+        let round = 0;
+        const requests: string[][] = [[], [], []];
+        await gemini.route('**/batchexecute*', async route => {
+            const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData()!).get('f.req')!)[0][0][1]);
+            const pinned = args[2][0] === 1;
+            const cursor = args[1];
+            requests[round].push(pinned ? 'pinned' : cursor || 'head');
+            const times = round === 0 ? cursor === null ? [100, 90] : [80, 70]
+                : round === 1 ? cursor === null ? inversion === 'within-page' ? [150, 130, 140] : [150, 140]
+                    : inversion === 'within-page' ? [80, 70] : [145, 80]
+                : cursor === null ? [160, 150] : [140, 130];
+            const inner = pinned ? [] : [null, times.map(time => [`c_round${round}_${time}`, `Time ${time}`, null, null, null, [1700000000 + time, 0]]), cursor === null ? `tC_tail${round}` : null];
+            await route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(inner)]]) });
+        });
+        await gemini.goto('https://gemini.google.com/app');
+        const options = await context.newPage();
+        await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+        await options.evaluate(async () => chrome.storage.local.set({ gemini_conversations: [{ id: 'retained', title: 'Retained archive', timestamp: 1 }], exportedIds: { retained: { status: 'ok' } } }));
+        const read = () => options.evaluate(async () => chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage; gemini_conversations: Conversation[]; exportedIds: Record<string, { status: string }> }>(['gemini_scan_coverage', 'gemini_conversations', 'exportedIds']));
+        for (round = 0; round < 3; round++) {
+            await options.click('#btnSyncAll');
+            await expect.poll(() => requests[round].length).toBe(3);
+            await expect(options.locator('#btnSyncAll')).toBeEnabled();
+            const stored = await read();
+            expect(requests[round]).toEqual(['pinned', 'head', `tC_tail${round}`]);
+            expect(stored.gemini_scan_coverage).toMatchObject({ historyComplete: true, complete: true, lastStatus: 'complete', activeRunId: null });
+            if (round > 0) {
+                expect(stored.gemini_scan_coverage.streams.recent).toMatchObject({ initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
+                expect(stored.gemini_conversations.some(item => item.id.startsWith(`round${round}_`) && item.timestamp === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
+            }
+            expect(stored.gemini_conversations.some(item => item.id === 'retained')).toBe(true);
+            expect(stored.exportedIds.retained.status).toBe('ok');
+        }
+    });
+}

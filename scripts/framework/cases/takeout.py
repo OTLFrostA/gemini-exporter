@@ -11,7 +11,7 @@ from typing import Tuple, Optional, Dict, Any
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
-from scripts.framework.assertions import CDPAssertions, assert_scan_result, assert_full_scan_coverage, assert_incremental_scan_result
+from scripts.framework.assertions import CDPAssertions, assert_scan_result, assert_full_scan_coverage, assert_followup_scan_result
 from scripts.framework.archive_resources import resource_references, resolve_archive_reference
 
 
@@ -181,7 +181,7 @@ class DeepScanPaginationCase(FeatureTestCase):
                 return False, message, {'scan': evidence, 'coverage': before}
             incremental = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             after = cdp_opt.eval(read_coverage, await_promise=True) or {}
-            ok, closure_message = assert_incremental_scan_result(incremental, before, after)
+            ok, closure_message = assert_followup_scan_result(incremental, before, after)
             result = {'initial': evidence, 'incremental': incremental, 'before': before, 'after': after}
             if not ok:
                 return False, closure_message, result

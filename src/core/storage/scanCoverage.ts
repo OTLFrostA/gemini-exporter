@@ -37,6 +37,8 @@ export function readScanCoverage(value: unknown): ScanCoverage | null {
             || !(stream.range === null || object(stream.range) && key(stream.range.head) && key(stream.range.tail)
                 && (stream.range.head as { time: number }).time >= (stream.range.tail as { time: number }).time)
             || !stream.initialized && (stream.historyComplete || stream.range !== null)) return null;
+        if (stream.orderingInvalidated !== undefined && stream.orderingInvalidated !== true
+            || stream.orderingInvalidated === true && stream.range !== null) return null;
     }
     if (value.complete !== value.historyComplete || value.historyComplete && !value.initialized) return null;
     const baseline = value.baseline;
