@@ -80,6 +80,29 @@ test('conversation persistence failures do not initialize coverage; a retry comm
     await ingestPageObservation(page, 'u0', run.runId);
     assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, true);
 }));
+
+test('real list parsing persists unordered rows and complete coverage without authorizing early stop', async () => fixture(async () => {
+    const run = await StorageService.beginScanCoverage('u0', account);
+    const pinned = geminiListObservation(parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']])),
+        { streamId: 'pinned', requestCursor: null }, account, false, Date.now() + 1);
+    await ingestPageObservation(pinned, 'u0', run.runId);
+    const head = observed([100, 60, 90], null, 'tC_next');
+    assert.equal(head.page.valid, true); assert.equal(head.page.ordered, false);
+    await ingestPageObservation(head.page, 'u0', run.runId);
+    const partial = (await StorageService.getScanCoverage('u0'))!;
+    assert.equal(partial.historyComplete, false);
+    await ingestPageObservation(observed([50, 40], 'tC_next', null).page, 'u0', run.runId);
+    await StorageService.finishScanCoverage('u0', run.runId, 'complete', { conversationCount: 5, headTimestamp: 1700000100000 });
+    const complete = (await StorageService.getScanCoverage('u0'))!;
+    assert.equal(complete.complete, true); assert.equal(complete.streams.recent.range, null);
+    assert.equal(complete.streams.recent.orderingInvalidated, true);
+    assert.equal((await StorageService.getConversations('u0')).length, 5);
+    const next = await StorageService.beginScanCoverage('u0', account);
+    const ordered = observed([120, 110], null, 'tC_fresh');
+    await ingestPageObservation(ordered.page, 'u0', next.runId);
+    assert.equal(await StorageService.hasScanCoverageOverlap('u0', next.runId, ordered.page, complete.streams.recent), false);
+    assert.equal((await StorageService.getScanCoverage('u0'))!.streams.recent.range, null);
+}));
 test('responses captured under a different identity and cancelled passive requests cannot write coverage', async () => fixture(async () => {
     const bridge = init({ ingestPageObservation, getAccountSlot: () => 'u0' });
     await bridge.handleWindowMessage({ origin: 'https://gemini.google.com', data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {

@@ -15,7 +15,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.framework.assertions import (
-    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result, assert_full_scan_coverage, assert_passive_coverage, assert_activity_sync_result,
+    CDPAssertions, assert_archive_targets, assert_scan_result, assert_turn_content, assert_incremental_scan_result, assert_full_scan_coverage, assert_passive_coverage, assert_activity_sync_result, assert_followup_scan_result,
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
@@ -523,6 +523,38 @@ value = 2 ** 3
 
 
 class ScanAndImportTests(unittest.TestCase):
+    def fallback_fixture(self):
+        baseline, before, scan, after = self.activity_fixture()
+        for state in (baseline['state'], before, after):
+            coverage = state['coverage']
+            coverage.update(complete=True, lastStatus='complete', baseline={'headTimestamp': 100})
+            coverage['streams']['pinned'] = {'initialized': True, 'historyComplete': True, 'range': None}
+            coverage['streams']['recent'].update(historyComplete=True, range=None, orderingInvalidated=True)
+        scan = scan_evidence()
+        scan['response']['status'] = 'complete'
+        scan['response']['diagnostics']['totalPagesFetched'] = 8
+        return baseline, before, scan, after
+
+    def test_order_invalidated_activity_requires_real_exhaustive_fallback_and_preserves_targets(self):
+        baseline, before, scan, after = self.fallback_fixture()
+        self.assertTrue(assert_followup_scan_result(scan, before['coverage'], after['coverage'])[0])
+        self.assertTrue(assert_activity_sync_result(baseline, before, scan, after, [CID, OTHER])[0])
+        self.assertFalse(assert_incremental_scan_result(scan, before['coverage'], after['coverage'])[0])
+        attempted = copy.deepcopy(scan)
+        attempted['response']['diagnostics']['incremental'] = True
+        self.assertTrue(assert_followup_scan_result(attempted, before['coverage'], after['coverage'])[0])
+        self.assertFalse(assert_full_scan_coverage(attempted, after['coverage'])[0])
+        for change in ('partial', 'range', 'account', 'marker', 'status', 'target', 'archive'):
+            ev, state = copy.deepcopy(scan), copy.deepcopy(after)
+            if change == 'partial': ev['response']['diagnostics']['stopReason'] = 'Token loop'
+            if change == 'range': state['coverage']['streams']['recent']['range'] = {'head': {'time': 100}, 'tail': {'time': 10}}
+            if change == 'account': state['coverage']['accountId'] = 'other'
+            if change == 'marker': state['coverage']['streams']['recent'].pop('orderingInvalidated')
+            if change == 'status': ev['response']['status'] = 'up_to_date'
+            if change == 'target': state['rows'] = [r for r in state['rows'] if r['id'] != OTHER]
+            if change == 'archive': state['exportIds'] = []
+            self.assertFalse(assert_activity_sync_result(baseline, before, ev, state, [CID, OTHER])[0], change)
+
     def test_incremental_requires_runtime_and_durable_same_account_closure(self):
         evidence = scan_evidence()
         evidence['response']['status'] = 'up_to_date'

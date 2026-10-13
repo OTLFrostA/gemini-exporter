@@ -46,6 +46,19 @@ test('legacy versions 1 and 2 cannot certify stream coverage or initialize the n
         assert.equal(current?.version, 3); assert.equal(current?.initialized, false); assert.equal(current?.historyComplete, false);
     }
 }));
+
+test('a previous complete history cannot certify a broken current cursor chain', async () => fixture(async () => {
+    const first = await StorageService.beginScanCoverage('u0', 'account-a');
+    await observe(first.runId, observation('pinned', []));
+    await observe(first.runId);
+    await StorageService.finishScanCoverage('u0', first.runId, 'complete', baseline);
+    const second = await StorageService.beginScanCoverage('u0', 'account-a');
+    const head = observation('recent', [{ id: 'duplicate', time: 1800000000000 }], null, 'next');
+    await observe(second.runId, head);
+    await observe(second.runId, observation('recent', head.keys, 'next'));
+    assert.equal((await StorageService.getScanCoverage('u0'))?.historyComplete, true, 'previous history remains available');
+    await assert.rejects(StorageService.finishScanCoverage('u0', second.runId, 'complete', baseline), /durable complete coverage/);
+}));
 test('partial first scans initialize from fully persisted trusted pages, while a first-page failure remains uninitialized', async () => fixture(async () => {
     for (const status of ['partial_limit', 'aborted', 'error'] as const) {
         await StorageService.clearConversations('u0');
@@ -73,6 +86,7 @@ test('natural exhaustion requires both independent streams; empty accounts have 
 test('cache writes and Takeout-compatible ingestion cannot advance RPC coverage; frozen baselines remain immutable', async () => fixture(async () => {
     const run = await StorageService.beginScanCoverage('u0', 'account-a');
     await observe(run.runId);
+    await observe(run.runId, observation('pinned', []));
     await StorageService.finishScanCoverage('u0', run.runId, 'complete', baseline);
     const next = await StorageService.beginScanCoverage('u0', 'account-a');
     const frozen = structuredClone(next.previous);
@@ -111,7 +125,7 @@ test('unknown identities and invalid evidence cannot initialize coverage; cancel
     assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, false);
     const unknown = await StorageService.beginScanCoverage('u0', null);
     assert.equal(unknown.previous, null);
-    await StorageService.finishScanCoverage('u0', unknown.runId, 'complete', baseline);
+    await assert.rejects(StorageService.finishScanCoverage('u0', unknown.runId, 'complete', baseline), /durable complete coverage/);
     assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, false);
     for (const value of [123, {}, { version: 1 }, { version: 2 }, { version: 3 }]) assert.equal(readScanCoverage(value), null);
 }));
@@ -126,7 +140,28 @@ test('completed or incremental scan absence never changes archives, other accoun
     const untouched = structuredClone(data);
     for (const status of ['complete', 'up_to_date', 'partial_limit'] as const) {
         const run = await StorageService.beginScanCoverage('u0', 'account-a');
+        await observe(run.runId, observation('pinned', []));
+        await observe(run.runId);
         await StorageService.finishScanCoverage('u0', run.runId, status, baseline, ['only-visible']);
         for (const key of Object.keys(untouched)) if (key !== 'gemini_scan_checkpoint') assert.deepEqual(data[key], untouched[key]);
+    }
+}));
+
+test('terminal status cannot disagree with persisted stream coverage or ordering invalidation', async () => fixture(async () => {
+    const run = await StorageService.beginScanCoverage('u0', 'account-a');
+    await observe(run.runId, observation('pinned', []));
+    await assert.rejects(StorageService.finishScanCoverage('u0', run.runId, 'complete', baseline), /durable complete coverage/);
+    await observe(run.runId, { ...observation(), ordered: false });
+    assert.equal((await StorageService.getScanCoverage('u0'))?.historyComplete, true);
+    await assert.rejects(StorageService.finishScanCoverage('u0', run.runId, 'up_to_date'), /trusted activity coverage/);
+    await StorageService.finishScanCoverage('u0', run.runId, 'complete', baseline);
+    const persisted = (await StorageService.getScanCoverage('u0'))!;
+    assert.equal(persisted.lastStatus, 'complete');
+    assert.equal(persisted.streams.recent.orderingInvalidated, true);
+    assert.equal(persisted.streams.recent.range, null);
+    for (const malformed of [false, 'true']) {
+        const value = structuredClone(persisted) as unknown as { streams: { recent: { orderingInvalidated: unknown } } };
+        value.streams.recent.orderingInvalidated = malformed;
+        assert.equal(readScanCoverage(value), null);
     }
 }));

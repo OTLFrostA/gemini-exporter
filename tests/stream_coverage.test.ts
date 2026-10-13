@@ -59,7 +59,8 @@ test('unknown context, missing keys, rising times, cursor loops, truncated pages
     const session = new CoverageSession();
     session.observe(baseline, page([120, 110], null, 'next'), true);
     const result = session.observe(baseline, page([115, 90], 'next', 'tail'), true);
-    assert.equal(result.range?.head.time, 100); assert.equal(session.connects(baseline, page([120, 110], null, 'next')), false);
+    assert.equal(result.range, null); assert.equal(result.orderingInvalidated, true);
+    assert.equal(session.connects(baseline, page([120, 110], null, 'next')), false);
 });
 test('natural complete chains rebuild disjoint stale coverage, including an empty current account', () => {
     const baseline = { initialized: true, historyComplete: true,
@@ -73,7 +74,58 @@ test('natural complete chains rebuild disjoint stale coverage, including an empt
     assert.equal(session.connects(baseline, head), false);
     assert.deepEqual(new CoverageSession().observe(baseline, page([]), true),
         { initialized: true, historyComplete: true, range: null });
-    assert.deepEqual(new CoverageSession().observe(baseline, { ...page([150, 140]), ordered: false }, true), baseline);
+    assert.deepEqual(new CoverageSession().observe(baseline, { ...page([150, 140]), ordered: false }, true),
+        { initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
+});
+
+test('unordered recent pages certify exhaustion but cannot establish or later revive time overlap', () => {
+    const head = { ...page([100, 60, 90], null, 'next'), ordered: false };
+    const tail = page([50, 40], 'next');
+    for (const pages of [[head, tail], [tail, head]]) {
+        const session = new CoverageSession();
+        const partial = session.observe(emptyStream(), pages[0], true);
+        const complete = session.observe(partial, pages[1], true);
+        assert.deepEqual(complete, { initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
+        const restarted = new CoverageSession();
+        const orderedHead = page([120, 100], null, 'fresh');
+        const refreshed = restarted.observe(complete, orderedHead, true);
+        assert.equal(refreshed.range, null);
+        assert.equal(restarted.connects(complete, orderedHead), false);
+        assert.equal(restarted.observe(refreshed, page([90, 80], 'fresh'), true).orderingInvalidated, true);
+    }
+});
+
+test('individually ordered pages with rising boundary times still certify only exhaustive traversal', () => {
+    const session = new CoverageSession();
+    const partial = session.observe(emptyStream(), page([100, 60], null, 'next'), true);
+    const complete = session.observe(partial, page([90, 50], 'next'), true);
+    assert.deepEqual(complete, { initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
+});
+
+test('a late unordered passive head invalidates time trust without replacing the active cursor anchor', () => {
+    const session = new CoverageSession();
+    const active = page([100, 90], null, 'active-next');
+    const prior = session.observe(emptyStream(), active, true);
+    const ignoredHead = { ...page([110, 70, 80], null, 'passive-next'), ordered: false };
+    const invalidated = session.observe(prior, ignoredHead, true, false);
+    assert.equal(invalidated.orderingInvalidated, true);
+    const complete = session.observe(invalidated, page([80, 60], 'active-next'), true);
+    assert.equal(complete.historyComplete, true);
+    assert.equal(complete.range, null);
+    assert.equal(session.exhausted(), true);
+});
+
+test('unordered pages never excuse missing cursors, invalid terminal pages, repeated IDs or token loops', () => {
+    for (const kind of ['missing', 'invalid', 'duplicate', 'loop'] as const) {
+        const session = new CoverageSession();
+        const head = { ...page([100, 60, 90], null, 'next'), ordered: false };
+        const partial = session.observe(emptyStream(), head, true);
+        const tail = page([50, 40], kind === 'missing' ? 'unrelated' : 'next');
+        if (kind === 'invalid') tail.valid = false;
+        if (kind === 'duplicate') tail.keys[0].id = head.keys[0].id;
+        if (kind === 'loop') tail.nextCursor = 'next';
+        assert.equal(session.observe(partial, tail, true).historyComplete, false, kind);
+    }
 });
 test('conflicting cursors and loops remain isolated when a new head replaces the old snapshot', () => {
     const baseline = new CoverageSession().observe(emptyStream(), page([100, 70], null, 'old'), true);
