@@ -58,13 +58,70 @@ const before={local:{gemini_conversations:[{id:'a',messages:[{role:'user',conten
 assert.equal(bodyFacts(before)[0].texts[0],'Persisted body');
 assert.equal(byteFacts(before).length,1);
 assert.equal(byteFacts({metadata:{sha256:'a'.repeat(64),byteLength:3}}).length,0); // Declared metadata is not physical bytes.
-assertPersistedBaseline(before,{local:empty.local,databases:{backup:before}});
-assert.throws(()=>assertPersistedBaseline(before,empty),/body lost/);
+await assertPersistedBaseline(before,structuredClone(before));
+await assert.rejects(()=>assertPersistedBaseline(before,{local:empty.local,databases:{backup:before}}),/body lost/);
+await assert.rejects(()=>assertPersistedBaseline(before,empty),/body lost/);
 const corrupt=structuredClone(before);corrupt.databases.bytes.sha256='b'.repeat(64);
-assert.throws(()=>assertPersistedBaseline(before,corrupt),/bytes lost/);
-const shared=structuredClone(before);shared.local.gemini_conversations_u1=[{id:'a'}];
+await assert.rejects(()=>assertPersistedBaseline(before,corrupt),/bytes lost/);
+const shared=structuredClone(before);shared.local.gemini_conversations=[{id:'a'}];shared.local.gemini_conversations_u1=[{id:'a'}];shared.databases.gemini_exporter_details_idb={stores:{conversation_details:[before.local.gemini_conversations[0]]}};
 assert.throws(()=>bodyFacts(shared),/ambiguous account/);
 assert.equal(bodyFacts(empty).length,0); // An export ZIP cannot fabricate disk evidence.
+const wrongAccount=structuredClone(before);wrongAccount.local={gemini_conversations:[{id:'a'}],gemini_conversations_u1:before.local.gemini_conversations};
+await assert.rejects(()=>assertPersistedBaseline(before,wrongAccount),/body lost/);
+const wrongConversation=structuredClone(before);wrongConversation.local.gemini_conversations[0].id='other';
+await assert.rejects(()=>assertPersistedBaseline(before,wrongConversation),/body lost/);
+const detail={local:empty.local,databases:{...before.databases,gemini_exporter_details_idb:{stores:{conversation_details:[{...before.local.gemini_conversations[0],id:'c_a'}]}}}};
+await assertPersistedBaseline(before,detail);
+const sameIdTwoAccounts=structuredClone(before);sameIdTwoAccounts.local.gemini_conversations_u1=[{id:'a',messages:[{role:'user',content:'Other account body'}]}];
+assert.equal(bodyFacts(sameIdTwoAccounts).length,2); // Inline bodies carry their own account identity.
+// Actual migration contract, loaded independently to construct the valid disk fixture.
+const {build}=await import('esbuild');
+const bundle=await build({stdin:{contents:"export {parseLegacyStorageConversation} from './src/core/parsers/legacyStorage/parseConversation.ts'",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node'});
+const {parseLegacyStorageConversation}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
+const conversation=parseLegacyStorageConversation({metadata:before.local.gemini_conversations[0]},{providerId:'gemini'}).conversation;
+const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:2,domainVersion:1,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
+const migrated={local:empty.local,databases:{...before.databases,gemini_exporter_domain:{stores:{conversations:[record]}}}};
+await assertPersistedBaseline(before,migrated);
+for(const change of [
+ r=>{r.identity.accountSlot='u1';r.key=JSON.stringify(['gemini','u1','a']);},
+ r=>{r.identity.conversationId='other';r.key=JSON.stringify(['gemini','u0','other']);r.conversation.id='other';},
+ r=>{r.identity.accountSlot='u1';}, // Correct-looking key cannot mask mismatched identity.
+ r=>{r.conversation.id='other';},
+ r=>{r.conversation.messages=[];},
+]){
+ const lost=structuredClone(migrated);change(lost.databases.gemini_exporter_domain.stores.conversations[0]);
+ lost.databases.backup=before; // Arbitrary backup must never satisfy the bound assertion.
+ await assert.rejects(()=>assertPersistedBaseline(before,lost));
+}
+const missingStore=structuredClone(migrated);missingStore.databases.gemini_exporter_domain.stores={legacy_imports:[record]};
+await assert.rejects(()=>assertPersistedBaseline(before,missingStore),/body lost/);
+const backupOnly=structuredClone(migrated);backupOnly.databases.gemini_exporter_domain.stores={conversations:[],legacy_imports:[record]};
+await assert.rejects(()=>assertPersistedBaseline(before,backupOnly),/body lost/);
+
+"""
+        result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
+                                text=True, capture_output=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_offline_failures_require_exact_ids_and_expected_reasons(self):
+        code = """
+import assert from 'node:assert/strict';
+import {NativeExportFailure,assertOfflineFailures,assertExpectedOfflineFailure} from './scripts/upgrade_failures.mjs';
+const ids=['a','b'];
+const valid=ids.map(id=>({id,error:'fetch failed: Failed to fetch'}));
+assertOfflineFailures(JSON.parse(JSON.stringify(valid)),ids); // ZIP report evidence.
+assertExpectedOfflineFailure(new NativeExportFailure(valid),ids); // Bound UI evidence.
+for(const failed of [
+ [{id:'other',error:valid[0].error},{id:'elsewhere',error:valid[0].error}],
+ [valid[0]], [valid[0],valid[0]], [...valid,{id:'other',error:valid[0].error}],
+ ...['Timeout 120000ms exceeded','ZIP generation failed','Invalid Domain schema','Harness error','offline schema missing','Detail fetch failed','Failed to fetch: schema invalid',undefined].map(error=>[{...valid[0],error},valid[1]]),
+ undefined,
+]){
+ assert.throws(()=>assertOfflineFailures(failed,ids));
+ assert.throws(()=>assertExpectedOfflineFailure(new NativeExportFailure(failed),ids));
+}
+for(const error of [new Error('Native export failure: fake prefix'),new Error('Timeout'),new Error('ZIP generation failed')])
+ assert.throws(()=>assertExpectedOfflineFailure(error,ids), e=>e===error);
 """
         result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
                                 text=True, capture_output=True, timeout=20)

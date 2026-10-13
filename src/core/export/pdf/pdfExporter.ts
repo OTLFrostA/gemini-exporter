@@ -1,3 +1,5 @@
+import type { ExportRecord } from '../../../types/ui.js';
+import type { WriterFactoryOptions } from '../../engine/writers/writerInterface.js';
 import type { PreparePdfItemContext } from './prepareItem.js';
 import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type {
@@ -60,10 +62,10 @@ export interface PdfExportProgress {
 
 export interface PdfExporterOptions {
     selected: PdfSelectedItem[];
-    conversations?: any[];
+    conversations?: PreparePdfItemContext['conversations'];
     format?: string;
     useZip?: boolean;
-    dirHandle?: any;
+    dirHandle?: WriterFactoryOptions['dirHandle'];
     folderName?: string;
     compiler?: IPdfCompiler;
     writer?: IExportWriter;
@@ -87,10 +89,21 @@ export interface PdfExporterOptions {
     maxAssetRetries?: number;
 }
 
+/** Fields written after successful PDF delivery in both ZIP and directory modes. */
+export interface PdfExportRecord extends ExportRecord {
+    title: string;
+    exportedAt: string;
+    format: 'pdf';
+    fileName: string;
+    bytesWritten: number;
+    status: 'ok' | 'partial';
+    hasFailedAssets: boolean;
+}
+
 export interface PdfExporterCallbacks {
     onProgress?: (p: PdfExportProgress) => void;
     onLog?: (msg: string, level?: string) => void;
-    onItemExported?: (id: string, record: any) => void;
+    onItemExported?: (id: string, record: PdfExportRecord) => void;
 }
 
 const DEFAULT_PIPELINE_STAGES: PipelineStages = {
@@ -286,7 +299,7 @@ export class PdfExporter {
         };
 
         // Record persistence failure emits a warning diagnostic without failing the already-delivered file.
-        const commitRecord = async (id: string, record: any, diagnostics: RenderDiagnostic[]): Promise<void> => {
+        const commitRecord = async (id: string, record: PdfExportRecord, diagnostics: RenderDiagnostic[]): Promise<void> => {
             try {
                 await onItemExported(id, record);
             } catch (e: unknown) {
@@ -442,7 +455,7 @@ export class PdfExporter {
                 switch (result.status) {
                     case 'delivered': {
                         const writeReport: ArtifactWriteReport = result.writeReport;
-                        const record = {
+                        const record: PdfExportRecord = {
                             title,
                             exportedAt: writeReport.writtenAt,
                             format: 'pdf',
@@ -512,7 +525,7 @@ export class PdfExporter {
                 );
                 const writtenAt = new Date().toISOString();
                 for (const s of staged) {
-                    const record = {
+                    const record: PdfExportRecord = {
                         title: s.title,
                         exportedAt: writtenAt,
                         format: 'pdf',

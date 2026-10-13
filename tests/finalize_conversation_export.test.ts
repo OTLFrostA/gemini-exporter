@@ -1236,3 +1236,25 @@ test('30. Adversarial Matrix J: BatchWorker merge dirty map filters non-canonica
 });
 
 
+
+// Completion consumes metadata capabilities, not a branded Domain. Keep the
+// historical primitive and numeric-container behavior while narrowing its API.
+test('completion metadata retains primitive and count-only compatibility', () => {
+    for (const value of [null, undefined, false, 0, 'legacy primitive']) {
+        assert.strictEqual(computeExportMessageCount(value), 0);
+        assert.strictEqual(computeExportMessageCount(value, 3), 3);
+        assert.strictEqual(computeAuthoritativeTimestamp(value), undefined);
+        assert.strictEqual(computeAuthoritativeTimestamp(value, 1234), 1234);
+        const result = buildExportCompletion({ conversation: value, conversationId: 'count-only', exportedAt: 1234 });
+        assert.strictEqual(result.exportRecord.messageCount, 0);
+        assert.strictEqual(result.exportRecord.status, 'empty');
+    }
+    const facts = { id: 'count-only', title: 'Stored metadata', messageCount: '5', messages: 12, turns: 20, updatedAt: 4567 };
+    assert.strictEqual(computeExportMessageCount(facts), 5); // Numeric containers never pretend to be message arrays.
+    assert.strictEqual(computeAuthoritativeTimestamp(facts), 4567);
+    const result = buildExportCompletion({ conversation: facts, exportedAt: 6789 });
+    assert.strictEqual(result.exportRecord.messageCount, 5);
+    assert.strictEqual(result.exportRecord.chatTime, 4567);
+    assert.strictEqual(result.exportRecord.status, 'ok');
+    assert.strictEqual(computeExportMessageCount({ messages: 12, turns: 20 }), 0);
+});
