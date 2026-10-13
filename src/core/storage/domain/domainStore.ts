@@ -57,7 +57,7 @@ function checkedBindings(record: DomainStorageRecord, conversation: TrustedDomai
                 || (digest.sha256 !== undefined && !/^[a-f0-9]{64}$/.test(digest.sha256))) throw new TypeError('Invalid resource cache binding');
         }
     }
-    return { ...structuredClone(record), conversation: structuredClone(conversation) };
+    return structuredClone({ ...record, conversation });
 }
 export function openDomainDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {

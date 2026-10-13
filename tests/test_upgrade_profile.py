@@ -45,5 +45,31 @@ class UpgradeHarnessGuards(unittest.TestCase):
             self.assertFalse((output / 'profile').exists())
 
 
+    def test_persisted_baseline_and_na_contract_reject_loss_without_seeding_profile(self):
+        code = """
+import assert from 'node:assert/strict';
+import {bodyFacts,byteFacts,assertPersistedBaseline,upgradeOutcome} from './scripts/upgrade_baseline.mjs';
+const empty={local:{gemini_conversations:[{id:'a',title:'Metadata only',messageCount:2}]},databases:{}};
+assert.equal(bodyFacts(empty).length,0);
+assert.equal(upgradeOutcome([{status:'passed'},{status:'not_applicable'}]),'passed_with_na');
+assert.equal(upgradeOutcome([{status:'failed'},{status:'not_applicable'}]),'failed');
+assert.equal(upgradeOutcome([{status:'running'}]),'failed');
+const before={local:{gemini_conversations:[{id:'a',messages:[{role:'user',content:'Persisted body'}]}]},databases:{bytes:{binarySnapshot:true,sha256:'a'.repeat(64),byteLength:3}}};
+assert.equal(bodyFacts(before)[0].texts[0],'Persisted body');
+assert.equal(byteFacts(before).length,1);
+assert.equal(byteFacts({metadata:{sha256:'a'.repeat(64),byteLength:3}}).length,0); // Declared metadata is not physical bytes.
+assertPersistedBaseline(before,{local:empty.local,databases:{backup:before}});
+assert.throws(()=>assertPersistedBaseline(before,empty),/body lost/);
+const corrupt=structuredClone(before);corrupt.databases.bytes.sha256='b'.repeat(64);
+assert.throws(()=>assertPersistedBaseline(before,corrupt),/bytes lost/);
+const shared=structuredClone(before);shared.local.gemini_conversations_u1=[{id:'a'}];
+assert.throws(()=>bodyFacts(shared),/ambiguous account/);
+assert.equal(bodyFacts(empty).length,0); // An export ZIP cannot fabricate disk evidence.
+"""
+        result = subprocess.run(['node', '--input-type=module', '-e', code], cwd=ROOT,
+                                text=True, capture_output=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 if __name__ == '__main__':
     unittest.main()

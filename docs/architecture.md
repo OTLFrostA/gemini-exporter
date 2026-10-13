@@ -41,7 +41,7 @@ existing record → compatibility/record ────────┘
 resource/acquisition hints → preparation → prepared bindings/bytes → backend
 ```
 
-popup、批量导出和 live-save 使用 `formatHtmlDocument()` / `formatMarkdownDocument()`。parser 负责外部输入、资源去重和引用关系；composer 负责逻辑文档组织；renderer 只接收 Document AST、RenderOptions 和 prepared resources，并负责输出格式、物理布局和能力降级。消息数组顺序是唯一权威顺序。旧 Canonical 数据模型和兼容入口已删除。Raw/Standard/OpenAI JSON 保持独立归档序列化，继续使用同步 `formatContent()`。
+popup、批量导出和 live-save 使用 `formatHtmlDocument()` / `formatMarkdownDocument()`。parser 负责外部输入、资源去重和引用关系；composer 负责逻辑文档组织；renderer 只接收 Document AST、RenderOptions 和 prepared resources，并负责输出格式、物理布局和能力降级。消息数组顺序是唯一权威顺序。旧 Canonical 数据模型和兼容入口已删除。Standard JSON 保持独立归档序列化，继续使用同步 `formatContent()`。
 
 ```mermaid
 graph TD
@@ -102,7 +102,7 @@ graph TD
             ENG_Orchestrator["ExportOrchestrator & parseDrift<br/>(批量导出编排器 / AsyncQueue / 协议漂移遥测)"]
             ENG_Worker["BatchWorker<br/>(单会话抓取与任务单元)"]
             ENG_Rate["RateLimiter<br/>(自适应指数退避与熔断器)"]
-            ENG_Formatter["ChatFormatter & htmlTemplate.ts<br/>(Markdown / 1:1 独立 HTML / JSON / OpenAI 转换器)"]
+            ENG_Formatter["ChatFormatter & htmlTemplate.ts<br/>(Markdown / 1:1 独立 HTML / Standard JSON)"]
             ENG_Takeout["TakeoutEngine<br/>(Takeout ZIP 解析 / MediaIndex / ZipBombGuard)"]
             ENG_LiveWriter["liveSaveWriter.ts<br/>(实时 Markdown / JSON 文件流写入器)"]
             ENG_Writers["Writers: zipWriter (JSZip STORE流式防OOM) / fsWriter (FileSystem API)"]
@@ -228,7 +228,7 @@ graph TD
 | `src/core/compatibility/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
 | `src/core/parsers/shared/archive/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
 | `src/core/renderers/html/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Document HTML backend 使用的共享样式、交互脚本和安全输出 helpers。 | `renderHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
-| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownDocument` / `formatHtmlDocument` / `toOpenAIJson` / `formatContent`） | Markdown / HTML 通过 parser → Domain → Document AST → backend 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
+| `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownDocument` / `formatHtmlDocument` / `formatContent`） | Markdown / HTML 通过 parser → Domain → Document AST → backend 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |
 | `src/core/engine/liveSaveWriter.ts` | Core: Engine | `createLiveSaveWriter`, `writeLiveSaveMarkdown` | 专为实时无感保存优化的快速单篇写入器，直写 FileSystem Directory Handle。 | `liveSaveCoordinator`, `liveSaveHandler` | FileSystem API 磁盘文件 | `ENG_LiveWriter` |
 | `src/core/engine/writers/writerInterface.ts` | Core: Engine Writers | `Writer`, `createWriter` | 统一文件输出抽象接口，提供跨 ZIP 内存包与本地文件系统的多态实现。 | `exportOrchestrator`, `batchWorker` | `zipWriter.ts` 或 `fsWriter.ts` | `ENG_Writers` |
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
