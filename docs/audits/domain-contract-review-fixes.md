@@ -19,3 +19,11 @@ Validation:
 - Tier 2: **NOT RUN**. The logged-in debug Chrome endpoint at localhost:9222 is unavailable. No live account test is claimed.
 
 Normal supported import/export behavior is preserved. The intentional behavior change is that unresolved unsupported URI resources report partial import rather than success. Runtime resource acquisition still determines export failures after storage restoration; failures are not persisted on Domain assets.
+
+## Follow-up: protocol-relative images and a single title source definition
+
+Protocol-relative Markdown images (`//cdn.example.com/image.png`) are exempt from ZIP lookup, alongside HTTP(S) and data URIs. The import regression verifies all four references preserve their assets, produce no resource failures and retain `status: ok`; unsupported schemes still produce partial status.
+
+`TITLE_SOURCES` and the separately maintained source union are removed. `TitleSource` is derived from `keyof typeof TITLE_AUTHORITY_RANK`; runtime enumeration uses the same table. The approved small `isTitleSource` predicate narrows legacy input without assertions. Trusted title selection reads table ranks directly; storage does not revalidate sources. The existing rank function retains its unknown-string behavior without its previous type assertion. No fallback, wrapper, persistent state or validation layer was added. Production diff: +17 / -33 lines, net -16.
+
+Validation: 38 targeted tests passed; Oxlint remains 1478 warnings / 0 errors; full `npm test` passed (type-check, zero-any, harness checks, 266 unit suite files, production build and 95/95 Playwright, 0 skipped); supplemental ESLint passed with 0 errors / 0 warnings. Scenario pool 20/20. Tier 2 **NOT RUN**: localhost:9222 is unavailable.

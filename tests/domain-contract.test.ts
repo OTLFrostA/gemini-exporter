@@ -141,6 +141,7 @@ test('title tiers mirror the repo TITLE_TIER_RANK ladder', () => {
     assert.strictEqual(titleAuthorityRank('sniff'), 20);
     assert.strictEqual(titleAuthorityRank('legacy'), 10);
     assert.strictEqual(titleAuthorityRank('default'), 0);
+    for (const source of ['unknown', '__proto__', 'constructor', 'toString']) assert.strictEqual(titleAuthorityRank(source), 0);
     assert.ok(TITLE_AUTHORITY_RANK.user > TITLE_AUTHORITY_RANK.rpc, 'user title outranks auto-derived');
     assert.strictEqual(resolveTitle([
         { value: 'derived', source: 'derived' },

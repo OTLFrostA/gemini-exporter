@@ -1,31 +1,10 @@
-export type TitleSource =
-    | 'rpc'
-    | 'api-detail'
-    | 'dom'
-    | 'takeout'
-    | 'openai'
-    | 'sniff'
-    | 'legacy'
-    | 'provider'
-    | 'user'
-    | 'derived'
-    | 'default';
-
-/** Canonical sources also normalize raw legacy strings without type assertions. */
-export const TITLE_SOURCES: ReadonlyMap<string, TitleSource> = new Map([
-    ['rpc', 'rpc'], ['api-detail', 'api-detail'], ['dom', 'dom'],
-    ['takeout', 'takeout'], ['openai', 'openai'], ['sniff', 'sniff'],
-    ['legacy', 'legacy'], ['provider', 'provider'], ['user', 'user'],
-    ['derived', 'derived'], ['default', 'default'],
-]);
-
 export interface TitleCandidate {
     value: string;
     source: TitleSource;
     observedAt?: string;
 }
 
-export const TITLE_AUTHORITY_RANK: Record<TitleSource, number> = {
+export const TITLE_AUTHORITY_RANK = {
     user: 60,
     rpc: 50,
     'api-detail': 50,
@@ -39,10 +18,15 @@ export const TITLE_AUTHORITY_RANK: Record<TitleSource, number> = {
     default: 0,
 };
 
-export function titleAuthorityRank(source: TitleSource | string | null | undefined): number {
-    if (!source) return TITLE_AUTHORITY_RANK.default;
-    const rank = (TITLE_AUTHORITY_RANK as Record<string, number>)[source];
-    return typeof rank === 'number' ? rank : TITLE_AUTHORITY_RANK.default;
+export type TitleSource = keyof typeof TITLE_AUTHORITY_RANK;
+
+/** Narrow untrusted legacy source strings at the parser boundary. */
+export function isTitleSource(source: string): source is TitleSource {
+    return Object.hasOwn(TITLE_AUTHORITY_RANK, source);
+}
+
+export function titleAuthorityRank(source: string | null | undefined): number {
+    return source && isTitleSource(source) ? TITLE_AUTHORITY_RANK[source] : TITLE_AUTHORITY_RANK.default;
 }
 
 function pickWinner(candidates: TitleCandidate[]): TitleCandidate | undefined {
@@ -53,7 +37,7 @@ function pickWinner(candidates: TitleCandidate[]): TitleCandidate | undefined {
             winner = c;
             continue;
         }
-        const rankDiff = titleAuthorityRank(c.source) - titleAuthorityRank(winner.source);
+        const rankDiff = TITLE_AUTHORITY_RANK[c.source] - TITLE_AUTHORITY_RANK[winner.source];
         if (rankDiff > 0) {
             winner = c;
         } else if (rankDiff === 0) {
