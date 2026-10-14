@@ -45,6 +45,50 @@ The historical evidence directory below retains its original name. Historical li
 
 ## Current live attempts
 
+### Isolated final-build rerun
+
+A fresh full 24-feature run after fixing extension-page discovery completed with
+**14 PASS / 3 FAIL / 7 dependent SKIP / 0 WARN**, exit 1. The runner uninstalled the
+main-checkout extension and installed this worktree's build. The generation-time
+snapshot contained only the expected extension origin. Options and Popup discovery
+now require the selected extension's exact origin and page path; foreign pages,
+URL substrings and unknown extension IDs cannot provide fallback pages. Thirteen
+environment unit checks and the full `npm test` gate (268 suites, 98 Playwright
+checks) passed with this harness change.
+
+- Natural passive Coverage passed. The pre-chat scan exhausted nine pages and 361
+  conversations. The current worktree already supports the expanded ten-element
+  recent-list request; no additional protocol relaxation was made in this rerun.
+- Cloud deletion with local archive retention, Takeout import, exhaustive/incremental
+  sync and 4/4 authoritative title upgrades passed. The earlier foreign-extension
+  storage-contract error did not recur.
+- Chat generation failed on conversation one's second turn after 300 seconds. The
+  prompt asks for equations and an explanation of the existing **illustration**;
+  `GeminiChatSession.send_turn` classifies that word as an image request. The captured
+  state shows 7,816 reply characters, no Stop or streaming DOM, a ready editor, zero
+  new image elements and no completion event. With `require_image=True`, the text
+  stability fallback is unavailable. This explains the observed timeout path; why
+  the network completion event was absent remains unverified.
+- Fast-skip ran before the combined export and failed its setup requirement with
+  zero exported records. Its empty prerequisite list still permits this ordering.
+- PDF ZIP did not appear within 90 seconds. The final Options log contains HTML
+  and Markdown export starts but no PDF export start or compiler error. The helper
+  silently does nothing when the export button is disabled; a readiness/trigger race
+  is a candidate requiring separate verification, not an established compiler fault.
+- HTML ZIP (five files) and Markdown ZIP (six conversations) were physically saved
+  and extracted. Their content/specification checks cover existing/Takeout targets;
+  both reported **zero new scenario turns** because generation failed before a
+  complete record was registered. These passes do not establish full multimodal or
+  live-content acceptance. Seven dependent stages, including continued-chat ordering
+  and live saving, were skipped by the DAG. Full Tier 2 acceptance remains blocked.
+
+The isolated run's logs, snapshots and physical archives are in
+`/Users/cui/Documents/GeminiExporterTests/conversation-time-alignment-2026-10-14/tier2-isolated-rerun/`.
+The consumed mechanism and rollback-union-find scenarios were replaced with reservoir
+mass conservation and barycentric interpolation scenarios; the pool validates at 20.
+
+### Earlier attempts
+
 The completed timestamp-alignment attempt **before removal of Detail `updatedAt`**
 finished **18 PASS / 3 FAIL / 3 dependent SKIP / 0 WARN**. Markdown, HTML and PDF physical
 content assertions passed in this run. The remaining failures were the updated badge,

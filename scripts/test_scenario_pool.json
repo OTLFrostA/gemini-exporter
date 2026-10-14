@@ -1,25 +1,5 @@
 [
   {
-    "id": "graph_algorithms_offline_dynamic_connectivity",
-    "domain": "graph_algorithms_dynamic_connectivity",
-    "title": "Offline dynamic connectivity: rollback union-find",
-    "description": "Time-indexed undirected graphs, interval trees and exact rollback-state verification.",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define offline dynamic connectivity for an undirected multigraph with add, remove and query events. Formalize edge-active intervals in LaTeX, including duplicate edges, self-loops and disconnected vertices.",
-      "Derive a segment-tree-over-time algorithm using rollback union-find. Explain why path compression changes rollback invariants and justify the running time with explicit assumptions.",
-      "Write complete runnable standard-library Python implementing the algorithm. Add a slow BFS oracle and fixed-seed randomized checks for duplicate insertions, removals, self-loops and queries before any edges exist.",
-      "Use a Markdown table to compare BFS per query, union-find for insertions only, rollback union-find offline and fully dynamic online methods across semantics, time costs and implementation constraints.",
-      "Write a long algorithm audit with complexity equations, state tables, pseudocode and minimized counterexample traces. Show how to validate rollback snapshots and distinguish testing evidence from a correctness proof."
-    ]
-  },
-  {
     "id": "optimization_min_cost_flow_dual_potentials",
     "domain": "optimization_network_flow_dual_potentials",
     "title": "Minimum cost flow: residual networks and dual potentials",
@@ -192,28 +172,6 @@
       "Write complete Python code using exact rational or integer arithmetic for the determinant and a brute-force oracle on small graphs. Include disconnected, parallel-edge and single-vertex cases.",
       "Compare cofactor evaluation, deletion-contraction and enumeration in a Markdown table. Derive how changing one edge weight affects the weighted sum and state assumptions for effective resistance.",
       "Write a long verification report with fixed graph fixtures, random small-graph cross-checks, complexity analysis, numerical failure modes and a reproducible exact-arithmetic audit checklist."
-    ]
-  },
-  {
-    "id": "origami_planar_linkage_rigidity",
-    "domain": "mechanisms_planar_linkage_rigidity",
-    "title": "Planar mechanisms: four-bar geometry and toggle singularities",
-    "description": "Authored mechanism illustration, geometric closure, branch-aware numerical code and singularity audits.",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an actual image using Imagen: a clean educational illustration of a planar four-bar linkage made of four colored rigid bars joined by circular pins on white paper. Label ground pivots A and D, moving pivots B and C, and distinguish the crossed and open configurations in separate panels. Include no decorative machinery. Then define all bar lengths and joint angles in LaTeX using a fictional numerical example.",
-      "Derive the two scalar loop-closure equations and a circle-intersection construction for point C. State feasibility inequalities and the two assembly branches. Explain how your illustration relates to the chosen coordinate convention without assuming the drawing is to scale.",
-      "Write complete runnable Python using only the standard library to enumerate both branches over a sweep of input angles. Handle no-intersection, tangent and coincident-circle cases explicitly, retain branch continuity, and assert rigid-bar length residuals for fixed test inputs.",
-      "Derive the Jacobian mapping input angular velocity to output angular velocity. Identify toggle configurations and explain why numerical derivatives become unreliable near a singularity. Use a Markdown table to compare regular, tangent, infeasible and degenerate cases with concrete checks and units.",
-      "Write a detailed reproducibility audit combining the geometric proof, LaTeX equations, numerical residual tables, branch-continuity tests and an annotated interpretation of the generated image. Clearly separate exact geometric conclusions from visual estimates and explain limitations of the rigid planar model."
     ]
   },
   {
@@ -394,6 +352,48 @@
       "Write complete runnable standard-library Python implementing the Hungarian method with an explicit deterministic tie policy. Compare with exhaustive permutations for small cases and assert negative costs, repeated optima, rectangular input policy and invalid inputs.",
       "Use a Markdown table to report the selected assignment, primal cost, dual objective and reduced-cost residuals. Compare optimality certificates with greedy heuristics using a concrete counterexample.",
       "Write a long algorithm verification report covering time complexity, numerical considerations, degeneracies, forbidden assignments and how to distinguish implementation tests from a proof of optimality."
+    ]
+  },
+  {
+    "id": "hydrology_reservoir_finite_volume_conservation",
+    "title": "Reservoir networks: water balance and conservative timesteps",
+    "domain": "hydrology_conservative_simulation",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an actual original image using Imagen: an educational cutaway of two fictional connected reservoirs with rainfall, evaporation, an inter-reservoir channel and a controlled outlet. Use arrows and a compact legend; make clear that this is a conceptual water-balance diagram, not a real engineering design.",
+      "Define a two-reservoir water-balance model with explicit units and hypothetical parameters. Derive a finite-volume update in LaTeX, distinguish external fluxes from internal transfers, and prove the discrete total-volume conservation identity.",
+      "Write complete runnable standard-library Python to simulate the model with piecewise constant inflows. Enforce nonnegative storage and capacity limits using explicitly accounted spill fluxes. Include assertions for dry tanks, zero rainfall, full capacity, unequal timesteps and whole-network mass residuals.",
+      "Use a Markdown table to compare coarse and fine timesteps, reporting initial storage, external inflow, evaporation, controlled outflow, spill, final storage and the conservation residual. Explain which errors reduce with timestep refinement and which indicate broken bookkeeping.",
+      "Write a detailed reproducibility report linking the illustration to the equations and executable model. Discuss positivity, flux limiting, discontinuous forcing, unit conversion, uncertainty and the limitations of this fictional educational simulation."
+    ]
+  },
+  {
+    "id": "numerical_analysis_barycentric_interpolation",
+    "title": "Polynomial interpolation: barycentric weights and conditioning",
+    "domain": "numerical_analysis_interpolation",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define polynomial interpolation at distinct real nodes and derive the Lagrange basis in LaTeX. Use a small rational-node example with an explicitly stated polynomial so exact answers can be checked.",
+      "Derive the first and second barycentric interpolation formulas and explain the cancellation leading to the second formula. State the assumptions and the special behavior exactly at an interpolation node.",
+      "Write complete runnable standard-library Python using fractions.Fraction for exact weights and interpolation. Assert exact recovery of a known polynomial at both nodes and new rational points, reject repeated nodes and mismatched lengths, and define the one-node case.",
+      "Implement floating-point barycentric evaluation with explicit handling of exact node hits. Compare its results with the exact rational reference and explain why arbitrary near-node tolerances may silently change the interpolant.",
+      "Use a Markdown table to compare equispaced nodes and Chebyshev nodes for a clearly defined Runge-function example. Include node count, maximum sampled error and the exact evaluation grid; distinguish sampled errors from proven suprema.",
+      "Explain the Lebesgue function and derive an interpolation-error bound. Distinguish approximation error, conditioning with respect to data, and numerical stability of an evaluation algorithm.",
+      "Add deterministic verification cases for constant and linear data, input permutation, large common weight scaling and query values at or near nodes. Discuss overflow, underflow and why an implementation should avoid explicitly expanding polynomial coefficients.",
+      "Write a long synthesis report connecting the exact derivation, executable checks and floating-point experiments. Include a bilingual Chinese-English terminology table and explain when piecewise interpolation is preferable to one high-degree polynomial."
     ]
   }
 ]

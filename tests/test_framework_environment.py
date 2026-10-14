@@ -117,6 +117,45 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertEqual(self.env.ensure_tab("options")["webSocketDebuggerUrl"], "ws://mock/options")
         self.assertEqual(self.env.ensure_tab("workbench")["webSocketDebuggerUrl"], "ws://mock/options")
 
+    @patch("scripts.framework.environment.get_tabs")
+    def test_extension_pages_never_fall_back_to_foreign_tabs(self, mock_get_tabs):
+        self.env.ext_id = "current_id"
+        for kind in ("options", "popup"):
+            with self.subTest(kind=kind):
+                path = f"/src/ui/{kind}/{kind}.html"
+                mock_get_tabs.return_value = [
+                    {"url": f"chrome-extension://old_id{path}"},
+                    {"url": f"https://example.com/?next=chrome-extension://current_id{path}"},
+                    {"url": f"chrome-extension://current_id{path}.old"},
+                    {"type": "service_worker", "url": f"chrome-extension://current_id{path}"},
+                ]
+                get_tab = getattr(self.env, f"get_{kind}_tab")
+                self.assertIsNone(get_tab())
+                current = {"type": "page", "url": f"chrome-extension://current_id{path}?test=1#ready"}
+                mock_get_tabs.return_value.append(current)
+                self.assertIs(get_tab(), current)
+
+    @patch("scripts.framework.environment.urllib.request.urlopen")
+    @patch("scripts.framework.environment.get_extension_id", return_value=None)
+    def test_unknown_extension_does_not_open_relative_pages(self, mock_id, mock_open):
+        self.assertIsNone(self.env.ensure_options_tab())
+        self.assertIsNone(self.env.ensure_popup_tab())
+        mock_open.assert_not_called()
+
+    @patch("scripts.framework.environment.time.sleep")
+    @patch("scripts.framework.environment.urllib.request.urlopen")
+    @patch("scripts.framework.environment.get_tabs")
+    def test_foreign_options_tab_causes_current_extension_page_creation(self, mock_tabs, mock_open, mock_sleep):
+        self.env.ext_id = "current_id"
+        mock_tabs.return_value = [{"url": "chrome-extension://old_id/src/ui/options/options.html"}]
+        created = {"id": "new", "url": "chrome-extension://current_id/src/ui/options/options.html"}
+        import json
+        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(created).encode()
+        self.assertEqual(self.env.ensure_options_tab(), created)
+        request = mock_open.call_args.args[0]
+        self.assertEqual(request.full_url, "http://127.0.0.1:9222/json/new?" + created["url"])
+        self.assertEqual(request.method, "PUT")
+
     def test_setup_and_clear_viewport(self):
         mock_cdp = MockCDP()
         self.env.setup_viewport(mock_cdp, (1920, 1080))
