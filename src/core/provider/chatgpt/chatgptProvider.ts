@@ -23,8 +23,20 @@ import {
     chatGPTNodeRole,
     chatGPTNodeText,
     extractChatGPTModelSlug,
+    imagePointersOfNode,
     processChatGPTMapping,
 } from './conversationTree.js';
+import type { ChatGPTConversationNode } from './chatgptTypes.js';
+import {
+    arrayBufferToBase64,
+    assetIdForPointer,
+    buildFileDownloadPath,
+    CHATGPT_MAX_IMAGE_BYTES,
+    fileIdFromPointer,
+    parseFileDownloadPayload,
+} from './imageAssets.js';
+import type { DomainAsset } from '../../domain/conversationDetail.js';
+import type { BlockNode } from '../../domain/content/blocks.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
 
 export interface ChatGPTFetch {
@@ -145,24 +157,20 @@ export class ChatGPTProvider implements AIProvider {
         const conversation: ChatGPTApiConversationWithId = { ...raw, id: conversationId };
         const nodes = processChatGPTMapping(conversation);
         const modelSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
+        const assets: DomainAsset[] = [];
+        const messages = await Promise.all(
+            nodes.map((n) => this.toDomainMessage(n, modelSlug, assets)),
+        );
         const domain = validateParserDomain({
             providerId: 'chatgpt',
             completeness: 'complete',
-            assets: [],
+            assets,
             id: conversation.id,
             title: conversation.title || 'ChatGPT Conversation',
             createdAt: toEpochMs(conversation.create_time),
             updatedAt: toEpochMs(conversation.update_time),
             url: `https://chatgpt.com/c/${conversation.id}`,
-            messages: nodes.map((n) => ({
-                id: n.id,
-                role: chatGPTNodeRole(n),
-                model: modelSlug || undefined,
-                content: [
-                    { type: 'paragraph', children: [{ type: 'text', text: chatGPTNodeText(n) }] },
-                ],
-                timestamp: toEpochMs(n.message?.create_time),
-            })),
+            messages,
         });
         return {
             conversation: domain,
@@ -170,5 +178,90 @@ export class ChatGPTProvider implements AIProvider {
             resourceHints: {},
             acquisitionHints: {},
         };
+    }
+
+    private async toDomainMessage(
+        node: ChatGPTConversationNode,
+        modelSlug: string,
+        assets: DomainAsset[],
+    ): Promise<{
+        id?: string;
+        role: 'user' | 'assistant';
+        model?: string;
+        content: BlockNode[];
+        timestamp?: number;
+        attachmentIds?: string[];
+    }> {
+        const text = chatGPTNodeText(node);
+        const content: BlockNode[] = text
+            ? [{ type: 'paragraph', children: [{ type: 'text', text }] }]
+            : [];
+        const pointers = imagePointersOfNode(node);
+        const attachmentIds: string[] = [];
+        for (const pointer of pointers) {
+            const resolved = await this.fetchImageAsset(pointer);
+            if (!resolved) continue;
+            assets.push({
+                id: resolved.assetId,
+                kind: 'image',
+                name: resolved.fileName,
+                mediaType: resolved.mediaType,
+                byteLength: resolved.byteLength,
+                sourceUri: resolved.sourceUri,
+                dataBase64: resolved.dataBase64,
+            });
+            attachmentIds.push(resolved.assetId);
+            content.push({ type: 'image', assetId: resolved.assetId });
+        }
+        return {
+            id: node.id,
+            role: chatGPTNodeRole(node),
+            model: modelSlug || undefined,
+            content,
+            timestamp: toEpochMs(node.message?.create_time),
+            attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+        };
+    }
+
+    /**
+     * Resolve one image pointer into bytes. Returns null (keeping the text)
+     * when the pointer is foreign, the exchange fails, or the payload is
+     * over the in-memory cap — never throws the whole export.
+     */
+    async fetchImageAsset(
+        pointer: string,
+    ): Promise<{
+        assetId: string;
+        sourceUri: string;
+        dataBase64: string;
+        mediaType?: string;
+        fileName?: string;
+        byteLength?: number;
+    } | null> {
+        const fileId = fileIdFromPointer(pointer);
+        if (!fileId) return null;
+        try {
+            const exchange = await this.authedGet<unknown>(buildFileDownloadPath(fileId));
+            const parsed = parseFileDownloadPayload(exchange);
+            if (!parsed) return null;
+            const bytesRes = await this.fetchFn(parsed.downloadUrl);
+            if (!bytesRes.ok) return null;
+            const buf = await bytesRes.arrayBuffer();
+            if (buf.byteLength === 0 || buf.byteLength > CHATGPT_MAX_IMAGE_BYTES) return null;
+            const headerType = bytesRes.headers?.get('content-type');
+            return {
+                assetId: assetIdForPointer(pointer),
+                sourceUri: pointer,
+                dataBase64: arrayBufferToBase64(buf),
+                mediaType:
+                    (typeof headerType === 'string' && headerType.split(';')[0]?.trim()) ||
+                    parsed.mimeType ||
+                    undefined,
+                fileName: parsed.fileName,
+                byteLength: buf.byteLength,
+            };
+        } catch {
+            return null;
+        }
     }
 }

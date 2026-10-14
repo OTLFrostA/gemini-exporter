@@ -7,6 +7,11 @@ import {
     processChatGPTMapping,
     shouldSkipChatGPTMessage,
 } from '../src/core/provider/chatgpt/conversationTree.js';
+import {
+    arrayBufferToBase64,
+    fileIdFromPointer,
+    parseFileDownloadPayload,
+} from '../src/core/provider/chatgpt/imageAssets.js';
 import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -139,4 +144,84 @@ test('tool image nodes are kept and their sediment pointers collected', () => {
     assert.equal(shouldSkipChatGPTMessage(toolImage.message), false);
     assert.equal(shouldSkipChatGPTMessage(toolChatter.message), true);
     assert.deepEqual(collectChatGPTImagePointers([toolImage, toolChatter]), ['sediment://file_abc']);
+});
+
+test('files/download helpers narrow payloads and encode bytes', () => {
+    assert.equal(fileIdFromPointer('sediment://file_abc'), 'file_abc');
+    assert.equal(fileIdFromPointer('https://x/y.png'), null);
+    assert.deepEqual(
+        parseFileDownloadPayload({ status: 'success', download_url: 'https://x/dl', file_name: 'a.png', file_size_bytes: 10 }),
+        { downloadUrl: 'https://x/dl', fileName: 'a.png', byteLength: 10 },
+    );
+    assert.equal(parseFileDownloadPayload({ status: 'error' }), null);
+    assert.equal(parseFileDownloadPayload(null), null);
+    assert.equal(arrayBufferToBase64(new Uint8Array([104, 105]).buffer), 'aGk=');
+});
+
+test('fetchConversationDetail downloads image pointers into Domain assets', async () => {
+    const pngBytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const mapping: Record<string, ChatGPTConversationNode> = {
+        root: { id: 'root', children: ['u1'] },
+        u1: {
+            id: 'u1', parent: 'root', children: ['t1'],
+            message: {
+                author: { role: 'user', metadata: {} },
+                content: { content_type: 'text', parts: ['draw a cat'] },
+                id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        t1: {
+            id: 't1', parent: 'u1', children: ['a1'],
+            message: {
+                author: { role: 'tool', metadata: {} },
+                content: {
+                    content_type: 'multimodal_text',
+                    parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_cat' }],
+                },
+                id: 'msg-t1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        a1: {
+            id: 'a1', parent: 't1', children: [],
+            message: {
+                author: { role: 'assistant', metadata: {} },
+                content: { content_type: 'text', parts: ['here is your cat'] },
+                id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+    };
+    const provider = new ChatGPTProvider({
+        fetchFn: (url) => {
+            const u = String(url);
+            if (u.endsWith('/api/auth/session')) {
+                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
+            }
+            if (u.includes('/files/download/')) {
+                return Promise.resolve(new Response(JSON.stringify({
+                    status: 'success', download_url: 'https://dl/img.png', file_name: 'cat.png',
+                }), { status: 200 }));
+            }
+            if (u === 'https://dl/img.png') {
+                return Promise.resolve(new Response(pngBytes, {
+                    status: 200, headers: { 'content-type': 'image/png' },
+                }));
+            }
+            if (u.includes('/conversation/')) {
+                return Promise.resolve(new Response(JSON.stringify({
+                    title: 'img chat', create_time: 1700000000, update_time: 1700000060,
+                    current_node: 'a1', mapping, is_archived: false,
+                }), { status: 200 }));
+            }
+            return Promise.resolve(new Response('nope', { status: 404 }));
+        },
+    });
+    const detail = await provider.fetchConversationDetail('conv-img');
+    assert.equal(detail.conversation.assets.length, 1);
+    assert.equal(detail.conversation.assets[0]?.kind, 'image');
+    assert.equal(detail.conversation.assets[0]?.sourceUri, 'sediment://file_cat');
+    assert.equal(detail.conversation.assets[0]?.mediaType, 'image/png');
+    assert.ok((detail.conversation.assets[0]?.dataBase64 ?? '').length > 0);
+    const toolMsg = detail.conversation.messages.find((m) => m.id === 't1');
+    assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.assets[0]?.id]);
+    assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
 });

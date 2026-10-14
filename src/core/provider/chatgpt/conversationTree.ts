@@ -193,23 +193,26 @@ export function chatGPTNodeRole(node: ChatGPTConversationNode): 'user' | 'assist
 export function collectChatGPTImagePointers(
     nodes: ChatGPTConversationNode[],
 ): string[] {
+    return nodes.flatMap((node) => imagePointersOfNode(node));
+}
+
+/** Image sources owned by a single node, in source order. */
+export function imagePointersOfNode(node: ChatGPTConversationNode): string[] {
     const out: string[] = [];
-    for (const node of nodes) {
-        const content = node.message?.content;
-        if (!content) continue;
-        if (content.content_type === 'multimodal_text' && Array.isArray(content.parts)) {
-            for (const p of content.parts) {
-                if (typeof p !== 'string' && p.content_type === 'image_asset_pointer' && p.asset_pointer) {
-                    out.push(p.asset_pointer);
-                }
+    const content = node.message?.content;
+    if (!content) return out;
+    if (content.content_type === 'multimodal_text' && Array.isArray(content.parts)) {
+        for (const p of content.parts) {
+            if (typeof p !== 'string' && p.content_type === 'image_asset_pointer' && p.asset_pointer) {
+                out.push(p.asset_pointer);
             }
         }
-        if (content.content_type === 'execution_output') {
-            const messages = node.message?.metadata?.aggregate_result?.messages;
-            if (Array.isArray(messages)) {
-                for (const m of messages) {
-                    if (m.message_type === 'image' && m.image_url) out.push(m.image_url);
-                }
+    }
+    if (content.content_type === 'execution_output') {
+        const messages = node.message?.metadata?.aggregate_result?.messages;
+        if (Array.isArray(messages)) {
+            for (const m of messages) {
+                if (m.message_type === 'image' && m.image_url) out.push(m.image_url);
             }
         }
     }
