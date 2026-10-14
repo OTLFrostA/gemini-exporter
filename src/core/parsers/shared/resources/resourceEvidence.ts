@@ -1,4 +1,4 @@
-import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
+import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
 
 /** Clean acquisition record before constructing the final Domain resource. */
 export interface ResourceEvidence {
@@ -21,14 +21,14 @@ export interface ResourceEvidence {
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
-    generation?: GeneratedMediaIdentity;
+    generation?: DomainGeneratedMediaIdentity;
     isImage?: boolean;
     blobBase64?: string;
     dataBase64?: string;
     failureReason?: string;
     /** Document metadata belongs to its resource record. */
     id?: string;
-    createdAt?: number | null;
+    createdAt?: number;
     chipUrl?: string;
     sections?: string[];
     links?: Array<{ title: string; url: string }>;

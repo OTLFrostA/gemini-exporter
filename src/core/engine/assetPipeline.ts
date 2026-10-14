@@ -1,6 +1,6 @@
 import { getDomainResource, cacheDomainResource, storageIdentity } from '../storage/domain/domainStore.js';
 import type { IExportWriter } from "./writers/writerInterface.js";
-import type { GeneratedMediaIdentity } from "../../types/conversation.js";
+import type { DomainGeneratedMediaIdentity } from "../domain/conversationDetail.js";
 import type { TakeoutEngineModule, TakeoutResourceLookup } from "./takeoutEngine.js";
 import type { DownloadAssetDirectMessage } from "../../types/messages.js";
 
@@ -77,7 +77,7 @@ export interface AssetPipelineItem {
     mimeType?: string;
     mime?: string;
     candidates?: string[];
-    generation?: GeneratedMediaIdentity;
+    generation?: Partial<DomainGeneratedMediaIdentity>;
     sourceEvidence?: unknown;
 }
 

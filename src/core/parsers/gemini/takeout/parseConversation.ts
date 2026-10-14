@@ -72,7 +72,7 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const groups: Array<{ input: { attachments: ResourceEvidence[] } }> = [];
     const boundFiles = new Map<string, { path: string; entry: TakeoutSourceFile }>();
     const unowned: ResourceEvidence[] = [];
-    const attachmentOf = (ref: { uri: string }, generation?: { chatId: string; time: number | null; prompt: string; generationOrdinal: number; imageCount: number }): ResourceEvidence => {
+    const attachmentOf = (ref: { uri: string }, generation?: { chatId: string; time?: number; prompt: string; generationOrdinal: number; imageCount: number }): ResourceEvidence => {
         const resolution = resolveResource(ref.uri);
         const match = resolution.status === 'resolved' ? resolution.resource : undefined;
         if (!match) diagnostics.push({ severity: 'warning', code: resolution.status === 'ambiguous' ? 'TAKEOUT_AMBIGUOUS_RESOURCE' : 'TAKEOUT_MISSING_RESOURCE', message: `Archive resource could not be resolved: ${ref.uri}` });
@@ -97,7 +97,7 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     let generationOrdinal = 0;
     for (const activity of ordered) {
         if (activity.conversationIds.length > 1) diagnostics.push({ severity: 'warning', code: 'TAKEOUT_AMBIGUOUS_CONVERSATION', message: 'Activity links multiple conversations; its ownership is ambiguous', path: `blocks[${activity.blockIndex}]` });
-        const generation = activity.generatedImageCount !== undefined ? { chatId: id, time: activity.timestamp,
+        const generation = activity.generatedImageCount !== undefined ? { chatId: id, ...(activity.timestamp !== null ? { time: activity.timestamp } : {}),
             prompt: activity.hasExplicitPrompt ? activity.promptText : '', generationOrdinal: generationOrdinal++, imageCount: activity.generatedImageCount } : undefined;
         // A preview outside the authored cell can repeat an explicitly owned URI.
         // Keep that source resource's known relation instead of reporting a second,

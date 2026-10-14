@@ -1,4 +1,4 @@
-import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
+import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
 
 /** Parser-owned transport evidence. Never serialized as Domain or Document AST. */
 export interface ResourceAcquisitionHint {
@@ -17,7 +17,7 @@ export interface ResourceAcquisitionHint {
     candidates?: string[];
     providerRequestId?: string;
     imageOrdinal?: number;
-    generation?: GeneratedMediaIdentity;
+    generation?: DomainGeneratedMediaIdentity;
 }
 
 /** Domain asset identity, rather than a URL or export destination, owns acquisition. */

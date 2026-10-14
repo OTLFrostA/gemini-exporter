@@ -1,7 +1,7 @@
 import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
 import type { GeminiStructuredDocument } from './structuredContent.js';
-import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
+import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
 
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
 export interface GeminiAttachmentEvidence {
@@ -22,7 +22,7 @@ export interface GeminiAttachmentEvidence {
     providerRequestId?: string;
     imageOrdinal?: number;
     isGenerated?: boolean;
-    generation?: GeneratedMediaIdentity;
+    generation?: DomainGeneratedMediaIdentity;
 }
 
 export interface GeminiDocumentEvidence {
@@ -51,7 +51,7 @@ export interface GeminiMessageEvidence {
     turnId?: string;
     thoughts?: string;
     citations?: Citation[];
-    images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: GeneratedMediaIdentity }>;
+    images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: DomainGeneratedMediaIdentity }>;
     documents?: GeminiDocumentEvidence[];
     attachments?: GeminiAttachmentEvidence[];
     attachmentCount: number;

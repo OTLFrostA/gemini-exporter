@@ -1,4 +1,4 @@
-import { normalizeConversationTimes, normalizeTimestamp } from '../../domain/time.js';
+import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
@@ -8,7 +8,6 @@ import type { BlockNode } from '../../domain/content/blocks.js';
 import { parseImportedBody } from '../../parsers/shared/importedContentAdapter.js';
 import { parseGeminiBody, parseLegacyReasoning } from '../../parsers/gemini/shared/contentAdapter.js';
 import { supplementLegacyGeneratedMedia } from '../legacyGeneratedMediaReconciliation.js';
-import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
 import type { ConversationParseContext } from '../../parsers/contracts.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
@@ -18,22 +17,12 @@ import { isObjectRecord } from '../../utils/messageResponses.js';
 import type {
     DomainCitation,
     DomainConversationDetail,
-    DomainGeneratedMediaIdentity,
     DomainMessage,
     DomainMessageProvenance,
 } from '../../domain/conversationDetail.js';
 
-function copyGeneratedMedia(value: GeneratedMediaIdentity): DomainGeneratedMediaIdentity {
-    const time = normalizeTimestamp(value.time);
-    const { time: _t, ...rest } = value;
-    return { ...rest, ...(time !== undefined ? { time } : {}) };
-}
-
 function copyAttachment(value: ConversationRecordAttachment): ConversationRecordAttachment {
-    return {
-        ...value,
-        ...(value.generation ? { generation: copyGeneratedMedia(value.generation) } : {}),
-    };
+    return { ...value, ...(value.generation ? { generation: { ...value.generation } } : {}) };
 }
 
 function copyTimestamp(value: unknown): { timestamp?: number } {
@@ -112,8 +101,8 @@ function flattenLegacyTurns(conversation: ConversationRecordInput): Conversation
                 content: typeof turn.modelContent === 'string' && turn.modelContent ? turn.modelContent : '',
                 ...copyTimestamp(turn.timestamp),
                 ...(turn.thoughts !== undefined ? { thoughts: Array.isArray(turn.thoughts) ? [...turn.thoughts] : turn.thoughts } : {}),
-                ...(turn.attachments ? { attachments: turn.attachments.map(copyAttachment) } : {}),
-                ...(turn.images ? { images: turn.images.map(copyAttachment) } : {}),
+                ...(turn.attachments ? { attachments: turn.attachments } : {}),
+                ...(turn.images ? { images: turn.images } : {}),
                 ...(turn.sources ? { sources: [...turn.sources] } : {}),
                 ...(turn.structuredContent !== undefined ? { structuredContent: turn.structuredContent } : {}),
             });

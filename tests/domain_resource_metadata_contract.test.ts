@@ -12,7 +12,7 @@ import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMar
 import { preparePdfItem, pdfDomainSelection } from '../src/core/export/pdf/prepareItem.js';
 import type { DomainAsset, DomainConversationDetail, DomainMessage } from '../src/core/domain/conversationDetail.js';
 import type { ResourceEvidence } from '../src/core/parsers/shared/resources/resourceEvidence.js';
-import type { GeneratedMediaIdentity } from '../src/types/conversation.js';
+import type { LegacyAttachmentInput } from '../src/core/parsers/shared/resources/resolveResources.js';
 
 function baseConversation(assets: DomainAsset[] = [], messages: DomainMessage[] = []): DomainConversationDetail {
     return {
@@ -99,7 +99,7 @@ test('2. 时间缺失: document.createdAt and generation.time are omitted when u
 });
 
 test('3. null 输入: Parser boundary normalizes null to omitted, and Domain strictly rejects raw null', () => {
-    const evidenceWithNull: ResourceEvidence = {
+    const evidenceWithNull: LegacyAttachmentInput = {
         type: 'image',
         id: 'doc-null',
         name: 'null-time.png',
@@ -157,12 +157,12 @@ test('4. 字符串与无效时间输入: normalizer safely maps ISO and numeric 
     }
 
     // String input on ResourceEvidence.createdAt is normalized to Unix ms or omitted
-    const evidenceWithString: ResourceEvidence = {
+    const evidenceWithString: LegacyAttachmentInput = {
         type: 'file',
         id: 'file-str',
         name: 'data.csv',
         url: 'https://example.test/data.csv',
-        createdAt: '2026-10-06T12:00:00Z' as unknown as number,
+        createdAt: '2026-10-06T12:00:00Z',
     };
     const closed = closeDomainResources('gemini', [], [{
         input: { attachments: [evidenceWithString] },
@@ -183,7 +183,7 @@ test('4. 字符串与无效时间输入: normalizer safely maps ISO and numeric 
 
 test('5. RPC 与 Takeout 资源转换: evidence to Domain normalizes timestamps without changing properties', () => {
     // RPC-like evidence with legacy nulls
-    const rpcAttachment: ResourceEvidence = {
+    const rpcAttachment: LegacyAttachmentInput = {
         type: 'image',
         name: 'rpc-image.png',
         url: 'https://example.test/rpc-image.png',
@@ -273,7 +273,7 @@ test('6. 生成图片身份关联与去重不变: sameGenerationEvent and findRe
     const timeB = 1700000000999; // same second (1700000000)
     const timeDiff = 1700000005000; // different second (1700000005)
 
-    const genBase: GeneratedMediaIdentity = {
+    const genBase: NonNullable<ResourceEvidence['generation']> = {
         chatId: 'chat-1',
         prompt: 'a tranquil lake',
         generationOrdinal: 1,
@@ -291,9 +291,9 @@ test('6. 生成图片身份关联与去重不变: sameGenerationEvent and findRe
         false
     );
 
-    // eventSecond(undefined) and eventSecond(null) both evaluate to null
+    // eventSecond(undefined) and eventSecond(null as never) both evaluate to null
     assert.equal(eventSecond(undefined), null);
-    assert.equal(eventSecond(null), null);
+    assert.equal(eventSecond(null as never), null);
 
     // When time is missing/omitted in both, prompt + generationOrdinal alone without time cannot match cross-second
     assert.equal(
@@ -301,7 +301,7 @@ test('6. 生成图片身份关联与去重不变: sameGenerationEvent and findRe
         false
     );
     assert.equal(
-        sameGenerationEvent({ ...genBase, time: null }, { ...genBase, time: null }),
+        sameGenerationEvent({ ...genBase, time: undefined }, { ...genBase, time: undefined }),
         false
     );
 
@@ -315,7 +315,7 @@ test('6. 生成图片身份关联与去重不变: sameGenerationEvent and findRe
     );
     assert.equal(
         sameGenerationEvent(
-            { ...genBase, providerRequestId: 'req-authoritative', time: null },
+            { ...genBase, providerRequestId: 'req-authoritative', time: undefined },
             { ...genBase, providerRequestId: 'req-authoritative', time: undefined }
         ),
         true
@@ -471,4 +471,30 @@ test('8. HTML / Markdown / PDF 资源行为不变: document renderers handle ass
     assert.equal(pdfWithTime.ok, true);
     assert.equal(pdfWithoutTime.ok, true);
     assert.deepEqual(pdfWithTime.document, pdfWithoutTime.document);
+});
+
+// Exercise the persistence boundary directly: parser validation must never recover old formats.
+test('historical resource time formats recover without hiding unrelated schema corruption', () => {
+    for (const time of [null, '1700000000123', '2026-10-06T12:00:00Z']) {
+        const asset = { id: 'historical', kind: 'image' as const,
+            generation: { chatId: 'chat', generationOrdinal: 0, time, prompt: 'draw' },
+            document: { id: 'document', createdAt: time, sections: ['body'] } };
+        const snapshot = { ...baseConversation(), assets: [asset] };
+        const restored = restoreDomainSnapshot(snapshot);
+        assert.equal(restored.assets[0].generation?.time, normalizeTimestamp(time));
+        assert.equal(restored.assets[0].document?.createdAt, normalizeTimestamp(time));
+        for (const corrupt of [
+            { ...asset, generation: { ...asset.generation, imageCount: 'one' } },
+            { ...asset, document: { ...asset.document, sections: [17] } },
+            { ...asset, document: { ...asset.document, unexpected: true } },
+            { ...asset, byteLength: 'large' },
+        ]) assert.throws(() => restoreDomainSnapshot({ ...snapshot, assets: [corrupt] }), /Invalid persisted Domain contract/);
+        assert.equal(snapshot.assets[0].generation.time, time, 'recovery must detach without mutating disk input');
+    }
+    for (const time of [null, '1700000000123', '2026-10-06T12:00:00Z', NaN, Infinity]) {
+        for (const asset of [
+            { id: 'invalid', kind: 'image' as const, generation: { time } },
+            { id: 'invalid', kind: 'file' as const, document: { createdAt: time } },
+        ]) assert.throws(() => validateParserDomain(baseConversation([asset as never])), /Invalid persisted Domain|Non-finite Domain/);
+    }
 });
