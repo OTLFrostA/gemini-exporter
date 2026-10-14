@@ -103,7 +103,7 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         const resolved = await resolveConversationDetail('c_detail123');
         assert.strictEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
         assert.equal(resolved?.conversation.chatTime, undefined); assert.equal(resolved?.conversation.timestamp, null);
-        assert.equal(resolved?.conversation.updatedAt, null); assert.equal(resolved?.conversation.createdAt, null);
+        assert.equal(resolved?.conversation.updatedAt, undefined); assert.equal(resolved?.conversation.createdAt, undefined);
         assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.strictEqual(resolved?.conversation.titles, payload.conversation.titles);
         if (injected) assert.equal(calledId, 'detail123');
     }

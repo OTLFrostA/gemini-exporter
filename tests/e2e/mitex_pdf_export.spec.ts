@@ -50,7 +50,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
         String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`,
       ];
       // Exercise the production composition path rather than hand-maintaining its wire schema.
-      const ast = composeDomainDocument(validateParserDomain({ providerId: 'gemini', id: 'mitex-e2e', title: 'MiTeX Browser E2E Test', timestamp: null, createdAt: '2026-09-28T00:00:00Z', assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
+      const ast = composeDomainDocument(validateParserDomain({ providerId: 'gemini', id: 'mitex-e2e', title: 'MiTeX Browser E2E Test', timestamp: null, createdAt: Date.parse('2026-09-28T00:00:00Z'), assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
         { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
         ...formulas.map(source => ({ type: 'math' as const, source })),
       ] }] })).document;

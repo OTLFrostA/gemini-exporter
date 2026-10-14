@@ -1,3 +1,4 @@
+import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
@@ -192,12 +193,10 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         assets: resources.assets,
         id: conversation.id ?? '',
         title: legacyTitle(conversation),
-        timestamp: typeof conversation.timestamp === 'number' && Number.isFinite(conversation.timestamp) ? conversation.timestamp : null,
+        ...normalizeConversationTimes(conversation),
         ...(typeof conversation.source === 'string' && conversation.source.trim() ? { provenance: { source: conversation.source } } : {}),
         ...copyCompleteness(conversation),
         ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),
-        ...(conversation.updatedAt === null || typeof conversation.updatedAt === 'number' || typeof conversation.updatedAt === 'string' ? { updatedAt: conversation.updatedAt } : {}),
-        ...(conversation.createdAt === null || typeof conversation.createdAt === 'number' || typeof conversation.createdAt === 'string' ? { createdAt: conversation.createdAt } : {}),
         ...(typeof conversation.chatTime === 'number' || typeof conversation.chatTime === 'string' ? { chatTime: conversation.chatTime } : {}),
         ...(typeof conversation.lastSeen === 'number' || typeof conversation.lastSeen === 'string' ? { lastSeen: conversation.lastSeen } : {}),
         ...(conversation.url !== undefined ? { url: conversation.url } : {}),

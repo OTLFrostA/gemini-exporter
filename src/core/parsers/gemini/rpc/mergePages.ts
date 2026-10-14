@@ -43,8 +43,9 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
     const rejected = pages.some(page => page.diagnostics.some(d => d.code === 'GEMINI_TURNS_REJECTED'));
     const createdAt = dates.length ? Math.min(...dates) : first.createdAt;
     const updatedAt = dates.length ? Math.max(...dates) : first.updatedAt;
-    const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()], createdAt, updatedAt,
-        timestamp: typeof updatedAt === 'number' ? updatedAt : first.timestamp,
+    const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()],
+        ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}),
+        timestamp: updatedAt ?? first.timestamp,
         completeness: truncatedReason || rejected ? { status: 'partial', reason: truncatedReason ?? 'Some source turns could not be decoded' } : { status: 'unknown' } };
     return { conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : [])] };

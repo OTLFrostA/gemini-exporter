@@ -112,9 +112,12 @@ export interface DomainConversationDetail {
     assets: DomainAsset[];
     id: string;
     title: string;
+    /** Unix epoch milliseconds; null when unknown. */
     timestamp: number | null;
-    updatedAt?: number | string | null;
-    createdAt?: number | string | null;
+    /** Unix epoch milliseconds; omit when unknown. */
+    updatedAt?: number;
+    /** Unix epoch milliseconds; omit when unknown. */
+    createdAt?: number;
     chatTime?: number | string;
     lastSeen?: number | string;
     url?: string;
