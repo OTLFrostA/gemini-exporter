@@ -29,7 +29,7 @@ The `conversations` object store holds the selected `DomainStorageRecord`:
 
 - A closed `DomainConversationDetail`, preserving structured body/reasoning,
   roles, model names, dates, source facts, citations and resource relationships.
-- Storage identity, versions, source/migration origin, revision and save time.
+- Storage identity, versions, source/migration origin, opaque revision and optional saved source version (`savedAt`).
 - Separate resource bindings: asset ID, original archive path when known, and
   actual attachment bytes. Acquired bytes never become Domain or AST fields.
 - Restricted acquisition context containing original URLs and candidates.
@@ -91,18 +91,29 @@ own marker and report, stamped only after its transfer completes.
 `DomainConversationIndex` is the exact metadata contract stored in the existing
 `gemini_conversations[_uN]` chrome keys. Body/attachments remain physically separate
 in the v2 Domain repository. List/sidebar/import observations normalize above Domain;
-consumers read one title with explicit authority, metadata `createdAt`/`updatedAt` in epoch
-milliseconds, a distinct `lastMessageAt` from observed message timestamps, explicit cloud availability and the independent `hasTakeoutImport` fact.
+consumers read one title with explicit authority, source-authored `createdAt`/`updatedAt`
+in epoch milliseconds, explicit cloud availability and the independent `hasTakeoutImport` fact.
 Unknown titles are empty strings (`default` authority); UI supplies a localized label.
 Missing authored time/count is absent. `messageCount` is the largest observed number
 of individual messages; ambiguous RPC turn counts and old declared counts are omitted.
 Body snapshots can establish an observed count during migration. A title upgrade
 cannot erase Takeout history. Merge preserves strongest title authority, earliest
-creation, latest metadata update, latest observed message time and largest observed count.
-`indexActivityTime` provides the latest metadata/message activity for ordering and export
-freshness without rewriting either underlying fact. Detail/Takeout/snapshot acquisition
-never copies its `updatedAt`/`createdAt` into index metadata times. Export `chatTime`
-is an export baseline and does not establish an index metadata update.
+creation, latest source activity and largest observed count. `indexActivityTime` uses
+only `updatedAt` for ordering and freshness; creation and message dates are not update versions.
+Native Detail metadata can advance Index activity without establishing cloud availability.
+Export `chatTime` is the source version of the body actually exported; a newer Index
+or local `exportedAt` clock cannot advance that baseline.
+
+Gemini RPC acquisition resolves a transient `sourceVersion` from the matching conversation's List metadata
+returned in the same batch. It does not derive a conversation version from message maxima.
+Detail has no `updatedAt`. `DomainStorageRecord.savedAt` records the captured source version on
+the same scale as Index `updatedAt`, only for a nonpartial, versioned body. Partial, metadata-only and unversioned captures omit it.
+A rejected incoming body cannot advance the selected body's saved version. A version
+change or missing version across pages marks the assembled body partial. Identical
+captures keep their version and opaque revision unchanged. v1 cached bodies have no
+proven source version: migration preserves their content but omits `savedAt`.
+Takeout activity dates remain partial offline evidence and cannot establish a saved cloud version.
+See [the live timestamp audit](audits/conversation-time-semantics.md) for wire evidence.
 
 Confirmed cloud deletion survives unknown, unlisted and cached/body observations.
 A successful authoritative RPC list observation may restore `available`. Same-context
@@ -165,3 +176,5 @@ content-script capture remains readable from the extension after its tab closes.
 Full Tier 1 and live Tier 2 remain the release gates for integration changes.
 
 Final integration acceptance: [storage v2 Tier 2 record](audits/domain-storage-v2-tier2.md).
+
+JSON archives carry this same optional `savedAt` outside the Detail object. Migration backup clocks use `backedUpAt`; legacy v1 save clocks are quarantined as migration input and never establish a source version.

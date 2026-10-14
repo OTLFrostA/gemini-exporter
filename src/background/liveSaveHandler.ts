@@ -5,7 +5,6 @@ import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveSt
 import { createLiveSaveWriter, writeLiveSaveMarkdown, formatLiveSaveMarkdown } from '../core/engine/liveSaveWriter.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { completeConversationExport } from '../core/engine/export/exportCompletion.js';
-import { getEffectiveTimestamp, toTimestampMs } from '../core/utils/utils.js';
 import { sanitizeFileName, sanitizeRelativePath, normId } from '../core/utils/pathUtils.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
@@ -191,14 +190,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                 convInStore = list.find(c => c.id === nid);
             } catch {}
 
-            let turnTsFromMsgs = 0;
-            if (Array.isArray(chat?.conversation.messages)) {
-                for (const m of chat.conversation.messages) {
-                    const mt = toTimestampMs(m?.timestamp);
-                    if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
-                }
-            }
-            const effectiveChatTime = Math.max(turnTsFromMsgs, chat.conversation.updatedAt ?? 0, getEffectiveTimestamp(convInStore)) || null;
+            const effectiveChatTime = chat.sourceVersion;
             const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || 0;
 
             await completeConversationExport(
@@ -209,9 +201,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                         ...convInStore,
                         ...chat.conversation,
                         messageCount: effectiveMsgCount,
-                        ...(effectiveChatTime ? {
-                            updatedAt: effectiveChatTime
-                        } : {})
+                        updatedAt: chat.sourceVersion
                     },
                     conversationId: nid,
                     format: 'markdown',

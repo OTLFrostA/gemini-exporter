@@ -1,7 +1,7 @@
 import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
 import { deduplicateConversations } from '../utils/mergeUtils.js';
 import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
-import { parseIndexObservation, indexFromDetail } from '../compatibility/index/parseIndex.js';
+import { parseIndexObservation, indexFromParsed } from '../compatibility/index/parseIndex.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from '../sync/streamCoverage.js';
 import type { PageObservation } from '../sync/pageObservation.js';
 import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
@@ -158,8 +158,6 @@ export async function migrateConversationIndexes(): Promise<void> {
                 const body = await getDomainConversationResult(slot, index.id, index.providerId);
                 if (body && (body.conversation.messages.length > 0 || body.conversation.completeness === 'complete')) {
                     index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.messages.length);
-                    const lastMessageAt = indexFromDetail(body.conversation, 'snapshot').lastMessageAt;
-                    if (lastMessageAt !== undefined) index.lastMessageAt = index.lastMessageAt === undefined ? lastMessageAt : Math.max(index.lastMessageAt, lastMessageAt);
                 }
                 list.push(index);
             }
@@ -257,7 +255,7 @@ async function setNativeConversations(slot: string | null | undefined, list: rea
         const metadata = await getConversations(slot);
         for (const parsed of list) {
             const selected = await saveDomainConversation(normSlot(slot), parsed);
-            metadata.push(indexFromDetail(selected.conversation, 'snapshot'));
+            metadata.push(indexFromParsed({ ...parsed, conversation: selected.conversation }, 'snapshot'));
             // Persisting a local native snapshot is not evidence of current cloud availability.
         }
         await _setConversationsRaw(slot, deduplicateConversations(metadata).processed);

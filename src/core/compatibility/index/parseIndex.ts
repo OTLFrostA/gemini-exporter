@@ -1,3 +1,4 @@
+import type { ConversationParseResult } from '../../parsers/contracts.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../../domain/conversationIndex.js';
 import { normalizeTimestamp } from '../../domain/time.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
@@ -38,10 +39,9 @@ export function parseIndexObservation(value: unknown, source: IndexSource, provi
     if (rawUrl && /accounts\.google\.com|SignOutOptions/i.test(rawUrl)) throw new TypeError('Not a conversation URL');
     const url = rawUrl && /^https?:\/\//i.test(rawUrl) ? rawUrl : providerId === 'gemini' ? `https://gemini.google.com/app/${encodeURIComponent(id)}` : undefined;
     const time = source === 'legacy' ? legacyTime : normalizeTimestamp;
-    const bodySource = source === 'detail' || source === 'takeout' || source === 'snapshot' || source === 'export';
+    const bodySource = source === 'takeout' || source === 'snapshot' || source === 'export';
     const createdAt = bodySource ? undefined : time(row.createdAt);
     const updatedAt = (bodySource ? undefined : time(row.updatedAt)) ?? (source === 'legacy' ? time(row.timestamp) ?? time(row.chatTime) : undefined);
-    const lastMessageAt = time(row.lastMessageAt);
     const takeout = source === 'takeout' || row.hasTakeoutImport === true || source === 'legacy' && (row.source === 'takeout' || row.source === 'takeout-import' || row.titleSource === 'takeout' || row.isTakeoutOnly === true || typeof titleSlots.takeout === 'string');
     // Only list presence establishes current cloud availability. A body may be cached or stale.
     const cloudAvailability = source === 'rpc-list' ? 'available' : source === 'legacy' && (row.cloudAvailability === 'deleted' || row.cloudAvailability === 'unlisted' || row.cloudAvailability === 'available') ? row.cloudAvailability : 'unknown';
@@ -50,13 +50,18 @@ export function parseIndexObservation(value: unknown, source: IndexSource, provi
     return restoreConversationIndex({ providerId, id, title: resolved?.value ?? '', titleSource: resolved?.source ?? 'default',
         cloudAvailability, hasTakeoutImport: !!takeout, ...(createdAt !== undefined ? { createdAt } : {}),
         ...(updatedAt !== undefined ? { updatedAt } : {}),
-        ...(lastMessageAt !== undefined ? { lastMessageAt } : {}), ...(url ? { url } : {}), ...(count !== undefined ? { messageCount: count } : {}) });
+        ...(url ? { url } : {}), ...(count !== undefined ? { messageCount: count } : {}) });
 }
 export function indexFromDetail(detail: DomainConversationDetail, source: 'detail' | 'takeout' | 'snapshot' = 'detail'): DomainConversationIndex {
-    const timestamps = detail.messages.map(message => message.timestamp).filter((time): time is number => typeof time === 'number' && Number.isFinite(time));
-    const lastMessageAt = timestamps.reduce<number | undefined>((latest, time) => latest === undefined ? time : Math.max(latest, time), undefined);
-    return parseIndexObservation({ id: detail.id, title: detail.title, titleSource: detail.titleSource ?? (source === 'takeout' ? 'takeout' : 'default'),
-        lastMessageAt, url: detail.url, messageCount: detail.messages.length }, source, detail.providerId);
+    const index = parseIndexObservation({ id: detail.id, title: detail.title, titleSource: detail.titleSource ?? (source === 'takeout' ? 'takeout' : 'default'),
+        url: detail.url, messageCount: detail.messages.length }, source, detail.providerId);
+    return restoreConversationIndex({ ...index, ...(detail.createdAt !== undefined ? { createdAt: detail.createdAt } : {}) });
+}
+
+/** Acquisition version is consumed here; body data never owns an activity timestamp. */
+export function indexFromParsed(result: ConversationParseResult, source: 'detail' | 'takeout' | 'snapshot' = 'detail'): DomainConversationIndex {
+    return restoreConversationIndex({ ...indexFromDetail(result.conversation, source),
+        ...(result.sourceVersion !== undefined ? { updatedAt: result.sourceVersion } : {}) });
 }
 
 /** Metadata observations authored by page acquisition; order hints stay outside Domain. */
@@ -66,7 +71,6 @@ export interface IndexObservationInput {
     titleSource?: string;
     createdAt?: number;
     updatedAt?: number;
-    lastMessageAt?: number;
     url?: string;
     messageCount?: number;
     sidebarIndex?: number;

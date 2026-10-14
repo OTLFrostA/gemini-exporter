@@ -102,7 +102,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     __clearDomainMemory();
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
-    const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Fresh cloud content' }] });
+    const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', updatedAt: 1, messages: [{ role: 'user', content: 'Fresh cloud content' }] });
     await saveDomainConversation('u0', local);
     let calls = 0;
     let available = false;
@@ -271,5 +271,26 @@ test('a failed cloud fetch without a same-account body remains a failed export',
         assert.equal(result.landedChats, 0);
         assert.equal(result.failedChats.length, 1);
         assert.equal(records.missing_local, undefined);
+    } finally { __clearModuleOverrides(); __clearDomainMemory(); }
+});
+
+test('batch export records the fetched body version rather than a newer Index version', async () => {
+    __clearDomainMemory();
+    const { records } = exportMocks();
+    const body = historicalFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000000000,
+        messages: [{ role: 'user', content: 'Captured older body' }] });
+    const index = indexFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000005000 });
+    let requests = 0;
+    __setModuleOverride('TabService', { sendToGeminiTab: async () => {
+        requests++; return { success: true, domainEnvelopeVersion: 2, data: body };
+    } });
+    try {
+        const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: index.id }],
+            conversations: [index], currentSlot: 'u0', includeAssets: false, skip, worker: BatchWorker });
+        assert.equal((await run(false)).landedChats, 1);
+        assert.equal((records.stale_body_version as { chatTime: number }).chatTime, body.sourceVersion);
+        assert.equal(index.updatedAt, 1700000005000);
+        assert.equal((await run(true)).skipped, 0, 'newer source activity cannot be hidden by exporting an older body');
+        assert.equal(requests, 2);
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
 });

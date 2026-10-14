@@ -19,7 +19,8 @@ export interface DomainStorageRecord {
     origin: 'source' | 'legacy-storage';
     /** Opaque token for the current record; no revision history is retained. */
     revision: string;
-    savedAt: number;
+    /** Source updatedAt version of the saved body. Absent for partial/unversioned captures. */
+    savedAt?: number;
     conversation: DomainConversationDetail;
     acquisitionHints: ResourceAcquisitionHints;
     resources: StoredDomainResource[];

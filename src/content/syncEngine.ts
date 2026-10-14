@@ -1,4 +1,4 @@
-import { indexFromDetail, parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
+import { indexFromParsed, parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
@@ -126,13 +126,13 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const d = native.conversation;
             if (d && d.id) {
                 const nid = normId(d.id);
-                const index = indexFromDetail(d);
+                const index = indexFromParsed(native);
                 await upsertConversations([{
                     id: nid,
                     title: d.title,
                     titleSource: d.titleSource,
                     url: d.url || `https://gemini.google.com/app/${nid}`,
-                    lastMessageAt: index.lastMessageAt,
+                    updatedAt: index.updatedAt,
                     messageCount: d.messages.length
                 }], 'active-detail-sync');
             }
@@ -187,7 +187,7 @@ export async function touchActiveConversation(
     const activeTitleObj = extractActiveChatTitle(nid);
 
     // SSOT timestamp authority: conversation metadata times are server-authoritative and
-    // are only ever written from conversation metadata. Message times remain lastMessageAt.
+    // are only ever written from source-authored conversation metadata.
     // A touch must NOT stamp the client clock here: merge is Math.max-monotonic, so a client-ahead clock
     // would permanently poison the record and no later server timestamp could
     // repair it. Touch updates tie order only (sidebarIndex);

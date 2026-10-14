@@ -137,3 +137,11 @@ const numberedCitation: import('../src/core/domain/conversationDetail.js').Domai
 // @ts-expect-error Unknown title sources must be normalized before Domain.
 const unknownTitleSource: DomainConversationDetail = { ...domainConversation, titleSource: 'unknown-source' };
 void failedAsset; void numberedCitation; void unknownTitleSource;
+
+// @ts-expect-error Conversation activity belongs solely to Index.
+const duplicateActivity: DomainConversationDetail = { ...domainConversation, updatedAt: 1700000000000 };
+// @ts-expect-error The saved body version belongs to its storage envelope.
+const embeddedSavedVersion: DomainConversationDetail = { ...domainConversation, savedAt: 1700000000000 };
+// @ts-expect-error Acquisition context cannot become a persisted Detail field.
+const embeddedCaptureVersion: DomainConversationDetail = { ...domainConversation, sourceVersion: 1700000000000 };
+void [duplicateActivity, embeddedSavedVersion, embeddedCaptureVersion];

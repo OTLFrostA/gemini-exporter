@@ -18,7 +18,7 @@ export interface GeminiParserParseListModule {
 
 import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
 import { GeminiProtocol } from "../../../protocol/protocol.js";
-import { payloadToMs, extractInnerPayload, extractNextPageToken, extractWithScan } from "./payload.js";
+import { payloadToMs, extractInnerPayload, extractNextPageToken } from "./payload.js";
 
 export interface ListParseDiagnostics {
     error: "BARD_ERROR_INFO" | "NO_INNER_STR";
@@ -38,34 +38,10 @@ function getProtocol(): GeminiProtocolModule {
     return GeminiProtocol;
 }
 
-    /**
-     * Extracts official server-side last updated timestamp from a MaZiqc list item.
-     * Google Gemini encodes timestamp as [seconds, nanos] at index 5.
-     * Falls back to legacy indices 2, 3 or any valid [seconds, nanos] pair.
-     */
-    function extractListItemTimestamp(item: unknown): number | null {
-        if (!Array.isArray(item)) return null;
-        const schema = getSchema();
-        const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
-
-        const candidateIndices = [
-            listItemSchema.TIMESTAMP,
-            listItemSchema.UPDATE_TIME_ALT,
-            listItemSchema.CREATE_TIME_ALT,
-            listItemSchema.COUNT_ALT1
-        ];
-
-        return extractWithScan(
-            item,
-            candidateIndices,
-            (val, idx) => {
-                if (candidateIndices.includes(idx)) {
-                    return payloadToMs(val);
-                }
-                return (Array.isArray(val) && val.length <= 4) ? payloadToMs(val) : null;
-            }
-        );
-    }
+/** Only the characterized conversation update slot is an activity/version fact. */
+function extractListItemTimestamp(item: unknown): number | null {
+    return Array.isArray(item) ? payloadToMs(item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP]) : null;
+}
 
     function parseList(text: string): ListParseResult {
         try {
@@ -115,17 +91,14 @@ function getProtocol(): GeminiProtocolModule {
                 if (!Array.isArray(item)) continue;
                 let id = item[listItemSchema.ID] || item[0] || "",
                     title = item[listItemSchema.TITLE] || item[1] || "",
-                    createTs: number | null = null,
-                    updateTs: number | null = null;
+                    createTs: number | null = null;
 
                 let serverTs = extractListItemTimestamp(item);
 
                 let createArr = item[listItemSchema.CREATE_TIME_ALT];
-                let updateArr = item[listItemSchema.UPDATE_TIME_ALT];
                 createTs = payloadToMs(createArr);
-                updateTs = payloadToMs(updateArr);
 
-                let effectiveTime = serverTs || updateTs || createTs;
+                const effectiveTime = serverTs;
 
 
                 if (id) {

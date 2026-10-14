@@ -118,6 +118,8 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForFunction(() => typeof (window as any).__workbenchLoadStore === 'function');
+    // The global loader exists before asynchronous schema startup binds the tour button.
+    await expect(page.locator('#ver')).toHaveText(/^v\d/);
     await page.evaluate(() => {
       (window as any).__fontQueries = 0;
       (window as any).queryLocalFonts = async () => {

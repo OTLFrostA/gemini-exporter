@@ -179,8 +179,8 @@ test.describe('Export Workflow & State Update', () => {
       await chrome.storage.local.set({
         gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         exportedIds: {
-          'clear_chat_001': { exportedAt: 1700000005000, title: '已导出会话一' },
-          'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }
+          'clear_chat_001': { exportedAt: 1700000005000, chatTime: 1700000000000, title: '已导出会话一' },
+          'clear_chat_002': { exportedAt: 1700000005000, chatTime: 1700000000000, title: '已导出会话二' }
         },
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'

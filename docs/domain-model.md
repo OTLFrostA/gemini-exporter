@@ -44,13 +44,14 @@ The production import/cache/storage path keeps its compatibility API around nati
 
 ## What Domain remembers (contract v2)
 
-- Conversation identity, one confirmed title/source, independent `createdAt` and `updatedAt`, and one `url`.
+- Detail identity, one confirmed title/source, optional source `createdAt`, and one `url`.
+  Activity `updatedAt` belongs solely to Index; Detail has no duplicate field.
 - Authored body and provider-exposed `reasoning` as Content AST, with readable unknown content.
 - Message identity, role, model, timestamp, explicit resource relationships, generation events and message-local citations.
 - Resources with original `sourceUri`, canonical document Markdown and necessary generation identity.
 - Required `completeness: 'complete' | 'partial' | 'unknown'`. Unknown means insufficient evidence; partial indicates incomplete source coverage, including DOM observations restricted to currently available messages; complete requires coverage evidence. Message count alone proves none of these states.
 
-All times are finite epoch-millisecond numbers, omitted when unknown. Creation and update times are independent facts. Source parsers must not invent creation time from the earliest observed message or update time from a local scan. Index activity uses only canonical `updatedAt`/`createdAt`; local observation time never becomes authored conversation time. ExportRecord `chatTime` remains an independent export fact.
+All times are finite epoch-millisecond numbers, omitted when unknown. Creation and update times are independent facts. Source parsers must not invent creation time from the earliest observed message or update time from a local scan. Index activity uses only canonical `updatedAt`; local observation and creation time never become update versions. Native RPC acquisition carries that fact as transient `sourceVersion` from matching batched List metadata; it does not add an `updatedAt` field to Detail. The selected complete/nonpartial body records that source version as optional storage `savedAt`. ExportRecord `chatTime` records the version of the body actually exported. Partial/unversioned bodies cannot establish a saved cloud version.
 
 Domain has no conversation `timestamp`, `chatTime`, `lastSeen`, `href`, `titles` or `provenance`. Parser boundaries choose titles using the shared `domain/titleAuthority.ts` ranking; the index stores one confirmed title/source as well. Historical source alternatives are interpreted only at acquisition or migration boundaries. Storage protects the confirmed title independently of body selection. Unknown source roles map to `unknown`; raw role strings and message provenance do not enter Domain. `titleSource` uses the existing `TitleSource` union and runtime enum; unknown legacy sources use the existing default tier.
 

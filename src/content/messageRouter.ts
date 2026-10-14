@@ -1,4 +1,4 @@
-import { indexFromDetail } from '../core/compatibility/index/parseIndex.js';
+import { indexFromParsed } from '../core/compatibility/index/parseIndex.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
@@ -160,9 +160,9 @@ export function init({
                         // Native acquisition has already resolved title uncertainty.
                         // Apply its metadata under the conversation lock.
                         if (Storage && typeof Storage.updateConversation === 'function') {
-                            const index = indexFromDetail(chatObj.conversation);
+                            const index = indexFromParsed(chatObj);
                             await Storage.updateConversation(slot, nid, { title: index.title, titleSource: index.titleSource,
-                                lastMessageAt: index.lastMessageAt, messageCount: index.messageCount });
+                                updatedAt: index.updatedAt, messageCount: index.messageCount });
                         }
                     } catch (err) {
                         console.warn('[Gemini Exporter] persistDetailIndex error', err);

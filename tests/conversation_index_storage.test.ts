@@ -9,7 +9,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
 import { migrate, CURRENT_SCHEMA_VERSION } from '../src/core/storage/schemaMigration.js';
 import { __getLegacyBackupForTest as getLegacyBackup } from '../src/core/storage/domain/domainStore.js';
-import { indexFromDetail, parseIndexObservation } from '../src/core/compatibility/index/parseIndex.js';
+import { indexFromDetail, indexFromParsed, parseIndexObservation } from '../src/core/compatibility/index/parseIndex.js';
 import { indexActivityTime, mergeConversationIndex, restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
 
 const row = () => indexFixture({ id: 'chat', title: 'Research', titleSource: 'rpc', updatedAt: 50, messageCount: 4 });
@@ -135,7 +135,7 @@ test('partial and concurrent native imports retain unrelated indexes and existin
         const rows = await storage.getConversations('u0');
         assert.deepEqual(rows.map(value => value.id).sort(), ['added', 'chat', 'other']);
         assert.deepEqual(rows.find(value => value.id === 'other'), other);
-        assert.deepEqual(rows.find(value => value.id === 'chat'), { ...existing, lastMessageAt: 70 });
+        assert.deepEqual(rows.find(value => value.id === 'chat'), { ...existing, updatedAt: 999999 });
         assert.deepEqual(await storage.getConversations('u1'), [other]);
         assert.equal((await getDomainConversationResult('u0', 'chat'))?.conversation.messages.length, 1);
         const writes = env.writes();
@@ -144,28 +144,25 @@ test('partial and concurrent native imports retain unrelated indexes and existin
     } finally { env.restore(); }
 });
 
-test('message observations cannot overwrite list times or claim cloud restoration', async () => {
+test('native Detail source versions align with Index without claiming cloud restoration', () => {
     const old = { ...row(), createdAt: 10, updatedAt: 100, cloudAvailability: 'deleted' as const };
-    const detail = historicalFixture({ id: 'chat', title: 'Research', updatedAt: 999999, createdAt: 1,
-        messages: [{ role: 'user', content: 'Question', timestamp: 200 }] }).conversation;
+    const detail = historicalFixture({ id: 'chat', title: 'Research', updatedAt: 300,
+        messages: [{ role: 'user', content: 'Question', timestamp: 200 }] });
     for (const source of ['detail', 'snapshot', 'takeout'] as const) {
-        const observed = indexFromDetail(detail, source);
-        assert.equal(observed.updatedAt, undefined);
-        assert.equal(observed.createdAt, undefined);
-        assert.equal(observed.lastMessageAt, 200);
+        const observed = indexFromParsed(detail, source);
+        assert.equal(observed.updatedAt, 300);
         assert.equal(observed.cloudAvailability, 'unknown');
         const merged = mergeConversationIndex(old, observed);
-        assert.equal(merged.updatedAt, 100);
+        assert.equal(merged.updatedAt, 300);
+        assert.equal(indexActivityTime(merged), 300);
         assert.equal(merged.createdAt, 10);
-        assert.equal(merged.lastMessageAt, 200);
-        assert.equal(indexActivityTime(merged), 200);
         assert.equal(merged.cloudAvailability, 'deleted');
-        const listed = mergeConversationIndex(merged, parseIndexObservation({ id: 'chat', title: 'Research', updatedAt: 150 }, 'rpc-list'));
-        assert.equal(listed.updatedAt, 150, 'later list updates merge with list facts, never with message times');
-        assert.equal(listed.lastMessageAt, 200);
+        const listed = mergeConversationIndex(merged, parseIndexObservation({ id: 'chat', title: 'Research', updatedAt: 350 }, 'rpc-list'));
+        assert.equal(listed.updatedAt, 350);
         assert.equal(listed.cloudAvailability, 'available');
     }
-    assert.equal(indexFromDetail({ ...detail, messages: detail.messages.map(({ timestamp, ...message }) => message) }).lastMessageAt, undefined);
+    const { sourceVersion, ...unversioned } = detail;
+    assert.equal(indexFromParsed(unversioned).updatedAt, undefined, 'message dates cannot manufacture a source version');
     assert.equal(mergeConversationIndex(old, { ...old, cloudAvailability: 'unlisted' }).cloudAvailability, 'deleted');
 });
 
@@ -175,14 +172,11 @@ test('export chatTime remains an export baseline and never poisons metadata upda
         await storage.setConversations('u0', [row()]);
         await storage.finalizeConversationExport('u0', 'chat', { title: 'Research', chatTime: 999999, messageCount: 4 });
         assert.equal((await storage.getConversations('u0'))[0].updatedAt, 50);
-        assert.equal((await storage.getConversations('u0'))[0].lastMessageAt, undefined);
         const completion = buildExportCompletion({ conversation: { id: 'chat', title: 'Research', updatedAt: 999999,
             messages: [{ timestamp: 200 }] } });
-        assert.equal(completion.conversationUpdate.updatedAt, undefined);
-        assert.equal(completion.conversationUpdate.lastMessageAt, 200);
+        assert.equal(completion.conversationUpdate.updatedAt, 999999);
         await storage.finalizeConversationExport('u0', 'chat', completion.exportRecord, { conversationUpdate: completion.conversationUpdate });
-        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 50);
-        assert.equal((await storage.getConversations('u0'))[0].lastMessageAt, 200);
+        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 999999);
     } finally { env.restore(); }
 });
 

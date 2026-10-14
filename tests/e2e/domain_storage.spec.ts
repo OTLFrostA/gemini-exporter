@@ -240,7 +240,7 @@ test('current storage rejects intermediate versions and obsolete fields without 
         const identity = api.storageIdentity('gemini', 'u0', 'strict');
         const conversation = { providerId: 'gemini', id: 'strict', title: 'Current', completeness: 'unknown', assets: [], messages: [] };
         const record = { key: api.domainStorageKey(identity), storageVersion: 2, domainVersion: 2, identity,
-            origin: 'source', revision: 'original', savedAt: 1, resources: [], acquisitionHints: {}, conversation };
+            origin: 'source', revision: 'original', resources: [], acquisitionHints: {}, conversation };
         const db = await api.openDomainDB();
         const put = (value: unknown) => new Promise<void>((resolve, reject) => {
             const tx = db.transaction('conversations', 'readwrite'); tx.objectStore('conversations').put(value);
@@ -252,7 +252,7 @@ test('current storage rejects intermediate versions and obsolete fields without 
         });
         try {
             const failures = [];
-            for (const invalid of [{ ...record, domainVersion: 1 }, { ...record, domainVersion: 3 },
+            for (const invalid of [{ ...record, domainVersion: 1 }, { ...record, domainVersion: 3 }, { ...record, savedAt: 1 },
                 { ...record, conversation: { ...conversation, timestamp: 123 } }]) {
                 await put(invalid);
                 let error = '';
@@ -267,10 +267,11 @@ test('current storage rejects intermediate versions and obsolete fields without 
                 current: await api.getStoredDomain(identity) };
         } finally { db.close(); }
     });
-    expect(result.failures.map(f => f.unchanged)).toEqual([true, true, true]);
+    expect(result.failures.map(f => f.unchanged)).toEqual([true, true, true, true]);
     expect(result.failures[0].error).toContain('Unsupported Domain storage version');
     expect(result.failures[1].error).toContain('Unsupported Domain storage version');
-    expect(result.failures[2].error).toContain('timestamp');
+    expect(result.failures[2].error).toContain('Invalid Domain storage envelope');
+    expect(result.failures[3].error).toContain('timestamp');
     expect(result.rejectedWrite).toContain('timestamp');
     expect(result.unchanged).toBe(true);
     expect(result.current.domainVersion).toBe(2);
@@ -356,7 +357,7 @@ test('v1 to final v2 migration backs up raw disk values, separates body and reje
 });
 
 
-test('partial native imports retain indexes and distinct metadata/message times through physical reload', async ({ page }) => {
+test('partial native imports retain indexes and aligned source versions through physical reload', async ({ page }) => {
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
@@ -365,8 +366,8 @@ test('partial native imports retain indexes and distinct metadata/message times 
             api.indexFixture({ id: 'retained', title: 'Untouched index', updatedAt: 50 }),
             api.indexFixture({ id: 'chat', title: 'RPC metadata', titleSource: 'rpc', updatedAt: 100, cloudAvailability: 'deleted' })
         ]);
-        const parsed = { conversation: { providerId: 'gemini', id: 'chat', title: 'Weaker body title', titleSource: 'sniff',
-            updatedAt: 999999, completeness: 'complete', assets: [], messages: [{ role: 'user', timestamp: 200,
+        const parsed = { sourceVersion: 999999, conversation: { providerId: 'gemini', id: 'chat', title: 'Weaker body title', titleSource: 'sniff',
+            completeness: 'complete', assets: [], messages: [{ role: 'user', timestamp: 200,
                 content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body retained on disk' }] }] }] },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
         await api.StorageService.setNativeConversations('u0', [parsed]);
@@ -379,7 +380,43 @@ test('partial native imports retain indexes and distinct metadata/message times 
             detail: await api.StorageService.getConversationWithDetail('u0', 'chat') };
     });
     expect(restored.indexes.map((row: { id: string }) => row.id)).toEqual(['chat', 'retained']);
-    expect(restored.indexes[0]).toMatchObject({ title: 'RPC metadata', updatedAt: 100, lastMessageAt: 200, cloudAvailability: 'deleted' });
-    expect(restored.detail.conversation.updatedAt).toBe(999999);
+    expect(restored.indexes[0]).toMatchObject({ title: 'RPC metadata', updatedAt: 999999, cloudAvailability: 'deleted' });
+    expect(restored.detail.sourceVersion).toBe(999999);
+    expect(restored.detail.conversation).not.toHaveProperty('updatedAt');
     expect(restored.detail.conversation.messages[0].content[0].children[0].text).toBe('Body retained on disk');
+});
+
+test('saved source version survives reload and stays behind a newer Index until the body is refreshed', async ({ page }) => {
+    await install(page);
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        await chrome.storage.local.set({ gemini_schema_version: 2 });
+        const parsed = { sourceVersion: 1700000000000, conversation: { providerId: 'gemini', id: 'versioned', title: 'Versioned body', completeness: 'unknown',
+            assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Old body' }] }] }] },
+            acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
+        await api.saveDomainConversation('u0', parsed);
+        await api.StorageService.setConversations('u0', [api.indexFixture({ id: 'versioned', title: 'Versioned body', updatedAt: 1700000005000 })]);
+        await api.saveDomainConversation('u0', { ...parsed, sourceVersion: 1700000010000, conversation: { ...parsed.conversation, completeness: 'partial' } });
+    });
+    await page.reload(); await install(page);
+    const old = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        return { record: await api.getStoredDomain(api.storageIdentity('gemini', 'u0', 'versioned')), indexes: await api.StorageService.getConversations('u0') };
+    });
+    expect(old.record.savedAt).toBe(1700000000000);
+    expect(old.record.conversation).not.toHaveProperty('updatedAt');
+    expect(old.indexes[0].updatedAt).toBe(1700000005000);
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const record = await api.getStoredDomain(api.storageIdentity('gemini', 'u0', 'versioned'));
+        await api.saveDomainConversation('u0', { sourceVersion: 1700000005000, conversation: record.conversation, acquisitionHints: {}, resourceHints: {}, diagnostics: [] });
+    });
+    await page.reload(); await install(page);
+    const fresh = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        return api.getStoredDomain(api.storageIdentity('gemini', 'u0', 'versioned'));
+    });
+    expect(fresh.savedAt).toBe(1700000005000);
+    expect(fresh.conversation).not.toHaveProperty('updatedAt');
+    expect(fresh).not.toHaveProperty('sourceVersion');
 });

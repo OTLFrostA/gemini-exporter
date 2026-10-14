@@ -841,7 +841,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 try {
                                     if (listC) await storageService.updateConversation(currentSlot, nid, {
                                         title: listC.title, titleSource: listC.titleSource,
-                                        updatedAt: listC.updatedAt, createdAt: listC.createdAt, lastMessageAt: listC.lastMessageAt, messageCount: listC.messageCount,
+                                        updatedAt: listC.updatedAt, createdAt: listC.createdAt, messageCount: listC.messageCount,
                                     });
                                 } catch (err) {
                                     if (typeof console !== 'undefined' && console.warn) {
@@ -899,9 +899,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             diagnostics: [...exportResult.diagnostics, ...resourceDiagnostics(resourceResults)] };
                         let formatted: FormattedResult;
                         if (format === 'html') {
-                            formatted = await ChatFormatter.formatHtmlDocument(chat, { resourceResults });
+                            formatted = await ChatFormatter.formatHtmlDocument(exportResult, { resourceResults });
                         } else if (format === 'markdown') {
-                            formatted = await ChatFormatter.formatMarkdownDocument(chat, { resourceResults });
+                            formatted = await ChatFormatter.formatMarkdownDocument(exportResult, { resourceResults });
                         } else {
                             formatted = ChatFormatter.formatContent(exportResult, format, resourceResults);
                         }
@@ -925,10 +925,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const chatDrift = extractChatParseDrift(exportResult);
                         const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
 
-                        const authoritativeChatTime = Math.max(
-                            computeAuthoritativeTimestamp(listC) || 0,
-                            computeAuthoritativeTimestamp(chat) || 0
-                        ) || undefined;
+                        const authoritativeChatTime = computeAuthoritativeTimestamp(chat, exportResult.sourceVersion);
 
                         // Acquisition rejects unavailable/empty bodies before writing. Every remaining
                         // item gets one completion; failed writes use it only for meta, never persistence.
@@ -1012,7 +1009,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             title: listTitle,
                             url: chat.url || `https://gemini.google.com/app/${chatId}`,
                             createdAt: toIso(chat.createdAt),
-                            updatedAt: toIso(chat.updatedAt),
+                            updatedAt: toIso(exportResult.sourceVersion),
                             messageCount: completion.exportRecord.messageCount,
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,

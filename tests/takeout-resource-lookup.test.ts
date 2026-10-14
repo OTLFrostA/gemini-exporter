@@ -13,7 +13,7 @@ const generation = { generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a 
 const source = (id: string, ordinal?: number): DomainAsset => ({ id, kind: 'image', name: 'diagram.png',
     sourceUri: `Takeout/Gemini Apps/${id}.png`, generation: { ...generation, imageOrdinal: ordinal } });
 const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
-    conversation: validateParserDomain({ providerId: 'gemini', id: chatId, title: 'Lookup', updatedAt: 1700000000000,
+    sourceVersion: 1700000000000, conversation: validateParserDomain({ providerId: 'gemini', id: chatId, title: 'Lookup',
         completeness: 'partial', messages: [], assets }),
     diagnostics: [], acquisitionHints: {}, resourceHints: Object.fromEntries(assets.map(asset =>
         [asset.id, { archivePath: asset.sourceUri!! }])),

@@ -1,4 +1,4 @@
-import { indexFromDetail } from '../core/compatibility/index/parseIndex.js';
+import { indexFromParsed } from '../core/compatibility/index/parseIndex.js';
 import type { IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
@@ -139,7 +139,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 title: title,
                                 titleSource: sourceTier,
                                 url: `https://gemini.google.com/app/${nid}`,
-                                lastMessageAt: indexFromDetail(detailRes).lastMessageAt,
+                                updatedAt: indexFromParsed(native).updatedAt,
                                 messageCount: detailRes.messages.length,
                                 sidebarIndex: 0
                             }], 'network-detail', false, targetSlot);

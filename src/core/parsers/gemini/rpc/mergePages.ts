@@ -39,9 +39,11 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
             ...(message.attachmentIds ? { attachmentIds: [...new Set(message.attachmentIds.map(id => aliases.get(id) ?? id))] } : {}) }));
         messages = [...fresh, ...messages];
     }
-    const rejected = pages.some(page => page.diagnostics.some(d => d.code === 'GEMINI_TURNS_REJECTED'));
+    const rejected = pages.some(page => page.diagnostics.some(d => ['GEMINI_TURNS_REJECTED', 'CONVERSATION_VERSION_MISMATCH'].includes(d.code)));
+    const versionChanged = pages.some(page => page.sourceVersion !== pages[0].sourceVersion);
     const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()],
-        completeness: truncatedReason || rejected ? 'partial' : 'unknown' };
-    return { conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
-        ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : [])] };
+        completeness: truncatedReason || rejected || versionChanged ? 'partial' : 'unknown' };
+    return { ...(pages[0].sourceVersion !== undefined ? { sourceVersion: pages[0].sourceVersion } : {}), conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+        ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
+        ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };
 }

@@ -1,64 +1,5 @@
 [
   {
-    "id": "finite_fields_reed_solomon_erasure_recovery",
-    "title": "有限域编码：Reed–Solomon 擦除恢复",
-    "domain": "algebra_finite_fields_reed_solomon",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "用 LaTeX 从有限域多项式求值定义一个教学用 Reed–Solomon 码，明确 GF(17) 上的消息系数、求值点、码长、维数和最小距离。用一组假想消息逐项算出编码结果。",
-      "从拉格朗日插值推导擦除恢复，说明可恢复的擦除数量与码维数的关系，手算两个不同的擦除位置集合，并检查恢复出的系数与原消息一致。",
-      "写只用 Python 标准库的完整编码与擦除恢复程序，实现模逆、插值和输入校验。给出固定随机种子的随机消息测试、最大可恢复擦除测试及不足观测时必须失败的测试。",
-      "用 Markdown 表格比较求值编码、系统编码、复制和 XOR 奇偶校验，列出冗余、擦除能力、运算成本及假设。用前面的参数计算存储开销，解释擦除与未知错误的区别。",
-      "写一份较长的工程教学报告，讨论校验和定位擦除、分片元数据、符号序和截断输入的风险，提出可重复的恢复验证流程。保留完整公式与代码引用，避免宣称该简化实现已经适合生产部署。"
-    ]
-  },
-  {
-    "id": "fair_division_additive_ef1_round_robin",
-    "domain": "fair_division_discrete_allocation",
-    "title": "Discrete fair division: EF1 and round-robin verification",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Additive indivisible-item allocation with quantified definitions, executable algorithms and counterexample audits.",
-    "turns": [
-      "Construct three fictional participants and six indivisible laboratory props with nonnegative additive valuations. Define EF, EF1 and EFX using explicit LaTeX quantifiers and inequalities, including empty bundles and zero-value items.",
-      "Prove the EF1 guarantee of fixed-order round-robin selection by pairing inequalities across picks. Use a concrete valuation matrix to investigate whether the allocation is Pareto optimal.",
-      "Write complete runnable standard-library Python for round-robin allocation, EF1 checks and exhaustive Pareto-improvement search for small instances. Fix the random seed and assert behavior for zero values, ties and fewer items than participants.",
-      "Use a Markdown table to compare EF, EF1, EFX, proportionality and Pareto optimality across definitions, compatibility, verification cost and guarantees of round-robin. Distinguish proofs from observations on the example.",
-      "Write a long algorithm audit with complexity derivations, counterexample tables, pseudocode and property-based test designs. Explain how participant order, tie-breaking, random seeds and nonadditive preferences affect conclusions."
-    ]
-  },
-  {
-    "id": "formal_methods_ltl_finite_state_automata",
-    "domain": "formal_methods_temporal_logic",
-    "title": "Temporal logic: transition systems and counterexample traces",
-    "description": "Small fictional protocol model, quantified temporal semantics, executable state exploration and trace validation.",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small fictional request-acknowledgement protocol as a finite labeled transition system. State safety and liveness properties in LaTeX using explicit temporal-logic semantics, including deadlocks and infinite traces.",
-      "Derive how reachability checks differ from eventual acknowledgement under fairness assumptions. Give concrete good and bad traces, distinguishing assumptions from guarantees.",
-      "Write complete runnable standard-library Python to explore reachable states, detect safety violations and report a counterexample trace. Add strongly connected component analysis for liveness under explicitly documented fairness conditions.",
-      "Use a Markdown table to compare invariants, reachability, response properties and fairness assumptions across finite tests, graph exploration and temporal model checking.",
-      "Write a long verification audit with equations, state tables and pseudocode. Explain state explosion, abstraction, environment assumptions and how to replay and minimize a counterexample without claiming exhaustive verification from random tests."
-    ]
-  },
-  {
     "id": "graph_algorithms_offline_dynamic_connectivity",
     "domain": "graph_algorithms_dynamic_connectivity",
     "title": "Offline dynamic connectivity: rollback union-find",
@@ -195,28 +136,6 @@
     ]
   },
   {
-    "id": "optics_brewster_jones_polarization",
-    "domain": "optics_polarization_interface_geometry",
-    "title": "Polarization optics: Brewster angle and Jones matrices",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Original polarization illustration, dielectric-interface equations, runnable matrix calculations, comparison tables and an uncertainty report.",
-    "turns": [
-      "Generate an original educational image showing a hypothetical laser beam incident on a dielectric interface near the Brewster angle, with incident, reflected and transmitted rays and clearly distinguished s and p polarization directions. Explain the schematic in English and Chinese; label all numerical parameters as synthetic.",
-      "Use LaTeX to derive the Brewster-angle condition and define the Jones vectors and coordinate conventions for a lossless isotropic interface. Work one hypothetical refractive-index example and check the angular and unit conventions.",
-      "Write complete runnable Python with NumPy to compute normalized Jones-vector transformations and a synthetic intensity sweep. Include deterministic assertions for limiting angles, polarization normalization and valid refractive indices, and explicitly distinguish amplitude from power coefficients.",
-      "Create a Markdown table comparing Jones and Mueller descriptions, assumptions about coherence and polarization, input dimensions and failure cases. Add bilingual terminology and clearly label any illustrative numerical results.",
-      "Write a detailed laboratory-methods report using only hypothetical data. Analyze angular calibration, near-zero reflected p intensity and numerical sensitivity; provide pseudocode, LaTeX uncertainty estimates and a reproducible parameter table, and explain which effects the idealized model excludes."
-    ]
-  },
-  {
     "id": "control_discrete_observability_gramian",
     "domain": "control_theory_observability_reconstruction",
     "title": "Discrete control systems: observability and state reconstruction",
@@ -237,28 +156,6 @@
     ]
   },
   {
-    "id": "textile_periodic_weave_interlacement",
-    "title": "Periodic textile weaves: interlacement, floats and repeat geometry",
-    "domain": "textile_periodic_weave_geometry",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Synthetic warp/weft repeat diagrams, modular indexing, reproducible float analysis and structural comparison.",
-    "turns": [
-      "Generate an educational image of an invented 8 by 8 warp/weft weave repeat: distinguish blue warp and orange weft, show a top view and a small side view, use a clean white background. Keep the image conceptual rather than asserting measured fabric properties. Explain the meaning of over/under intersections in English.",
-      "Define a binary interlacement matrix W_ij using LaTeX and derive modular constructions for plain weave, a 2/2 twill and a 5-end satin. State coordinate conventions and how the repeat is tiled without phase discontinuities.",
-      "Write standalone Python code to generate these matrices and compute the longest cyclic warp and weft floats. Include deterministic checks for row and column wraparound and explain the time complexity.",
-      "Use a Markdown table to compare the three synthetic patterns by repeat size, interlacement density, float lengths and directional symmetry. Explain which quantities are purely geometric and which physical properties would require measurements.",
-      "Write a complete methodological report connecting the generated illustration to the matrix conventions, identifying possible diagram ambiguities, and proposing reproducible tests for translation invariance, phase choices and cyclic float analysis. Include English and Chinese terminology."
-    ]
-  },
-  {
     "id": "stoichiometric_network_conservation_nullspace",
     "title": "Stoichiometric conservation: nullspaces and reaction-network bookkeeping",
     "domain": "chemistry_stoichiometric_conservation_networks",
@@ -276,27 +173,6 @@
       "Provide standalone Python code using fractions.Fraction for exact row reduction, nullspace extraction and verification. Add deterministic tests for redundant reactions, disconnected species and a zero column, without relying on external packages.",
       "Use a Markdown table to compare the original abstract network with one having a redundant reverse reaction and one including a bookkeeping sink. Show species count, reaction count, rank, left-nullspace dimension and right-nullspace dimension.",
       "Write a long mathematical validation report on conservation, nonnegative state constraints, numerical rank tolerances and the difference between stoichiometric feasibility and kinetic behavior. Include reproducible pseudocode, counterexamples and a bilingual glossary."
-    ]
-  },
-  {
-    "id": "acoustics_room_modal_superposition",
-    "title": "Room acoustics: modal superposition and damping",
-    "domain": "acoustics_rectangular_cavity_modes",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original annotated cutaway illustration of a rectangular acoustic test chamber with three microphone positions. Explain the geometry and coordinate system for a fictional experiment.",
-      "Derive the rigid-wall cavity eigenfrequencies and pressure mode shapes using LaTeX. Define every variable and identify degeneracies in a chamber with dimensions 4 m by 3 m by 2.5 m.",
-      "Write complete Python code to enumerate the first 30 nonzero modes, group nearby frequencies and evaluate normalized microphone responses. Include assertions for index bounds and permutation symmetry.",
-      "Use a Markdown table to compare uniform and mode-dependent damping models, measurement placement and the observability of symmetric modes. Explain limitations of each assumption.",
-      "Develop a long reproducible validation report for synthetic impulse responses, including sampling rates, frequency resolution, damping estimates, noisy peak separation and failure diagnostics. Show the uncertainty calculations."
     ]
   },
   {
@@ -400,6 +276,124 @@
       "Write complete runnable standard-library Python with an RK4 trajectory solver and a bracketed final-size root solver. Compare multiple step sizes, calculate population-conservation and invariant residuals, and include assertions for zero initial infection, a sub-threshold example and an invalid-input case. Report mathematical results without giving real-world health advice.",
       "Use Markdown tables to compare Euler and RK4 convergence, positivity, conservation and cost on your fictional example. Explain why clipping negative states can conceal numerical errors, derive a local step-size diagnostic, and test the final-size solver independently against the phase-plane invariant.",
       "Write a long mathematical verification report containing the proofs, LaTeX equations, solver pseudocode, convergence tables and reproducibility instructions. Discuss identifiability and the limitations introduced by a closed homogeneous population assumption, and separate exact properties from numerical approximations and interpretation."
+    ]
+  },
+  {
+    "id": "computational_geometry_voronoi_rain_gauges",
+    "title": "Voronoi geometry: fictional rain-gauge catchments",
+    "domain": "computational_geometry_voronoi",
+    "features": [
+      "imagen",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational image of a fictional island with six rain gauges and colored Voronoi catchments. Show a clean top-down cartographic style, a coordinate grid, and a separate legend; this is an invented teaching diagram, not real weather data.",
+      "Choose six explicit nondegenerate two-dimensional gauge coordinates within a rectangular island approximation. Derive the perpendicular-bisector half-plane for each gauge pair in LaTeX and explain how clipping constructs each bounded Voronoi cell.",
+      "Write complete runnable standard-library Python to construct the cells by polygon half-plane clipping. Include area calculations and assertions for total area conservation, duplicate coordinates, collinear gauges and boundary points.",
+      "Use a Markdown table to compare equal weighting, Thiessen-area weighting and inverse-distance weighting for six fictional rainfall values. Compute an area-weighted mean with explicit units and identify which assumptions each method makes.",
+      "Write a long reproducibility report connecting the generated illustration to the computed cells. Discuss numerical tolerances, polygon orientation, degenerate intersections, coordinate projections and why an attractive map does not validate measured rainfall."
+    ]
+  },
+  {
+    "id": "compiler_ssa_dominators_phi_placement",
+    "title": "编译器：支配树、SSA 与 phi 节点放置",
+    "domain": "compiler_control_flow_ssa",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "构造一个含分支、循环回边与不可达块的教学用控制流图，给出每个基本块的伪代码。用 LaTeX 严格定义支配关系、严格支配、直接支配和支配边界，明确入口和不可达节点的处理约定。",
+      "逐轮手算可达块的支配集合，推导直接支配树及支配边界；用一张 Markdown 表格列出每个块在各轮的集合，说明循环回边为什么需要固定点计算。",
+      "写完整可运行的 Python 标准库实现，计算可达性、支配集合、立即支配关系与迭代支配边界。加入菱形图、自环、嵌套循环、不可达块及空后继集合的断言测试。",
+      "在同一图上为两个变量演示 phi 节点放置与变量重命名，给出转换前后代码和版本栈变化表。讨论活跃性剪枝，以及未初始化值应如何在教学语义中明确处理。",
+      "写一篇较长的编译器验证报告，推导算法复杂度，并用可执行解释器或枚举输入对比原程序与 SSA 程序的行为。区分图结构性质、语言语义假设和有限测试能证明的范围。"
+    ]
+  },
+  {
+    "id": "projective_geometry_homography_checkerboard",
+    "title": "Projective geometry: a tilted teaching checkerboard",
+    "domain": "projective_geometry_camera_calibration",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational image of a tilted checkerboard on a tabletop viewed by a fictional pinhole camera. Show four distinctly colored corner markers and a separate clean top-down inset; avoid implying measured camera accuracy from an illustration.",
+      "Choose explicit non-collinear source and destination corner coordinates. Derive the projective homography equations in LaTeX, including homogeneous scale, division by the third coordinate and degeneracies.",
+      "Write complete runnable standard-library Python to solve the eight-unknown homography system with pivoting and map points in both directions. Include corner residual assertions, singular configurations, zero denominators and a reproducible noisy example.",
+      "Use a Markdown table to compare similarity, affine and projective transforms by degrees of freedom, invariant properties, minimum correspondences and failure modes. Compute reprojection residuals for a concrete numerical example.",
+      "Write a long reproducibility report connecting the checkerboard illustration to the algebra. Discuss lens distortion, conditioning, coordinate normalization, outliers, calibration uncertainty and why a generated image is not ground-truth geometry."
+    ]
+  },
+  {
+    "id": "queueing_birth_death_mm1_validation",
+    "title": "Queueing theory: stationary balance and finite simulation",
+    "domain": "queueing_markov_birth_death",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an M/M/1 queue with fictional request arrivals, independent service times and explicit units. Derive the continuous-time Markov generator and stationary balance equations in LaTeX, including the stability requirement.",
+      "Solve for the stationary queue-length distribution and derive mean queue length, waiting time and utilization. Explain the assumptions behind Little's law and distinguish queue-only waiting from total sojourn time.",
+      "Write complete runnable standard-library Python for event-driven simulation using a fixed random seed. Include warm-up removal, time-weighted occupancy, event ties, empty queues and assertion tests for bookkeeping identities.",
+      "Use a Markdown table to compare analytic predictions and simulated estimates for several stable traffic intensities. Give confidence-interval methodology, dependence caveats and a separate deliberately unstable case.",
+      "Write a long verification report with derivations, pseudocode and counterexamples. Discuss finite observation bias, initial transients, heavy traffic, correlated arrivals and how model misspecification differs from numerical error."
+    ]
+  },
+  {
+    "id": "mesh_topology_euler_characteristic_handles",
+    "title": "Polyhedral topology: vertices, edges, faces and handles",
+    "domain": "topology_polygon_meshes",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational cutaway illustration comparing a closed cube-like polyhedral surface and a closed torus-like polygon mesh. Distinguish vertices, edges and faces with a legend; keep the illustration explicitly conceptual rather than a certified mesh.",
+      "Define a finite oriented polygon mesh and derive Euler characteristic for connected closed orientable surfaces in LaTeX. Explain boundary components, disconnected components and why geometry alone does not determine genus.",
+      "Write complete runnable standard-library Python for validating edge incidence and orientation in explicit cube and triangulated torus meshes. Compute V, E, F, connected components and Euler characteristic, with assertions for duplicated faces, boundary edges and non-manifold edges.",
+      "Use a Markdown table to compare the mesh invariants for a tetrahedron, cube, torus, open disk and a disconnected union. State the hypotheses under which genus can be recovered and include examples that violate them.",
+      "Write a long reproducibility report connecting the illustration with the mesh data structures. Discuss welding tolerances, degenerate triangles, self-intersections, orientation, manifold tests and the distinction between a rendered surface and combinatorial proof."
+    ]
+  },
+  {
+    "id": "optimization_assignment_hungarian_duality",
+    "title": "Assignment optimization: Hungarian potentials and certificates",
+    "domain": "optimization_bipartite_assignment",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a fictional five-worker five-task integer cost matrix. Formulate the minimum-cost assignment linear program and its dual in LaTeX, including all equality and sign conventions.",
+      "Derive reduced costs and complementary slackness. Work through potential updates and alternating augmenting paths on the example, explaining how feasibility is preserved.",
+      "Write complete runnable standard-library Python implementing the Hungarian method with an explicit deterministic tie policy. Compare with exhaustive permutations for small cases and assert negative costs, repeated optima, rectangular input policy and invalid inputs.",
+      "Use a Markdown table to report the selected assignment, primal cost, dual objective and reduced-cost residuals. Compare optimality certificates with greedy heuristics using a concrete counterexample.",
+      "Write a long algorithm verification report covering time complexity, numerical considerations, degeneracies, forbidden assignments and how to distinguish implementation tests from a proof of optimality."
     ]
   }
 ]

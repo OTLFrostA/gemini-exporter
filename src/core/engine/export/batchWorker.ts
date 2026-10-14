@@ -1,4 +1,4 @@
-import { indexFromDetail } from '../../compatibility/index/parseIndex.js';
+import { indexFromParsed } from '../../compatibility/index/parseIndex.js';
 import { mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { StorageService } from '../../storage/storageService.js';
 import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
@@ -202,7 +202,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error, convsNeedSave: false };
     }
     const domain = result.conversation;
-    const merged = mergeConversationIndex(list ?? undefined, indexFromDetail(domain, dataSource === 'takeout' ? 'takeout' : dataSource === 'local_snapshot' ? 'snapshot' : 'detail'));
+    const merged = mergeConversationIndex(list ?? undefined, indexFromParsed(result, dataSource === 'takeout' ? 'takeout' : dataSource === 'local_snapshot' ? 'snapshot' : 'detail'));
     const changed = !!list && JSON.stringify(list) !== JSON.stringify(merged);
     if (changed && list) {
         Object.assign(list, merged);

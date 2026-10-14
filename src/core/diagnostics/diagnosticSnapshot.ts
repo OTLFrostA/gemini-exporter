@@ -12,7 +12,6 @@ export interface MaskedConversationMirror {
     titleSource?: string;
     createdAt?: number;
     updatedAt?: number;
-    lastMessageAt?: number;
     messageCount?: number;
     isTakeout: boolean;
     exportRecord: {
@@ -95,8 +94,9 @@ export function explainStateDerivation(c: DomainConversationIndex, rec?: any): s
     }
     const derived = resolveConversationExportState(c, rec);
     if (derived.hasNewerActivity) {
-        return 'Conversation activity advanced past export record (cTs > rTs + 2000ms grace or message count increased)';
+        return 'Source update version advanced past the saved export version, or observed message count increased';
     }
+    if (derived.needsIncrementalExport) return 'Source version is unknown; refresh is required before incremental skipping';
     return 'Export record is clean and up to date with conversation activity';
 }
 
@@ -148,7 +148,6 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             titleSource: c?.titleSource,
             createdAt: c.createdAt,
             updatedAt: c?.updatedAt,
-            lastMessageAt: c.lastMessageAt,
             messageCount: c.messageCount,
             isTakeout: isTakeoutConversation(c),
             exportRecord: rec ? {

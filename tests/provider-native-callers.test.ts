@@ -20,10 +20,11 @@ import { extractBlockText } from '../src/core/domain/content/unknownFallback.js'
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
 function page(request: string, seconds: number, cursor: string | null = null) {
     const turn = [['c_native', request], [seconds, 0], [[`Question ${request}`]], [[['rc_' + request, [['**Answer**']]]]]];
-    return parseGeminiRpcConversation(rpc([[turn], cursor, 'Title']), { providerId: 'gemini', targetConvId: 'native' });
+    return parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_native', 'Title', null, null, null, [1700000010, 0]]]])]]), { providerId: 'gemini', targetConvId: 'native' });
 }
 const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({
-    conversation: validateParserDomain({ providerId: 'gemini', id: 'native', title: 'Title', completeness: 'unknown', updatedAt: timestamp, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
+    sourceVersion: timestamp, conversation: validateParserDomain({ providerId: 'gemini', id: 'native', title: 'Title', completeness: 'unknown', messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
         content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }],
         assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { sourceUri: uri } : {}) }] }),
     diagnostics: [], resourceHints: {}, acquisitionHints: {},
@@ -38,7 +39,7 @@ test('production pagination merges native pages chronologically and closes renam
     assert.deepEqual(native.conversation.messages.filter(m => m.role === 'user').map(m => extractBlockText(m.content[0])), ['Question r_old', 'Question r_new']);
     assert.equal(native.conversation.createdAt, undefined);
     assert.equal(detail.conversation.createdAt, native.conversation.createdAt);
-    assert.equal(detail.conversation.updatedAt, 1700000010000);
+    assert.equal(detail.sourceVersion, 1700000010000);
     assertDomainClosure(native.conversation);
     const merged = mergeConversationPages([result('https://example.test/new.png', 'new', 20), result('https://example.test/old.png', 'old', 10)]);
     assert.deepEqual(merged.conversation.messages.map(m => m.attachmentIds), [['image_page1'], ['image']]);

@@ -273,6 +273,8 @@ export class PdfExporter {
             pdfBytesWritten: number;
             status: 'ok' | 'partial';
             hasFailedAssets: boolean;
+            chatTime?: number;
+            messageCount: number;
         }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
         let zipDelivery: PdfExportResult['zipDelivery'];
@@ -486,6 +488,8 @@ export class PdfExporter {
                             bytesWritten: writeReport.bytesWritten,
                             status: statusInfo.status,
                             hasFailedAssets: statusInfo.hasFailedAssets,
+                            ...(prep.sourceVersion !== undefined ? { chatTime: prep.sourceVersion } : {}),
+                            messageCount: prep.messageCount,
                         };
                         succeeded++;
                         completed.add(id);
@@ -501,6 +505,8 @@ export class PdfExporter {
                             pdfBytesWritten: result.stagedArtifact.bytesWritten,
                             status: statusInfo.status,
                             hasFailedAssets: statusInfo.hasFailedAssets,
+                            ...(prep.sourceVersion !== undefined ? { chatTime: prep.sourceVersion } : {}),
+                            messageCount: prep.messageCount,
                         });
                         onLog(`[PDF] ${title} 已暂存，等待 ZIP 打包交付后确认`, 'info');
                     }
@@ -555,6 +561,8 @@ export class PdfExporter {
                         bytesWritten: s.pdfBytesWritten,
                         status: s.status,
                         hasFailedAssets: s.hasFailedAssets,
+                        ...(s.chatTime !== undefined ? { chatTime: s.chatTime } : {}),
+                        messageCount: s.messageCount,
                     };
                     succeeded++;
                     completed.add(s.id);

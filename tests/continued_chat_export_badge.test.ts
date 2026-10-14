@@ -13,7 +13,7 @@ test('regression: 老会话追加一轮 -> 自动导出完成 -> badge 必须为
         id: CHAT_ID,
         title: '老会话初始对话',
         titleSource: 'rpc',
-        updatedAt: T1,
+        updatedAt: T1 + 500,
         timestamp: T1,
         messageCount: 2,
         messages: [
@@ -100,8 +100,8 @@ test('regression: 老会话追加一轮 -> 自动导出完成 -> badge 必须为
     assert.strictEqual(checkIsUpdated(c1, rec2), true, 'checkIsUpdated 必须返回 true');
 });
 
-test('authoritative timestamp extraction across turns in hNvQHb messages', () => {
-    // 验证无论字段位于 messages[].timestamp、chatTime 还是 updatedAt，提取器均能准确捕获最新值
+test('export versions require source updatedAt rather than inferring it from messages', () => {
+    // 消息时间属于消息；只有显式的源会话版本可以建立导出基线。
     const chatFromRpc = {
         id: 'rpc_chat',
         title: 'RPC 对话',
@@ -113,7 +113,8 @@ test('authoritative timestamp extraction across turns in hNvQHb messages', () =>
         ]
     };
     const ts = computeAuthoritativeTimestamp(chatFromRpc);
-    assert.strictEqual(ts, 1700000006500, '从 messages 列表中必须精准提取出最新 Turn 的 1700000006500');
+    assert.strictEqual(ts, undefined, '消息时间不能替代源会话版本');
+    assert.strictEqual(computeAuthoritativeTimestamp({ ...chatFromRpc, updatedAt: 1700000006500 }), 1700000006500);
 });
 
 test('clock skew robustness: client clock behind Google server clock never falsely triggers updated badge when chatTime matches', () => {

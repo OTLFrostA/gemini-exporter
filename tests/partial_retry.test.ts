@@ -168,6 +168,6 @@ test('checkIsUpdated: partial 记录即使时间戳未变化也判 true', async 
 
     // 对照：干净记录在同样时间戳下判 false（增量可跳过）
     assert.strictEqual(
-        checkIsUpdated(c, { exportedAt: new Date(5000).toISOString(), status: 'success' }),
+        checkIsUpdated(c, { exportedAt: new Date(5000).toISOString(), chatTime: 1000, status: 'success' }),
         false, '干净记录在时间戳未变化时应判 false');
 });

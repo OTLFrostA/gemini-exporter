@@ -33,10 +33,10 @@ test('list parsing provides strict indexes and independent source times, with no
 });
 
 
-test('message activity advances ordering and export freshness without mutating list metadata time', () => {
-    const list = indexFixture({ id: 'chat', title: 'Research', updatedAt: 100, lastMessageAt: 200 });
-    assert.equal(indexActivityTime(list), 200);
+test('only the canonical source update version drives activity', () => {
+    const list = indexFixture({ id: 'chat', title: 'Research', updatedAt: 100 });
+    assert.equal(indexActivityTime(list), 100);
     assert.equal(indexActivityTime({ ...list, updatedAt: 300 }), 300);
-    assert.equal(indexActivityTime({ ...list, updatedAt: undefined }), 200);
-    assert.equal(mergeConversationIndex(list, { ...list, lastMessageAt: 150 }).lastMessageAt, 200);
+    assert.equal(indexActivityTime({ ...list, updatedAt: undefined }), undefined);
+    assert.equal(mergeConversationIndex(list, { ...list, updatedAt: 50 }).updatedAt, 100);
 });

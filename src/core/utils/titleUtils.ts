@@ -310,51 +310,11 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
 
 function computeHasNewerActivity(c: Partial<DomainConversationIndex> | null | undefined, rec: ExportActivityRecord | null | undefined): boolean {
     if (!c || !rec) return false;
-    try {
-        const cTs = getEffectiveTimestamp(c);
-        const rTs = toTimestampMs(rec.exportedAt) ?? 0;
-        const rChatTime = toTimestampMs(rec.chatTime) ?? 0;
-        const curMsgCount = c.messageCount ?? 0;
-        const recMsgCount = rec.messageCount || 0;
-
-        // 1. Authoritative same-clock check:
-        // If export record captured the exported conversation's server chatTime:
-        // When conversation server timestamp has NOT advanced past exported turn timestamp,
-        // it cannot be updated by timestamp (immune to local clock skew).
-        if (rChatTime > 0 && cTs > 0 && cTs <= rChatTime) {
-            if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
-                if (rTs > 0 && rTs >= cTs + 2000 && (rec.isTruncated || rec.truncated || c.id?.includes('truncated'))) {
-                    return false;
-                }
-                return true;
-            }
-            return false;
-        }
-
-        // 2. Export freshness lock: if the export finished strictly AFTER the conversation's last activity,
-        // the conversation content cannot be newer than the export.
-        // Suppress messageCount / legacy chatTime discrepancies when exportedAt is strictly newer than cTs.
-        if (rTs > 0 && cTs > 0 && rTs >= cTs + 2000) {
-            return false;
-        }
-
-        // 3. Timestamp check:
-        // If rChatTime is present, check if cTs advanced past rChatTime
-        if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
-            return true;
-        }
-
-        // Legacy fallback when rChatTime is not present: check if cTs advanced past exportedAt
-        if (!rChatTime && cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
-            return true;
-        }
-
-        // 4. Message count check:
-        if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
-            return true;
-        }
-    } catch {}
-    return false;
+    const cTs = c.updatedAt;
+    const savedVersion = toTimestampMs(rec.chatTime);
+    // Local exportedAt only describes a disk write. It can never suppress a source update.
+    if (cTs !== undefined && savedVersion !== null && cTs > savedVersion) return true;
+    return (rec.messageCount ?? 0) > 0 && (c.messageCount ?? 0) > (rec.messageCount ?? 0);
 }
 
 export function resolveConversationExportState(
@@ -399,9 +359,10 @@ export function resolveConversationExportState(
         badgeKind = 'exported_ok';
     }
 
-    const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity;
+    const versionUnknown = hasRecord && (c?.updatedAt === undefined || toTimestampMs(rec?.chatTime) === null);
+    const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity || versionUnknown;
     const shouldAutoSelect = !isPendingAssets && (
-        !hasRecord || isRecordFailed || recStatus === 'empty' || hasNewerActivity || (isFailedInSession && !isPartial)
+        !hasRecord || isRecordFailed || recStatus === 'empty' || hasNewerActivity || versionUnknown || (isFailedInSession && !isPartial)
     );
 
     return {

@@ -54,19 +54,21 @@ test('file badges use only supplied media type or kind, including misleading lab
 
 test('display date selects the first valid fact and normalizes to UTC at composition', () => {
     const input = domain();
-    Object.assign(input, { updatedAt: Date.parse('2026-10-06T23:30:00-07:00'), createdAt: Date.parse('2026-10-04T00:00:00Z') });
+    input.createdAt = Date.parse('2026-10-04T00:00:00Z');
+    let sourceVersion: number | undefined = Date.parse('2026-10-06T23:30:00-07:00');
     for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
-        const document = composeDomainDocument(validateParserDomain(input)).document;
+        const document: DocumentAst = composeDomainDocument(validateParserDomain(input), { sourceVersion }).document;
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
-        Object.assign(input, { [field]: undefined });
+        if (field === 'updatedAt') sourceVersion = undefined;
+        else input.createdAt = undefined;
     }
     assert.equal(composeDomainDocument(validateParserDomain(input)).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document.header.date, '2026-10-07');
+    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, { sourceVersion: historicalFixture(source, { providerId: 'gemini' }).sourceVersion }).document.header.date, '2026-10-07');
     source.updatedAt = 'invalid';
-    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document;
+    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, { sourceVersion: historicalFixture(source, { providerId: 'gemini' }).sourceVersion }).document;
     assert.equal(document.header.date, '2026-10-04');
     assert.equal(document.messages[0].modelLabel, 'provider only');
     assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');

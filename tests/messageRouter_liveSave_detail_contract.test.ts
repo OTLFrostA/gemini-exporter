@@ -103,14 +103,14 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         const resolved = await resolveConversationDetail('c_detail123');
         assert.strictEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
         assert.equal(Object.hasOwn(resolved!.conversation, 'chatTime'), false);
-        assert.equal(resolved?.conversation.updatedAt, undefined); assert.equal(resolved?.conversation.createdAt, undefined);
+        assert.equal(resolved?.sourceVersion, undefined); assert.equal(resolved?.conversation.createdAt, undefined);
         assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
         if (injected) assert.equal(calledId, 'detail123');
     }
-    const existing = detail(); existing.conversation.updatedAt = 1500000000000;
+    const existing = detail(); existing.sourceVersion = 1500000000000;
     set(async () => existing); initLive();
     assert.strictEqual(await resolveConversationDetail('detail123'), existing);
-    assert.equal(existing.conversation.updatedAt, 1500000000000);
+    assert.equal(existing.sourceVersion, 1500000000000);
 }));
 
 test('liveSave: empty/failed provider and failed injected client still permit DOM acquisition', async () => withProvider(async set => {

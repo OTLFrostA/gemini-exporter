@@ -30,7 +30,7 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
     assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
     const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
     assert.ok(prepared.ok);
-    assert.deepEqual(prepared.document, composeDomainDocument(domain).document);
+    assert.deepEqual(prepared.document, composeDomainDocument(domain, { sourceVersion: parsed.sourceVersion }).document);
     assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
     assert.ok(!('bundle' in prepared) && !('byteStore' in prepared));
     assert.deepEqual(parsed.conversation, domain);

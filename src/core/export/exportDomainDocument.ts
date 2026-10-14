@@ -24,7 +24,7 @@ export async function exportDomainMarkdown(conversation: TrustedDomain, options:
     const { document } = composeDomainDocument(conversation, options);
     const resources = prepareDomainResources(options.resourceResults);
     const createdAt = toIso(conversation.createdAt);
-    const updatedAt = toIso(conversation.updatedAt);
+    const updatedAt = toIso(options.sourceVersion);
     return renderDocumentMarkdown(document, resources, { locale: options.locale ?? options.lang,
         thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, frontMatter: options.frontMatter ?? [
             { key: 'title', value: document.header.title }, { key: 'id', value: conversation.id }, { key: 'provider', value: conversation.providerId },

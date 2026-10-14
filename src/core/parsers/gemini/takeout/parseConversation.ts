@@ -1,4 +1,3 @@
-import { normalizeConversationTimes } from '../../../domain/time.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
@@ -129,12 +128,12 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout',
         completeness: 'partial',
-        ...normalizeConversationTimes({ updatedAt }), url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
+        url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
         const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
-    return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
+    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
         diagnostics: [...diagnostics, ...contentDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
 }

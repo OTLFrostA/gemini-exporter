@@ -1,4 +1,4 @@
-import { indexFromDetail } from '../index/parseIndex.js';
+import { indexFromParsed } from '../index/parseIndex.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { persistNativeConversation } from '../../storage/domain/nativePersistence.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
@@ -101,8 +101,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         diagnostics.push(...native.diagnostics);
         // Preserve metadata-only import writes: Takeout fragments must never replace
         // a fuller detail already in storage. The runtime cache owns parsed bodies.
-        const domain = result.conversation;
-        conversations.push(indexFromDetail(domain, 'takeout'));
+        conversations.push(indexFromParsed(result, 'takeout'));
         if (conversations.length % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
     }
     const totalMediaCount = Object.entries(inventory).filter(([path, entry]) => entry && typeof entry === 'object' && !('dir' in entry && entry.dir) && !/\.(html|json)$/i.test(path)).length;

@@ -144,13 +144,13 @@ test.describe('Workbench UI & Selection Controls', () => {
         { id: 'chat_empty', title: '之前未导出任何正文', timestamp: now - 7200000 }
       ];
       const mockExported = {
-        'chat_exported': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出未变动会话' },
-        'chat_updated': { exportedAt: new Date(now - 3600000).toISOString(), title: '已导出又有新对话' },
-        'chat_partial': { exportedAt: new Date(now - 3600000).toISOString(), status: 'partial', hasFailedAssets: true },
-        'chat_legacy_partial': { exportedAt: new Date(now - 3600000).toISOString(), hasFailedAssets: true },
-        'chat_partial_updated': { exportedAt: new Date(now - 3600000).toISOString(), status: 'partial', hasFailedAssets: true },
-        'chat_failed': { exportedAt: new Date(now - 3600000).toISOString(), status: 'failed' },
-        'chat_empty': { exportedAt: new Date(now - 3600000).toISOString(), status: 'empty', messageCount: 0 }
+        'chat_exported': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, title: '已导出未变动会话' },
+        'chat_updated': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, title: '已导出又有新对话' },
+        'chat_partial': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'partial', hasFailedAssets: true },
+        'chat_legacy_partial': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, hasFailedAssets: true },
+        'chat_partial_updated': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'partial', hasFailedAssets: true },
+        'chat_failed': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'failed' },
+        'chat_empty': { exportedAt: new Date(now - 3600000).toISOString(), chatTime: now - 7200000, status: 'empty', messageCount: 0 }
       };
       await chrome.storage.local.set({
         gemini_conversations: (mockConvs).map(canonicalIndexFixture),

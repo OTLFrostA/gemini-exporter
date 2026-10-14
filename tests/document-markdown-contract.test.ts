@@ -15,8 +15,8 @@ function domainFixture(blocks: any[], extra: any = {}): DomainConversationDetail
 const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra)).document, extra.resources ?? {});
 
 test('Markdown export envelope uses Domain metadata and omits absent optional fields', async () => {
-    const b = domainFixture([]); Object.assign(b, { url: 'https://example.com/chat', createdAt: Date.parse('2026-01-01T00:00:00Z'), updatedAt: Date.parse('2026-01-02T00:00:00Z') });
-    const md = await exportDomainMarkdown(b);
+    const b = domainFixture([]); Object.assign(b, { url: 'https://example.com/chat', createdAt: Date.parse('2026-01-01T00:00:00Z') });
+    const md = await exportDomainMarkdown(b, { sourceVersion: Date.parse('2026-01-02T00:00:00Z') });
     assert.ok(md.startsWith('---\ntitle: "Title"\nid: "c"\nprovider: "gemini"\nurl: "https://example.com/chat"\ndate: "2026-01-01T00:00:00.000Z"\nupdated: "2026-01-02T00:00:00.000Z"\nexported: "'));
     assert.ok(md.includes('tags:\n  - gemini-export\n---\n\n# Title'));
     const minimal = await exportDomainMarkdown(domainFixture([])); assert.ok(!/^url:|^date:|^updated:/m.test(minimal));
@@ -110,7 +110,7 @@ test('Gemini Markdown fallback reaches Document Markdown with semantic formattin
 
 test('Markdown escapes unsafe links, local paths and YAML title boundaries', async () => {
     const b = domainFixture([{ type: 'paragraph', children: [{ type: 'link', href: 'javascript:alert(1)', children: [txt('safe')] }, { type: 'image', assetId: 'a', alt: 'blocked' }] }], { assets: [{ id: 'a', kind: 'image', sourceUri: 'https://remote/pic.png' }] });
-    b.title = 'Title"\nextra: yes'; const md = await exportDomainMarkdown(b);
+    b.title = 'Title"\nextra: yes'; const md = await exportDomainMarkdown(b, { sourceVersion: Date.parse('2026-01-02T00:00:00Z') });
     assert.ok(md.includes('title: "Title\\" extra: yes"')); assert.ok(!md.includes('javascript:')); assert.ok(!md.includes('https://remote')); assert.ok(md.includes('[Image unavailable: blocked]'));
 });
 

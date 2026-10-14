@@ -149,6 +149,8 @@ test('success is only marked after the Writer actually wrote the file', async ()
     assert.strictEqual(exported[0].record.status, 'partial', 'body is delivered with a reported unavailable image');
     assert.strictEqual(exported[0].record.fileName, writer.files[0].name);
     assert.strictEqual(exported[0].record.bytesWritten, writer.files[0].bytes.length);
+    assert.strictEqual(exported[0].record.chatTime, sample.updatedAt, 'PDF records the fetched body version');
+    assert.strictEqual(exported[0].record.messageCount, sample.messages.length);
 });
 
 test('writer failure marks the item failed, never successful, and stays retryable', async () => {
@@ -270,6 +272,7 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
 test('zip mode packages only after successful writes', async () => {
     const writer = makeFakeWriter();
     const exporter = new PdfExporter(new StubPdfCompiler());
+    const exported: Array<{ chatTime?: number; messageCount?: number }> = [];
     let downloaded: { name: string } | null = null;
     const result = await exporter.run(
         {
@@ -281,12 +284,15 @@ test('zip mode packages only after successful writes', async () => {
                 downloaded = { name: filename };
             },
         },
-        {}
+        { onItemExported: (_id: string, record: { chatTime?: number; messageCount?: number }) => exported.push(record) }
     );
     assert.strictEqual(result.succeeded, 1);
     assert.ok(downloaded, 'zip download handler invoked');
     assert.ok((downloaded as any).name.endsWith('.zip'));
     assert.strictEqual(writer.files.length, 1, 'the pdf itself was written to the zip writer');
+    assert.strictEqual(exported.length, 1);
+    assert.strictEqual(exported[0].chatTime, sample.updatedAt, 'ZIP finalization retains the captured PDF version');
+    assert.strictEqual(exported[0].messageCount, sample.messages.length);
 });
 
 test('zip: generateBlob failure never reports success and commits no records (§1)', async () => {

@@ -114,6 +114,7 @@ export interface PreparedPdfItemSuccess {
     drift: ChatParseDrift;
     usedLocalSnapshot: boolean;
     messageCount: number;
+    sourceVersion?: number;
 }
 
 export interface PreparedPdfItemFailure {
@@ -243,7 +244,7 @@ async function prepareNativePdfItem(
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);
-        const composed = composeDomainDocument({ ...parsed.conversation, title });
+        const composed = composeDomainDocument({ ...parsed.conversation, title }, { sourceVersion: parsed.sourceVersion });
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
@@ -266,7 +267,7 @@ async function prepareNativePdfItem(
     });
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, messageCount: document.messages.length };
+    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, sourceVersion: parsed.sourceVersion, messageCount: document.messages.length };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

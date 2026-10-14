@@ -13,8 +13,8 @@ const candidates: DomainConversationIndex = { ...index, titles: { rpc: 'Title' }
 const body: DomainConversationIndex = { ...index, messages: [] };
 // @ts-expect-error Unknown activity is absent, never null.
 const undated: DomainConversationIndex = { ...index, updatedAt: null };
-// @ts-expect-error Message activity is a distinct numeric fact; it cannot be null.
-const badMessageTime: DomainConversationIndex = { ...index, lastMessageAt: null };
+// @ts-expect-error Message observations do not create a second activity field.
+const badMessageTime: DomainConversationIndex = { ...index, lastMessageAt: 10 };
 // @ts-expect-error Identity cannot be changed by an index patch.
 const patch: ConversationIndexPatch = { id: 'replacement' };
 // @ts-expect-error Partial historical rows cannot be written as canonical indexes.

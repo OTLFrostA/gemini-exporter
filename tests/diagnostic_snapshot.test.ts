@@ -73,7 +73,7 @@ test('explainStateDerivation: produces human-actionable diagnosis reasons', () =
 
     // Updated
     const rUpdated = explainStateDerivation({ ...chat, updatedAt: t0 + 60000 }, { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0 });
-    assert.ok(rUpdated.includes('advanced past export record'));
+    assert.ok(rUpdated.includes('advanced past the saved export version'));
 });
 
 test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without credential leaks', async () => {
@@ -128,7 +128,7 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
         assert.strictEqual(item2.id, 'chat_002');
         assert.strictEqual(item2.derivedState.state, 'updated');
         assert.strictEqual(item2.derivedState.needsIncrementalExport, true);
-        assert.ok(item2.derivedState.explanation.includes('advanced past export record'));
+        assert.ok(item2.derivedState.explanation.includes('advanced past the saved export version'));
 
         // Verify sync & flight recorder
         assert.ok(snapshot.syncDiagnostics);

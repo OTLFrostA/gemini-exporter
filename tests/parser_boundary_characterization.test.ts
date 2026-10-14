@@ -100,7 +100,8 @@ test('detail: reverse wire ordering, candidates and authoritative timestamps rem
     assert.equal(parsed.messages[0].providerRequestId, 'r_AB12');
     assert.equal(parsed.messages[1].id, 'rc_old');
     assert.equal(Object.hasOwn(parsed, 'createdAt'), false);
-    assert.equal(parsed.updatedAt, 1700000010500);
+    assert.equal(parsed.updatedAt, null, 'detail-only wire lacks a conversation metadata version');
+    assert.equal(parsed.messages.at(-1)?.timestamp, 1700000010500);
     assert.equal(Object.hasOwn(parsed, 'chatTime'), false);
     assert.equal(parsed.nextPageToken, 'tC_detail_cursor');
     assert.equal(Object.hasOwn(parsed, 'titles'), false);

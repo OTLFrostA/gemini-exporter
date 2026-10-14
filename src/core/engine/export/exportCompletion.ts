@@ -33,7 +33,6 @@ export interface ExportCompletionFacts {
     titles?: TitleSources;
     timestamp?: number | string | null;
     updatedAt?: number | string | null;
-    lastMessageAt?: number;
     createdAt?: number | string | null;
     chatTime?: number | string | null;
     messages?: Array<{ timestamp?: number | string | Date | null }> | number;
@@ -129,17 +128,10 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
  */
 export function computeAuthoritativeTimestamp(conversation: ExportCompletionConversation, explicitTime?: number | string | Date | null): number | undefined {
     const metadata = conversation && typeof conversation === 'object' ? conversation : undefined;
-    let tsFromMessages = 0;
-    if (Array.isArray(metadata?.messages)) {
-        for (const m of metadata.messages) {
-            const mt = toTimestampMs(m?.timestamp);
-            if (mt && mt > tsFromMessages) tsFromMessages = mt;
-        }
-    }
-    const max = Math.max(tsFromMessages, ...[
-        explicitTime, metadata?.chatTime, metadata?.lastMessageAt, metadata?.updatedAt, metadata?.timestamp, metadata?.createdAt,
-    ].map(value => toTimestampMs(value) ?? 0));
-    return max > 0 ? max : undefined;
+    // A saved/exported version is a source update value. Neither local export time,
+    // creation time nor arbitrary message dates can manufacture that version.
+    return toTimestampMs(explicitTime) ?? toTimestampMs(metadata?.updatedAt)
+        ?? toTimestampMs(metadata?.chatTime) ?? toTimestampMs(metadata?.timestamp) ?? undefined;
 }
 
 export interface ResolveExportRecordStatusOptions {
@@ -297,14 +289,12 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         ...(isTruncated ? { isTruncated: true, truncateReason: input.truncateReason || chat.truncateReason || 'truncated' } : {})
     };
 
-    const messageTimes = Array.isArray(chat.messages) ? chat.messages.map(message => toTimestampMs(message.timestamp)).filter((time): time is number => time !== null) : [];
-    if (typeof chat.lastMessageAt === 'number' && Number.isFinite(chat.lastMessageAt)) messageTimes.push(chat.lastMessageAt);
-    const lastMessageAt = messageTimes.reduce<number | undefined>((latest, time) => latest === undefined ? time : Math.max(latest, time), undefined);
     const index = parseIndexObservation({ id: targetId, title: candidateTitle, titleSource: candidateProvenance,
-        titles: mergedTitles, messageCount, lastMessageAt }, 'export');
+        titles: mergedTitles, messageCount }, 'export');
+    const sourceUpdatedAt = chatTime ?? null;
     const conversationUpdate: StandardConversationUpdate = {
         title: index.title, titleSource: index.titleSource, messageCount: index.messageCount,
-        ...(index.lastMessageAt !== undefined ? { lastMessageAt: index.lastMessageAt } : {}),
+        ...(sourceUpdatedAt !== null ? { updatedAt: sourceUpdatedAt } : {}),
     };
 
     return {

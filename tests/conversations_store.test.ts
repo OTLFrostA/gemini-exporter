@@ -92,6 +92,6 @@ test('conversationsStore consumes canonical indexes without rewriting them', () 
 
 test('conversationsStore signature observes activity changes without a title or order change', () => {
     const original = Array.from({ length: 8 }, (_, i) => indexFixture({ id: `signature-${i}`, title: 'Same title', updatedAt: 10 }));
-    const changed = original.map((row, i) => i === 4 ? { ...row, lastMessageAt: 20 } : row);
+    const changed = original.map((row, i) => i === 4 ? { ...row, updatedAt: 20 } : row);
     assert.notStrictEqual(ConversationsStore.getSignature(original), ConversationsStore.getSignature(changed));
 });
