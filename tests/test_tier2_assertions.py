@@ -923,6 +923,14 @@ class SearchSelectionCounterexamples(unittest.TestCase):
         self.assertTrue(
             CDPAssertions.assert_search_filter(self.cdp(snap), CID, expected_ids=list(reversed(ids)), timeout=0.2)[0])
 
+    def test_id_set_mode_rejects_duplicate_ids(self):
+        dup_visible = self.snap([self.item(CID, "t"), self.item(CID, "t")])
+        self.assertFalse(
+            CDPAssertions.assert_search_filter(self.cdp(dup_visible), CID, expected_ids=[CID], timeout=0.2)[0])
+        self.assertFalse(
+            CDPAssertions.assert_search_filter(
+                self.cdp(self.snap([self.item(CID, "t")])), CID, expected_ids=[CID, CID], timeout=0.2)[0])
+
     def run_search_id(self, visible_items, select_ret, is_checked):
         from scripts.framework.cases.workbench import SearchIdCase
         cdp = MagicMock()
@@ -972,6 +980,9 @@ class SearchSelectionCounterexamples(unittest.TestCase):
         self.assertFalse(self.run_selection(
             self.sel(["a", "b", "c"], ["a"]), full)[0])
         self.assertTrue(self.run_selection(self.sel(["a", "b", "c"], []), full)[0])
+        # 全选后列表为空（可选集合为空）→ FAIL，杜绝空集恒等误通过
+        self.assertFalse(self.run_selection(
+            self.sel(["a", "b", "c"], []), self.sel([], []))[0])
         # 禁用项不参与：可选集之外的禁用已选项不影响判定
         self.assertTrue(self.run_selection(
             self.sel(["a", "b"], []), self.sel(["a", "b"], ["a", "b"]))[0])
