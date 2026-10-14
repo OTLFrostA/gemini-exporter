@@ -15,6 +15,21 @@ function isTextContent(
     return message.content.content_type === 'text';
 }
 
+/** Tool/image messages that carry renderable images are kept; pure tool chatter is dropped. */
+function toolMessageHasImage(message: ChatGPTNodeMessage): boolean {
+    const content = message.content;
+    if (content.content_type === 'execution_output') {
+        const messages = message.metadata?.aggregate_result?.messages;
+        return Array.isArray(messages) && messages.some((m) => m.message_type === 'image');
+    }
+    if (content.content_type === 'multimodal_text') {
+        return Array.isArray(content.parts) && content.parts.some(
+            (p) => typeof p !== 'string' && p.content_type === 'image_asset_pointer',
+        );
+    }
+    return false;
+}
+
 /** Mirrors pionxzh shouldSkipMessageInExport: keep only user-visible turns. */
 export function shouldSkipChatGPTMessage(message?: ChatGPTNodeMessage): boolean {
     if (!message || !message.content) return true;
@@ -30,7 +45,14 @@ export function shouldSkipChatGPTMessage(message?: ChatGPTNodeMessage): boolean 
     ) {
         return true;
     }
-    if (message.author.role === 'tool') return true;
+    if (message.author.role === 'tool') {
+        // File-search grinding and other tool chatter stays out, but image
+        // results (code-execution output, multimodal asset pointers) are kept
+        // so generated/uploaded pictures survive the export.
+        if (message.author.name === 'file_search') return true;
+        if (!toolMessageHasImage(message)) return true;
+        return false;
+    }
     return false;
 }
 
@@ -160,4 +182,36 @@ export function chatGPTNodeText(node: ChatGPTConversationNode): string {
 /** Role mapping into our neutral Domain vocabulary. */
 export function chatGPTNodeRole(node: ChatGPTConversationNode): 'user' | 'assistant' {
     return node.message?.author.role === 'user' ? 'user' : 'assistant';
+}
+
+/**
+ * All image sources a linear history carries: `sediment://` asset pointers in
+ * multimodal parts plus code-execution image URLs. Next step resolves each via
+ * `GET /backend-api/files/download/:id` into a signed download URL (pionxzh
+ * `fetchImageFromPointer`), then stores bytes as Domain assets.
+ */
+export function collectChatGPTImagePointers(
+    nodes: ChatGPTConversationNode[],
+): string[] {
+    const out: string[] = [];
+    for (const node of nodes) {
+        const content = node.message?.content;
+        if (!content) continue;
+        if (content.content_type === 'multimodal_text' && Array.isArray(content.parts)) {
+            for (const p of content.parts) {
+                if (typeof p !== 'string' && p.content_type === 'image_asset_pointer' && p.asset_pointer) {
+                    out.push(p.asset_pointer);
+                }
+            }
+        }
+        if (content.content_type === 'execution_output') {
+            const messages = node.message?.metadata?.aggregate_result?.messages;
+            if (Array.isArray(messages)) {
+                for (const m of messages) {
+                    if (m.message_type === 'image' && m.image_url) out.push(m.image_url);
+                }
+            }
+        }
+    }
+    return out;
 }

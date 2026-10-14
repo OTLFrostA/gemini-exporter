@@ -29,6 +29,9 @@ export interface ChatGPTNodeMessage {
         reasoning_title?: string;
         finished_duration_sec?: number;
         attachments?: Array<{ id: string; name: string; mime_type?: string; size?: number }>;
+        aggregate_result?: {
+            messages?: Array<{ message_type: string; image_url?: string }>;
+        };
         model_dil_v2?: { fallbackMarkdown?: string };
         citations?: unknown[];
         content_references?: unknown[];

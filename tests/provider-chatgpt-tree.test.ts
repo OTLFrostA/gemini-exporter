@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+    collectChatGPTImagePointers,
     extractChatGPTLinearNodes,
     mergeChatGPTContinuations,
     processChatGPTMapping,
@@ -103,4 +104,39 @@ test('ChatGPTProvider checkReadiness reports logged-out session', async () => {
     });
     const readiness = await provider.checkReadiness();
     assert.equal(readiness.ready, false);
+});
+
+test('tool image nodes are kept and their sediment pointers collected', () => {
+    const toolImage: ChatGPTConversationNode = {
+        id: 't1',
+        parent: 'u1',
+        children: [],
+        message: {
+            author: { role: 'tool', metadata: {} },
+            content: {
+                content_type: 'multimodal_text',
+                parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_abc' }],
+            },
+            id: 'msg-t1',
+            recipient: 'all',
+            status: 'finished_successfully',
+            weight: 1,
+        },
+    };
+    const toolChatter: ChatGPTConversationNode = {
+        id: 't2',
+        parent: 't1',
+        children: [],
+        message: {
+            author: { role: 'tool', name: 'browser', metadata: {} },
+            content: { content_type: 'text', parts: ['searching...'] },
+            id: 'msg-t2',
+            recipient: 'all',
+            status: 'finished_successfully',
+            weight: 1,
+        },
+    };
+    assert.equal(shouldSkipChatGPTMessage(toolImage.message), false);
+    assert.equal(shouldSkipChatGPTMessage(toolChatter.message), true);
+    assert.deepEqual(collectChatGPTImagePointers([toolImage, toolChatter]), ['sediment://file_abc']);
 });
