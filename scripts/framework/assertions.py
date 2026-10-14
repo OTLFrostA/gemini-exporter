@@ -510,24 +510,25 @@ class CDPAssertions:
 
     @staticmethod
     def _norm_chat_id(chat_id: Any) -> str:
-        """剥离 c_ 前缀并做大小写归一，用于会话 ID 精确比对。"""
+        """剥离 c_ 前缀并做大小写归一，用于会话 ID 集合比对（顺序无关）。"""
         if chat_id is None:
             return ""
         return str(chat_id).removeprefix("c_").strip().lower()
 
     @staticmethod
-    def assert_search_filter(cdp_opt, query: str, expected_visible_min: int = 1, expected_visible_max: Optional[int] = None, timeout: float = 3.0, expected_ids: Optional[List[str]] = None) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言搜索过滤后工作台列表可见项数量在预期区间内，并逐项确认满足查询条件。
+    def assert_search_filter(cdp_opt, query: str, expected_ids: Optional[List[str]] = None, timeout: float = 3.0) -> Tuple[bool, str, Dict[str, Any]]:
+        """断言搜索过滤结果，轮询等待渲染稳定后做一次集合判定。
 
-        生产过滤契约（src/ui/views/listView.ts）为标题或 ID 大小写不敏感包含查询串。
-        本断言镜像该契约：每个可见项的标题/ID 必须至少一项包含查询串，否则 FAIL。
-        若传入 expected_ids，则要求可见 ID 集合与预期精确一致（归一化 c_ 前缀后比较），
-        用于 ID 搜索唯一命中场景。
+        两种互斥模式（不再叠加数量区间/收缩/逐项等多重判断）：
+        - expected_ids 给定时：直接比较实际可见 ID 集合与预期集合（归一化后，
+          顺序无关）。错误 ID、额外结果、遗漏结果均为 FAIL，天然覆盖数量检查。
+        - expected_ids 为空时：逐项确认每个可见项的标题或 ID 包含查询串，
+          用于无法预先确定完整结果集的关键词搜索。
         """
         q = (query or "").strip().lower()
         norm_expected = None
         if expected_ids is not None:
-            norm_expected = sorted(CDPAssertions._norm_chat_id(i) for i in expected_ids)
+            norm_expected = {CDPAssertions._norm_chat_id(i) for i in expected_ids}
         start = time.time()
         last_vis_info: Dict[str, Any] = {}
         last_msg = ""
@@ -535,19 +536,9 @@ class CDPAssertions:
         while time.time() - start < timeout:
             vis_info = cdp_opt.eval(f"""
             (() => {{
-                const input = document.querySelector('{WorkbenchSelectors.SEARCH_INPUT}');
                 const items = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
                 const visible = items.filter(el => el.style.display !== 'none');
-                const store = typeof ConversationsStore !== 'undefined' ? ConversationsStore : (window.ConversationsStore || null);
-                const defaultStore = typeof DefaultConversationsStore !== 'undefined' ? DefaultConversationsStore : (window.DefaultConversationsStore || null);
-                const s = store || defaultStore;
-                const totalStore = s ? s.getConversations().length : items.length;
                 return {{
-                    query: input ? input.value : '',
-                    totalCount: totalStore,
-                    visibleCount: visible.length,
-                    firstVisibleId: visible.length > 0 ? visible[0].dataset.chatId : null,
-                    firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('{WorkbenchSelectors.ITEM_TITLE}')?.textContent || '') : '',
                     visibleItems: visible.map(el => ({{
                         id: el.dataset.chatId || '',
                         title: el.querySelector('{WorkbenchSelectors.ITEM_TITLE}')?.textContent || ''
@@ -555,49 +546,36 @@ class CDPAssertions:
                 }};
             }})()
             """) or {}
-
-            total = vis_info.get("totalCount", 0)
-            vis = vis_info.get("visibleCount", 0)
             last_vis_info = vis_info
+            visible_items = vis_info.get("visibleItems", [])
 
-            if vis < expected_visible_min:
-                last_msg = f"搜索过滤后可见项不足: {vis} < 预期最小 {expected_visible_min} (Query: '{query}')"
-            elif expected_visible_max is not None and vis > expected_visible_max:
-                last_msg = f"搜索过滤后可见项超出: {vis} > 预期最大 {expected_visible_max} (Query: '{query}')"
-            elif total > 1 and q and vis >= total:
-                last_msg = f"搜索过滤未生效: 总数 {total} 与 可见数 {vis} 相同，未发生过滤收缩 (Query: '{query}')"
+            if norm_expected is not None:
+                norm_visible = {CDPAssertions._norm_chat_id(i.get("id", "")) for i in visible_items}
+                missing = sorted(norm_expected - norm_visible)
+                extra = sorted(norm_visible - norm_expected)
+                if missing or extra:
+                    last_msg = (
+                        f"ID搜索集合不一致 (Query: '{query}'): "
+                        f"缺失={missing or []} 多余={extra or []}"
+                    )
+                else:
+                    return True, f"搜索过滤断言通过 (Query: '{query}', 命中 {len(norm_visible)} 项，与预期集合一致)", vis_info
             else:
-                # 逐项确认可见会话满足查询条件（镜像生产标题/ID 包含契约）
-                mismatched = []
-                if q:
-                    for item in vis_info.get("visibleItems", []):
-                        title = str(item.get("title", "")).lower()
-                        cid = str(item.get("id", "")).lower()
-                        if q not in title and q not in cid:
-                            mismatched.append(item)
+                if not visible_items:
+                    last_msg = f"搜索过滤后无可见项 (Query: '{query}')"
+                else:
+                    mismatched = [
+                        item for item in visible_items
+                        if q not in str(item.get("title", "")).lower()
+                        and q not in str(item.get("id", "")).lower()
+                    ]
                     if mismatched:
                         last_msg = (
                             f"搜索过滤误匹配: {len(mismatched)} 项不含查询串 '{query}' "
                             f"(如 id={mismatched[0].get('id')} title={str(mismatched[0].get('title'))[:30]})"
                         )
-                    elif norm_expected is not None:
-                        norm_visible = sorted(CDPAssertions._norm_chat_id(i.get("id", "")) for i in vis_info.get("visibleItems", []))
-                        if norm_visible != norm_expected:
-                            last_msg = (
-                                f"ID搜索未唯一命中: 可见 {norm_visible} != 预期 {norm_expected} (Query: '{query}')"
-                            )
-                        else:
-                            return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 逐项匹配通过, ID精确命中)", vis_info
                     else:
-                        return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 逐项匹配通过, 首项: {str(vis_info.get('firstVisibleTitle', ''))[:20]})", vis_info
-                elif norm_expected is not None:
-                    norm_visible = sorted(CDPAssertions._norm_chat_id(i.get("id", "")) for i in vis_info.get("visibleItems", []))
-                    if norm_visible != norm_expected:
-                        last_msg = f"ID搜索未唯一命中: 可见 {norm_visible} != 预期 {norm_expected} (Query: '{query}')"
-                    else:
-                        return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, ID精确命中)", vis_info
-                else:
-                    return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 首项: {str(vis_info.get('firstVisibleTitle', ''))[:20]})", vis_info
+                        return True, f"搜索过滤断言通过 (Query: '{query}', {len(visible_items)} 项逐项匹配)", vis_info
 
             time.sleep(0.05)
 
@@ -605,22 +583,22 @@ class CDPAssertions:
 
     @staticmethod
     def assert_selection_state(cdp_opt) -> Dict[str, Any]:
-        """快照工作台复选框选择状态：总数/已选数/未选 ID/已选 ID/可选总数。"""
+        """快照工作台复选框原始状态：可选 ID 集合与已选 ID 集合（禁用项直接排除，不要求被选中）。
+
+        数量一律由调用方按 len() 派生，本函数不维护任何计数或差集字段。
+        """
         return cdp_opt.eval(f"""
         (() => {{
             const boxes = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM} {WorkbenchSelectors.CHECKBOX}'));
-            const enabled = boxes.filter(cb => !cb.disabled);
-            const checked = boxes.filter(cb => cb.checked);
-            const checkedEnabled = enabled.filter(cb => cb.checked);
-            const itemOf = (cb) => cb.closest('{WorkbenchSelectors.ITEM}');
-            return {{
-                total: boxes.length,
-                enabledTotal: enabled.length,
-                checked: checked.length,
-                checkedEnabled: checkedEnabled.length,
-                checkedIds: checked.map(cb => itemOf(cb)?.dataset?.chatId || ''),
-                uncheckedIds: boxes.filter(cb => !cb.checked).map(cb => itemOf(cb)?.dataset?.chatId || '')
-            }};
+            const selectable = [];
+            const selected = [];
+            for (const cb of boxes) {{
+                if (cb.disabled) continue;
+                const id = cb.closest('{WorkbenchSelectors.ITEM}')?.dataset?.chatId || '';
+                selectable.push(id);
+                if (cb.checked) selected.push(id);
+            }}
+            return {{ selectable, selected }};
         }})()
         """) or {}
 
