@@ -132,9 +132,9 @@ test('production Takeout binds extension variations once and carries native Doma
 test('non-archive Takeout images do not become missing ZIP resource failures', async () => {
     const slot = 'native-inline';
     try {
-        const html = activity('').replace('<p>Answer</p>', '<p>![remote](https://example.test/remote.png) ![http](http://example.test/plain.png) ![inline](data:image/png;base64,AQID)</p>');
+        const html = activity('').replace('<p>Answer</p>', '<p>![cdn](//cdn.example.com/image.png) ![remote](https://example.test/remote.png) ![http](http://example.test/plain.png) ![inline](data:image/png;base64,AQID)</p>');
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html) }), null, slot);
-        assert.equal(parsed.convCache.native.conversation.assets.length, 3);
+        assert.equal(parsed.convCache.native.conversation.assets.length, 4);
         assert.equal(parsed.status, 'ok');
         assert.deepEqual(parsed.resourceResults, []);
         assert.ok(!parsed.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'));

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { restoreDomainSnapshot, validateParserDomain } from '../src/core/domain/runtimeValidation.js';
-import { TITLE_SOURCES } from '../src/core/domain/titleAuthority.js';
+import { TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
 import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { saveDomainConversation, getStoredDomain, storedParseResult, storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
@@ -22,7 +22,7 @@ test('current schema rejects deleted fields and empty resource objects at the ex
         { ...base(), assets: [{ id: 'a', kind: 'file', document: {} }] },
         { ...base(), titleSource: 'future-provider-tier' },
     ]) assert.throws(() => restoreDomainSnapshot(invalid), /Invalid persisted Domain contract/);
-    for (const titleSource of TITLE_SOURCES.keys()) assert.equal(restoreDomainSnapshot({ ...base(), titleSource }).titleSource, titleSource);
+    for (const titleSource of Object.keys(TITLE_AUTHORITY_RANK)) assert.equal(restoreDomainSnapshot({ ...base(), titleSource }).titleSource, titleSource);
 });
 
 test('partial resource identities remain valid and parsers omit absent generation/document information', () => {
