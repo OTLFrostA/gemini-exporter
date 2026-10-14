@@ -279,7 +279,13 @@ class TestSearchClearIsolation(unittest.TestCase):
         # Earlier independent cases have changed both the search and selection.
         state = {"query": "another-chat", "selected": False}
         cdp = MagicMock()
-        cdp.eval.side_effect = lambda expression: state["selected"]
+
+        def eval_dispatch(expression, *args, **kwargs):
+            # Store 总数查询返回全量 12；勾选状态查询返回实际选中态
+            if "getConversations" in str(expression):
+                return 12
+            return state["selected"]
+        cdp.eval.side_effect = eval_dispatch
         ctx = MagicMock()
         ctx.shared_data = {"target_search_id": "target-chat"}
         ctx.connect_options.return_value = cdp

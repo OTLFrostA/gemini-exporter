@@ -509,10 +509,27 @@ class CDPAssertions:
         return True, f"Takeout 临时标题成功升级为 RPC 权威标题 (升级数: {upgraded_count}/{len(matched)})", status
 
     @staticmethod
-    def assert_search_filter(cdp_opt, query: str, expected_visible_min: int = 1, expected_visible_max: Optional[int] = None, timeout: float = 3.0) -> Tuple[bool, str, Dict[str, Any]]:
-        """断言搜索过滤后工作台列表可见项数量在预期区间内（带轮询等待渲染稳定）"""
+    def _norm_chat_id(chat_id: Any) -> str:
+        """剥离 c_ 前缀并做大小写归一，用于会话 ID 精确比对。"""
+        if chat_id is None:
+            return ""
+        return str(chat_id).removeprefix("c_").strip().lower()
+
+    @staticmethod
+    def assert_search_filter(cdp_opt, query: str, expected_visible_min: int = 1, expected_visible_max: Optional[int] = None, timeout: float = 3.0, expected_ids: Optional[List[str]] = None) -> Tuple[bool, str, Dict[str, Any]]:
+        """断言搜索过滤后工作台列表可见项数量在预期区间内，并逐项确认满足查询条件。
+
+        生产过滤契约（src/ui/views/listView.ts）为标题或 ID 大小写不敏感包含查询串。
+        本断言镜像该契约：每个可见项的标题/ID 必须至少一项包含查询串，否则 FAIL。
+        若传入 expected_ids，则要求可见 ID 集合与预期精确一致（归一化 c_ 前缀后比较），
+        用于 ID 搜索唯一命中场景。
+        """
+        q = (query or "").strip().lower()
+        norm_expected = None
+        if expected_ids is not None:
+            norm_expected = sorted(CDPAssertions._norm_chat_id(i) for i in expected_ids)
         start = time.time()
-        last_vis_info = {}
+        last_vis_info: Dict[str, Any] = {}
         last_msg = ""
 
         while time.time() - start < timeout:
@@ -530,7 +547,11 @@ class CDPAssertions:
                     totalCount: totalStore,
                     visibleCount: visible.length,
                     firstVisibleId: visible.length > 0 ? visible[0].dataset.chatId : null,
-                    firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('{WorkbenchSelectors.ITEM_TITLE}')?.textContent || '') : ''
+                    firstVisibleTitle: visible.length > 0 ? (visible[0].querySelector('{WorkbenchSelectors.ITEM_TITLE}')?.textContent || '') : '',
+                    visibleItems: visible.map(el => ({{
+                        id: el.dataset.chatId || '',
+                        title: el.querySelector('{WorkbenchSelectors.ITEM_TITLE}')?.textContent || ''
+                    }}))
                 }};
             }})()
             """) or {}
@@ -543,14 +564,65 @@ class CDPAssertions:
                 last_msg = f"搜索过滤后可见项不足: {vis} < 预期最小 {expected_visible_min} (Query: '{query}')"
             elif expected_visible_max is not None and vis > expected_visible_max:
                 last_msg = f"搜索过滤后可见项超出: {vis} > 预期最大 {expected_visible_max} (Query: '{query}')"
-            elif total > 1 and vis >= total:
+            elif total > 1 and q and vis >= total:
                 last_msg = f"搜索过滤未生效: 总数 {total} 与 可见数 {vis} 相同，未发生过滤收缩 (Query: '{query}')"
             else:
-                return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 首项: {vis_info.get('firstVisibleTitle')[:20]})", vis_info
+                # 逐项确认可见会话满足查询条件（镜像生产标题/ID 包含契约）
+                mismatched = []
+                if q:
+                    for item in vis_info.get("visibleItems", []):
+                        title = str(item.get("title", "")).lower()
+                        cid = str(item.get("id", "")).lower()
+                        if q not in title and q not in cid:
+                            mismatched.append(item)
+                    if mismatched:
+                        last_msg = (
+                            f"搜索过滤误匹配: {len(mismatched)} 项不含查询串 '{query}' "
+                            f"(如 id={mismatched[0].get('id')} title={str(mismatched[0].get('title'))[:30]})"
+                        )
+                    elif norm_expected is not None:
+                        norm_visible = sorted(CDPAssertions._norm_chat_id(i.get("id", "")) for i in vis_info.get("visibleItems", []))
+                        if norm_visible != norm_expected:
+                            last_msg = (
+                                f"ID搜索未唯一命中: 可见 {norm_visible} != 预期 {norm_expected} (Query: '{query}')"
+                            )
+                        else:
+                            return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 逐项匹配通过, ID精确命中)", vis_info
+                    else:
+                        return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 逐项匹配通过, 首项: {str(vis_info.get('firstVisibleTitle', ''))[:20]})", vis_info
+                elif norm_expected is not None:
+                    norm_visible = sorted(CDPAssertions._norm_chat_id(i.get("id", "")) for i in vis_info.get("visibleItems", []))
+                    if norm_visible != norm_expected:
+                        last_msg = f"ID搜索未唯一命中: 可见 {norm_visible} != 预期 {norm_expected} (Query: '{query}')"
+                    else:
+                        return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, ID精确命中)", vis_info
+                else:
+                    return True, f"搜索过滤断言通过 (Query: '{query}', 可见: {vis}/{total}, 首项: {str(vis_info.get('firstVisibleTitle', ''))[:20]})", vis_info
 
             time.sleep(0.05)
 
         return False, last_msg, last_vis_info
+
+    @staticmethod
+    def assert_selection_state(cdp_opt) -> Dict[str, Any]:
+        """快照工作台复选框选择状态：总数/已选数/未选 ID/已选 ID/可选总数。"""
+        return cdp_opt.eval(f"""
+        (() => {{
+            const boxes = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM} {WorkbenchSelectors.CHECKBOX}'));
+            const enabled = boxes.filter(cb => !cb.disabled);
+            const checked = boxes.filter(cb => cb.checked);
+            const checkedEnabled = enabled.filter(cb => cb.checked);
+            const itemOf = (cb) => cb.closest('{WorkbenchSelectors.ITEM}');
+            return {{
+                total: boxes.length,
+                enabledTotal: enabled.length,
+                checked: checked.length,
+                checkedEnabled: checkedEnabled.length,
+                checkedIds: checked.map(cb => itemOf(cb)?.dataset?.chatId || ''),
+                uncheckedIds: boxes.filter(cb => !cb.checked).map(cb => itemOf(cb)?.dataset?.chatId || '')
+            }};
+        }})()
+        """) or {}
 
     @staticmethod
     def assert_real_disk_live_save(
