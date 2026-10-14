@@ -12,6 +12,14 @@ import {
     fileIdFromPointer,
     parseFileDownloadPayload,
 } from '../src/core/provider/chatgpt/imageAssets.js';
+import {
+    applyChatGPTHead,
+    citationsOfChatGPTNode,
+    collectChatGPTThinking,
+    refreshChatGPTList,
+    thinkingToReasoningBlocks,
+    uploadedFilesOfChatGPTNode,
+} from '../src/core/provider/chatgpt/conversationDetail.js';
 import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -224,4 +232,133 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
     const toolMsg = detail.conversation.messages.find((m) => m.id === 't1');
     assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.assets[0]?.id]);
     assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
+});
+
+test('thinking walk attaches hidden reasoning to the following assistant node', () => {
+    const mapping: Record<string, ChatGPTConversationNode> = {
+        root: { id: 'root', children: ['u1'] },
+        u1: {
+            id: 'u1', parent: 'root', children: ['th'],
+            message: {
+                author: { role: 'user', metadata: {} },
+                content: { content_type: 'text', parts: ['q'] },
+                id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        th: {
+            id: 'th', parent: 'u1', children: ['rc'],
+            message: {
+                author: { role: 'assistant', metadata: {} },
+                content: { content_type: 'thoughts', thoughts: [{ summary: 'plan', content: 'step by step' }] },
+                id: 'msg-th', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        rc: {
+            id: 'rc', parent: 'th', children: ['a1'],
+            message: {
+                author: { role: 'assistant', metadata: { finished_duration_sec: 12 } },
+                content: { content_type: 'reasoning_recap', content: 'Thought for 12 seconds' },
+                id: 'msg-rc', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        a1: {
+            id: 'a1', parent: 'rc', children: [],
+            message: {
+                author: { role: 'assistant', metadata: {} },
+                content: { content_type: 'text', parts: ['answer'] },
+                id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+    };
+    const ids = new Set(['u1', 'a1']);
+    const got = collectChatGPTThinking(mapping, ids, 'a1');
+    const thinking = got.get('a1');
+    assert.ok(thinking);
+    assert.equal(thinking?.thoughts.length, 1);
+    assert.equal(thinking?.durationSeconds, 12);
+    const blocks = thinkingToReasoningBlocks(thinking ?? { thoughts: [], activities: [] });
+    assert.equal(blocks.length, 2);
+    assert.match(JSON.stringify(blocks[0]), /12/);
+});
+
+test('citations dedupe by URL across tether and grouped references', () => {
+    const node: ChatGPTConversationNode = {
+        id: 'a1', children: [],
+        message: {
+            author: { role: 'assistant', metadata: {} },
+            content: { content_type: 'text', parts: ['hi'] },
+            id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            metadata: {
+                citations: [{ metadata: { title: 'T', url: 'https://ex.com/a' } }],
+                content_references: [{
+                    items: [{ title: 'T', url: 'https://ex.com/a' }, { title: 'B', url: 'https://ex.com/b' }],
+                }],
+            },
+        },
+    };
+    const cites = citationsOfChatGPTNode(node);
+    assert.deepEqual(cites.map((c) => c.url), ['https://ex.com/a', 'https://ex.com/b']);
+    assert.deepEqual(cites.map((c) => c.id), ['citation-0', 'citation-1']);
+});
+
+test('uploaded non-image files recorded, images left to the image path', () => {
+    const node: ChatGPTConversationNode = {
+        id: 'u1', children: [],
+        message: {
+            author: { role: 'user', metadata: {} },
+            content: { content_type: 'text', parts: ['see files'] },
+            id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            metadata: {
+                attachments: [
+                    { id: 'file-1', name: 'notes.pdf', mime_type: 'application/pdf', size: 42 },
+                    { id: 'file-2', name: 'pic.png', mime_type: 'image/png' },
+                ],
+            },
+        },
+    };
+    assert.deepEqual(uploadedFilesOfChatGPTNode(node), [
+        { id: 'file-1', name: 'notes.pdf', mediaType: 'application/pdf', byteLength: 42 },
+    ]);
+});
+
+test('incremental refresh stops at first unchanged item and merges head', () => {
+    const cached = [
+        { id: 'a', title: 'A', create_time: 1, update_time: 3 },
+        { id: 'b', title: 'B', create_time: 1, update_time: 2 },
+    ];
+    const pages = [[
+        { id: 'c', title: 'C', create_time: 2, update_time: 4 },
+        { id: 'a', title: 'A', create_time: 1, update_time: 3 },
+        { id: 'z', title: 'Z', create_time: 1, update_time: 9 },
+    ]];
+    const { head, reachedKnown } = refreshChatGPTList(cached, pages);
+    assert.equal(reachedKnown, true);
+    assert.deepEqual(head.map((c) => c.id), ['c']);
+    assert.deepEqual(applyChatGPTHead(head, cached).map((c) => c.id), ['c', 'a', 'b']);
+});
+
+test('listConversations paginates until the reported total is reached', async () => {
+    const calls: string[] = [];
+    const provider = new ChatGPTProvider({
+        fetchFn: (url) => {
+            const u = String(url);
+            if (u.endsWith('/api/auth/session')) {
+                return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
+            }
+            calls.push(u);
+            const items = [
+                { id: 'a', title: 'A', create_time: 1 },
+                { id: 'b', title: 'B', create_time: 1 },
+                { id: 'c', title: 'C', create_time: 1 },
+            ];
+            return Promise.resolve(new Response(JSON.stringify({
+                items, total: 3, limit: 100, offset: 0, has_missing_conversations: false,
+            }), { status: 200 }));
+        },
+    });
+    const page = await provider.listConversations({ maxPages: 5 });
+    assert.deepEqual(page.items.map((i) => i.id), ['a', 'b', 'c']);
+    assert.equal(page.exhaustive, true);
+    assert.equal(page.total, 3);
+    assert.equal(calls.length, 1);
 });

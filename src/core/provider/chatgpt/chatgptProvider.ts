@@ -35,8 +35,15 @@ import {
     fileIdFromPointer,
     parseFileDownloadPayload,
 } from './imageAssets.js';
-import type { DomainAsset } from '../../domain/conversationDetail.js';
+import type { DomainAsset, DomainCitation } from '../../domain/conversationDetail.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
+import type { ChatGPTThinking } from './conversationDetail.js';
+import {
+    citationsOfChatGPTNode,
+    collectChatGPTThinking,
+    thinkingToReasoningBlocks,
+    uploadedFilesOfChatGPTNode,
+} from './conversationDetail.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
 
 export interface ChatGPTFetch {
@@ -131,20 +138,52 @@ export class ChatGPTProvider implements AIProvider {
 
     async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<ProviderConversationItem>> {
         const limit = 100;
-        const result = await this.authedGet<ChatGPTApiConversations>(
-            `/conversations?offset=0&limit=${limit}`,
-        );
-        const items = (result.items ?? []).map(toProviderItem);
-        void options;
-        const total = typeof result.total === 'number' ? result.total : undefined;
-        const exhaustive = total !== undefined ? items.length >= total : result.cursor == null;
+        const maxPages = typeof options?.maxPages === 'number' && options.maxPages > 0
+            ? Math.floor(options.maxPages)
+            : 20;
+        const all: ProviderConversationItem[] = [];
+        let offset = 0;
+        let total: number | undefined;
+        let cursor: string | null = null;
+        let exhaustive = false;
+        for (let page = 0; page < maxPages; page += 1) {
+            const result = await this.authedGet<ChatGPTApiConversations>(
+                `/conversations?offset=${offset}&limit=${limit}`,
+            );
+            const batch = (result.items ?? []).map(toProviderItem);
+            all.push(...batch);
+            if (typeof result.total === 'number') total = result.total;
+            cursor = result.cursor ?? null;
+            options?.onProgress?.({
+                page: page + 1,
+                added: batch.length,
+                total: all.length,
+                hasMore: true,
+                batch,
+            });
+            if (batch.length === 0) {
+                exhaustive = true;
+                break;
+            }
+            // pionxzh stop rules: no total and no cursor means one-shot list;
+            // reaching the reported total means history is complete.
+            if (result.total == null && result.cursor == null) {
+                exhaustive = true;
+                break;
+            }
+            if (result.total != null && offset + limit >= result.total) {
+                exhaustive = true;
+                break;
+            }
+            offset += limit;
+        }
         return {
-            items,
+            items: all,
             total,
             hasMore: !exhaustive,
-            nextCursor: result.cursor ?? null,
+            nextCursor: cursor,
             exhaustive,
-            completionReason: exhaustive ? 'complete' : 'cursor-remaining',
+            completionReason: exhaustive ? 'complete' : 'page-budget-reached',
         };
     }
 
@@ -157,9 +196,15 @@ export class ChatGPTProvider implements AIProvider {
         const conversation: ChatGPTApiConversationWithId = { ...raw, id: conversationId };
         const nodes = processChatGPTMapping(conversation);
         const modelSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
+        const startId = conversation.current_node || nodes[nodes.length - 1]?.id || '';
+        const thinkingByNode = collectChatGPTThinking(
+            conversation.mapping,
+            new Set(nodes.map((n) => n.id)),
+            startId,
+        );
         const assets: DomainAsset[] = [];
         const messages = await Promise.all(
-            nodes.map((n) => this.toDomainMessage(n, modelSlug, assets)),
+            nodes.map((n) => this.toDomainMessage(n, modelSlug, assets, thinkingByNode.get(n.id))),
         );
         const domain = validateParserDomain({
             providerId: 'chatgpt',
@@ -184,6 +229,7 @@ export class ChatGPTProvider implements AIProvider {
         node: ChatGPTConversationNode,
         modelSlug: string,
         assets: DomainAsset[],
+        thinking?: ChatGPTThinking,
     ): Promise<{
         id?: string;
         role: 'user' | 'assistant';
@@ -191,6 +237,8 @@ export class ChatGPTProvider implements AIProvider {
         content: BlockNode[];
         timestamp?: number;
         attachmentIds?: string[];
+        reasoning?: BlockNode[];
+        citations?: DomainCitation[];
     }> {
         const text = chatGPTNodeText(node);
         const content: BlockNode[] = text
@@ -213,6 +261,23 @@ export class ChatGPTProvider implements AIProvider {
             attachmentIds.push(resolved.assetId);
             content.push({ type: 'image', assetId: resolved.assetId });
         }
+        for (const file of uploadedFilesOfChatGPTNode(node)) {
+            const assetId = `file-${file.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+            const downloaded = await this.fetchFileAsset(file.id);
+            assets.push({
+                id: assetId,
+                kind: 'file',
+                name: file.name,
+                mediaType: downloaded?.mediaType ?? file.mediaType,
+                byteLength: downloaded?.byteLength ?? file.byteLength,
+                sourceUri: `file-download:${file.id}`,
+                ...(downloaded ? { dataBase64: downloaded.dataBase64 } : {}),
+            });
+            attachmentIds.push(assetId);
+            content.push({ type: 'file', assetId, label: file.name });
+        }
+        const reasoning = thinking ? thinkingToReasoningBlocks(thinking) : [];
+        const citations = citationsOfChatGPTNode(node);
         return {
             id: node.id,
             role: chatGPTNodeRole(node),
@@ -220,7 +285,35 @@ export class ChatGPTProvider implements AIProvider {
             content,
             timestamp: toEpochMs(node.message?.create_time),
             attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
+            ...(reasoning.length > 0 ? { reasoning } : {}),
+            ...(citations.length > 0 ? { citations } : {}),
         };
+    }
+
+    /** Best-effort bytes for an uploaded (non-image) file; null keeps the stub. */
+    private async fetchFileAsset(
+        fileId: string,
+    ): Promise<{ dataBase64: string; mediaType?: string; byteLength?: number } | null> {
+        try {
+            const exchange = await this.authedGet<unknown>(buildFileDownloadPath(fileId));
+            const parsed = parseFileDownloadPayload(exchange);
+            if (!parsed) return null;
+            const bytesRes = await this.fetchFn(parsed.downloadUrl);
+            if (!bytesRes.ok) return null;
+            const buf = await bytesRes.arrayBuffer();
+            if (buf.byteLength === 0 || buf.byteLength > CHATGPT_MAX_IMAGE_BYTES) return null;
+            const headerType = bytesRes.headers?.get('content-type');
+            return {
+                dataBase64: arrayBufferToBase64(buf),
+                mediaType:
+                    (typeof headerType === 'string' && headerType.split(';')[0]?.trim()) ||
+                    parsed.mimeType ||
+                    undefined,
+                byteLength: buf.byteLength,
+            };
+        } catch {
+            return null;
+        }
     }
 
     /**

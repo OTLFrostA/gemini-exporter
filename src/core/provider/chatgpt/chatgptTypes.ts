@@ -33,8 +33,16 @@ export interface ChatGPTNodeMessage {
             messages?: Array<{ message_type: string; image_url?: string }>;
         };
         model_dil_v2?: { fallbackMarkdown?: string };
-        citations?: unknown[];
-        content_references?: unknown[];
+        /** Tether web citations: each entry carries its source in metadata. */
+        citations?: Array<{ metadata?: { title?: string; url?: string; text?: string } }>;
+        /** New-style grouped web references with item/source lists. */
+        content_references?: Array<{
+            items?: Array<{ title?: string; url?: string }>;
+            sources?: Array<{ title?: string; url?: string }>;
+            fallback_items?: Array<{ title?: string; url?: string }>;
+            url?: string;
+            title?: string;
+        }>;
     };
     recipient: string;
     channel?: string | null;
