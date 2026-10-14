@@ -152,7 +152,10 @@ class SelectionControlsCase(FeatureTestCase):
                 return False, "联动控制异常: 列表为空无法验证全选/取消全选", details
             if none_state.get("selected"):
                 return False, f"取消全选未清空所有勾选 (残留={none_state.get('selected')})", details
-            # 全选：已选的可选 ID 集合必须等于全部可选 ID 集合（漏选/多选均为 FAIL，禁用项不参与）
+            # 全选：可选集合必须非空，且已选的可选 ID 集合必须等于全部可选 ID 集合
+            # （漏选/多选均为 FAIL，禁用项不参与）
+            if not all_state.get("selectable"):
+                return False, "联动控制异常: 全选后可选集合为空", details
             if set(all_state.get("selected", [])) != set(all_state.get("selectable", [])):
                 return False, (
                     f"全选集合不一致 (可选={all_state.get('selectable')}, 已选={all_state.get('selected')})"

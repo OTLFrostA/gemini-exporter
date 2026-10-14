@@ -520,15 +520,16 @@ class CDPAssertions:
         """断言搜索过滤结果，轮询等待渲染稳定后做一次集合判定。
 
         两种互斥模式（不再叠加数量区间/收缩/逐项等多重判断）：
-        - expected_ids 给定时：直接比较实际可见 ID 集合与预期集合（归一化后，
-          顺序无关）。错误 ID、额外结果、遗漏结果均为 FAIL，天然覆盖数量检查。
+        - expected_ids 给定时：直接比较实际可见 ID 与预期 ID 的排序列表（归一化后，
+          顺序无关、重复计数敏感）。错误 ID、额外结果、遗漏结果、重复 ID 均为 FAIL，
+          天然覆盖数量检查。
         - expected_ids 为空时：逐项确认每个可见项的标题或 ID 包含查询串，
           用于无法预先确定完整结果集的关键词搜索。
         """
         q = (query or "").strip().lower()
         norm_expected = None
         if expected_ids is not None:
-            norm_expected = {CDPAssertions._norm_chat_id(i) for i in expected_ids}
+            norm_expected = sorted(CDPAssertions._norm_chat_id(i) for i in expected_ids)
         start = time.time()
         last_vis_info: Dict[str, Any] = {}
         last_msg = ""
@@ -550,16 +551,14 @@ class CDPAssertions:
             visible_items = vis_info.get("visibleItems", [])
 
             if norm_expected is not None:
-                norm_visible = {CDPAssertions._norm_chat_id(i.get("id", "")) for i in visible_items}
-                missing = sorted(norm_expected - norm_visible)
-                extra = sorted(norm_visible - norm_expected)
-                if missing or extra:
+                norm_visible = sorted(CDPAssertions._norm_chat_id(i.get("id", "")) for i in visible_items)
+                if norm_visible != norm_expected:
                     last_msg = (
-                        f"ID搜索集合不一致 (Query: '{query}'): "
-                        f"缺失={missing or []} 多余={extra or []}"
+                        f"ID搜索不一致 (Query: '{query}'): "
+                        f"实际={norm_visible} 预期={norm_expected}"
                     )
                 else:
-                    return True, f"搜索过滤断言通过 (Query: '{query}', 命中 {len(norm_visible)} 项，与预期集合一致)", vis_info
+                    return True, f"搜索过滤断言通过 (Query: '{query}', 命中 {len(norm_visible)} 项，与预期一致)", vis_info
             else:
                 if not visible_items:
                     last_msg = f"搜索过滤后无可见项 (Query: '{query}')"
