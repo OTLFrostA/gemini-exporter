@@ -1,10 +1,12 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
+import type { Conversation } from '../../../types/conversation.js';
 import { nativeExportInput } from '../../engine/chatFormatter.js';
 import {
     BatchWorker,
     resolveConversationData,
     type FetchChatDetailResult,
+    type ResolvedResourceConversationParseResult,
 } from '../../engine/export/batchWorker.js';
 import {
     AssetPipeline as AssetPipelineStatic,
@@ -100,6 +102,9 @@ export async function resolveFullChatDetail(args: {
     } catch (error) { return { ok: false, error: getErrorMessage(error) }; }
 }
 
+import { extractChatParseDrift } from '../../engine/export/parseDrift.js';
+import type { ExportIntegrityEvidence } from '../../engine/export/exportCompletion.js';
+
 export interface PreparedPdfItemSuccess {
     ok: true;
     id: string;
@@ -107,6 +112,8 @@ export interface PreparedPdfItemSuccess {
     document: DocumentAst;
     resources: PreparedResources;
     diagnostics: RenderDiagnostic[];
+    integrity: ExportIntegrityEvidence;
+    messageCount: number;
 }
 
 export interface PreparedPdfItemFailure {
@@ -120,7 +127,7 @@ export interface PreparedPdfItemFailure {
 export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFailure;
 
 export interface PreparePdfItemContext {
-    conversations?: Array<{ id: string; title?: string }>;
+    conversations?: Array<{ id: string; title?: string; cloudAvailability?: Conversation['cloudAvailability']; isTakeoutOnly?: boolean }>;
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
@@ -227,6 +234,19 @@ async function prepareNativePdfItem(
     if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
     if (!parsed?.conversation.messages.length) return { ok: false, id, title,
         error: `[${PDF_NO_MESSAGES}] Native conversation body is unavailable`, diagnostics };
+    const drift = extractChatParseDrift(parsed);
+    const resolvedSource = (parsed as ResolvedResourceConversationParseResult).resolvedSource;
+    const usedLocalSnapshot = resolvedSource === 'local_snapshot'
+        && listItem?.cloudAvailability !== 'deleted'
+        && !listItem?.isTakeoutOnly;
+    const integrity: ExportIntegrityEvidence = {
+        sourcePartial: drift.sourcePartial,
+        turnsRejected: drift.turnsRejected,
+        hasHeuristicDocs: drift.hasHeuristicDocs,
+        truncated: drift.truncated,
+        usedLocalSnapshot,
+    };
+    const messageCount = parsed.conversation.messages.length;
     parsed = { ...parsed, conversation: { ...parsed.conversation, title } };
     let document: DocumentAst;
     try {
@@ -255,7 +275,7 @@ async function prepareNativePdfItem(
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
     const resources = prepared.resources;
-    return { ok: true, id, title, document, resources, diagnostics };
+    return { ok: true, id, title, document, resources, diagnostics, integrity, messageCount };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

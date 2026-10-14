@@ -11,6 +11,7 @@ import { DEFAULT_EXPORT_FOLDER_NAME } from '../../utils/constants.js';
 import { isAbortError } from './errors.js';
 import { getErrorMessage } from '../../utils/messaging.js';
 import { BatchWorker, type FetchChatDetailResult } from '../../engine/export/batchWorker.js';
+import { resolveExportRecordStatus } from '../../engine/export/exportCompletion.js';
 import { IPdfCompiler } from './pdfCompiler.js';
 import { TypstSandboxCompiler, type RuntimeFontConsumer } from '../typst/typstSandboxCompiler.js';
 import { PdfPipeline } from './pipeline/orchestrator.js';
@@ -269,6 +270,7 @@ export class PdfExporter {
             diagnostics: RenderDiagnostic[];
             pdfFileName: string;
             pdfBytesWritten: number;
+            status: 'ok' | 'partial';
             hasFailedAssets: boolean;
         }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
@@ -455,14 +457,31 @@ export class PdfExporter {
                 switch (result.status) {
                     case 'delivered': {
                         const writeReport: ArtifactWriteReport = result.writeReport;
+                        const failedAssetsCount = options.includeAssets !== false
+                            ? result.resourceResults.filter(resource => !resource.ok).length
+                            : 0;
+                        const statusInfo = resolveExportRecordStatus({
+                            failedAssetsCount,
+                            messageCount: prep.messageCount,
+                            evidence: prep.integrity,
+                        });
+                        if (statusInfo.status !== 'ok' && statusInfo.status !== 'partial') {
+                            failItem(
+                                id,
+                                title,
+                                `[pipeline:INVALID_STATUS] PDF export delivered item but resolved unexpected status '${statusInfo.status}'`,
+                                itemDiagnostics,
+                            );
+                            break;
+                        }
                         const record: PdfExportRecord = {
                             title,
                             exportedAt: writeReport.writtenAt,
                             format: 'pdf',
                             fileName: writeReport.fileName,
                             bytesWritten: writeReport.bytesWritten,
-                            status: options.includeAssets !== false && result.resourceResults.some(resource => !resource.ok) ? 'partial' : 'ok',
-                            hasFailedAssets: options.includeAssets !== false && result.resourceResults.some(resource => !resource.ok),
+                            status: statusInfo.status,
+                            hasFailedAssets: statusInfo.hasFailedAssets,
                         };
                         succeeded++;
                         completed.add(id);
@@ -472,13 +491,31 @@ export class PdfExporter {
                         break;
                     }
                     case 'staged': {
+                        const failedAssetsCount = options.includeAssets !== false
+                            ? result.resourceResults.filter(resource => !resource.ok).length
+                            : 0;
+                        const statusInfo = resolveExportRecordStatus({
+                            failedAssetsCount,
+                            messageCount: prep.messageCount,
+                            evidence: prep.integrity,
+                        });
+                        if (statusInfo.status !== 'ok' && statusInfo.status !== 'partial') {
+                            failItem(
+                                id,
+                                title,
+                                `[pipeline:INVALID_STATUS] PDF export staged item but resolved unexpected status '${statusInfo.status}'`,
+                                itemDiagnostics,
+                            );
+                            break;
+                        }
                         staged.push({
                             id,
                             title,
                             diagnostics: itemDiagnostics,
                             pdfFileName: result.stagedArtifact.fileName,
                             pdfBytesWritten: result.stagedArtifact.bytesWritten,
-                            hasFailedAssets: options.includeAssets !== false && result.resourceResults.some(resource => !resource.ok),
+                            status: statusInfo.status,
+                            hasFailedAssets: statusInfo.hasFailedAssets,
                         });
                         onLog(`[PDF] ${title} 已暂存，等待 ZIP 打包交付后确认`, 'info');
                         break;
@@ -531,7 +568,7 @@ export class PdfExporter {
                         format: 'pdf',
                         fileName: s.pdfFileName,
                         bytesWritten: s.pdfBytesWritten,
-                        status: s.hasFailedAssets ? 'partial' : 'ok',
+                        status: s.status,
                         hasFailedAssets: s.hasFailedAssets,
                     };
                     succeeded++;
