@@ -1,10 +1,19 @@
-# Conversation index v3 validation
+# Conversation index migration validation
 
 Validated on 2026-10-14. The index migration is delivered for review as a draft. Full live acceptance has **not** passed, and merging remains blocked pending that acceptance.
 
+## Storage version correction
+
+Storage v2 has not shipped; released users have v1. Body and index migrations are
+therefore one v1-to-v2 startup upgrade, with the v2 stamp withheld until both complete.
+The initial draft incorrectly advanced the application schema to v3; that increment
+and the corresponding backup/report names have been corrected before release.
+The historical evidence directory below retains its original name. The live evidence
+below predates this version correction; Tier 2 has not been rerun for this revision.
+
 ## Completed checks
 
-- `npm test`: scoped zero-any, strict TypeScript, Python contracts, 267 Node unit suites, production build and 96 Playwright tests passed.
+- `npm test` rerun after the storage-version correction: scoped zero-any, strict TypeScript, Python contracts, 267 Node unit suites, production build and 96 Playwright tests passed.
 - Physical IndexedDB/reload tests verify original index backups, body separation, malformed-row reporting, pure reads, schema rejection and deletion retry.
 - Negative type contracts reject historical aliases, title maps, bodies, nullable activity and identity-changing patches.
 - The final default-pool live run passed real multi-turn creation and activity synchronization, natural passive Coverage, exhaustive/incremental pagination, cloud deletion with local archive retention, Takeout import and 4/4 authoritative title upgrades, continued-chat ordering, generated images and stale-tab image export.

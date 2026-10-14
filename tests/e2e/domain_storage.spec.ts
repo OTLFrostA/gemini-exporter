@@ -51,7 +51,7 @@ test('v1 disk migration joins metadata/body, survives restart and exports native
         const markdown = await api.formatMarkdownDocument(view);
         return { version: (await chrome.storage.local.get(['gemini_schema_version'])).gemini_schema_version, conversation: view.conversation, markdown: markdown.content };
     });
-    expect(restored.version).toBe(3);
+    expect(restored.version).toBe(2);
     expect(restored.conversation.messages).toHaveLength(2);
     expect(restored.conversation.messages[1].model).toBe('Remembered model');
     expect(restored.conversation.messages[1].reasoning).toBeTruthy();
@@ -305,14 +305,14 @@ test('restart retains report caution and detects missing image bytes without sav
 });
 
 
-test('v2 index migration backs up raw disk values, separates body and rejects read-time repair after restart', async ({ page }) => {
+test('v1 to final v2 migration backs up raw disk values, separates body and rejects read-time repair after restart', async ({ page }) => {
     await install(page);
     const raw = [{ id: 'c_index-migration', title: 'Offline title', titleSource: 'takeout', timestamp: '1700000000',
         titles: { takeout: 'Offline title' }, lastSeen: 9999999999999,
         messages: [{ role: 'user', content: 'Physical original body' }] }, null];
     const migrated = await page.evaluate(async raw => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations_u0: raw });
+        await chrome.storage.local.set({ gemini_schema_version: 1, gemini_conversations_u0: raw });
         return api.migrate();
     }, raw);
     expect(migrated).toEqual({ ok: true, frozen: false });
@@ -325,7 +325,7 @@ test('v2 index migration backs up raw disk values, separates body and rejects re
             open.onsuccess = () => {
                 const db = open.result;
                 const tx = db.transaction('legacy_imports', 'readonly');
-                const request = tx.objectStore('legacy_imports').get('index-v3:gemini_conversations_u0');
+                const request = tx.objectStore('legacy_imports').get('index-v2:gemini_conversations_u0');
                 request.onsuccess = () => resolve(request.result.value);
                 tx.oncomplete = () => db.close();
                 tx.onerror = () => reject(tx.error);
@@ -349,7 +349,7 @@ test('v2 index migration backs up raw disk values, separates body and rejects re
     for (const key of ['messages', 'titles', 'timestamp', 'lastSeen']) expect(restored.indexes[0]).not.toHaveProperty(key);
     expect(restored.body.messages[0].content).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'Physical original body' }] }]);
     expect(restored.before.gemini_conversations_u0).toBeUndefined();
-    expect((restored.before.gemini_index_migration_v3 as { issues: unknown[] }).issues).toHaveLength(1);
+    expect((restored.before.gemini_index_migration_v2 as { issues: unknown[] }).issues).toHaveLength(1);
     expect(restored.after).toEqual(restored.before);
     expect(restored.rejected).toBe(true);
     expect((restored.corrupted as { timestamp: number }[])[0].timestamp).toBe(123);

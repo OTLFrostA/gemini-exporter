@@ -128,7 +128,7 @@ export async function migrateConversationIndexes(): Promise<void> {
         const issues: Array<{ key: string; code: string; message: string }> = [];
         const bySlot = new Map<string, DomainConversationIndex[]>();
         // Preserve malformed containers as well as rejected rows; never lose recovery evidence.
-        for (const [key, value] of containers) await backupLegacyValue(`index-v3:${key}`, value);
+        for (const [key, value] of containers) await backupLegacyValue(`index-v2:${key}`, value);
         for (const [key, value] of containers) {
             const slot = key === 'gemini_conversations' ? 'u0' : normSlot(key.slice('gemini_conversations_'.length));
             const list = bySlot.get(slot) ?? [];
@@ -167,7 +167,7 @@ export async function migrateConversationIndexes(): Promise<void> {
             await _setConversationsRaw(slot, processed);
         }
         // Alias removal happens only after the canonical list and report are durable.
-        const reportKey = 'gemini_index_migration_v3';
+        const reportKey = 'gemini_index_migration_v2';
         const oldReport = all[reportKey];
         const previousIssues = isObjectRecord(oldReport) && Array.isArray(oldReport.issues) ? oldReport.issues : [];
         await chrome.storage.local.set({ [reportKey]: { issues: [...new Map([...previousIssues, ...issues].map(issue => [JSON.stringify(issue), issue])).values()] } });

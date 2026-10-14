@@ -99,8 +99,8 @@ The separately authorized storage upgrade adopts a versioned Domain repository.
 Native captures write structured Domain directly; old chrome/IndexedDB records
 are explicit legacy-storage parser inputs, backed up before interpretation and
 transfer. The canonical `DomainConversationIndex` and independent settings/account/
-export APIs retain their existing keys. Application schema v3 migrates the index;
-body storage remains v2. Runtime string projections are not the
+export APIs retain their existing keys. Released v1 upgrades directly to the final application schema v2, including both
+canonical indexes and the v2 body repository. Runtime string projections are not the
 new durable body. See [Domain storage contract and upgrade behavior](domain-storage.md).
 
 Raw source parsers remain independent of storage. Only the legacy-storage parser

@@ -69,35 +69,36 @@ test('native detail persists separately and index updates cannot truncate or rep
         assert.equal(await getDomainConversationResult('u0', 'chat'), null);
     } finally { env.restore(); }
 });
-test('v2 migration normalizes once, merges u0 aliases, preserves raw evidence and reports rejected rows', async () => {
+test('released v1 upgrades directly to final v2 indexes once, merges u0 aliases, preserves raw evidence and reports rejected rows', async () => {
     const raw = [{ id: 'c_chat', title: 'Google Gemini', titles: { takeout: 'Offline title' }, timestamp: '1700000000', lastSeen: '2099', messageCount: 7, source: 'takeout' }, null];
-    const env = indexStorage({ gemini_schema_version: 2, gemini_conversations: raw,
+    const env = indexStorage({ gemini_schema_version: 1, gemini_conversations: raw,
         gemini_conversations_u0: [{ id: 'chat', title: 'Online title', titleSource: 'rpc', updatedAt: 1700000005000 }],
         gemini_conversations_u1: [{ id: 'chat', title: 'Other account', updatedAt: 1 }] });
     try {
         await assert.rejects(storage.getConversations('u0'), TypeError);
         assert.deepEqual(await migrate(), { ok: true, frozen: false });
-        assert.equal(env.local.gemini_schema_version, CURRENT_SCHEMA_VERSION);
+        assert.equal(CURRENT_SCHEMA_VERSION, 2);
+        assert.equal(env.local.gemini_schema_version, 2);
         const index = (await storage.getConversations('u0'))[0];
         assert.equal(index.title, 'Online title'); assert.equal(index.titleSource, 'rpc');
         assert.equal(index.hasTakeoutImport, true); assert.equal(index.updatedAt, 1700000005000);
         assert.equal(index.createdAt, undefined); assert.equal(index.messageCount, undefined);
         assert.equal(env.local.gemini_conversations_u0, undefined);
         assert.equal((await storage.getConversations('u1'))[0].title, 'Other account');
-        assert.deepEqual(await getLegacyBackup('index-v3:gemini_conversations'), raw);
-        assert.equal((env.local.gemini_index_migration_v3 as { issues: unknown[] }).issues.length, 1);
+        assert.deepEqual(await getLegacyBackup('index-v2:gemini_conversations'), raw);
+        assert.equal((env.local.gemini_index_migration_v2 as { issues: unknown[] }).issues.length, 1);
         const writes = env.writes(); await migrate(); await storage.getConversations('u0'); assert.equal(env.writes(), writes);
     } finally { env.restore(); }
 });
 test('failed index migration withholds schema stamp and retries without losing alias data or backups', async () => {
     const raw = [{ id: 'chat', title: 'Research', timestamp: 42 }];
-    const env = indexStorage({ gemini_schema_version: 2, gemini_conversations_u0: raw });
+    const env = indexStorage({ gemini_schema_version: 1, gemini_conversations_u0: raw });
     try {
         env.fail('gemini_conversations');
         assert.equal((await migrate()).ok, false);
-        assert.equal(env.local.gemini_schema_version, 2);
+        assert.equal(env.local.gemini_schema_version, 1);
         assert.deepEqual(env.local.gemini_conversations_u0, raw);
-        assert.deepEqual(await getLegacyBackup('index-v3:gemini_conversations_u0'), raw);
+        assert.deepEqual(await getLegacyBackup('index-v2:gemini_conversations_u0'), raw);
         env.fail(); assert.equal((await migrate()).ok, true);
         assert.equal((await storage.getConversations('u0'))[0].updatedAt, 42);
     } finally { env.restore(); }

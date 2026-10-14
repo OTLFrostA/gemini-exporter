@@ -58,20 +58,20 @@ function installMock() {
 }
 
 // ---------------------------------------------------------------- P1-13: 版本戳
-test('P1-13a: 全新安装 migrate() 串行跑四步并戳 version=2', async () => {
+test('P1-13a: 全新安装 migrate() 串行完成所有步骤后戳 version=2', async () => {
     const m = installMock();
     try {
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: true, frozen: false });
-        assert.strictEqual(m.localStore['gemini_schema_version'], 3, 'Index storage current=3');
+        assert.strictEqual(m.localStore['gemini_schema_version'], 2, 'Released v1 upgrades directly to final storage v2');
         assert.strictEqual(SchemaMigration.isSchemaFrozen(), false);
     } finally { m.restore(); }
 });
 
-test('P1-13b: version=1 时 migrate() 为空操作', async () => {
+test('P1-13b: 最终 version=2 时 migrate() 为空操作', async () => {
     const m = installMock();
     try {
-        m.localStore['gemini_schema_version'] = 3;
+        m.localStore['gemini_schema_version'] = 2;
         m.localStore['gemini_conversations'] = [indexFixture({ id: 'a', title: 'Research A', timestamp: 1 })];
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: true, frozen: false });
@@ -83,7 +83,7 @@ test('P1-13b: version=1 时 migrate() 为空操作', async () => {
 test('P1-10a: 遗留胖会话在启动迁移中被 slim 并 offload 到 IDB', async () => {
     const m = installMock();
     try {
-        // 直接写裸存储，模拟“版本框架之前”的遗留胖数据（setConversations 会当场 slim，不能用它播种）
+        // 直接写裸存储，模拟“版本框架之前”的遗留胖数据；当前 setter 只接受规范 index
         m.localStore['gemini_conversations'] = [
             { id: 'fat1', title: 'Fat', messages: [{ id: 'm1', role: 'user' }], timestamp: 1 }
         ];
@@ -245,7 +245,7 @@ test('P1-13h: 迁移步骤失败时版本戳被截留，migrate() 返回 ok: fal
         const resRetry = await SchemaMigration.migrate();
         assert.strictEqual(resRetry.ok, true);
         assert.strictEqual(resRetry.frozen, false);
-        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 3, '重试成功后正确戳记版本 2');
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 2, '重试成功后正确戳记版本 2');
     } finally {
         m.restore();
     }
@@ -259,7 +259,7 @@ test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报�
         ];
         const origSave = m.chrome.storage.local.set;
         m.chrome.storage.local.set = async (values: Record<string, unknown>) => {
-            if ('gemini_index_migration_v3' in values) throw new Error('Simulated IDB transaction crash');
+            if ('gemini_index_migration_v2' in values) throw new Error('Simulated IDB transaction crash');
             return origSave(values);
         };
 
@@ -276,7 +276,7 @@ test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报�
         // 恢复后重新迁移，应成功完成
         const res2 = await SchemaMigration.migrate();
         assert.strictEqual(res2.ok, true);
-        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 3);
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 2);
     } finally {
         m.restore();
     }

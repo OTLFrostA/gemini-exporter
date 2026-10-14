@@ -105,7 +105,7 @@ test('identical captures retain the current record token', async () => {
 test('future schema freezes writes and deletion while known Domain remains readable', async () => {
     await saveDomainConversation('u0', source());
     const before = globalThis.chrome;
-    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 4 }) } } } as unknown as typeof chrome;
+    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 3 }) } } } as unknown as typeof chrome;
     try {
         await assert.rejects(saveDomainConversation('u0', source('new')), { name: 'SchemaFrozenError' });
         await assert.rejects(removeStoredDomain(storageIdentity('gemini', 'u0', 'chat')), { name: 'SchemaFrozenError' });
