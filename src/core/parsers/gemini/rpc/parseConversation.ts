@@ -1,3 +1,4 @@
+import { normalizeConversationTimes } from '../../../domain/time.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainConversationDetail, DomainGeneratedMediaIdentity, DomainMessage } from '../../../domain/conversationDetail.js';
@@ -71,8 +72,7 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
         completeness: { status: hasMore || rejected ? 'partial' : 'unknown' },
         id: metadata?.id ?? evidence.id, title: metadata?.title ?? evidence.title,
         titleSource: metadata ? 'rpc' : evidence.titleSource, titles: metadata ? { rpc: metadata.title } : { ...evidence.titles },
-        timestamp: evidence.updatedAt ?? evidence.createdAt,
-        createdAt: evidence.createdAt, updatedAt: evidence.updatedAt,
+        ...normalizeConversationTimes({ timestamp: evidence.updatedAt ?? evidence.createdAt, createdAt: evidence.createdAt, updatedAt: evidence.updatedAt }),
         url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
         assets: resources.assets, messages: resources.messages,
     };

@@ -115,7 +115,7 @@ test('B3 Safety 3: runtime preserves source timestamps without repairing missing
     const detail = await LiveSaveCoordinator.resolveConversationDetail('c_timestamp_test');
     assert.ok(detail);
     assert.strictEqual(detail.conversation.chatTime, undefined);
-    assert.strictEqual(detail.conversation.updatedAt, null);
+    assert.strictEqual(detail.conversation.updatedAt, undefined);
     assert.strictEqual(detail.conversation.timestamp, null);
 });
 

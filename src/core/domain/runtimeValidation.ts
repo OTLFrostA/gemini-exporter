@@ -1,3 +1,4 @@
+import { normalizeConversationTimes } from './time.js';
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
 
@@ -56,7 +57,7 @@ function block(v: unknown): boolean {
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), provenance: optional(shape({ rawRole: optional(text), providerRequestId: optional(text) })), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, timestamp: nullable(number), assets: array(asset), messages: array(message), provenance: optional(shape({ source: optional(text) })), completeness: optional(shape({ status: enumeration('complete', 'partial', 'unknown'), reason: optional(text) })), updatedAt: optional(v => v === null || text(v) || number(v)), createdAt: optional(v => v === null || text(v) || number(v)), chatTime: optional(v => text(v) || number(v)), lastSeen: optional(v => text(v) || number(v)), url: optional(text), href: optional(text), titleSource: optional(text), titles: optional(dictionary(optional(text))) };
+const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, timestamp: nullable(number), assets: array(asset), messages: array(message), provenance: optional(shape({ source: optional(text) })), completeness: optional(shape({ status: enumeration('complete', 'partial', 'unknown'), reason: optional(text) })), updatedAt: optional(number), createdAt: optional(number), chatTime: optional(v => text(v) || number(v)), lastSeen: optional(v => text(v) || number(v)), url: optional(text), href: optional(text), titleSource: optional(text), titles: optional(dictionary(optional(text))) };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */
@@ -89,6 +90,16 @@ export function validateParserDomain(value: DomainConversationDetail): TrustedDo
 
 /** Disk recovery keeps both pre/post serialization checks and detached snapshots. */
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
+    // Validate the historical contract before conversion; never hide unrelated corruption.
+    serializeDomain(value);
+    const legacyTime = optional((v: unknown) => v === null || text(v) || number(v));
+    if (!shape({ ...domainFields, createdAt: legacyTime, updatedAt: legacyTime })(value) || !object(value)) {
+        assertSchema(value);
+    }
+    if (object(value)) {
+        const { createdAt, updatedAt, ...rest } = value;
+        value = { ...rest, ...normalizeConversationTimes({ timestamp: value.timestamp, createdAt, updatedAt }) };
+    }
     const json = serializeDomain(value);
     const clone: unknown = json === undefined ? undefined : JSON.parse(json);
     assertSchema(value);

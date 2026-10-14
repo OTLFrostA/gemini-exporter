@@ -54,13 +54,13 @@ test('file badges use only supplied media type or kind, including misleading lab
 
 test('display date selects the first valid fact and normalizes to UTC at composition', () => {
     const input = domain();
-    Object.assign(input, { updatedAt: '2026-10-06T23:30:00-07:00', lastSeen: '2026-10-05', createdAt: '2026-10-04', timestamp: Date.parse('2026-10-03'), chatTime: '2026-10-02' });
+    Object.assign(input, { updatedAt: Date.parse('2026-10-06T23:30:00-07:00'), lastSeen: '2026-10-05', createdAt: Date.parse('2026-10-04T00:00:00Z'), timestamp: Date.parse('2026-10-03'), chatTime: '2026-10-02' });
     for (const [field, expected] of [['updatedAt', '2026-10-07'], ['lastSeen', '2026-10-05'], ['createdAt', '2026-10-04'], ['timestamp', '2026-10-03'], ['chatTime', '2026-10-02']] as const) {
         const document = composeDomainDocument(validateParserDomain(input)).document;
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
-        Object.assign(input, { [field]: field === 'timestamp' ? null : 'invalid' });
+        Object.assign(input, { [field]: field === 'timestamp' ? null : (field === 'updatedAt' || field === 'createdAt' ? undefined : 'invalid') });
     }
     assert.equal(composeDomainDocument(validateParserDomain(input)).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };

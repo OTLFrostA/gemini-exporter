@@ -73,8 +73,8 @@ test('missing timestamps and request evidence are never fabricated', () => {
     const rawTurn = [[ID], null, [['Question']], [[['rc_answer', [['Answer']]]]]];
     const { conversation } = native(rpc([[rawTurn]]));
     assert.equal(conversation.timestamp, null);
-    assert.equal(conversation.createdAt, null);
-    assert.equal(conversation.updatedAt, null);
+    assert.equal(conversation.createdAt, undefined);
+    assert.equal(conversation.updatedAt, undefined);
     for (const message of conversation.messages) {
         assert.equal(message.timestamp, undefined);
         assert.equal(message.provenance, undefined);

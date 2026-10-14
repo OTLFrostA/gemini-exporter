@@ -38,7 +38,7 @@ test('Takeout raw HTML constructs Domain without persisted records or fabricated
 test('missing Takeout dates remain absent and activity logs never claim complete coverage', () => {
     const { conversation } = native({ htmlText: activity('Question', '<p>Answer</p>', '') });
     assert.equal(conversation.timestamp, null);
-    assert.equal(conversation.createdAt, null);
+    assert.equal(conversation.createdAt, undefined);
     for (const message of conversation.messages) assert.equal(message.timestamp, undefined);
     assert.equal(conversation.completeness?.status, 'partial');
 });

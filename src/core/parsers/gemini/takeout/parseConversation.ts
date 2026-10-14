@@ -1,3 +1,4 @@
+import { normalizeConversationTimes } from '../../../domain/time.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
@@ -130,7 +131,7 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout', titles: { takeout: title },
         provenance: { source: 'gemini-takeout' }, completeness: { status: 'partial', reason: 'MyActivity is an activity log, not a complete conversation transcript' },
-        timestamp: updatedAt, createdAt, updatedAt, url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
+        ...normalizeConversationTimes({ timestamp: updatedAt, createdAt, updatedAt }), url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
         const bound = asset.source?.uri ? boundFiles.get(asset.source.uri) : undefined;

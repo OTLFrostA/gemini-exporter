@@ -14,3 +14,24 @@ export function toIso(value: unknown): string | undefined {
     return undefined;
 }
 
+
+/** Boundary conversion: numeric values/strings are milliseconds, never guessed seconds. */
+export function normalizeTimestamp(value: unknown): number | undefined {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    const s = value.trim();
+    const time = /^-?\d+$/.test(s) ? Number(s) : Date.parse(s);
+    return Number.isFinite(time) ? time : undefined;
+}
+
+/** Only source-authored facts enter Domain; unknown optional fields are absent. */
+export function normalizeConversationTimes(source: { timestamp?: unknown; createdAt?: unknown; updatedAt?: unknown }): {
+    timestamp: number | null; createdAt?: number; updatedAt?: number;
+} {
+    const createdAt = normalizeTimestamp(source.createdAt);
+    const updatedAt = normalizeTimestamp(source.updatedAt);
+    const timestamp = typeof source.timestamp === 'number' && Number.isFinite(source.timestamp) ? source.timestamp : null;
+    return { timestamp,
+        ...(createdAt !== undefined ? { createdAt } : {}),
+        ...(updatedAt !== undefined ? { updatedAt } : {}) };
+}

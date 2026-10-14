@@ -106,7 +106,7 @@ function prefer(existing: DomainStorageRecord, incoming: DomainStorageRecord, mi
     if (old.messages.length < next.messages.length) return true;
     if (old.completeness?.status === 'complete' && next.completeness?.status !== 'complete') return false;
     if (old.completeness?.status !== 'partial' && next.completeness?.status === 'partial') return false;
-    const time = (v: DomainConversationDetail): number => Number(v.updatedAt ?? v.timestamp) || 0;
+    const time = (v: DomainConversationDetail): number => v.updatedAt ?? v.timestamp ?? 0;
     return time(next) >= time(old);
 }
 function sameContent(existing: DomainStorageRecord, incoming: DomainStorageRecord): boolean {

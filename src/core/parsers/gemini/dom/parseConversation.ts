@@ -1,3 +1,4 @@
+import { normalizeConversationTimes } from '../../../domain/time.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
@@ -86,7 +87,7 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title: authoredTitle ? title : id,
         titleSource: authoredTitle ? 'dom' : 'default', titles: authoredTitle ? { dom: title } : {},
         provenance: { source: 'gemini-dom' }, completeness: { status: 'partial', reason: 'DOM observation contains only the currently available page fragment' },
-        timestamp: dates.length ? Math.max(...dates) : null, createdAt: dates.length ? Math.min(...dates) : null, updatedAt: dates.length ? Math.max(...dates) : null,
+        ...normalizeConversationTimes({ timestamp: dates.length ? Math.max(...dates) : null, createdAt: dates.length ? Math.min(...dates) : null, updatedAt: dates.length ? Math.max(...dates) : null }),
         url: raw.url ?? `https://gemini.google.com/app/${id}`, messages: resources.messages, assets: resources.assets };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics: diagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),
