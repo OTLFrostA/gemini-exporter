@@ -54,7 +54,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         } }); }
     });
     try {
-        const result = await new ExportOrchestrator().run({ selected: [{ id: 'deleted_local' }], currentSlot: 'u0',
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'deleted_local' }], currentSlot: 'u0',
             conversations: [{ id: 'deleted_local', title: 'Deleted local', timestamp: 1, cloudAvailability: 'deleted' }], worker: BatchWorker,
             takeoutEngine: { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [],
                 getTakeoutFallbackMedia: async (_id, lookup) => lookup.assetId === takeout.id ? new Uint8Array([4, 5, 6]) : null }
@@ -83,7 +83,7 @@ test('normal export fetches fresh cloud content first and falls back to a local 
                 calls++; return error ? { success: false, error } : { success: true, domainEnvelopeVersion: 1, data: fresh };
             } });
             const logs: string[] = [];
-            const result = await new ExportOrchestrator().run({ selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
+            const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
                 conversations: [{ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 }], worker: BatchWorker
             }, { onLog: message => logs.push(message) });
             assert.equal(result.landedChats, 1);
@@ -109,7 +109,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
         calls++; return available ? { success: true, domainEnvelopeVersion: 1, data: fresh } : { success: false, error: 'HTTP 503' };
     } });
-    const run = (skip: boolean) => new ExportOrchestrator().run({ selected: [{ id: list.id }], conversations: [list],
+    const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list],
         currentSlot: 'u0', includeAssets: false, skip, worker: BatchWorker });
     const status = () => (records.retry_snapshot as { status: string }).status;
     try {
@@ -156,7 +156,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     });
     try {
         const logs: string[] = [];
-        const result = await new ExportOrchestrator().run({ selected: [{ id: list.id }], conversations: [list], currentSlot: 'u0', worker: BatchWorker },
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list], currentSlot: 'u0', worker: BatchWorker },
             { onLog: message => logs.push(message) });
         assert.equal(memoryAtWrite, 'deleted', 'memory must be restricted before any storage await');
         assert.equal(list.cloudAvailability, 'deleted');
@@ -165,7 +165,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
         assert.equal(result.landedChats, 1); assert.equal(result.failedAttachments.length, 1);
         assert.match(logs.join(' '), /Injected deleted marker write failure/);
         // Confirmed deletion is also restrictive when the caller has no list metadata.
-        const noList = await new ExportOrchestrator().run({ selected: [{ id: list.id }], currentSlot: 'u0', worker: BatchWorker });
+        const noList = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], currentSlot: 'u0', worker: BatchWorker });
         assert.equal(noList.landedChats, 1); assert.equal(noList.failedAttachments.length, 1);
         assert.equal(assetRequests, 0);
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
@@ -265,7 +265,7 @@ test('a failed cloud fetch without a same-account body remains a failed export',
     await saveDomainConversation('u1', foreign);
     __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
     try {
-        const result = await new ExportOrchestrator().run({ selected: [{ id: 'missing_local' }], currentSlot: 'u0', includeAssets: false,
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], currentSlot: 'u0', includeAssets: false,
             conversations: [{ id: 'missing_local', title: 'Unavailable', timestamp: 1 }], worker: BatchWorker });
         assert.equal(result.landedChats, 0);
         assert.equal(result.failedChats.length, 1);

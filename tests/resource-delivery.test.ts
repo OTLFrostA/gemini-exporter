@@ -60,12 +60,13 @@ for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw
         }
         let archive: Blob | undefined;
         const worker = makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) });
-        const result = await new ExportOrchestrator().run({ selected: [{ id: source.conversation.id, title: source.conversation.title }], format, useZip: true, includeAssets: true, includeIndex: false,
-            worker, downloadHandler: blob => { archive = blob; } });
+        const result = await new ExportOrchestrator().run({ selected: [{ id: source.conversation.id, title: source.conversation.title }], format, useZip: true, includeAssets: true, includeIndex: true,
+            worker, downloadHandler: blob => { assert.deepEqual(records, {}, 'no partial records before ZIP delivery'); archive = blob; } });
         assert.equal(result.landedChats, 1); assert.equal(result.failedChats.length, 0);
         assert.equal(result.failedAttachments.length, 1); assert.equal(records[source.conversation.id].status, 'partial');
         assert.ok(archive);
         const zip = await JSZip.loadAsync(await archive.arrayBuffer());
+        assert.equal(JSON.parse(await zip.file('gemini_export/meta.json').async('string')).conversations[0].status, records[source.conversation.id].status);
         const bodyPath = Object.keys(zip.files).find(path => path.endsWith(format === 'html' ? '.html' : format === 'markdown' ? '.md' : '.json') && !path.includes('/files/'))!;
         const body: string = await zip.files[bodyPath].async('text');
         assert.match(body, /Conversation survives resource failure/);

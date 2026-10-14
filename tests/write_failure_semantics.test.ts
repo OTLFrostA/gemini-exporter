@@ -82,7 +82,7 @@ test('write-failure semantics - main markdown write failure marks chat failed, n
     const result = await orchestrator.run({
         selected: [{ id: 'chat-main-fail', title: 'Main Fail Chat' }],
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeWorker()
     }, { onLog });
@@ -109,7 +109,7 @@ test('write-failure semantics - doc-md write failure lands in failedAttachments 
     const result = await orchestrator.run({
         selected: [{ id: 'chat-doc-fail', title: 'Doc Fail Chat' }],
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         includeAssets: true,
         worker: makeWorker({
             messages: [{
@@ -141,7 +141,7 @@ test('write-failure semantics - index write failure fails closed (run rejects)',
         orchestrator.run({
             selected: [{ id: 'chat-index-fail', title: 'Index Fail Chat' }],
             format: 'markdown',
-            useZip: true,
+            useZip: true, downloadHandler: async () => {},
             includeAssets: false,
             includeIndex: true,
             worker: makeWorker()
@@ -164,7 +164,7 @@ test('write-failure semantics - diagnostics write failure is visible but never p
     const result = await orchestrator.run({
         selected: [{ id: 'chat-diag-fail', title: 'Diag Fail Chat' }],
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeWorker()
     }, { onLog });

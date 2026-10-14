@@ -166,7 +166,7 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
     const result = await orchestrator.run({
         selected,
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: mockWorker
     }, {
@@ -288,7 +288,7 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     const result = await orchestrator.run({
         selected: conversations,
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         skip: true,
         conversations,
         exportedIds,
@@ -391,7 +391,7 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
     const result = await orchestrator.run({
         selected: conversations,
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         skip: false,
         conversations,
         exportedIds,
@@ -533,7 +533,7 @@ test('ExportOrchestrator - unavailable body remains retryable and is not marked 
     const result = await orchestrator.run({
         selected: conversations,
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         skip: true,
         conversations,
         exportedIds,
@@ -596,7 +596,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
         const result = await orchestrator.run({
             selected: conversations,
             format: 'markdown',
-            useZip: true,
+            useZip: true, downloadHandler: async () => {},
             skip: false,
             conversations,
             exportedIds: {},
@@ -637,7 +637,7 @@ test('ExportOrchestrator - resolves the original first candidate without changin
 
     const result = await orchestrator.run({
         selected,
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeTestWorker({
             fetchChatDetail: async () => ({ success: true, results: [malformedFirst, historicalFixture(validSecond)], chat: historicalFixture(validSecond) } as never),
@@ -672,7 +672,7 @@ test('ExportOrchestrator - rejects a primitive first candidate without choosing 
 
     const result = await orchestrator.run({
         selected: [{ id: 'candidate_primitive', title: 'Primitive candidate' }],
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeTestWorker({
             fetchChatDetail: async () => ({ success: true, results: [42, historicalFixture(validSecond)] } as never),
@@ -718,7 +718,7 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
     try {
         const result = await orchestrator.run({
             selected: [{ id: 'asset_identity', title: 'Resolved chat' }],
-            useZip: true,
+            useZip: true, downloadHandler: async () => {},
             includeAssets: true,
             worker: makeTestWorker({
                 fetchChatDetail: async () => ({ success: true, chat: historicalFixture(fetchedChat) }),
@@ -794,7 +794,7 @@ test('ExportOrchestrator - writes native document content without reinterpreting
     const result = await orchestrator.run({
         selected: conversations,
         format: 'markdown',
-        useZip: true,
+        useZip: true, downloadHandler: async () => {},
         skip: false,
         conversations,
         exportedIds: {},
@@ -850,7 +850,7 @@ test('ExportOrchestrator - uses native envelope bodies and reports missing bodie
             }
         });
         const result = await new ExportOrchestrator().run({
-            selected: [{ id: 'fallback', title: 'Requested title' }], useZip: true, includeAssets: false, worker
+            selected: [{ id: 'fallback', title: 'Requested title' }], useZip: true, downloadHandler: async () => {}, includeAssets: false, worker
         });
         if (useEnvelopeChat) assert.strictEqual(received, candidate);
         assert.strictEqual(result.landedChats, useEnvelopeChat ? 1 : 0);
@@ -925,7 +925,7 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
     });
     try {
         const result = await new ExportOrchestrator().run({
-            selected: [{ id: 'mixed_assets', title: 'Mixed assets' }], useZip: true, includeAssets: true,
+            selected: [{ id: 'mixed_assets', title: 'Mixed assets' }], useZip: true, downloadHandler: async () => {}, includeAssets: true,
             worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: historicalFixture(chat) }) })
         });
         assert.strictEqual(result.failedChats.length, 0);
@@ -972,7 +972,7 @@ test('all ordinary formats use completion for both records and meta, including f
             if (scenario === 'snapshot' || scenario === 'deleted') await store.saveDomainConversation('u0', parsed);
             try {
                 const result = await new ExportOrchestrator().run({
-                    selected: [{ id, title: 'Integrity contract' }], format, useZip: true, includeAssets: false, includeIndex: true,
+                    selected: [{ id, title: 'Integrity contract' }], format, useZip: true, downloadHandler: async () => {}, includeAssets: false, includeIndex: true,
                     conversations: [{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }],
                     takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
                     worker: makeTestWorker({ fetchChatDetail: async () => fallback || scenario === 'fetch-failed'
@@ -993,6 +993,128 @@ test('all ordinary formats use completion for both records and meta, including f
                     if (scenario === 'rejected') assert.equal(meta.turnsRejected, 1);
                 }
             } finally { store.__clearDomainMemory(); }
+        }
+    }
+});
+
+test('ZIP delivery boundary preserves real Storage, UI, counts and retry across failure stages', async () => {
+    const Storage = require('../src/core/storage/storageService.js');
+    const { SessionStore } = require('../src/core/storage/sessionStore.js');
+    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const previousChrome = Reflect.get(globalThis, 'chrome');
+    for (const format of ['markdown', 'html', 'json']) {
+        for (const failure of ['none', 'generate', 'download-throw', 'download-reject', 'missing-handler', 'cancel-generate', 'cancel-download', 'index', 'meta', 'storage', 'item']) {
+            const slot = 'u1', { expKey } = Storage.getStorageKeys(slot);
+            const old = { n1: { status: 'ok', exportedAt: new Date(1000).toISOString(), chatTime: 1, title: 'Old export' },
+                history: { status: 'ok', exportedAt: new Date(1000).toISOString(), title: 'Unrelated history' } };
+            let injecting = true;
+            const memory: Record<string, unknown> = { [expKey]: structuredClone(old) };
+            const persisted: string[] = [], notified: string[] = [], ui: Record<string, unknown> = structuredClone(old);
+            Reflect.set(globalThis, 'chrome', { storage: { local: {
+                get: async (keys: string | string[] | null) => structuredClone(Object.fromEntries(Object.entries(memory)
+                    .filter(([key]) => keys === null || (Array.isArray(keys) ? keys.includes(key) : keys === key)))),
+                set: async (patch: Record<string, unknown>) => {
+                    const records = patch[expKey], before = await Storage.getExportedIds(slot);
+                    if (records && typeof records === 'object') {
+                        if (injecting && failure === 'storage' && 'n2' in records) throw new Error('Injected record persistence failure');
+                        for (const [id, record] of Object.entries(records)) {
+                            if (JSON.stringify(record) !== JSON.stringify(before[id])) persisted.push(id);
+                        }
+                    }
+                    Object.assign(memory, structuredClone(patch));
+                },
+                remove: async (keys: string | string[]) => { for (const key of Array.isArray(keys) ? keys : [keys]) delete memory[key]; },
+            } } });
+            const zips = setupMockJSZip(), BaseZip = __getModuleOverride('JSZip');
+            __setModuleOverride('StorageService', Storage);
+            const orchestrator = new ExportOrchestrator();
+            let downloads = 0, fetches = 0;
+            __setModuleOverride('JSZip', class extends BaseZip {
+                folder(name: string) {
+                    const folder = super.folder(name);
+                    return { file: (path: string, content: unknown) => {
+                        if (injecting && ((failure === 'index' && path === '00_INDEX.md') || (failure === 'meta' && path === 'meta.json'))) throw new Error('Injected metadata write failure');
+                        folder.file(path, content);
+                    } };
+                }
+                async generateAsync() {
+                    assert.deepEqual(await Storage.getExportedIds(slot), old, 'no records at packaging');
+                    assert.equal(notified.length, 0);
+                    if (injecting && failure === 'generate') throw new Error('Injected generation failure');
+                    if (injecting && failure === 'cancel-generate') orchestrator.abort();
+                    return super.generateAsync();
+                }
+            });
+            const selected = ['n1', 'n2', 'n3', 'c_n1', ...(failure === 'item' ? ['broken'] : [])].map(id => ({ id, title: id }));
+            const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => {
+                fetches++;
+                if (item.id === 'broken') return { success: false, error: 'Injected detail failure' };
+                await new Promise(resolve => setTimeout(resolve, item.id === 'n1' ? 2 : 0));
+                return { success: true, chat: historicalFixture({ id: item.id.replace(/^c_/, ''), title: item.id,
+                    timestamp: 1720000000000, completeness: { status: item.id === 'n2' ? 'partial' : 'unknown' },
+                    messages: [{ role: 'user', content: 'Q' }, { role: 'model', content: 'A' }],
+                }) };
+            } });
+            const options = { selected, format, useZip: true, currentSlot: slot, includeAssets: false, includeIndex: true, concurrency: 4,
+                conversations: selected.map(item => ({ ...item, timestamp: 1720000000000 })), exportedIds: ui, worker,
+                downloadHandler: failure === 'missing-handler' ? undefined : () => {
+                    downloads++;
+                    assert.deepEqual(memory[expKey], old, 'physical Storage unchanged inside downloadHandler');
+                    assert.deepEqual(ui, old, 'UI unchanged before delivery');
+                    assert.deepEqual(notified, []);
+                    if (failure === 'download-throw') throw new Error('Injected download throw');
+                    if (failure === 'download-reject') return Promise.reject(new Error('Injected download rejection'));
+                    if (failure === 'cancel-download') orchestrator.abort();
+                },
+            };
+            const callbacks = { onItemExported: (id: string, record: unknown) => {
+                assert.ok(downloads > 0, 'record callback requires confirmed delivery');
+                notified.push(id); ui[id] = record;
+            } };
+            try {
+                const undelivered = ['generate', 'download-throw', 'download-reject', 'missing-handler', 'index', 'meta'].includes(failure);
+                if (undelivered) {
+                    await assert.rejects(orchestrator.run(options, callbacks), /Injected|requires downloadHandler/);
+                    assert.equal((await SessionStore.getSession()).status, 'error');
+                } else {
+                    const result = await orchestrator.run(options, callbacks);
+                    const cancelled = failure.startsWith('cancel');
+                    assert.equal(result.landedChats, cancelled ? 0 : 3, `${format}/${failure}`);
+                    assert.equal(result.exportedCount, result.landedChats);
+                    assert.equal(result.aborted, cancelled);
+                    assert.equal(result.failedChats.length, failure === 'storage' || failure === 'item' ? 1 : 0);
+                    assert.equal((await SessionStore.getSession()).status, cancelled ? 'aborted' : failure === 'storage' || failure === 'item' ? 'completed_with_errors' : 'completed');
+                    if (!cancelled) {
+                        assert.equal(downloads, 1);
+                        const expected = failure === 'storage' ? ['n1', 'n3'] : ['n1', 'n2', 'n3'];
+                        assert.deepEqual(notified.slice().sort(), expected);
+                        assert.deepEqual(persisted.slice().sort(), expected, 'duplicates must finalize once');
+                        const records = await Storage.getExportedIds(slot);
+                        assert.equal(records.history.title, old.history.title);
+                        const meta = JSON.parse(zips[0].files['meta.json']).conversations;
+                        for (const id of expected) {
+                            assert.equal(records[id].status, id === 'n2' ? 'partial' : 'ok');
+                            assert.equal(meta.find((item: { id: string }) => item.id === id).status, records[id].status === 'ok' ? 'success' : records[id].status);
+                        }
+                        if (failure === 'storage') assert.equal(records.n2, undefined);
+                    }
+                }
+                if (undelivered || failure.startsWith('cancel')) {
+                    assert.deepEqual(memory[expKey], old, `${format}/${failure}: physical old records preserved`);
+                    assert.deepEqual(await Storage.getExportedIds(slot), old);
+                    assert.deepEqual(ui, old); assert.deepEqual(notified, []); assert.deepEqual(persisted, []);
+                    if (failure === 'missing-handler' || failure === 'cancel-generate' || failure === 'generate' || failure === 'index' || failure === 'meta') assert.equal(downloads, 0);
+                    // Existing Skip rules must retry the old/stale and never-delivered conversations.
+                    injecting = false;
+                    const retry = await new ExportOrchestrator().run({ ...options, skip: true, downloadHandler: () => {} });
+                    assert.equal(retry.landedChats, 3);
+                    assert.equal(fetches, 8);
+                }
+            } finally {
+                __clearModuleOverrides();
+                if (previousChrome === undefined) Reflect.deleteProperty(globalThis, 'chrome');
+                else Reflect.set(globalThis, 'chrome', previousChrome);
+            }
         }
     }
 });
