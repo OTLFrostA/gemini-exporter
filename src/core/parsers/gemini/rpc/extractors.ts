@@ -590,7 +590,7 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
                         const raw = item[0][0];
                         if (typeof raw === "string") {
                             const trimmed = raw.trim();
-                            if (/^\[cite:\s*\d+\]$/i.test(trimmed)) {
+                            if (/^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(trimmed)) {
                                 markers.add(trimmed);
                             }
                         }
