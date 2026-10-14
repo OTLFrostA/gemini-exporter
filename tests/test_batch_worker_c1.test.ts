@@ -197,12 +197,12 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
     const make = (text: string) => historicalFixture({ id, title: text, messages: [{ role: 'model', content: text }] });
     const online = make('online'), offline = make('offline'), stored = make('stored'); let calls = 0;
     const takeout = { getTakeoutOfflineChat() { calls++; return offline; } };
-    assert.equal(await resolveConversationData(online, id, null, takeout, slot), online); assert.equal(calls, 0);
-    assert.equal(await resolveConversationData({ error: 'offline' }, id, null, takeout, slot), offline);
+    assert.equal((await resolveConversationData(online, id, null, takeout, slot)).result, online); assert.equal(calls, 0);
+    assert.equal((await resolveConversationData({ error: 'offline' }, id, null, takeout, slot)).result, offline);
     await saveDomainConversation(slot, stored);
     try {
         const recovered = await resolveConversationData({ error: 'offline' }, id, null, null, slot);
-        assert.deepEqual(recovered.conversation, stored.conversation);
+        assert.deepEqual(recovered.result.conversation, stored.conversation);
         const rejected = await resolveChat({ id, messages: [{ role: 'model', content: 'legacy runtime' }] }, { id: 'unmigrated' }, null, null, slot);
         assert.equal(rejected.isError, true); assert.equal(rejected.chat, undefined);
     } finally { __clearDomainMemory(); }

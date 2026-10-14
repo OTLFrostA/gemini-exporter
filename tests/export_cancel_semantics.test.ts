@@ -119,6 +119,7 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
                 listTitle: chat.conversation.title,
                 displayTitle: chat.conversation.title,
                 isError: false,
+                source: 'online',
                 errMsg: null,
                 isConfirmedDeleted: false,
                 convsNeedSave: false

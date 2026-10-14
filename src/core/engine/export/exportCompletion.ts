@@ -1,3 +1,4 @@
+import type { ChatParseDrift } from './parseDrift.js';
 import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
 import type { Conversation, TitleSources } from '../../../types/conversation.js';
 import { normId } from '../../utils/pathUtils.js';
@@ -35,6 +36,7 @@ export interface ExportCompletionFacts extends Partial<Pick<Conversation,
     truncated?: boolean;
     isTruncated?: boolean;
     truncateReason?: string;
+    completeness?: { status: string };
 }
 
 export type ExportCompletionConversation = ExportCompletionFacts | string | number | boolean | null | undefined;
@@ -66,26 +68,8 @@ export interface BuildExportCompletionInput {
     isTruncated?: boolean;
     truncateReason?: string;
     /** Integrity evidence facts */
-    evidence?: ExportIntegrityEvidence;
-}
-
-export interface ExportIntegrityEvidence {
-    sourcePartial?: boolean;
-    turnsRejected?: number;
-    hasHeuristicDocs?: boolean;
-    truncated?: boolean;
+    evidence?: ChatParseDrift;
     usedLocalSnapshot?: boolean;
-}
-
-export function isIntegrityPartial(evidence?: ExportIntegrityEvidence): boolean {
-    if (!evidence) return false;
-    return Boolean(
-        evidence.sourcePartial ||
-        (typeof evidence.turnsRejected === 'number' && evidence.turnsRejected > 0) ||
-        evidence.hasHeuristicDocs ||
-        evidence.truncated ||
-        evidence.usedLocalSnapshot
-    );
 }
 
 export type StandardExportRecord = {
@@ -175,7 +159,8 @@ export interface ResolveExportRecordStatusOptions {
     statusOverride?: 'ok' | 'partial' | 'empty' | 'failed';
     messageCount?: number;
     isEmpty?: boolean;
-    evidence?: ExportIntegrityEvidence;
+    evidence?: ChatParseDrift;
+    usedLocalSnapshot?: boolean;
 }
 
 /**
@@ -198,7 +183,9 @@ export function resolveExportRecordStatus(options: ResolveExportRecordStatusOpti
     if (options.statusOverride === 'empty' || (typeof options.messageCount === 'number' && options.messageCount === 0) || options.isEmpty) {
         return { status: 'empty', hasFailedAssets: hasFailed };
     }
-    if (options.statusOverride === 'partial' || hasFailed || isIntegrityPartial(options.evidence)) {
+    if (options.statusOverride === 'partial' || hasFailed || options.usedLocalSnapshot
+        || options.evidence?.sourcePartial || (options.evidence?.turnsRejected ?? 0) > 0
+        || options.evidence?.hasHeuristicDocs || options.evidence?.truncated) {
         return { status: 'partial', hasFailedAssets: hasFailed };
     }
     return { status: 'ok', hasFailedAssets: false };
@@ -210,10 +197,10 @@ export function resolveExportRecordStatus(options: ResolveExportRecordStatusOpti
  */
 export function applyAssetFailureToExportRecord(record: { status?: string; hasFailedAssets?: boolean } | null | undefined): void {
     if (!record || typeof record !== 'object') return;
-    if (record.status !== 'empty' && record.status !== 'failed') {
-        record.status = 'partial';
-    }
-    record.hasFailedAssets = true;
+    Object.assign(record, resolveExportRecordStatus({
+        failedAssetsCount: 1,
+        statusOverride: record.status === 'empty' || record.status === 'failed' ? record.status : undefined,
+    }));
 }
 
 /**
@@ -296,24 +283,19 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         Boolean(chat.truncateReason)
     );
 
-    const chatCompletenessPartial = typeof chat === 'object' && chat && 'completeness' in chat && typeof (chat as { completeness?: unknown }).completeness === 'object'
-        ? (chat as { completeness?: { status?: string } }).completeness?.status === 'partial'
-        : false;
-
-    const evidence: ExportIntegrityEvidence = {
-        sourcePartial: input.evidence?.sourcePartial ?? (chatCompletenessPartial || undefined),
-        turnsRejected: input.evidence?.turnsRejected,
-        hasHeuristicDocs: input.evidence?.hasHeuristicDocs,
-        truncated: isTruncated || undefined,
-        usedLocalSnapshot: input.evidence?.usedLocalSnapshot,
-    };
-
     const statusInfo = resolveExportRecordStatus({
         failedAssetsCount,
         statusOverride: input.statusOverride,
         messageCount,
         isEmpty: !!chat.isEmpty || !!chat._empty,
-        evidence,
+        usedLocalSnapshot: input.usedLocalSnapshot,
+        evidence: {
+            schemaDrift: input.evidence?.schemaDrift ?? [],
+            sourcePartial: chat.completeness?.status === 'partial' || !!input.evidence?.sourcePartial,
+            turnsRejected: input.evidence?.turnsRejected ?? 0,
+            hasHeuristicDocs: input.evidence?.hasHeuristicDocs ?? false,
+            truncated: isTruncated,
+        },
     });
 
     const exportRecord: StandardExportRecord = {
@@ -387,7 +369,6 @@ export default {
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
     resolveExportRecordStatus,
-    isIntegrityPartial,
     applyAssetFailureToExportRecord,
     normalizeReliableTitleSource,
     resolveReliableTitleSource

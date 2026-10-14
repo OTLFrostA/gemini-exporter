@@ -728,6 +728,7 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
                     displayTitle: 'Resolved chat',
                     isConfirmedDeleted: false,
                     isError: false,
+                source: 'online',
                     errMsg: null,
                     convsNeedSave: false
                 })
@@ -934,5 +935,64 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
         assert.strictEqual(received.find(entry => (entry.item as any).url === file.url)?.isImage, false);
     } finally {
         __setModuleOverride('AssetPipeline', origPipeline);
+    }
+});
+
+test('all ordinary formats use completion for both records and meta, including fallback sources', async () => {
+    const { rpcFixture } = require('./helpers/nativeFixture.js');
+    const store = require('../src/core/storage/domain/domainStore.js');
+    for (const format of ['markdown', 'html', 'json']) {
+        for (const scenario of ['clean', 'partial', 'rejected', 'truncated', 'warning', 'heuristic', 'assets-disabled', 'takeout', 'snapshot', 'deleted', 'empty', 'fetch-failed', 'write-failed']) {
+            const id = `integrity-${scenario}`;
+            const parsed = rpcFixture({ id, title: 'Integrity contract',
+                messages: scenario === 'empty' ? [] : [{ role: 'user', content: 'Q', attachments: scenario === 'assets-disabled' ? [{ type: 'image', url: 'https://example.test/missing.png' }] : [] }, { role: 'model', content: 'A' }],
+                completeness: { status: scenario === 'partial' ? 'partial' : 'unknown' },
+            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, truncated: scenario === 'truncated', schemaDrift: scenario === 'warning' ? ['benign'] : [] });
+            if (scenario === 'heuristic') {
+                const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+                parsed.conversation = validateParserDomain({ ...parsed.conversation,
+                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated', hasFabricatedText: true } }],
+                });
+            }
+            const zips = setupMockJSZip();
+            if (scenario === 'write-failed') {
+                const BaseZip = __getModuleOverride('JSZip');
+                __setModuleOverride('JSZip', class extends BaseZip {
+                    folder(name: string) {
+                        const folder = super.folder(name);
+                        return { file: (path: string, content: unknown) => {
+                            if (path.startsWith('Integrity')) throw new Error('Injected body write failure');
+                            folder.file(path, content);
+                        } };
+                    }
+                });
+            }
+            const { savedRecords } = setupMockStorage();
+            const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
+            if (scenario === 'snapshot' || scenario === 'deleted') await store.saveDomainConversation('u0', parsed);
+            try {
+                const result = await new ExportOrchestrator().run({
+                    selected: [{ id, title: 'Integrity contract' }], format, useZip: true, includeAssets: false, includeIndex: true,
+                    conversations: [{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }],
+                    takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
+                    worker: makeTestWorker({ fetchChatDetail: async () => fallback || scenario === 'fetch-failed'
+                        ? { success: false, error: 'offline' } : { success: true, chat: parsed } }),
+                });
+                if (scenario === 'empty' || scenario === 'fetch-failed' || scenario === 'write-failed') {
+                    assert.equal(result.landedChats, 0);
+                    assert.equal(result.failedChats.length, 1);
+                    assert.equal(savedRecords[id], undefined, 'unavailable body cannot be recorded as success');
+                    if (scenario === 'write-failed') assert.equal(JSON.parse(zips[0].files['meta.json']).conversations[0].status, 'failed');
+                } else {
+                    const expected = ['partial', 'rejected', 'truncated', 'heuristic', 'snapshot'].includes(scenario) ? 'partial' : 'ok';
+                    assert.equal(result.landedChats, 1, `${format}/${scenario}`);
+                    assert.equal(savedRecords[id].status, expected, `${format}/${scenario}`);
+                    const meta = JSON.parse(zips[0].files['meta.json']).conversations[0];
+                    assert.equal(meta.status, expected === 'ok' ? 'success' : expected);
+                    if (scenario === 'warning') assert.equal(meta.parseStatus, 'ok');
+                    if (scenario === 'rejected') assert.equal(meta.turnsRejected, 1);
+                }
+            } finally { store.__clearDomainMemory(); }
+        }
     }
 });
