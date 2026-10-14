@@ -275,15 +275,15 @@ class TestDAGSubgraphPruning(unittest.TestCase):
 
 
 class TestSearchClearIsolation(unittest.TestCase):
-    def run_case(self, preserve_selection):
+    def run_case(self, preserve_selection, store_total=12):
         # Earlier independent cases have changed both the search and selection.
         state = {"query": "another-chat", "selected": False}
         cdp = MagicMock()
 
         def eval_dispatch(expression, *args, **kwargs):
-            # Store 总数查询返回全量 12；勾选状态查询返回实际选中态
+            # Store 总数查询返回独立全量基线；Store 不可访问时返回 None（必须明确 FAIL）
             if "getConversations" in str(expression):
-                return 12
+                return store_total
             return state["selected"]
         cdp.eval.side_effect = eval_dispatch
         ctx = MagicMock()
@@ -316,6 +316,9 @@ class TestSearchClearIsolation(unittest.TestCase):
 
     def test_clear_that_loses_selection_still_fails(self):
         self.assertFalse(self.run_case(preserve_selection=False)[0])
+
+    def test_store_inaccessible_fails_without_dom_fallback(self):
+        self.assertFalse(self.run_case(preserve_selection=True, store_total=None)[0])
 
 
 if __name__ == "__main__":
