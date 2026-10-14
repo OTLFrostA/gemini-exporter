@@ -1287,3 +1287,47 @@ test('completion integrity facts are monotonic and preserve status precedence', 
     }
     assert.equal(buildExportCompletion({ conversation: { messages: [{}], truncateReason: 'limit' } }).exportRecord.status, 'partial');
 });
+
+test('Directory finalizes real Storage and UI immediately after file close, before the next conversation', async () => {
+    const { ExportOrchestrator } = require('../src/core/engine/export/exportOrchestrator.js');
+    const { makeTestWorker } = require('./helpers/makeTestWorker.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const { mockStorage, chrome } = createMockChromeStorage();
+    const previousChrome = Reflect.get(globalThis, 'chrome');
+    Reflect.set(globalThis, 'chrome', chrome);
+    __setModuleOverride('StorageService', StorageService);
+    const closed: string[] = [], notified: string[] = [];
+    const directory = {
+        name: 'delivery',
+        getDirectoryHandle: async (): Promise<unknown> => directory,
+        getFileHandle: async (name: string, options?: { create?: boolean }) => {
+            if (!options?.create) throw new Error('File does not exist');
+            return { createWritable: async () => ({ write: async () => {}, close: async () => { closed.push(name); } }) };
+        },
+    };
+    const slot = 'u1', { expKey } = StorageService.getStorageKeys(slot);
+    try {
+        const result = await new ExportOrchestrator().run({
+            selected: [{ id: 'dir-one', title: 'dir-one' }, { id: 'dir-two', title: 'dir-two' }],
+            useZip: false, currentSlot: slot, dirHandle: directory, includeAssets: false, concurrency: 1,
+            worker: makeTestWorker({ fetchChatDetail: async (item: { id: string }) => {
+                if (item.id === 'dir-two') {
+                    assert.ok(mockStorage[expKey]['dir-one'], 'first record is already persisted');
+                    assert.deepEqual(notified, ['dir-one']);
+                }
+                return { success: true, chat: historicalFixture({ id: item.id, title: item.id, messages: [{ role: 'user', content: 'Q' }] }) };
+            } }),
+        }, { onItemExported: (id: string) => {
+            assert.ok(closed.length > notified.length, 'Writer.close precedes record notification');
+            assert.ok(mockStorage[expKey][id], 'record persisted before UI notification');
+            notified.push(id);
+        } });
+        assert.equal(result.landedChats, 2);
+        assert.equal(result.exportedCount, 2);
+        assert.deepEqual(notified, ['dir-one', 'dir-two']);
+    } finally {
+        __clearModuleOverrides();
+        if (previousChrome === undefined) Reflect.deleteProperty(globalThis, 'chrome');
+        else Reflect.set(globalThis, 'chrome', previousChrome);
+    }
+});

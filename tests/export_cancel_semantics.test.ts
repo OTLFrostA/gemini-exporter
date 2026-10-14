@@ -95,7 +95,8 @@ function baseOptions(overrides: any = {}) {
 // writeFileDirect 入口抛原生 AbortError，取消不记失败、无下载、不写错误文件
 test('cancel semantics - user cancel mid-export: no failedChats, no download, no error file', async () => {
     const seenFiles = setupMockJSZip();
-    setupMockStorage();
+    const records = setupMockStorage();
+    let exportedCalls = 0;
     const { onLog } = collectLogs();
     const orchestrator = new ExportOrchestrator();
     let downloadCalls = 0;
@@ -130,10 +131,12 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
     const result = await orchestrator.run(baseOptions({
         worker,
         downloadHandler: async (_blob: Blob, _name: string) => { downloadCalls++; }
-    }), { onLog });
+    }), { onLog, onItemExported: () => { exportedCalls++; } });
 
     assert.strictEqual(result.aborted, true, 'result must carry aborted:true');
-    assert.strictEqual(result.landedChats, 1, 'chat 1 landed before cancel');
+    assert.strictEqual(result.landedChats, 0, 'staged ZIP bodies were never delivered');
+    assert.deepEqual(records, {}, 'cancelled staging must not save records');
+    assert.equal(exportedCalls, 0, 'cancelled staging must not notify UI');
     assert.strictEqual(result.failedChats.length, 0, 'cancel must not be recorded as failure');
     assert.strictEqual(result.failedAttachments.length, 0, 'cancel must not pollute attachment failures');
     assert.strictEqual(downloadCalls, 0, 'cancel must not trigger the download callback');

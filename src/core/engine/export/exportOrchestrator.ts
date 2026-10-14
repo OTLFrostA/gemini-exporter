@@ -582,7 +582,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             onProgress: (progress: ExportProgress) => void
         ): Promise<void> {
             // B3: 取消后不再打包/下载 —— 取消是用户意图，不应触发下载回调
-            if (this.aborted || this._abortController?.signal.aborted) return;
+            if (this.aborted || this._abortController?.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+            if (typeof options.downloadHandler !== 'function') throw new Error('ZIP delivery requires downloadHandler');
             const zipFileName = `gemini_export_${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.zip`;
             const I18n = getI18n();
             onLog(I18n.t('logPackagingZip'), 'info');
@@ -602,15 +603,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             } else if (hasGenerateAsync(zipWriterOrZip)) {
                 blob = await zipWriterOrZip.generateAsync({ type: 'blob' }, (metadata) => onUpdate(metadata.percent));
             } else {
-                const generateAsync = zipWriterOrZip && 'generateAsync' in zipWriterOrZip
-                    ? zipWriterOrZip.generateAsync
-                    : undefined;
-                blob = await generateAsync!({ type: 'blob' }, (metadata: JSZipAsyncMetadata) => onUpdate(metadata.percent));
+                throw new Error('ZIP writer cannot generate a blob');
             }
-
-            if (options.downloadHandler && typeof options.downloadHandler === 'function') {
-                await options.downloadHandler(blob, zipFileName);
-            }
+            if (this.aborted || this._abortController?.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+            await options.downloadHandler(blob, zipFileName);
+            if (this.aborted || this._abortController?.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
         }
 
         async run(options: ExportOptions, callbacks: ExportCallbacks = {}): Promise<ExportResult> {
@@ -992,14 +989,18 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 : undefined
                         });
                         if (!mainWriteError) {
-                            landedChats++;
-                            onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
+                            if (!useZip) {
+                                landedChats++;
+                                onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
+                            } else {
+                                onLog(`[${listTitle}] Prepared for ZIP delivery (${fileName})`, 'info');
+                            }
                             if (driftNotable) {
                                 const bits: string[] = [];
                                 if (chatDrift.turnsRejected > 0) bits.push(`拒识 ${chatDrift.turnsRejected} 个 turn`);
                                 if (chatDrift.schemaDrift.length > 0) bits.push(`${chatDrift.schemaDrift.length} 条 schema 漂移告警`);
                                 if (chatDrift.hasHeuristicDocs) bits.push(`含启发式拼凑文档`);
-                                const statusNote = completion.exportRecord.status === 'partial' ? '，已记为部分导出' : '（仅告警，导出记录仍为正常）';
+                                const statusNote = completion.exportRecord.status === 'partial' ? '，导出完整性为 partial' : '（仅告警，不影响导出完整性）';
                                 onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
                                 parseDriftChats.push({
                                     id: chatId,
@@ -1019,7 +1020,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 conversationUpdate: completion.conversationUpdate,
                                 targetId: completion.targetId
                             });
-                            await finalizeChatExport(chatId);
+                            if (!useZip) await finalizeChatExport(chatId);
                         } else {
                             // B3: 区分用户取消 vs 权限被收回 —— 取消是用户意图，不记失败；
                             // 权限被收回是真实失败（writeExportFile 已 abort 并记日志），保留失败记录。
@@ -1128,99 +1129,119 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 if (this.aborted) onLog(getI18n().t('logAssetsAborted'), 'warn');
             }
 
-            if (includeIndex && metaResults.length > 0) {
-                if (recovery && recovery.writeIndexAndMeta) {
-                    try {
-                        await recovery.writeIndexAndMeta(metaResults, landedChats, downloadedAssets, totalAssets, writer);
-                    } catch (e: unknown) {
-                        // index 写崩 = 导出契约不完整：记用户可见错误后 fail-closed 外抛
-                        onLog(getErrorMessage(e), 'error');
-                        throw e;
+            try {
+                if (includeIndex && metaResults.length > 0 && !this.aborted && !abortSignal?.aborted) {
+                    if (recovery && recovery.writeIndexAndMeta) {
+                        await recovery.writeIndexAndMeta(metaResults, useZip ? chatRecordsMap.size : landedChats, downloadedAssets, totalAssets, writer);
                     }
                 }
-            }
 
-            const isDevMode = Storage && typeof Storage.isDevMode === 'function'
-                ? await Storage.isDevMode()
-                : false;
+                const isDevMode = Storage && typeof Storage.isDevMode === 'function'
+                    ? await Storage.isDevMode()
+                    : false;
 
-            // B3: 取消时不写 _export_errors.json —— 取消是用户意图，不是失败
-            // P1-8: parser 漂移同样触发诊断文件（成功但 partial 的会话不能静默）
-            if ((isDevMode || failedChats.length > 0 || failedAttachments.length > 0 || parseDriftChats.length > 0)
-                && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                let fullLogText = '';
-                if (recovery && recovery.buildSessionLogText) {
-                    fullLogText = recovery.buildSessionLogText({
-                        landedChats,
-                        totalChats,
-                        downloadedAssets,
-                        totalAssets,
-                        skipped,
+                // B3: 取消时不写 _export_errors.json —— 取消是用户意图，不是失败
+                // P1-8: parser 漂移同样触发诊断文件（成功但 partial 的会话不能静默）
+                if ((isDevMode || failedChats.length > 0 || failedAttachments.length > 0 || parseDriftChats.length > 0)
+                    && !this.aborted && !(abortSignal && abortSignal.aborted)) {
+                    let fullLogText = '';
+                    if (recovery && recovery.buildSessionLogText) {
+                        fullLogText = recovery.buildSessionLogText({
+                            landedChats: useZip ? chatRecordsMap.size : landedChats,
+                            totalChats,
+                            downloadedAssets,
+                            totalAssets,
+                            skipped,
+                            failedChats,
+                            failedAttachments,
+                            parseDrift: parseDriftChats,
+                            isDevMode
+                        });
+                    }
+
+                    const sessionJson = {
+                        exportedAt: new Date().toISOString(),
+                        isDevMode,
+                        summary: {
+                            total: totalChats,
+                            landed: useZip ? chatRecordsMap.size : landedChats,
+                            failed: failedChats.length,
+                            skipped,
+                            assetsTotal: totalAssets,
+                            assetsDownloaded: downloadedAssets,
+                            assetsFailed: failedAttachments.length
+                        },
                         failedChats,
                         failedAttachments,
-                        parseDrift: parseDriftChats,
-                        isDevMode
+                        parseDrift: parseDriftChats
+                    };
+
+                    if (recovery && recovery.writeDiagnostics) {
+                        try {
+                            await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writer, onLog);
+                        } catch (e: unknown) {
+                            // 诊断文件是 best-effort：记用户可见错误但不外抛，
+                            // 避免"写错误报告失败后再写错误报告"的递归
+                            onLog(getErrorMessage(e), 'error');
+                        }
+                    }
+                }
+
+                // B3: 取消后跳过打包/下载（同 _packageAndDownload 首行判定）—— 无下载回调
+                if (!this.aborted && !(abortSignal && abortSignal.aborted) && useZip) {
+                    if (chatRecordsMap.size === 0 && skipped > 0 && failedChats.length === 0) {
+                        onLog(getI18n().t('logExportSkippedAllNoZip'), 'info');
+                    } else {
+                        try {
+                            await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
+                        } catch (error) {
+                            if (!isNamedError(error, 'AbortError') && !this.aborted && !abortSignal?.aborted) throw error;
+                            this.aborted = true;
+                        }
+                        if (!this.aborted && !abortSignal?.aborted) {
+                            landedChats = chatRecordsMap.size;
+                            for (const [id, entry] of chatRecordsMap) {
+                                try { await finalizeChatExport(id); }
+                                catch (error) {
+                                    const message = `ExportRecord persistence failed after ZIP delivery: ${getErrorMessage(error)}`;
+                                    onLog(`[${id}] ${message}`, 'error');
+                                    failedChats.push({ id, title: typeof entry.title === 'string' ? entry.title : id, error: message });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (recovery && recovery.updateSessionStatus) {
+                    await recovery.updateSessionStatus({
+                        status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
+                        slot,
+                        total: totalChats,
+                        current: landedChats + skipped,
+                        failedCount: failedChats.length,
+                        skipped
                     });
                 }
 
-                const sessionJson = {
-                    exportedAt: new Date().toISOString(),
-                    isDevMode,
-                    summary: {
-                        total: totalChats,
-                        landed: landedChats,
-                        failed: failedChats.length,
-                        skipped,
-                        assetsTotal: totalAssets,
-                        assetsDownloaded: downloadedAssets,
-                        assetsFailed: failedAttachments.length
-                    },
+                return {
+                    landedChats,
+                    exportedCount: landedChats,
                     failedChats,
                     failedAttachments,
-                    parseDrift: parseDriftChats
+                    skipped,
+                    totalAssets,
+                    downloadedAssets,
+                    aborted: this.aborted
                 };
-
-                if (recovery && recovery.writeDiagnostics) {
-                    try {
-                        await recovery.writeDiagnostics(isDevMode, sessionJson, fullLogText, writer, onLog);
-                    } catch (e: unknown) {
-                        // 诊断文件是 best-effort：记用户可见错误但不外抛，
-                        // 避免"写错误报告失败后再写错误报告"的递归
-                        onLog(getErrorMessage(e), 'error');
-                    }
-                }
-            }
-
-            // B3: 取消后跳过打包/下载（同 _packageAndDownload 首行判定）—— 无下载回调
-            if (!this.aborted && !(abortSignal && abortSignal.aborted) && useZip) {
-                if (landedChats === 0 && skipped > 0 && failedChats.length === 0) {
-                    onLog(getI18n().t('logExportSkippedAllNoZip'), 'info');
-                } else {
-                    await this._packageAndDownload(zipWriter || zip, payloadIds, downloadedAssets, totalAssets, options, onLog, onProgress);
-                }
-            }
-
-            if (recovery && recovery.updateSessionStatus) {
-                await recovery.updateSessionStatus({
-                    status: this.aborted ? 'aborted' : (failedChats.length > 0 ? 'completed_with_errors' : 'completed'),
-                    slot,
-                    total: totalChats,
-                    current: landedChats + skipped,
-                    failedCount: failedChats.length,
-                    skipped
+            } catch (error) {
+                const cancelled = this.aborted || abortSignal?.aborted || isNamedError(error, 'AbortError');
+                await SessionStore.updateSession({
+                    status: cancelled ? 'aborted' : 'error',
+                    error: getErrorMessage(error),
                 });
+                onLog(getErrorMessage(error), cancelled ? 'warn' : 'error');
+                throw error;
             }
-
-            return {
-                landedChats,
-                exportedCount: landedChats,
-                failedChats,
-                failedAttachments,
-                skipped,
-                totalAssets,
-                downloadedAssets,
-                aborted: this.aborted
-            };
         }
     }
 
