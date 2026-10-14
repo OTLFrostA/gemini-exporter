@@ -96,7 +96,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
             (store.mediaMap[id] ??= []).push({ filename: path, fileObj: bound.entry });
         }
         for (const asset of native.conversation.assets) {
-            if (!result.archiveResources[asset.id] && !/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(asset.sourceUri ?? '')) resourceResults.push(missingResource(asset.id, 'Archive resource is missing or ambiguous'));
+            if (!result.archiveResources[asset.id] && !/^(?:https?:\/\/|data:)/i.test(asset.sourceUri ?? '')) resourceResults.push(missingResource(asset.id, 'Archive resource is missing or ambiguous'));
         }
         diagnostics.push(...native.diagnostics);
         // Preserve metadata-only import writes: Takeout fragments must never replace

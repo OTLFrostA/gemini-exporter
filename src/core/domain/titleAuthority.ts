@@ -11,14 +11,17 @@ export type TitleSource =
     | 'derived'
     | 'default';
 
-export const TITLE_SOURCES: ReadonlySet<string> = new Set([
-    'rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy',
-    'provider', 'user', 'derived', 'default',
+/** Canonical sources also normalize raw legacy strings without type assertions. */
+export const TITLE_SOURCES: ReadonlyMap<string, TitleSource> = new Map([
+    ['rpc', 'rpc'], ['api-detail', 'api-detail'], ['dom', 'dom'],
+    ['takeout', 'takeout'], ['openai', 'openai'], ['sniff', 'sniff'],
+    ['legacy', 'legacy'], ['provider', 'provider'], ['user', 'user'],
+    ['derived', 'derived'], ['default', 'default'],
 ]);
 
 export interface TitleCandidate {
     value: string;
-    source: string;
+    source: TitleSource;
     observedAt?: string;
 }
 

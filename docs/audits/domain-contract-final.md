@@ -30,3 +30,5 @@ Normal successful export behavior and image matching/deduplication are preserved
 - `npm run lint` (Oxlint): 0 errors, 1482 warnings. Main baseline was 1478; the four additional warnings are local narrowing assertions for the filtered resource objects and already-normalized title winners, followed by the unchanged Domain validation boundary.
 - Scenario pool: 20/20.
 - Tier 2: **NOT RUN**. No debug Chrome endpoint was listening at `127.0.0.1:9222`; no live interaction or release acceptance is claimed.
+
+Follow-up: [PR #927 review fixes](domain-contract-review-fixes.md) supersede the nonempty TypeScript unions and remove the four added assertions/warnings. The original results above describe PR #927 at merge time.

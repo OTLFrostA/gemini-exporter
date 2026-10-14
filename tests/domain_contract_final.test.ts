@@ -22,7 +22,7 @@ test('current schema rejects deleted fields and empty resource objects at the ex
         { ...base(), assets: [{ id: 'a', kind: 'file', document: {} }] },
         { ...base(), titleSource: 'future-provider-tier' },
     ]) assert.throws(() => restoreDomainSnapshot(invalid), /Invalid persisted Domain contract/);
-    for (const titleSource of TITLE_SOURCES) assert.equal(restoreDomainSnapshot({ ...base(), titleSource }).titleSource, titleSource);
+    for (const titleSource of TITLE_SOURCES.keys()) assert.equal(restoreDomainSnapshot({ ...base(), titleSource }).titleSource, titleSource);
 });
 
 test('partial resource identities remain valid and parsers omit absent generation/document information', () => {
@@ -33,10 +33,13 @@ test('partial resource identities remain valid and parsers omit absent generatio
     for (const document of [{ id: 'report' }, { contentMarkdown: '' }, { hasFabricatedText: false }]) {
         assert.deepEqual(restoreDomainSnapshot({ ...base(), assets: [{ id: 'a', kind: 'file', document }] }).assets[0].document, document);
     }
-    const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', url: 'opaque:file' }] } }]);
+    const result = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'file', url: 'opaque:file', id: undefined, contentMarkdown: undefined, hasFabricatedText: undefined }] } }]);
     assert.equal(Object.hasOwn(result.assets[0], 'generation'), false);
     assert.equal(Object.hasOwn(result.assets[0], 'document'), false);
     validateParserDomain({ ...base(), assets: result.assets });
+    const generated = closeDomainResources('custom', [], [{ input: { attachments: [{ type: 'image', generation: { chatId: 'c', generationOrdinal: 0, providerRequestId: undefined, prompt: undefined, time: undefined } }] } }]);
+    assert.deepEqual(generated.assets[0].generation, { generationOrdinal: 0 });
+    assert.deepEqual(restoreDomainSnapshot({ ...base(), assets: generated.assets }).assets, generated.assets);
 });
 
 test('legacy parser normalizes unknown role/source without changing title authority or input', () => {

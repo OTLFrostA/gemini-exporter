@@ -2,7 +2,7 @@ import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
-import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../../domain/titleAuthority.js';
+import { resolveTitle, TITLE_SOURCES } from '../../domain/titleAuthority.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import { parseImportedBody } from '../../parsers/shared/importedContentAdapter.js';
@@ -121,9 +121,9 @@ function copyCompleteness(input: ConversationRecordInput): Pick<DomainConversati
 /** Choose the authoritative title while raw source alternatives are still available. */
 function legacyTitle(conversation: ConversationRecordInput) {
     const candidates = Object.entries(isObjectRecord(conversation.titles) ? conversation.titles : {}).flatMap(([source, value]) => typeof value === 'string' && value.trim()
-        ? [{ value: value.trim(), source: TITLE_SOURCES.has(source) ? source : 'default' }] : []);
+        ? [{ value: value.trim(), source: TITLE_SOURCES.get(source) ?? 'default' }] : []);
     const value = typeof conversation.title === 'string' ? conversation.title.trim() : undefined;
-    const source = typeof conversation.titleSource === 'string' && TITLE_SOURCES.has(conversation.titleSource) ? conversation.titleSource : 'default';
+    const source = TITLE_SOURCES.get(typeof conversation.titleSource === 'string' ? conversation.titleSource : '') ?? 'default';
     if (value && !candidates.some(candidate => candidate.value === value && candidate.source === source)) candidates.push({ value, source });
     return resolveTitle(candidates);
 }
@@ -169,7 +169,7 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         assets: resources.assets,
         id: conversation.id ?? '',
         title: title?.value ?? '',
-        ...(title ? { titleSource: title.source as TitleSource } : {}),
+        ...(title ? { titleSource: title.source } : {}),
         ...normalizeConversationTimes({ createdAt: conversation.createdAt, updatedAt: conversation.updatedAt }),
         ...copyCompleteness(conversation),
         ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),

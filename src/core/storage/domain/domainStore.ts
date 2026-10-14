@@ -1,4 +1,4 @@
-import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../../domain/titleAuthority.js';
+import { resolveTitle } from '../../domain/titleAuthority.js';
 import { sha256Hex } from '../../export/assets/sha256.js';
 import { matchResourceSets, resourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
 import { needsDomainBroker, callDomainBroker, encodeBytes, decodeBytes, decodeDomainRecord } from './transport.js';
@@ -206,10 +206,10 @@ async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDoma
             : !existing || prefer(existing, incoming, migration) ? incoming : existing;
         if (!existing) return selected;
         const candidates = [existing.conversation, incoming.conversation].map(c => ({ value: c.title,
-            source: c.titleSource && TITLE_SOURCES.has(c.titleSource) ? c.titleSource : 'default' }));
+            source: c.titleSource ?? 'default' }));
         const winner = resolveTitle(candidates);
         return winner && (winner.value !== selected.conversation.title || (selected.conversation.titleSource !== undefined && winner.source !== selected.conversation.titleSource))
-            ? { ...selected, revision: incoming.revision, conversation: { ...selected.conversation, title: winner.value, titleSource: winner.source as TitleSource } } : selected;
+            ? { ...selected, revision: incoming.revision, conversation: { ...selected.conversation, title: winner.value, titleSource: winner.source } } : selected;
     };
     if (typeof indexedDB === 'undefined') {
         if (migration && removedMemory.has(incoming.key)) return null;

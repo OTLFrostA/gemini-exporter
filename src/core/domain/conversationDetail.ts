@@ -21,16 +21,13 @@ export interface DomainAsset {
     /** Original acquisition URI, never an export destination or legacy localName. */
     sourceUri?: string;
     dataBase64?: string;
-    generation?: Partial<DomainGeneratedMediaIdentity> & (
-        | { providerRequestId: string } | { time: number } | { prompt: string }
-        | { generationOrdinal: number } | { imageCount: number } | { imageOrdinal: number }
-    );
+    generation?: Partial<DomainGeneratedMediaIdentity>;
     document?: {
         id?: string;
         contentMarkdown?: string;
         /** Retained across storage so heuristic report content cannot export as complete. */
         hasFabricatedText?: boolean;
-    } & ({ id: string } | { contentMarkdown: string } | { hasFabricatedText: boolean });
+    };
 }
 
 export interface DomainGeneratedMediaIdentity {
