@@ -115,5 +115,11 @@
   "src/core/parsers/gemini/rpc/generatedFiles.ts",
   "src/core/domain/runtimeValidation.ts",
   "src/core/utils/nativeDetailTransport.ts",
-  "src/background/batchFetcher.ts"
+  "src/background/batchFetcher.ts",
+  "src/core/parsers/chatgpt/chatgptTypes.ts",
+  "src/core/parsers/chatgpt/conversationTree.ts",
+  "src/core/parsers/chatgpt/conversationDetail.ts",
+  "src/core/parsers/chatgpt/parseConversation.ts",
+  "src/core/provider/chatgpt/chatgptProvider.ts",
+  "src/core/provider/chatgpt/imageAssets.ts"
 ]

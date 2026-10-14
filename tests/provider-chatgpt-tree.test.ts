@@ -6,7 +6,7 @@ import {
     mergeChatGPTContinuations,
     processChatGPTMapping,
     shouldSkipChatGPTMessage,
-} from '../src/core/provider/chatgpt/conversationTree.js';
+} from '../src/core/parsers/chatgpt/conversationTree.js';
 import {
     arrayBufferToBase64,
     fileIdFromPointer,
@@ -19,12 +19,12 @@ import {
     refreshChatGPTList,
     thinkingToReasoningBlocks,
     uploadedFilesOfChatGPTNode,
-} from '../src/core/provider/chatgpt/conversationDetail.js';
+} from '../src/core/parsers/chatgpt/conversationDetail.js';
 import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
 import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
-} from '../src/core/provider/chatgpt/chatgptTypes.js';
+} from '../src/core/parsers/chatgpt/chatgptTypes.js';
 
 function textNode(
     id: string,

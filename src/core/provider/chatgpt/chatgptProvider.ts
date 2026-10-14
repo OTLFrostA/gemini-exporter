@@ -1,8 +1,8 @@
 /**
- * Minimal ChatGPT provider implementing the neutral AIProvider seam.
- * Logic ported from pionxzh/chatgpt-exporter (MIT): session token ->
- * backend-api list/detail, mapping-tree linearize.
- * @unverified-provider-scaffold Live 9222 verification pending; not registered by default.
+ * ChatGPT provider: acquisition only (session/list/detail/downloads).
+ * Mapping parsing and Domain branding live in parsers/chatgpt, mirroring the
+ * Gemini provider/client/parser split enforced by the trust boundary.
+ * @unverified-provider-scaffold Not registered by default; optional hosts only.
  */
 import type {
     AIProvider,
@@ -17,16 +17,17 @@ import type {
     ChatGPTApiConversationWithId,
     ChatGPTApiConversations,
     ChatGPTApiSession,
-} from './chatgptTypes.js';
-import { CHATGPT_HOSTS, chatGPTApiBase } from './chatgptTypes.js';
+} from '../../parsers/chatgpt/chatgptTypes.js';
+import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
+import { imagePointersOfNode, processChatGPTMapping } from '../../parsers/chatgpt/conversationTree.js';
+import type { ChatGPTConversationNode } from '../../parsers/chatgpt/chatgptTypes.js';
 import {
-    chatGPTNodeRole,
-    chatGPTNodeText,
-    extractChatGPTModelSlug,
-    imagePointersOfNode,
-    processChatGPTMapping,
-} from './conversationTree.js';
-import type { ChatGPTConversationNode } from './chatgptTypes.js';
+    parseChatGPTConversation,
+} from '../../parsers/chatgpt/parseConversation.js';
+import type {
+    ChatGPTNodeAssets,
+} from '../../parsers/chatgpt/parseConversation.js';
+import { uploadedFilesOfChatGPTNode } from '../../parsers/chatgpt/conversationDetail.js';
 import {
     arrayBufferToBase64,
     assetIdForPointer,
@@ -35,16 +36,6 @@ import {
     fileIdFromPointer,
     parseFileDownloadPayload,
 } from './imageAssets.js';
-import type { DomainAsset, DomainCitation } from '../../domain/conversationDetail.js';
-import type { BlockNode } from '../../domain/content/blocks.js';
-import type { ChatGPTThinking } from './conversationDetail.js';
-import {
-    citationsOfChatGPTNode,
-    collectChatGPTThinking,
-    thinkingToReasoningBlocks,
-    uploadedFilesOfChatGPTNode,
-} from './conversationDetail.js';
-import { validateParserDomain } from '../../domain/runtimeValidation.js';
 
 export interface ChatGPTFetch {
     (input: string, init?: RequestInit): Promise<Response>;
@@ -194,100 +185,51 @@ export class ChatGPTProvider implements AIProvider {
             `/conversation/${encodeURIComponent(conversationId)}`,
         );
         const conversation: ChatGPTApiConversationWithId = { ...raw, id: conversationId };
-        const nodes = processChatGPTMapping(conversation);
-        const modelSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
-        const startId = conversation.current_node || nodes[nodes.length - 1]?.id || '';
-        const thinkingByNode = collectChatGPTThinking(
-            conversation.mapping,
-            new Set(nodes.map((n) => n.id)),
-            startId,
+        // Acquisition only: resolve downloads per node, then hand assembled
+        // evidence to the parser for Domain branding (trust boundary).
+        const linear = this.linearNodes(conversation);        const assetsByNode = new Map<string, ChatGPTNodeAssets>();
+        await Promise.all(
+            linear.map(async (node) => {
+                assetsByNode.set(node.id, await this.resolveNodeAssets(node));
+            }),
         );
-        const assets: DomainAsset[] = [];
-        const messages = await Promise.all(
-            nodes.map((n) => this.toDomainMessage(n, modelSlug, assets, thinkingByNode.get(n.id))),
-        );
-        const domain = validateParserDomain({
-            providerId: 'chatgpt',
-            completeness: 'complete',
-            assets,
-            id: conversation.id,
-            title: conversation.title || 'ChatGPT Conversation',
-            createdAt: toEpochMs(conversation.create_time),
-            updatedAt: toEpochMs(conversation.update_time),
-            url: `https://chatgpt.com/c/${conversation.id}`,
-            messages,
-        });
-        return {
-            conversation: domain,
-            diagnostics: [],
-            resourceHints: {},
-            acquisitionHints: {},
-        };
+        return parseChatGPTConversation({ conversation, assetsByNode });
     }
 
-    private async toDomainMessage(
-        node: ChatGPTConversationNode,
-        modelSlug: string,
-        assets: DomainAsset[],
-        thinking?: ChatGPTThinking,
-    ): Promise<{
-        id?: string;
-        role: 'user' | 'assistant';
-        model?: string;
-        content: BlockNode[];
-        timestamp?: number;
-        attachmentIds?: string[];
-        reasoning?: BlockNode[];
-        citations?: DomainCitation[];
-    }> {
-        const text = chatGPTNodeText(node);
-        const content: BlockNode[] = text
-            ? [{ type: 'paragraph', children: [{ type: 'text', text }] }]
-            : [];
-        const pointers = imagePointersOfNode(node);
-        const attachmentIds: string[] = [];
-        for (const pointer of pointers) {
+    /** Linear history without branding (used to scope per-node downloads). */
+    private linearNodes(
+        conversation: ChatGPTApiConversationWithId,
+    ): ChatGPTConversationNode[] {
+        return processChatGPTMapping(conversation);
+    }
+
+    private async resolveNodeAssets(node: ChatGPTConversationNode): Promise<ChatGPTNodeAssets> {
+        const images: ChatGPTNodeAssets['images'] = [];
+        for (const pointer of imagePointersOfNode(node)) {
             const resolved = await this.fetchImageAsset(pointer);
-            if (!resolved) continue;
-            assets.push({
-                id: resolved.assetId,
-                kind: 'image',
-                name: resolved.fileName,
-                mediaType: resolved.mediaType,
-                byteLength: resolved.byteLength,
-                sourceUri: resolved.sourceUri,
-                dataBase64: resolved.dataBase64,
-            });
-            attachmentIds.push(resolved.assetId);
-            content.push({ type: 'image', assetId: resolved.assetId });
+            if (resolved) {
+                images.push({
+                    pointer,
+                    assetId: resolved.assetId,
+                    dataBase64: resolved.dataBase64,
+                    mediaType: resolved.mediaType,
+                    fileName: resolved.fileName,
+                    byteLength: resolved.byteLength,
+                });
+            }
         }
+        const files: ChatGPTNodeAssets['files'] = [];
         for (const file of uploadedFilesOfChatGPTNode(node)) {
-            const assetId = `file-${file.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
             const downloaded = await this.fetchFileAsset(file.id);
-            assets.push({
-                id: assetId,
-                kind: 'file',
+            files.push({
+                id: file.id,
                 name: file.name,
                 mediaType: downloaded?.mediaType ?? file.mediaType,
                 byteLength: downloaded?.byteLength ?? file.byteLength,
-                sourceUri: `file-download:${file.id}`,
                 ...(downloaded ? { dataBase64: downloaded.dataBase64 } : {}),
             });
-            attachmentIds.push(assetId);
-            content.push({ type: 'file', assetId, label: file.name });
         }
-        const reasoning = thinking ? thinkingToReasoningBlocks(thinking) : [];
-        const citations = citationsOfChatGPTNode(node);
-        return {
-            id: node.id,
-            role: chatGPTNodeRole(node),
-            model: modelSlug || undefined,
-            content,
-            timestamp: toEpochMs(node.message?.create_time),
-            attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
-            ...(reasoning.length > 0 ? { reasoning } : {}),
-            ...(citations.length > 0 ? { citations } : {}),
-        };
+        return { nodeId: node.id, images, files };
     }
 
     /** Best-effort bytes for an uploaded (non-image) file; null keeps the stub. */
