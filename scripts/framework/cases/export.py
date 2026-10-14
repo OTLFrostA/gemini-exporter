@@ -262,6 +262,18 @@ class ZipExportDownloadCase(FeatureTestCase):
             """)
             time.sleep(0.5)
 
+            # 与 FastSkip 用例解耦：若残留【跳过已导出】开启状态，显式关闭，
+            # 保证手动勾选导出不受其他用例的开关状态影响。
+            cdp_opt.eval("""
+            (() => {
+                const skip = document.getElementById('skipExported');
+                if (skip && skip.checked) {
+                    skip.checked = false;
+                    skip.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            })()
+            """)
+
             target_ids = []
             target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
             target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
@@ -367,7 +379,9 @@ class StaleTabImageExportCase(FeatureTestCase):
             name="失效 Gemini 标签页下的图片导出",
             description="扩展重装后保留未刷新的同账号标签页，验证图片导出可转用已注入的标签页",
             critical=True,
-            prerequisites=["feat_pdf_export_download"],
+            # 真实数据前提：本轮已验证的 Imagen 会话（与导出格式链无关，
+            # 不因 Markdown/HTML/PDF 任一失败而被 SKIP）。
+            prerequisites=["feat_imagen_multimodal"],
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -488,7 +502,9 @@ class FastSkipExportedCase(FeatureTestCase):
             name="跳过已导出会话前置极速过滤",
             description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
             critical=True,
-            prerequisites=["feat_multimodal_spec_assertion"]
+            # 无跨用例数据依赖：所需徽章/按钮状态在 execute 内自验（准备不足即 FAIL），
+            # 不以 Markdown 规范断言通过为必要条件。
+            prerequisites=[]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -585,9 +601,9 @@ class HtmlExportDownloadCase(FeatureTestCase):
             name="HTML 独立网页 ZIP 导出与落盘核验",
             description="切换导出格式为 HTML (.html)，下载 ZIP 并解压，严格断言独立网页结构、CSS 样式与附件落地",
             critical=True,
-            prerequisites=[
-                "feat_fast_skip_exported"
-            ]
+            # 各格式独立验证：目标选择与格式切换在 execute 内自理并恢复 markdown，
+            # 不以 Skip Exported / Markdown 任一通过为必要条件。
+            prerequisites=[]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -597,7 +613,10 @@ class HtmlExportDownloadCase(FeatureTestCase):
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.3)
 
-            check_res = select_format_targets(cdp_opt, ctx, "html")
+            try:
+                check_res = select_format_targets(cdp_opt, ctx, "html")
+            except RuntimeError as e:
+                return False, f"HTML 导出目标准备不足: {e}", None
 
             downloaded_zip = CDPActions.trigger_export_zip(
                 cdp_opt,
@@ -710,9 +729,8 @@ class PdfExportDownloadCase(FeatureTestCase):
             name="PDF 真实编译 ZIP 导出与落盘核验",
             description="切换导出格式为 PDF (.pdf)，通过沙箱 Typst WASM 真实编译导出 ZIP，解压严格断言 %PDF- 二进制规范与非空",
             critical=True,
-            prerequisites=[
-                "feat_html_export_download"
-            ]
+            # 与 HTML 同理独立验证，不以 HTML 通过为必要条件。
+            prerequisites=[]
         )
 
     @staticmethod
@@ -755,7 +773,10 @@ class PdfExportDownloadCase(FeatureTestCase):
             CDPActions.clear_search_workbench(cdp_opt)
             time.sleep(0.3)
 
-            check_res = select_format_targets(cdp_opt, ctx, "pdf")
+            try:
+                check_res = select_format_targets(cdp_opt, ctx, "pdf")
+            except RuntimeError as e:
+                return False, f"PDF 导出目标准备不足: {e}", None
 
             downloaded_zip = CDPActions.trigger_export_zip(
                 cdp_opt,

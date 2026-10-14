@@ -228,24 +228,21 @@ class FeatureRegistry:
             domain=FeatureDomain.EXPORT_DISK,
             name="跳过已导出会话前置极速过滤",
             description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
-            critical=True,
-            prerequisites=["feat_multimodal_spec_assertion"]
+            critical=True
         ))
         self.register(Feature(
             id="feat_html_export_download",
             domain=FeatureDomain.EXPORT_DISK,
             name="HTML 独立网页 ZIP 导出与落盘核验",
             description="切换导出格式为 HTML (.html)，下载 ZIP 并解压，严格断言独立网页结构、CSS 样式与附件落地",
-            critical=True,
-            prerequisites=["feat_fast_skip_exported"]
+            critical=True
         ))
         self.register(Feature(
             id="feat_pdf_export_download",
             domain=FeatureDomain.EXPORT_DISK,
             name="PDF 真实编译 ZIP 导出与落盘核验",
             description="切换导出格式为 PDF (.pdf)，通过沙箱 Typst WASM 真实编译导出 ZIP，解压严格断言 %PDF- 二进制规范与非空",
-            critical=True,
-            prerequisites=["feat_html_export_download"]
+            critical=True
         ))
         self.register(Feature(
             id="feat_stale_tab_image_export",
@@ -253,7 +250,7 @@ class FeatureRegistry:
             name="失效 Gemini 标签页下的图片导出",
             description="旧标签页无消息接收端时仍成功导出 Imagen 图片与引用",
             critical=True,
-            prerequisites=["feat_pdf_export_download"]
+            prerequisites=["feat_imagen_multimodal"]
         ))
 
     def register(self, feature: Feature):
