@@ -9,7 +9,7 @@ v2 repository → shared snapshot restoration → TrustedDomain → Document AST
 ```
 
 `gemini_schema_version = 2` marks the application migration. The repository lives
-under the extension origin in `gemini_exporter_domain` (IndexedDB version 1).
+under the extension origin in `gemini_exporter_domain` (IndexedDB version 2).
 Content scripts use the background message broker; they do not create a second
 Domain repository under the Gemini web origin. Old web-origin detail databases
 are transferred separately when that origin is next opened, even if extension
@@ -45,14 +45,17 @@ Trusted internal record adaptation retains envelope/version, identity, acquisiti
 
 See [the trust audit](domain-trust-audit.md) for authorized entries, remaining assertions, measured Schema/Closure counts, and qualified validation results.
 
-The `revisions` store retains nonidentical captured snapshots. An identical
-capture does not append another revision. Shorter snapshots, older timestamps
-at the same message count, or reduced coverage at the same count cannot replace
-the selected fuller snapshot. Such new-source observations remain in history.
-Stable resource bytes carry forward only when asset identity and source URI
-still match. Online acquired bytes use a separate `resource_bytes` cache keyed by
-conversation identity, asset ID and original source URI, and survive restart. Capture retention and compaction can be refined separately; this
-upgrade does not discard earlier snapshots to save space.
+Each conversation has exactly one selected record in `conversations`; no
+revision history is retained. The record's `revision` field is only an opaque
+token for that current record. An identical capture leaves the current record
+unchanged. Shorter snapshots, older timestamps at the same message count, or
+reduced coverage at the same count cannot replace the selected fuller snapshot;
+such new-source observations are not stored. Stable resource bytes carry
+forward only when asset identity and source URI still match. Online acquired
+bytes use a separate `resource_bytes` store keyed by conversation identity,
+asset ID and original source URI, and survive restart. The IndexedDB v1 → v2
+upgrade deletes the old `revisions` store; current records, byte bindings and
+legacy backups are untouched by that upgrade.
 
 ## Legacy interpretation and recovery
 
@@ -72,9 +75,9 @@ preserved as explicit migration issues; the v2 stamp means the transfer complete
 not that every historical row was interpretable.
 
 Disk/open/transaction failures abort migration and withhold the application
-version stamp. Both current record and revision commit in one IDB transaction;
+version stamp. The current record commits in one IDB transaction;
 request success alone is insufficient. Retrying does not overwrite a newer native
-capture or multiply already transferred revisions. Host-origin migration has its
+capture and does not create duplicate records. Host-origin migration has its
 own marker and report, stamped only after its transfer completes.
 
 ## Application compatibility
@@ -91,19 +94,20 @@ historical detail cache at runtime. Missing bodies remain retryable failures.
 Only old-storage migration interprets historical string records. Standard JSON
 serializes native Domain directly, without an application projection.
 The old detail API remains for migration and characterization; native writes do
-not write a second legacy body. Scoped deletion removes both the
-selected record, its native revisions and acquired bytes while preserving other
+not write a second legacy body. Scoped deletion removes the
+selected current record and its acquired bytes while preserving other
 accounts. `removed_conversations` markers prevent late migration/retry from
 restoring removed bodies; an explicit fresh source capture can restore them.
 Confirmed remote deletion also suppresses stale page observations in that tab.
 Conversation deletion first records account-scoped intent in
 `gemini_pending_deletions_uN`, before removing list metadata. Single deletion
 cleans by ID even when the list entry is already absent; reconciliation and clear
-also replay pending IDs. An ID is retired only after Domain current/history/bytes
-and its tombstone commit, legacy detail deletion commits, and export-record
-cleanup succeeds. Disk failures propagate instead of reporting memory fallback
-as success, so restart/retry can finish a partial deletion. `removeConversation`
-still returns whether list metadata changed; a successful cleanup retry may
+also replay pending IDs. An ID is retired only after the Domain current
+record/bytes and its `removed_conversations` tombstone commit, legacy detail
+deletion commits, and export-record cleanup succeeds. Disk failures propagate
+instead of reporting memory fallback as success, so restart/retry can finish a
+partial deletion. `removeConversation` still returns whether list metadata
+changed; a successful cleanup retry may
 therefore return `false`. Reconciliation includes recovered pending IDs in its
 `removedIds` result. Original migration backups are retained for recovery.
 
