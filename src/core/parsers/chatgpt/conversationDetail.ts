@@ -6,7 +6,6 @@
  * thoughts/reasoning_recap verified present; upload round-trip still open.
  */
 import type { DomainCitation } from '../../domain/conversationDetail.js';
-import type { BlockNode } from '../../domain/content/blocks.js';
 import type {
     ChatGPTApiConversationItem,
     ChatGPTConversationNode,
@@ -101,26 +100,6 @@ export function collectChatGPTThinking(
     }
     flush();
     return out;
-}
-
-/** Render collected thinking as Domain reasoning blocks (Gemini parity). */
-export function thinkingToReasoningBlocks(t: ChatGPTThinking): BlockNode[] {
-    const blocks: BlockNode[] = [];
-    const head: string[] = [];
-    if (typeof t.durationSeconds === 'number') head.push(`思考用时约 ${t.durationSeconds} 秒`);
-    if (t.activities.length > 0) head.push(t.activities.join(' / '));
-    if (head.length > 0) {
-        blocks.push({ type: 'paragraph', children: [{ type: 'text', text: `【思考过程】${head.join('；')}` }] });
-    }
-    for (const thought of t.thoughts) {
-        const text = thought.summary
-            ? `【${thought.summary}】${thought.content}`
-            : thought.content;
-        if (text) {
-            blocks.push({ type: 'paragraph', children: [{ type: 'text', text }] });
-        }
-    }
-    return blocks;
 }
 
 /** Web citations for one node, deduplicated by URL (Gemini citationsOf parity). */

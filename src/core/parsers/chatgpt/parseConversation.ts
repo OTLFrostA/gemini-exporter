@@ -3,6 +3,10 @@
  * Acquisition (session/list/detail/downloads) stays in the provider; only this
  * parser module may call validateParserDomain for ChatGPT payloads, mirroring
  * the Gemini rpc/dom/takeout parser ownership in the trust boundary.
+ *
+ * Message bodies are ChatGPT-dialect Markdown: normalized by
+ * markdownCompatibility.ts, then parsed by the shared mdast pipeline into
+ * BlockNodes (code/table/math structure preserved, like Gemini bodies).
  */
 import type {
     DomainAsset,
@@ -10,7 +14,12 @@ import type {
 } from '../../domain/conversationDetail.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
+import type { Diagnostic } from '../../diagnostics/contentDiagnostic.js';
 import type { ResourceConversationParseResult } from '../parsingResult.js';
+import {
+    parseMarkdownToBlocks,
+    type MarkdownParseContext,
+} from '../shared/markdown/index.js';
 import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
@@ -18,7 +27,7 @@ import type {
 import {
     citationsOfChatGPTNode,
     collectChatGPTThinking,
-    thinkingToReasoningBlocks,
+    type ChatGPTThinking,
     uploadedFilesOfChatGPTNode,
 } from './conversationDetail.js';
 import {
@@ -28,6 +37,7 @@ import {
     imagePointersOfNode,
     processChatGPTMapping,
 } from './conversationTree.js';
+import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
 
 /** Image bytes resolved by the provider for one sediment pointer. */
 export interface ChatGPTParsedImage {
@@ -71,57 +81,94 @@ function toEpochMs(value: number | string | undefined): number | undefined {
     return undefined;
 }
 
+function parseBody(text: string, nodeId: string, ctx: MarkdownParseContext): BlockNode[] {
+    if (!text.trim()) return [];
+    return parseMarkdownToBlocks(preprocessChatGPTMarkdown(text), nodeId, ctx);
+}
+
+function reasoningOfThinking(thinking: ChatGPTThinking, nodeId: string, ctx: MarkdownParseContext): BlockNode[] {
+    const blocks: BlockNode[] = [];
+    const head: string[] = [];
+    if (typeof thinking.durationSeconds === 'number') head.push(`思考用时约 ${thinking.durationSeconds} 秒`);
+    if (thinking.activities.length > 0) head.push(thinking.activities.join(' / '));
+    if (head.length > 0) {
+        blocks.push({ type: 'paragraph', children: [{ type: 'text', text: `【思考过程】${head.join('；')}` }] });
+    }
+    for (const thought of thinking.thoughts) {
+        const text = thought.summary
+            ? `**${thought.summary}**\n\n${thought.content}`
+            : thought.content;
+        blocks.push(...parseBody(text, nodeId, ctx));
+    }
+    return blocks;
+}
+
 function messageOfNode(
     node: ChatGPTConversationNode,
-    modelSlug: string,
+    branchSlug: string,
     assets: DomainAsset[],
+    seenAssetIds: Set<string>,
     resolved: ChatGPTNodeAssets | undefined,
-    thinkingBlocks: BlockNode[] | undefined,
+    thinking: ChatGPTThinking | undefined,
+    ctx: MarkdownParseContext,
 ): DomainMessage {
-    const text = chatGPTNodeText(node);
-    const content: BlockNode[] = text
-        ? [{ type: 'paragraph', children: [{ type: 'text', text }] }]
-        : [];
+    const content: BlockNode[] = parseBody(chatGPTNodeText(node), node.id, ctx);
     const attachmentIds: string[] = [];
+    // P0: asset identity is conversation-global (closure rejects duplicates),
+    // so repeated pointers reuse the first asset instead of pushing a twin.
+    const claim = (assetId: string): boolean => {
+        if (seenAssetIds.has(assetId)) return false;
+        seenAssetIds.add(assetId);
+        return true;
+    };
     for (const image of resolved?.images ?? []) {
         // Defensive: ignore resolutions that do not belong to this node.
         if (!imagePointersOfNode(node).includes(image.pointer)) continue;
-        assets.push({
-            id: image.assetId,
-            kind: 'image',
-            name: image.fileName,
-            mediaType: image.mediaType,
-            byteLength: image.byteLength,
-            sourceUri: image.pointer,
-            dataBase64: image.dataBase64,
-        });
+        if (claim(image.assetId)) {
+            assets.push({
+                id: image.assetId,
+                kind: 'image',
+                name: image.fileName,
+                mediaType: image.mediaType,
+                byteLength: image.byteLength,
+                sourceUri: image.pointer,
+                dataBase64: image.dataBase64,
+            });
+        }
         attachmentIds.push(image.assetId);
         content.push({ type: 'image', assetId: image.assetId });
     }
     for (const file of uploadedFilesOfChatGPTNode(node)) {
         const bytes = resolved?.files.find((f) => f.id === file.id);
         const assetId = `file-${file.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-        assets.push({
-            id: assetId,
-            kind: 'file',
-            name: file.name,
-            mediaType: bytes?.mediaType ?? file.mediaType,
-            byteLength: bytes?.byteLength ?? file.byteLength,
-            sourceUri: `file-download:${file.id}`,
-            ...(bytes?.dataBase64 ? { dataBase64: bytes.dataBase64 } : {}),
-        });
+        if (claim(assetId)) {
+            assets.push({
+                id: assetId,
+                kind: 'file',
+                name: file.name,
+                mediaType: bytes?.mediaType ?? file.mediaType,
+                byteLength: bytes?.byteLength ?? file.byteLength,
+                sourceUri: `file-download:${file.id}`,
+                ...(bytes?.dataBase64 ? { dataBase64: bytes.dataBase64 } : {}),
+            });
+        }
         attachmentIds.push(assetId);
         content.push({ type: 'file', assetId, label: file.name });
     }
     const citations = citationsOfChatGPTNode(node);
+    // P2: each message keeps its own model; the branch-latest slug is fallback.
+    const model = node.message?.metadata?.model_slug || branchSlug || undefined;
     return {
         id: node.id,
         role: chatGPTNodeRole(node),
-        model: modelSlug || undefined,
+        model,
         content,
         timestamp: toEpochMs(node.message?.create_time),
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
-        ...(thinkingBlocks && thinkingBlocks.length > 0 ? { reasoning: thinkingBlocks } : {}),
+        ...(() => {
+            const reasoning = thinking ? reasoningOfThinking(thinking, node.id, ctx) : [];
+            return reasoning.length > 0 ? { reasoning } : {};
+        })(),
         ...(citations.length > 0 ? { citations } : {}),
     };
 }
@@ -129,8 +176,13 @@ function messageOfNode(
 /** Linearize, enrich and brand one ChatGPT conversation. */
 export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConversationParseResult {
     const { conversation } = input;
+    const contentDiagnostics: Diagnostic[] = [];
+    const ctx: MarkdownParseContext = {
+        diagnostics: contentDiagnostics,
+        sourceRef: { providerId: 'chatgpt', locator: `conversation:${conversation.id}` },
+    };
     const nodes = processChatGPTMapping(conversation);
-    const modelSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
+    const branchSlug = extractChatGPTModelSlug(conversation.mapping, nodes);
     const startId = conversation.current_node || nodes[nodes.length - 1]?.id || '';
     const thinkingByNode = collectChatGPTThinking(
         conversation.mapping,
@@ -138,16 +190,18 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
         startId,
     );
     const assets: DomainAsset[] = [];
-    const messages: DomainMessage[] = nodes.map((node) => {
-        const thinking = thinkingByNode.get(node.id);
-        return messageOfNode(
+    const seenAssetIds = new Set<string>();
+    const messages: DomainMessage[] = nodes.map((node) =>
+        messageOfNode(
             node,
-            modelSlug,
+            branchSlug,
             assets,
+            seenAssetIds,
             input.assetsByNode.get(node.id),
-            thinking ? thinkingToReasoningBlocks(thinking) : undefined,
-        );
-    });
+            thinkingByNode.get(node.id),
+            { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
+        ),
+    );
     return {
         conversation: validateParserDomain({
             providerId: 'chatgpt',
@@ -160,7 +214,12 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
             url: `https://chatgpt.com/c/${conversation.id}`,
             messages,
         }),
-        diagnostics: [],
+        diagnostics: contentDiagnostics.map((d) => ({
+            severity: d.severity,
+            code: d.code,
+            message: d.message,
+            path: d.path,
+        })),
         resourceHints: {},
         acquisitionHints: {},
     };

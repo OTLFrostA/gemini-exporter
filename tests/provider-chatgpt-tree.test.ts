@@ -17,9 +17,10 @@ import {
     citationsOfChatGPTNode,
     collectChatGPTThinking,
     refreshChatGPTList,
-    thinkingToReasoningBlocks,
     uploadedFilesOfChatGPTNode,
 } from '../src/core/parsers/chatgpt/conversationDetail.js';
+import { parseChatGPTConversation } from '../src/core/parsers/chatgpt/parseConversation.js';
+import { preprocessChatGPTMarkdown } from '../src/core/parsers/chatgpt/markdownCompatibility.js';
 import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
 import type {
     ChatGPTApiConversationWithId,
@@ -276,9 +277,109 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
     assert.ok(thinking);
     assert.equal(thinking?.thoughts.length, 1);
     assert.equal(thinking?.durationSeconds, 12);
-    const blocks = thinkingToReasoningBlocks(thinking ?? { thoughts: [], activities: [] });
-    assert.equal(blocks.length, 2);
-    assert.match(JSON.stringify(blocks[0]), /12/);
+    // Reasoning blocks render through the full parser (markdown included).
+    const parsed = parseChatGPTConversation({
+        conversation: {
+            id: 'conv-think', title: 't', create_time: 1, update_time: 2,
+            current_node: 'a1', mapping, is_archived: false,
+        },
+        assetsByNode: new Map(),
+    });
+    const assistant = parsed.conversation.messages.find((m) => m.id === 'a1');
+    assert.ok(assistant?.reasoning && assistant.reasoning.length >= 2);
+    assert.match(JSON.stringify(assistant?.reasoning[0]), /12/);
+});
+
+test('dialect preprocessing shields code and normalizes math/citations', () => {
+    const src = '费用是 $5。公式 \\(x^2\\) 行内。\n\n\\[y = mx\\]\n\n`代码 \\(不动\\) $10`。引用\uE000cite\uE002turn0search0\uE001结尾。<br>换行';
+    const out = preprocessChatGPTMarkdown(src);
+    assert.match(out, /\$x\^2\$/);
+    assert.match(out, /\$\$\ny = mx\n\$\$/);
+    assert.ok(out.includes('`代码 \\(不动\\) $10`'));
+    assert.ok(!out.includes('cite'));
+    assert.ok(!out.includes('<br>'));
+    assert.ok(out.includes('$5'));
+});
+
+test('bodies parse to structured blocks and models stay per-message', () => {
+    const mapping: Record<string, ChatGPTConversationNode> = {
+        root: { id: 'root', children: ['u1'] },
+        u1: {
+            id: 'u1', parent: 'root', children: ['a1'],
+            message: {
+                author: { role: 'user', metadata: {} },
+                content: { content_type: 'text', parts: ['hi'] },
+                id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
+                metadata: { model_slug: 'gpt-6' },
+            },
+        },
+        a1: {
+            id: 'a1', parent: 'u1', children: [],
+            message: {
+                author: { role: 'assistant', metadata: {} },
+                content: { content_type: 'text', parts: ['# Title\n\n```python\nprint(1)\n```\n\n公式 \\(e=mc^2\\)'] },
+                id: 'msg-a1', recipient: 'all', status: 'finished_successfully', weight: 1,
+                metadata: { model_slug: 'gpt-6-pro' },
+            },
+        },
+    };
+    const parsed = parseChatGPTConversation({
+        conversation: {
+            id: 'conv-md', title: 't', create_time: 1, update_time: 2,
+            current_node: 'a1', mapping, is_archived: false,
+        },
+        assetsByNode: new Map(),
+    });
+    const kinds = parsed.conversation.messages.find((m) => m.id === 'a1')?.content.map((b) => b.type);
+    assert.ok(kinds?.includes('heading'));
+    assert.ok(kinds?.includes('code'));
+    assert.deepEqual(
+        parsed.conversation.messages.map((m) => m.model),
+        ['gpt-6', 'gpt-6-pro'],
+    );
+});
+
+test('repeated image pointers reuse one asset instead of breaking closure', () => {
+    const tool = (id: string, parent: string): ChatGPTConversationNode => ({
+        id, parent, children: [],
+        message: {
+            author: { role: 'tool', metadata: {} },
+            content: {
+                content_type: 'multimodal_text',
+                parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_dup' }],
+            },
+            id: `msg-${id}`, recipient: 'all', status: 'finished_successfully', weight: 1,
+        },
+    });
+    const mapping: Record<string, ChatGPTConversationNode> = {
+        root: { id: 'root', children: ['u1'] },
+        u1: {
+            id: 'u1', parent: 'root', children: ['t1'],
+            message: {
+                author: { role: 'user', metadata: {} },
+                content: { content_type: 'text', parts: ['again'] },
+                id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
+            },
+        },
+        t1: { ...tool('t1', 'u1'), children: ['t2'] },
+        t2: { ...tool('t2', 't1'), children: [] },
+    };
+    const img = { pointer: 'sediment://file_dup', assetId: 'img-file_dup', dataBase64: 'aGk=' };
+    const parsed = parseChatGPTConversation({
+        conversation: {
+            id: 'conv-dup', title: 't', create_time: 1, update_time: 2,
+            current_node: 't2', mapping, is_archived: false,
+        },
+        assetsByNode: new Map([
+            ['t1', { nodeId: 't1', images: [img], files: [] }],
+            ['t2', { nodeId: 't2', images: [img], files: [] }],
+        ]),
+    });
+    assert.equal(parsed.conversation.assets.length, 1);
+    assert.deepEqual(
+        parsed.conversation.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.attachmentIds),
+        [['img-file_dup'], ['img-file_dup']],
+    );
 });
 
 test('citations dedupe by URL across tether and grouped references', () => {
