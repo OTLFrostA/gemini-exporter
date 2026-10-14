@@ -21,7 +21,13 @@ import {
 } from '../src/core/parsers/chatgpt/conversationDetail.js';
 import { parseChatGPTConversation } from '../src/core/parsers/chatgpt/parseConversation.js';
 import { preprocessChatGPTMarkdown } from '../src/core/parsers/chatgpt/markdownCompatibility.js';
+import {
+    ensureChatGPTRegistered,
+    hasChatGPTAccess,
+    requestChatGPTAccess,
+} from '../src/core/provider/chatgpt/chatgptAccess.js';
 import { ChatGPTProvider } from '../src/core/provider/chatgpt/chatgptProvider.js';
+import { ProviderRegistry } from '../src/core/provider/providerRegistry.js';
 import type {
     ChatGPTApiConversationWithId,
     ChatGPTConversationNode,
@@ -468,4 +474,32 @@ test('listConversations paginates until the reported total is reached', async ()
     assert.equal(page.exhaustive, true);
     assert.equal(page.total, 3);
     assert.equal(calls.length, 1);
+});
+
+test('optional access helper never prompts and registers only on grant', async () => {
+    const holder = globalThis as unknown as { chrome?: unknown };
+    const previous: unknown = holder.chrome;
+    try {
+        holder.chrome = undefined;
+        assert.equal(await hasChatGPTAccess(), false);
+        assert.equal(await requestChatGPTAccess(), false);
+        assert.equal(await ensureChatGPTRegistered(), false);
+        let granted = false;
+        holder.chrome = {
+            permissions: {
+                contains: () => Promise.resolve(granted),
+                request: () => {
+                    granted = true;
+                    return Promise.resolve(true);
+                },
+            },
+        };
+        assert.equal(await hasChatGPTAccess(), false);
+        assert.equal(await requestChatGPTAccess(), true);
+        assert.equal(await hasChatGPTAccess(), true);
+        assert.equal(await ensureChatGPTRegistered(), true);
+    } finally {
+        ProviderRegistry.unregister('chatgpt');
+        holder.chrome = previous;
+    }
 });
