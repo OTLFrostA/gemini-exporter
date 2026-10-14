@@ -42,7 +42,7 @@ test('intrinsic file size and unknown role survive parser and JSON without outpu
     const parsed = historicalFixture(raw, { providerId: 'gemini' }).conversation;
     assert.equal(parsed.assets[0].byteLength, 3);
     assert.equal(parsed.messages[0].role, 'unknown');
-    assert.equal(parsed.messages[0].provenance?.rawRole, 'historical-tool');
+    assert.equal(Object.hasOwn(parsed.messages[0], 'provenance'), false);
     const restored = JSON.parse(JSON.stringify(parsed)) as typeof parsed;
     assert.deepEqual(composeDomainDocument(restored), composeDomainDocument(parsed));
     const file = composeDomainDocument(parsed).document.messages[0].blocks.find(block => block.type === 'file');

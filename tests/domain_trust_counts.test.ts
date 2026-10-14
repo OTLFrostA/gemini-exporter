@@ -10,7 +10,7 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     for (const status of ['complete', 'partial', 'unknown'] as const) {
         const builder: DomainConversationDetail = { providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph', completeness: status, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }],
-            messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown', provenance: { rawRole: 'future-role' },
+            messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
                 content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) };
         const trusted = validateParserDomain(builder);
         assert.equal(restoreDomainSnapshot(trusted).messages.length, 1000);

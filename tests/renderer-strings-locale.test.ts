@@ -91,18 +91,15 @@ test('typst localizes role prefix notes', () => {
         roleMsg('system'),
         roleMsg('developer'),
         roleMsg('unknown'),
-        roleMsg('unknown', { provenance: { rawRole: 'plugin-x' } }),
     ];
     const zh = renderTypstFixture(composeDomainDocument(domainFixture(msgs)).document, {}, { ...opts, locale: 'zh' });
     assert.strictEqual(firstNoteText(zh.payload.messages[0]), '系统消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[1]), '开发者消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[2]), '未知角色');
-    assert.strictEqual(firstNoteText(zh.payload.messages[3]), '未知角色: plugin-x');
     const en = renderTypstFixture(composeDomainDocument(domainFixture(msgs)).document, {}, opts);
     assert.strictEqual(firstNoteText(en.payload.messages[0]), 'System message');
     assert.strictEqual(firstNoteText(en.payload.messages[1]), 'Developer message');
     assert.strictEqual(firstNoteText(en.payload.messages[2]), 'Unknown role');
-    assert.strictEqual(firstNoteText(en.payload.messages[3]), 'Unknown role: plugin-x');
 });
 
 test('user/assistant roles get no prefix note', () => {

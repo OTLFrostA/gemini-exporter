@@ -112,7 +112,7 @@ test('Domain construction deduplicates provider representations while Composer u
 
 test('Explicit message attachment ownership is authoritative downstream', async () => {
     const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [{ id: 'cat', kind: 'image', name: 'cat.png', dataBase64: 'AQID', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } }], messages: [
-        { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }], provenance: { rawRole: 'custom-role' } },
+        { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }] },
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachmentIds: ['cat'] },
     ] };
     const original = structuredClone(domain);

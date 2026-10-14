@@ -77,7 +77,7 @@ test('missing and ambiguous archive files remain explicit resources with diagnos
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'));
     assert.deepEqual(result.archiveResources, {});
-    for (const asset of result.conversation.assets) assert.ok(asset.failureReason);
+    for (const asset of result.conversation.assets) assert.equal(Object.hasOwn(asset, 'failureReason'), false);
     assertDomainClosure(result.conversation);
 });
 

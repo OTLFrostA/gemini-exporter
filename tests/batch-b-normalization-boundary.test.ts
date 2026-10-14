@@ -22,7 +22,7 @@ for (const layout of ['messages', 'turns'] as const) {
         assert.equal(result.resources.size, 1);
         const node = result.document.messages[0];
         assert.equal(node.label, 'unknown');
-        assert.equal(node.heading?.text, 'historical-tool');
+        assert.equal(node.heading, undefined);
         const unknownBlock = node.blocks.find((block) => block.type === 'unsupported');
         assert.ok(unknownBlock && unknownBlock.type === 'unsupported');
         assert.match(unknownBlock.text, /historical.*payload.*42/);
@@ -40,7 +40,7 @@ test('provider parser contract accepts missing metadata and historical aliases w
     const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini' });
     assert.equal(domain.assets[0].kind, 'image');
     assert.equal(domain.assets[0].name, 'historical');
-    assert.equal(domain.messages[0].provenance?.rawRole, 'tool');
+    assert.equal(Object.hasOwn(domain.messages[0], 'provenance'), false);
     assert.ok(diagnostics.some((d) => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
     assert.deepEqual(raw, snapshot);
 });

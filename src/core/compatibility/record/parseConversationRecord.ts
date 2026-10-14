@@ -2,7 +2,7 @@ import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
-import { resolveTitle, TITLE_SOURCES } from '../../domain/titleAuthority.js';
+import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../../domain/titleAuthority.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import { parseImportedBody } from '../../parsers/shared/importedContentAdapter.js';
@@ -52,7 +52,6 @@ function normalizeCitations(value: ConversationRecordMessage): DomainCitation[] 
 function copyMessage(value: ConversationRecordMessage, parseContent: (body: unknown, structured?: unknown) => BlockNode[], parseReasoning: (body: string) => BlockNode[] | undefined): DomainMessage {
     const { id, content, timestamp } = value;
     const role = value.role === 'model' ? 'assistant' : ['user', 'assistant', 'system', 'developer'].includes(value.role ?? '') ? value.role as 'user' | 'assistant' | 'system' | 'developer' : 'unknown';
-    const provenance = { ...(role === 'unknown' && value.role ? { rawRole: value.role } : {}) };
     const model = [value.model, value.author?.model].find((name): name is string => typeof name === 'string' && Boolean(name.trim()))?.trim();
     const reasoningText = normalizeReasoning(value);
     const reasoning = reasoningText !== undefined ? parseReasoning(reasoningText) : undefined;
@@ -63,7 +62,6 @@ function copyMessage(value: ConversationRecordMessage, parseContent: (body: unkn
         ...copyTimestamp(timestamp),
         role,
         ...(model ? { model } : {}),
-        ...(Object.keys(provenance).length ? { provenance } : {}),
         ...(reasoning !== undefined ? { reasoning } : {}),
         ...(citations ? { citations } : {}),
     }, value.groundingCitationMarkers?.filter((marker): marker is string => typeof marker === 'string'));
@@ -171,7 +169,7 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         assets: resources.assets,
         id: conversation.id ?? '',
         title: title?.value ?? '',
-        ...(title ? { titleSource: title.source === 'default' && title.value === conversation.title && typeof conversation.titleSource === 'string' ? conversation.titleSource : title.source } : {}),
+        ...(title ? { titleSource: title.source as TitleSource } : {}),
         ...normalizeConversationTimes({ createdAt: conversation.createdAt, updatedAt: conversation.updatedAt }),
         ...copyCompleteness(conversation),
         ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),

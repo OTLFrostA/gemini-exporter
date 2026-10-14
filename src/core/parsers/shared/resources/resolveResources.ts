@@ -19,7 +19,7 @@ export interface LegacyAttachmentLists {
 const attachmentFields = [
     'url', 'sourceUrl', 'resolvedUrl', 'src', 'localName', 'fileName', 'name', 'title',
     'mimeType', 'mime', 'size', 'width', 'height', 'source', 'subDir', 'isGenerated',
-    'providerRequestId', 'imageOrdinal', 'isImage', 'blobBase64', 'dataBase64', 'failureReason',
+    'providerRequestId', 'imageOrdinal', 'isImage', 'blobBase64', 'dataBase64',
     'id', 'chipUrl', 'contentMarkdown', 'hasFabricatedText',
 ] as const;
 

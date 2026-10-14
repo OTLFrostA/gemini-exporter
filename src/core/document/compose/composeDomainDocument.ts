@@ -33,7 +33,6 @@ export function composeDomainDocument(conversation: TrustedDomain, options: Doma
             type: 'message' as const, id,
             variant: message.role === 'user' ? 'bubble' as const : 'flow' as const,
             label: message.role === 'user' ? 'you' as const : message.role,
-            ...(message.role === 'unknown' && message.provenance?.rawRole ? { heading: { level: 2 as const, text: message.provenance.rawRole } } : {}),
             ...(message.model ? { modelLabel: message.model } : {}),
             blocks: [...(message.reasoning ? [{ type: 'disclosure' as const, kind: 'reasoning' as const, blocks: compose(message.reasoning) }] : []), ...compose([...message.content, ...attached])],
             ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map(ref => ({ ...source(ref), ...(citations.get(ref)?.title ? { label: citations.get(ref)!.title! } : {}), number: citations.get(ref)!.displayNumber })) } } : {}),

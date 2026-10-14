@@ -21,7 +21,7 @@ test('new schema rejects every removed asset and generation field', () => {
     for (const [key, value] of Object.entries({ source: { uri: 'old' }, origin: 'rpc', dimensions: { width: 1 }, generated: true })) {
         assert.throws(() => validateParserDomain(base([{ ...valid, [key]: value }])));
     }
-    for (const key of ['chatId', 'turnId']) assert.throws(() => validateParserDomain(base([{ ...valid, generation: { ...valid.generation, [key]: 'old' } }])));
+    for (const key of ['chatId', 'turnId']) assert.throws(() => validateParserDomain(base([{ ...valid, generation: { providerRequestId: 'request', [key]: 'old' } }])));
     for (const key of ['createdAt', 'chipUrl', 'sections', 'links', 'candidates']) assert.throws(() => validateParserDomain(base([{ ...valid, document: { contentMarkdown: 'body', [key]: 'old' } }])));
     assert.throws(() => validateParserDomain(base([{ ...valid, generation: { time: null as never } }])));
 });

@@ -38,7 +38,8 @@ test('batch A native Takeout keeps explicitly referenced user images as semantic
 test('batch A native Takeout reports missing archive references without inventing a match', () => {
     const parsed = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data: { htmlText: takeoutHtml } });
     assert.equal(parsed.conversation.assets.length, 1);
-    assert.equal(parsed.conversation.assets[0].failureReason, 'Missing archive entry');
+    assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'));
+    assert.equal(Object.hasOwn(parsed.conversation.assets[0], 'failureReason'), false);
     assert.deepEqual(parsed.archiveResources, {});
 });
 

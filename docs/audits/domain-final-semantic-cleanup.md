@@ -1,6 +1,6 @@
 # Domain final semantic cleanup
 
-> Historical audit of PR #925. The unshipped Domain v1 recovery described below was subsequently removed: released Storage v1 goes through the legacy-storage Parser, and Storage v2 now accepts only the final Domain contract. See [current storage contract](../domain-storage.md).
+> Historical audit of PR #925. The unshipped Domain v1 recovery described below was subsequently removed: released Storage v1 goes through the legacy-storage Parser, and Storage v2 now accepts only the final Domain contract. The remaining message provenance, asset failure reason and citation source number shown in the historical schema below were subsequently removed, and title sources/resource objects were narrowed. See [current contract cleanup](domain-contract-final.md) and [current storage contract](../domain-storage.md).
 
 ## Outcome and scope
 

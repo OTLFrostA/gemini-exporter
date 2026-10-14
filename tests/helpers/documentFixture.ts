@@ -30,7 +30,6 @@ async function fixtureBindings(conversation: DomainConversationDetail, hints: Le
     const bindings: Record<string, string> = {};
     for (const asset of conversation.assets) {
         const path = hints[asset.id]?.archivePath;
-        if (asset.failureReason && !asset.dataBase64 && !asset.document?.contentMarkdown) continue;
         if (path) {
             bindings[asset.id] = normalizeArchiveResourceName(path);
         } else if (asset.dataBase64 || asset.document?.contentMarkdown?.trim()) {

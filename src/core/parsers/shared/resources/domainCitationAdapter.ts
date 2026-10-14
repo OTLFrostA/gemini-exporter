@@ -12,7 +12,7 @@ export function closeLegacyCitations(message: DomainMessage, markers?: readonly 
         const number = Number(marker.match(/\d+/)?.[0] ?? 1);
         if (!Number.isSafeInteger(number)) continue;
         const id = `grounding-${number}`;
-        if (!citations.some(citation => citation.id === id)) citations.push({ id, number });
+        if (!citations.some(citation => citation.id === id)) citations.push({ id });
         const entry = { citation: { id }, displayLabel: `[${number}]` };
         grounding.set(marker, entry);
         grounding.set(marker.toLowerCase().replace(/\s+/g, ' '), entry);

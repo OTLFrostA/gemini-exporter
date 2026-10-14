@@ -177,7 +177,7 @@ test('unknown role and non-string content are preserved, never dropped', async (
     const weird = domain.messages.find((m: any) => m.id === 'm-x1');
     assert.ok(weird, 'message with unknown role is kept');
     assert.strictEqual(weird.role, 'unknown');
-    assert.strictEqual(weird.provenance && weird.provenance.rawRole, 'weird-role');
+    assert.equal(Object.hasOwn(weird, 'provenance'), false);
     assert.ok(diagnostics.some((d: any) => d.code === 'UNKNOWN_ROLE'), 'unknown role is diagnosed');
 
     const ub = weird.content[0];
@@ -437,7 +437,7 @@ test('title authority and unknown source handling remain ingestion concerns', as
     assert.equal(domain.title, 'Good');
     const unknown = await parseFixture({ id: 'unknown-source-only', title: 'Plain title', titleSource: 'future-provider-tier', messages: [] });
     assert.equal(unknown.domain.title, 'Plain title');
-    assert.equal(unknown.domain.titleSource, 'future-provider-tier');
+    assert.equal(unknown.domain.titleSource, 'default');
     assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.titleSource), 0);
 });
 test('raw URL facts remain semantic; export envelope selects url before href', async () => {
