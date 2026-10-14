@@ -35,7 +35,7 @@ export interface ExportCompletionFacts extends Partial<Pick<Conversation,
     truncated?: boolean;
     isTruncated?: boolean;
     truncateReason?: string;
-    completeness?: { status: string };
+    completeness?: string;
 }
 
 export type ExportCompletionConversation = ExportCompletionFacts | string | number | boolean | null | undefined;
@@ -277,7 +277,7 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         usedLocalSnapshot: input.usedLocalSnapshot,
         evidence: {
             schemaDrift: input.evidence?.schemaDrift ?? [],
-            sourcePartial: chat.completeness?.status === 'partial' || !!input.evidence?.sourcePartial,
+            sourcePartial: chat.completeness === 'partial' || !!input.evidence?.sourcePartial,
             turnsRejected: input.evidence?.turnsRejected ?? 0,
             hasHeuristicDocs: input.evidence?.hasHeuristicDocs ?? false,
             truncated: isTruncated,

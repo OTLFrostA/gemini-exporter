@@ -52,7 +52,6 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
             content: parseGeminiBody(message.content, message.structuredContent, { diagnostics: contentDiagnostics, sourceRef }),
             ...(typeof message.timestamp === 'number' && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
-            ...(message.rawProviderRequestId ? { provenance: { providerRequestId: message.rawProviderRequestId } } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
             ...(citations.length ? { citations } : {}),
         }, message.groundingCitationMarkers);
@@ -68,11 +67,11 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     const rejected = (evidence.turnsRejected ?? 0) > 0;
     const metadata = evidence.metadataConversation;
     const conversation: DomainConversationDetail = {
-        providerId: 'gemini', provenance: { source: 'gemini-rpc' },
-        completeness: { status: hasMore || rejected ? 'partial' : 'unknown' },
+        providerId: 'gemini',
+        completeness: hasMore || rejected ? 'partial' : 'unknown',
         id: metadata?.id ?? evidence.id, title: metadata?.title ?? evidence.title,
-        titleSource: metadata ? 'rpc' : evidence.titleSource, titles: metadata ? { rpc: metadata.title } : { ...evidence.titles },
-        ...normalizeConversationTimes({ timestamp: evidence.updatedAt ?? evidence.createdAt, createdAt: evidence.createdAt, updatedAt: evidence.updatedAt }),
+        titleSource: metadata ? 'rpc' : evidence.titleSource,
+        ...normalizeConversationTimes({ updatedAt: evidence.updatedAt }),
         url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
         assets: resources.assets, messages: resources.messages,
     };

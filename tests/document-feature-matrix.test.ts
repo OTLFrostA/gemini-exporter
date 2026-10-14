@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -7,7 +8,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return { providerId: 'gemini', id: 'c1', title: 'Matrix', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] };
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Matrix', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] }, 1);
 }
 
 const txt = (text: string) => ({ type: 'text', text });
@@ -171,8 +172,8 @@ function typstRefLabel(blocks: any[], extra: any) {
 
 test('matrix: citation label priority is identical in HTML and Typst', () => {
     const cases: Array<[any, string]> = [
-        [{ id: 'c1', title: 'Title' }, 'Title'],
-        [{ id: 'c1', title: 'Pub' }, 'Pub'],
+        [{ id: 'c1', title: 'Title' }, '[1]'],
+        [{ id: 'c1', title: 'Pub' }, '[1]'],
         [{ id: 'c1' }, '[1]'],
     ];
     for (const [citation, expected] of cases) {

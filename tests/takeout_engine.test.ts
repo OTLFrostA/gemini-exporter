@@ -54,7 +54,7 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
     const offlineChat1 = TakeoutEngine.getTakeoutOfflineChat('CaseSensitive_99');
     assert.ok(offlineChat1, 'Should find offline chat by exact ID');
     assert.strictEqual(offlineChat1.conversation.title, '什么是量子物理？');
-    assert.strictEqual(offlineChat1.conversation.titles.takeout, '什么是量子物理？');
+    assert.strictEqual(offlineChat1.conversation.title, '什么是量子物理？');
     assert.strictEqual(offlineChat1.conversation.messages.length, 3); // Response-only activity must not fabricate a user prompt
 
     const offlineChat2 = TakeoutEngine.getTakeoutOfflineChat('c_CaseSensitive_99');

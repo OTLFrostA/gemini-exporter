@@ -75,7 +75,7 @@ test('markdown body keeps block order and structure', async () => {
     assert.ok(imgAsset, 'inline image asset is in the Domain asset registry');
     assert.strictEqual(imgAsset.kind, 'image');
     assert.equal(resources[imgAsset.id], undefined);
-    assert.strictEqual(imgAsset.source.uri, 'https://example.com/inline.png');
+    assert.strictEqual(imgAsset.sourceUri, 'https://example.com/inline.png');
     assert.strictEqual(extractInlineText(img), 'alt text', 'alt text survives as readable fallback');
     assert.ok(!diagnostics.some((d: any) => d.code === 'INLINE_IMAGE_DOWNGRADE'), 'no downgrade diagnostic');
     assert.ok(!diagnostics.some((d: any) => d.severity === 'error'), 'no error diagnostics');
@@ -153,7 +153,7 @@ test('attachments deduplicate semantic assets and prepare separate resource bind
     const plan = byName.get('plan.pdf');
     assert.strictEqual(plan.kind, 'file');
     assert.equal(resources[plan.id], undefined);
-    assert.strictEqual(plan.source.uri, 'https://example.com/files/plan.pdf');
+    assert.strictEqual(plan.sourceUri, 'https://example.com/files/plan.pdf');
 
     const corrupt = byName.get('corrupt.bin');
     assert.equal(resources[corrupt.id], undefined);
@@ -237,7 +237,7 @@ test('turns shape flattens to user/assistant messages', async () => {
     const gen = domain.assets.find((a: any) => a.name === 'generated.png');
     assert.ok(gen, 'generated attachment mapped');
     assert.equal(resources[gen.id], undefined);
-    assert.ok(gen.source.uri);
+    assert.ok(gen.sourceUri);
 });
 
 test('parsed Domain is closed, JSON portable and does not mutate raw fixtures', async () => {
@@ -443,8 +443,8 @@ test('title authority and unknown source handling remain ingestion concerns', as
 test('raw URL facts remain semantic; export envelope selects url before href', async () => {
     for (const raw of [{ url: 'https://gemini.google.com/app/url', href: 'https://gemini.google.com/app/href' }, { href: 'https://gemini.google.com/app/href' }]) {
         const { domain } = await parseFixture({ id: 'url', messages: [], ...raw });
-        assert.equal(domain.url, raw.url);
-        assert.equal(domain.href, raw.href);
+        assert.equal(domain.url, raw.url || raw.href);
+        assert.equal(domain.href, undefined);
         assert.ok((await exportDomainMarkdown(domain)).includes(`url: "${raw.url || raw.href}"`));
     }
 });

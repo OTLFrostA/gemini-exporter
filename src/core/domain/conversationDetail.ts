@@ -17,29 +17,19 @@ export interface DomainAsset {
     name?: string;
     mediaType?: string;
     byteLength?: number;
-    dimensions?: { width?: number; height?: number };
     /** Original acquisition URI, never an export destination or legacy localName. */
-    source?: { uri?: string };
+    sourceUri?: string;
     dataBase64?: string;
     failureReason?: string;
-    origin?: string;
-    generated?: boolean;
     generation?: Partial<DomainGeneratedMediaIdentity>;
     document?: {
         id?: string;
-        /** Unix epoch milliseconds; omit when unknown. */
-        createdAt?: number;
-        chipUrl?: string;
-        sections?: string[];
-        links?: Array<{ title: string; url: string }>;
         contentMarkdown?: string;
-        candidates?: string[];
         hasFabricatedText?: boolean;
     };
 }
 
 export interface DomainGeneratedMediaIdentity {
-    chatId: string;
     providerRequestId?: string;
     /** Unix epoch milliseconds; omit when unknown. */
     time?: number;
@@ -47,13 +37,11 @@ export interface DomainGeneratedMediaIdentity {
     generationOrdinal: number;
     imageCount?: number;
     imageOrdinal?: number;
-    turnId?: string;
 }
 
 export interface DomainCitation {
     /** Message-local identity referenced by content/reasoning citationRef nodes. */
     id: string;
-    kind?: 'web' | 'attachment' | 'other';
     /** Source-authored citation number, when present (for example a grounding reference). */
     number?: number;
     url?: string;
@@ -64,8 +52,6 @@ export interface DomainCitation {
 export interface DomainMessageProvenance {
     /** Source-authored role when it cannot be normalized to a known role. */
     rawRole?: string;
-    /** Opaque provider metadata; preserve case and prefixes, and never infer relationships. */
-    providerRequestId?: string;
 }
 
 /** Authored media-generation event; output files may be absent from the source. */
@@ -93,38 +79,19 @@ export interface DomainMessage {
     citations?: DomainCitation[];
 }
 
-/** Source evidence about the conversation, independent of its content provider. */
-export interface DomainConversationProvenance {
-    /** Opaque producer-authored origin label (for example takeout or openai-import). */
-    source?: string;
-}
-
-export interface DomainConversationCompleteness {
-    /** Missing coverage must not be mistaken for a complete conversation. Absence is also unknown. */
-    status: 'complete' | 'partial' | 'unknown';
-    /** Source-authored explanation; never a pagination cursor or parser diagnostic. */
-    reason?: string;
-}
-
+/** Canonical conversation facts, independent of acquisition and presentation. */
 export interface DomainConversationDetail {
     providerId: string;
-    provenance?: DomainConversationProvenance;
-    completeness?: DomainConversationCompleteness;
+    completeness: 'complete' | 'partial' | 'unknown';
     /** One record per semantic resource; body/reasoning assetId values refer to these IDs. */
     assets: DomainAsset[];
     id: string;
     title: string;
-    /** Unix epoch milliseconds; null when unknown. */
-    timestamp: number | null;
     /** Unix epoch milliseconds; omit when unknown. */
     updatedAt?: number;
     /** Unix epoch milliseconds; omit when unknown. */
     createdAt?: number;
-    chatTime?: number | string;
-    lastSeen?: number | string;
     url?: string;
-    href?: string;
     messages: DomainMessage[];
     titleSource?: string;
-    titles?: Record<string, string | undefined>;
 }

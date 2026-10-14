@@ -629,7 +629,6 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
         const nextToken = extractNextPageToken(inner, GEMINI_JSPB_SCHEMA.INNER.NEXT_TOKEN_CANDIDATES);
         const url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, "")}`;
         const times = turns.map(t => extractTurnTimestamp(t)).filter((x): x is number => Number.isFinite(x));
-        const minTs = times.length ? Math.min(...times) : null;
         const maxTs = times.length ? Math.max(...times) : null;
 
         let cleanT = metaTitle || cleanTitle(titleObj.title || convId);
@@ -642,11 +641,6 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
                 finalSource = sniffed.source;
             }
         }
-        const titlesMap: GeminiDetailEvidence["titles"] = {};
-        if (finalSource !== "default" && cleanT) {
-            titlesMap[finalSource] = cleanT;
-        }
-
         let _debug: GeminiDetailDebugEvidence | null = null;
         if (!allMsgs.length) {
             try {
@@ -670,11 +664,7 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             ...(metadataConversation ? { metadataConversation } : {}),
             title: cleanT,
             titleSource: finalSource,
-            titles: titlesMap,
             messages: allMsgs,
-            createdAt: minTs,
-            chatTime: maxTs || minTs,
-            timestamp: maxTs || minTs,
             updatedAt: maxTs,
             url,
             nextPageToken: nextToken,

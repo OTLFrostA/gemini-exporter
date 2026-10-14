@@ -45,7 +45,7 @@ test('GeminiUtils.getEffectiveTimestamp - hierarchy and type safety', () => {
     assert.strictEqual(GeminiUtils.getEffectiveTimestamp(chat4), 0, 'lastSeen-only chat must return 0');
 });
 
-test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as maxTs', () => {
+test('GeminiParser.parseDetail - exports source activity without fabricating creation time or redundant aliases', () => {
 
     const mockDetailInner = [
         [
@@ -76,14 +76,9 @@ test('GeminiParser.parseDetail - exports updatedAt as maxTs and timestamp as max
     assert.ok(detail, 'Detail should be parsed');
     assert.strictEqual(detail.id, 'c_test123');
 
-    // Verify time semantics:
-    // createdAt must be minTs (1700000000000)
-    // updatedAt must be maxTs (1700005000000)
-    // timestamp must be maxTs (1700005000000)
-    assert.strictEqual(detail.createdAt, 1700000000000, 'createdAt should be earliest turn timestamp');
-    assert.strictEqual(detail.updatedAt, 1700005000000, 'updatedAt should be latest turn timestamp (activity time)');
-    assert.strictEqual(detail.timestamp, 1700005000000, 'timestamp should align with updatedAt');
-    assert.strictEqual(detail.chatTime, 1700005000000, 'chatTime should align with updatedAt');
+    assert.equal(detail.updatedAt, 1700005000000, 'latest source turn establishes activity time');
+    for (const alias of ['createdAt', 'timestamp', 'chatTime', 'titles']) assert.equal(Object.hasOwn(detail, alias), false);
+
 });
 
 test('Conversation sorting - orders by latest server activity; lastSeen-only chats sort after timestamped ones (PR-3)', () => {

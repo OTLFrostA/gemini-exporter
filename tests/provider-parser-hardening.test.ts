@@ -123,7 +123,7 @@ test('bare remote image becomes a first-class ImageInline with a remote asset', 
     assert.strictEqual(img.alt, 'alt text');
     const asset = domain.assets.find((a: any) => a.id === img.assetId);
     assert.ok(asset, 'asset registered');
-    assert.strictEqual(asset.source.uri, 'https://example.com/i.png');
+    assert.strictEqual(asset.sourceUri, 'https://example.com/i.png');
     assert.doesNotThrow(() => assertDomainClosure(domain));
 });
 
@@ -158,7 +158,7 @@ test('image with no source remains a semantic asset and the backend reports unav
     assert.ok(img, 'image inline found');
     const asset = domain.assets.find((a: any) => a.id === img.assetId);
     assert.ok(asset, 'asset registered');
-    assert.ok(!asset.source?.uri);
+    assert.ok(!asset.sourceUri);
     assert.doesNotThrow(() => assertDomainClosure(domain));
     const rendered = renderDocumentHtml(composeDomainDocument(domain).document, {});
     assert.ok(rendered.diagnostics.some((d: any) => d.code === 'HTML_ASSET_UNRESOLVED'));

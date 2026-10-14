@@ -2,7 +2,6 @@
   "providerId": "example",
   "id": "c",
   "title": "Title",
-  "timestamp": null,
   "createdAt": 1791244800000,
   "assets": [
     {
@@ -64,7 +63,6 @@
         },
         {
           "type": "code",
-          "filename": "example.py",
           "language": "python",
           "meta": "sample",
           "code": "print(1)"
@@ -162,7 +160,6 @@
       "citations": [
         {
           "id": "c",
-          "kind": "web",
           "title": "Source",
           "url": "https://example.com"
         }
@@ -190,5 +187,6 @@
       "content": [],
       "citations": []
     }
-  ]
+  ],
+  "completeness": "unknown"
 }

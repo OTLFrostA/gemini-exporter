@@ -18,11 +18,9 @@ export async function planExportResources(result: ResourceConversationParseResul
         let name = sanitizeFileName(asset.name || fallback, fallback);
         if (asset.document?.contentMarkdown && !/\.md$/i.test(name)) name += '.md';
         let path = `${isImage ? 'assets' : 'files'}/${shortScope(result.conversation.id)}${name}`;
-        const existingPath = result.resourceHints[asset.id]?.archivePath;
-        if (existingPath && result.conversation.provenance?.source !== 'gemini-takeout') path = sanitizeRelativePath(existingPath);
         let content: string | Uint8Array | undefined = asset.document?.contentMarkdown;
         const dataUrl = asset.dataBase64 ? `data:${asset.mediaType ?? 'application/octet-stream'};base64,${asset.dataBase64}`
-            : asset.source?.uri?.startsWith('data:') ? asset.source.uri : undefined;
+            : asset.sourceUri?.startsWith('data:') ? asset.sourceUri : undefined;
         if (dataUrl) {
             const attempt = await attemptResource(asset.id, () => decodeDataUrlAsset(dataUrl));
             if (!attempt.ok) { failures.push(attempt); continue; }
@@ -41,12 +39,10 @@ export async function planExportResources(result: ResourceConversationParseResul
         }
         used.add(path);
         const source = result.acquisitionHints[asset.id] ?? {};
-        const generation = asset.generation?.chatId && asset.generation.generationOrdinal !== undefined
-            ? asset.generation : undefined;
-        const item: AssetPipelineItem = { assetId: asset.id, url: source.url ?? asset.source?.uri,
-            sourceUrl: source.sourceUrl ?? asset.source?.uri, resolvedUrl: source.resolvedUrl ?? (isImage && /^https?:/.test(asset.source?.uri ?? '') ? highResVariant(asset.source!.uri!) : undefined),
+        const item: AssetPipelineItem = { assetId: asset.id, url: source.url ?? asset.sourceUri,
+            sourceUrl: source.sourceUrl ?? asset.sourceUri, resolvedUrl: source.resolvedUrl ?? (isImage && /^https?:/.test(asset.sourceUri ?? '') ? highResVariant(asset.sourceUri!) : undefined),
             src: source.src, candidates: source.candidates, localName: path, fileName: path.split('/').pop(),
-            name: asset.name, title: asset.name, mimeType: asset.mediaType, type: isImage ? 'image' : 'file', generation };
+            name: asset.name, title: asset.name, mimeType: asset.mediaType, type: isImage ? 'image' : 'file', generation: asset.generation };
         assets.push({ assetId: asset.id, item, isImage, ...(content !== undefined ? { content } : {}) });
     }
     return { result: { ...result, resourceHints }, assets, failures };

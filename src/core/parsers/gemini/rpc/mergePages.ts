@@ -19,7 +19,7 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
         for (const asset of page.conversation.assets) {
             let id = asset.id;
             const previous = assets.get(id);
-            const sharedSource = previous?.source?.uri && previous.source.uri === asset.source?.uri && previous.kind === asset.kind;
+            const sharedSource = previous?.sourceUri && previous.sourceUri === asset.sourceUri && previous.kind === asset.kind;
             if (previous && !sharedSource) {
                 id = `${asset.id}_page${pageIndex}`;
                 while (assets.has(id)) id += '_';
@@ -39,14 +39,9 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
             ...(message.attachmentIds ? { attachmentIds: [...new Set(message.attachmentIds.map(id => aliases.get(id) ?? id))] } : {}) }));
         messages = [...fresh, ...messages];
     }
-    const dates = messages.flatMap(m => m.timestamp === undefined ? [] : [m.timestamp]);
     const rejected = pages.some(page => page.diagnostics.some(d => d.code === 'GEMINI_TURNS_REJECTED'));
-    const createdAt = dates.length ? Math.min(...dates) : first.createdAt;
-    const updatedAt = dates.length ? Math.max(...dates) : first.updatedAt;
     const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()],
-        ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}),
-        timestamp: updatedAt ?? first.timestamp,
-        completeness: truncatedReason || rejected ? { status: 'partial', reason: truncatedReason ?? 'Some source turns could not be decoded' } : { status: 'unknown' } };
+        completeness: truncatedReason || rejected ? 'partial' : 'unknown' };
     return { conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : [])] };
 }

@@ -23,7 +23,7 @@ export type DisplayBlock = (
     | { type: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6; children: DisplayInline[] }
     | { type: 'list'; ordered: boolean; start?: number; items: Array<{ blocks: DisplayBlock[] }> }
     | { type: 'quote'; blocks: DisplayBlock[] }
-    | { type: 'code'; code: string; language?: string; filename?: string; meta?: string; showHeader: boolean }
+    | { type: 'code'; code: string; language?: string; meta?: string; showHeader: boolean }
     | { type: 'math'; source: string }
     | { type: 'table'; caption?: DisplayInline[]; columnAlignments: DisplayCell['align'][]; headerRows: DisplayCell[][]; rows: DisplayCell[][] }
     | { type: 'image'; resourceId: string; alt: string; caption?: DisplayInline[] }

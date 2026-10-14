@@ -23,12 +23,12 @@ export async function exportDomainHtml(conversation: TrustedDomain, options: Dom
 export async function exportDomainMarkdown(conversation: TrustedDomain, options: DomainMarkdownExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
     const resources = prepareDomainResources(options.resourceResults);
-    const createdAt = toIso(conversation.createdAt ?? conversation.timestamp ?? conversation.chatTime);
-    const updatedAt = toIso(conversation.updatedAt ?? conversation.lastSeen);
+    const createdAt = toIso(conversation.createdAt);
+    const updatedAt = toIso(conversation.updatedAt);
     return renderDocumentMarkdown(document, resources, { locale: options.locale ?? options.lang,
         thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, frontMatter: options.frontMatter ?? [
             { key: 'title', value: document.header.title }, { key: 'id', value: conversation.id }, { key: 'provider', value: conversation.providerId },
-            ...(conversation.url || conversation.href ? [{ key: 'url', value: conversation.url || conversation.href! }] : []),
+            ...(conversation.url ? [{ key: 'url', value: conversation.url! }] : []),
             ...(createdAt ? [{ key: 'date', value: createdAt }] : []), ...(updatedAt ? [{ key: 'updated', value: updatedAt }] : []),
             { key: 'exported', value: options.exportedAt ?? new Date().toISOString() }, { key: 'tags', value: [`${conversation.providerId}-export`] },
         ] });

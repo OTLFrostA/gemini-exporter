@@ -30,7 +30,7 @@ import { join } from 'node:path';
 
 test('serialized literal dollars round-trip as text while links and math retain their nodes', () => {
     const domain: DomainConversationDetail = {
-        providerId: 'gemini', id: 'currency', title: 'Currency', timestamp: null, assets: [],
+        providerId: 'gemini', id: 'currency', title: 'Currency', completeness: 'unknown', assets: [],
             messages: [{ id: 'message', role: 'assistant', content: [
                 { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },

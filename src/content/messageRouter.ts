@@ -169,7 +169,7 @@ export function init({
                 async function persistDetailTitle(chatObj: ContentConversationDetail): Promise<void> {
                     if (!chatObj) return;
                     await persistNativeConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj);
-                    const chat = { ...chatObj.conversation, titles: { ...chatObj.conversation.titles } };
+                    const chat = { ...chatObj.conversation };
                     const nid = normId(cid || chat.id);
                     chat.title = cleanTitle(chat.title);
                     let detectedSource = chat.titleSource || 'rpc';

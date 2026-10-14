@@ -123,11 +123,11 @@ test('source gate rejects leaked provider syntax while trusted AST retains liter
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
         reasoning: paragraph('Reasoning'), citations: [{ id: 'citation-0', url: 'https://example.test/source' }],
     };
-    const expected = await composeFixture({ ...metadata, providerId: 'gemini', assets: [], messages: [message] });
+    const expected = await composeFixture({ id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [message] });
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
         thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
     };
-    await assert.rejects(composeFixture({ ...metadata, providerId: 'gemini', assets: [], messages: [leaked] }), /Invalid persisted Domain contract: messages/);
+    await assert.rejects(composeFixture({ id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [leaked] }), /Invalid persisted Domain contract: messages/);
     const body = expected.document.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });
@@ -145,7 +145,7 @@ for (const document of [
         const original = structuredClone(legacy);
         const { conversation: domain, resourceHints } = historicalFixture(legacy);
         assert.equal('structuredContent' in domain.messages[0], false);
-        assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['section']);
+        assert.deepEqual(messageAssets(domain, 0)?.[0].document?.contentMarkdown, document.contentMarkdown ? `${document.contentMarkdown}\n\nsection` : 'section');
         const [raw, semantic] = await Promise.all([composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
         assert.deepEqual(semantic.document, raw.document);
         assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints)).document, raw.document);

@@ -51,7 +51,7 @@ export async function migrateLegacyDomains(): Promise<DomainMigrationReport> {
         let parsed: ResourceConversationParseResult;
         try {
             parsed = parseLegacyStorageConversation(raw, { providerId: 'gemini',
-                ...(ambiguous ? { completenessOverride: { status: 'partial', reason: 'Legacy detail has no account identity and is referenced by multiple accounts.' } } : {}) });
+                ...(ambiguous ? { completenessOverride: 'partial' } : {}) });
             if (ambiguous) {
                 report.issues.push({ key, code: 'LEGACY_AMBIGUOUS_ACCOUNT', message: 'Unscoped detail retained; not assigned to any account' });
             }

@@ -32,7 +32,7 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 test('Domain and serialized Markdown preserve the captured numeric row and all eight headers', () => {
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_002_evidence.md', 'utf8');
     const blocks = parseMarkdownToBlocks(preprocessGeminiMarkdown(raw), 'live', { sourceRef: { providerId: 'gemini', locator: 'live.5' }, diagnostics: [] });
-    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'live', title: 'Live', timestamp: null, assets: [],
+    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'live', title: 'Live', completeness: 'unknown', assets: [],
         messages: [{ id: 'm', role: 'assistant', content: blocks }] };
     const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     const table = parseMarkdownAst(output).children.find(node => node.type === 'table');
@@ -57,7 +57,7 @@ function renderCapturedTable(wire: unknown): { blocks: BlockNode[]; output: stri
     assert.ok(node);
     const blocks = geminiStructuredToContent({ children: [node] });
     assert.ok(blocks, 'all native table children must remain supported');
-    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'captured', title: 'Captured', timestamp: null, assets: [],
+    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'captured', title: 'Captured', completeness: 'unknown', assets: [],
         messages: [{ id: 'm', role: 'assistant', content: blocks }] };
     return { blocks, output: renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {}) };
 }

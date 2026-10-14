@@ -417,8 +417,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             exportedAt: now,
                             failedAssets,
                             titleCandidate: safeTitle,
-                            titleProvenance: chat?.conversation.titleSource,
-                            titles: chat?.conversation.titles
+                            titleProvenance: chat?.conversation.titleSource
                         }
                     );
                 } catch (err) {
@@ -568,7 +567,7 @@ export async function processAndSaveImages(
     for (const asset of chat.conversation.assets) {
         if (asset.kind !== 'image') continue;
         const source = chat.acquisitionHints[asset.id];
-        const url = source?.resolvedUrl || source?.url || source?.sourceUrl || asset.source?.uri || '';
+        const url = source?.resolvedUrl || source?.url || source?.sourceUrl || asset.sourceUri || '';
         const inlineData = asset.dataBase64 ? `data:${asset.mediaType || 'image/png'};base64,${asset.dataBase64}`
             : url.startsWith('data:') ? url : undefined;
         const turn = chat.conversation.messages.findIndex(message => {

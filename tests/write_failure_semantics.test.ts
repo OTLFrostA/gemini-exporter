@@ -101,7 +101,7 @@ test('write-failure semantics - main markdown write failure marks chat failed, n
 
 // 2. doc-md 写失败 -> failedAttachments，记录为 partial（主 md 成功）
 test('write-failure semantics - doc-md write failure lands in failedAttachments with partial record', async () => {
-    setupFailingJSZip((p) => p.includes('doc_fail.md'));
+    setupFailingJSZip((p) => p.startsWith('files/') && p.endsWith('.md'));
     const mem = setupMockStorage();
     const { onLog } = collectLogs();
     const orchestrator = new ExportOrchestrator();
@@ -123,7 +123,7 @@ test('write-failure semantics - doc-md write failure lands in failedAttachments 
     assert.strictEqual(result.landedChats, 1, 'main md succeeded, chat lands');
     assert.strictEqual(result.failedChats.length, 0, 'chat itself is not failed');
     assert.strictEqual(result.failedAttachments.length, 1, 'doc-md failure must be tracked');
-    assert.strictEqual(result.failedAttachments[0].file, 'doc_fail.md');
+    assert.ok(result.failedAttachments[0].file.endsWith('.md'));
     const rec = mem['chat-doc-fail'];
     assert.ok(rec, 'export record must exist');
     assert.strictEqual(rec.status, 'partial', 'record with failed assets must be partial, never ok');

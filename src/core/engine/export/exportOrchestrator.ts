@@ -13,7 +13,6 @@ import type {
     DirectoryHandle,
 } from "../../../types/ui.js";
 import type { Conversation } from "../../../types/conversation.js";
-import type { TitleSources } from "../../../types/conversation.js";
 import type { I18nModule, TabServiceModule } from "../../../types/utils.js";
 import type { StoredExportRecordMap } from "../../storage/storageCompatibility.js";
 import type { StorageServiceModule } from "../../storage/storageService.js";
@@ -126,20 +125,6 @@ function getOriginalErrorMessage(value: unknown): string {
     return typeof value === 'object' && value !== null && 'message' in value
         ? String(value.message)
         : String(value);
-}
-
-function asSpreadSource(value: unknown): object {
-    if (value === null || value === undefined) return {};
-    if (typeof value === 'object' || typeof value === 'function') return value;
-    if (typeof value === 'string') return new String(value);
-    return {};
-}
-
-function mergeTitleSources(listTitles: unknown, chatTitles: unknown): TitleSources {
-    return {
-        ...asSpreadSource(listTitles || {}),
-        ...asSpreadSource(chatTitles || {})
-    };
 }
 
 import { __resolveModule } from "../../utils/moduleOverrides.js";
@@ -926,7 +911,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             const source = chat.assets.find(item => item.id === result.resourceId);
                             failedAttachments.push({ chatId, chatTitle: listTitle,
                                 file: asset?.item.localName || source?.name || result.resourceId,
-                                error: result.reason, sourceUrl: source?.source?.uri });
+                                error: result.reason, sourceUrl: source?.sourceUri });
                             onLog(`[${listTitle}] Resource unavailable: ${result.reason}`, 'warn');
                         }
                         updateProgress();
@@ -977,7 +962,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
                                 listC?.titleSource
                             ),
-                            titles: mergeTitleSources(listC?.titles, chat.titles),
+                            titles: listC?.titles,
                             messageCount: actualMsgCount,
                             chatTime: authoritativeChatTime,
                             failedAssets: resourceResults.filter(r => !r.ok).length,
@@ -1047,8 +1032,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             id: chatId,
                             title: listTitle,
                             url: chat.url || `https://gemini.google.com/app/${chatId}`,
-                            createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
-                            updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
+                            createdAt: toIso(chat.createdAt),
+                            updatedAt: toIso(chat.updatedAt),
                             messageCount: completion.exportRecord.messageCount,
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,

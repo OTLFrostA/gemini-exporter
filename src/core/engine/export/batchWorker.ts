@@ -201,7 +201,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error, convsNeedSave: false };
     }
     const domain = result.conversation;
-    const titles = { ...list?.titles, ...domain.titles };
+    const titles = { ...list?.titles };
     if (domain.titleSource && isRealTitle(domain.title, id)) titles[domain.titleSource] = cleanTitle(domain.title);
     const resolved = resolveTitle({ id, title: list?.title || domain.title, titleSource: list?.titleSource || domain.titleSource, titles });
     const title = resolved.title || domain.title || requested.title || id;
@@ -212,7 +212,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
     }));
     const changed = !!list && (list.title !== title || list.titleSource !== source || JSON.stringify(list.titles) !== JSON.stringify(storedTitles));
     if (changed && list) { list.title = title; list.titleSource = normalizeReliableTitleSource(source); list.titles = storedTitles; onTitleUpdated(id, title, source || ''); }
-    return { isError: false, chat: { ...result, conversation: { ...domain, title, titleSource: source, titles } }, source: dataSource,
+    return { isError: false, chat: { ...result, conversation: { ...domain, title, titleSource: source } }, source: dataSource,
         listTitle: title, isConfirmedDeleted: false, errMsg: null, convsNeedSave: changed };
 }
 export const isWorkerChat = isResourceConversationParseResult;

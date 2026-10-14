@@ -20,7 +20,7 @@ export function composeDomainDocument(conversation: TrustedDomain, options: Doma
         const citations = new Map((message.citations ?? []).map(citation => [citation.id, { ...citation, displayNumber: ++citationNumber }]));
         const source = (ref: string, explicit?: string) => {
             const citation = citations.get(ref);
-            return { id: `${id}:${ref}`, label: explicit ?? citation?.title ?? `[${citation?.number ?? citation?.displayNumber ?? 1}]`, ...(citation?.url ? { href: citation.url } : {}) };
+            return { id: `${id}:${ref}`, label: explicit ? (/^\[\d+\]$/.test(explicit) ? `[${citation?.displayNumber ?? 1}]` : explicit) : `[${citation?.displayNumber ?? 1}]`, ...(citation?.url ? { href: citation.url } : {}) };
         };
         const compose = contentComposer(assets, source);
         const placed = collectReferencedAssetIds([...(message.reasoning ?? []), ...message.content]);
@@ -36,10 +36,10 @@ export function composeDomainDocument(conversation: TrustedDomain, options: Doma
             ...(message.role === 'unknown' && message.provenance?.rawRole ? { heading: { level: 2 as const, text: message.provenance.rawRole } } : {}),
             ...(message.model ? { modelLabel: message.model } : {}),
             blocks: [...(message.reasoning ? [{ type: 'disclosure' as const, kind: 'reasoning' as const, blocks: compose(message.reasoning) }] : []), ...compose([...message.content, ...attached])],
-            ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map((ref, index) => ({ ...source(ref), number: index + 1 })) } } : {}),
+            ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map(ref => ({ ...source(ref), ...(citations.get(ref)?.title ? { label: citations.get(ref)!.title! } : {}), number: citations.get(ref)!.displayNumber })) } } : {}),
         };
     });
-    const date = selectDisplayDate(conversation.updatedAt, conversation.lastSeen, conversation.createdAt, conversation.timestamp, conversation.chatTime);
+    const date = selectDisplayDate(conversation.updatedAt, conversation.createdAt);
     return { document: {
         schemaVersion: 2,
         ...(options.documentLanguage ? { documentLanguage: options.documentLanguage } : {}),

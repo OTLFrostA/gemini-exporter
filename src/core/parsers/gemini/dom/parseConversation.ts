@@ -1,4 +1,3 @@
-import { normalizeConversationTimes } from '../../../domain/time.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
@@ -81,13 +80,11 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
         groups.push({ input: { attachments } });
     }
     const resources = closeDomainResources('gemini', messages, groups, { sourceReferences: true });
-    const dates = messages.flatMap(m => m.timestamp === undefined ? [] : [m.timestamp]);
     const title = (doc.title ?? doc.querySelector('title')?.textContent ?? '').trim().replace(/\s*[-–|]\s*(?:Google\s+)?Gemini$/i, '').trim();
     const authoredTitle = title && !/^(?:Google\s+)?(?:Gemini|Bard)$/i.test(title);
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title: authoredTitle ? title : id,
-        titleSource: authoredTitle ? 'dom' : 'default', titles: authoredTitle ? { dom: title } : {},
-        provenance: { source: 'gemini-dom' }, completeness: { status: 'partial', reason: 'DOM observation contains only the currently available page fragment' },
-        ...normalizeConversationTimes({ timestamp: dates.length ? Math.max(...dates) : null, createdAt: dates.length ? Math.min(...dates) : null, updatedAt: dates.length ? Math.max(...dates) : null }),
+        titleSource: authoredTitle ? 'dom' : 'default',
+        completeness: 'unknown',
         url: raw.url ?? `https://gemini.google.com/app/${id}`, messages: resources.messages, assets: resources.assets };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics: diagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),

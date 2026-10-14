@@ -12,8 +12,8 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
                 { id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000, cloudAvailability: 'deleted' },
                 { id: 'metadata_only', title: 'Title without body', timestamp: 1, cloudAvailability: 'deleted' }
             ], exportedIds: { archive_local: { status: 'ok', exportedAt: 1700000000000, format: 'markdown', title: 'Retained local archive', messageCount: 2 } } });
-        const native = { conversation: { providerId: 'gemini', id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000,
-            assets: [{ id: 'img', kind: 'image', source: { uri: 'https://unavailable.invalid/image.png' } }],
+        const native = { conversation: { providerId: 'gemini', id: 'archive_local', title: 'Retained local archive', updatedAt: 1700000000000, completeness: 'unknown',
+            assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }],
             messages: [
                 { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local question' }] }] },
                 { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local answer' }, { type: 'image', assetId: 'img' }] }], attachmentIds: ['img'] }

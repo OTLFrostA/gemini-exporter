@@ -1,7 +1,7 @@
 import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
 import type { GeminiStructuredDocument } from './structuredContent.js';
-import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity as SourceGeneratedMediaIdentity } from '../../../../types/conversation.js';
 
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
 export interface GeminiAttachmentEvidence {
@@ -22,7 +22,7 @@ export interface GeminiAttachmentEvidence {
     providerRequestId?: string;
     imageOrdinal?: number;
     isGenerated?: boolean;
-    generation?: DomainGeneratedMediaIdentity;
+    generation?: Omit<SourceGeneratedMediaIdentity, 'time'> & { time?: number };
 }
 
 export interface GeminiDocumentEvidence {
@@ -42,8 +42,8 @@ export interface GeminiDocumentEvidence {
 export interface GeminiMessageEvidence {
     id: string;
     role: 'user' | 'model';
-    content: string;
     timestamp: number | null;
+    content: string;
     model?: string;
     providerRequestId?: string;
     /** Source-authored token, kept separately from the historical normalized lookup key. */
@@ -51,7 +51,7 @@ export interface GeminiMessageEvidence {
     turnId?: string;
     thoughts?: string;
     citations?: Citation[];
-    images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: DomainGeneratedMediaIdentity }>;
+    images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: SourceGeneratedMediaIdentity }>;
     documents?: GeminiDocumentEvidence[];
     attachments?: GeminiAttachmentEvidence[];
     attachmentCount: number;
@@ -68,17 +68,13 @@ export interface GeminiDetailDebugEvidence {
     schemaDriftWarnings?: string[];
 }
 
-/** Decoder-local facts and transport evidence. Both Domain and legacy outputs use this extraction once. */
+/** Decoder-local source facts and transport evidence for native Domain parsing. */
 export interface GeminiDetailEvidence {
     id: string;
     title: string;
     titleSource: TitleResult['source'];
-    titles: Partial<Record<TitleResult['source'], string>>;
     messages: GeminiMessageEvidence[];
     metadataConversation?: { id: string; title: string };
-    createdAt: number | null;
-    chatTime: number | null;
-    timestamp: number | null;
     updatedAt: number | null;
     url: string;
     nextPageToken: string | null;

@@ -11,7 +11,7 @@ import { supplementLegacyGeneratedMedia } from '../src/core/compatibility/legacy
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
 const requestId = 'abcd1234abcd1234';
-const generation: DomainGeneratedMediaIdentity = {
+const generation: import('../src/types/conversation.js').GeneratedMediaIdentity = {
     chatId: metadata.id, providerRequestId: requestId, time: metadata.timestamp,
     prompt: 'Draw a cat', generationOrdinal: 0, imageCount: 1, imageOrdinal: 0,
 };
@@ -81,7 +81,8 @@ for (const [ambiguity, messages] of [
         assert.ok(domain.messages.slice(0, messages.length).every(m => !m.attachmentIds?.length));
         assert.equal(domain.messages.length, messages.length + 1, 'unresolved media is retained separately');
         assert.equal(messageAssets(domain, domain.messages.length - 1)?.[0].name, 'cat.png');
-        assert.ok(domain.messages.every(m => !('generation' in m)));
+        assert.ok(domain.messages.slice(0, messages.length).every(m => !m.generation));
+        assert.deepEqual(domain.messages.at(-1)?.generation, { mediaKind: 'image', outputCount: 1 });
     });
 }
 
@@ -101,17 +102,17 @@ test('Domain construction deduplicates provider representations while Composer u
     const conversation = legacy([{ role: 'assistant', content: '', attachments: [first], images: [duplicate, second] }]);
     const original = structuredClone(conversation);
     const { conversation: domain, resourceHints } = historicalFixture(conversation);
-    assert.ok(messageAssets(domain, 0)?.every(asset => !('path' in (asset.source ?? {}))));
+    assert.ok(messageAssets(domain, 0)?.every(asset => !Object.hasOwn(asset, 'path')));
     assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(historicalFixture(conversation, { providerId: 'gemini' }).conversation, resourceHints)).document);
     assert.deepEqual(conversation, original);
-    const explicitDomain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] };
+    const explicitDomain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] };
     assert.equal(collectDocumentResources((await composeFixture(explicitDomain)).document).referencedIds.size, 3,
         'Composer must not collapse explicit attachments using provider IDs');
 });
 
 test('Explicit message attachment ownership is authoritative downstream', async () => {
-    const domain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: [{ id: 'cat', kind: 'image', name: 'cat.png', dataBase64: 'AQID', generation }], messages: [
-        { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }], provenance: { providerRequestId: requestId } },
+    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [{ id: 'cat', kind: 'image', name: 'cat.png', dataBase64: 'AQID', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } }], messages: [
+        { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }], provenance: { rawRole: 'custom-role' } },
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachmentIds: ['cat'] },
     ] };
     const original = structuredClone(domain);
@@ -161,7 +162,7 @@ test('Unknown multi-image ordinals cannot suppress detached media using request 
     ] });
     assert.equal(domain.messages.length, 1);
     assert.deepEqual(messageAssets(domain, 0)?.map(a => a.name), ['offline-a.png', 'offline-b.png', 'online.jpg']);
-    assert.equal('generation' in domain.messages[0], false);
+    assert.deepEqual(domain.messages[0].generation, { mediaKind: 'image', outputCount: 2 });
     assert.equal(collectDocumentResources((await composeFixture(domain)).document).referencedIds.size, 3);
     assert.deepEqual(conversation, original);
 });

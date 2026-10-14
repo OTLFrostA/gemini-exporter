@@ -116,7 +116,7 @@ test('B3 Safety 3: runtime preserves source timestamps without repairing missing
     assert.ok(detail);
     assert.strictEqual(detail.conversation.chatTime, undefined);
     assert.strictEqual(detail.conversation.updatedAt, undefined);
-    assert.strictEqual(detail.conversation.timestamp, null);
+    assert.strictEqual(detail.conversation.updatedAt, undefined);
 });
 
 test('B3 Safety 4: mock mode triggers feedback and returns true without disk/IPC', async () => {

@@ -102,9 +102,9 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         // Preserve metadata-only import writes: Takeout fragments must never replace
         // a fuller detail already in storage. The runtime cache owns parsed bodies.
         const domain = result.conversation;
-        conversations.push({ id, title: domain.title, titleSource: 'takeout', titles: { ...domain.titles },
-            url: domain.url, href: domain.url, timestamp: domain.timestamp,
-            lastSeen: domain.timestamp ? new Date(domain.timestamp).toISOString() : '', source: 'takeout-import',
+        conversations.push({ id, title: domain.title, titleSource: 'takeout', titles: { takeout: domain.title },
+            url: domain.url, href: domain.url, timestamp: domain.updatedAt ?? null,
+            lastSeen: domain.updatedAt ? new Date(domain.updatedAt).toISOString() : '', source: 'takeout-import',
             messageCount: domain.messages.length, attachmentCount: domain.assets.length, hasExplicitPrompt });
         if (conversations.length % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
     }

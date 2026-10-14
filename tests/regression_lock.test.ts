@@ -843,7 +843,7 @@ test('Bug repro - takeout title stale when second block is non-explicit prompt',
         const offline = TakeoutEngine.getTakeoutOfflineChat('BUG_REPRO_001');
         assert.ok(offline, 'offline chat should exist');
         assert.strictEqual(offline.conversation.title, 'Corrected Title', 'offlineCache title should be sync to Corrected Title');
-        assert.strictEqual(offline.conversation.titles.takeout, 'Corrected Title', 'offlineCache titles.takeout should be sync');
+        assert.strictEqual(offline.conversation.title, 'Corrected Title', 'offlineCache titles.takeout should be sync');
     } finally {
         (global as any).JSZip = origJSZip;
     }

@@ -47,26 +47,31 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     const uri = record.resolvedUrl || record.sourceUrl || record.url || record.src || (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
     const mediaType = record.mimeType || record.mime;
     const dataBase64 = record.dataBase64 || record.blobBase64;
-    const documentFields = ['id', 'createdAt', 'chipUrl', 'sections', 'links', 'contentMarkdown', 'candidates', 'hasFabricatedText'] as const;
+    const body = record.contentMarkdown ?? '';
+    const additions = [
+        ...(record.sections ?? []).filter(section => section.trim() && !body.includes(section.trim())),
+        ...(record.links ?? []).filter(link => !body.includes(link.url)).map(link => `[${link.title}](${link.url})`),
+    ];
+    const contentMarkdown = [body, ...additions].filter(Boolean).join('\n\n');
     const document = {
-        ...Object.fromEntries(documentFields.flatMap(field => record[field] !== undefined ? [[field, record[field]]] : [])),
+        ...(record.id !== undefined ? { id: record.id } : {}),
+        ...(contentMarkdown ? { contentMarkdown } : {}),
+        ...(record.hasFabricatedText !== undefined ? { hasFabricatedText: record.hasFabricatedText } : {}),
     };
     const generation = {
-        ...record.generation,
+        ...Object.fromEntries(['providerRequestId', 'time', 'prompt', 'generationOrdinal', 'imageCount', 'imageOrdinal'].flatMap(key => {
+            const value = record.generation ? Reflect.get(record.generation, key) as unknown : undefined;
+            return value !== undefined ? [[key, value]] : [];
+        })),
         ...(!record.generation?.providerRequestId && record.providerRequestId ? { providerRequestId: record.providerRequestId } : {}),
         ...(record.generation?.imageOrdinal === undefined && record.imageOrdinal !== undefined ? { imageOrdinal: record.imageOrdinal } : {}),
     };
     return { id, kind, ...(name ? { name } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(record.size !== undefined ? { byteLength: record.size } : {}),
-        ...(record.width !== undefined || record.height !== undefined ? { dimensions: {
-            ...(record.width !== undefined ? { width: record.width } : {}), ...(record.height !== undefined ? { height: record.height } : {}),
-        } } : {}),
-        ...(uri ? { source: { uri } } : {}),
+        ...(uri ? { sourceUri: uri } : {}),
         ...(dataBase64 ? { dataBase64 } : {}),
         ...(record.failureReason ? { failureReason: record.failureReason } : {}),
-        ...(record.source ? { origin: record.source } : {}),
-        ...(record.isGenerated !== undefined ? { generated: record.isGenerated } : {}),
         ...(Object.keys(generation).length ? { generation } : {}),
         ...(Object.keys(document).length ? { document } : {}),
     };
@@ -116,14 +121,14 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
             if (claimedIds.has(id)) {
                 // The input contains conflicting resources with this source; keep the unresolved reference separate.
                 const ambiguousId = `resource-${crypto.randomUUID()}`;
-                assets.push({ id: ambiguousId, kind, source: { uri: ref } });
+                assets.push({ id: ambiguousId, kind, sourceUri: ref });
                 acquisitionHints[ambiguousId] = { url: ref };
                 inline.set(key, ambiguousId);
                 return ambiguousId;
             }
             claimedIds.add(id);
             const name = alt?.trim() || (hasSource && !/^data:/i.test(ref) ? (ref.split('/').pop() ?? '').split('?')[0] : undefined);
-            assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource ? { source: { uri: ref } } : {}) });
+            assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource ? { sourceUri: ref } : {}) });
             if (hasSource) acquisitionHints[id] = { url: ref, ...(name ? { fileName: name } : {}) };
             if (!hasSource) resourceHints[id] = { unresolvedReference: ref };
             inline.set(key, id);
@@ -133,7 +138,10 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
         const reasoning = message.reasoning && mapContentAssetReferences(message.reasoning, resolve);
         const content = mapContentAssetReferences(message.content, resolve);
         const attachmentIds = resolved.attachmentIndexes[groupIndex].map(index => assets[index].id);
+        const generated = resolved.attachmentIndexes[groupIndex].map(index => resolved.attachments[index]).filter(record => record.isGenerated);
         return { ...message, content, ...(reasoning ? { reasoning } : {}),
+            ...(!message.generation && message.role === 'assistant' && generated.length ? { generation: { mediaKind: 'image' as const,
+                ...(generated[0].generation?.imageCount !== undefined ? { outputCount: generated[0].generation.imageCount } : {}) } } : {}),
             ...(attachmentIds.length || groups[groupIndex].input.attachments ? { attachmentIds } : {}) };
     });
     return { assets, messages: closed, resourceHints, acquisitionHints };

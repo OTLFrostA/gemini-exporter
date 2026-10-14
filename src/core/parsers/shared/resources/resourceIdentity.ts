@@ -1,14 +1,16 @@
 import type { DomainAsset } from '../../../domain/conversationDetail.js';
 import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
-import { eventSecond, normalizeChatId } from './generationEvent.js';
+import { eventSecond } from './generationEvent.js';
 
 export interface ResourceIdentity {
+    /** Supplied by the owning conversation, never serialized in Domain. */
+    conversationId: string;
     assetId: string;
     sourceUris: readonly string[];
     generation?: Partial<DomainGeneratedMediaIdentity>;
 }
-export function resourceIdentity(asset: DomainAsset): ResourceIdentity {
-    return { assetId: asset.id, sourceUris: asset.source?.uri ? [asset.source.uri] : [], generation: asset.generation };
+export function resourceIdentity(asset: DomainAsset, conversationId: string): ResourceIdentity {
+    return { conversationId, assetId: asset.id, sourceUris: asset.sourceUri ? [asset.sourceUri] : [], generation: asset.generation };
 }
 function requestId(generation?: Partial<DomainGeneratedMediaIdentity>): string {
     return generation?.providerRequestId?.trim().replace(/^r_/i, '').toLowerCase() ?? '';
@@ -20,7 +22,7 @@ function ordinal(generation?: Partial<DomainGeneratedMediaIdentity>): number | u
 }
 function conflicts(a: ResourceIdentity, b: ResourceIdentity, chatId: string): boolean {
     const x = a.generation, y = b.generation;
-    if ([x, y].some(g => g?.chatId && normalizeChatId(g.chatId) !== chatId)) return true;
+    if ([a, b].some(resource => resource.conversationId !== chatId)) return true;
     if (requestId(x) && requestId(y) && requestId(x) !== requestId(y)) return true;
     if (x?.prompt?.trim() && y?.prompt?.trim() && x.prompt.trim() !== y.prompt.trim()) return true;
     if (eventSecond(x?.time) !== null && eventSecond(y?.time) !== null && eventSecond(x?.time) !== eventSecond(y?.time)) return true;
@@ -28,7 +30,7 @@ function conflicts(a: ResourceIdentity, b: ResourceIdentity, chatId: string): bo
 }
 function eventMatches(a: ResourceIdentity, b: ResourceIdentity, chatId: string): boolean {
     const x = a.generation, y = b.generation;
-    return normalizeChatId(x?.chatId) === chatId && normalizeChatId(y?.chatId) === chatId
+    return a.conversationId === chatId && b.conversationId === chatId
         && !!x?.prompt?.trim() && x.prompt.trim() === y?.prompt?.trim()
         && eventSecond(x.time) !== null && eventSecond(x.time) === eventSecond(y?.time);
 }
@@ -36,8 +38,9 @@ function eventMatches(a: ResourceIdentity, b: ResourceIdentity, chatId: string):
 /** Exact source evidence first; cross-source events require a unique event and image position.
  * Generation ordinals are source-local counters, never a cross-source relationship key. */
 export function findResourceMatch(chat: string, requested: ResourceIdentity, candidates: readonly ResourceIdentity[]): number | null {
-    const chatId = normalizeChatId(chat);
-    if (!chatId || requested.generation?.chatId && normalizeChatId(requested.generation.chatId) !== chatId) return null;
+    const chatId = chat;
+    if (!chatId || requested.conversationId !== chatId) return null;
+    if (candidates.some(candidate => candidate.conversationId !== chatId)) return null;
     const uriMatch = (candidate: ResourceIdentity) => requested.sourceUris.some(uri => !!uri && candidate.sourceUris.includes(uri));
     const ids = candidates.filter(candidate => !!requested.assetId && candidate.assetId === requested.assetId);
     const uris = candidates.filter(uriMatch);

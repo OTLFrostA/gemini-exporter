@@ -28,7 +28,7 @@ export async function preparePdfResources(
         resources.set(asset.id, resource);
         // PDF only needs bytes for image placements, not metadata-only file cards.
         if (!imageIds.has(asset.id)) continue;
-        const uri = asset.source?.uri;
+        const uri = asset.sourceUri;
         let decodeFailureCode: string | undefined;
         let outcome: ResourceResult<{ bytes: Uint8Array; mediaType?: string }>;
         try {

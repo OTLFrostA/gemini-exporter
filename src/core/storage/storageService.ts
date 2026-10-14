@@ -263,7 +263,7 @@ async function setConversations(slot: string | null | undefined, list: Conversat
 async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
     await withConversationLock(async () => {
         const metadata = list.map(({ conversation: c }) => ({ id: c.id, title: c.title, titleSource: c.titleSource,
-            titles: c.titles, url: c.url, timestamp: c.timestamp, createdAt: c.createdAt, updatedAt: c.updatedAt, messageCount: c.messages.length }));
+            url: c.url, timestamp: c.updatedAt, createdAt: c.createdAt, updatedAt: c.updatedAt, messageCount: c.messages.length }));
         for (const parsed of list) await saveDomainConversation(normSlot(slot), parsed);
         await _setConversationsRaw(slot, metadata);
     });

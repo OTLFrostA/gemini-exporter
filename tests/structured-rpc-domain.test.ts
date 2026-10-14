@@ -757,7 +757,7 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     const asset = domain.assets[0];
     assert.strictEqual(asset.kind, 'image');
     assert.strictEqual(asset.name, '贝尔测试实验示意图.png');
-    assert.deepStrictEqual(asset.dimensions, { width: 700, height: 280 });
+    assert.equal(Object.hasOwn(asset, 'dimensions'), false);
     assert.strictEqual(asset.id, imageBlocks[0].resourceId, 'Block assetId links to bundle asset ID');
 
     // Validate the canonical bundle

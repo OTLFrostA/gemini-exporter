@@ -24,14 +24,12 @@ export function normalizeTimestamp(value: unknown): number | undefined {
     return Number.isFinite(time) ? time : undefined;
 }
 
-/** Only source-authored facts enter Domain; unknown optional fields are absent. */
-export function normalizeConversationTimes(source: { timestamp?: unknown; createdAt?: unknown; updatedAt?: unknown }): {
-    timestamp: number | null; createdAt?: number; updatedAt?: number;
+/** Boundary conversion of independent source-authored conversation times. */
+export function normalizeConversationTimes(source: { createdAt?: unknown; updatedAt?: unknown }): {
+    createdAt?: number; updatedAt?: number;
 } {
     const createdAt = normalizeTimestamp(source.createdAt);
     const updatedAt = normalizeTimestamp(source.updatedAt);
-    const timestamp = typeof source.timestamp === 'number' && Number.isFinite(source.timestamp) ? source.timestamp : null;
-    return { timestamp,
-        ...(createdAt !== undefined ? { createdAt } : {}),
+    return { ...(createdAt !== undefined ? { createdAt } : {}),
         ...(updatedAt !== undefined ? { updatedAt } : {}) };
 }

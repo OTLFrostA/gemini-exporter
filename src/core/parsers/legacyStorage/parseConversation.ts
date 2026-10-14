@@ -26,7 +26,7 @@ export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: C
     const missingBody = !length(body) && Number(metadata.messageCount) > 0;
     const parsed = parseConversationRecord(input, { ...context,
         completenessOverride: context.completenessOverride ?? (missingBody
-            ? { status: 'partial', reason: 'Legacy storage contains only conversation metadata; body was not stored.' } : undefined) });
+            ? 'partial' : undefined) });
     if (missingBody) {
         parsed.diagnostics.push({ severity: 'warning', code: 'LEGACY_BODY_NOT_STORED', message: 'Conversation body is absent from legacy storage' });
     }

@@ -2,7 +2,6 @@
   "providerId": "example",
   "id": "c",
   "title": "A conversation",
-  "timestamp": null,
   "createdAt": 1791288000000,
   "assets": [
     {
@@ -36,7 +35,6 @@
           "type": "code",
           "code": "<x>",
           "language": "xml",
-          "filename": "sample.xml",
           "meta": "example"
         },
         {
@@ -82,7 +80,6 @@
       "citations": [
         {
           "id": "c1",
-          "kind": "web",
           "title": "Source",
           "url": "https://example.com"
         }
@@ -99,5 +96,6 @@
         }
       ]
     }
-  ]
+  ],
+  "completeness": "unknown"
 }

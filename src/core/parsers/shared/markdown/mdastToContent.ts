@@ -49,7 +49,6 @@ import type {
     MathBlock,
     ParagraphBlock,
     QuoteBlock,
-    TableAlignment,
     TableBlock,
     TableColumn,
     TableRow,
@@ -444,13 +443,7 @@ export function adaptBlockNode(
         }
 
         case 'table': {
-            const aligns: TableAlignment[] = (node.align || []).map((a) => {
-                if (a === 'left') return 'left';
-                if (a === 'center') return 'center';
-                if (a === 'right') return 'right';
-                return 'default';
-            });
-            const columns: TableColumn[] = aligns.map((align) => ({ align }));
+            const columns: TableColumn[] = (node.align ?? []).map(align => align ? { align } : {});
             const headerRows: TableRow[] = node.children.length > 0
                 ? [adaptTableRow(node.children[0], ctx)]
                 : [];

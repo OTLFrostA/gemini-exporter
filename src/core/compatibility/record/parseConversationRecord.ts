@@ -2,7 +2,7 @@ import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
-import { resolveTitle, TITLE_SOURCES, type TitleSource } from '../../domain/titleAuthority.js';
+import { resolveTitle, TITLE_SOURCES } from '../../domain/titleAuthority.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import { parseImportedBody } from '../../parsers/shared/importedContentAdapter.js';
@@ -18,7 +18,6 @@ import type {
     DomainCitation,
     DomainConversationDetail,
     DomainMessage,
-    DomainMessageProvenance,
 } from '../../domain/conversationDetail.js';
 
 function copyAttachment(value: ConversationRecordAttachment): ConversationRecordAttachment {
@@ -27,12 +26,6 @@ function copyAttachment(value: ConversationRecordAttachment): ConversationRecord
 
 function copyTimestamp(value: unknown): { timestamp?: number } {
     return typeof value === 'number' && Number.isFinite(value) ? { timestamp: value } : {};
-}
-
-function normalizeMessageProvenance(value: unknown): DomainMessageProvenance | undefined {
-    if (typeof value !== 'string') return undefined;
-    const providerRequestId = value.trim();
-    return providerRequestId ? { providerRequestId } : undefined;
 }
 
 /** Preserve provider text and the legacy nullish precedence, including empty thoughts. */
@@ -59,7 +52,7 @@ function normalizeCitations(value: ConversationRecordMessage): DomainCitation[] 
 function copyMessage(value: ConversationRecordMessage, parseContent: (body: unknown, structured?: unknown) => BlockNode[], parseReasoning: (body: string) => BlockNode[] | undefined): DomainMessage {
     const { id, content, timestamp } = value;
     const role = value.role === 'model' ? 'assistant' : ['user', 'assistant', 'system', 'developer'].includes(value.role ?? '') ? value.role as 'user' | 'assistant' | 'system' | 'developer' : 'unknown';
-    const provenance = { ...normalizeMessageProvenance(value.providerRequestId), ...(role === 'unknown' && value.role ? { rawRole: value.role } : {}) };
+    const provenance = { ...(role === 'unknown' && value.role ? { rawRole: value.role } : {}) };
     const model = [value.model, value.author?.model].find((name): name is string => typeof name === 'string' && Boolean(name.trim()))?.trim();
     const reasoningText = normalizeReasoning(value);
     const reasoning = reasoningText !== undefined ? parseReasoning(reasoningText) : undefined;
@@ -123,25 +116,18 @@ export interface ConversationRecordParseContext extends ConversationParseContext
 export interface ConversationRecordParseResult extends ResourceConversationParseResult {}
 
 function copyCompleteness(input: ConversationRecordInput): Pick<DomainConversationDetail, 'completeness'> {
-    const partial = input.truncated === true || input.isTruncated === true || (typeof input.nextPageToken === 'string' && Boolean(input.nextPageToken.trim()));
-    // Positive evidence of missing content overrides a contradictory completeness claim.
-    if (partial) {
-        const reason = typeof input.truncateReason === 'string' && input.truncateReason.trim()
-            ? input.truncateReason : input.completeness?.status === 'partial' ? input.completeness.reason : undefined;
-        return { completeness: { status: 'partial', ...(reason !== undefined ? { reason } : {}) } };
-    }
-    if (input.completeness) return { completeness: { status: input.completeness.status, ...(input.completeness.reason !== undefined ? { reason: input.completeness.reason } : {}) } };
-    return {};
+    const partial = input.truncated === true || input.isTruncated === true || Boolean(input.nextPageToken?.trim());
+    return { completeness: partial ? 'partial' : input.completeness?.status ?? 'unknown' };
 }
 
 /** Choose the authoritative title while raw source alternatives are still available. */
-function legacyTitle(conversation: ConversationRecordInput): string {
+function legacyTitle(conversation: ConversationRecordInput) {
     const candidates = Object.entries(isObjectRecord(conversation.titles) ? conversation.titles : {}).flatMap(([source, value]) => typeof value === 'string' && value.trim()
-        ? [{ value: value.trim(), source: (TITLE_SOURCES.has(source) ? source : 'default') as TitleSource }] : []);
+        ? [{ value: value.trim(), source: TITLE_SOURCES.has(source) ? source : 'default' }] : []);
     const value = typeof conversation.title === 'string' ? conversation.title.trim() : undefined;
-    const source = (typeof conversation.titleSource === 'string' && TITLE_SOURCES.has(conversation.titleSource) ? conversation.titleSource : 'default') as TitleSource;
+    const source = typeof conversation.titleSource === 'string' && TITLE_SOURCES.has(conversation.titleSource) ? conversation.titleSource : 'default';
     if (value && !candidates.some(candidate => candidate.value === value && candidate.source === source)) candidates.push({ value, source });
-    return resolveTitle(candidates)?.value ?? '';
+    return resolveTitle(candidates);
 }
 
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
@@ -179,21 +165,17 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
     }
     const resources = closeDomainResources(providerId, legacyMessages.map(message => copyMessage(message, parseContent, parseReasoning)),
         legacyMessages.map(message => ({ input: message, bodyAttachments: providerId === 'gemini' ? structuredBodyAttachments(message) : [] })));
+    const title = legacyTitle(conversation);
     const domain: DomainConversationDetail = {
         providerId,
         assets: resources.assets,
         id: conversation.id ?? '',
-        title: legacyTitle(conversation),
-        ...normalizeConversationTimes(conversation),
-        ...(typeof conversation.source === 'string' && conversation.source.trim() ? { provenance: { source: conversation.source } } : {}),
+        title: title?.value ?? '',
+        ...(title ? { titleSource: title.source === 'default' && title.value === conversation.title && typeof conversation.titleSource === 'string' ? conversation.titleSource : title.source } : {}),
+        ...normalizeConversationTimes({ createdAt: conversation.createdAt, updatedAt: conversation.updatedAt }),
         ...copyCompleteness(conversation),
         ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),
-        ...(typeof conversation.chatTime === 'number' || typeof conversation.chatTime === 'string' ? { chatTime: conversation.chatTime } : {}),
-        ...(typeof conversation.lastSeen === 'number' || typeof conversation.lastSeen === 'string' ? { lastSeen: conversation.lastSeen } : {}),
-        ...(conversation.url !== undefined ? { url: conversation.url } : {}),
-        ...(conversation.href !== undefined ? { href: conversation.href } : {}),
-        ...(typeof conversation.titleSource === 'string' ? { titleSource: conversation.titleSource } : {}),
-        ...(isObjectRecord(conversation.titles) ? { titles: Object.fromEntries(Object.entries(conversation.titles).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) } : {}),
+        ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}),
         messages: resources.messages,
     };
     return { conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };

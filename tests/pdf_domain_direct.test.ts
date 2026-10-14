@@ -15,7 +15,7 @@ import type { TypstConversationRenderPayload } from '../src/core/renderers/typst
 
 const ctx = { signal: new AbortController().signal, log() {}, reportProgress() {} };
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-const fixture = () => ({ id: 'direct-pdf', title: 'Direct PDF boundary', timestamp: 1700000000000, messages: [
+const fixture = () => ({ id: 'direct-pdf', title: 'Direct PDF boundary', timestamp: 1700000000000, updatedAt: 1700000000000, messages: [
     { id: 'user', role: 'user', content: 'Explain the pipeline.' },
     { id: 'model', role: 'model', thoughts: 'Check **every** relation.', content: '# Results\n\n**Strong** text and [source](https://example.test).\n\n> A quoted result.\n\n1. First\n2. Second\n\n```ts filename=pipeline.ts\nconst layers = 2;\n```\n\n$$\\frac{a}{b}$$\n\n| Item | Value |\n|---|---:|\n| Result | 42 |\n\n![Sample](assets/sample.png)\n\n' + Array.from({ length: 100 }, (_, i) => `Paragraph ${i}: This detailed explanation exercises physical page breaks and flowing text.`).join('\n\n'),
         attachments: [{ type: 'image', name: 'Sample', localName: 'assets/sample.png', sourceUrl: 'https://example.test/sample.png', dataBase64: png, mimeType: 'image/png' }, { type: 'file', name: 'report.pdf', mimeType: 'application/pdf', size: 1234567 }],

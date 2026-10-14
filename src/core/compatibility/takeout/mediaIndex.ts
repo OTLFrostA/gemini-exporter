@@ -126,14 +126,14 @@ function getTakeoutMediaForChat(chatId: string, slot?: string | null): StoredTak
 async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null> {
     if (!lookup || (!lookup.assetId && !lookup.sourceUri && !lookup.generation)) return null;
     const nid = normId(chatId);
-    if (!nid || (lookup.generation && normId(lookup.generation.chatId) !== nid)) return null;
+    if (!nid) return null;
     const store = getStore(slot);
     if (!store.convCache[nid] && Object.keys(store.convCache).length > 0) return null;
-    const requested: ResourceIdentity = { assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
+    const requested: ResourceIdentity = { conversationId: nid, assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
     const native = store.convCache[nid];
     if (native) {
-        const candidates = native.conversation.assets.map(asset => ({ ...resourceIdentity(asset), sourceUris:
-            [asset.source?.uri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
+        const candidates = native.conversation.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.id)), sourceUris:
+            [asset.sourceUri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
                 native.resourceHints[asset.id]?.archivePath].filter((uri): uri is string => !!uri) }));
         const match = findResourceMatch(nid, requested, candidates);
         if (match === null) return null;
@@ -141,7 +141,7 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
         try { return await readTakeoutBytes(path ? store.globalMedia[path] : undefined); } catch { return null; }
     }
     const media = store.mediaMap[nid] || [];
-    const match = findResourceMatch(nid, requested, media.map(item => ({ assetId: '', generation: item.generation ? { ...item.generation, time: item.generation.time ?? undefined } : undefined,
+    const match = findResourceMatch(nid, requested, media.map(item => ({ conversationId: item.generation?.chatId ? normId(item.generation.chatId) : nid, assetId: '', generation: item.generation ? { ...item.generation, time: item.generation.time ?? undefined } : undefined,
         sourceUris: [item.filename, item.fileObj?.name, item.fileObj?.path].filter((uri): uri is string => !!uri) })));
     if (match === null) return null;
     try { return await readTakeoutBytes(media[match].fileObj); } catch { return null; }

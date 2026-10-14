@@ -3,7 +3,7 @@ import type { DomainConversationDetail } from '../../domain/conversationDetail.j
 import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 
 export const DOMAIN_STORAGE_VERSION = 2;
-export const DOMAIN_CONTRACT_VERSION = 1;
+export const DOMAIN_CONTRACT_VERSION = 2;
 export const DOMAIN_DB_NAME = 'gemini_exporter_domain';
 export const DOMAIN_DB_VERSION = 2;
 

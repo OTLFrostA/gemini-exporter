@@ -45,8 +45,8 @@ async function fixtureBindings(conversation: DomainConversationDetail, hints: Le
                 continue;
             } else bytes = new TextEncoder().encode(asset.document!.contentMarkdown!.trim());
             bindings[asset.id] = buildDataUrlStorageRef(await sha256Hex(bytes), asset.mediaType ?? 'application/octet-stream');
-        } else if (/^data:/i.test(asset.source?.uri ?? '')) {
-            const decoded = await decodeDataUrlAsset(asset.source!.uri!);
+        } else if (/^data:/i.test(asset.sourceUri ?? '')) {
+            const decoded = await decodeDataUrlAsset(asset.sourceUri!!);
             if (decoded.ok) bindings[asset.id] = decoded.storageRef;
         }
     }

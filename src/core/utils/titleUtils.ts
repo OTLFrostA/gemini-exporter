@@ -2,6 +2,7 @@ import type { Conversation, TitleSource } from '../../types/index.js';
 export type { TitleSource };
 import type { ExportRecord } from '../../types/ui.js';
 import { normId } from './pathUtils.js';
+import { TITLE_AUTHORITY_RANK, resolveTitle as resolveAuthorityTitle } from '../domain/titleAuthority.js';
 
 /** Only the fields title arbitration reads or mutates. */
 export type TitleResolutionInput = Partial<Pick<Conversation, 'id' | 'title' | 'titleSource' | 'titles'>>;
@@ -23,16 +24,7 @@ export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定
 
 export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default'];
 
-export const TITLE_TIER_RANK: Record<TitleSource, number> = {
-    rpc: 50,
-    'api-detail': 50,
-    dom: 40,
-    takeout: 30,
-    openai: 30,
-    sniff: 20,
-    legacy: 10,
-    default: 0
-};
+export const TITLE_TIER_RANK = Object.fromEntries(TITLE_SOURCE_PRIORITY.map(source => [source, TITLE_AUTHORITY_RANK[source]]));
 
 /**
  * Normalizes a raw source string into a canonical, reliable TitleSource.
@@ -177,39 +169,18 @@ export function cleanTitle(rawTitle?: string | null): string {
 export function resolveTitle(chat?: TitleResolutionInput | null): TitleResolution {
     if (!chat) return { title: '未命名对话', source: 'default' };
     const id = chat.id || '';
-
-    if (chat.titles && typeof chat.titles === 'object') {
-        for (const source of TITLE_SOURCE_PRIORITY) {
-            if (source === 'legacy' || source === 'default') continue;
-            const raw = chat.titles[source];
-            if (!raw) continue;
-            const clean = cleanTitle(raw);
-            if (clean && (isRealTitle(clean, id) || (source === 'takeout' && !isBrandPlaceholderTitle(clean)))) {
-                return { title: clean, source: source };
-            }
-        }
+    const candidates: Array<{ value: string; source: TitleSource }> = [];
+    const source = normalizeReliableTitleSource(chat.titleSource) || 'legacy';
+    const value = cleanTitle(chat.title);
+    if (isRealTitle(value, id) || source === 'takeout' && value && !isBrandPlaceholderTitle(value)) candidates.push({ value, source });
+    // List index owns source alternatives; arbitration is shared with parser finalization.
+    for (const source of [...TITLE_SOURCE_PRIORITY].reverse()) {
+        if (source === 'default') continue;
+        const value = cleanTitle(chat.titles?.[source]);
+        if (isRealTitle(value, id) || source === 'takeout' && value && !isBrandPlaceholderTitle(value)) candidates.push({ value, source });
     }
-
-    const legacyClean = cleanTitle(chat.title);
-    if (legacyClean && isRealTitle(legacyClean, id)) {
-        return { title: legacyClean, source: normalizeReliableTitleSource(chat.titleSource) || 'legacy' };
-    }
-
-    if (chat.titles && typeof chat.titles === 'object' && chat.titles.legacy) {
-        const legacyFromTitles = cleanTitle(chat.titles.legacy);
-        if (legacyFromTitles && isRealTitle(legacyFromTitles, id)) {
-            return { title: legacyFromTitles, source: 'legacy' };
-        }
-    }
-
-    if (chat.titles && chat.titles.takeout) {
-        const rawTakeout = cleanTitle(chat.titles.takeout);
-        if (rawTakeout && (isRealTitle(rawTakeout, id) || !isBrandPlaceholderTitle(rawTakeout))) {
-            return { title: rawTakeout, source: 'takeout' };
-        }
-    }
-
-    return { title: '未命名对话', source: 'default' };
+    const winner = resolveAuthorityTitle(candidates);
+    return winner ? { title: winner.value, source: TITLE_SOURCE_PRIORITY.find(source => source === winner.source) ?? 'legacy' } : { title: '未命名对话', source: 'default' };
 }
 
 export function setTitleBySource(chat: TitleResolutionInput | null | undefined, source?: string, rawTitle?: string): TitleResolution {

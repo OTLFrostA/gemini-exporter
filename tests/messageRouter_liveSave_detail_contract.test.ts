@@ -102,15 +102,15 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         const before = structuredClone(payload.conversation.messages);
         const resolved = await resolveConversationDetail('c_detail123');
         assert.strictEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
-        assert.equal(resolved?.conversation.chatTime, undefined); assert.equal(resolved?.conversation.timestamp, null);
+        assert.equal(Object.hasOwn(resolved!.conversation, 'chatTime'), false);
         assert.equal(resolved?.conversation.updatedAt, undefined); assert.equal(resolved?.conversation.createdAt, undefined);
-        assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.strictEqual(resolved?.conversation.titles, payload.conversation.titles);
+        assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
         if (injected) assert.equal(calledId, 'detail123');
     }
-    const existing = detail(); existing.conversation.chatTime = 1600000000000; existing.conversation.updatedAt = 1500000000000;
+    const existing = detail(); existing.conversation.updatedAt = 1500000000000;
     set(async () => existing); initLive();
     assert.strictEqual(await resolveConversationDetail('detail123'), existing);
-    assert.equal(existing.conversation.chatTime, 1600000000000); assert.equal(existing.conversation.updatedAt, 1500000000000); assert.equal(existing.conversation.timestamp, null);
+    assert.equal(existing.conversation.updatedAt, 1500000000000);
 }));
 
 test('liveSave: empty/failed provider and failed injected client still permit DOM acquisition', async () => withProvider(async set => {

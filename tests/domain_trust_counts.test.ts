@@ -9,8 +9,7 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     for (const status of ['complete', 'partial', 'unknown'] as const) {
-        const builder: DomainConversationDetail = { providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph', timestamp: null,
-            completeness: { status }, assets: [{ id: 'bytes', kind: 'file', source: { uri: 'opaque:original' } }],
+        const builder: DomainConversationDetail = { providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph', completeness: status, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }],
             messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown', provenance: { rawRole: 'future-role' },
                 content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) };
         const trusted = validateParserDomain(builder);
@@ -22,7 +21,7 @@ test('large provider-neutral graphs preserve complete/partial/unknown coverage a
         const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.id));
         assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
-        assert.equal(read.conversation.completeness?.status, status);
+        assert.equal(read.conversation.completeness, status);
         assert.equal(read.conversation.messages[999].content[0].type, 'unknown');
         assert.equal(Object.getOwnPropertySymbols(read.conversation).length, 0);
     }

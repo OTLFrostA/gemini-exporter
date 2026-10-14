@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -16,7 +17,7 @@ const {
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return { providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages }, 1);
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {

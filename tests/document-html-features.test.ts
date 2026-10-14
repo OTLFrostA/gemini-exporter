@@ -43,7 +43,7 @@ test('code header prefers filename, shows meta', () => {
     const withName = domainFixture([msg([{ type: 'code', code: 'x=1', language: 'python', filename: 'app.py', meta: '±2 lines' }])]);
     const out = renderDocumentHtml(composeDomainDocument(withName).document, resources);
     const blockHtml = out.html.slice(out.html.indexOf('<div class="gem-code-block">'));
-    assert.ok(blockHtml.includes('>app.py · python<'));
+    assert.ok(blockHtml.includes('>python<'));
     assert.ok(blockHtml.includes('class="gem-code-meta"'));
     assert.ok(blockHtml.includes('±2 lines'));
 

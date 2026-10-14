@@ -289,9 +289,9 @@ test('list: zero maxPages keeps its default fallback and negative maxPages is an
 
 test('detail: metadata-only retry flags and authoritative primary title remain unchanged', async () => {
     const first = detailPage([]);
-    first.conversation.title = 'Authoritative metadata title'; first.conversation.titles = { rpc: first.conversation.title };
+    first.conversation.title = 'Authoritative metadata title';
     first.transport = { ...first.transport, decodedPayload: [null, null, [['c_test', 'metadata title']]], turnsRejected: 1, schemaDrift: ['initial drift'] };
-    const retry = detailPage(['answer']); retry.conversation.title = 'Prompt fallback'; retry.conversation.titleSource = 'sniff'; retry.conversation.titles = { sniff: 'Prompt fallback' };
+    const retry = detailPage(['answer']); retry.conversation.title = 'Prompt fallback'; retry.conversation.titleSource = 'sniff';
     retry.transport = { ...retry.transport, turnsRejected: 2, schemaDrift: ['retry drift'] };
     let calls = 0;
     const client: GeminiPaginationDetailClient = { async fetchConversationPage(id, token, sid, opts) {
@@ -309,7 +309,7 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
     assert.equal(calls, 2);
     assert.equal(result.conversation.title, 'Authoritative metadata title');
     assert.equal(result.conversation.titleSource, 'rpc');
-    assert.deepEqual(result.conversation.titles, { rpc: 'Authoritative metadata title' });
+    assert.equal(Object.hasOwn(result.conversation, 'titles'), false);
     assert.deepEqual(result.conversation.messages.map(m => m.id), ['answer']);
     assert.equal(result.transport.turnsRejected, 3);
     assert.deepEqual(result.transport.schemaDrift, ['initial drift', 'retry drift']);

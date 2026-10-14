@@ -100,7 +100,7 @@ test('history cleanup upgrades v1 atomically and retains current, cached bytes a
         const shorter = api.storedParseResult(current);
         shorter.conversation.messages = [];
         shorter.conversation.updatedAt = 100;
-        shorter.conversation.completeness = { status: 'partial' };
+        shorter.conversation.completeness = 'partial';
         await api.saveDomainConversation('u0', shorter);
         const db = await api.openDomainDB();
         const backups = await new Promise<unknown[]>((resolve, reject) => {
@@ -118,8 +118,10 @@ test('history cleanup upgrades v1 atomically and retains current, cached bytes a
         }); cleanDB.close();
         return { current, kept, backups, bytes, deleted, cacheCount };
     });
-    expect(restored.current).toEqual(seeded);
-    expect(restored.kept.conversation).toEqual(seeded.conversation);
+    const { timestamp: _timestamp, ...facts } = seeded.conversation;
+    const expected = { ...seeded, domainVersion: 2, conversation: { ...facts, titleSource: 'default', completeness: 'complete', assets: [{ id: 'asset', kind: 'image', sourceUri: 'Takeout/kept.png' }] } };
+    expect(restored.current).toEqual(expected);
+    expect(restored.kept.conversation).toEqual(expected.conversation);
     expect(restored.backups).toEqual([{ key: 'original', value: { body: 'Legacy recovery copy' }, savedAt: 1 }]);
     expect(restored.bytes).toEqual([7, 8, 9]);
     expect(restored.deleted).toBeNull();
@@ -179,14 +181,14 @@ test('durable attachment bytes remain outside Domain and are acquired offline af
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         await chrome.storage.local.set({ gemini_schema_version: 2 });
-        await api.saveDomainConversation('u0', { conversation: { providerId: 'gemini', id: 'offline', title: 'Offline', timestamp: null, assets: [{ id: 'image', kind: 'image', source: { uri: 'Takeout/source.png' } }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }] }] }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'image', sourcePath: 'Takeout/source.png', bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]) }]);
+        await api.saveDomainConversation('u0', { conversation: { providerId: 'gemini', id: 'offline', title: 'Offline', completeness: 'unknown', assets: [{ id: 'image', kind: 'image', sourceUri: 'Takeout/source.png' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }] }] }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'image', sourcePath: 'Takeout/source.png', bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]) }]);
     });
     await page.reload(); await install(page);
     const restored = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         const view = await api.getDomainConversationResult('u0', 'offline');
         const pipeline = new api.AssetPipeline({ currentSlot: 'u0', fetchAsset: async () => { throw new Error('Network must not be needed'); } });
-        const bytes = await pipeline.acquireAssetBytes({ assetId: view.conversation.assets[0].id, url: view.conversation.assets[0].source.uri }, { id: 'offline', title: 'Offline' });
+        const bytes = await pipeline.acquireAssetBytes({ assetId: view.conversation.assets[0].id, url: view.conversation.assets[0].sourceUri }, { id: 'offline', title: 'Offline' });
         return { bytes: [...bytes.bytes], conversation: view.conversation };
     });
     expect(restored.bytes).toEqual([137, 80, 78, 71, 13, 10, 26, 10, 1]);
@@ -197,7 +199,7 @@ test('online byte cache survives restart, deletion erases bytes and a late migra
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        const parsed = { conversation: { providerId: 'gemini', id: 'cached', title: 'Cached', timestamp: null, assets: [{ id: 'asset', kind: 'image', source: { uri: 'https://example.test/image' } }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'asset' }] }] }, acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
+        const parsed = { conversation: { providerId: 'gemini', id: 'cached', title: 'Cached', completeness: 'unknown', assets: [{ id: 'asset', kind: 'image', sourceUri: 'https://example.test/image' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'asset' }] }] }, acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
         await api.saveDomainConversation('u0', parsed);
         await api.cacheDomainResource(api.storageIdentity('gemini', 'u0', 'cached'), 'asset', 'https://example.test/image', new Uint8Array([1, 2, 3]));
     });
@@ -223,9 +225,9 @@ for (const method of ['remove', 'reconcile'] as const) {
             const failed = await page.evaluate(async ({ method, failure }) => {
                 const api = Reflect.get(globalThis, 'storageProbe');
                 const parsed = {
-                    conversation: { providerId: 'gemini', id: 'retry-delete', title: 'Delete', timestamp: null,
-                        assets: [{ id: 'archive', kind: 'image', source: { uri: 'Takeout/source.png' } },
-                            { id: 'online', kind: 'image', source: { uri: 'https://example.test/online.png' } }],
+                    conversation: { providerId: 'gemini', id: 'retry-delete', title: 'Delete', completeness: 'unknown',
+                        assets: [{ id: 'archive', kind: 'image', sourceUri: 'Takeout/source.png' },
+                            { id: 'online', kind: 'image', sourceUri: 'https://example.test/online.png' }],
                         messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'archive' }, { type: 'image', assetId: 'online' }] }] },
                     acquisitionHints: {}, resourceHints: {}, diagnostics: []
                 };
@@ -323,3 +325,50 @@ for (const method of ['remove', 'reconcile'] as const) {
         });
     }
 }
+
+test('contract v1 recovery preserves reasoning and original rows; v2 writes and unsafe recovery fail closed', async ({ page }) => {
+    await install(page);
+    const result = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const identity = api.storageIdentity('gemini', 'u0', 'recover');
+        const record = { key: api.domainStorageKey(identity), storageVersion: 2, domainVersion: 1, identity,
+            origin: 'source', revision: 'original', savedAt: 1, resources: [], acquisitionHints: {},
+            conversation: { providerId: 'gemini', id: 'recover', title: 'Recovery', timestamp: null,
+                completeness: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: [
+                    { type: 'thought', disclosure: 'providerExposed', blocks: [{ type: 'code', code: 'reason()', filename: 'unused.py', language: 'python' }] },
+                    { type: 'paragraph', children: [{ type: 'text', text: 'Real body' }] }
+                ] }] } };
+        const db = await api.openDomainDB();
+        const put = (value: unknown) => new Promise<void>((resolve, reject) => {
+            const tx = db.transaction('conversations', 'readwrite'); tx.objectStore('conversations').put(value);
+            tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
+        });
+        const get = () => new Promise<unknown>((resolve, reject) => {
+            const tx = db.transaction('conversations', 'readonly'), req = tx.objectStore('conversations').get(record.key);
+            tx.oncomplete = () => resolve(req.result); tx.onabort = tx.onerror = () => reject(tx.error);
+        });
+        try {
+            await put(record);
+            const restored = await api.getStoredDomain(identity);
+            const originalUnchanged = JSON.stringify(await get()) === JSON.stringify(record);
+            let rejectedWrite = '';
+            try { await api.saveDomainRequest('u0', { conversation: { ...restored.conversation, timestamp: 123 }, acquisitionHints: {} }); }
+            catch (error) { rejectedWrite = String(error); }
+            const writeUnchanged = JSON.stringify(await get()) === JSON.stringify(record);
+            const unsafe = { ...record, conversation: { ...record.conversation, assets: [{ id: 'generated', kind: 'image', generated: true }] } };
+            await put(unsafe);
+            let rejectedRead = '';
+            try { await api.getStoredDomain(identity); } catch (error) { rejectedRead = String(error); }
+            return { restored, originalUnchanged, rejectedWrite, writeUnchanged, rejectedRead,
+                unsafeUnchanged: JSON.stringify(await get()) === JSON.stringify(unsafe) };
+        } finally { db.close(); }
+    });
+    expect(result.restored.domainVersion).toBe(2);
+    expect(result.restored.conversation.messages[0].content).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'Real body' }] }]);
+    expect(result.restored.conversation.messages[0].reasoning).toEqual([{ type: 'code', code: 'reason()', language: 'python' }]);
+    expect(result.originalUnchanged).toBe(true);
+    expect(result.rejectedWrite).toContain('timestamp');
+    expect(result.writeUnchanged).toBe(true);
+    expect(result.rejectedRead).toContain('identity evidence');
+    expect(result.unsafeUnchanged).toBe(true);
+});
