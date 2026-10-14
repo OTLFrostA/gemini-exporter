@@ -6,7 +6,7 @@ import {
     BatchWorker,
     resolveConversationData,
     type FetchChatDetailResult,
-    type ResolvedResourceConversationParseResult,
+    type ResolvedConversationSource,
 } from '../../engine/export/batchWorker.js';
 import {
     AssetPipeline as AssetPipelineStatic,
@@ -90,7 +90,7 @@ export function extractChatFromDetailResult(res: FetchChatDetailResult, _id: str
 export async function resolveFullChatDetail(args: {
     id: string; title: string; index: number; total: number; currentSlot: string; skip: boolean;
     signal: AbortSignal; fetchChatDetail: typeof BatchWorker.fetchChatDetail; onLog: (message: string, level?: string) => void;
-}): Promise<{ ok: true; chat: ResourceConversationParseResult } | { ok: false; error: string }> {
+}): Promise<{ ok: true; chat: ResourceConversationParseResult; source: ResolvedConversationSource } | { ok: false; error: string }> {
     try {
         const response = await args.fetchChatDetail({ id: args.id, title: args.title }, args.index, args.total,
             args.currentSlot, args.skip, 'pdf', args.signal);
@@ -98,12 +98,12 @@ export async function resolveFullChatDetail(args: {
         const chat = extractChatFromDetailResult(response, args.id);
         if (!chat) return { ok: false, error: 'Detail acquisition did not return native Domain' };
         args.onLog(`[PDF] ${args.title}: resolved ${chat.conversation.messages.length} messages`, 'info');
-        return { ok: true, chat };
+        return { ok: true, chat, source: 'source' in response && response.source === 'local-cache' ? 'local_snapshot' : 'online' };
     } catch (error) { return { ok: false, error: getErrorMessage(error) }; }
 }
 
 import { extractChatParseDrift } from '../../engine/export/parseDrift.js';
-import type { ExportIntegrityEvidence } from '../../engine/export/exportCompletion.js';
+import type { ChatParseDrift } from '../../engine/export/parseDrift.js';
 
 export interface PreparedPdfItemSuccess {
     ok: true;
@@ -112,7 +112,8 @@ export interface PreparedPdfItemSuccess {
     document: DocumentAst;
     resources: PreparedResources;
     diagnostics: RenderDiagnostic[];
-    integrity: ExportIntegrityEvidence;
+    drift: ChatParseDrift;
+    usedLocalSnapshot: boolean;
     messageCount: number;
 }
 
@@ -127,6 +128,7 @@ export interface PreparedPdfItemFailure {
 export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFailure;
 
 export interface PreparePdfItemContext {
+    source?: ResolvedConversationSource;
     conversations?: Array<{ id: string; title?: string; cloudAvailability?: Conversation['cloudAvailability']; isTakeoutOnly?: boolean }>;
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
@@ -221,31 +223,24 @@ async function prepareNativePdfItem(
     const currentSlot = context.currentSlot ?? 'u0';
     const diagnostics: RenderDiagnostic[] = [];
     let parsed = nativeSelected;
+    let dataSource = context.source ?? 'unspecified';
     if (!parsed?.conversation.messages.length && context.fetchChatDetail) {
         const fetched = await resolveFullChatDetail({ id, title, index: context.index ?? 0, total: context.total ?? 1,
             currentSlot, skip: context.skip ?? false, signal, fetchChatDetail: context.fetchChatDetail, onLog });
-        if (fetched.ok) parsed = fetched.chat;
+        if (fetched.ok) { parsed = fetched.chat; dataSource = fetched.source; }
         else onLog(fetched.error, 'warn');
     }
     if (!parsed?.conversation.messages.length) {
         const resolved = await resolveConversationData(parsed, id, listItem, context.takeoutEngine && 'getTakeoutOfflineChat' in context.takeoutEngine ? context.takeoutEngine : null, currentSlot, onLog);
-        if (isResourceConversationParseResult(resolved)) parsed = resolved;
+        if (isResourceConversationParseResult(resolved.result)) { parsed = resolved.result; dataSource = resolved.source; }
     }
     if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
     if (!parsed?.conversation.messages.length) return { ok: false, id, title,
         error: `[${PDF_NO_MESSAGES}] Native conversation body is unavailable`, diagnostics };
     const drift = extractChatParseDrift(parsed);
-    const resolvedSource = (parsed as ResolvedResourceConversationParseResult).resolvedSource;
-    const usedLocalSnapshot = resolvedSource === 'local_snapshot'
+    const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
         && !listItem?.isTakeoutOnly;
-    const integrity: ExportIntegrityEvidence = {
-        sourcePartial: drift.sourcePartial,
-        turnsRejected: drift.turnsRejected,
-        hasHeuristicDocs: drift.hasHeuristicDocs,
-        truncated: drift.truncated,
-        usedLocalSnapshot,
-    };
     const messageCount = parsed.conversation.messages.length;
     parsed = { ...parsed, conversation: { ...parsed.conversation, title } };
     let document: DocumentAst;
@@ -275,7 +270,7 @@ async function prepareNativePdfItem(
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
     const resources = prepared.resources;
-    return { ok: true, id, title, document, resources, diagnostics, integrity, messageCount };
+    return { ok: true, id, title, document, resources, diagnostics, drift, usedLocalSnapshot, messageCount };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

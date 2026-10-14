@@ -617,3 +617,45 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
     assert.strictEqual(result.zipDelivery!.bytesWritten, zipSize);
     assert.ok(result.zipDelivery!.deliveredAt, 'delivery timestamp present');
 });
+
+test('PDF directory and ZIP share integrity and acquisition facts', async () => {
+    const { rpcFixture } = require('./helpers/nativeFixture.js');
+    const store = require('../src/core/storage/domain/domainStore.js');
+    for (const useZip of [false, true]) {
+        for (const scenario of ['clean', 'partial', 'rejected', 'truncated', 'warning', 'heuristic', 'metadata', 'assets-disabled', 'takeout', 'snapshot', 'deleted', 'cache-response', 'empty']) {
+            const id = `pdf-integrity-${scenario}`;
+            const parsed = rpcFixture({ id, title: 'PDF integrity contract',
+                messages: scenario === 'empty' ? [] : [{ role: 'user', content: 'Q',
+                    attachments: scenario === 'metadata' ? [{ type: 'file', name: 'report.pdf', mimeType: 'application/pdf', url: 'https://example.com/report.pdf' }] : scenario === 'assets-disabled' ? [{ type: 'image', url: 'https://example.test/missing.png' }] : [] },
+                    { role: 'model', content: 'A' }],
+                completeness: { status: scenario === 'partial' ? 'partial' : 'unknown' },
+            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, truncated: scenario === 'truncated', schemaDrift: scenario === 'warning' ? ['benign'] : [] });
+            if (scenario === 'heuristic') {
+                const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+                parsed.conversation = validateParserDomain({ ...parsed.conversation,
+                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated', hasFabricatedText: true } }],
+                });
+            }
+            const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
+            if (scenario === 'snapshot' || scenario === 'deleted') await store.saveDomainConversation('u0', parsed);
+            const records: Array<{ status: string }> = [];
+            try {
+                const result = await new PdfExporter(new StubPdfCompiler()).run({
+                    selected: [{ id }], conversations: [{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }],
+                    useZip, writer: makeFakeWriter(), downloadHandler: async () => {}, includeAssets: false,
+                    takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
+                    fetchChatDetail: async () => fallback ? { success: false, error: 'offline' }
+                        : { success: true, results: [parsed], source: scenario === 'cache-response' ? 'local-cache' : 'online' },
+                }, { onItemExported: (_id: string, record: { status: string }) => records.push(record) });
+                if (scenario === 'empty') {
+                    assert.equal(result.succeeded, 0);
+                    assert.equal(records.length, 0);
+                } else {
+                    assert.equal(result.succeeded, 1, `${useZip}/${scenario}`);
+                    const expected = ['partial', 'rejected', 'truncated', 'heuristic', 'snapshot', 'cache-response'].includes(scenario) ? 'partial' : 'ok';
+                    assert.equal(records[0].status, expected, `${useZip}/${scenario}`);
+                }
+            } finally { store.__clearDomainMemory(); }
+        }
+    }
+});

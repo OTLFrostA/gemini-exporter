@@ -111,7 +111,7 @@ interface JSZipLike {
 
 type ZipPackageSource = IExportWriter | JSZipLike | null;
 
-interface ParseDriftChatEntry extends ChatParseDrift {
+interface ParseDriftChatEntry extends Pick<ChatParseDrift, 'schemaDrift' | 'turnsRejected' | 'hasHeuristicDocs'> {
     id: string;
     title?: string;
 }
@@ -168,7 +168,6 @@ export { applyExportTitleWriteback };
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
-    isWorkerChat,
     type BatchWorkerModule,
     type FetchChatDetailResult, type WorkerChatResolveInput
 } from "./batchWorker.js";
@@ -189,7 +188,7 @@ import { StorageService as StorageServiceStatic } from "../../storage/storageSer
 import type { StoredConversationFields } from "../../storage/storageCompatibility.js";
 import { ChatFormatter, type FormattedResult } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
-import { extractChatParseDrift, chatRecordStatusWithDrift, type ChatParseDrift } from "./parseDrift.js";
+import { extractChatParseDrift, type ChatParseDrift } from "./parseDrift.js";
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
@@ -198,8 +197,6 @@ import {
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
     resolveReliableTitleSource,
-    type ExportIntegrityEvidence,
-    type ExportCompletionResult
 } from "./exportCompletion.js";
 
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
@@ -837,7 +834,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         if (!success) candidate = res && !res.success ? { error: res.error, _debug: res._debug, _raw: res._raw, rawResponse: res.rawResponse, retryAfterMs: res.retryAfterMs } : { error: 'unknown' };
                         const chatCandidate = candidate;
 
-                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog);
+                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog, { source: res && 'source' in res && res.source === 'local-cache' ? 'local_snapshot' : 'online' });
 
                         if (resolvedRes.isError) {
                             const evidence: Record<string, unknown> = isObjectRecord(chatCandidate) ? chatCandidate : {};
@@ -851,10 +848,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
-                        const isLocalSnapshotSource = resolvedRes.chat.resolvedSource === 'local_snapshot'
-                            || (!resolvedRes.chat.resolvedSource && (!isWorkerChat(chatCandidate) || !chatCandidate.conversation.messages.length));
-                        const usedLocalSnapshot = listC?.cloudAvailability !== 'deleted' && !listC?.isTakeoutOnly
-                            && isLocalSnapshotSource;
+                        const usedLocalSnapshot = resolvedRes.source === 'local_snapshot'
+                            && listC?.cloudAvailability !== 'deleted' && !listC?.isTakeoutOnly;
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
@@ -968,75 +963,63 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const chatDrift = extractChatParseDrift(exportResult);
                         const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
 
-                        let completion: ExportCompletionResult | null = null;
+                        const authoritativeChatTime = Math.max(
+                            computeAuthoritativeTimestamp(listC) || 0,
+                            computeAuthoritativeTimestamp(chat) || 0
+                        ) || undefined;
+
+                        // Acquisition rejects unavailable/empty bodies before writing. Every remaining
+                        // item gets one completion; failed writes use it only for meta, never persistence.
+                        const completion = buildExportCompletion({
+                            conversation: chat,
+                            conversationId: nid,
+                            format: options.format || 'markdown',
+                            exportedAt: new Date().toISOString(),
+                            titleCandidate: listTitle,
+                            titleProvenance: resolveReliableTitleSource(
+                                typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
+                                listC?.titleSource
+                            ),
+                            titles: mergeTitleSources(listC?.titles, chat.titles),
+                            messageCount: actualMsgCount,
+                            chatTime: authoritativeChatTime,
+                            failedAssets: resourceResults.filter(r => !r.ok).length,
+                            evidence: chatDrift,
+                            usedLocalSnapshot,
+                            statusOverride: mainWriteError ? 'failed' : undefined,
+                            truncateReason: chatDrift.truncated
+                                ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
+                                : undefined
+                        });
                         if (!mainWriteError) {
                             landedChats++;
                             onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
-                            if (chat.messages.length) {
-                                if (driftNotable) {
-                                    const bits: string[] = [];
-                                    if (chatDrift.turnsRejected > 0) bits.push(`拒识 ${chatDrift.turnsRejected} 个 turn`);
-                                    if (chatDrift.schemaDrift.length > 0) bits.push(`${chatDrift.schemaDrift.length} 条 schema 漂移告警`);
-                                    if (chatDrift.hasHeuristicDocs) bits.push(`含启发式拼凑文档`);
-                                    const driftStatus = chatRecordStatusWithDrift('ok', chatDrift);
-                                    const statusNote = driftStatus === 'partial' ? '，已记为部分导出' : '（仅告警，导出记录仍为正常）';
-                                    onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
-                                    parseDriftChats.push({
-                                        id: chatId,
-                                        title: listTitle,
-                                        schemaDrift: chatDrift.schemaDrift,
-                                        turnsRejected: chatDrift.turnsRejected,
-                                        hasHeuristicDocs: chatDrift.hasHeuristicDocs
-                                    });
-                                }
-                                const isChatTruncated = Boolean(chatDrift.truncated);
-                                if (isChatTruncated) {
-                                    onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
-                                }
-
-                                const failedAssetsCount = resourceResults.filter(r => !r.ok).length;
-                                const evidence: ExportIntegrityEvidence = {
-                                    sourcePartial: chatDrift.sourcePartial,
+                            if (driftNotable) {
+                                const bits: string[] = [];
+                                if (chatDrift.turnsRejected > 0) bits.push(`拒识 ${chatDrift.turnsRejected} 个 turn`);
+                                if (chatDrift.schemaDrift.length > 0) bits.push(`${chatDrift.schemaDrift.length} 条 schema 漂移告警`);
+                                if (chatDrift.hasHeuristicDocs) bits.push(`含启发式拼凑文档`);
+                                const statusNote = completion.exportRecord.status === 'partial' ? '，已记为部分导出' : '（仅告警，导出记录仍为正常）';
+                                onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
+                                parseDriftChats.push({
+                                    id: chatId,
+                                    title: listTitle,
+                                    schemaDrift: chatDrift.schemaDrift,
                                     turnsRejected: chatDrift.turnsRejected,
-                                    hasHeuristicDocs: chatDrift.hasHeuristicDocs,
-                                    truncated: isChatTruncated,
-                                    usedLocalSnapshot,
-                                };
-
-                                const authoritativeChatTime = Math.max(
-                                    computeAuthoritativeTimestamp(listC) || 0,
-                                    computeAuthoritativeTimestamp(chat) || 0
-                                ) || undefined;
-
-                                completion = buildExportCompletion({
-                                    conversation: chat,
-                                    conversationId: nid,
-                                    format: options.format || 'markdown',
-                                    exportedAt: new Date().toISOString(),
-                                    titleCandidate: listTitle,
-                                    titleProvenance: resolveReliableTitleSource(
-                                        typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
-                                        listC?.titleSource
-                                    ),
-                                    titles: mergeTitleSources(listC?.titles, chat.titles),
-                                    messageCount: actualMsgCount,
-                                    chatTime: authoritativeChatTime,
-                                    failedAssets: failedAssetsCount,
-                                    evidence,
-                                    isTruncated: isChatTruncated,
-                                    truncateReason: isChatTruncated
-                                        ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
-                                        : undefined
+                                    hasHeuristicDocs: chatDrift.hasHeuristicDocs
                                 });
-
-                                chatRecordsMap.set(nid, {
-                                    ...completion.exportRecord,
-                                    exportRecord: completion.exportRecord,
-                                    conversationUpdate: completion.conversationUpdate,
-                                    targetId: completion.targetId
-                                });
-                                await finalizeChatExport(chatId);
                             }
+                            if (chatDrift.truncated) {
+                                onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
+                            }
+
+                            chatRecordsMap.set(nid, {
+                                ...completion.exportRecord,
+                                exportRecord: completion.exportRecord,
+                                conversationUpdate: completion.conversationUpdate,
+                                targetId: completion.targetId
+                            });
+                            await finalizeChatExport(chatId);
                         } else {
                             // B3: 区分用户取消 vs 权限被收回 —— 取消是用户意图，不记失败；
                             // 权限被收回是真实失败（writeExportFile 已 abort 并记日志），保留失败记录。
@@ -1056,15 +1039,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             });
                         }
 
-                        const metaStatus: 'success' | 'partial' | 'failed' = mainWriteError
-                            ? 'failed'
-                            : completion
-                                ? (completion.exportRecord.status === 'partial'
-                                    ? 'partial'
-                                    : completion.exportRecord.status === 'failed'
-                                        ? 'failed'
-                                        : 'success')
-                                : (usedLocalSnapshot || chatFailedAssetsSet.has(nid) ? 'partial' : 'success');
+                        const metaStatus = completion.exportRecord.status === 'ok'
+                            ? 'success' : completion.exportRecord.status;
 
                         metaResults.push({
                             id: chatId,
@@ -1072,12 +1048,13 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             url: chat.url || `https://gemini.google.com/app/${chatId}`,
                             createdAt: toIso(chat.createdAt || chat.timestamp || listC?.timestamp),
                             updatedAt: toIso(chat.updatedAt || chat.timestamp || listC?.timestamp),
-                            messageCount: computeExportMessageCount(chat),
+                            messageCount: completion.exportRecord.messageCount,
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,
                             status: metaStatus,
                             ...(driftNotable ? {
-                                parseStatus: chatRecordStatusWithDrift('ok', chatDrift),
+                                // Parser diagnosis only; assets and source freshness are excluded.
+                                parseStatus: chatDrift.turnsRejected > 0 || chatDrift.hasHeuristicDocs ? 'partial' : 'ok',
                                 schemaDrift: chatDrift.schemaDrift,
                                 turnsRejected: chatDrift.turnsRejected,
                                 hasHeuristicDocs: chatDrift.hasHeuristicDocs || void 0

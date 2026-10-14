@@ -1,3 +1,4 @@
+import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
 import { test } from 'node:test';
@@ -8,7 +9,7 @@ import { getConversationDetail } from '../src/core/api/client/pagination.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { extractChatParseDrift, chatRecordStatusWithDrift } from '../src/core/engine/export/parseDrift.js';
+import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
 import { parseTakeoutZip } from '../src/core/compatibility/takeout/takeoutParser.js';
 import { MediaIndex } from '../src/core/compatibility/takeout/mediaIndex.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
@@ -60,7 +61,7 @@ test('native token loops retain diagnostics and explicitly mark incomplete cover
     assert.equal(detail.conversation.messages.length, 2);
     assert.equal(detail.conversation.completeness?.status, 'partial');
     assert.ok(detail.diagnostics.some(d => d.code === 'GEMINI_PAGINATION_TRUNCATED'));
-    assert.equal(chatRecordStatusWithDrift('ok', extractChatParseDrift(detail)), 'partial');
+    assert.equal(resolveExportRecordStatus({ evidence: extractChatParseDrift(detail) }).status, 'partial');
 });
 
 test('native exports use Domain without invoking the historical record parser', async () => {

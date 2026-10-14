@@ -1,5 +1,4 @@
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
-import { resolveExportRecordStatus } from './exportCompletion.js';
 /**
  * Phase C (P1-8/P1-9): parser 诊断抽取 —— 纯函数，供导出链路与单测共用。
  *
@@ -13,8 +12,8 @@ export interface ChatParseDrift {
     schemaDrift: string[];
     turnsRejected: number;
     hasHeuristicDocs: boolean;
-    sourcePartial?: boolean;
-    truncated?: boolean;
+    sourcePartial: boolean;
+    truncated: boolean;
     truncateReason?: string;
 }
 
@@ -30,16 +29,4 @@ export function extractChatParseDrift(result: ResourceConversationParseResult): 
         sourcePartial: result.conversation.completeness?.status === 'partial',
         truncated: 'truncated' in transport && transport.truncated === true,
         truncateReason: 'truncateReason' in transport && typeof transport.truncateReason === 'string' ? transport.truncateReason : undefined };
-}
-
-export function chatRecordStatusWithDrift(base: "ok" | "empty", drift: ChatParseDrift): "ok" | "empty" | "partial" {
-    return resolveExportRecordStatus({
-        statusOverride: base,
-        evidence: {
-            sourcePartial: drift.sourcePartial,
-            turnsRejected: drift.turnsRejected,
-            hasHeuristicDocs: drift.hasHeuristicDocs,
-            truncated: drift.truncated
-        }
-    }).status as "ok" | "empty" | "partial";
 }

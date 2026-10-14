@@ -1258,3 +1258,32 @@ test('completion metadata retains primitive and count-only compatibility', () =>
     assert.strictEqual(result.exportRecord.status, 'ok');
     assert.strictEqual(computeExportMessageCount({ messages: 12, turns: 20 }), 0);
 });
+
+test('completion integrity facts are monotonic and preserve status precedence', () => {
+    const clean = { schemaDrift: [], sourcePartial: false, turnsRejected: 0, hasHeuristicDocs: false, truncated: false };
+    const cases = [
+        { evidence: clean, expected: 'ok' },
+        { evidence: { ...clean, sourcePartial: true }, expected: 'partial' },
+        { evidence: { ...clean, turnsRejected: 1 }, expected: 'partial' },
+        { evidence: { ...clean, hasHeuristicDocs: true }, expected: 'partial' },
+        { evidence: { ...clean, truncated: true }, expected: 'partial' },
+        { evidence: { ...clean, schemaDrift: ['benign warning'] }, expected: 'ok' },
+        { usedLocalSnapshot: true, expected: 'partial' },
+        { failedAssetsCount: 1, expected: 'partial' },
+        { statusOverride: 'ok', failedAssetsCount: 1, expected: 'partial' },
+        { statusOverride: 'failed', evidence: { ...clean, sourcePartial: true }, messageCount: 0, expected: 'failed' },
+        { messageCount: 0, evidence: { ...clean, truncated: true }, expected: 'empty' },
+    ];
+    for (const { expected, ...facts } of cases) {
+        const result = resolveExportRecordStatus({ messageCount: 2, ...facts });
+        assert.equal(result.status, expected, JSON.stringify(facts));
+        assert.equal(result.hasFailedAssets, (facts.failedAssetsCount ?? 0) > 0);
+    }
+    for (const status of ['partial', 'unknown', 'complete']) {
+        const result = buildExportCompletion({
+            conversation: { id: 'monotonic', messages: [{}], completeness: { status } }, evidence: clean,
+        });
+        assert.equal(result.exportRecord.status, status === 'partial' ? 'partial' : 'ok');
+    }
+    assert.equal(buildExportCompletion({ conversation: { messages: [{}], truncateReason: 'limit' } }).exportRecord.status, 'partial');
+});

@@ -64,6 +64,7 @@ export interface PdfExportProgress {
 export interface PdfExporterOptions {
     selected: PdfSelectedItem[];
     conversations?: PreparePdfItemContext['conversations'];
+    source?: PreparePdfItemContext['source'];
     format?: string;
     useZip?: boolean;
     dirHandle?: WriterFactoryOptions['dirHandle'];
@@ -399,6 +400,7 @@ export class PdfExporter {
 
             const prep = await preparePdfItem(items[i].selected, {
                 conversations: options.conversations,
+                source: options.source,
                 fetchChatDetail: fetchChatDetailFn,
                 index: i,
                 total,
@@ -454,26 +456,28 @@ export class PdfExporter {
 
                 if (this.aborted || signal.aborted) break;
 
-                switch (result.status) {
-                    case 'delivered': {
+                if (result.status === 'delivered' || result.status === 'staged') {
+                    const failedAssetsCount = options.includeAssets !== false
+                        ? result.resourceResults.filter(resource => !resource.ok).length
+                        : 0;
+                    const statusInfo = resolveExportRecordStatus({
+                        failedAssetsCount,
+                        messageCount: prep.messageCount,
+                        evidence: prep.drift,
+                        usedLocalSnapshot: prep.usedLocalSnapshot,
+                    });
+                    if (statusInfo.status !== 'ok' && statusInfo.status !== 'partial') {
+                        failItem(
+                            id,
+                            title,
+                            `[pipeline:INVALID_STATUS] PDF export produced file but resolved unexpected status '${statusInfo.status}'`,
+                            itemDiagnostics,
+                        );
+                        report(i + 1, title);
+                        continue;
+                    }
+                    if (result.status === 'delivered') {
                         const writeReport: ArtifactWriteReport = result.writeReport;
-                        const failedAssetsCount = options.includeAssets !== false
-                            ? result.resourceResults.filter(resource => !resource.ok).length
-                            : 0;
-                        const statusInfo = resolveExportRecordStatus({
-                            failedAssetsCount,
-                            messageCount: prep.messageCount,
-                            evidence: prep.integrity,
-                        });
-                        if (statusInfo.status !== 'ok' && statusInfo.status !== 'partial') {
-                            failItem(
-                                id,
-                                title,
-                                `[pipeline:INVALID_STATUS] PDF export delivered item but resolved unexpected status '${statusInfo.status}'`,
-                                itemDiagnostics,
-                            );
-                            break;
-                        }
                         const record: PdfExportRecord = {
                             title,
                             exportedAt: writeReport.writtenAt,
@@ -488,26 +492,7 @@ export class PdfExporter {
                         await commitRecord(id, record, itemDiagnostics);
                         surfaceDiagnostics(id, title, itemDiagnostics);
                         onLog(`[PDF] ${title} 导出成功 (${writeReport.fileName})`, 'info');
-                        break;
-                    }
-                    case 'staged': {
-                        const failedAssetsCount = options.includeAssets !== false
-                            ? result.resourceResults.filter(resource => !resource.ok).length
-                            : 0;
-                        const statusInfo = resolveExportRecordStatus({
-                            failedAssetsCount,
-                            messageCount: prep.messageCount,
-                            evidence: prep.integrity,
-                        });
-                        if (statusInfo.status !== 'ok' && statusInfo.status !== 'partial') {
-                            failItem(
-                                id,
-                                title,
-                                `[pipeline:INVALID_STATUS] PDF export staged item but resolved unexpected status '${statusInfo.status}'`,
-                                itemDiagnostics,
-                            );
-                            break;
-                        }
+                    } else {
                         staged.push({
                             id,
                             title,
@@ -518,8 +503,8 @@ export class PdfExporter {
                             hasFailedAssets: statusInfo.hasFailedAssets,
                         });
                         onLog(`[PDF] ${title} 已暂存，等待 ZIP 打包交付后确认`, 'info');
-                        break;
                     }
+                } else switch (result.status) {
                     case 'failed':
                         failItem(
                             id,

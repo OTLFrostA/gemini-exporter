@@ -13,6 +13,7 @@ const assert = require('node:assert');
 const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const attachments = require('../src/core/compatibility/gemini/attachments.js');
 const pagination = require('../src/core/api/client/pagination.js');
+const { resolveExportRecordStatus } = require('../src/core/engine/export/exportCompletion.js');
 const parseDrift = require('../src/core/engine/export/parseDrift.js');
 
 // ---------------------------------------------------------------- helpers
@@ -65,14 +66,14 @@ test('P1-8c: extractChatParseDrift 抽取诊断，turnsRejected>0 判 partial', 
     assert.strictEqual(drift.turnsRejected, 1);
     assert.ok(drift.schemaDrift.length >= 0);
     assert.strictEqual(drift.hasHeuristicDocs, false);
-    assert.strictEqual(parseDrift.chatRecordStatusWithDrift('ok', drift), 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
+    assert.strictEqual(resolveExportRecordStatus({ evidence: drift }).status, 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
 });
 
 test('P1-8d: 无漂移时状态保持 ok；heuristic 文档也判 partial', () => {
     const clean = { schemaDrift: [], turnsRejected: 0, hasHeuristicDocs: false };
-    assert.strictEqual(parseDrift.chatRecordStatusWithDrift('ok', clean), 'ok');
+    assert.strictEqual(resolveExportRecordStatus({ evidence: clean }).status, 'ok');
     const heur = { schemaDrift: [], turnsRejected: 0, hasHeuristicDocs: true };
-    assert.strictEqual(parseDrift.chatRecordStatusWithDrift('ok', heur), 'partial', 'heuristic 文档链必须标 partial');
+    assert.strictEqual(resolveExportRecordStatus({ evidence: heur }).status, 'partial', 'heuristic 文档链必须标 partial');
 });
 
 test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）', async () => {

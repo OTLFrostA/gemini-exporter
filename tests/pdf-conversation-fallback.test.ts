@@ -21,12 +21,12 @@ test('shared acquisition prefers online and uses cache only after unusable Takeo
     let calls = 0;
     const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id: 'fallback', messages: [] }); } };
     const online = historicalFixture({ id: 'fallback', messages: [message('online')] });
-    assert.equal(await resolveConversationData(online, 'fallback', null, takeout), online);
+    assert.equal((await resolveConversationData(online, 'fallback', null, takeout)).result, online);
     assert.equal(calls, 0);
     await store.saveDomainConversation('u0', historicalFixture({ id: 'fallback', messages: [message('cache')] }));
     try {
         const recovered = await resolveConversationData({ messages: [] }, 'fallback', null, takeout);
-        assert.match(JSON.stringify(recovered.conversation.messages), /cache/);
+        assert.match(JSON.stringify(recovered.result.conversation.messages), /cache/);
         const pdf = await preparePdfItem({ id: 'fallback' }, {
             includeAssets: false, takeoutEngine: takeout,
             fetchChatDetail: async () => ({ success: false, error: 'offline' }),
@@ -93,4 +93,28 @@ test('extractChatFromDetailResult and preparePdfItem: results[0] wins over chat'
     assert.equal(result.ok, true);
     assert.match(JSON.stringify(result.document), /winner from results/);
     assert.doesNotMatch(JSON.stringify(result.document), /loser from chat/);
+});
+
+test('acquisition reports provenance beside the result and never mutates parser objects', async () => {
+    const parsed = historicalFixture({ id: 'provenance', messages: [message('source')] });
+    Object.freeze(parsed);
+    const unspecified = await resolveConversationData(parsed, 'provenance');
+    assert.equal(unspecified.result, parsed);
+    assert.equal(unspecified.source, 'unspecified');
+    const online = await resolveConversationData(parsed, 'provenance', null, null, 'u0', () => {}, 'online');
+    assert.equal(online.source, 'online');
+    const takeout = await resolveConversationData(undefined, 'provenance', null, { getTakeoutOfflineChat: () => parsed });
+    assert.equal(takeout.result, parsed);
+    assert.equal(takeout.source, 'takeout');
+    await store.saveDomainConversation('u0', parsed);
+    try {
+        const snapshot = await resolveConversationData(undefined, 'provenance');
+        assert.equal(snapshot.source, 'local_snapshot');
+        assert.equal('resolvedSource' in snapshot.result, false);
+        const direct = await preparePdfItem(parsed, { includeAssets: false });
+        assert.equal(direct.usedLocalSnapshot, false);
+        const explicit = await preparePdfItem(parsed, { includeAssets: false, source: 'local_snapshot' });
+        assert.equal(explicit.usedLocalSnapshot, true);
+    } finally { store.__clearDomainMemory(); }
+    assert.equal('resolvedSource' in parsed, false);
 });

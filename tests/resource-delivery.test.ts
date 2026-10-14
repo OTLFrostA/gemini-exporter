@@ -86,7 +86,7 @@ test('formatters cannot turn an unconfirmed destination plan into local referenc
     assert.equal(JSON.parse(formatContent(source, 'json').content).resources, undefined);
     assert.deepEqual(await prepareDomainResources([{ ok: false, resourceId: 'bad', reason: 'not written', code: 'RESOURCE_UNAVAILABLE' }]), {});
 });
-for (const failure of ['throw', 'empty', 'corrupt']) test(`PDF ${failure} preserves good mounts, placeholders and a partial delivered record`, async () => {
+for (const failure of ['throw', 'empty', 'corrupt']) for (const useZip of [false, true]) for (const includeAssets of [false, true]) test(`PDF ${failure} ZIP=${useZip} assets=${includeAssets} preserves requested resource status`, async () => {
     const source = native('throw'), before = structuredClone(source);
     const pipeline = { acquireAssetBytes: async (item: AssetPipelineItem) => {
         if (item.assetId === 'bad') {
@@ -104,11 +104,11 @@ for (const failure of ['throw', 'empty', 'corrupt']) test(`PDF ${failure} preser
     assert.match(JSON.stringify(payload.output.payload), /Conversation survives resource failure/);
     assert.ok(!JSON.stringify(payload.output.payload).includes('never-delivered.png'));
     const files: Uint8Array[] = [], records: Array<{ status: string; hasFailedAssets: boolean }> = [];
-    const result = await new PdfExporter(new StubPdfCompiler()).run({ selected: [source], assetPipeline: pipeline, useZip: false,
-        writer: { type: 'directory', writeFile: (_name: string, bytes: Uint8Array) => { files.push(bytes); return 'file.pdf'; } },
+    const result = await new PdfExporter(new StubPdfCompiler()).run({ selected: [source], assetPipeline: pipeline, useZip, includeAssets, downloadHandler: async () => {},
+        writer: { type: 'directory', writeFile: (_name: string, bytes: Uint8Array) => { files.push(bytes); return 'file.pdf'; }, generateBlob: async () => new Blob(['zip']) },
     }, { onItemExported: (_id, record) => records.push(record) });
     assert.equal(result.succeeded, 1); assert.equal(result.failed.length, 0); assert.equal(files.length, 1);
-    assert.equal(records[0].status, 'partial'); assert.equal(records[0].hasFailedAssets, true); assert.deepEqual(source, before);
+    assert.equal(records[0].status, includeAssets ? 'partial' : 'ok'); assert.equal(records[0].hasFailedAssets, includeAssets); assert.deepEqual(source, before);
 });
 test('Takeout entry rejection or zero bytes retains its conversation and healthy resource bytes', async () => {
     for (const mode of ['throw', 'empty']) {
