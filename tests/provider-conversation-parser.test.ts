@@ -84,7 +84,7 @@ test('markdown body keeps block order and structure', async () => {
 test('reasoning is parsed before Domain and composed as a disclosure', async () => {
     const { domain, document, resources } = await parseFixture(sample);
     const model = domain.messages.find((m: any) => m.id === 'm-a1');
-    const thought = document.messages.find((m: any) => m.id === model.id).blocks[0];
+    const thought = document.messages[domain.messages.indexOf(model)].blocks[0];
     assert.strictEqual(thought.type, 'disclosure');
     assert.strictEqual(thought.kind, 'reasoning');
     assert.ok(textOf(thought.blocks[0]).includes('The user wants a plan'), 'thought text preserved');
@@ -165,10 +165,10 @@ test('attachments deduplicate semantic assets and prepare separate resource bind
     const inlineImg = byName.get('alt text');
     assert.ok(inlineImg, 'inline image asset present');
     assert.ok(user.attachmentIds.includes(receipt.id));
-    const imgBlock = document.messages.find((m: any) => m.id === user.id).blocks.find((b: any) => b.type === 'image');
+    const imgBlock = document.messages[domain.messages.indexOf(user)].blocks.find((b: any) => b.type === 'image');
     assert.equal(imgBlock.resourceId, receipt.id);
     const model = domain.messages.find((m: any) => m.id === 'm-a1');
-    const fileBlocks = document.messages.find((m: any) => m.id === model.id).blocks.filter((b: any) => b.type === 'file');
+    const fileBlocks = document.messages[domain.messages.indexOf(model)].blocks.filter((b: any) => b.type === 'file');
     assert.strictEqual(fileBlocks.length, 2);
 });
 
@@ -387,7 +387,7 @@ test('inline markdown image reusing an attachment asset keeps a single visual pl
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    assert.strictEqual(blockImagesOf(document.messages.find((m: any) => m.id === m1.id)).length, 0);
+    assert.strictEqual(blockImagesOf(document.messages[domain.messages.indexOf(m1)]).length, 0);
 });
 
 test('linked inline image reusing an attachment asset keeps a single visual placement', async () => {
@@ -398,7 +398,7 @@ test('linked inline image reusing an attachment asset keeps a single visual plac
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    assert.strictEqual(blockImagesOf(document.messages.find((m: any) => m.id === m1.id)).length, 0);
+    assert.strictEqual(blockImagesOf(document.messages[domain.messages.indexOf(m1)]).length, 0);
 });
 
 test('attachment not referenced inline keeps its trailing image block', async () => {
@@ -407,7 +407,7 @@ test('attachment not referenced inline keeps its trailing image block', async ()
     const m1 = domain.messages.find((m: any) => m.id === 'm1');
     assert.strictEqual(domain.assets.length, 1);
     assert.strictEqual(deepInlineImagesOf(m1).length, 0);
-    const blocks = blockImagesOf(document.messages.find((m: any) => m.id === m1.id));
+    const blocks = blockImagesOf(document.messages[domain.messages.indexOf(m1)]);
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].resourceId, m1.attachmentIds[0]);
 });
@@ -423,14 +423,16 @@ test('two attachments with only one inlined keep one inline and one trailing blo
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    const blocks = blockImagesOf(document.messages.find((m: any) => m.id === m1.id));
+    const blocks = blockImagesOf(document.messages[domain.messages.indexOf(m1)]);
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].resourceId, m1.attachmentIds[1]);
 });
 
 
-test('composer rejects duplicate message IDs before any backend sees them', async () => {
-    await assert.rejects(parseFixture({ id: 'dup', messages: [{ id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' }] }), /MSG_DUP_ID/);
+test('composer preserves duplicate source message IDs for every backend', async () => {
+    const { domain, document } = await parseFixture({ id: 'dup', messages: [{ id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' }] });
+    assert.deepEqual(domain.messages.map((message: { id?: string }) => message.id), ['same', 'same']);
+    assert.deepEqual(document.messages.map((message: { id?: string }) => message.id), ['msg-0', 'msg-1']);
 });
 test('title authority and unknown source handling remain ingestion concerns', async () => {
     const { domain } = await parseFixture({ id: 'unknown-source', titles: { rpc: 'Good', 'future-provider-tier': 'Future' }, messages: [] });

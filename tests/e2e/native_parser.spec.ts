@@ -41,7 +41,7 @@ test('DOM parser retains long text, nested code/list, rich table images, math an
     expect(JSON.stringify(parsed.result.conversation)).toContain('Second line');
     expect(parsed.result.conversation.assets.map(a => a.kind)).toEqual(['file', 'image', 'audio']);
     expect(parsed.images).toHaveLength(1);
-    expect(parsed.result.conversation.completeness).toBe('unknown');
+    expect(parsed.result.conversation.completeness).toBe('partial');
     expect(JSON.stringify(parsed.result.conversation)).not.toMatch(/"(?:diagnostics|localName|archivePath)":/);
 });
 

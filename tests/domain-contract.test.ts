@@ -21,14 +21,17 @@ test('Domain closure rejects missing provider identity and duplicate resource id
     value.providerId = 'test'; value.assets = [{ id: 'same', kind: 'image' }, { id: 'same', kind: 'image' }];
     assert.throws(() => assertDomainClosure(value), /Duplicate.*asset identity/);
 });
-test('composer rejects empty and duplicate authored message IDs but assigns positions only for display', () => {
-    const value = domain(); value.messages.push(structuredClone(value.messages[0]));
-    assert.throws(() => composeDomainDocument(validateParserDomain(value)), /MSG_DUP_ID/);
-    value.messages.pop(); value.messages[0].id = '';
-    assert.throws(() => composeDomainDocument(validateParserDomain(value)), /MSG_BAD_ID/);
-    delete value.messages[0].id;
+test('composer gives every message a unique positional ID without changing authored identities', () => {
+    const value = domain();
+    value.messages = [undefined, 'msg-0', 'same', 'same', '', '   '].map((id, index) => ({
+        ...(id !== undefined ? { id } : {}), role: 'assistant',
+        content: [{ type: 'paragraph', children: [{ type: 'text', text: `Message ${index}` }] }],
+        citations: [{ id: 'citation', url: `https://example.test/${index}` }],
+    }));
     const original = structuredClone(value);
-    assert.equal(composeDomainDocument(validateParserDomain(value)).document.messages[0].id, 'msg-0');
+    const document = composeDomainDocument(validateParserDomain(value)).document;
+    assert.deepEqual(document.messages.map(message => message.id), value.messages.map((_, index) => `msg-${index}`));
+    assert.equal(new Set(document.messages.flatMap(message => message.sources?.items.map(item => item.id) ?? [])).size, value.messages.length);
     assert.deepEqual(value, original);
 });
 test('unknown content and message order survive a JSON round trip across all backends', () => {

@@ -1,3 +1,4 @@
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -181,4 +182,72 @@ test('larger partial and unknown captures protect complete body while title arbi
     await saveDomainConversation('u0', more);
     const again = (await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.conversation;
     assert.deepEqual(again, stored);
+});
+
+
+test('placeholder sources never displace a real stored title, even when the incoming body wins', async () => {
+    for (const title of ['Gemini', 'Google Gemini', 'New chat', '新对话', 'Untitled', 'Untitled Chat', '未命名对话']) {
+        const id = `title-${title}`;
+        const old = source(id, 2);
+        old.conversation.title = 'Research question from Takeout';
+        old.conversation.titleSource = 'takeout';
+        await saveDomainConversation('u0', old);
+        const incoming = source(id, 3);
+        incoming.conversation.title = title;
+        incoming.conversation.titleSource = 'rpc';
+        await saveDomainConversation('u0', incoming);
+        const stored = (await getStoredDomain(storageIdentity('gemini', 'u0', id)))!.conversation;
+        assert.equal(stored.title, old.conversation.title, title);
+        assert.equal(stored.titleSource, 'takeout', title);
+        assert.deepEqual(stored.messages, incoming.conversation.messages);
+    }
+});
+
+test('real titles replace higher-ranked placeholders without rejecting short or Takeout prompt titles', async () => {
+    for (const title of ['A', 'Research question from Takeout']) {
+        const id = `real-${title}`;
+        const old = source(id, 2);
+        old.conversation.title = 'Gemini';
+        old.conversation.titleSource = 'rpc';
+        await saveDomainConversation('u0', old);
+        const incoming = source(id, 1);
+        incoming.conversation.title = title;
+        incoming.conversation.titleSource = 'takeout';
+        await saveDomainConversation('u0', incoming);
+        const stored = (await getStoredDomain(storageIdentity('gemini', 'u0', id)))!.conversation;
+        assert.equal(stored.title, title);
+        assert.equal(stored.titleSource, 'takeout');
+        assert.deepEqual(stored.messages, old.conversation.messages);
+    }
+});
+
+
+test('stored repeated source message IDs export without losing or rewriting source messages', async () => {
+    const parsed = source('duplicate-identities', 3);
+    parsed.conversation.messages.forEach(message => { message.id = 'same'; });
+    const original = structuredClone(parsed.conversation);
+    await saveDomainConversation('u0', parsed);
+    const stored = await getStoredDomain(storageIdentity('gemini', 'u0', parsed.conversation.id));
+    assert.ok(stored);
+    const document = composeDomainDocument(storedParseResult(stored).conversation).document;
+    assert.deepEqual(document.messages.map(message => message.id), ['msg-0', 'msg-1', 'msg-2']);
+    assert.equal(document.messages.length, original.messages.length);
+    assert.deepEqual(stored.conversation, original);
+});
+
+
+test('a partial capture fills an empty metadata placeholder without replacing existing nonpartial bodies', async () => {
+    const identity = storageIdentity('gemini', 'u0', 'dom-capture');
+    const placeholder = source('dom-capture', 0);
+    await saveDomainConversation('u0', placeholder);
+    const captured = source('dom-capture', 2);
+    captured.conversation.completeness = 'partial';
+    await saveDomainConversation('u0', captured);
+    assert.deepEqual((await getStoredDomain(identity))!.conversation.messages, captured.conversation.messages);
+    const full = source('dom-capture', 3);
+    await saveDomainConversation('u0', full);
+    const fragment = source('dom-capture', 5);
+    fragment.conversation.completeness = 'partial';
+    await saveDomainConversation('u0', fragment);
+    assert.deepEqual((await getStoredDomain(identity))!.conversation.messages, full.conversation.messages);
 });

@@ -84,7 +84,7 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
     const authoredTitle = title && !/^(?:Google\s+)?(?:Gemini|Bard)$/i.test(title);
     const conversation: DomainConversationDetail = { providerId: 'gemini', id, title: authoredTitle ? title : id,
         titleSource: authoredTitle ? 'dom' : 'default',
-        completeness: 'unknown',
+        completeness: 'partial',
         url: raw.url ?? `https://gemini.google.com/app/${id}`, messages: resources.messages, assets: resources.assets };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics: diagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),

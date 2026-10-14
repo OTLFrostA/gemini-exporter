@@ -69,7 +69,7 @@ export function cleanZeroWidth(t: unknown): string {
 
 export function isBrandPlaceholderTitle(t: unknown): boolean {
     if (!t) return true;
-    return /^(Google\s+)?(Gemini|Bard|Google\s+AI|Google\s+Account)$/i.test(cleanZeroWidth(t));
+    return /^(?:(?:Google\s+)?(?:Gemini|Bard|Google\s+AI|Google\s+Account)|New chat|新对话|未命名对话|未命名|Untitled conversation|Untitled Chat|Untitled|Document|Search|搜索)$/i.test(cleanZeroWidth(t));
 }
 
 export function isRealTitle(title?: string | null, id?: string | number): boolean {

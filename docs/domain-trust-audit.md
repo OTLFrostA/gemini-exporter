@@ -25,7 +25,7 @@ The only product brand-related assertions are in `validateParserDomain`, `restor
 | Parser | Schema and Closure on each newly constructed final graph; final merged graph validation | Dispatcher revalidation of already finalized results |
 | Storage | Detached write/read snapshot validation; record envelope/version, identity, acquisition, digest and resource bindings; defensive returned copies | Full AST checks on already trusted in-memory copies and record-to-parse-result adaptation |
 | Native transport | Authenticated channel, version and shallow envelope/root checks; errors/retry/cancel | Full Schema/Closure checks on an established typed result |
-| Composer/export | Trusted input type; `MSG_BAD_ID` / `MSG_DUP_ID`, escaping, URL sanitization, missing asset handling, cancellation, Typst compilation and delivery failure | Repeated full AST Schema/Closure checks in JSON, HTML, Markdown and PDF preparation |
+| Composer/export | Trusted input type; Positional document message identities, escaping, URL sanitization, missing asset handling, cancellation, Typst compilation and delivery failure | Repeated full AST Schema/Closure checks in JSON, HTML, Markdown and PDF preparation |
 | PDF selection | Explicit `pdfDomainSelection(TrustedDomain)` adapter; metadata structurally excludes Domain/result fields | Guessing a raw Domain from `providerId` or forced Domain assertions |
 
 Trusted means structurally validated at the source boundary. It does not mean complete history, available attachment bytes, successful compilation, or successful delivery. Those remain independent conditions.

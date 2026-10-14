@@ -1,3 +1,7 @@
+import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
+import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
+import { resolveConversationExportState } from '../src/core/utils/titleUtils.js';
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 const { extractBlockText } = require('../src/core/domain/content/unknownFallback.js');
 export {};
 const test = require('node:test');
@@ -145,6 +149,14 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
     assert.strictEqual(parsed.conversation.titleSource, 'dom');
     assert.ok(parsed.conversation.title.includes('量子力学与量子纠缠探讨'), `Title should be cleaned: ${parsed.conversation.title}`);
     assert.strictEqual(parsed.conversation.messages.length, 2);
+    // DOM coverage must remain retryable even with successful writes and no failed assets,
+    // including after JSON restoration has discarded transient transport/diagnostics.
+    const restored = { conversation: restoreDomainSnapshot(parsed.conversation), diagnostics: [], acquisitionHints: {}, resourceHints: {} };
+    assert.strictEqual(restored.conversation.completeness, 'partial');
+    const completion = buildExportCompletion({ conversation: restored.conversation, evidence: extractChatParseDrift(restored), failedAssets: 0 });
+    assert.strictEqual(completion.exportRecord.status, 'partial');
+    assert.strictEqual(completion.exportRecord.hasFailedAssets, false);
+    assert.strictEqual(resolveConversationExportState({ id: 'chat_001' }, completion.exportRecord).needsIncrementalExport, true);
 
     assert.strictEqual(parsed.conversation.messages[0].role, 'user');
     assert.strictEqual(parsed.conversation.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '请分析这张图片');

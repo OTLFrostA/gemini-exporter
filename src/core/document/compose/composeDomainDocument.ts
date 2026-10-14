@@ -10,13 +10,9 @@ export interface DomainCompositionOptions { documentLanguage?: string }
 /** Domain facts -> one format-neutral presentation tree. No resource acquisition or raw parsing. */
 export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: DocumentDiagnostic[] } {
     const assets = new Map(conversation.assets.map(asset => [asset.id, asset]));
-    const ids = new Set<string>();
     let citationNumber = 0;
     const messages = conversation.messages.map((message, index) => {
-        const id = message.id ?? `msg-${index}`;
-        if (!id.trim()) throw new TypeError(`[MSG_BAD_ID] Empty message identity`);
-        if (ids.has(id)) throw new TypeError(`[MSG_DUP_ID] Duplicate message identity: ${id}`);
-        ids.add(id);
+        const id = `msg-${index}`;
         const citations = new Map((message.citations ?? []).map(citation => [citation.id, { ...citation, displayNumber: ++citationNumber }]));
         const source = (ref: string, explicit?: string) => {
             const citation = citations.get(ref);

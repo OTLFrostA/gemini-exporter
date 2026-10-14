@@ -34,7 +34,7 @@
 
 | 项目 | 包内现状 | 接入要求与验收 |
 | --- | --- | --- |
-| 消息顺序 | `conversation.messages` 数组顺序是唯一权威顺序 | HTML 与 Typst 直接按数组顺序渲染；PDF 按 resources → payload → compile → deliver 四阶段执行。消息 ID 必须存在且唯一，生产导出拒绝 `MSG_BAD_ID` / `MSG_DUP_ID` |
+| 消息顺序 | `conversation.messages` 数组顺序是唯一权威顺序 | HTML 与 Typst 直接按数组顺序渲染；PDF 按 resources → payload → compile → deliver 四阶段执行。Composer 按数组位置生成唯一展示 ID（`msg-${index}`），原始 Domain ID 不变；重复或缺失的原始 ID 不阻断导出 |
 | 标题权威 | `provider/user/derived` 不足以表达当前 `rpc/dom/takeout/sniff/api-detail/legacy` 升级规则 | 保留来源候选与权威等级，旧标题升级回归通过；不能因一次低可信观察覆盖高可信标题 |
 | 未知内容 | `unknown` 可仅有 rawRef/payload，`unknownInline` 可没有可读文本 | canonical 保留原始证据；渲染视图必须有可见 fallback 或明确诊断，禁止空白吞块 |
 | 资源 | `available` 是元数据；HTML 可回退 `sourceUrl` | 导出前解析真实字节、状态和归档局部路径；HTML 离线可读，PDF 虚拟文件确实存在；缺失实体给占位与诊断 |
