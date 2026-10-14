@@ -1,5 +1,7 @@
 # Domain final semantic cleanup
 
+> Historical audit of PR #925. The unshipped Domain v1 recovery described below was subsequently removed: released Storage v1 goes through the legacy-storage Parser, and Storage v2 now accepts only the final Domain contract. See [current storage contract](../domain-storage.md).
+
 ## Outcome and scope
 
 Domain contract **2** has one representation per canonical fact. All requested candidate deletions are implemented in one change. IndexedDB/storage version remains 2; the versioned Domain contract and JSON export envelope are now 2. No candidate Domain field was retained as an exception.

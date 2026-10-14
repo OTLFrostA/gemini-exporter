@@ -1,5 +1,3 @@
-import { normalizeConversationTimes, normalizeTimestamp } from './time.js';
-import { resolveTitle, TITLE_SOURCES } from './titleAuthority.js';
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
 
@@ -87,89 +85,8 @@ export function validateParserDomain(value: DomainConversationDetail): TrustedDo
     return value as TrustedDomain;
 }
 
-/** The sole v1 Domain recovery boundary. Unrecognized structures are rejected after conversion.
- * Body, reasoning and resource references are preserved; discarded parser metadata cannot reach v2. */
-function recoverV1(value: unknown): unknown {
-    if (!object(value)) return value;
-    const { timestamp: _timestamp, chatTime: _chatTime, lastSeen: _lastSeen, href, titles, provenance: _provenance,
-        completeness, createdAt, updatedAt, ...rest } = value;
-    const candidates = object(titles) ? Object.entries(titles).flatMap(([source, title]) => typeof title === 'string' && TITLE_SOURCES.has(source)
-        ? [{ value: title, source }] : []) : [];
-    if (typeof rest.title === 'string') candidates.push({ value: rest.title, source: typeof rest.titleSource === 'string' && TITLE_SOURCES.has(rest.titleSource) ? rest.titleSource : 'default' });
-    const title = resolveTitle(candidates);
-    // Extract historical thought bodies recursively instead of silently deleting real reasoning.
-    const extract = (nodes: unknown, reasoning: unknown[], inReasoning = false): unknown => Array.isArray(nodes) ? nodes.flatMap((node: unknown): unknown[] => {
-        if (!object(node)) return [node];
-        if (node.type === 'thought') {
-            if (!Array.isArray(node.blocks)) throw new TypeError('Invalid historical thought body');
-            const blocks = extract(node.blocks, reasoning, true);
-            if (inReasoning) return Array.isArray(blocks) ? blocks as unknown[] : [];
-            if (Array.isArray(blocks)) reasoning.push(...blocks as unknown[]);
-            return [];
-        }
-        const copy = { ...node };
-        if (copy.type === 'code') delete copy.filename;
-        if (Array.isArray(copy.blocks)) copy.blocks = extract(copy.blocks, reasoning, inReasoning);
-        if (Array.isArray(copy.items)) copy.items = copy.items.map((item: unknown): unknown => object(item) ? { ...item, blocks: extract(item.blocks, reasoning, inReasoning) } : item);
-        if (copy.type === 'table' && Array.isArray(copy.columns)) copy.columns = copy.columns.map((column: unknown): unknown => object(column) && column.align === 'default' ? Object.fromEntries(Object.entries(column).filter(([key]) => key !== 'align')) : column);
-        return [copy];
-    }) : nodes;
-    if (Array.isArray(rest.messages)) rest.messages = rest.messages.map((m: unknown): unknown => {
-        if (!object(m)) return m;
-        const thoughts: unknown[] = [];
-        const copy: Record<string, unknown> = { ...m, content: extract(m.content, thoughts) };
-        const reasoning = extract(m.reasoning ?? [], thoughts, true);
-        if (!Array.isArray(reasoning)) throw new TypeError('Invalid historical reasoning');
-        if (reasoning.length || thoughts.length) Object.assign(copy, { reasoning: [...reasoning as unknown[], ...thoughts] });
-        if (object(copy.provenance)) {
-            const { providerRequestId: _request, ...provenance } = copy.provenance;
-            if (Object.keys(provenance).length) copy.provenance = provenance;
-            else delete copy.provenance;
-        }
-        if (Array.isArray(copy.citations)) copy.citations = copy.citations.map((c: unknown): unknown => object(c) ? Object.fromEntries(Object.entries(c).filter(([key]) => key !== 'kind')) : c);
-        return copy;
-    });
-    if (Array.isArray(rest.assets)) rest.assets = rest.assets.map((a: unknown): unknown => {
-        if (!object(a)) return a;
-        const { origin: _origin, dimensions: _dimensions, generated: _generated, source, ...copy } = a;
-        if (object(source) && typeof source.uri === 'string') copy.sourceUri = source.uri;
-        if (object(copy.document)) {
-            const { createdAt: _created, chipUrl: _chip, sections, links, candidates: _candidates, ...doc } = copy.document;
-            // Reject meaningful content that has no canonical body; preserve the original disk value.
-            if ((Array.isArray(sections) && sections.some((section: unknown) => typeof section !== 'string' || typeof doc.contentMarkdown !== 'string' || !doc.contentMarkdown.includes(section.trim())))
-                || (Array.isArray(links) && links.some((link: unknown) => !object(link) || typeof link.url !== 'string' || typeof doc.contentMarkdown !== 'string' || !doc.contentMarkdown.includes(link.url)))) throw new TypeError('Historical document has no canonical contentMarkdown; original retained');
-            if (Object.keys(doc).length) copy.document = doc;
-            else delete copy.document;
-        }
-        if (object(copy.generation)) {
-            const { chatId, turnId: _turn, time, ...identity } = copy.generation;
-            if (typeof chatId === 'string' && typeof rest.id === 'string' && chatId !== rest.id) throw new TypeError('Historical generation belongs to a different conversation');
-            const normalized = normalizeTimestamp(time);
-            copy.generation = { ...identity, ...(normalized !== undefined ? { time: normalized } : {}) };
-            if (object(copy.generation) && !Object.keys(copy.generation).length) delete copy.generation;
-        }
-        if (_generated === true && !copy.generation) {
-            // Only an explicit asset owner can supply missing request evidence; never infer from position.
-            const requests = new Set(Array.isArray(value.messages) ? value.messages.flatMap((message: unknown): string[] =>
-                object(message) && Array.isArray(message.attachmentIds) && message.attachmentIds.includes(a.id)
-                    && object(message.provenance) && typeof message.provenance.providerRequestId === 'string' && message.provenance.providerRequestId.trim()
-                    ? [message.provenance.providerRequestId] : []) : []);
-            if (requests.size !== 1) throw new TypeError('Historical generated resource lacks identity evidence; original retained');
-            copy.generation = { providerRequestId: [...requests][0] };
-        }
-        return copy;
-    });
-    return { ...rest, ...(title ? { title: title.value, titleSource: title.source } : {}),
-        ...normalizeConversationTimes({ createdAt, updatedAt }),
-        ...(!rest.url && typeof href === 'string' ? { url: href } : {}),
-        completeness: object(completeness) ? completeness.status : 'unknown' };
-}
-
-/** Disk recovery is versioned explicitly; new writes never accept historical aliases. */
-export function restoreDomainSnapshot(value: unknown, version = 2): TrustedDomain {
-    serializeDomain(value);
-    if (version === 1) value = recoverV1(value);
-    else if (version !== 2) throw new TypeError('Unsupported Domain contract version');
+/** Restore a detached snapshot of the current Domain contract. */
+export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     const json = serializeDomain(value);
     const clone: unknown = json === undefined ? undefined : JSON.parse(json);
     assertSchema(value);

@@ -7,7 +7,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages }, 1);
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets, messages: messages });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
@@ -41,15 +41,10 @@ test('quote keeps nested image as a real image node', async () => {
 });
 
 test('thought keeps nested image as a real image node', async () => {
-    const b = domainFixture([msg('m1', 'assistant', [
-        {
-            type: 'thought',
-            blocks: [
-                { type: 'paragraph', children: [{ type: 'text', text: 'thinking' }] },
-                { type: 'image', assetId: 'a1', alt: 'pic' },
-            ],
-        },
-    ])], [imgAsset('a1')]);
+    const b = domainFixture([msg('m1', 'assistant', [], { reasoning: [
+        { type: 'paragraph', children: [{ type: 'text', text: 'thinking' }] },
+        { type: 'image', assetId: 'a1', alt: 'pic' },
+    ] })], [imgAsset('a1')]);
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const note = payload.messages[0].blocks[0] as any;
     assert.strictEqual(note.type, 'note');
@@ -77,12 +72,7 @@ test('quote keeps code and math as structured nodes instead of flat text', async
 });
 
 test('thought keeps code as a structured node instead of flat text', async () => {
-    const b = domainFixture([msg('m1', 'assistant', [
-        {
-            type: 'thought',
-            blocks: [{ type: 'code', language: 'ts', code: 'const x = 1' }],
-        },
-    ])]);
+    const b = domainFixture([msg('m1', 'assistant', [], { reasoning: [{ type: 'code', language: 'ts', code: 'const x = 1' }] })]);
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const note = payload.messages[0].blocks[0] as any;
     assert.strictEqual(note.blocks[0].type, 'code');

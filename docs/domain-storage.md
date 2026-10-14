@@ -18,7 +18,7 @@ startup already completed v2. The original databases are retained.
 ## Stored contract
 
 `src/core/storage/domain/contracts.ts` defines the envelope. Its storage version
-is 2 and its Domain contract version is 1; those are independent of IndexedDB's
+is 2 and its Domain contract version is 2; those are independent of IndexedDB's
 physical database version. Identity is the tuple `(providerId, accountSlot,
 conversationId)`. Only Gemini's historical `c_` alias is normalized; other
 providers' IDs remain opaque. Gemini's `default` account transport alias maps to
@@ -38,11 +38,11 @@ Diagnostics, RPC debug/pagination state, export destinations and ZIP file handle
 are excluded. Domain is strictly validated at both write and read boundaries,
 including field shapes, content nodes, resource/citation closure and finite
 numbers. Domain contract version is now **2**, independently of IndexedDB/storage
-version 2. New writes reject all v1 aliases. Only physical records explicitly
-marked `domainVersion: 1` pass through the single historical recovery converter.
-Recovered snapshots carry version 2; reads do not rewrite originals. An unsafe
-conversion throws with a diagnostic while retaining the original record.
-Unknown future versions fail closed.
+version 2. Both reads and writes accept only the final schema. Unsupported
+versions and obsolete fields fail closed without rewriting originals. Released
+users migrate directly from Storage v1 through the legacy-storage Parser; the
+unshipped intermediate Domain schema has no compatibility layer. Storage remains
+v2, with no v3 migration.
 
 Persisted `DomainStorageRecord` remains an unbranded JSON contract. Every physical record recovery establishes `TrustedDomainStorageRecord` with `restoreDomainSnapshot` (re-exported as `readStorageDomain`). Restoration intentionally retains two Schema passes, before and after JSON serialization, and one Closure pass. This is one trust-restoration operation, not one total tree traversal. Writes perform the same detached-snapshot checks because a type-only brand does not freeze caller objects; reading an existing physical record during a write requires its own restoration.
 
@@ -58,9 +58,9 @@ reduced coverage (including a larger partial/unknown snapshot replacing a comple
 their body is not selected. A stronger title may still be adopted through the shared title authority without replacing that body. Stable resource bytes carry
 forward only when asset identity and source URI still match. Online acquired
 bytes use a separate `resource_bytes` store keyed by conversation identity,
-asset ID and original source URI, and survive restart. The IndexedDB v1 → v2
-upgrade deletes the old `revisions` store; current records, byte bindings and
-legacy backups are untouched by that upgrade.
+asset ID and original source URI, and survive restart. A new database creates
+only the current-record, byte-cache, migration-backup and removal-marker stores.
+There is no upgrade path for the unshipped intermediate revisions store.
 
 ## Legacy interpretation and recovery
 
