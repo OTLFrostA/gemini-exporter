@@ -117,66 +117,41 @@ export function mergeConversation(
         }
     }
 
-    const tempChat = {
+    const { title: resolvedTitle, source: resolvedSource } = resolveTitle({
         id,
         titles: mergedTitles,
         title: incoming?.title || old?.title,
         titleSource: reliableInSrc || reliableOldSource || 'legacy'
+    });
+    const previousTitle = old ? old.title : incoming?.title;
+    const hasDirtyTitles = isBadTitle(previousTitle) || previousTitle !== resolvedTitle;
+
+    // Preserve raw updatedAt precedence even when that value cannot be parsed.
+    const cUpdated = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
+    const oldUpdated = toTimestampMs(old?.updatedAt ?? old?.timestamp);
+    const bestUpdatedAt = Math.max(oldUpdated ?? 0, cUpdated ?? 0) || null;
+    const cCreated = toTimestampMs(incoming?.createdAt);
+    const oldCreated = toTimestampMs(old?.createdAt);
+    // Creation uses the earliest valid server fact, independently of activity.
+    const bestCreatedAt = cCreated === null ? oldCreated : oldCreated === null ? cCreated : Math.min(oldCreated, cCreated);
+    // Reuse timestamp conversions when updatedAt was absent; retain old-first fallback order.
+    const bestTimestamp = bestUpdatedAt
+        ?? (old?.updatedAt == null ? oldUpdated : toTimestampMs(old.timestamp))
+        ?? (incoming?.updatedAt == null ? cUpdated : toTimestampMs(incoming.timestamp));
+
+    // null means the body was not loaded; zero means an explicitly empty body.
+    const oldBodyLen = Array.isArray(old?.messages) ? old.messages.length : null;
+    const inBodyLen = Array.isArray(incoming?.messages) ? incoming.messages.length : null;
+    const oldTurnsLen = Array.isArray(old?.turns) ? old.turns.length : null;
+    const inTurnsLen = Array.isArray(incoming?.turns) ? incoming.turns.length : null;
+    const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
+    const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
+    const effectiveMessageCount = (declared: Conversation['messageCount'], body: number | null, turns: number | null): number => {
+        const n = Number(declared);
+        return Math.max(Number.isFinite(n) && n > 0 ? n : 0, body ?? 0, turns ?? 0);
     };
-    const resolved = resolveTitle(tempChat);
-    const resolvedTitle = resolved.title;
-    const resolvedSource = resolved.source;
-
-    let hasDirtyTitles = false;
-    if (!old) {
-        if (isBadTitle(incoming?.title) || incoming?.title !== resolvedTitle) {
-            hasDirtyTitles = true;
-        }
-    } else {
-        if (isBadTitle(old.title) || old.title !== resolvedTitle) {
-            hasDirtyTitles = true;
-        }
-    }
-
-    let cUpdated = toTimestampMs(incoming?.updatedAt ?? incoming?.timestamp);
-    if (cUpdated !== null && cUpdated <= 0) cUpdated = null;
-
-    let oldUpdated = toTimestampMs(old?.updatedAt ?? old?.timestamp);
-    if (oldUpdated !== null && oldUpdated <= 0) oldUpdated = null;
-
-    let bestUpdatedAt: number | null = null;
-    if (cUpdated && oldUpdated) {
-        bestUpdatedAt = Math.max(oldUpdated, cUpdated);
-    } else {
-        bestUpdatedAt = cUpdated || oldUpdated || null;
-    }
-
-    let cCreated = toTimestampMs(incoming?.createdAt);
-    if (cCreated !== null && cCreated <= 0) cCreated = null;
-
-    let oldCreated = toTimestampMs(old?.createdAt);
-    if (oldCreated !== null && oldCreated <= 0) oldCreated = null;
-
-    // createdAt must never advance into the future; take the earliest timestamp.
-    let bestCreatedAt: number | null = null;
-    if (cCreated && oldCreated) {
-        bestCreatedAt = Math.min(oldCreated, cCreated);
-    } else {
-        bestCreatedAt = cCreated || oldCreated || null;
-    }
-
-    // Route raw .timestamp fallbacks through toTimestampMs to prevent legacy invalid strings from persisting
-    const bestTimestamp = bestUpdatedAt || toTimestampMs(old?.timestamp) || toTimestampMs(incoming?.timestamp) || null;
-
-    const effectiveMessageCount = (c: ConversationMergeInput | null | undefined): number => {
-        if (!c || typeof c !== 'object') return 0;
-        const n = Number(c.messageCount);
-        const m = Array.isArray(c.messages) ? c.messages.length : 0;
-        const t = Array.isArray(c.turns) ? c.turns.length : 0;
-        return Math.max(Number.isFinite(n) && n > 0 ? n : 0, m, t);
-    };
-    const oldMsgLen = effectiveMessageCount(old);
-    const inMsgLen = effectiveMessageCount(incoming);
+    const oldMsgLen = effectiveMessageCount(old?.messageCount, oldBodyLen, oldTurnsLen);
+    const inMsgLen = effectiveMessageCount(incoming?.messageCount, inBodyLen, inTurnsLen);
     const bestMsgLen = Math.max(oldMsgLen, inMsgLen);
     const incomingShrinksMessages = !!old && oldMsgLen > inMsgLen;
 
@@ -187,23 +162,12 @@ export function mergeConversation(
     };
     const oldSeenMs = toMs(old?.lastSeen);
     const inSeenMs = toMs(incoming?.lastSeen);
-    let bestLastSeen: Conversation['lastSeen'] | null = null;
-    if (oldSeenMs !== null && inSeenMs !== null) {
-        bestLastSeen = oldSeenMs >= inSeenMs ? old?.lastSeen : incoming?.lastSeen;
-    } else {
-        bestLastSeen = oldSeenMs !== null ? old?.lastSeen : (inSeenMs !== null ? incoming?.lastSeen : null);
-    }
+    const bestLastSeen = oldSeenMs !== null && (inSeenMs === null || oldSeenMs >= inSeenMs)
+        ? old?.lastSeen : inSeenMs !== null ? incoming?.lastSeen : null;
 
-    const oldMsgCount = typeof old?.messageCount === 'number' ? old.messageCount : null;
-    const inMsgCount = typeof incoming?.messageCount === 'number' ? incoming.messageCount : null;
-    const oldBodyLen = Array.isArray(old?.messages) ? old?.messages.length : null;
-    const inBodyLen = Array.isArray(incoming?.messages) ? incoming?.messages.length : null;
     const oldAttCount = typeof old?.attachmentCount === 'number' ? old.attachmentCount : null;
     const inAttCount = typeof incoming?.attachmentCount === 'number' ? incoming.attachmentCount : null;
-    let isChanged = false;
-    if (!old) {
-        isChanged = true;
-    } else if (
+    const isChanged = !old || Boolean(
         old.title !== resolvedTitle ||
         (!old.timestamp && bestTimestamp) ||
         (bestUpdatedAt && bestUpdatedAt !== oldUpdated) ||
@@ -211,9 +175,7 @@ export function mergeConversation(
         (inBodyLen !== null && (oldBodyLen === null ? (oldMsgLen === 0 && inBodyLen > 0) : inBodyLen > oldBodyLen)) ||
         (oldAttCount !== null && inAttCount !== null && oldAttCount !== inAttCount) ||
         bestMsgLen > oldMsgLen
-    ) {
-        isChanged = true;
-    }
+    );
 
     const merged: MergedConversation = {
         ...(old || {}),
@@ -223,51 +185,32 @@ export function mergeConversation(
         titleSource: resolvedSource,
         titles: mergedTitles,
         timestamp: bestTimestamp,
-        updatedAt: bestUpdatedAt || bestTimestamp,
+        updatedAt: bestTimestamp,
         createdAt: bestCreatedAt,
         sidebarIndex: typeof incoming?.sidebarIndex === 'number'
             ? incoming.sidebarIndex
             : old?.sidebarIndex
     };
 
-    const oldBodyLen2 = Array.isArray(old?.messages) ? old?.messages.length : 0;
-    const inBodyLen2 = Array.isArray(incoming?.messages) ? incoming?.messages.length : 0;
-    if (oldBodyLen2 > 0 && inBodyLen2 < oldBodyLen2) {
-        merged.messages = old?.messages;
+    // Preserve loaded full bodies and slim IDB metadata with the same integrity guard.
+    if (incomingShrinksMessages || (oldBodyLen ?? 0) > (inBodyLen ?? 0)) {
+        if (oldBodyLen !== null) merged.messages = old?.messages;
+        else delete merged.messages;
     }
-    const oldTurnsLen2 = Array.isArray(old?.turns) ? old?.turns.length : 0;
-    const inTurnsLen2 = Array.isArray(incoming?.turns) ? incoming?.turns.length : 0;
-    if (oldTurnsLen2 > 0 && inTurnsLen2 < oldTurnsLen2) {
-        merged.turns = old?.turns;
-    }
-    if (oldMsgCount !== null && inMsgCount !== null) {
-        merged.messageCount = Math.max(oldMsgCount, inMsgCount);
-    }
-
-    if (bestLastSeen !== null) {
-        merged.lastSeen = bestLastSeen;
+    if (incomingShrinksMessages || (oldTurnsLen ?? 0) > (inTurnsLen ?? 0)) {
+        if (oldTurnsLen !== null) merged.turns = old?.turns;
+        else delete merged.turns;
     }
     if (incomingShrinksMessages) {
-        if (Array.isArray(old?.messages)) {
-            merged.messages = old?.messages;
-        } else {
-            // CRITICAL: old was slimmed (messages stored in IndexedDB).
-            // incoming has fewer messages than old's recorded messageCount/turns.
-            // Under no circumstances should incoming's shorter/partial messages
-            // attach to merged, as that would cause _setConversationsRaw to
-            // overwrite IndexedDB's fuller detail with incoming's truncated body!
-            delete merged.messages;
-        }
-        if (Array.isArray(old?.turns)) {
-            merged.turns = old?.turns;
-        } else {
-            delete merged.turns;
-        }
-        if (typeof old?.messageCount === 'number') merged.messageCount = old.messageCount;
+        // Slim records must not attach partial incoming bodies and overwrite fuller IDB detail.
+        if (oldMsgCount !== null) merged.messageCount = oldMsgCount;
         else if (bestMsgLen > 0) merged.messageCount = bestMsgLen;
+    } else if (oldMsgCount !== null && inMsgCount !== null) {
+        merged.messageCount = Math.max(oldMsgCount, inMsgCount);
     }
+    if (bestLastSeen !== null) merged.lastSeen = bestLastSeen;
     if (options?.source) {
-        merged.source = options.source || old?.source || 'unknown';
+        merged.source = options.source;
     }
     if (options?.targetSlot) {
         merged.accountSlot = options.targetSlot;
