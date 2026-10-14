@@ -17,7 +17,7 @@ const {
 const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages }, 1);
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets, messages: messages });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
@@ -28,8 +28,8 @@ const opts = {};
 
 const imgAsset = { id: 'list-img', kind: 'image', name: 'dot.png', mediaType: 'image/png', byteLength: 70 };
 
-function listBundle(blocks: any[], assets: any[] = []) {
-    return domainFixture([msg('m1', 'user', blocks)], assets);
+function listBundle(blocks: any[], assets: any[] = [], reasoning: any[] = []) {
+    return domainFixture([msg('m1', 'user', blocks, reasoning.length ? { reasoning } : {})], assets);
 }
 
 test('list item keeps inline image as a node, not flattened text', async () => {
@@ -158,11 +158,7 @@ test('real WASM: nested lists and unknown text compile with all content selectab
                 { type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'quoted list item' }] }] }] },
             ],
         },
-        {
-            type: 'thought', kind: 'reasoning',
-            blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'thinking trace kept' }] }],
-        },
-    ], [imgAsset]);
+    ], [imgAsset], [{ type: 'paragraph', children: [{ type: 'text', text: 'thinking trace kept' }] }]);
     const result = await compileOnce(b, { 'list-img': Buffer.from(PNG_B64, 'base64') });
     assert.ok(!result.diagnostics.some((d: any) => d.severity === 'error'), JSON.stringify(result.diagnostics));
     assert.strictEqual(Buffer.from(result.pdfBytes.slice(0, 5)).toString('latin1'), '%PDF-');

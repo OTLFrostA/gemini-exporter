@@ -30,11 +30,11 @@ export function domainStorageKey(identity: DomainStorageIdentity): string {
 }
 function checked(record: DomainStorageRecord): TrustedDomainStorageRecord {
     checkedEnvelope(record);
-    return checkedBindings({ ...record, domainVersion: DOMAIN_CONTRACT_VERSION }, readStorageDomain(record.conversation, record.domainVersion));
+    return checkedBindings(record, readStorageDomain(record.conversation));
 }
 function checkedEnvelope(record: DomainStorageRecord): void {
     if (!record || !['source', 'legacy-storage'].includes(record.origin)) throw new TypeError('Invalid Domain storage origin');
-    if (record.storageVersion !== DOMAIN_STORAGE_VERSION || ![1, DOMAIN_CONTRACT_VERSION].includes(record.domainVersion)) throw new TypeError('Unsupported Domain storage version');
+    if (record.storageVersion !== DOMAIN_STORAGE_VERSION || record.domainVersion !== DOMAIN_CONTRACT_VERSION) throw new TypeError('Unsupported Domain storage version');
     if (typeof record.revision !== 'string' || !record.revision || !Number.isFinite(record.savedAt)) throw new TypeError('Invalid Domain storage envelope');
 }
 /** Internal records retain detached snapshots and storage invariants, without revalidating AST. */
@@ -69,8 +69,6 @@ export function openDomainDB(): Promise<IDBDatabase> {
             if (!db.objectStoreNames.contains(BYTE_CACHE)) db.createObjectStore(BYTE_CACHE, { keyPath: 'key' }).createIndex('conversation', 'conversationKey');
             if (!db.objectStoreNames.contains(BACKUP)) db.createObjectStore(BACKUP, { keyPath: 'key' });
             if (!db.objectStoreNames.contains(CURRENT)) db.createObjectStore(CURRENT, { keyPath: 'key' });
-            // Upgrade is atomic: current bodies, byte bindings and legacy backups are untouched.
-            if (db.objectStoreNames.contains('revisions')) db.deleteObjectStore('revisions');
         };
         request.onsuccess = () => { const db = request.result; db.onversionchange = () => db.close(); resolve(db); };
         request.onerror = () => reject(request.error);

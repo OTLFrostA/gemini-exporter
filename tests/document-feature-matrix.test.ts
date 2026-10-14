@@ -8,7 +8,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Matrix', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] }, 1);
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Matrix', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] });
 }
 
 const txt = (text: string) => ({ type: 'text', text });
@@ -80,10 +80,10 @@ test('matrix: quote keeps nested blocks in HTML and Typst', () => {
     assert.strictEqual(node.blocks[1].type, 'image');
 });
 
-test('matrix: thought keeps nested blocks and kind label in Typst', () => {
-    const blocks = [{ type: 'thought', kind: 'reasoning', blocks: [para('hmm')] }];
-    assert.ok(htmlOf(blocks, {}, { locale: 'en' }).includes('Thinking Process'), 'html shows thought label');
-    const { node } = typstOf(blocks);
+test('matrix: reasoning keeps nested blocks and label in Typst', () => {
+    const reasoning = [para('hmm')];
+    assert.ok(htmlOf([], { reasoning }, { locale: 'en' }).includes('Thinking Process'), 'html shows thought label');
+    const { node } = typstOf([], { reasoning });
     assert.strictEqual(node.type, 'note');
     assert.strictEqual(node.label, 'Thinking Process');
     assert.strictEqual(node.blocks.length, 1);

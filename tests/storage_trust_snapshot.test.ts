@@ -39,8 +39,8 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
                 return {counts:[write,read,adaptation,countSnapshots()],isolated,body:record.conversation.messages[0].content[0].children[0].text};
             }` }, plugins: [{ name: 'test-only-storage-counter', setup(builder) {
                 builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents:
-                    readFileSync(args.path, 'utf8').replace('export function restoreDomainSnapshot(value: unknown, version = 2): TrustedDomain {',
-                        'let snapshots=0; export const countSnapshots=()=>snapshots; export function restoreDomainSnapshot(value: unknown, version = 2): TrustedDomain { snapshots++;') }));
+                    readFileSync(args.path, 'utf8').replace('export function restoreDomainSnapshot(value: unknown): TrustedDomain {',
+                        'let snapshots=0; export const countSnapshots=()=>snapshots; export function restoreDomainSnapshot(value: unknown): TrustedDomain { snapshots++;') }));
             } }] });
     const api: { run: () => Promise<{ counts: number[]; isolated: string; body: string }> } =
         new Function('module', 'require', bundle.outputFiles[0].text + '; return instrumentedStorage;')(undefined, createRequire(process.cwd() + '/package.json'));

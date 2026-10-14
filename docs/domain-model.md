@@ -128,8 +128,8 @@ HTML image references retain their image and generation evidence even when the m
 Standard JSON is the only JSON export. It uses `{ format: 'gemini-exporter-domain', version: 1, conversation, resources? }`, preserving the full Domain and optional asset destinations without storage or transport implementation state. OpenAI-compatible and developer raw JSON exports and the historical output projector have been removed.
 
 
-## Contract v1 recovery
+## Storage migration boundary
 
-New parser results and storage writes accept only v2. `restoreDomainSnapshot(value, 1)` is the sole historical Domain converter; storage passes the persisted `domainVersion` explicitly. It removes aliases, flattens source URI/completeness, arbitrates historical titles and extracts nested thoughts into reasoning without changing resource references. Unsupported versions and unknown fields fail closed. If canonical report content cannot prove preservation of historical sections/links, generation identity is absent for a historical generated resource, or resource parent evidence conflicts, recovery throws and leaves the original physical record untouched. There is no downstream v1 fallback.
+Released Storage v1 records go through the `legacy-storage` Parser before being written to Storage v2. Storage v2 accepts only the final Domain contract (version 2); there is no converter for unshipped intermediate Domain records. `restoreDomainSnapshot(value)` validates and detaches the current schema without repairing historical aliases. Unsupported envelope versions and obsolete fields are rejected without rewriting disk records. Storage and IndexedDB remain version 2; this cleanup does not introduce Storage v3.
 
-The complete current TypeScript schema and cleanup verification are recorded in [the final cleanup audit](audits/domain-final-semantic-cleanup.md). Historical live acceptance links above describe their original runs; this cleanup does not claim another Tier 2 pass.
+The complete TypeScript schema and original cleanup verification are recorded in [the final cleanup audit](audits/domain-final-semantic-cleanup.md).

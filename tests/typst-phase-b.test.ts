@@ -14,7 +14,7 @@ const {
 } = require('./helpers/realWasmSandbox.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages }, 1);
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets, messages: messages });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
@@ -89,29 +89,18 @@ test('file description reaches the transport', async () => {
     assert.deepStrictEqual(node.description, [{ type: 'text', text: 'Q3 summary deck' }]);
 });
 
-test('thought kinds map to note labels', async () => {
-    const cases: Array<[string, string | undefined]> = [
-        ['summary', 'Thinking Process'],
-        ['progress', 'Thinking Process'],
-        ['reasoning', 'Thinking Process'],
-        ['unknown', 'Thinking Process'],
-    ];
-    for (const [kind, label] of cases) {
-        const b = domainFixture([msg('m1', 'assistant', [{
-            type: 'thought', disclosure: 'providerExposed', kind,
-            blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'hmm' }] }],
-        }])]);
-        const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
-        const node: any = payload.messages[0].blocks[0];
-        assert.strictEqual(node.type, 'note');
-        assert.strictEqual(node.label, label, `kind=${kind}`);
-    }
+test('reasoning maps to a thinking process note', async () => {
+    const b = domainFixture([msg('m1', 'assistant', [], { reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'hmm' }] }] })]);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, opts);
+    const node: any = payload.messages[0].blocks[0];
+    assert.strictEqual(node.type, 'note');
+    assert.strictEqual(node.label, 'Thinking Process');
 });
 
-test('code filename and meta reach the transport', async () => {
+test('code language and meta reach the transport', async () => {
     const b = domainFixture([msg('m1', 'assistant', [{
         type: 'code', code: 'print(1)', language: 'python',
-        filename: 'app.py', meta: 'runnable',
+        meta: 'runnable',
     }])]);
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
@@ -177,14 +166,10 @@ test('real WASM: phase B features compile with all text selectable', async () =>
             { type: 'heading', level: 5, children: [{ type: 'text', text: 'fifth level' }] },
             { type: 'heading', level: 6, children: [{ type: 'text', text: 'sixth level' }] },
             {
-                type: 'thought', disclosure: 'providerExposed', kind: 'progress',
-                blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'working on it' }] }],
-            },
-            {
                 type: 'code', code: 'print(1)', language: 'python',
-                filename: 'app.py', meta: 'runnable',
+                meta: 'runnable',
             },
-        ], { citations: [{ id: 'c1', url: 'https://example.com/a', title: 'Key sources' }] })],
+        ], { reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'working on it' }] }], citations: [{ id: 'c1', url: 'https://example.com/a', title: 'Key sources' }] })],
         [{ id: 'fa', name: 'report.pdf', kind: 'file', mediaType: 'application/pdf', byteLength: 2048 }],
     );
     const result = await compileOnce(b);

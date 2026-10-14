@@ -16,19 +16,12 @@ test('conversation times are independent finite epoch milliseconds and unknown f
     }
     assert.deepEqual(restoreDomainSnapshot(base()), base());
 });
-test('new writes reject aliases; only explicit v1 disk recovery converts old representations', () => {
+test('current snapshots reject historical aliases and representations', () => {
     for (const key of ['timestamp', 'chatTime', 'lastSeen', 'href', 'titles', 'provenance']) {
         assert.throws(() => restoreDomainSnapshot({ ...base(), [key]: key === 'timestamp' ? null : 'old' }));
     }
     const old = { ...base(), completeness: { status: 'partial', reason: 'Selected' }, timestamp: 123, createdAt: '2026-10-06T00:00:00Z', updatedAt: null, href: 'https://example.test/chat' };
-    const restored = restoreDomainSnapshot(old, 1);
-    assert.equal(restored.createdAt, Date.parse('2026-10-06T00:00:00Z'));
-    assert.equal(restored.updatedAt, undefined);
-    assert.equal(restored.url, old.href);
-    assert.equal(restored.completeness, 'partial');
-    assert.equal(Object.hasOwn(restored, 'timestamp'), false);
-    assert.equal(old.updatedAt, null);
-    assert.throws(() => restoreDomainSnapshot({ ...old, unexpected: true }, 1));
+    assert.throws(() => restoreDomainSnapshot(old));
 });
 test('message dates do not fabricate conversation creation or update facts during pagination', () => {
     const conversation = validateParserDomain({ ...base(), messages: [{ role: 'user', timestamp: 1700000000000, content: [] }] });

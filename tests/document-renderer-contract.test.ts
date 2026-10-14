@@ -30,7 +30,7 @@ const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Contract', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] }, 1);
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Contract', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] });
 }
 
 const imgAsset = (id: string, name: string) => ({
@@ -188,7 +188,7 @@ test('contract: citation label and message sources survive in HTML and Typst', (
     const { html, htmlDiags, payload, typstDiags } = renderBoth(
         blocks,
         {
-            citations: [{ id: 'cite1', kind: 'web', url: 'https://example.com/article' }],
+            citations: [{ id: 'cite1', url: 'https://example.com/article' }],
         },
     );
     assert.ok(html.includes('gem-citation-ref'), 'html renders citation ref');
@@ -202,8 +202,8 @@ test('contract: citation label and message sources survive in HTML and Typst', (
 
 test('contract: thought inner text survives in HTML and Typst', () => {
     const s = 'SENTINEL_THOUGHT_S9T0';
-    const blocks = [{ type: 'thought', disclosure: 'providerExposed', kind: 'reasoning', blocks: [para(s)] }];
-    const { html, htmlDiags, payload, typstDiags } = renderBoth(blocks);
+    const reasoning = [para(s)];
+    const { html, htmlDiags, payload, typstDiags } = renderBoth([], { reasoning });
     assert.ok(html.includes(s), 'html keeps thought text');
     const jt = typstText(payload);
     assert.ok(jt.includes(s), 'typst keeps thought text');
@@ -268,7 +268,7 @@ test('inline HTML resource references are collected from the Document AST and us
     assert.deepEqual(result.diagnostics, []);
 });
 test('HTML renders all messages in authoritative source order', () => {
-    const domain = { providerId: 'gemini', id: 'order', title: 'Order', timestamp: null, assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) };
+    const domain = { providerId: 'gemini', id: 'order', title: 'Order', completeness: 'unknown', assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) };
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
     assert.ok(html.indexOf('second') < html.indexOf('first'));
 });

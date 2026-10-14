@@ -10,12 +10,12 @@ const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js'
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 function domainFixture(blocks: any[], extra: any = {}): DomainConversationDetail {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c', title: 'Title', timestamp: null, assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] }, 1);
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c', title: 'Title', completeness: 'unknown', assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] });
 }
 const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra)).document, extra.resources ?? {});
 
 test('Markdown export envelope uses Domain metadata and omits absent optional fields', async () => {
-    const b = domainFixture([]); Object.assign(b, { url: 'https://example.com/chat', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' });
+    const b = domainFixture([]); Object.assign(b, { url: 'https://example.com/chat', createdAt: Date.parse('2026-01-01T00:00:00Z'), updatedAt: Date.parse('2026-01-02T00:00:00Z') });
     const md = await exportDomainMarkdown(b);
     assert.ok(md.startsWith('---\ntitle: "Title"\nid: "c"\nprovider: "gemini"\nurl: "https://example.com/chat"\ndate: "2026-01-01T00:00:00.000Z"\nupdated: "2026-01-02T00:00:00.000Z"\nexported: "'));
     assert.ok(md.includes('tags:\n  - gemini-export\n---\n\n# Title'));
@@ -45,7 +45,7 @@ test('Markdown quotes and thematic breaks serialize without losing nested text',
 });
 
 test('Markdown code uses standard fences longer than embedded runs and labels metadata', () => {
-    const md = render([{ type: 'code', code: '```\n# literal', language: 'md', filename: 'readme.md', meta: 'demo' }]);
+    const md = render([{ type: 'code', code: '```\n# literal', language: 'md', meta: 'demo' }]);
     assert.ok(md.includes('**demo**\n\n````md\n```\n# literal\n````'));
 });
 
@@ -80,16 +80,16 @@ test('Markdown files use local links or a visible unavailable label', () => {
 });
 
 test('Markdown thought blocks contain nested Markdown inside details', () => {
-    assert.ok(render([{ type: 'thought', disclosure: 'providerExposed', kind: 'reasoning', blocks: [para('thinking')] }]).includes('<details>\n<summary>🧠 Thinking Process</summary>\n\nthinking\n\n</details>'));
+    assert.ok(render([], { reasoning: [para('thinking')] }).includes('<details>\n<summary>🧠 Thinking Process</summary>\n\nthinking\n\n</details>'));
 });
 
 test('Markdown inline citations link URLs and retain labels without URLs', () => {
-    const md = render([{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'c', label: 'read' }, txt(' '), { type: 'citationRef', citationId: 'd', label: 'offline' }] }], { citations: [{ id: 'c', kind: 'web', title: 'Web', url: 'https://example.com' }, { id: 'd', kind: 'file', title: 'Local' }] });
+    const md = render([{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'c', label: 'read' }, txt(' '), { type: 'citationRef', citationId: 'd', label: 'offline' }] }], { citations: [{ id: 'c', title: 'Web', url: 'https://example.com' }, { id: 'd', title: 'Local' }] });
     assert.ok(md.includes('[read](https://example.com) [offline]'));
 });
 
 test('Markdown message Sources preserve citation order after the body', () => {
-    const b = domainFixture([para('body')], { citations: [{ id: 'c', kind: 'web', title: 'Web', url: 'https://example.com' }, { id: 'd', kind: 'file', title: 'Local' }] }); b.messages[0].citations!.reverse();
+    const b = domainFixture([para('body')], { citations: [{ id: 'c', title: 'Web', url: 'https://example.com' }, { id: 'd', title: 'Local' }] }); b.messages[0].citations!.reverse();
     assert.ok(renderDocumentMarkdown(composeDomainDocument(b).document, {}).includes('body\n\n> 🌐 **Sources:**\n> [1] [Local]\n> [2] [Web](https://example.com)'));
 });
 
