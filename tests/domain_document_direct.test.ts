@@ -49,7 +49,7 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
     const answer = ast.messages[1].blocks[1];
     assert.equal(answer.type, 'paragraph');
     if (answer.type !== 'paragraph') throw Error('expected paragraph');
-    assert.deepEqual(answer.children[1], { type: 'strong', children: [{ type: 'citation', id: 'a:citation-0', label: '[1]', href: 'https://example.test/source' }] });
+    assert.deepEqual(answer.children[1], { type: 'strong', children: [{ type: 'citation', id: 'msg-1:citation-0', label: '[1]', href: 'https://example.test/source' }] });
     assert.ok(answer.children.some(node => node.type === 'citation' && node.label === '[2]' && !node.href));
     assert.ok(answer.children.some(node => node.type === 'inlineCode' && node.code === '[1]'));
     const file = ast.messages[1].blocks[2];
@@ -149,10 +149,10 @@ test('citation numbering is conversation-wide in body, reasoning and Sources, in
     const document = composeDomainDocument(domain).document;
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');
-    assert.deepEqual(first.children, [{ type: 'citation', id: 'first:same', label: '[1]', href: 'https://example.test/one' }]);
+    assert.deepEqual(first.children, [{ type: 'citation', id: 'msg-0:same', label: '[1]', href: 'https://example.test/one' }]);
     const second = document.messages[1].blocks[1];
     assert.ok(second.type === 'paragraph');
-    assert.deepEqual(second.children, [{ type: 'citation', id: 'second:same', label: '[2]' }]);
+    assert.deepEqual(second.children, [{ type: 'citation', id: 'msg-1:same', label: '[2]' }]);
     const reasoning = document.messages[1].blocks[0];
     assert.ok(reasoning.type === 'disclosure');
     assert.deepEqual(reasoning.blocks, [{ type: 'paragraph', children: second.children }]);

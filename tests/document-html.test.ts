@@ -38,7 +38,7 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
         assert.equal(disclosure.kind, 'reasoning');
         assert.equal(disclosure.initiallyCollapsed, undefined);
     }
-    assert.deepEqual(document.messages[1].sources?.items, [{ id: 'a:c1', label: 'Source', href: 'https://example.com', number: 1 }]);
+    assert.deepEqual(document.messages[1].sources?.items, [{ id: 'msg-1:c1', label: 'Source', href: 'https://example.com', number: 1 }]);
     assert.equal(document.messages[1].blocks.filter(b => b.type === 'image').length, 2, 'registry identity never deduplicates placements');
     assert.ok(renderDocumentHtml(document, resources).html.includes('<strong>123</strong>'), 'explicit caption is not tested as a filename');
 });

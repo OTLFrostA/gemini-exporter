@@ -135,8 +135,7 @@ test('migration: citation not dropped', () => {
     assert.ok(newHtml.includes('gem-citation'), 'citation markup missing');
 });
 
-test('migration: duplicate message IDs fail closed at the production export boundary', async () => {
-    // Repeated pagination IDs remain an ingestion data-integrity diagnostic.
+test('migration: duplicate source message IDs preserve every message at export', async () => {
     const dupChat: any = {
         id: 'dup_001',
         title: 'Duplicate Id Chat',
@@ -146,5 +145,7 @@ test('migration: duplicate message IDs fail closed at the production export boun
             { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
         ],
     };
-    await assert.rejects(() => ChatFormatter.formatHtmlDocument(historicalFixture(dupChat)), /MSG_DUP_ID/);
+    const result = await ChatFormatter.formatHtmlDocument(historicalFixture(dupChat));
+    assert.equal(result.content.match(/first user prompt/g)?.length, 2);
+    assert.ok(result.content.includes('model answer'));
 });

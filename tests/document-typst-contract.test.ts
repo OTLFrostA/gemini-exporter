@@ -233,7 +233,7 @@ test('conversation renders every message in source order', async () => {
         msg('b', 'assistant', [{ type: 'paragraph', children: [{ type: 'text', text: 'a2' }] }]),
     ]);
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, opts);
-    assert.deepStrictEqual(payload.messages.map((m: any) => m.id), ['root', 'a', 'b']);
+    assert.deepStrictEqual(payload.messages.map((m: any) => m.id), ['msg-0', 'msg-1', 'msg-2']);
 
 });
 

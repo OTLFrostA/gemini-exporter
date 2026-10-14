@@ -46,6 +46,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
     });
     expect(response.success).toBe(true);
     expect(response.data.conversation.messages).toHaveLength(2);
+    expect(response.data.conversation.completeness).toBe('partial');
     await source.close();
     const stored = await options.evaluate(async () => {
         const request = indexedDB.open('gemini_exporter_domain');

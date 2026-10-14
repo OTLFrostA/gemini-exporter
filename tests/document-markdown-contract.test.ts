@@ -114,8 +114,10 @@ test('Markdown escapes unsafe links, local paths and YAML title boundaries', asy
     assert.ok(md.includes('title: "Title\\" extra: yes"')); assert.ok(!md.includes('javascript:')); assert.ok(!md.includes('https://remote')); assert.ok(md.includes('[Image unavailable: blocked]'));
 });
 
-test('Document Markdown rejects duplicate message IDs like HTML and PDF', async () => {
-    await assert.rejects(formatMarkdownDocument(historicalFixture({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] })), /MSG_DUP_ID/);
+test('Document Markdown preserves both messages with duplicate source IDs', async () => {
+    const result = await formatMarkdownDocument(historicalFixture({ id: 'c', messages: [{ id: 'm', role: 'user', content: 'one' }, { id: 'm', role: 'model', content: 'two' }] }));
+    assert.ok(result.content.includes('one'));
+    assert.ok(result.content.includes('two'));
 });
 
 

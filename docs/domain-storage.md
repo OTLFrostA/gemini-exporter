@@ -57,7 +57,7 @@ revision history is retained. The record's `revision` field is only an opaque
 token for that current record. An identical capture leaves the current record
 unchanged. Shorter snapshots, older timestamps at the same message count, or
 reduced coverage (including a larger partial/unknown snapshot replacing a complete one) cannot replace the selected fuller snapshot;
-their body is not selected. A stronger title may still be adopted through the shared title authority without replacing that body. Stable resource bytes carry
+their body is not selected. Explicit placeholder titles are excluded before title authority comparison. A stronger non-placeholder title may still be adopted through the shared title authority without replacing that body. Stable resource bytes carry
 forward only when asset identity and source URI still match. Online acquired
 bytes use a separate `resource_bytes` store keyed by conversation identity,
 asset ID and original source URI, and survive restart. A new database creates

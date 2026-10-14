@@ -554,14 +554,14 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
 
 
 
-test('PDF preparation refuses duplicate message IDs before entering the pipeline', async () => {
+test('PDF preparation preserves messages with duplicate source IDs', async () => {
     const chat = { id: 'duplicate', title: 'Duplicate', messages: [
         { id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' },
     ] };
     const result = await preparePdfItem(historicalFixture(chat));
-    assert.strictEqual(result.ok, false);
-    assert.match(result.error, /MSG_DUP_ID/);
-    assert.ok(result.diagnostics.some((d: any) => d.code === 'PDF_INPUT_INVALID'));
+    assert.ok(result.ok);
+    assert.deepEqual(result.document.messages.map((message: { id?: string }) => message.id), ['msg-0', 'msg-1']);
+    assert.equal(result.document.messages.length, 2);
 });
 
 test('PDF preparation preserves nonfatal normalization diagnostics', async () => {

@@ -1,3 +1,4 @@
+import { isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
 import { resolveTitle } from '../../domain/titleAuthority.js';
 import { sha256Hex } from '../../export/assets/sha256.js';
 import { matchResourceSets, resourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
@@ -102,7 +103,7 @@ function prefer(existing: DomainStorageRecord, incoming: DomainStorageRecord, mi
     const old = existing.conversation, next = incoming.conversation;
     if (old.messages.length > next.messages.length) return false;
     if (old.completeness === 'complete' && next.completeness !== 'complete') return false;
-    if (old.completeness !== 'partial' && next.completeness === 'partial') return false;
+    if (old.messages.length > 0 && old.completeness !== 'partial' && next.completeness === 'partial') return false;
     if (migration) return (!existing.conversation.messages.length || existing.origin === 'legacy-storage') && incoming.conversation.messages.length > existing.conversation.messages.length; // A retry cannot overwrite data captured by the new release.
     if (old.messages.length < next.messages.length) return true;
     const time = (v: DomainConversationDetail): number => v.updatedAt ?? 0;
@@ -205,7 +206,7 @@ async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDoma
         const selected = existing && sameContent(existing, incoming) && !changedResources ? existing
             : !existing || prefer(existing, incoming, migration) ? incoming : existing;
         if (!existing) return selected;
-        const candidates = [existing.conversation, incoming.conversation].map(c => ({ value: c.title,
+        const candidates = [existing.conversation, incoming.conversation].filter(c => !isBrandPlaceholderTitle(c.title)).map(c => ({ value: c.title,
             source: c.titleSource ?? 'default' }));
         const winner = resolveTitle(candidates);
         return winner && (winner.value !== selected.conversation.title || (selected.conversation.titleSource !== undefined && winner.source !== selected.conversation.titleSource))
