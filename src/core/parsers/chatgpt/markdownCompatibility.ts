@@ -21,12 +21,25 @@ const BRACKET_DISPLAY_OWN_LINES = /^[ \t]*\\\[(?<block>[\s\S]+?)\\\][ \t]*$/gm;
 const BRACKET_DISPLAY_INLINE = /\\\[(?<display>[\s\S]+?)\\\]/g;
 const BRACKET_INLINE = /\\\((?<inline>[\s\S]+?)\\\)/g;
 
-// Telemetry markers are ASCII words (`cite`, `turn0search0`) framed by
-// private-use delimiters: `<PUA>cite<PUA>turn0search0<PUA>`. The words alone
-// are meaningless without the frame, so the whole marker goes; normal prose
-// never interleaves PUA code points this way. Lone PUA strays are dropped too.
-const TELEMETRY_MARKER = /[\uE000-\uF8FF]*cite[\uE000-\uF8FF]*turn[0-9a-z]*[\uE000-\uF8FF]*/g;
+// Citation markers are framed by private-use delimiters. Two shapes observed
+// live (2026-10-14):
+// - `<U+E200>cite<U+E202>turn388160search0<U+E202>turn388160search1<U+E201>`
+//   references search-result indices (kept structurally in metadata); the
+//   marker itself is telemetry noise and is stripped;
+// - `<U+E200>url<U+E202>{title}<U+E202>{url}<U+E201>` carries a real source
+//   link and is rewritten to Markdown so the reference survives.
+// Normal prose never interleaves PUA code points this way. Lone PUA strays
+// are dropped too.
+const URL_CITATION = /[\uE200][\uE000-\uF8FF]*url[\uE000-\uF8FF]*([^\uE000-\uF8FF]*?)[\uE000-\uF8FF]*([^\uE000-\uF8FF]*?)[\uE201]/g;
+const CITE_MARKER = /[\uE200][\uE000-\uF8FF]*cite(?:[\uE000-\uF8FF]*turn[0-9a-z]*)+[\uE000-\uF8FF]*/g;
 const PUA_STRAY = /[\uE000-\uF8FF]+/g;
+
+function stripCitationsOutsideCode(text: string): string {
+    return text
+        .replace(URL_CITATION, (_m: string, title: string, url: string) => `[${title.trim()}](${url.trim()})`)
+        .replace(CITE_MARKER, '')
+        .replace(PUA_STRAY, '');
+}
 
 const BR_TAG = /<br\s*\/?>/gi;
 const ANY_TAG = /<[^>]+>/g;
@@ -46,7 +59,7 @@ export function preprocessChatGPTMarkdown(source: string): string {
     for (let i = 0; i < parts.length; i += 2) {
         let part = parts[i] ?? '';
         part = normalizeMathOutsideCode(part);
-        part = part.replace(TELEMETRY_MARKER, '').replace(PUA_STRAY, '');
+        part = stripCitationsOutsideCode(part);
         part = part.replace(BR_TAG, ' ').replace(ANY_TAG, '');
         parts[i] = part;
     }

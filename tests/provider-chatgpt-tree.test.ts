@@ -291,14 +291,20 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
 });
 
 test('dialect preprocessing shields code and normalizes math/citations', () => {
-    const src = '费用是 $5。公式 \\(x^2\\) 行内。\n\n\\[y = mx\\]\n\n`代码 \\(不动\\) $10`。引用\uE000cite\uE002turn0search0\uE001结尾。<br>换行';
+    // Exact marker shapes captured live via 9222 (2026-10-14).
+    const cite = '\ue200cite\ue202turn388160search0\ue202turn388160search1\ue201';
+    const url = '\ue200url\ue202ChatGPT \u6a21\u578b\ue202https://help.openai.com/en/a\ue201';
+    const src = '费用是 $5。公式 \\(x^2\\) 行内。引用' + cite + '结尾。看' + url + '。\n\n\\[y = mx\\]\n\n`代码 \\(不动\\) $10`。<br>换行';
     const out = preprocessChatGPTMarkdown(src);
     assert.match(out, /\$x\^2\$/);
     assert.match(out, /\$\$\ny = mx\n\$\$/);
     assert.ok(out.includes('`代码 \\(不动\\) $10`'));
     assert.ok(!out.includes('cite'));
+    assert.ok(!out.includes('turn388160'));
+    assert.ok(out.includes('[ChatGPT \u6a21\u578b](https://help.openai.com/en/a)'));
     assert.ok(!out.includes('<br>'));
     assert.ok(out.includes('$5'));
+    assert.ok(!/[\ue000-\uf8ff]/.test(out));
 });
 
 test('bodies parse to structured blocks and models stay per-message', () => {
