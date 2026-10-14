@@ -71,8 +71,8 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
         ...(record.size !== undefined ? { byteLength: record.size } : {}),
         ...(uri ? { sourceUri: uri } : {}),
         ...(dataBase64 ? { dataBase64 } : {}),
-        ...(Object.keys(generation).length ? { generation: generation as DomainAsset['generation'] } : {}),
-        ...(Object.keys(document).length ? { document: document as DomainAsset['document'] } : {}),
+        ...(Object.keys(generation).length ? { generation } : {}),
+        ...(Object.keys(document).length ? { document } : {}),
     };
 }
 

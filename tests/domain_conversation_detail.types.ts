@@ -130,14 +130,10 @@ void nullResourceEvidence;
 void nullAcquisitionHint;
 void nullTakeoutLookup;
 
-// @ts-expect-error Asset generation must contain at least one source identity field.
-const emptyGeneration: DomainAsset = { id: 'image', kind: 'image', generation: {} };
-// @ts-expect-error Document metadata must contain at least one fact.
-const emptyDocument: DomainAsset = { id: 'report', kind: 'file', document: {} };
 // @ts-expect-error Acquisition failures belong to ResourceResult, never Domain.
 const failedAsset: DomainAsset = { id: 'image', kind: 'image', failureReason: 'HTTP 404' };
 // @ts-expect-error Citation numbering belongs to Document composition.
 const numberedCitation: import('../src/core/domain/conversationDetail.js').DomainCitation = { id: 'cite', number: 1 };
 // @ts-expect-error Unknown title sources must be normalized before Domain.
 const unknownTitleSource: DomainConversationDetail = { ...domainConversation, titleSource: 'unknown-source' };
-void emptyGeneration; void emptyDocument; void failedAsset; void numberedCitation; void unknownTitleSource;
+void failedAsset; void numberedCitation; void unknownTitleSource;

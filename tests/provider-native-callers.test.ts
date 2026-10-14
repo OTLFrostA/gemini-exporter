@@ -13,6 +13,8 @@ import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
 import { parseTakeoutZip } from '../src/core/compatibility/takeout/takeoutParser.js';
 import { MediaIndex } from '../src/core/compatibility/takeout/mediaIndex.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import { getDomainConversationResult } from '../src/core/storage/domain/nativePersistence.js';
+import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
 
 const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(inner)]])}`;
@@ -111,6 +113,8 @@ test('production Takeout binds extension variations once and carries native Doma
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html), 'Takeout/Gemini Apps/image-hash': bytesEntry(1), 'Takeout/Gemini Apps/IMG-hash.jpg': bytesEntry(2), 'Takeout/Gemini Apps/script-hash': bytesEntry(3) }), null, slot);
         const view = parsed.convCache.native;
         assert.equal(view.conversation.assets.length, 3);
+        assert.equal(parsed.status, 'ok');
+        assert.equal(parsed.resourceResults.filter(result => result.ok).length, 3);
         assert.equal(parsed.diagnostics.some(d => /MISSING|AMBIGUOUS/.test(d.code)), false);
         assert.equal('parsed' in parsed.conversations[0], false);
         assert.equal('messages' in parsed.conversations[0], false);
@@ -128,9 +132,9 @@ test('production Takeout binds extension variations once and carries native Doma
 test('non-archive Takeout images do not become missing ZIP resource failures', async () => {
     const slot = 'native-inline';
     try {
-        const html = activity('').replace('<p>Answer</p>', '<p>![remote](https://example.test/remote.png) ![inline](data:image/png;base64,AQID)</p>');
+        const html = activity('').replace('<p>Answer</p>', '<p>![remote](https://example.test/remote.png) ![http](http://example.test/plain.png) ![inline](data:image/png;base64,AQID)</p>');
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html) }), null, slot);
-        assert.equal(parsed.convCache.native.conversation.assets.length, 2);
+        assert.equal(parsed.convCache.native.conversation.assets.length, 3);
         assert.equal(parsed.status, 'ok');
         assert.deepEqual(parsed.resourceResults, []);
         assert.ok(!parsed.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'));
@@ -149,6 +153,26 @@ test('ambiguous Takeout resources cannot be recovered later by permissive legacy
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: asset.id }, slot), null);
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: 'photo.png' }, slot), null);
     } finally { MediaIndex.clearTakeoutData(slot); }
+});
+
+test('missing ZIP references and unsupported URI schemes report failures through import and storage restore', async () => {
+    for (const uri of ['missing.png', 'blob:missing.png', 'file:missing.png', 'custom:missing.png']) {
+        const slot = `native-missing-${uri}`;
+        try {
+            const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity(`<a href="${uri}">image</a>`)) }), null, slot);
+            assert.equal(parsed.status, 'partial', uri);
+            assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'), uri);
+            const asset = parsed.convCache.native.conversation.assets[0];
+            assert.ok(parsed.resourceResults.some(result => !result.ok && result.resourceId === asset.id), uri);
+            MediaIndex.clearTakeoutData(slot);
+            const restored = await getDomainConversationResult(slot, 'native');
+            assert.ok(restored);
+            const prepared = await preparePdfResources(restored.conversation, new Set([asset.id]), restored.acquisitionHints);
+            assert.equal(prepared.resources.get(asset.id)?.bytes, undefined);
+            assert.ok(prepared.resources.get(asset.id)?.failureReason, uri);
+            assert.ok(prepared.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'), uri);
+        } finally { MediaIndex.clearTakeoutData(slot); }
+    }
 });
 
 test('production RPC client parses raw responses without invoking the legacy detail facade', async () => {
