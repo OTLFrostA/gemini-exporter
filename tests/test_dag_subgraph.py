@@ -82,14 +82,14 @@ class TestDAGSubgraphPruning(unittest.TestCase):
             position["feat_search_clear_restore"],
             position["feat_zip_export_download"]
         )
-        # HTML 导出必须在 Markdown 极速跳过之后，PDF 导出在 HTML 之后
+        # Markdown 规范断言仍消费 ZIP 产出（真实数据依赖），失效标签页依赖 Imagen 会话
         self.assertLess(
-            position["feat_fast_skip_exported"],
-            position["feat_html_export_download"]
+            position["feat_zip_export_download"],
+            position["feat_multimodal_spec_assertion"]
         )
         self.assertLess(
-            position["feat_html_export_download"],
-            position["feat_pdf_export_download"]
+            position["feat_imagen_multimodal"],
+            position["feat_stale_tab_image_export"]
         )
         # 扩展卸载必须在 PDF 导出之后
         self.assertLess(
@@ -184,10 +184,11 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertFalse(r_to.needs_gemini)
         self.assertFalse(r_to.needs_live_scenarios)
 
-        # 仅测导出：无需 Gemini，无需实时场景池
+        # 仅测导出：域内含失效标签页用例，其真实前提是 Imagen 活体验证会话，
+        # 因此需要 Gemini 与实时场景（此前仅在运行时失败，现在调度层即诚实声明）
         r_exp = FrameworkRunner(domain="export")
-        self.assertFalse(r_exp.needs_gemini)
-        self.assertFalse(r_exp.needs_live_scenarios)
+        self.assertTrue(r_exp.needs_gemini)
+        self.assertTrue(r_exp.needs_live_scenarios)
 
         # 测多模态或聊天：必须需要 Gemini 和场景池
         r_chat = FrameworkRunner(target_features="feat_imagen_multimodal")
@@ -272,6 +273,45 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertEqual(res2.status, TestStatus.PASS)
         self.assertEqual(res3.status, TestStatus.SKIP)
         self.assertIn("子图剪枝免除执行", res3.message)
+
+
+class TestExportFormatDecoupling(unittest.TestCase):
+    """导出格式链解耦：Markdown/HTML/PDF 失败互不阻塞，各自给出 PASS/FAIL 而非 SKIP。"""
+
+    def test_format_cases_have_no_serial_pass_gates(self):
+        dag = FrameworkRunner._assemble_dag()
+        for fid in ("feat_fast_skip_exported", "feat_html_export_download", "feat_pdf_export_download"):
+            with self.subTest(fid=fid):
+                ancestors = set(dag.get_ancestors([fid]))
+                self.assertEqual(ancestors, {fid})
+        stale_ancestors = set(dag.get_ancestors(["feat_stale_tab_image_export"]))
+        self.assertEqual(stale_ancestors, {
+            "feat_stale_tab_image_export", "feat_imagen_multimodal", "feat_chat_generation"})
+
+    def run_with_injected_results(self, failing):
+        dag = FrameworkRunner._assemble_dag()
+        ctx = TestContext()
+        for fid, case in dag.cases.items():
+            case.execute = MagicMock(
+                return_value=(fid not in failing, "injected result", None))
+            case.teardown = MagicMock()
+        with patch("sys.stdout", new=io.StringIO()):
+            dag.run(ctx)
+        return ctx
+
+    def test_markdown_failure_does_not_skip_html_pdf(self):
+        ctx = self.run_with_injected_results({"feat_multimodal_spec_assertion"})
+        self.assertEqual(ctx.registry.get_result("feat_multimodal_spec_assertion").status, TestStatus.FAIL)
+        # 各格式独立执行并通过，不被 Markdown 失败连带 SKIP
+        for fid in ("feat_fast_skip_exported", "feat_html_export_download",
+                    "feat_pdf_export_download", "feat_stale_tab_image_export"):
+            with self.subTest(fid=fid):
+                self.assertEqual(ctx.registry.get_result(fid).status, TestStatus.PASS)
+
+    def test_html_failure_does_not_skip_pdf(self):
+        ctx = self.run_with_injected_results({"feat_html_export_download"})
+        self.assertEqual(ctx.registry.get_result("feat_html_export_download").status, TestStatus.FAIL)
+        self.assertEqual(ctx.registry.get_result("feat_pdf_export_download").status, TestStatus.PASS)
 
 
 class TestSearchClearIsolation(unittest.TestCase):
