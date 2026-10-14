@@ -1,7 +1,6 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { Conversation } from '../../../types/conversation.js';
-import { nativeExportInput } from '../../engine/chatFormatter.js';
 import {
     BatchWorker,
     resolveConversationData,
@@ -45,7 +44,7 @@ interface PdfSelectedItemObject { id?: string | number | null; title?: string | 
 export type PdfSelectedItem = string | PdfSelectedItemObject | ResourceConversationParseResult;
 
 /** Explicit adapter for an already trusted graph; metadata and raw objects cannot establish trust. */
-export function pdfDomainSelection(conversation: TrustedDomain): ResourceConversationParseResult { return nativeExportInput(conversation); }
+export function pdfDomainSelection(conversation: TrustedDomain): ResourceConversationParseResult { return { conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} }; }
 
 type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
 type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
@@ -241,12 +240,10 @@ async function prepareNativePdfItem(
     const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
         && !listItem?.isTakeoutOnly;
-    const messageCount = parsed.conversation.messages.length;
-    parsed = { ...parsed, conversation: { ...parsed.conversation, title } };
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);
-        const composed = composeDomainDocument(parsed.conversation);
+        const composed = composeDomainDocument({ ...parsed.conversation, title });
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
@@ -258,7 +255,7 @@ async function prepareNativePdfItem(
         ? { pipeline: null, maxRetries: undefined }
         : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
 
-    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.id, title: parsed.conversation.title };
+    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.id, title };
     const imageIds = collectDocumentResources(document).imageIds;
     const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
         signal,
@@ -269,8 +266,7 @@ async function prepareNativePdfItem(
     });
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-    const resources = prepared.resources;
-    return { ok: true, id, title, document, resources, diagnostics, drift, usedLocalSnapshot, messageCount };
+    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, messageCount: document.messages.length };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

@@ -6,7 +6,6 @@ import {
     cleanTitle,
     isRealTitle,
     toTimestampMs,
-    getEffectiveTimestamp,
     resolveTitle,
     TITLE_SOURCE_PRIORITY,
     type TitleSource,
@@ -128,7 +127,6 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
  */
 export function computeAuthoritativeTimestamp(conversation: ExportCompletionConversation, explicitTime?: number | string | Date | null): number | undefined {
     const metadata = conversation && typeof conversation === 'object' ? conversation : undefined;
-    const tsFromExplicit = toTimestampMs(explicitTime);
     let tsFromMessages = 0;
     if (Array.isArray(metadata?.messages)) {
         for (const m of metadata.messages) {
@@ -136,21 +134,9 @@ export function computeAuthoritativeTimestamp(conversation: ExportCompletionConv
             if (mt && mt > tsFromMessages) tsFromMessages = mt;
         }
     }
-    const tsFromChatTime = toTimestampMs(metadata?.chatTime);
-    const tsFromEffective = getEffectiveTimestamp(metadata);
-    const tsFromUpdated = toTimestampMs(metadata?.updatedAt);
-    const tsFromTimestamp = toTimestampMs(metadata?.timestamp);
-    const tsFromCreated = toTimestampMs(metadata?.createdAt);
-
-    const max = Math.max(
-        tsFromExplicit ?? 0,
-        tsFromMessages,
-        tsFromChatTime ?? 0,
-        tsFromEffective ?? 0,
-        tsFromUpdated ?? 0,
-        tsFromTimestamp ?? 0,
-        tsFromCreated ?? 0
-    );
+    const max = Math.max(tsFromMessages, ...[
+        explicitTime, metadata?.chatTime, metadata?.updatedAt, metadata?.timestamp, metadata?.createdAt,
+    ].map(value => toTimestampMs(value) ?? 0));
     return max > 0 ? max : undefined;
 }
 

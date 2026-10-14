@@ -13,7 +13,7 @@ export interface DomainMarkdownExportOptions extends MarkdownRenderOptions, Doma
 /** Orchestrate composition, resources and UI options without an intermediate conversation model. */
 export async function exportDomainHtml(conversation: TrustedDomain, options: DomainHtmlExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
-    const resources = await prepareDomainResources(options.resourceResults);
+    const resources = prepareDomainResources(options.resourceResults);
     return renderDocumentHtml(document, resources, {
         locale: options.locale ?? options.lang ?? 'zh', theme: options.theme ?? 'dark',
         copyCode: options.copyCode, foldLongPrompts: options.foldLongPrompts, thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed,
@@ -22,7 +22,7 @@ export async function exportDomainHtml(conversation: TrustedDomain, options: Dom
 
 export async function exportDomainMarkdown(conversation: TrustedDomain, options: DomainMarkdownExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
-    const resources = await prepareDomainResources(options.resourceResults);
+    const resources = prepareDomainResources(options.resourceResults);
     const createdAt = toIso(conversation.createdAt ?? conversation.timestamp ?? conversation.chatTime);
     const updatedAt = toIso(conversation.updatedAt ?? conversation.lastSeen);
     return renderDocumentMarkdown(document, resources, { locale: options.locale ?? options.lang,
