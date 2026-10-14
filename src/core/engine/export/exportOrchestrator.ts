@@ -1,6 +1,5 @@
 import { normalizeArchivePath } from '../../export/assets/archivePath.js';
 import { attemptResource, missingResource, resourceDiagnostics, waitForResources, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
-import { prepareDomainResources } from '../../export/assets/prepareDomainResources.js';
 import { planExportResources } from '../../export/assets/planExportResources.js';
 
 import type {
@@ -194,7 +193,6 @@ import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
 import {
     buildExportCompletion,
-    computeExportMessageCount,
     computeAuthoritativeTimestamp,
     resolveReliableTitleSource,
 } from "./exportCompletion.js";
@@ -854,7 +852,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         chat.title = listTitle;
                         const chatId = chat.id;
 
-                        const actualMsgCount = computeExportMessageCount(chat);
+                        const actualMsgCount = chat.messages.length;
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
                         if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
                             listC.messageCount = actualMsgCount;
@@ -928,15 +926,13 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             onLog(`[${listTitle}] Resource unavailable: ${result.reason}`, 'warn');
                         }
                         updateProgress();
-                        const bindings = await prepareDomainResources(resourceResults);
                         exportResult = { ...exportResult,
-                            resourceHints: Object.fromEntries(Object.entries(bindings).map(([id, path]) => [id, { archivePath: path }])),
                             diagnostics: [...exportResult.diagnostics, ...resourceDiagnostics(resourceResults)] };
                         let formatted: FormattedResult;
                         if (format === 'html') {
-                            formatted = await ChatFormatter.formatHtmlDocument(exportResult, { resourceResults });
+                            formatted = await ChatFormatter.formatHtmlDocument(chat, { resourceResults });
                         } else if (format === 'markdown') {
-                            formatted = await ChatFormatter.formatMarkdownDocument(exportResult, { resourceResults });
+                            formatted = await ChatFormatter.formatMarkdownDocument(chat, { resourceResults });
                         } else {
                             formatted = ChatFormatter.formatContent(exportResult, format, resourceResults);
                         }

@@ -6,6 +6,9 @@ import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
+import { formatHtmlDocument, formatMarkdownDocument, formatContent } from '../src/core/engine/chatFormatter.js';
+import { formatLiveSaveMarkdown } from '../src/core/engine/liveSaveWriter.js';
+import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
@@ -120,7 +123,8 @@ test('native Domain composition round-trips without moving transport into the gr
     assert.equal(JSON.stringify(result.conversation), before);
 });
 
-test('sanitized existing wire evidence retains structured content and closed image references', () => {
+test('sanitized existing wire evidence retains structured content and closed image references', async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: 1700000000000 });
     const fixture = (name: string): unknown => JSON.parse(readFileSync(join(__dirname, 'fixtures/provider/structured_rpc', name), 'utf8'));
     const candidate = fixture('wire-case-b-cand.json');
     const structured = fixture('wire-turn-3-12-b-stack.json');
@@ -137,6 +141,19 @@ test('sanitized existing wire evidence retains structured content and closed ima
     assert.equal(image.alt, '贝尔不等式实验示意图');
     assert.deepEqual(document, composeDomainDocument(JSON.parse(JSON.stringify(result.conversation))).document);
     for (const asset of result.conversation.assets) assert.equal('sourceEvidence' in asset, false);
+    const receipts: ResourceResult<ResourceDelivery>[] = result.conversation.assets.map(asset => ({
+        ok: true, resourceId: asset.id, value: { path: `assets/${asset.id}.png` },
+    }));
+    const before = JSON.stringify(result);
+    const options = { resourceResults: receipts };
+    const markdown = await formatMarkdownDocument(result.conversation, options);
+    assert.deepEqual(markdown, await formatMarkdownDocument(result, options));
+    assert.deepEqual(await formatHtmlDocument(result.conversation, options), await formatHtmlDocument(result, options));
+    assert.deepEqual(formatContent(result.conversation, 'json', receipts), formatContent(result, 'json', receipts));
+    const live = await formatLiveSaveMarkdown({ chat: result, safeTitle: result.conversation.title,
+        nid: result.conversation.id, resourceResults: receipts });
+    assert.equal(live.markdown, markdown.content, 'live-save and batch formatting retain identical native content and bindings');
+    assert.equal(JSON.stringify(result), before, 'formatting does not mutate source facts or hints');
 });
 
 test('generated resources retain their authored request token independently of archive paths', () => {
