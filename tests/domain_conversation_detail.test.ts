@@ -289,7 +289,7 @@ for (const body of ['messages', 'turns'] as const) {
             id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
             attachments: [...message.attachments, ...message.images, ...message.documents],
             reasoning: message.thoughts,
-            citations: [{ ...message.citations[0], id: 'citation-0' }, { id: 'grounding-1', number: 1 }],
+            citations: [{ ...message.citations[0], id: 'citation-0' }, { id: 'grounding-1' }],
         };
         assertDomainMessages(domain.messages, [expected]);
         for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst', 'images', 'documents', 'groundingCitationMarkers']) {

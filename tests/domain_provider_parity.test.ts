@@ -2,7 +2,6 @@ import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixt
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { Conversation } from '../src/types/conversation.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
@@ -80,27 +79,4 @@ test('Domain composition preserves provider parsing after flattening turns-only 
     assert.equal('turns' in domain, false);
     assert.deepEqual(domain.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
     await assertDomainParity(conversation);
-});
-
-test('Domain Document output does not depend on message request provenance', async () => {
-    const domain: DomainConversationDetail = {
-        id: metadata.id, title: metadata.title, updatedAt: metadata.timestamp, completeness: 'unknown',
-        providerId: 'gemini', assets: [{ id: 'image', kind: 'image', sourceUri: 'https://example.test/image.png' }],
-        messages: [{
-            id: 'answer-1', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }],
-            attachmentIds: ['image'],
-        }],
-    };
-    const original = structuredClone(domain);
-    const baseline = await composeFixture(domain);
-    for (const providerRequestId of ['abcd1234', 'different-request', 'r_R_MixedCase-XyZ', 'OpenAI:AbC']) {
-        const withProvenance: DomainConversationDetail = {
-            ...domain,
-            messages: domain.messages.map((message) => ({ ...message, provenance: { rawRole: providerRequestId } })),
-        };
-        const normalized = await composeFixture(withProvenance);
-        assert.deepEqual(normalized.document, baseline.document);
-        assert.deepEqual(normalized.diagnostics, baseline.diagnostics);
-    }
-    assert.deepEqual(domain, original);
 });

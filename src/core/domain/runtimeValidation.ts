@@ -1,5 +1,6 @@
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
+import { TITLE_SOURCES } from './titleAuthority.js';
 
 type Check = (value: unknown) => boolean;
 const text: Check = v => typeof v === 'string';
@@ -9,11 +10,15 @@ const optional = (check: Check): Check => v => v === undefined || check(v);
 const array = (check: Check): Check => v => Array.isArray(v) && v.every(check);
 const enumeration = (...values: string[]): Check => v => typeof v === 'string' && values.includes(v);
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype; }
-const shape = (fields: Record<string, Check>): Check => v => object(v) && Object.keys(v).every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
-const generation = shape({ providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) });
-const document = shape({ id: optional(text), contentMarkdown: optional(text), hasFabricatedText: optional(boolean) });
-const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(text), dataBase64: optional(text), failureReason: optional(text), generation: optional(generation), document: optional(document) });
-const citation = shape({ id: text, number: optional(number), url: optional(text), title: optional(text) });
+const shape = (fields: Record<string, Check>, nonEmpty = false): Check => v => {
+    if (!object(v)) return false;
+    const keys = Object.keys(v);
+    return (!nonEmpty || keys.length > 0) && keys.every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
+};
+const generation = shape({ providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) }, true);
+const document = shape({ id: optional(text), contentMarkdown: optional(text), hasFabricatedText: optional(boolean) }, true);
+const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(text), dataBase64: optional(text), generation: optional(generation), document: optional(document) });
+const citation = shape({ id: text, url: optional(text), title: optional(text) });
 
 function inline(v: unknown): boolean {
     if (!object(v)) return false;
@@ -53,8 +58,8 @@ function block(v: unknown): boolean {
         default: return false;
     }
 }
-const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), provenance: optional(shape({ rawRole: text })), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), updatedAt: optional(number), createdAt: optional(number), url: optional(text), titleSource: optional(text) };
+const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
+const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), updatedAt: optional(number), createdAt: optional(number), url: optional(text), titleSource: optional(enumeration(...TITLE_SOURCES)) };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */

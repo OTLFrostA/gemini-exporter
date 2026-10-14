@@ -85,7 +85,6 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         const type = image ? 'image' : /\.(wav|mp3|m4a|aac|ogg|flac|opus)$/i.test(referenceName) ? 'audio' : /\.(mp4|webm|mov|mkv)$/i.test(referenceName) ? 'video' : 'file';
         return { type, url: ref.uri, sourceUrl, name: takeoutBaseName(match ? sourceUrl : decodeTakeoutReference(sourceUrl)), source: 'takeout',
             ...(typeof size === 'number' && Number.isFinite(size) && size >= 0 ? { size } : {}),
-            ...(!match ? { failureReason: resolution.status === 'ambiguous' ? 'Ambiguous archive reference' : 'Missing archive entry' } : {}),
             ...(generation && image ? { isGenerated: true, generation: { ...generation,
                 ...(generation.imageCount === 1 ? { imageOrdinal: 0 } : {}) } } : {}) };
     };

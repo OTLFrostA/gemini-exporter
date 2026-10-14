@@ -25,7 +25,6 @@ export interface ResourceEvidence {
     isImage?: boolean;
     blobBase64?: string;
     dataBase64?: string;
-    failureReason?: string;
     /** Document metadata belongs to its resource record. */
     id?: string;
     createdAt?: number;

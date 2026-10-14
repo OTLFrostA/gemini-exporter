@@ -57,7 +57,7 @@ test('native parsing imports no historical persisted detail parser', () => {
 test('source request tokens survive intact in source evidence and Domain', () => {
     const raw = rpc([[turn('Question', null, undefined, 'r_AbCd12')]]);
     assert.equal(decodeGeminiDetail(raw).messages[0].rawProviderRequestId, 'r_AbCd12');
-    assert.equal(Reflect.get(native(raw).conversation.messages[0].provenance ?? {}, 'providerRequestId'), undefined);
+    assert.equal(Reflect.get(native(raw).conversation.messages[0], 'provenance'), undefined);
 
 });
 
@@ -80,7 +80,7 @@ test('missing timestamps and request evidence are never fabricated', () => {
     assert.equal(conversation.updatedAt, undefined);
     for (const message of conversation.messages) {
         assert.equal(message.timestamp, undefined);
-        assert.equal(message.provenance, undefined);
+        assert.equal(Object.hasOwn(message, 'provenance'), false);
     }
 });
 

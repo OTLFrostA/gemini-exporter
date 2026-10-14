@@ -1,4 +1,5 @@
 import type { BlockNode } from './content/blocks.js';
+import type { TitleSource } from './titleAuthority.js';
 
 /** Provider-neutral description of a complete conversation detail. */
 export type DomainMessageRole =
@@ -20,13 +21,16 @@ export interface DomainAsset {
     /** Original acquisition URI, never an export destination or legacy localName. */
     sourceUri?: string;
     dataBase64?: string;
-    failureReason?: string;
-    generation?: Partial<DomainGeneratedMediaIdentity>;
+    generation?: Partial<DomainGeneratedMediaIdentity> & (
+        | { providerRequestId: string } | { time: number } | { prompt: string }
+        | { generationOrdinal: number } | { imageCount: number } | { imageOrdinal: number }
+    );
     document?: {
         id?: string;
         contentMarkdown?: string;
+        /** Retained across storage so heuristic report content cannot export as complete. */
         hasFabricatedText?: boolean;
-    };
+    } & ({ id: string } | { contentMarkdown: string } | { hasFabricatedText: boolean });
 }
 
 export interface DomainGeneratedMediaIdentity {
@@ -42,16 +46,8 @@ export interface DomainGeneratedMediaIdentity {
 export interface DomainCitation {
     /** Message-local identity referenced by content/reasoning citationRef nodes. */
     id: string;
-    /** Source-authored citation number, when present (for example a grounding reference). */
-    number?: number;
     url?: string;
     title?: string;
-}
-
-/** Provider-originated metadata, never a Domain relationship key. */
-export interface DomainMessageProvenance {
-    /** Source-authored role when it cannot be normalized to a known role. */
-    rawRole?: string;
 }
 
 /** Authored media-generation event; output files may be absent from the source. */
@@ -69,7 +65,6 @@ export interface DomainMessage {
     content: BlockNode[];
     /** Unix epoch milliseconds; omit when missing or unknown. */
     timestamp?: number;
-    provenance?: DomainMessageProvenance;
     /** Explicit message-owned resources, in source order; every ID belongs to conversation.assets. */
     attachmentIds?: string[];
     /** A source-recorded generation event remains meaningful even when its output files are absent. */
@@ -93,5 +88,5 @@ export interface DomainConversationDetail {
     createdAt?: number;
     url?: string;
     messages: DomainMessage[];
-    titleSource?: string;
+    titleSource?: TitleSource;
 }

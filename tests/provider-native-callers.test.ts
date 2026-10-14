@@ -125,11 +125,25 @@ test('production Takeout binds extension variations once and carries native Doma
     } finally { MediaIndex.clearTakeoutData(slot); }
 });
 
+test('non-archive Takeout images do not become missing ZIP resource failures', async () => {
+    const slot = 'native-inline';
+    try {
+        const html = activity('').replace('<p>Answer</p>', '<p>![remote](https://example.test/remote.png) ![inline](data:image/png;base64,AQID)</p>');
+        const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html) }), null, slot);
+        assert.equal(parsed.convCache.native.conversation.assets.length, 2);
+        assert.equal(parsed.status, 'ok');
+        assert.deepEqual(parsed.resourceResults, []);
+        assert.ok(!parsed.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'));
+    } finally { MediaIndex.clearTakeoutData(slot); }
+});
+
 test('ambiguous Takeout resources cannot be recovered later by permissive legacy guessing', async () => {
     const slot = 'native-ambiguity';
     try {
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity('<a href="photo.png">image</a>')), 'one/photo.png': bytesEntry(1), 'two/photo.png': bytesEntry(2) }), null, slot);
         assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
+        assert.equal(parsed.status, 'partial');
+        assert.equal(parsed.resourceResults.filter(result => !result.ok).length, 1);
         const view = parsed.convCache.native;
         const asset = view.conversation.assets[0];
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: asset.id }, slot), null);
@@ -149,7 +163,7 @@ test('production RPC client parses raw responses without invoking the legacy det
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, 'u0');
         assert.equal(detail.conversation.title, 'Native title');
         assert.equal(detail.conversation.messages.length, 2);
-        assert.equal(Reflect.get(detail.conversation.messages[0].provenance ?? {}, 'providerRequestId'), undefined);
+        assert.equal(Reflect.get(detail.conversation.messages[0], 'provenance'), undefined);
     } finally { credentials.resolveCred = originalCred; transport.postBatchexecute = originalPost; }
 });
 

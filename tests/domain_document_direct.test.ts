@@ -42,7 +42,7 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
     assert.deepEqual(domain.assets[1].document?.contentMarkdown, '# Report\n\nIntroduction');
     assert.equal('groundingCitationMarkers' in domain.messages[1], false);
     assert.deepEqual(domain.messages[1].citations, [
-        { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2', number: 2 },
+        { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2' },
     ]);
     const ast = composeDomainDocument(domain).document;
     assert.equal(ast.messages[0].blocks.length, 1, 'inline placement suppresses the attachment tail');
@@ -129,10 +129,10 @@ test('prepared paths retain archive namespaces, hash inline bytes and omit faile
         { id: 'path', kind: 'file',  },
         { id: 'bytes', kind: 'image', mediaType: 'image/png', dataBase64: 'AQID' },
         { id: 'uri', kind: 'image', sourceUri: 'data:image/png;base64,AQID' },
-        { id: 'failed', kind: 'file',  failureReason: 'missing' },
+        { id: 'failed', kind: 'file' },
         { id: 'remote', kind: 'image', sourceUri: 'https://example.test/image.png' },
     ] };
-    const prepared = await prepareDomainResources(await fixtureResourceResults(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { archivePath: 'files/missing.pdf' } }));
+    const prepared = await prepareDomainResources(await fixtureResourceResults(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { unresolvedReference: 'files/missing.pdf' } }));
     assert.equal(prepared.path, 'files/report.pdf');
     assert.match(prepared.bytes, /^assets\/sha256\/\w{2}\/\w{2}\/\w{64}\.png$/);
     assert.equal(prepared.bytes, prepared.uri);
@@ -143,8 +143,8 @@ test('prepared paths retain archive namespaces, hash inline bytes and omit faile
 
 test('citation numbering is conversation-wide in body, reasoning and Sources, including references without URLs', async () => {
     const domain = validateParserDomain({ providerId: 'custom', id: 'citations', title: 'Citations', completeness: 'complete', assets: [], messages: [
-        { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', number: 17, url: 'https://example.test/one', title: 'First source' }] },
-        { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', number: 91, title: 'Offline source' }] },
+        { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', url: 'https://example.test/one', title: 'First source' }] },
+        { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', title: 'Offline source' }] },
     ] });
     const document = composeDomainDocument(domain).document;
     const first = document.messages[0].blocks[0];

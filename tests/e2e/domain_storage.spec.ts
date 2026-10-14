@@ -11,8 +11,10 @@ test.beforeAll(async () => {
         import * as StorageService from './src/core/storage/storageService.ts';
         import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
+        import { preparePdfResources } from './src/core/export/pdf/prepareResources.ts';
+        import { extractChatParseDrift } from './src/core/engine/export/parseDrift.ts';
         import { formatMarkdownDocument } from './src/core/engine/chatFormatter.ts';
-        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument };
+        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument, preparePdfResources, extractChatParseDrift };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -271,4 +273,32 @@ test('current storage rejects intermediate versions and obsolete fields without 
     expect(result.rejectedWrite).toContain('timestamp');
     expect(result.unchanged).toBe(true);
     expect(result.current.domainVersion).toBe(2);
+});
+
+test('restart retains report caution and detects missing image bytes without saved failure state', async ({ page }) => {
+    await install(page);
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        await api.saveDomainRequest('u0', { conversation: {
+            providerId: 'gemini', id: 'report-caution', title: 'Deep Research', titleSource: 'rpc', completeness: 'unknown',
+            assets: [{ id: 'report', kind: 'file', document: { id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true } },
+                { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } }],
+            messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'], generation: { mediaKind: 'image', outputCount: 1 } }],
+        }, acquisitionHints: {} });
+    });
+    await page.reload(); await install(page);
+    const result = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const parsed = await api.getDomainConversationResult('u0', 'report-caution');
+        const prepared = await api.preparePdfResources(parsed.conversation, new Set(['image']), parsed.acquisitionHints);
+        return { conversation: parsed.conversation, drift: api.extractChatParseDrift(parsed), diagnostics: prepared.diagnostics,
+            bytesMissing: prepared.resources.get('image').bytes === undefined, failure: prepared.resources.get('image').failureReason };
+    });
+    expect(result.conversation.assets[0].document).toEqual({ id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true });
+    expect(result.conversation.assets[1]).not.toHaveProperty('failureReason');
+    expect(result.conversation.messages[0].generation).toEqual({ mediaKind: 'image', outputCount: 1 });
+    expect(result.drift.hasHeuristicDocs).toBe(true);
+    expect(result.bytesMissing).toBe(true);
+    expect(result.failure).toBeTruthy();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: 'RESOURCE_UNAVAILABLE', path: 'asset:image' })]);
 });

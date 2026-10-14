@@ -24,7 +24,7 @@ export async function preparePdfResources(
     const diagnostics: DocumentDiagnostic[] = [];
     for (const asset of domain.assets) {
         if (options.signal?.aborted) return { resources, diagnostics, aborted: true };
-        const resource: PreparedResource = { name: asset.name, mediaType: asset.mediaType, failureReason: asset.failureReason };
+        const resource: PreparedResource = { name: asset.name, mediaType: asset.mediaType };
         resources.set(asset.id, resource);
         // PDF only needs bytes for image placements, not metadata-only file cards.
         if (!imageIds.has(asset.id)) continue;
@@ -41,7 +41,7 @@ export async function preparePdfResources(
                     return { bytes: decoded.bytes, mediaType: decoded.mimeType };
                 }
                 const hint = acquisitionHints[asset.id];
-                if (!options.acquire || (!hint && !uri)) throw new Error(asset.failureReason || 'Image acquisition is unavailable (no network fetch without an acquisition transport)');
+                if (!options.acquire || (!hint && !uri)) throw new Error('Image acquisition is unavailable (no network fetch without an acquisition transport)');
                 const acquired = await options.acquire(asset.id, {
                     ...(uri ? { url: uri } : {}),
                     ...(hint ?? { localName: `assets/${asset.name || asset.id}`, fileName: asset.name }),
