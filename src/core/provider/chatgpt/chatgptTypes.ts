@@ -1,0 +1,94 @@
+/**
+ * ChatGPT raw backend-api shapes, ported from pionxzh/chatgpt-exporter (MIT).
+ * @unverified-provider-scaffold Real payloads not yet verified against 9222 test profile.
+ */
+
+/** Author role used by ChatGPT mapping nodes. */
+export type ChatGPTAuthorRole = 'system' | 'assistant' | 'user' | 'tool';
+
+/** Minimal message content union needed for export (text-first). */
+export type ChatGPTMessageContent =
+    | { content_type: 'text'; parts: string[] }
+    | { content_type: 'code'; language: string; text: string }
+    | { content_type: 'execution_output'; text: string }
+    | { content_type: 'multimodal_text'; parts: Array<string | { content_type: string; asset_pointer?: string }> }
+    | { content_type: 'thoughts'; thoughts: Array<{ summary: string; content: string }> }
+    | { content_type: 'reasoning_recap'; content: string }
+    | { content_type: string; parts?: string[]; text?: string; content?: string };
+
+export interface ChatGPTNodeMessage {
+    author: { role: ChatGPTAuthorRole; name?: string; metadata: unknown };
+    content: ChatGPTMessageContent;
+    create_time?: number;
+    update_time?: number;
+    id: string;
+    metadata?: {
+        model_slug?: string;
+        is_visually_hidden_from_conversation?: boolean;
+        is_thinking_preamble_message?: boolean;
+        reasoning_title?: string;
+        finished_duration_sec?: number;
+        attachments?: Array<{ id: string; name: string; mime_type?: string; size?: number }>;
+        model_dil_v2?: { fallbackMarkdown?: string };
+        citations?: unknown[];
+        content_references?: unknown[];
+    };
+    recipient: string;
+    channel?: string | null;
+    status: string;
+    end_turn?: boolean;
+    weight: number;
+}
+
+export interface ChatGPTConversationNode {
+    children: string[];
+    id: string;
+    message?: ChatGPTNodeMessage;
+    parent?: string;
+}
+
+export interface ChatGPTApiConversation {
+    create_time: number;
+    update_time: number;
+    conversation_id?: string;
+    current_node: string;
+    mapping: Record<string, ChatGPTConversationNode>;
+    title: string;
+    is_archived: boolean;
+}
+
+export type ChatGPTApiConversationWithId = ChatGPTApiConversation & { id: string };
+
+export interface ChatGPTApiConversationItem {
+    id: string;
+    title: string;
+    create_time: number | string;
+    update_time?: number | string;
+    is_archived?: boolean;
+    gizmo_id?: string | null;
+}
+
+export interface ChatGPTApiConversations {
+    has_missing_conversations: boolean;
+    items: ChatGPTApiConversationItem[];
+    limit: number;
+    offset: number;
+    total: number | null;
+    cursor?: string | null;
+}
+
+export interface ChatGPTApiSession {
+    accessToken: string;
+    expires: string;
+    user?: { email?: string; name?: string; id?: string };
+}
+
+/** Backend endpoint table. Mirrors pionxzh constants: origin -> backend-api. */
+export function chatGPTApiBase(origin: string): string {
+    if (origin === 'https://chatgpt.com' || origin === 'https://chat.openai.com') {
+        return `${origin}/backend-api`;
+    }
+    return 'https://chatgpt.com/backend-api';
+}
+
+export const CHATGPT_HOSTS = ['chatgpt.com', 'chat.openai.com'];

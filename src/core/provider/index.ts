@@ -5,3 +5,7 @@ export * from "./providerRegistry.js";
 // Domain contracts live in core/domain; lifecycle contracts still serve the legacy sync/storage path.
 export * from "./gemini/geminiProvider.js";
 export type * from "./gemini/geminiContracts.js";
+// @unverified-provider-scaffold ChatGPT adapter is scaffold-only: exported but
+// never auto-registered until 9222 live payloads verify list/detail/assets.
+export * from "./chatgpt/chatgptProvider.js";
+export type * from "./chatgpt/chatgptTypes.js";
