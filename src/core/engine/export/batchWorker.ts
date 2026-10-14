@@ -17,12 +17,16 @@ type MessageSenderFunction = (message: unknown, callback?: (response: unknown) =
 interface TabServiceLike { sendToGeminiTab?: (message: unknown, slot?: string, timeoutMs?: number) => Promise<unknown> }
 interface FetchChatDetailOptions { messageSender?: MessageSenderFunction | null; tabService?: TabServiceModule | TabServiceLike | null }
 export type FetchChatDetailResult = NativeBatchReply;
+export type ResolvedConversationSource = 'online' | 'takeout' | 'local_snapshot';
+export interface ResolvedResourceConversationParseResult extends ResourceConversationParseResult {
+    resolvedSource?: ResolvedConversationSource;
+}
 export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: Conversation['cloudAvailability'] };
-export type WorkerChat = ResourceConversationParseResult;
+export type WorkerChat = ResolvedResourceConversationParseResult;
 export type WorkerChatResolveInput = NativeConversationInput;
 export type WorkerMessageAttachment = AssetPipelineItem;
 export type ResolveChatResult = {
-    isError: false; chat: ResourceConversationParseResult; listTitle: string;
+    isError: false; chat: ResolvedResourceConversationParseResult; listTitle: string;
     isConfirmedDeleted: false; errMsg: null; convsNeedSave: boolean;
 } | { isError: true; displayTitle: string; isConfirmedDeleted: boolean; errMsg: string; convsNeedSave: false };
 interface ResolveChatOptions { messageSender?: MessageSenderFunction | null }
@@ -161,10 +165,15 @@ export async function resolveConversationData(value: NativeConversationInput, id
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}): Promise<NativeConversationInput> {
     if (isResourceConversationParseResult(value) && value.conversation.messages.length) return value;
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
-    if (isResourceConversationParseResult(offline) && offline.conversation.messages.length) { onLog('[Takeout] Recovered ' + id, 'info'); return offline; }
+    if (isResourceConversationParseResult(offline) && offline.conversation.messages.length) {
+        onLog('[Takeout] Recovered ' + id, 'info');
+        (offline as ResolvedResourceConversationParseResult).resolvedSource = 'takeout';
+        return offline;
+    }
     const stored = await getDomainConversationResult(slot, id);
     if (stored?.conversation.messages.length) {
         onLog(`Exporting local snapshot: ${id}; latest cloud content was not fetched.`, 'warn');
+        (stored as ResolvedResourceConversationParseResult).resolvedSource = 'local_snapshot';
         return stored;
     }
     return value;
@@ -208,7 +217,9 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
     }));
     const changed = !!list && (list.title !== title || list.titleSource !== source || JSON.stringify(list.titles) !== JSON.stringify(storedTitles));
     if (changed && list) { list.title = title; list.titleSource = normalizeReliableTitleSource(source); list.titles = storedTitles; onTitleUpdated(id, title, source || ''); }
-    return { isError: false, chat: { ...result, conversation: { ...domain, title, titleSource: source, titles } },
+    const resolvedChat = result as ResolvedResourceConversationParseResult;
+    const resolvedSource = resolvedChat.resolvedSource ?? (isResourceConversationParseResult(value) && value.conversation.messages.length ? 'online' : undefined);
+    return { isError: false, chat: { ...result, conversation: { ...domain, title, titleSource: source, titles }, ...(resolvedSource ? { resolvedSource } : {}) },
         listTitle: title, isConfirmedDeleted: false, errMsg: null, convsNeedSave: changed };
 }
 export const isWorkerChat = isResourceConversationParseResult;

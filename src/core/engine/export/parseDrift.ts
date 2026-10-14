@@ -1,4 +1,5 @@
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
+import { resolveExportRecordStatus } from './exportCompletion.js';
 /**
  * Phase C (P1-8/P1-9): parser 诊断抽取 —— 纯函数，供导出链路与单测共用。
  *
@@ -32,6 +33,13 @@ export function extractChatParseDrift(result: ResourceConversationParseResult): 
 }
 
 export function chatRecordStatusWithDrift(base: "ok" | "empty", drift: ChatParseDrift): "ok" | "empty" | "partial" {
-    if (drift.turnsRejected > 0 || drift.hasHeuristicDocs || drift.sourcePartial) return "partial";
-    return base;
+    return resolveExportRecordStatus({
+        statusOverride: base,
+        evidence: {
+            sourcePartial: drift.sourcePartial,
+            turnsRejected: drift.turnsRejected,
+            hasHeuristicDocs: drift.hasHeuristicDocs,
+            truncated: drift.truncated
+        }
+    }).status as "ok" | "empty" | "partial";
 }

@@ -197,7 +197,9 @@ import {
     buildExportCompletion,
     computeExportMessageCount,
     computeAuthoritativeTimestamp,
-    resolveReliableTitleSource
+    resolveReliableTitleSource,
+    type ExportIntegrityEvidence,
+    type ExportCompletionResult
 } from "./exportCompletion.js";
 
 import { EXT_VERSION, getExtensionVersion, DEFAULT_EXPORT_FOLDER_NAME } from "../../utils/constants.js";
@@ -849,8 +851,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             continue;
                         }
 
+                        const isLocalSnapshotSource = resolvedRes.chat.resolvedSource === 'local_snapshot'
+                            || (!resolvedRes.chat.resolvedSource && (!isWorkerChat(chatCandidate) || !chatCandidate.conversation.messages.length));
                         const usedLocalSnapshot = listC?.cloudAvailability !== 'deleted' && !listC?.isTakeoutOnly
-                            && (!isWorkerChat(chatCandidate) || !chatCandidate.conversation.messages.length);
+                            && isLocalSnapshotSource;
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
@@ -964,6 +968,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const chatDrift = extractChatParseDrift(exportResult);
                         const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
 
+                        let completion: ExportCompletionResult | null = null;
                         if (!mainWriteError) {
                             landedChats++;
                             onLog(getI18n().t('logExportSuccess', listTitle, fileName), 'info');
@@ -988,17 +993,22 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 if (isChatTruncated) {
                                     onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                                 }
-                                const baseStatus = (actualMsgCount === 0) ? 'empty' : 'ok';
-                                const driftStatus = chatRecordStatusWithDrift(baseStatus, chatDrift);
-                                const statusOverride = isChatTruncated || usedLocalSnapshot || driftStatus === 'partial'
-                                    ? 'partial' : undefined;
+
+                                const failedAssetsCount = resourceResults.filter(r => !r.ok).length;
+                                const evidence: ExportIntegrityEvidence = {
+                                    sourcePartial: chatDrift.sourcePartial,
+                                    turnsRejected: chatDrift.turnsRejected,
+                                    hasHeuristicDocs: chatDrift.hasHeuristicDocs,
+                                    truncated: isChatTruncated,
+                                    usedLocalSnapshot,
+                                };
 
                                 const authoritativeChatTime = Math.max(
                                     computeAuthoritativeTimestamp(listC) || 0,
                                     computeAuthoritativeTimestamp(chat) || 0
                                 ) || undefined;
 
-                                const completion = buildExportCompletion({
+                                completion = buildExportCompletion({
                                     conversation: chat,
                                     conversationId: nid,
                                     format: options.format || 'markdown',
@@ -1011,7 +1021,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     titles: mergeTitleSources(listC?.titles, chat.titles),
                                     messageCount: actualMsgCount,
                                     chatTime: authoritativeChatTime,
-                                    statusOverride,
+                                    failedAssets: failedAssetsCount,
+                                    evidence,
                                     isTruncated: isChatTruncated,
                                     truncateReason: isChatTruncated
                                         ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
@@ -1045,6 +1056,16 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             });
                         }
 
+                        const metaStatus: 'success' | 'partial' | 'failed' = mainWriteError
+                            ? 'failed'
+                            : completion
+                                ? (completion.exportRecord.status === 'partial'
+                                    ? 'partial'
+                                    : completion.exportRecord.status === 'failed'
+                                        ? 'failed'
+                                        : 'success')
+                                : (usedLocalSnapshot || chatFailedAssetsSet.has(nid) ? 'partial' : 'success');
+
                         metaResults.push({
                             id: chatId,
                             title: listTitle,
@@ -1054,7 +1075,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             messageCount: computeExportMessageCount(chat),
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,
-                            status: mainWriteError ? 'failed' : usedLocalSnapshot || chatFailedAssetsSet.has(nid) ? 'partial' : 'success',
+                            status: metaStatus,
                             ...(driftNotable ? {
                                 parseStatus: chatRecordStatusWithDrift('ok', chatDrift),
                                 schemaDrift: chatDrift.schemaDrift,
