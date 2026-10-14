@@ -313,6 +313,18 @@ class TestExportFormatDecoupling(unittest.TestCase):
         self.assertEqual(ctx.registry.get_result("feat_html_export_download").status, TestStatus.FAIL)
         self.assertEqual(ctx.registry.get_result("feat_pdf_export_download").status, TestStatus.PASS)
 
+    def test_gemini_free_export_subset_preserved(self):
+        # 不含 StaleTab 的五格式子集仅依赖 Takeout 历史数据（各用例均有
+        # 空 chat_records 分支），不拉起 Gemini 活体场景即可验证。
+        targets = ",".join([
+            "feat_zip_export_download", "feat_multimodal_spec_assertion",
+            "feat_fast_skip_exported", "feat_html_export_download",
+            "feat_pdf_export_download",
+        ])
+        r = FrameworkRunner(target_features=targets)
+        self.assertFalse(r.needs_gemini)
+        self.assertFalse(r.needs_live_scenarios)
+
 
 class TestSearchClearIsolation(unittest.TestCase):
     def run_case(self, preserve_selection, store_total=12):

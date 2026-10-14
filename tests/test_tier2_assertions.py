@@ -846,6 +846,38 @@ class CoverageTests(unittest.TestCase):
                      patch.object(CDPActions, 'clear_search_workbench'):
                     self.assertFalse(case.execute(ctx)[0])
 
+    def test_html_pdf_restore_markdown_format_on_failure(self):
+        # FAIL 路径也必须走 finally 恢复默认 markdown，避免污染后序用例的格式状态
+        for case, extension in ((HtmlExportDownloadCase(), '.html'), (PdfExportDownloadCase(), '.pdf')):
+            with self.subTest(extension=extension), tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / 'export.zip'
+                with zipfile.ZipFile(path, 'w') as zf: zf.writestr(f'Wrong_{OTHER[-6:]}{extension}', 'nonempty content')
+                ctx = MagicMock(output_dir=directory)
+                ctx.chat_records = [{'chat_id': CID}]
+                cdp = ctx.connect_options.return_value
+                with patch('scripts.framework.cases.export.select_format_targets', return_value={'matched': [CID]}), \
+                     patch.object(CDPActions, 'trigger_export_zip', return_value=str(path)), \
+                     patch.object(CDPActions, 'clear_search_workbench'):
+                    self.assertFalse(case.execute(ctx)[0])
+                scripts = [str(call.args[0]) for call in cdp.eval.call_args_list]
+                self.assertTrue(any('markdown' in s for s in scripts),
+                                f"{extension} FAIL 后必须恢复 markdown 格式")
+
+    def test_zip_export_resets_skip_exported_switch(self):
+        # 与 FastSkip 解耦后，ZIP 用例启动时必须关闭残留 skip 开关（脚本级断言，不跑真实导出）
+        from scripts.framework.cases.export import ZipExportDownloadCase
+        with tempfile.TemporaryDirectory() as directory:
+            ctx = MagicMock(output_dir=directory)
+            ctx.chat_records = []
+            cdp = ctx.connect_options.return_value
+            cdp.eval.return_value = {}
+            with patch.object(CDPActions, 'clear_search_workbench'), \
+                 patch.object(CDPActions, 'trigger_export_zip'):
+                ZipExportDownloadCase().execute(ctx)
+            scripts = [str(call.args[0]) for call in cdp.eval.call_args_list]
+            self.assertTrue(any('skipExported' in s and 'checked = false' in s for s in scripts),
+                            "ZIP 启动时必须显式关闭 skipExported")
+
     def test_partial_skip_requires_both_states_and_exact_zip_contents(self):
         for partial, zip_ids, expected in (({'exportedId': OTHER}, [CID], False),
                                          ({'exportedId': OTHER, 'unexportedId': CID}, [CID, OTHER], False),
