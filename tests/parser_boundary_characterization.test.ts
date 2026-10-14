@@ -80,7 +80,7 @@ test('missing or malformed envelopes distinguish list diagnostics from detail fa
     assert.equal(empty.id, ID);
     assert.deepEqual(empty.messages, []);
     assert.equal(empty.titleSource, 'default');
-    assert.equal(empty.timestamp, null);
+    assert.equal(Object.hasOwn(empty, 'timestamp'), false);
     assert.equal(empty.schemaDrift, undefined);
     assert.equal(empty._debug!.turnsLen, 0);
     const emptyList = parseList(rpc([null, [], 'tC_empty_page'], 'MaZiqc'));
@@ -99,11 +99,11 @@ test('detail: reverse wire ordering, candidates and authoritative timestamps rem
     ]);
     assert.equal(parsed.messages[0].providerRequestId, 'r_AB12');
     assert.equal(parsed.messages[1].id, 'rc_old');
-    assert.equal(parsed.createdAt, 1700000000500);
+    assert.equal(Object.hasOwn(parsed, 'createdAt'), false);
     assert.equal(parsed.updatedAt, 1700000010500);
-    assert.equal(parsed.chatTime, parsed.updatedAt);
+    assert.equal(Object.hasOwn(parsed, 'chatTime'), false);
     assert.equal(parsed.nextPageToken, 'tC_detail_cursor');
-    assert.deepEqual(parsed.titles, { rpc: 'Official detail title' });
+    assert.equal(Object.hasOwn(parsed, 'titles'), false);
     assert.equal(parsed.schemaDrift, undefined);
 });
 
@@ -113,8 +113,8 @@ test('detail: absent optional fields and truncated candidates do not fabricate m
     for (const [wireTurn, expected] of [[userOnly, ['User only prompt']], [modelOnly, ['Model only answer']]] as const) {
         const parsed = decodeGeminiDetail(rpc([[wireTurn]]));
         assert.deepEqual(parsed.messages.map(m => m.content), expected);
-        assert.equal(parsed.timestamp, null);
-        assert.equal(parsed.createdAt, null);
+        assert.equal(Object.hasOwn(parsed, 'timestamp'), false);
+        assert.equal(Object.hasOwn(parsed, 'createdAt'), false);
         assert.equal(parsed.attachmentCount, 0);
         assert.equal(parsed.turnsRejected, undefined);
     }
@@ -148,7 +148,7 @@ test('detail: missing or malformed titles keep the existing newest-wire-prompt f
         const parsed = decodeGeminiDetail(rpc([[turn('Newest prompt title'), turn('Oldest prompt title')], null, title]));
         assert.equal(parsed.title, 'Newest prompt title');
         assert.equal(parsed.titleSource, 'sniff');
-        assert.deepEqual(parsed.titles, { sniff: parsed.title });
+        assert.equal(Object.hasOwn(parsed, 'titles'), false);
     }
     const flatUser = turn();
     flatUser[2] = ['Flat user prompt title'];

@@ -51,17 +51,15 @@ test('all legacy resource paths produce one Domain resource, with document and g
     const resources = messageAssets(domain, 0)!;
     assert.equal(resources.length, 2);
     assert.equal(resources[0].name, 'Report');
-    assert.deepEqual(resources[0].source, { uri: document.url });
+    assert.deepEqual(resources[0].sourceUri, document.url);
     assert.deepEqual(resources[0].document, {
-        id: document.id, chipUrl: document.chipUrl, contentMarkdown: document.contentMarkdown,
-        sections: document.sections, links: document.links, candidates: document.candidates, hasFabricatedText: false,
+        id: document.id, contentMarkdown: '# Report\n\nIntro\n\n[Source](https://example.test/source)', hasFabricatedText: false,
     });
-    assert.deepEqual(resources[1].generation, generation);
-    assert.equal(resources[1].generated, true);
+    assert.deepEqual(resources[1].generation, Object.fromEntries(Object.entries(generation).filter(([key]) => key !== 'chatId' && key !== 'turnId')));
+    assert.equal(Reflect.get(resources[1], 'generated'), undefined);
     assert.equal('sourceEvidence' in resources[1], false);
     assert.equal('token' in resources[1], false);
-    assert.notEqual(resources[0].document?.sections, document.sections);
-    assert.notEqual(resources[0].document!.links![0], document.links[0]);
+    assert.notEqual(Reflect.get(resources[0].document ?? {}, 'sections'), document.sections);
     assert.notEqual(resources[1].generation, generation);
 });
 
@@ -72,7 +70,7 @@ test('missing and inline documents deduplicate by values, never shared object id
             attachments: [structuredClone(document)], documents: [structuredClone(document)] }] };
         const domain = await assertRoundTrip(input);
         assert.equal(messageAssets(domain, 0)?.length, 1);
-        assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['Intro']);
+        assert.deepEqual(messageAssets(domain, 0)?.[0].document?.contentMarkdown, contentMarkdown ? `${contentMarkdown}\n\nIntro` : 'Intro');
     }
 });
 
@@ -84,7 +82,7 @@ test('document IDs reconcile metadata without any downloadable reference', async
     }] });
     assert.equal(messageAssets(domain, 0)?.length, 1);
     assert.equal(messageAssets(domain, 0)?.[0].document?.id, 'report');
-    assert.deepEqual(messageAssets(domain, 0)?.[0].document?.sections, ['Intro']);
+    assert.equal(messageAssets(domain, 0)?.[0].document?.contentMarkdown, 'Intro');
 });
 
 test('merging document aliases preserves repeated metadata entries and supplements missing values', () => {
@@ -139,9 +137,9 @@ test('reliable generation identity merges online/offline paths and preserves met
         images: [{ type: 'image', localName: 'offline.png', isGenerated: true, generation, dataBase64: 'AQID' }],
     }] });
     assert.equal(messageAssets(domain, 0)?.length, 1);
-    assert.equal(messageAssets(domain, 0)?.[0].source, undefined);
-    assert.deepEqual(messageAssets(domain, 0)?.[0].generation, generation);
-    assert.equal(messageAssets(domain, 0)?.[0].generated, true);
+    assert.equal(messageAssets(domain, 0)?.[0].sourceUri, undefined);
+    assert.deepEqual(messageAssets(domain, 0)?.[0].generation, Object.fromEntries(Object.entries(generation).filter(([key]) => key !== 'chatId' && key !== 'turnId')));
+    assert.ok(messageAssets(domain, 0)?.[0].generation);
 });
 
 test('body references to discarded provider aliases bind to the one semantic resource', async () => {
@@ -208,7 +206,7 @@ test('binary views survive Domain JSON round trips without changing input bytes'
 
 test('shared source gate rejects runtime legacy aliases; Composer uses explicit Domain resources', async () => {
     const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
-    const domain: DomainConversationDetail = { ...metadata, providerId: 'gemini', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] };
+    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] };
     const expected = await composeFixture(domain);
     const leaked = { ...domain, messages: [{ ...domain.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);

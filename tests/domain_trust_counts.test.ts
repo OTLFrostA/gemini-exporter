@@ -9,8 +9,7 @@ import type { DomainConversationDetail } from '../src/core/domain/conversationDe
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     for (const status of ['complete', 'partial', 'unknown'] as const) {
-        const builder: DomainConversationDetail = { providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph', timestamp: null,
-            completeness: { status }, assets: [{ id: 'bytes', kind: 'file', source: { uri: 'opaque:original' } }],
+        const builder: DomainConversationDetail = { providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph', completeness: status, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }],
             messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown', provenance: { rawRole: 'future-role' },
                 content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) };
         const trusted = validateParserDomain(builder);
@@ -22,7 +21,7 @@ test('large provider-neutral graphs preserve complete/partial/unknown coverage a
         const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.id));
         assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
-        assert.equal(read.conversation.completeness?.status, status);
+        assert.equal(read.conversation.completeness, status);
         assert.equal(read.conversation.messages[999].content[0].type, 'unknown');
         assert.equal(Object.getOwnPropertySymbols(read.conversation).length, 0);
     }
@@ -62,7 +61,7 @@ test('count actual Schema passes and Closure calls separately at every trust bou
                 await measure('WriteSnapshot',()=>saveDomainConversation('u0',takeout[0]));
                 const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.id)));
                 const parsed=await measure('AdaptRecord',()=>storedParseResult(record));
-                await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion:1,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion:1,results:[parsed]}));});
+                await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 2,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 2,results:[parsed]}));});
                 await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
                 return rows;
             }` }, plugins: [{ name: 'test-only-actual-schema-closure-counters', setup(builder) {

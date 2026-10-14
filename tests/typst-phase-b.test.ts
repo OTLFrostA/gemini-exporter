@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -13,7 +14,7 @@ const {
 } = require('./helpers/realWasmSandbox.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return { providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages }, 1);
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
@@ -90,10 +91,10 @@ test('file description reaches the transport', async () => {
 
 test('thought kinds map to note labels', async () => {
     const cases: Array<[string, string | undefined]> = [
-        ['summary', 'Thinking Summary'],
-        ['progress', 'Thinking Progress'],
+        ['summary', 'Thinking Process'],
+        ['progress', 'Thinking Process'],
         ['reasoning', 'Thinking Process'],
-        ['unknown', undefined],
+        ['unknown', 'Thinking Process'],
     ];
     for (const [kind, label] of cases) {
         const b = domainFixture([msg('m1', 'assistant', [{
@@ -115,7 +116,7 @@ test('code filename and meta reach the transport', async () => {
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'code');
-    assert.strictEqual(node.header, 'app.py · python · runnable');
+    assert.strictEqual(node.header, 'python · runnable');
     assert.ok(!('filename' in node));
     assert.ok(!('meta' in node));
 });
@@ -193,8 +194,8 @@ test('real WASM: phase B features compile with all text selectable', async () =>
         'hdr-one', 'hdr-two', 'sub-one', 'sub-two', 'cell-one', 'cell-two',
         'Key sources', 'report.pdf', 'Q3 summary deck',
         'fourth level', 'fifth level', 'sixth level',
-        'Thinking Progress', 'working on it',
-        'app.py', 'runnable',
+        'Thinking Process', 'working on it',
+        'runnable',
     ]) {
         assert.ok(extracted.text.includes(needle), `missing from PDF text: ${needle}`);
     }

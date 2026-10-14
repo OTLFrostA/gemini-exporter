@@ -20,7 +20,7 @@ function rawIsNotExportable(raw: DomainConversationDetail): void {
 void rawIsNotExportable;
 
 test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves messages', async () => {
-    const raw: DomainConversationDetail = { providerId: 'independent', id: 'pdf-source', title: 'Title', timestamp: null,
+    const raw: DomainConversationDetail = { providerId: 'independent', id: 'pdf-source', title: 'Title', completeness: 'unknown',
         messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] };
     // @ts-expect-error Raw Domain is neither request metadata nor a trusted result.
     const rejected = await preparePdfItem(raw, { includeAssets: false });
@@ -40,8 +40,8 @@ test('pure Composer and all export preparations add zero Domain validations', as
             import {formatContent,formatHtmlDocument,formatMarkdownDocument} from './src/core/engine/chatFormatter.ts';
             import {preparePdfItem,pdfDomainSelection} from './src/core/export/pdf/prepareItem.ts';
             export async function run(){
-                const conversation=validateParserDomain({providerId:'independent',id:'exports',title:'<Independent>',timestamp:null,assets:[],
-                    completeness:{status:'partial',reason:'Earlier pages unavailable'},messages:[{id:'q',role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Question <safe>'}]}]},
+                const conversation=validateParserDomain({providerId:'independent',id:'exports',title:'<Independent>',assets:[],
+                    completeness:'partial',messages:[{id:'q',role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Question <safe>'}]}]},
                     {id:'a',role:'assistant',reasoning:[{type:'paragraph',children:[{type:'text',text:'Reasoning evidence'}]}],content:[{type:'code',language:'ts',code:'const value = 2;'}]}]});
                 const parsed={conversation,diagnostics:[],resourceHints:{},acquisitionHints:{}};
                 const before=countDomainSchemas();const doc=composeDomainDocument(conversation).document;
@@ -61,5 +61,5 @@ test('pure Composer and all export preparations add zero Domain validations', as
     assert.equal(result.before, 1); assert.equal(result.after, 1);
     assert.equal(result.doc.messages.length, 2); assert.equal(result.pdf.ok, true);
     assert.match(result.html, /Question &lt;safe&gt;/); assert.match(result.markdown, /const value = 2;/);
-    assert.equal(result.native.conversation.completeness?.status, 'partial');
+    assert.equal(result.native.conversation.completeness, 'partial');
 });

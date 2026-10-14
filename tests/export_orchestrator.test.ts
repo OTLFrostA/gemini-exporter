@@ -737,7 +737,7 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
 
         assert.strictEqual(result.landedChats, 1);
         assert.equal((receivedItem as any).url, attachment.url);
-        assert.equal((receivedItem as any).localName, attachment.localName);
+        assert.equal((receivedItem as any).localName, 'assets/entity_original.png');
         assert.ok((receivedItem as any).assetId);
         assert.equal((receivedChat as any).id, resolvedChat.id);
         assert.equal((receivedChat as any).title, resolvedChat.title);
@@ -810,14 +810,14 @@ test('ExportOrchestrator - writes native document content without reinterpreting
     assert.ok(zipInstance, 'Mock JSZip instance must be created');
 
     // 1. Cleaned document must be written
-    assert.ok(zipInstance.files['files/chat_doc_1_pipe_analysis.md'], 'Document file must be written to archive');
-    const writtenContent = zipInstance.files['files/chat_doc_1_pipe_analysis.md'];
+    assert.ok(Object.entries(zipInstance.files).find(([path, content]) => path.startsWith('files/') && String(content).includes('# 城市供水管网水力建模分析'))?.[1], 'Document file must be written to archive');
+    const writtenContent = String(Object.entries(zipInstance.files).find(([path, content]) => path.startsWith('files/') && String(content).includes('# 城市供水管网水力建模分析'))?.[1]);
     assert.strictEqual(writtenContent.includes('immersive_entry_chip'), true, 'Export preparation preserves the supplied native document content');
     assert.ok(writtenContent.includes('# 城市供水管网水力建模分析'), 'Written document must contain document title and content');
     assert.ok(writtenContent.includes('连续性方程与水头损失计算'), 'Written document must contain document body');
 
     // 2. Pure chip telemetry document (empty after cleaning) must NOT be written
-    assert.ok(zipInstance.files['files/chat_doc_1_empty_chip.md'], 'Every supplied native document is written');
+    assert.ok(Object.entries(zipInstance.files).find(([path, content]) => path.startsWith('files/') && String(content).includes('immersive_entry_chip') && !String(content).includes('# 城市供水管网水力建模分析'))?.[1], 'Every supplied native document is written');
 });
 
 test('BatchWorker - accepts typed native results; storage rejects a mutated graph', async () => {

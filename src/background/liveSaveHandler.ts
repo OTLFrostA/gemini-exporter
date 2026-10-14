@@ -197,7 +197,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
                 }
             }
-            const effectiveChatTime = chat.conversation.chatTime || turnTsFromMsgs || chat.conversation.updatedAt || chat.conversation.timestamp || convInStore?.updatedAt || convInStore?.timestamp || null;
+            const effectiveChatTime = turnTsFromMsgs || chat.conversation.updatedAt || convInStore?.updatedAt || convInStore?.timestamp || null;
             const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || chat.conversation.messageCount || 0;
 
             await completeConversationExport(
@@ -220,7 +220,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     failedAssets,
                     titleCandidate: safeTitle,
                     titleProvenance: chat.conversation.titleSource || convInStore?.titleSource,
-                    titles: chat.conversation.titles || convInStore?.titles,
+                    titles: convInStore?.titles,
                     messageCount: effectiveMsgCount,
                     chatTime: effectiveChatTime
                 }

@@ -20,7 +20,7 @@ test('real RPC turns expose only source-authored event time/prompt and single-im
     assert.equal(onlineImage.generation?.imageOrdinal, 0);
     assert.notEqual(onlineImage.generation?.generationOrdinal, offlineImage.generation?.generationOrdinal);
     assert.notEqual(onlineImage.id, offlineImage.id);
-    assert.notEqual(onlineImage.source?.uri, offlineImage.source?.uri);
+    assert.notEqual(onlineImage.sourceUri, offlineImage.sourceUri);
     for (const options of [{ noTime: true }, { noPrompt: true }]) {
         const image = mediaSources(options).online.conversation.assets[0];
         assert.equal(options.noTime ? image.generation?.time : image.generation?.prompt, undefined);
@@ -64,10 +64,10 @@ test('DomainStore rebinds existing byte-cache entries only with unique event pro
     await saveDomainConversation('u0', offline);
     const original = offline.conversation.assets.find(a => a.generation?.prompt === mediaPrompt)!;
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
-    await cacheDomainResource(identity, original.id, original.source!.uri!, mediaBytes);
+    await cacheDomainResource(identity, original.id, original.sourceUri!!, mediaBytes);
     await saveDomainConversation('u0', online);
     assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
-    const changed = structuredClone(online); changed.conversation.assets[0].source!.uri = 'https://lh3.googleusercontent.com/another';
+    const changed = structuredClone(online); changed.conversation.assets[0].sourceUri! = 'https://lh3.googleusercontent.com/another';
     changed.conversation.assets[0].generation!.prompt = 'Unrelated prompt';
     changed.acquisitionHints = {};
     await saveDomainConversation('u0', changed);
@@ -77,7 +77,7 @@ test('DomainStore rebinds existing byte-cache entries only with unique event pro
 test('production RPC request conflicts reject cross-source reuse even with identical event timestamps and prompts', async () => {
     const first = mediaSources().online;
     const second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
-    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.assets[0]), second.conversation.assets.map(resourceIdentity)), null);
+    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.assets[0], first.conversation.id), second.conversation.assets.map(asset => resourceIdentity(asset, second.conversation.id))), null);
     await saveDomainConversation('u0', first, [{ assetId: first.conversation.assets[0].id, bytes: mediaBytes }]);
     await saveDomainConversation('u0', second);
     assert.equal(await getDomainResource(storageIdentity('gemini', 'u0', mediaChatId), second.conversation.assets[0].id), null);
@@ -88,7 +88,7 @@ test('byte-cache reuse cannot bypass conflicting event evidence when an asset ID
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
     const image = online.conversation.assets[0];
     await saveDomainConversation('u0', online);
-    await cacheDomainResource(identity, image.id, image.source!.uri!, mediaBytes);
+    await cacheDomainResource(identity, image.id, image.sourceUri!!, mediaBytes);
     const changed = structuredClone(online);
     changed.conversation.assets[0].generation!.prompt = 'A different event';
     await saveDomainConversation('u0', changed);
@@ -116,7 +116,7 @@ test('DomainStore refuses ambiguous matches in either direction and deletion era
 
 test('URI-less imported resources remain retrievable without carrying inline bytes into current or subsequent saves', async () => {
     const parsed = mediaSources().online;
-    const asset = parsed.conversation.assets[0]; delete asset.source;
+    const asset = parsed.conversation.assets[0]; delete asset.sourceUri;
     parsed.acquisitionHints = {};
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
     const initial = await saveDomainConversation('u0', parsed, [{ assetId: asset.id, bytes: mediaBytes }]);

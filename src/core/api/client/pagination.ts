@@ -438,7 +438,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         const result = mergeConversationPages(normalizedPages, truncateReason);
         const sourceTitle = pages.find(page => page.conversation.titleSource === 'rpc')?.conversation ?? first.conversation;
         result.conversation = { ...result.conversation, id: String(conversationId).replace(/^c_/, '').trim(),
-            title: sourceTitle.title, titleSource: sourceTitle.titleSource, titles: { ...sourceTitle.titles } };
+            title: sourceTitle.title, titleSource: sourceTitle.titleSource };
         const schemaDrift = [...new Set(pages.flatMap(page => page.transport.schemaDrift ?? []))];
         const turnsRejected = pages.reduce((sum, page) => sum + (page.transport.turnsRejected ?? 0), 0);
         return { ...result, transport: { ...first.transport, nextPageToken: null,

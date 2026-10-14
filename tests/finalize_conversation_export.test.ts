@@ -1281,7 +1281,7 @@ test('completion integrity facts are monotonic and preserve status precedence', 
     }
     for (const status of ['partial', 'unknown', 'complete']) {
         const result = buildExportCompletion({
-            conversation: { id: 'monotonic', messages: [{}], completeness: { status } }, evidence: clean,
+            conversation: { id: 'monotonic', messages: [{}], completeness: status }, evidence: clean,
         });
         assert.equal(result.exportRecord.status, status === 'partial' ? 'partial' : 'ok');
     }

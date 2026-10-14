@@ -23,7 +23,7 @@ test('Markdown backend projects spans while the neutral tree retains all headers
     const composed = composeDomainDocument(validateParserDomain(input));
     assert.deepEqual(composeDomainDocument(validateParserDomain(input)), composed);
     assert.equal(JSON.stringify(input), before);
-    const table = composed.document.messages[0].blocks[0]; assert.equal(table.type, 'table');
+    const table = composed.document.messages[0].blocks.find(block => block.type === 'table')!; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
     assert.equal(table.headerRows.length, 2); assert.equal(table.rows.length, 1);
     assert.equal(table.headerRows[0][0].colSpan, 2); assert.equal(table.headerRows[0][0].rowSpan, 2);

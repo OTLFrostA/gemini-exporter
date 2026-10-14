@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 /**
  * tests/document-renderer-contract.test.ts
  *
@@ -29,7 +30,7 @@ const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return { providerId: 'gemini', id: 'c1', title: 'Contract', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] };
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Contract', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] }, 1);
 }
 
 const imgAsset = (id: string, name: string) => ({

@@ -149,7 +149,7 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
     assert.strictEqual(parsed.conversation.messages[0].role, 'user');
     assert.strictEqual(parsed.conversation.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '请分析这张图片');
     assert.strictEqual(parsed.conversation.assets.length, 1);
-    assert.strictEqual(parsed.conversation.assets[0].source.uri, 'https://cdn.google.com/test_user.png');
+    assert.strictEqual(parsed.conversation.assets[0].sourceUri, 'https://cdn.google.com/test_user.png');
 
     assert.strictEqual(parsed.conversation.messages[1].role, 'assistant');
     assert.ok(parsed.conversation.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n').includes('这是第一段解析'));

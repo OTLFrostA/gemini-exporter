@@ -43,7 +43,7 @@ export function mapContentAssetReferences(
                 return items === node.items ? node : { ...node, items };
             }
             case 'quote':
-            case 'thought': {
+{
                 const blocks = mapArray(node.blocks, block);
                 return blocks === node.blocks ? node : { ...node, blocks };
             }

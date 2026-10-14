@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -7,7 +8,7 @@ const { composeDomainDocument } = require('../src/core/document/compose/composeD
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
-function domainFixture(messages: any[], extra: any = {}) { return { providerId: 'gemini', id: 'c1', title: 't', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages, ...extra }; }
+function domainFixture(messages: any[], extra: any = {}) { return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 't', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages, ...extra }, 1); }
 
 function msg(blocks: any[]) {
     return { id: 'm1', role: 'assistant', content: blocks };
@@ -30,14 +31,14 @@ test('getRendererStrings returns zh and en copies', () => {
 
 test('typst zh locale localizes chrome copy', () => {
     const blocks = [
-        { type: 'thought', kind: 'summary', blocks: [] },
+        { type: 'thought', kind: 'summary', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] },
         { type: 'unknown', sourceType: 'gemini.mystery', text: 'Mystery content' },
         { type: 'math', source: 'x^2' },
     ];
     const b = domainFixture([msg(blocks)]);
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, { ...opts, locale: 'zh' });
     const nodes = payload.messages[0].blocks;
-    const thought = nodes.find((n: any) => n.type === 'note' && n.label === '思考摘要');
+    const thought = nodes.find((n: any) => n.type === 'note' && n.label === '思考过程');
     assert.ok(thought, 'thought label localized');
     const unknown = nodes.find((n: any) => n.type === 'unknown');
     assert.ok(unknown.label.startsWith('不支持的内容'));
@@ -46,10 +47,10 @@ test('typst zh locale localizes chrome copy', () => {
 });
 
 test('typst defaults to en when locale omitted', () => {
-    const b = domainFixture([msg([{ type: 'thought', kind: 'summary', blocks: [] }])]);
+    const b = domainFixture([msg([{ type: 'thought', kind: 'summary', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }])]);
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, opts);
     const thought = payload.messages[0].blocks.find((n: any) => n.type === 'note');
-    assert.strictEqual(thought.label, 'Thinking Summary');
+    assert.strictEqual(thought.label, 'Thinking Process');
 });
 
 test('typst zh date unknown is localized', () => {
@@ -61,12 +62,12 @@ test('typst zh date unknown is localized', () => {
 
 test('html uses the same string source', () => {
     const blocks = [
-        { type: 'thought', kind: 'summary', blocks: [] },
+        { type: 'thought', kind: 'summary', blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] },
     ];
     const zh = renderDocumentHtml(composeDomainDocument(domainFixture([msg(blocks)])).document, {}, { locale: 'zh' });
-    assert.ok(zh.html.includes('思考摘要'));
+    assert.ok(zh.html.includes('思考过程'));
     const en = renderDocumentHtml(composeDomainDocument(domainFixture([msg(blocks)])).document, {}, { locale: 'en' });
-    assert.ok(en.html.includes('Thinking Summary'));
+    assert.ok(en.html.includes('Thinking Process'));
 });
 
 function roleMsg(role: string, extra: any = {}) {

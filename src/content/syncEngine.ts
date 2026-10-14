@@ -125,13 +125,12 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const d = native.conversation;
             if (d && d.id) {
                 const nid = normId(d.id);
-                const targetTs = d.updatedAt || d.timestamp || null;
+                const targetTs = d.updatedAt ?? null;
                 if (targetTs) {
                     await upsertConversations([{
                         id: nid,
                         title: d.title,
                         titleSource: d.titleSource || 'rpc',
-                        titles: d.titles || {},
                         url: d.url || `https://gemini.google.com/app/${nid}`,
                         href: d.url || `https://gemini.google.com/app/${nid}`,
                         timestamp: targetTs,

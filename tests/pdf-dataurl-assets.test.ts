@@ -32,7 +32,7 @@ test('original base64 PNG facts survive JSON; preparation produces the real cont
     const result = await prepare(`![dot](${source})`);
     assert.equal(result.domain.assets.length, 1);
     const asset = result.domain.assets[0];
-    assert.equal(asset.source.uri, source);
+    assert.equal(asset.sourceUri, source);
     assert.equal(result.pathMap.get(asset.id), PNG_REF);
     assert.equal(result.resources.get(asset.id).mediaType, 'image/png');
     assert.deepEqual(Buffer.from(result.resources.get(asset.id).bytes), Buffer.from(PNG_B64, 'base64'));
@@ -67,7 +67,7 @@ test('malformed original data URL failures are sidecar diagnostics', async () =>
     for (const uri of ['data:image/png;base64', 'data:image/png;base64,!!!not-base64!!!', 'data:image/png,%zz']) {
         const result = await prepare(`![x](${uri})`);
         const id = result.domain.assets[0].id;
-        assert.equal(result.domain.assets[0].source.uri, uri);
+        assert.equal(result.domain.assets[0].sourceUri, uri);
         assert.equal(result.resources.get(id).bytes, undefined);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'DATA_URL_MALFORMED'));
     }
@@ -76,7 +76,7 @@ test('remote input remains a URI fact; offline preparation cannot invent bytes',
     const uri = 'https://example.com/inline.png';
     const result = await prepare(`![a](${uri})`);
     const id = result.domain.assets[0].id;
-    assert.equal(result.domain.assets[0].source.uri, uri);
+    assert.equal(result.domain.assets[0].sourceUri, uri);
     assert.equal(result.resources.get(id).bytes, undefined);
     assert.equal(result.pathMap.size, 0);
     assert.match(result.unresolved[0].reason, /no network fetch/);

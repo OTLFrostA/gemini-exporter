@@ -101,7 +101,6 @@ export function linkCitationMarkers(
                 (b as { children: InlineNode[] }).children = walkInline((b as { children: InlineNode[] }).children);
                 break;
             case 'quote':
-            case 'thought':
                 b.blocks.forEach(walkBlock);
                 break;
             case 'list':

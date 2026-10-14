@@ -20,11 +20,11 @@ const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');
 afterEach(() => { __clearModuleOverrides(); mock.restoreAll(); });
 function native(failure: string): ResourceConversationParseResult {
-    return { conversation: validateParserDomain({ providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure', timestamp: null, assets: [
-        { id: 'good', kind: 'image', name: `${'delivered_'.repeat(10)}.png`, mediaType: 'image/png', source: { uri: 'https://example.test/good' } },
+    return { conversation: validateParserDomain({ providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure', completeness: 'unknown', assets: [
+        { id: 'good', kind: 'image', name: `${'delivered_'.repeat(10)}.png`, mediaType: 'image/png', sourceUri: 'https://example.test/good' },
         { id: 'good-doc', kind: 'file', name: 'good.md', document: { contentMarkdown: '# Delivered companion' } },
         { id: 'bad', kind: failure === 'file-write' ? 'file' : 'image', name: 'bad.png',
-            ...(failure === 'inline' ? { dataBase64: '!broken!' } : { source: { uri: 'missing/bad.png' } }),
+            ...(failure === 'inline' ? { dataBase64: '!broken!' } : { sourceUri: 'missing/bad.png' }),
             ...(failure === 'file-write' ? { document: { contentMarkdown: '# Cannot write' } } : {}) },
     ], messages: [{ id: 'answer', role: 'assistant', content: [
         { type: 'paragraph', children: [{ type: 'text', text: 'Conversation survives resource failure' }] },
@@ -263,7 +263,7 @@ test('direct live save uses distinct actual filesystem paths for long image name
     for (const asset of source.conversation.assets.filter(asset => asset.kind === 'image')) {
         asset.name = `${'long_name_'.repeat(10)}${asset.id}.png`;
         asset.dataBase64 = png.toString('base64');
-        delete asset.source;
+        delete asset.sourceUri;
     }
     const receipts: import('../src/core/resources/resourceResult.js').ResourceResult<import('../src/core/resources/resourceResult.js').ResourceDelivery>[] = [];
     const failures: Array<{ file: string; error: string }> = [];

@@ -18,7 +18,7 @@ export const TITLE_SOURCES: ReadonlySet<string> = new Set([
 
 export interface TitleCandidate {
     value: string;
-    source: TitleSource;
+    source: string;
     observedAt?: string;
 }
 

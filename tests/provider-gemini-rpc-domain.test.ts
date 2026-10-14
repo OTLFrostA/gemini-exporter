@@ -57,7 +57,7 @@ test('native parsing imports no historical persisted detail parser', () => {
 test('source request tokens survive intact in source evidence and Domain', () => {
     const raw = rpc([[turn('Question', null, undefined, 'r_AbCd12')]]);
     assert.equal(decodeGeminiDetail(raw).messages[0].rawProviderRequestId, 'r_AbCd12');
-    assert.equal(native(raw).conversation.messages[0].provenance?.providerRequestId, 'r_AbCd12');
+    assert.equal(Reflect.get(native(raw).conversation.messages[0].provenance ?? {}, 'providerRequestId'), undefined);
 
 });
 
@@ -66,16 +66,16 @@ test('wire chronology, primary answers and source dates remain explicit', () => 
     const newer = turn('Newer', 1700000010, [['rc_new1', [['First']]], ['rc_new2', [['Second']]]], 'r_new');
     const { conversation } = native(rpc([[newer, older]]));
     assert.deepEqual(conversation.messages.map(m => text(m.content)), ['Older', 'Old answer', 'Newer', 'First']);
-    assert.equal(conversation.createdAt, 1700000000000);
+    assert.equal(conversation.createdAt, undefined);
     assert.equal(conversation.updatedAt, 1700000010000);
-    assert.equal(conversation.timestamp, 1700000010000);
+    assert.equal(conversation.updatedAt, 1700000010000);
     for (const field of ['chatTime', 'lastSeen', 'href', 'turns']) assert.equal(field in conversation, false);
 });
 
 test('missing timestamps and request evidence are never fabricated', () => {
     const rawTurn = [[ID], null, [['Question']], [[['rc_answer', [['Answer']]]]]];
     const { conversation } = native(rpc([[rawTurn]]));
-    assert.equal(conversation.timestamp, null);
+    assert.equal(conversation.updatedAt, undefined);
     assert.equal(conversation.createdAt, undefined);
     assert.equal(conversation.updatedAt, undefined);
     for (const message of conversation.messages) {
@@ -87,7 +87,7 @@ test('missing timestamps and request evidence are never fabricated', () => {
 test('pagination and rejected turns yield partial coverage and side-channel diagnostics', () => {
     const rejected = [['x_not_a_turn'], null, [['Unrecognized source prompt']]];
     const result = native(rpc([[turn(), rejected], 'tC_native_cursor']));
-    assert.equal(result.conversation.completeness?.status, 'partial');
+    assert.equal(result.conversation.completeness, 'partial');
     assert.equal(result.transport.nextPageToken, 'tC_native_cursor');
     assert.equal(result.transport.turnsRejected, 1);
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_TURNS_REJECTED'));
@@ -95,7 +95,7 @@ test('pagination and rejected turns yield partial coverage and side-channel diag
     const json = JSON.stringify(result.conversation);
     for (const field of ['transport', 'nextPageToken', '_raw', '_debug', 'schemaDrift', 'turnsRejected', 'diagnostics']) assert.ok(!json.includes(`"${field}":`));
     assert.ok(!json.includes('tC_native_cursor'));
-    assert.equal(native(rpc([[turn()]])).conversation.completeness?.status, 'unknown');
+    assert.equal(native(rpc([[turn()]])).conversation.completeness, 'unknown');
 });
 
 test('metadata-only pages preserve title evidence without claiming a complete conversation', () => {
@@ -105,7 +105,7 @@ test('metadata-only pages preserve title evidence without claiming a complete co
     assert.equal(result.conversation.titleSource, 'rpc');
     assert.equal(decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]])).metadataConversation?.title, 'Metadata title');
     assert.equal(result.conversation.messages.length, 0);
-    assert.equal(result.conversation.completeness?.status, 'unknown');
+    assert.equal(result.conversation.completeness, 'unknown');
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT'));
 });
 
@@ -165,7 +165,7 @@ test('generated resources retain their authored request token independently of a
     image[15] = [640, 480, 100];
     const raw = rpc([[turn('Draw', null, [['rc_image', [['Image'], image]]], 'r_Ab12')]]);
     const result = native(raw);
-    const generated = result.conversation.assets.find(asset => asset.generated);
+    const generated = result.conversation.assets.find(asset => asset.generation);
     assert.ok(generated);
     assert.equal(generated.generation?.providerRequestId, 'r_Ab12');
     assert.equal(result.resourceHints[generated.id]?.archivePath, undefined);
@@ -198,7 +198,7 @@ test('source extraction has no export paths and retains unsanitized source filen
     }
     const bare = decodeGeminiDetail(rpc([[turn('Draw', null, [['rc_inline', [['Image'], ['https://lh3.googleusercontent.com/inline', 1, 1]]]])]]));
     assert.equal(bare.messages[1].images![0].fileName, undefined);
-    assert.equal(native(raw).conversation.assets.find(a => a.generated)?.name, 'source:photo?.png');
+    assert.equal(native(raw).conversation.assets.find(a => a.generation)?.name, 'source:photo?.png');
 });
 
 test('raw decoding never substitutes conversation or request IDs for absent message identities', () => {

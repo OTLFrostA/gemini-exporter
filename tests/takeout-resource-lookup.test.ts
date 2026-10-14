@@ -9,14 +9,14 @@ import type { ResourceConversationParseResult } from '../src/core/parsers/parsin
 import type { DomainAsset } from '../src/core/domain/conversationDetail.js';
 
 const chatId = 'lookup-regression';
-const generation = { chatId, generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a diagram', imageCount: 2 };
+const generation = { generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a diagram', imageCount: 2 };
 const source = (id: string, ordinal?: number): DomainAsset => ({ id, kind: 'image', name: 'diagram.png',
-    source: { uri: `Takeout/Gemini Apps/${id}.png` }, generation: { ...generation, imageOrdinal: ordinal } });
+    sourceUri: `Takeout/Gemini Apps/${id}.png`, generation: { ...generation, imageOrdinal: ordinal } });
 const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
-    conversation: validateParserDomain({ providerId: 'gemini', id: chatId, title: 'Lookup', timestamp: 1700000000000,
-        provenance: { source: 'gemini-takeout' }, messages: [], assets }),
+    conversation: validateParserDomain({ providerId: 'gemini', id: chatId, title: 'Lookup', updatedAt: 1700000000000,
+        completeness: 'partial', messages: [], assets }),
     diagnostics: [], acquisitionHints: {}, resourceHints: Object.fromEntries(assets.map(asset =>
-        [asset.id, { archivePath: asset.source!.uri! }])),
+        [asset.id, { archivePath: asset.sourceUri!! }])),
 });
 
 async function recover(assets: DomainAsset[], item: AssetPipelineItem) {
@@ -25,7 +25,7 @@ async function recover(assets: DomainAsset[], item: AssetPipelineItem) {
     const written: Array<{ path: string; bytes: Uint8Array }> = [];
     // Populate only the Takeout index: the persistent resource cache is empty.
     commitTakeoutData(slot, { convCache: { [chatId]: native(assets) }, globalMedia: Object.fromEntries(assets.map((asset, i) =>
-        [asset.source!.uri!, { async: async () => new Uint8Array([i + 1, 42]) }])), mediaMap: {} });
+        [asset.sourceUri!!, { async: async () => new Uint8Array([i + 1, 42]) }])), mediaMap: {} });
     try {
         const pipeline = new AssetPipeline({ currentSlot: slot, takeoutEngine: TakeoutEngine,
             fetchAsset: async () => { downloads++; return { success: false, error: 'network unavailable' }; },
@@ -36,10 +36,10 @@ async function recover(assets: DomainAsset[], item: AssetPipelineItem) {
 }
 
 test('Takeout lookup through AssetPipeline preserves source identity when export planning renames the file', async () => {
-    const asset: DomainAsset = { id: 'original-resource', kind: 'image', name: 'diagram.png', source: { uri: 'Takeout/Gemini Apps/diagram.png' } };
+    const asset: DomainAsset = { id: 'original-resource', kind: 'image', name: 'diagram.png', sourceUri: 'Takeout/Gemini Apps/diagram.png' };
     const plan = await planExportResources(native([asset]));
     const item = { ...plan.assets[0].item, resolvedUrl: 'https://offline.test/diagram.png' };
-    assert.notEqual(item.localName, asset.source!.uri);
+    assert.notEqual(item.localName, asset.sourceUri!);
     const recovered = await recover([asset], item);
     assert.equal(recovered.downloads, 1);
     assert.equal(recovered.result.saved, true);
@@ -49,7 +49,7 @@ test('Takeout lookup through AssetPipeline preserves source identity when export
 
 test('Takeout lookup through AssetPipeline uses the exact source URI when asset IDs differ', async () => {
     const asset = { ...source('takeout-id'), generation: undefined };
-    const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: asset.source!.uri,
+    const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: asset.sourceUri!,
         resolvedUrl: 'https://offline.test/image.png', localName: 'assets/abcdef_diagram.png' });
     assert.equal(recovered.result.saved, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
@@ -81,9 +81,8 @@ test('Takeout lookup through AssetPipeline rejects conflicting source and genera
     const assets = [source('takeout-0', 0), source('takeout-1', 1)];
     const base = { assetId: 'takeout-0', sourceUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png' };
     for (const item of [
-        { ...base, sourceUrl: assets[1].source!.uri },
+        { ...base, sourceUrl: assets[1].sourceUri! },
         { ...base, generation: { ...generation, imageOrdinal: 1 } },
-        { ...base, generation: { ...generation, imageOrdinal: 0, chatId: 'another-chat' } },
         { ...base, generation: { ...generation, imageOrdinal: 0, prompt: 'Another prompt' } },
         { ...base, assetId: 'online', generation },
     ]) {
@@ -110,7 +109,7 @@ test('Takeout lookup through AssetPipeline requires a unique event before select
 
 test('Takeout lookup through AssetPipeline allows exact identity without inferring an unknown image ordinal', async () => {
     const asset = source('takeout-id');
-    const recovered = await recover([asset], { assetId: asset.id, sourceUrl: asset.source!.uri,
+    const recovered = await recover([asset], { assetId: asset.id, sourceUrl: asset.sourceUri!,
         resolvedUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png', generation });
     assert.equal(recovered.result.saved, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));

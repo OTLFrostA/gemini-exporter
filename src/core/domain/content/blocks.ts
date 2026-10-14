@@ -10,7 +10,6 @@ export type BlockNode =
     | TableBlock
     | ImageBlock
     | FileBlock
-    | ThoughtBlock
     | ThematicBreakBlock
     | UnknownBlock;
 
@@ -46,7 +45,6 @@ export interface CodeBlock {
     code: string;
     language?: string;
     meta?: string;
-    filename?: string;
 }
 
 export interface MathBlock {
@@ -54,7 +52,7 @@ export interface MathBlock {
     source: string;
 }
 
-export type TableAlignment = 'left' | 'center' | 'right' | 'default';
+export type TableAlignment = 'left' | 'center' | 'right';
 
 export interface TableColumn {
     align?: TableAlignment;
@@ -90,13 +88,6 @@ export interface FileBlock {
     assetId: string;
     label?: string;
     description?: InlineNode[];
-}
-
-export interface ThoughtBlock {
-    type: 'thought';
-    disclosure: 'providerExposed';
-    kind?: 'summary' | 'progress' | 'reasoning' | 'unknown';
-    blocks: BlockNode[];
 }
 
 export interface ThematicBreakBlock {

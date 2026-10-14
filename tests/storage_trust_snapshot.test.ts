@@ -25,7 +25,7 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
             import { validateParserDomain,countSnapshots } from './src/core/domain/runtimeValidation.ts';
             export async function run() {
                 __clearDomainMemory();
-                const source={conversation:validateParserDomain({providerId:'gemini',id:'independent',title:'Original',timestamp:null,assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
+                const source={conversation:validateParserDomain({providerId:'gemini',id:'independent',title:'Original',completeness:'unknown',assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
                 await saveDomainConversation('u0',source);
                 const write=countSnapshots();
                 source.conversation.messages[0].content[0].children[0].text='Mutated source';
@@ -39,8 +39,8 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
                 return {counts:[write,read,adaptation,countSnapshots()],isolated,body:record.conversation.messages[0].content[0].children[0].text};
             }` }, plugins: [{ name: 'test-only-storage-counter', setup(builder) {
                 builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents:
-                    readFileSync(args.path, 'utf8').replace('export function restoreDomainSnapshot(value: unknown): TrustedDomain {',
-                        'let snapshots=0; export const countSnapshots=()=>snapshots; export function restoreDomainSnapshot(value: unknown): TrustedDomain { snapshots++;') }));
+                    readFileSync(args.path, 'utf8').replace('export function restoreDomainSnapshot(value: unknown, version = 2): TrustedDomain {',
+                        'let snapshots=0; export const countSnapshots=()=>snapshots; export function restoreDomainSnapshot(value: unknown, version = 2): TrustedDomain { snapshots++;') }));
             } }] });
     const api: { run: () => Promise<{ counts: number[]; isolated: string; body: string }> } =
         new Function('module', 'require', bundle.outputFiles[0].text + '; return instrumentedStorage;')(undefined, createRequire(process.cwd() + '/package.json'));
@@ -49,9 +49,9 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
 
 test('one record copy isolates trusted graph, acquisition candidates and typed resource bytes', async () => {
     const identity = storageIdentity('gemini', 'u0', 'copy-case');
-    const conversation = validateParserDomain({ providerId: 'gemini', id: 'copy-case', title: 'Original', timestamp: null,
+    const conversation = validateParserDomain({ providerId: 'gemini', id: 'copy-case', title: 'Original', completeness: 'unknown',
         messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }],
-        assets: [{ id: 'asset', kind: 'file', source: { uri: 'opaque:original' } }] });
+        assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }] });
     const original: import('../src/core/storage/domain/contracts.js').TrustedDomainStorageRecord = { key: domainStorageKey(identity), identity, conversation, origin: 'source' as const,
         storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, savedAt: 1, revision: 'copy',
         resources: [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]) }], acquisitionHints: { asset: { candidates: ['opaque:original'] } } };

@@ -123,18 +123,17 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     if (unowned.length) groups.push({ input: { attachments: unowned } });
     const resources = closeDomainResources('gemini', messages, groups, { sourceReferences: true });
     const dates = selected.flatMap(activity => activity.timestamp === null ? [] : [activity.timestamp]);
-    const createdAt = dates.length ? Math.min(...dates) : null;
     const updatedAt = dates.length ? Math.max(...dates) : null;
     const titleEvent = selected.find(a => a.hasExplicitPrompt && a.promptText)
         ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()))
         ?? selected.find(a => a.promptText);
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
-    const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout', titles: { takeout: title },
-        provenance: { source: 'gemini-takeout' }, completeness: { status: 'partial', reason: 'MyActivity is an activity log, not a complete conversation transcript' },
-        ...normalizeConversationTimes({ timestamp: updatedAt, createdAt, updatedAt }), url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
+    const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout',
+        completeness: 'partial',
+        ...normalizeConversationTimes({ updatedAt }), url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
-        const bound = asset.source?.uri ? boundFiles.get(asset.source.uri) : undefined;
+        const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,

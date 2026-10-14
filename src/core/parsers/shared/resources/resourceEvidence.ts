@@ -1,4 +1,4 @@
-import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity as SourceGeneratedMediaIdentity } from '../../../../types/conversation.js';
 
 /** Clean acquisition record before constructing the final Domain resource. */
 export interface ResourceEvidence {
@@ -21,7 +21,7 @@ export interface ResourceEvidence {
     isGenerated?: boolean;
     providerRequestId?: string;
     imageOrdinal?: number;
-    generation?: DomainGeneratedMediaIdentity;
+    generation?: Omit<SourceGeneratedMediaIdentity, 'time'> & { time?: number };
     isImage?: boolean;
     blobBase64?: string;
     dataBase64?: string;

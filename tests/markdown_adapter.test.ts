@@ -197,7 +197,7 @@ test('Layer M1: mdastRootToBlocks maps table alignments and cell structures', ()
     assert.strictEqual(blocks.length, 1);
     const table = blocks[0] as any;
     assert.strictEqual(table.type, 'table');
-    assert.deepStrictEqual(table.columns.map((c: any) => c.align), ['left', 'center', 'right', 'default']);
+    assert.deepStrictEqual(table.columns.map((c: any) => c.align), ['left', 'center', 'right', undefined]);
     assert.strictEqual(table.headerRows.length, 1);
     assert.strictEqual(table.rows.length, 1);
     assert.strictEqual(table.headerRows[0].cells[0].children[0].text, 'H1');

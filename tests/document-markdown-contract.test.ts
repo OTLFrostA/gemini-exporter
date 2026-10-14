@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 const test = require('node:test');
@@ -9,7 +10,7 @@ const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js'
 const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 function domainFixture(blocks: any[], extra: any = {}): DomainConversationDetail {
-    return { providerId: 'gemini', id: 'c', title: 'Title', timestamp: null, assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] };
+    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c', title: 'Title', timestamp: null, assets: extra.assets ?? [], messages: [{ id: 'm', role: 'assistant', content: blocks, citations: extra.citations ?? [] }] }, 1);
 }
 const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra)).document, extra.resources ?? {});
 
@@ -45,7 +46,7 @@ test('Markdown quotes and thematic breaks serialize without losing nested text',
 
 test('Markdown code uses standard fences longer than embedded runs and labels metadata', () => {
     const md = render([{ type: 'code', code: '```\n# literal', language: 'md', filename: 'readme.md', meta: 'demo' }]);
-    assert.ok(md.includes('**readme.md · demo**\n\n````md\n```\n# literal\n````'));
+    assert.ok(md.includes('**demo**\n\n````md\n```\n# literal\n````'));
 });
 
 test('Markdown inline and display math use the original LaTeX source', () => {
@@ -64,12 +65,12 @@ test('Markdown table separators preserve backslashes and formatted inline conten
 });
 
 test('Markdown block and inline images use prepared local bindings only', () => {
-    const md = render([{ type: 'image', assetId: 'a', alt: 'block', caption: [txt('caption')] }, { type: 'paragraph', children: [{ type: 'image', assetId: 'a', alt: 'inline' }] }], { assets: [{ id: 'a', kind: 'image', source: { uri: 'https://remote/pic.png' } }], resources: { a: 'assets/pic.png' } });
+    const md = render([{ type: 'image', assetId: 'a', alt: 'block', caption: [txt('caption')] }, { type: 'paragraph', children: [{ type: 'image', assetId: 'a', alt: 'inline' }] }], { assets: [{ id: 'a', kind: 'image', sourceUri: 'https://remote/pic.png' }], resources: { a: 'assets/pic.png' } });
     assert.ok(md.includes('![block](assets/pic.png)\n\ncaption')); assert.ok(md.includes('![inline](assets/pic.png)')); assert.ok(!md.includes('https://remote'));
 });
 
 test('Markdown missing and remote-only images remain visible without remote embedding', () => {
-    const md = render([{ type: 'image', assetId: 'a' }, { type: 'paragraph', children: [{ type: 'image', assetId: 'missing', alt: 'inline' }] }], { assets: [{ id: 'a', kind: 'image', name: 'pic.png', source: { uri: 'https://remote/pic.png' } }, { id: 'missing', kind: 'image' }] });
+    const md = render([{ type: 'image', assetId: 'a' }, { type: 'paragraph', children: [{ type: 'image', assetId: 'missing', alt: 'inline' }] }], { assets: [{ id: 'a', kind: 'image', name: 'pic.png', sourceUri: 'https://remote/pic.png' }, { id: 'missing', kind: 'image' }] });
     assert.ok(md.includes('[Image unavailable: pic.png]')); assert.ok(md.includes('[Image unavailable: inline]')); assert.ok(!md.includes('https://remote'));
 });
 
@@ -108,7 +109,7 @@ test('Gemini Markdown fallback reaches Document Markdown with semantic formattin
 });
 
 test('Markdown escapes unsafe links, local paths and YAML title boundaries', async () => {
-    const b = domainFixture([{ type: 'paragraph', children: [{ type: 'link', href: 'javascript:alert(1)', children: [txt('safe')] }, { type: 'image', assetId: 'a', alt: 'blocked' }] }], { assets: [{ id: 'a', kind: 'image', source: { uri: 'https://remote/pic.png' } }] });
+    const b = domainFixture([{ type: 'paragraph', children: [{ type: 'link', href: 'javascript:alert(1)', children: [txt('safe')] }, { type: 'image', assetId: 'a', alt: 'blocked' }] }], { assets: [{ id: 'a', kind: 'image', sourceUri: 'https://remote/pic.png' }] });
     b.title = 'Title"\nextra: yes'; const md = await exportDomainMarkdown(b);
     assert.ok(md.includes('title: "Title\\" extra: yes"')); assert.ok(!md.includes('javascript:')); assert.ok(!md.includes('https://remote')); assert.ok(md.includes('[Image unavailable: blocked]'));
 });

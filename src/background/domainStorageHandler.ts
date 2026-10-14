@@ -1,3 +1,4 @@
+import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 import { getStoredDomain, saveDomainRequest, cacheDomainResource, getDomainResource, removeStoredDomain, backupLegacyValue, storageIdentity } from '../core/storage/domain/domainStore.js';
 import { encodeDomainRecord, encodeBytes, decodeBytes, readStoredAcquisitionHints } from '../core/storage/domain/transport.js';
@@ -11,7 +12,7 @@ function text(value: unknown): string { if (typeof value !== 'string') throw new
 
 /** Content scripts must use the extension-origin repository, never the host page's IndexedDB. */
 export function handleDomainStorageMessage(message: unknown, sender: chrome.runtime.MessageSender, sendResponse: (value: unknown) => void): boolean {
-    const respond = (value: { ok: boolean; value?: unknown; error?: string }): void => sendResponse({ ...value, domainEnvelopeVersion: 1 });
+    const respond = (value: { ok: boolean; value?: unknown; error?: string }): void => sendResponse({ ...value, domainEnvelopeVersion: NATIVE_DETAIL_ENVELOPE_VERSION });
     if (!message || typeof message !== 'object' || !('action' in message) || message.action !== 'domainStorage') return false;
     if (sender.id !== chrome.runtime.id) { respond({ ok: false, error: 'Foreign Domain storage sender' }); return true; }
     void (async () => {

@@ -1,5 +1,5 @@
 /** Transitional application/provider records. These are not raw RPC, HTML or archive schemas. */
-import type { DomainConversationCompleteness } from '../../domain/conversationDetail.js';
+
 import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 import type { LegacyAttachmentInput as ConversationRecordAttachment } from '../../parsers/shared/resources/resolveResources.js';
 export type { LegacyAttachmentInput as ConversationRecordAttachment } from '../../parsers/shared/resources/resolveResources.js';
@@ -55,7 +55,7 @@ export interface ConversationRecordInput {
     messages?: ConversationRecordMessage[];
     turns?: ConversationRecordTurn[];
     /** Explicit source coverage, when the producer knows it. Absence means unknown. */
-    completeness?: DomainConversationCompleteness;
+    completeness?: { status: 'complete' | 'partial' | 'unknown'; reason?: string };
     truncated?: boolean;
     isTruncated?: boolean;
     truncateReason?: string;

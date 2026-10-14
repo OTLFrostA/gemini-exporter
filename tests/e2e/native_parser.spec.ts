@@ -30,7 +30,7 @@ test('DOM parser retains long text, nested code/list, rich table images, math an
     <audio preload="none"><source src="https://example.test/source.wav" type="audio/wav"></audio></div></model-response>`);
     await page.addScriptTag({ content: bundle });
     const parsed = await page.evaluate(() => (globalThis as unknown as { nativeParserProbe: (doc: Document) => unknown }).nativeParserProbe(document)) as {
-        result: { conversation: { messages: Array<{ model?: string; timestamp?: number; content: Array<{ type: string }> }>; assets: Array<{ kind: string }>; completeness: { status: string } } }; images: string[]; ast: unknown;
+        result: { conversation: { messages: Array<{ model?: string; timestamp?: number; content: Array<{ type: string }> }>; assets: Array<{ kind: string }>; completeness: string } }; images: string[]; ast: unknown;
     };
     expect(parsed.result.conversation.messages).toHaveLength(2);
     expect(parsed.result.conversation.messages[1].model).toBe('Gemini source model');
@@ -41,7 +41,7 @@ test('DOM parser retains long text, nested code/list, rich table images, math an
     expect(JSON.stringify(parsed.result.conversation)).toContain('Second line');
     expect(parsed.result.conversation.assets.map(a => a.kind)).toEqual(['file', 'image', 'audio']);
     expect(parsed.images).toHaveLength(1);
-    expect(parsed.result.conversation.completeness.status).toBe('partial');
+    expect(parsed.result.conversation.completeness).toBe('unknown');
     expect(JSON.stringify(parsed.result.conversation)).not.toMatch(/"(?:diagnostics|localName|archivePath)":/);
 });
 

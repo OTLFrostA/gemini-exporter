@@ -43,7 +43,6 @@ export function extractBlockText(block: BlockNode, options?: TextExtractOptions)
             case 'list':
                 return (block.items ?? []).map((i) => (i.blocks ?? []).map((b) => extractBlockText(b, options)).join('\n')).join('\n');
             case 'quote':
-            case 'thought':
                 return (block.blocks ?? []).map((b) => extractBlockText(b, options)).join('\n');
             case 'code':
                 return block.code ?? '';

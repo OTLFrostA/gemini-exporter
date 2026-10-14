@@ -1,3 +1,4 @@
+import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import type { NativeDetailReply } from '../core/utils/nativeDetailTransport.js';
 import type { NativeConversationInput } from '../core/parsers/parsingResult.js';
 import { requestNativeDetail } from '../core/utils/nativeDetailTransport.js';
@@ -44,7 +45,7 @@ export async function fetchBatch(
         const isAborted = () => isSlotAborted(slot) || getSlotEpoch(slot) !== batchEpoch;
 
         if (!list || !list.length) {
-            if (portSendResponse) portSendResponse({ success: true, domainEnvelopeVersion: 1, results: [], skipped: 0 });
+            if (portSendResponse) portSendResponse({ success: true, domainEnvelopeVersion: NATIVE_DETAIL_ENVELOPE_VERSION, results: [], skipped: 0 });
             return;
         }
         const tab = await getGeminiTab(slot);
@@ -137,7 +138,7 @@ export async function fetchBatch(
         if (portSendResponse) {
             portSendResponse({
                 success: !wasAborted,
-                domainEnvelopeVersion: 1,
+                domainEnvelopeVersion: NATIVE_DETAIL_ENVELOPE_VERSION,
                 aborted: wasAborted,
                 results,
                 skipped: 0,

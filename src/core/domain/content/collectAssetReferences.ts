@@ -28,8 +28,7 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
                 case 'list':
                     for (const item of block.items) walkBlocks(item.blocks);
                     break;
-                case 'quote':
-                case 'thought': walkBlocks(block.blocks); break;
+                case 'quote': walkBlocks(block.blocks); break;
                 case 'table': {
                     for (const row of [...(block.headerRows ?? []), ...block.rows]) {
                         for (const cell of row.cells) walkInline(cell.children);

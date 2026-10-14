@@ -14,7 +14,7 @@ test('captured execution panels survive structured RPC, Domain and physical Mark
     const content = parseGeminiBody('', decodeGeminiStructuredPayload(fixture.nodes));
     assert.equal(content.length, 2);
     assert.ok(content.every(node => node.type === 'code'));
-    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'execution', title: 'Execution', timestamp: null, assets: [],
+    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'execution', title: 'Execution', completeness: 'unknown', assets: [],
         messages: [{ id: 'm', role: 'assistant', content }] };
     const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     const result = spawnSync('node', ['scripts/framework/markdown_evidence.mjs'], { input: JSON.stringify(serialized), encoding: 'utf8' });

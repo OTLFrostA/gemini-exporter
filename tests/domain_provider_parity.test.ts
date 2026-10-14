@@ -84,8 +84,8 @@ test('Domain composition preserves provider parsing after flattening turns-only 
 
 test('Domain Document output does not depend on message request provenance', async () => {
     const domain: DomainConversationDetail = {
-        ...metadata,
-        providerId: 'gemini', assets: [{ id: 'image', kind: 'image', source: { uri: 'https://example.test/image.png' } }],
+        id: metadata.id, title: metadata.title, updatedAt: metadata.timestamp, completeness: 'unknown',
+        providerId: 'gemini', assets: [{ id: 'image', kind: 'image', sourceUri: 'https://example.test/image.png' }],
         messages: [{
             id: 'answer-1', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }],
             attachmentIds: ['image'],
@@ -96,7 +96,7 @@ test('Domain Document output does not depend on message request provenance', asy
     for (const providerRequestId of ['abcd1234', 'different-request', 'r_R_MixedCase-XyZ', 'OpenAI:AbC']) {
         const withProvenance: DomainConversationDetail = {
             ...domain,
-            messages: domain.messages.map((message) => ({ ...message, provenance: { providerRequestId } })),
+            messages: domain.messages.map((message) => ({ ...message, provenance: { rawRole: providerRequestId } })),
         };
         const normalized = await composeFixture(withProvenance);
         assert.deepEqual(normalized.document, baseline.document);

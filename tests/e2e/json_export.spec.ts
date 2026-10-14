@@ -112,7 +112,7 @@ test.describe('Deep E2E: Standard JSON export', () => {
     // The standard archive retains native blocks.
     expect(parsed).toBeTruthy();
     expect(parsed.format).toBe('gemini-exporter-domain');
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(parsed.conversation.providerId).toBe('gemini');
     expect(parsed.conversation.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
     expect(JSON.stringify(parsed.conversation.messages)).toContain('一致性哈希');

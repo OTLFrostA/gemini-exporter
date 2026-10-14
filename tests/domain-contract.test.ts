@@ -13,7 +13,7 @@ import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js'
 import { normalizeArchiveResourceName } from '../src/core/export/assets/archivePath.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 function domain(): DomainConversationDetail {
-    return { providerId: 'test', id: 'contract', title: 'Contract', timestamp: null, assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] };
+    return { providerId: 'test', id: 'contract', title: 'Contract', completeness: 'unknown', assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] };
 }
 test('Domain closure rejects missing provider identity and duplicate resource identities', () => {
     const value = domain(); value.providerId = '';

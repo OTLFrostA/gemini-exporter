@@ -131,7 +131,7 @@ test('gemini_parser - decodeGeminiDetail with bundled MaZiqc metadata RPC extrac
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'd3226d9a046c1116');
     assert.strictEqual(parsed.title, '杀戮尖塔存档删除Mod风险');
     assert.strictEqual(parsed.titleSource, 'rpc');
-    assert.strictEqual(parsed.titles.rpc, '杀戮尖塔存档删除Mod风险');
+    assert.equal(Object.hasOwn(parsed, 'titles'), false);
     assert.strictEqual(parsed.messages.length, 2);
 });
 

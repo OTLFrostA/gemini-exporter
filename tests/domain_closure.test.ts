@@ -41,9 +41,9 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
     assert.equal(domain.messages[2].attachmentIds, undefined, 'a content reference does not imply a new explicit attachment');
     assert.deepEqual(domain.messages.flatMap(message => references(message.content)), [asset.id, asset.id, asset.id]);
     assert.deepEqual(references(domain.messages[1].reasoning!), [asset.id]);
-    assert.deepEqual(asset.generation, generation);
-    assert.equal(asset.generated, true);
-    assert.deepEqual(asset.dimensions, { width: 120, height: 80 });
+    assert.deepEqual(asset.generation, Object.fromEntries(Object.entries(generation).filter(([key]) => key !== 'chatId' && key !== 'turnId')));
+    assert.equal(Reflect.get(asset, 'generated'), undefined);
+    assert.deepEqual(Reflect.get(asset, 'dimensions'), undefined);
     assert.equal(asset.mediaType, 'image/png');
     assert.equal(asset.dataBase64, 'AQID');
     const restored: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
@@ -89,7 +89,7 @@ test('document aliases merge across messages without losing metadata or byte pay
     assert.equal(asset.kind, 'file');
     assert.equal(asset.name, 'Report');
     assert.equal(asset.dataBase64, 'AQID');
-    const { type: _type, title: _title, ...expectedDocument } = document;
+    const expectedDocument = { id: document.id, contentMarkdown: '# Report\n\nIntro\n\nIntro\n\n[Source](https://example.test)', hasFabricatedText: document.hasFabricatedText };
     assert.deepEqual(asset.document, expectedDocument);
     assert.equal(messageAssets(domain, 0)[0], messageAssets(domain, 1)[0]);
     const restored: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
@@ -122,21 +122,21 @@ test('missing evidence, unknown ordinals and conflicting documents never collaps
 });
 
 test('downstream binding respects Domain identity even when two URIs have the same basename', async () => {
-    const domain: DomainConversationDetail = { ...metadata, providerId: 'custom', assets: [
-        { id: 'one', kind: 'image', name: 'Attachment', source: { uri: 'https://one.test/shared.png' } },
-        { id: 'two', kind: 'image', source: { uri: 'https://two.test/shared.png' } },
+    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'custom', assets: [
+        { id: 'one', kind: 'image', name: 'Attachment', sourceUri: 'https://one.test/shared.png' },
+        { id: 'two', kind: 'image', sourceUri: 'https://two.test/shared.png' },
     ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'two', alt: 'Inline' }], attachmentIds: ['one'] }] };
     const result = await composeFixture(domain);
     assert.equal(collectDocumentResources(result.document).referencedIds.size, 2);
-    assert.deepEqual(domain.assets.map(asset => asset.source?.uri), ['https://one.test/shared.png', 'https://two.test/shared.png']);
+    assert.deepEqual(domain.assets.map(asset => asset.sourceUri), ['https://one.test/shared.png', 'https://two.test/shared.png']);
     assert.equal(result.document.messages[0].blocks[0].type, 'image');
     assert.equal(result.document.messages[0].blocks[0].type === 'image' && result.document.messages[0].blocks[0].resourceId, 'two');
 });
 
 test('resource IDs never collide with export numbering or acquisition URI aliases', async () => {
-    const domain: DomainConversationDetail = { ...metadata, providerId: 'custom', assets: [
-        { id: 'msg-0-a1', kind: 'image', name: 'First', source: { uri: 'https://first.test/image' } },
-        { id: 'second', kind: 'image', name: 'Second', source: { uri: 'msg-0-a1' } },
+    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'custom', assets: [
+        { id: 'msg-0-a1', kind: 'image', name: 'First', sourceUri: 'https://first.test/image' },
+        { id: 'second', kind: 'image', name: 'Second', sourceUri: 'msg-0-a1' },
     ], messages: [{ role: 'assistant', attachmentIds: ['msg-0-a1', 'second'],
         content: [{ type: 'image', assetId: 'msg-0-a1' }, { type: 'image', assetId: 'second' }] }] };
     const result = await composeFixture(domain);
@@ -144,10 +144,10 @@ test('resource IDs never collide with export numbering or acquisition URI aliase
 });
 
 test('resource metadata and audio/video kinds survive neutral downstream adaptation', async () => {
-    const domain: DomainConversationDetail = { ...metadata, providerId: 'custom', assets: [
+    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'custom', assets: [
         { id: 'audio', kind: 'audio', name: 'Audio' }, { id: 'video', kind: 'video', name: 'Video' },
-        { id: 'image', kind: 'image', name: 'Shared', mediaType: 'image/png', dimensions: { width: 120, height: 80 },
-            source: { uri: 'https://example.test/image' } },
+        { id: 'image', kind: 'image', name: 'Shared', mediaType: 'image/png',
+            sourceUri: 'https://example.test/image' },
     ], messages: [{ role: 'assistant', attachmentIds: ['audio', 'video'], content: [{ type: 'image', assetId: 'image' }] }] };
     const result = await composeFixture(domain);
     const [image, audio, video] = result.document.messages[0].blocks;
@@ -158,7 +158,7 @@ test('resource metadata and audio/video kinds survive neutral downstream adaptat
     assert.equal(audio.kind, 'audio');
     assert.equal(video.kind, 'video');
     assert.equal(domain.assets[2].mediaType, 'image/png');
-    assert.deepEqual(domain.assets[2].dimensions, { width: 120, height: 80 });
+    assert.equal(Reflect.get(domain.assets[2], 'dimensions'), undefined);
 });
 
 test('reasoning is parsed at the producer boundary and Domain reasoning text stays literal downstream', async () => {
@@ -167,7 +167,7 @@ test('reasoning is parsed at the producer boundary and Domain reasoning text sta
     assert.ok(parsed.messages[0].reasoning?.[0].type === 'paragraph');
     assert.equal(parsed.messages[0].reasoning[0].children[0].type, 'strong');
     assert.equal(parsed.assets.length, 1);
-    const literal: DomainConversationDetail = { ...metadata, providerId: 'custom', assets: [], messages: [{
+    const literal: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'custom', assets: [], messages: [{
         role: 'assistant', content: text('Body'), reasoning: text('**literal** <b>HTML</b> ![image](url) $x$'),
     }] };
     const original = structuredClone(literal);
@@ -199,7 +199,7 @@ test('provider identity is assigned only by producers, with OpenAI and Takeout c
 });
 
 test('Domain closure rejects invalid provider, repeated registry/message IDs and dangling references', async () => {
-    const domain: DomainConversationDetail = { ...metadata, providerId: 'custom', assets: [{ id: 'asset', kind: 'file' }],
+    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'custom', assets: [{ id: 'asset', kind: 'file' }],
         messages: [{ role: 'assistant', content: [], attachmentIds: ['asset'] }] };
     assertDomainClosure(domain);
     const invalid: DomainConversationDetail[] = [
@@ -227,8 +227,8 @@ test('Domain consumers never parse provider syntax or reconcile acquisition alia
     const domain = historicalFixtureDomain({ ...metadata, messages: [{ role: 'assistant', content: '', attachments: [{
         type: 'image', subDir: 'export-destination', localName: 'source.png', isGenerated: true,
     }] }] });
-    assert.deepEqual(Object.keys(domain.assets[0]).sort(), ['generated', 'id', 'kind']);
-    assert.equal(domain.assets[0].source, undefined);
+    assert.deepEqual(Object.keys(domain.assets[0]).sort(), ['id', 'kind']);
+    assert.equal(domain.assets[0].sourceUri, undefined);
     assert.equal('attachments' in domain.messages[0], false);
 });
 

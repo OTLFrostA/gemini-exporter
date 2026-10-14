@@ -42,21 +42,19 @@ MyActivity records partial activity coverage, not a complete transcript. Native 
 
 The production import/cache/storage path keeps its compatibility API around native parsing. The complete Tier 2 run verified Takeout import, history synchronization, authoritative title upgrades and combined physical exports; offline HTML/ZIP contracts cover additional source shapes.
 
-## What Domain remembers
+## What Domain remembers (contract v2)
 
-- Conversation and message identities, normalized roles, provider-authored model names, source timestamps, title evidence, and source provenance.
-- Authored body content and provider-exposed reasoning as Content AST, including unknown content with a readable bounded fallback.
-- Message-local citations and the content references that identify them.
-- Semantic resources and explicit message/resource relationships, including source metadata, document metadata and generation evidence.
-- Known completeness of the source conversation. A successful parse does not establish that the source supplied all messages.
+- Conversation identity, one confirmed title/source, independent `createdAt` and `updatedAt`, and one `url`.
+- Authored body and provider-exposed `reasoning` as Content AST, with readable unknown content.
+- Message identity, role, model, timestamp, explicit resource relationships, generation events and message-local citations.
+- Resources with original `sourceUri`, canonical document Markdown and necessary generation identity.
+- Required `completeness: 'complete' | 'partial' | 'unknown'`. Unknown means insufficient evidence; partial requires positive missing-content evidence; complete requires coverage evidence. Message count alone proves none of these states.
 
-`DomainConversationDetail.provenance.source` preserves an opaque source-origin label such as `takeout` or `openai-import`; it does not replace `providerId`. Message request provenance remains opaque provider metadata. Do not infer parent/child relationships from a request ID, Gemini turn token, filename or array position.
+All times are finite epoch-millisecond numbers, omitted when unknown. Creation and update times are independent facts. Source parsers must not invent creation time from the earliest observed message or update time from a local scan. Conversation List `lastSeen` and ExportRecord `chatTime` remain separate application facts.
 
-`completeness.status` is `complete`, `partial` or `unknown`; omission also means unknown. `reason` preserves a source explanation. Explicit truncation or a remaining pagination cursor is evidence of partial coverage and overrides a conflicting complete claim. A false truncation flag or absent cursor alone is not proof of completeness. Cursors and raw truncation aliases never become Domain fields.
+Domain has no conversation `timestamp`, `chatTime`, `lastSeen`, `href`, `titles` or `provenance`. Parser boundaries choose titles using the shared `domain/titleAuthority.ts` ranking; the list index alone keeps source alternatives. Storage protects the confirmed title independently of body selection. Unknown-role messages may retain only `provenance.rawRole`.
 
-Message timestamps are finite Unix epoch milliseconds, omitted when unknown. The required conversation `timestamp` is finite milliseconds or null; non-finite record values become null before JSON serialization. The existing conversation aliases (`chatTime`, `lastSeen`, `href`) and number/string metadata remain compatibility debt. They are not a template for new source-specific aliases. Normalize raw timestamp units in each source parser, distinguish source dates from local observation dates, and resolve URL aliases there. Removing those existing Domain aliases requires a separate consumer migration; this phase does not alter their export behavior.
-
-Domain does not own diagnostics, pagination state, source debugging payloads, export destinations, acquired export bytes, layout preferences or renderer labels. Existing source-unavailability facts on resources differ from a failure during a new export attempt: the latter belongs to preparation diagnostics. Do not add a generic raw-field bag to Domain to avoid deciding which source facts matter.
+Domain does not own diagnostics, pagination, source debugging payloads, export destinations, acquired export bytes, layout preferences or renderer labels. Acquisition origin stays in the existing call/storage context. It cannot select different export semantics.
 
 ## Closed resource graph
 
@@ -66,11 +64,13 @@ Producer adapters reconcile attachments, images, documents, structured-body evid
 
 Asset IDs are opaque and independent of export numbering. Known source/document/generation evidence yields deterministic IDs; ambiguous resources get distinct minted IDs. IDs survive JSON serialization. Changing message order does not change identities supported by unambiguous source evidence.
 
-Asset kind, name, media type, byte length, dimensions, source failure information and generation metadata are semantic facts. Document IDs, creation times, chip URLs, sections, links, extracted Markdown, candidates and fabrication flags belong to the resource. Original inline bytes can be detached as base64 input facts; bytes acquired during export belong only to PreparedResources.
+Resources retain kind, name, media type, byte length, source failure information, inline source bytes and necessary generation identity. Document resources retain `id`, canonical `contentMarkdown` and `hasFabricatedText`. Source sections/links are incorporated into canonical Markdown before Domain; dimensions, origin, chip URLs, document dates and candidate URLs do not enter Domain. Acquisition candidate URLs remain outside the graph.
 
-`source.uri` identifies the original source/acquisition URI. Export destinations and historical `localName` belong in independent preparation hints. Domain contains no export filenames, storage handles, layout state or per-provider resource aliases.
+`sourceUri` identifies the original source URI. Export destinations and historical `localName` belong to preparation hints. Generation identity retains request ID, time, prompt, source event ordinal, image count and image ordinal. Parent conversation identity is supplied by the caller during matching; no resource stores `chatId`/`turnId`. Shared matching treats conversation IDs as opaque. Provider-specific normalization stays at storage/Takeout boundaries. Distinct requests, conflicting evidence and ambiguous image positions cannot be rebound.
 
-`assertDomainClosure` checks provider identity, primary timestamp and completeness validity, resource/citation identities and references, and repeated attachment relationships. It is a graph guard, not a complete runtime schema validator. The single runtime schema in `core/domain/runtimeValidation.ts` checks every semantic field and Content AST variant before the shared closure check. Direct RPC, DOM, Takeout and legacy record parsers call `validateParserDomain` only after building the final graph; dispatching does not add another validation. Pagination validates the newly merged graph once, not its already trusted input pages. The type-only `TrustedDomain` brand is never attached to serialized data.
+The Content AST uses one reasoning representation (`message.reasoning`), code without `filename`, and absent table alignment for default layout. Citation IDs/numbers remain source facts; the composer allocates conversation-wide display numbers consistently in body, reasoning and Sources, preserving custom labels and references without URLs.
+
+`assertDomainClosure` checks provider identity, finite conversation/message times and completeness validity, resource/citation identities and references, and repeated attachment relationships. It is a graph guard, not a complete runtime schema validator. The single runtime schema in `core/domain/runtimeValidation.ts` checks every semantic field and Content AST variant before the shared closure check. Direct RPC, DOM, Takeout and legacy record parsers call `validateParserDomain` only after building the final graph; dispatching does not add another validation. Pagination validates the newly merged graph once, not its already trusted input pages. The type-only `TrustedDomain` brand is never attached to serialized data.
 
 ## Consumer boundary
 
@@ -85,7 +85,7 @@ Resource/acquisition hints travel beside Domain, keyed by asset ID. HTML/Markdow
 | Historical storage records | `parsers/legacyStorage/parseConversation.ts`, reusing the characterized record grammar | Only upgrade migration may decode this shape; runtime and export require native bodies. |
 | Gemini RPC/JSPB | `parsers/gemini/rpc/parseConversation.ts`, client, network hook and native pagination | Production callers, offline fidelity tests and the complete live Tier 2 acceptance run are verified. |
 | Gemini Takeout HTML/archive | `parsers/gemini/takeout/parseConversation.ts` and `parseZip.ts`, import/acquisition adapter | Import builds Domain directly and stores native results with source-bound resource context. Explicit asset/file bindings and the complete live Tier 2 import/export flow are verified. |
-| Live DOM observations | `parsers/gemini/dom/parseConversation.ts`, `content/domScraper.ts` acquisition adapter | Authored DOM trees preserve rich content without string truncation or nested-node duplication. Coverage stays partial. |
+| Live DOM observations | `parsers/gemini/dom/parseConversation.ts`, `content/domScraper.ts` acquisition adapter | Authored DOM trees preserve rich content without string truncation or nested-node duplication. Coverage stays unknown without explicit missing-content evidence. |
 
 OpenAI archive import is not implemented. The unvalidated exploration prototype and its synthetic parser tests have been removed; OpenAI import is outside the current parser migration scope. Standard JSON export and generic record compatibility remain separate capabilities.
 
@@ -126,3 +126,10 @@ HTML image references retain their image and generation evidence even when the m
 
 
 Standard JSON is the only JSON export. It uses `{ format: 'gemini-exporter-domain', version: 1, conversation, resources? }`, preserving the full Domain and optional asset destinations without storage or transport implementation state. OpenAI-compatible and developer raw JSON exports and the historical output projector have been removed.
+
+
+## Contract v1 recovery
+
+New parser results and storage writes accept only v2. `restoreDomainSnapshot(value, 1)` is the sole historical Domain converter; storage passes the persisted `domainVersion` explicitly. It removes aliases, flattens source URI/completeness, arbitrates historical titles and extracts nested thoughts into reasoning without changing resource references. Unsupported versions and unknown fields fail closed. If canonical report content cannot prove preservation of historical sections/links, generation identity is absent for a historical generated resource, or resource parent evidence conflicts, recovery throws and leaves the original physical record untouched. There is no downstream v1 fallback.
+
+The complete current TypeScript schema and cleanup verification are recorded in [the final cleanup audit](audits/domain-final-semantic-cleanup.md). Historical live acceptance links above describe their original runs; this cleanup does not claim another Tier 2 pass.

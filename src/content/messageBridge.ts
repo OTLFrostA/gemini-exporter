@@ -132,7 +132,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 sourceTier = sniffed.source;
                             }
                         }
-                        let titlesObj = { ...detailRes.titles };
+                        const titlesObj: Record<string, string> = {};
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
                         await persistNativeConversation(targetSlot, native);
 
@@ -145,8 +145,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 titles: titlesObj,
                                 url: `https://gemini.google.com/app/${nid}`,
                                 href: `https://gemini.google.com/app/${nid}`,
-                                timestamp: detailRes.updatedAt || detailRes.timestamp,
-                                updatedAt: detailRes.updatedAt || detailRes.timestamp,
+                                timestamp: detailRes.updatedAt,
+                                updatedAt: detailRes.updatedAt,
                                 createdAt: detailRes.createdAt,
                                 sidebarIndex: 0
                             }], 'network-detail', false, targetSlot);

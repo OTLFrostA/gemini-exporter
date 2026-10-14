@@ -66,7 +66,7 @@ test('Domain adapter omits missing and null message timestamps while preserving 
         ],
     };
     const domain = historicalFixtureDomain(conversation);
-    assert.equal(domain.timestamp, null);
+    assert.equal(Object.hasOwn(domain, 'timestamp'), false);
     assert.equal('timestamp' in domain.messages[0], false);
     assert.equal('timestamp' in domain.messages[1], false);
     await assertExportEquivalent(conversation);
@@ -287,10 +287,9 @@ for (const body of ['messages', 'turns'] as const) {
         const domain = historicalFixtureDomain(conversation);
         const expected = {
             id: message.id, role: message.role, content: message.content, timestamp: message.timestamp,
-            provenance: { providerRequestId: 'request-1' },
             attachments: [...message.attachments, ...message.images, ...message.documents],
             reasoning: message.thoughts,
-            citations: [{ ...message.citations[0], id: 'citation-0' }, { id: 'grounding-1', kind: 'attachment', number: 1 }],
+            citations: [{ ...message.citations[0], id: 'citation-0' }, { id: 'grounding-1', number: 1 }],
         };
         assertDomainMessages(domain.messages, [expected]);
         for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst', 'images', 'documents', 'groundingCitationMarkers']) {
@@ -325,7 +324,7 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = historicalFixtureDomain(conversation);
-            assertDomainMessages(domain.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer', provenance: { providerRequestId: normalized } }]);
+            assertDomainMessages(domain.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer' }]);
             assert.equal('turnId' in domain.messages[0], false);
             assert.equal('providerRequestId' in domain.messages[0], false);
             assert.deepEqual(conversation, original);
@@ -432,13 +431,13 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
 }
 
 test('source validation rejects reasoning/citation aliases before document composition', async () => {
-    const clean = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] };
+    const clean = { id: base.id, title: base.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] };
     const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
     const document = (await composeFixture(clean)).document;
     assert.equal(document.messages[0].blocks[0].type, 'disclosure');
     assert.equal(document.messages[0].sources.items[0].href, 'https://example.com');
-    const absent = { ...base, providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };
+    const absent = { id: base.id, title: base.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };
     const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
     await assert.rejects(composeFixture(aliasesOnly), /Invalid persisted Domain contract: messages/);
     assert.equal((await composeFixture(absent)).document.messages[0].blocks.some((block: { type: string }) => block.type === 'disclosure'), false);

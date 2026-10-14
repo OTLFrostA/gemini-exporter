@@ -15,7 +15,7 @@ import { collectDocumentResources } from '../src/core/document/ast/resourceRefer
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 
 function domain(): DomainConversationDetail {
-    return { providerId: 'custom', id: 'freeze', title: 'Boundary', timestamp: null, assets: [], messages: [
+    return { providerId: 'custom', id: 'freeze', title: 'Boundary', completeness: 'unknown', assets: [], messages: [
         { id: 'same unsafe / " identity', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Question '.repeat(40) }] }] },
         { id: 'answer', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }] },
     ] };
@@ -54,13 +54,13 @@ test('file badges use only supplied media type or kind, including misleading lab
 
 test('display date selects the first valid fact and normalizes to UTC at composition', () => {
     const input = domain();
-    Object.assign(input, { updatedAt: Date.parse('2026-10-06T23:30:00-07:00'), lastSeen: '2026-10-05', createdAt: Date.parse('2026-10-04T00:00:00Z'), timestamp: Date.parse('2026-10-03'), chatTime: '2026-10-02' });
-    for (const [field, expected] of [['updatedAt', '2026-10-07'], ['lastSeen', '2026-10-05'], ['createdAt', '2026-10-04'], ['timestamp', '2026-10-03'], ['chatTime', '2026-10-02']] as const) {
+    Object.assign(input, { updatedAt: Date.parse('2026-10-06T23:30:00-07:00'), createdAt: Date.parse('2026-10-04T00:00:00Z') });
+    for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
         const document = composeDomainDocument(validateParserDomain(input)).document;
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
-        Object.assign(input, { [field]: field === 'timestamp' ? null : (field === 'updatedAt' || field === 'createdAt' ? undefined : 'invalid') });
+        Object.assign(input, { [field]: undefined });
     }
     assert.equal(composeDomainDocument(validateParserDomain(input)).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
@@ -91,14 +91,14 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     const inline = (id: string) => ({ type: 'image' as const, assetId: id, alt: id });
     const rendered = ['main', 'inline', 'heading', 'header', 'cell', 'nested'];
     const rich = ['image-caption', 'table-caption', 'description', 'source-heading', 'details'];
-    input.assets = [...rendered, ...rich].map(id => ({ id, kind: 'image', source: { uri: `https://example.test/${id}` } }));
+    input.assets = [...rendered, ...rich].map(id => ({ id, kind: 'image', sourceUri: `https://example.test/${id}` }));
     input.assets.push({ id: 'file', kind: 'file' });
     input.messages[1].content = [
         { type: 'image', assetId: 'main', caption: [inline('image-caption')] },
         { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'link', href: '/', children: [inline('inline')] }] }] },
         { type: 'heading', level: 2, children: [inline('heading')] },
         { type: 'table', caption: [inline('table-caption')], headerRows: [{ cells: [{ children: [inline('header')] }] }], rows: [{ cells: [{ children: [inline('cell')] }] }] },
-        { type: 'quote', blocks: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'thought', disclosure: 'providerExposed', blocks: [{ type: 'paragraph', children: [inline('nested')] }] }] }] }] },
+        { type: 'quote', blocks: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'paragraph', children: [inline('nested')] }] }] }] }] },
         { type: 'file', assetId: 'file', description: [inline('description'), inline('inline')] },
     ];
     freeze(input);

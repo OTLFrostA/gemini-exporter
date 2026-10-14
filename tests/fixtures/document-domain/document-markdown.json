@@ -2,7 +2,6 @@
   "providerId": "example",
   "id": "c",
   "title": "Title",
-  "timestamp": null,
   "assets": [
     {
       "id": "a",
@@ -113,32 +112,27 @@
               "text": "Preserved description"
             }
           ]
-        },
-        {
-          "type": "thought",
-          "disclosure": "providerExposed",
-          "kind": "summary",
-          "blocks": [
-            {
-              "type": "paragraph",
-              "children": [
-                {
-                  "type": "text",
-                  "text": "reason"
-                }
-              ]
-            }
-          ]
         }
       ],
       "citations": [
         {
           "id": "c",
-          "kind": "web",
           "title": "Source",
           "url": "https://example.com"
         }
+      ],
+      "reasoning": [
+        {
+          "type": "paragraph",
+          "children": [
+            {
+              "type": "text",
+              "text": "reason"
+            }
+          ]
+        }
       ]
     }
-  ]
+  ],
+  "completeness": "unknown"
 }

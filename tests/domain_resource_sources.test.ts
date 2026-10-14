@@ -20,7 +20,7 @@ test('renaming export paths changes prepared bindings but not Domain facts or id
     assert.deepEqual(first.conversation, second.conversation);
     assert.deepEqual(input, before);
     const asset = first.conversation.assets[0];
-    assert.deepEqual(asset.source, { uri: 'https://example.test/photo' });
+    assert.deepEqual(asset.sourceUri, 'https://example.test/photo');
     assert.equal(asset.name, 'Authored photo');
     assert.equal((await prepareDomainResources(await fixtureResourceResults(first.conversation, first.resourceHints)))[asset.id], 'assets/old/photo.png');
     assert.equal((await prepareDomainResources(await fixtureResourceResults(second.conversation, second.resourceHints)))[asset.id], 'assets/new/photo.webp');
@@ -57,7 +57,7 @@ test('destination-only resources retain distinct occurrence identities without p
     const first = historicalFixture(input).conversation;
     assert.deepEqual(first, historicalFixture(renamed).conversation);
     assert.equal(first.assets.length, 2);
-    assert.ok(first.assets.every(asset => asset.kind === 'file' && !asset.source && !asset.name));
+    assert.ok(first.assets.every(asset => asset.kind === 'file' && !asset.sourceUri && !asset.name));
 });
 
 test('ambiguous export aliases remain unresolved instead of becoming acquisition sources', () => {
@@ -68,5 +68,5 @@ test('ambiguous export aliases remain unresolved instead of becoming acquisition
         ],
     }] });
     assert.equal(conversation.assets.length, 3);
-    assert.equal(conversation.assets[2].source, undefined);
+    assert.equal(conversation.assets[2].sourceUri, undefined);
 });

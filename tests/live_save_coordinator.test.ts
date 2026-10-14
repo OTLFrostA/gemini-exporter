@@ -30,7 +30,7 @@ test('liveSaveCoordinator - executeLiveSave with direct Disk persistence', async
                 { role: 'user', content: 'What is superposition?' },
                 { role: 'model', content: 'Superposition is a fundamental principle of quantum mechanics.' }
             ],
-            timestamp: 1710000000000
+            timestamp: 1710000000000, updatedAt: 1710000000000
         }))
     };
 

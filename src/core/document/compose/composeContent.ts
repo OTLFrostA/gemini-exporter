@@ -41,7 +41,7 @@ export function contentComposer(assets: ReadonlyMap<string, DomainAsset>, source
             case 'heading': return { type: 'heading', level: node.level, children: inlines(node.children) };
             case 'list': return { type: 'list', ordered: node.ordered, ...(node.start !== undefined ? { start: node.start } : {}), items: node.items.map(item => ({ blocks: blocks(item.blocks) })) };
             case 'quote': return { type: 'quote', blocks: blocks(node.blocks) };
-            case 'code': return { type: 'code', code: node.code, showHeader: true, ...(node.language !== undefined ? { language: node.language } : {}), ...(node.filename !== undefined ? { filename: node.filename } : {}), ...(node.meta !== undefined ? { meta: node.meta } : {}) };
+            case 'code': return { type: 'code', code: node.code, showHeader: true, ...(node.language !== undefined ? { language: node.language } : {}), ...(node.meta !== undefined ? { meta: node.meta } : {}) };
             case 'math': return { type: 'math', source: node.source };
             case 'table': return table(node);
             case 'image': {
@@ -56,7 +56,6 @@ export function contentComposer(assets: ReadonlyMap<string, DomainAsset>, source
                 const description = node.description ? inlines(node.description) : undefined;
                 return asset ? { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) } : { type: 'placeholder', resourceId: node.assetId, kind: 'file', text: name, ...(description ? { details: description } : {}) };
             }
-            case 'thought': return { type: 'disclosure', kind: node.kind ?? 'unknown', blocks: blocks(node.blocks) };
             case 'thematicBreak': return { type: 'thematicBreak' };
             case 'unknown': return { type: 'unsupported', sourceType: node.sourceType, text: node.text };
         }

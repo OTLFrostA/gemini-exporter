@@ -1,4 +1,4 @@
-import type { DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
 
 /** Takeout activity timestamps have second precision; RPC retains milliseconds. */
 export function eventSecond(value: number | undefined): number | null {
@@ -17,7 +17,7 @@ export function normalizeChatId(id: unknown): string {
     return String(id).trim().replace(/^c_/, '');
 }
 
-export function sameGenerationEvent(a: DomainGeneratedMediaIdentity, b: DomainGeneratedMediaIdentity): boolean {
+export function sameGenerationEvent(a: GeneratedMediaIdentity, b: GeneratedMediaIdentity): boolean {
     const aChat = normalizeChatId(a.chatId);
     const bChat = normalizeChatId(b.chatId);
     if (!aChat || !bChat || aChat !== bChat) {
@@ -30,6 +30,6 @@ export function sameGenerationEvent(a: DomainGeneratedMediaIdentity, b: DomainGe
         return aReq === bReq;
     }
     return a.generationOrdinal === b.generationOrdinal
-        && eventSecond(a.time) !== null && eventSecond(a.time) === eventSecond(b.time)
+        && eventSecond(a.time ?? undefined) !== null && eventSecond(a.time ?? undefined) === eventSecond(b.time ?? undefined)
         && !!a.prompt && a.prompt.trim() === b.prompt?.trim();
 }

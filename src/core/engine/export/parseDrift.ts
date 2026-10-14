@@ -26,7 +26,7 @@ export function extractChatParseDrift(result: ResourceConversationParseResult): 
     }
     const turnsRejected = 'turnsRejected' in transport && typeof transport.turnsRejected === 'number' ? transport.turnsRejected : 0;
     return { schemaDrift, turnsRejected, hasHeuristicDocs: result.conversation.assets.some(asset => asset.document?.hasFabricatedText),
-        sourcePartial: result.conversation.completeness?.status === 'partial',
+        sourcePartial: result.conversation.completeness === 'partial',
         truncated: 'truncated' in transport && transport.truncated === true,
         truncateReason: 'truncateReason' in transport && typeof transport.truncateReason === 'string' ? transport.truncateReason : undefined };
 }

@@ -130,9 +130,9 @@ test('provider contract: detailed media, provenance and parser evidence retain t
     assert.strictEqual(returned.conversation.messages, data.conversation.messages);
     assert.strictEqual(returned.transport.decodedPayload, data.transport.decodedPayload);
     assert.strictEqual(returned.transport, data.transport);
-    assert.equal(returned.conversation.assets[0].source?.uri, 'https://example.com/image');
+    assert.equal(returned.conversation.assets[0].sourceUri, 'https://example.com/image');
     assert.equal(returned.conversation.messages[0].citations?.[0].url, 'https://example.com');
-    assert.equal(returned.conversation.timestamp, 2);
+    assert.equal(returned.conversation.updatedAt, 2);
     assert.strictEqual(returned, data);
 });
 

@@ -29,9 +29,9 @@ export function blockText(node: DisplayBlock): string {
 }
 export function codeHeader(node: Extract<DisplayBlock, { type: 'code' }>, format: 'html' | 'markdown' | 'pdf'): string {
     if (!node.showHeader) return '';
-    if (format === 'markdown') return [node.filename, node.meta].filter(Boolean).join(' · ');
+    if (format === 'markdown') return node.meta ?? '';
     const language = node.language || 'text';
-    const title = node.filename ? node.filename + (language !== 'text' ? ` · ${language}` : '') : language;
+    const title = language;
     return title + (format === 'pdf' && node.meta ? ` · ${node.meta}` : '');
 }
 const mediaBadges: Readonly<Record<string, string>> = {

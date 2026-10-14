@@ -92,8 +92,8 @@ test('extensionless image resolution retains generation facts and a separate acq
     assert.equal(result.conversation.assets.length, 1);
     assert.equal(asset.kind, 'image');
     assert.equal(asset.name, 'image-0123456789abcdef');
-    assert.equal(asset.source?.uri, path);
-    assert.equal(asset.generated, true);
+    assert.equal(asset.sourceUri, path);
+    assert.equal(Reflect.get(asset ?? {}, 'generated'), undefined);
     assert.equal(asset.generation?.imageOrdinal, 0);
     assert.deepEqual(result.archiveResources[asset.id], { path, entry });
     assert.deepEqual(result.conversation.messages[1].attachmentIds, [asset.id]);

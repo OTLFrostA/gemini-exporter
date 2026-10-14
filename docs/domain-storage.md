@@ -37,11 +37,16 @@ The `conversations` object store holds the selected `DomainStorageRecord`:
 Diagnostics, RPC debug/pagination state, export destinations and ZIP file handles
 are excluded. Domain is strictly validated at both write and read boundaries,
 including field shapes, content nodes, resource/citation closure and finite
-numbers. Unknown future versions fail closed.
+numbers. Domain contract version is now **2**, independently of IndexedDB/storage
+version 2. New writes reject all v1 aliases. Only physical records explicitly
+marked `domainVersion: 1` pass through the single historical recovery converter.
+Recovered snapshots carry version 2; reads do not rewrite originals. An unsafe
+conversion throws with a diagnostic while retaining the original record.
+Unknown future versions fail closed.
 
 Persisted `DomainStorageRecord` remains an unbranded JSON contract. Every physical record recovery establishes `TrustedDomainStorageRecord` with `restoreDomainSnapshot` (re-exported as `readStorageDomain`). Restoration intentionally retains two Schema passes, before and after JSON serialization, and one Closure pass. This is one trust-restoration operation, not one total tree traversal. Writes perform the same detached-snapshot checks because a type-only brand does not freeze caller objects; reading an existing physical record during a write requires its own restoration.
 
-Trusted internal record adaptation retains envelope/version, identity, acquisition/resource/digest bindings and detached-copy isolation without repeating Domain AST validation. Content scripts use a current-version authenticated Broker reply adapter after the background restores a record. Raw Broker saves still establish trust at the background write snapshot boundary. The communication version is outside Domain and does not change any storage/Domain/IndexedDB version. Page `postMessage` is never that authenticated channel: origin/source checks plus raw protocol field checks lead to Parser input, not TrustedDomain.
+Trusted internal record adaptation retains envelope/version, identity, acquisition/resource/digest bindings and detached-copy isolation without repeating Domain AST validation. Content scripts use a current-version authenticated Broker reply adapter after the background restores a record. Raw Broker saves still establish trust at the background write snapshot boundary. Communication envelope version 2 rejects stale extension/page code carrying the previous Domain schema; publishers and consumers share the existing envelope-version constant. This protocol version remains outside Domain and does not change IndexedDB/storage versions. Page `postMessage` is never that authenticated channel: origin/source checks plus raw protocol field checks lead to Parser input, not TrustedDomain.
 
 See [the trust audit](domain-trust-audit.md) for authorized entries, remaining assertions, measured Schema/Closure counts, and qualified validation results.
 
@@ -49,8 +54,8 @@ Each conversation has exactly one selected record in `conversations`; no
 revision history is retained. The record's `revision` field is only an opaque
 token for that current record. An identical capture leaves the current record
 unchanged. Shorter snapshots, older timestamps at the same message count, or
-reduced coverage at the same count cannot replace the selected fuller snapshot;
-such new-source observations are not stored. Stable resource bytes carry
+reduced coverage (including a larger partial/unknown snapshot replacing a complete one) cannot replace the selected fuller snapshot;
+their body is not selected. A stronger title may still be adopted through the shared title authority without replacing that body. Stable resource bytes carry
 forward only when asset identity and source URI still match. Online acquired
 bytes use a separate `resource_bytes` store keyed by conversation identity,
 asset ID and original source URI, and survive restart. The IndexedDB v1 → v2

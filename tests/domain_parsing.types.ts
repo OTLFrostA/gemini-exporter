@@ -11,7 +11,7 @@ import type { ConversationRecordInput } from '../src/core/compatibility/record/c
 
 // Raw decoders need no legacy Conversation, export hints, storage schema or Gemini input type.
 const syncRawParser: ConversationParser<{ text: string }> = (raw, context) => ({
-    conversation: validateParserDomain({ providerId: context.providerId, id: '', title: '', timestamp: null, assets: [],
+    conversation: validateParserDomain({ providerId: context.providerId, id: '', title: '', completeness: 'unknown', assets: [],
         messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] }),
     diagnostics: [],
 });

@@ -4,7 +4,7 @@ import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 
 function valid(): DomainConversationDetail {
-    return { providerId: 'future', id: 'independent', title: 'Fixture', timestamp: null,
+    return { providerId: 'future', id: 'independent', title: 'Fixture', completeness: 'unknown',
         assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
             citations: [{ id: 'cite', url: 'https://example.test' }],
             content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'cite' }] },

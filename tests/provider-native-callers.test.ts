@@ -21,9 +21,9 @@ function page(request: string, seconds: number, cursor: string | null = null) {
     return parseGeminiRpcConversation(rpc([[turn], cursor, 'Title']), { providerId: 'gemini', targetConvId: 'native' });
 }
 const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({
-    conversation: validateParserDomain({ providerId: 'gemini', id: 'native', title: 'Title', timestamp, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
+    conversation: validateParserDomain({ providerId: 'gemini', id: 'native', title: 'Title', completeness: 'unknown', updatedAt: timestamp, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
         content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }],
-        assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { source: { uri } } : {}) }] }),
+        assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { sourceUri: uri } : {}) }] }),
     diagnostics: [], resourceHints: {}, acquisitionHints: {},
 });
 
@@ -34,7 +34,7 @@ test('production pagination merges native pages chronologically and closes renam
     const native = detail;
     assert.equal(index, 2);
     assert.deepEqual(native.conversation.messages.filter(m => m.role === 'user').map(m => extractBlockText(m.content[0])), ['Question r_old', 'Question r_new']);
-    assert.equal(native.conversation.createdAt, 1700000000000);
+    assert.equal(native.conversation.createdAt, undefined);
     assert.equal(detail.conversation.createdAt, native.conversation.createdAt);
     assert.equal(detail.conversation.updatedAt, 1700000010000);
     assertDomainClosure(native.conversation);
@@ -59,7 +59,7 @@ test('native token loops retain diagnostics and explicitly mark incomplete cover
     const detail = await getConversationDetail({ async fetchConversationPage() { return view; } }, 'native');
     assert.equal(detail.transport.truncateReason, 'token_loop');
     assert.equal(detail.conversation.messages.length, 2);
-    assert.equal(detail.conversation.completeness?.status, 'partial');
+    assert.equal(detail.conversation.completeness, 'partial');
     assert.ok(detail.diagnostics.some(d => d.code === 'GEMINI_PAGINATION_TRUNCATED'));
     assert.equal(resolveExportRecordStatus({ evidence: extractChatParseDrift(detail) }).status, 'partial');
 });
@@ -89,7 +89,7 @@ test('standard JSON preserves native data without mutation', () => {
     const json = JSON.parse(formatContent(view, 'json').content);
     assert.equal('parsed' in json, false);
     assert.deepEqual(json.conversation, native.conversation);
-    assert.equal(json.version, 1);
+    assert.equal(json.version, 2);
     assert.deepEqual(native.conversation, snapshot);
 
 });
@@ -149,7 +149,7 @@ test('production RPC client parses raw responses without invoking the legacy det
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, 'u0');
         assert.equal(detail.conversation.title, 'Native title');
         assert.equal(detail.conversation.messages.length, 2);
-        assert.equal(detail.conversation.messages[0].provenance?.providerRequestId, 'r_one');
+        assert.equal(Reflect.get(detail.conversation.messages[0].provenance ?? {}, 'providerRequestId'), undefined);
     } finally { credentials.resolveCred = originalCred; transport.postBatchexecute = originalPost; }
 });
 

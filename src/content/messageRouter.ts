@@ -1,3 +1,4 @@
+import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import { extractBlockText } from '../core/domain/content/unknownFallback.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
@@ -159,7 +160,7 @@ export function init({
 
         if (msg.action === 'getConversationDetail') {
             const detailMsg = msg as GetConversationDetailMessage;
-            const respondDetail = (response: GetConversationDetailResponse) => respond({ ...response, domainEnvelopeVersion: 1 });
+            const respondDetail = (response: GetConversationDetailResponse) => respond({ ...response, domainEnvelopeVersion: NATIVE_DETAIL_ENVELOPE_VERSION });
             const cid = detailMsg.conversationId;
             if (!cid) {
                 respondDetail({ success: false, error: 'no id' });
@@ -169,7 +170,7 @@ export function init({
                 async function persistDetailTitle(chatObj: ContentConversationDetail): Promise<void> {
                     if (!chatObj) return;
                     await persistNativeConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj);
-                    const chat = { ...chatObj.conversation, titles: { ...chatObj.conversation.titles } };
+                    const chat = { ...chatObj.conversation };
                     const nid = normId(cid || chat.id);
                     chat.title = cleanTitle(chat.title);
                     let detectedSource = chat.titleSource || 'rpc';
