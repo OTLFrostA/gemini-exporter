@@ -1,35 +1,43 @@
-export {};
-const test = require('node:test');
+import test from 'node:test';
 import assert from 'node:assert/strict';
-const {
+import {
     decodeGeminiStructuredNode,
-    decodeGeminiAnnotation,
-    decodeGeminiStructuredPayload,
-} = require('../src/core/parsers/gemini/rpc/structuredContent.js');
+} from '../src/core/parsers/gemini/rpc/structuredContent.js';
+
+interface NodeAccessTracker {
+    trackNode<T extends Record<string, unknown>>(id: string, obj: T): T;
+    accessCounts: Map<string, number>;
+}
+
+function createNodeAccessTracker(): NodeAccessTracker {
+    const accessCounts = new Map<string, number>();
+    return {
+        trackNode<T extends Record<string, unknown>>(id: string, obj: T): T {
+            accessCounts.set(id, 0);
+            return new Proxy(obj, {
+                get(target, prop, receiver) {
+                    if (prop === 'nodeType') {
+                        accessCounts.set(id, (accessCounts.get(id) ?? 0) + 1);
+                    }
+                    return Reflect.get(target, prop, receiver);
+                }
+            });
+        },
+        accessCounts
+    };
+}
 
 test('single-pass decode: access count per node in nested list is strictly linear O(1) per node', () => {
-    const accessCounts = new Map<string, number>();
-
-    function trackNode<T extends Record<string, unknown>>(id: string, obj: T): T {
-        accessCounts.set(id, 0);
-        return new Proxy(obj, {
-            get(target, prop, receiver) {
-                if (prop === 'nodeType') {
-                    accessCounts.set(id, (accessCounts.get(id) ?? 0) + 1);
-                }
-                return Reflect.get(target, prop, receiver);
-            }
-        });
-    }
+    const { trackNode, accessCounts } = createNodeAccessTracker();
 
     // Build a 6-level deeply nested list: List -> Item -> List -> Item -> ... -> TextNode
     const depth = 6;
-    let leaf = trackNode(`node_leaf`, {
+    const leaf = trackNode('node_leaf', {
         nodeType: 18,
         text: 'Leaf content'
     });
 
-    let current: any = leaf;
+    let current: Record<string, unknown> = leaf;
     for (let d = depth - 1; d >= 0; d--) {
         const item = { children: [current] };
         current = trackNode(`node_list_${d}`, {
@@ -51,19 +59,7 @@ test('single-pass decode: access count per node in nested list is strictly linea
 });
 
 test('single-pass decode: access count per cell child in table is strictly linear', () => {
-    const accessCounts = new Map<string, number>();
-
-    function trackNode<T extends Record<string, unknown>>(id: string, obj: T): T {
-        accessCounts.set(id, 0);
-        return new Proxy(obj, {
-            get(target, prop, receiver) {
-                if (prop === 'nodeType') {
-                    accessCounts.set(id, (accessCounts.get(id) ?? 0) + 1);
-                }
-                return Reflect.get(target, prop, receiver);
-            }
-        });
-    }
+    const { trackNode, accessCounts } = createNodeAccessTracker();
 
     const cellText1 = trackNode('cell_1', { nodeType: 18, text: 'Cell 1' });
     const cellText2 = trackNode('cell_2', { nodeType: 18, text: 'Cell 2' });
@@ -112,26 +108,85 @@ test('single-pass decode: annotation access count in TextNode is strictly linear
     assert.strictEqual(annotationTypeAccessCount, 1, 'Annotation type must be inspected exactly once');
 });
 
-test('deep nesting performance: depth-20 list completes in milliseconds without exponential blowup', () => {
-    let current: any = { nodeType: 18, text: 'Deepest' };
-    for (let d = 0; d < 20; d++) {
-        current = {
-            nodeType: 20,
-            items: [{ children: [current] }]
-        };
-    }
+test('single-pass decode: mixed heterogeneous hierarchy (Table -> Cell -> Quote -> OrderedList -> Text) decodes each node once and preserves AST', () => {
+    const { trackNode, accessCounts } = createNodeAccessTracker();
 
-    const start = performance.now();
-    const decoded = decodeGeminiStructuredNode(current);
-    const durationMs = performance.now() - start;
+    const text = trackNode('hetero_text', { nodeType: 18, text: 'Deepest content' });
+    const orderedList = trackNode('hetero_ordered_list', {
+        nodeType: 14,
+        VHa: 5,
+        items: [{ children: [text] }]
+    });
+    const quote = trackNode('hetero_quote', { nodeType: 15, children: [orderedList] });
+    const table = trackNode('hetero_table', {
+        nodeType: 17,
+        rows: [
+            {
+                cells: [
+                    { children: [quote], colSpan: 2, rowSpan: 1 }
+                ]
+            }
+        ]
+    });
 
+    const decoded = decodeGeminiStructuredNode(table);
     assert.ok(decoded);
-    // 2^20 is > 1 million calls in old implementation.
-    // In single-pass O(N), 20 nodes takes < 10ms.
-    assert.ok(durationMs < 50, `Expected fast decode under 50ms, took ${durationMs}ms`);
+    assert.strictEqual(accessCounts.get('hetero_table'), 1);
+    assert.strictEqual(accessCounts.get('hetero_quote'), 1);
+    assert.strictEqual(accessCounts.get('hetero_ordered_list'), 1);
+    assert.strictEqual(accessCounts.get('hetero_text'), 1);
+
+    // Verify AST structural integrity without type assertions
+    if (decoded.nodeType === 17) {
+        const firstRow = decoded.rows[0];
+        const firstCell = firstRow?.cells[0];
+        assert.strictEqual(firstCell?.colSpan, 2);
+        assert.strictEqual(firstCell?.rowSpan, 1);
+        const quoteChild = firstCell?.children[0];
+        if (quoteChild?.nodeType === 15) {
+            const listChild = quoteChild.children[0];
+            if (listChild?.nodeType === 14) {
+                assert.strictEqual(listChild.VHa, 5);
+                const textChild = listChild.items[0]?.children[0];
+                if (textChild?.nodeType === 18) {
+                    assert.strictEqual(textChild.text, 'Deepest content');
+                } else {
+                    assert.fail('Expected TextNode child');
+                }
+            } else {
+                assert.fail('Expected OrderedListNode child');
+            }
+        } else {
+            assert.fail('Expected QuoteNode child');
+        }
+    } else {
+        assert.fail('Expected TableNode root');
+    }
 });
 
-test('fail-closed semantics: invalid children at any depth immediately return null', () => {
+test('deep nesting complexity: depth-20 list confirms linear single-pass node access without exponential explosion', () => {
+    const { trackNode, accessCounts } = createNodeAccessTracker();
+
+    let current: Record<string, unknown> = trackNode('deep_leaf', { nodeType: 18, text: 'Deepest' });
+    for (let d = 0; d < 20; d++) {
+        current = trackNode(`deep_list_${d}`, {
+            nodeType: 20,
+            items: [{ children: [current] }]
+        });
+    }
+
+    const decoded = decodeGeminiStructuredNode(current);
+    assert.ok(decoded);
+
+    // In exponential 2^d recursion, 20 levels would yield over 1,000,000 evaluations.
+    // In single-pass linear O(N) decoding, exactly 21 nodes are registered and each is accessed once.
+    assert.strictEqual(accessCounts.size, 21, 'Total registered nodes must be 21');
+    for (const [id, count] of accessCounts) {
+        assert.strictEqual(count, 1, `Node ${id} must be evaluated exactly once`);
+    }
+});
+
+test('fail-closed semantics: invalid children at any depth or malformed containers return null', () => {
     // 1. Text node with invalid annotation
     const invalidText = decodeGeminiStructuredNode({
         nodeType: 18,
@@ -177,6 +232,17 @@ test('fail-closed semantics: invalid children at any depth immediately return nu
         children: [{ nodeType: 999 }]
     });
     assert.strictEqual(invalidQuote, null);
+
+    // 5. Malformed container payloads
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [null] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [{}] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [{ children: 'invalid' }] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [null] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{}] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{ cells: [null] }] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{ cells: [{}] }] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{ cells: 123 }] }), null);
+    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 15, children: 123 }), null);
 });
 
 test('edge cases: empty containers preserve original structure', () => {
@@ -232,119 +298,3 @@ test('edge cases: empty containers preserve original structure', () => {
         children: []
     });
 });
-
-test('single-pass decode: ordered list preserves VHa and has linear node access', () => {
-    const accessCounts = new Map<string, number>();
-    function trackNode<T extends Record<string, unknown>>(id: string, obj: T): T {
-        accessCounts.set(id, 0);
-        return new Proxy(obj, {
-            get(target, prop, receiver) {
-                if (prop === 'nodeType') {
-                    accessCounts.set(id, (accessCounts.get(id) ?? 0) + 1);
-                }
-                return Reflect.get(target, prop, receiver);
-            }
-        });
-    }
-
-    const itemChild = trackNode('ordered_child', { nodeType: 18, text: 'Item 1' });
-    const orderedList = trackNode('ordered_list', {
-        nodeType: 14,
-        VHa: 5,
-        items: [{ children: [itemChild] }]
-    });
-
-    const decoded = decodeGeminiStructuredNode(orderedList);
-    assert.ok(decoded);
-    assert.strictEqual(decoded.nodeType, 14);
-    assert.strictEqual((decoded as any).VHa, 5);
-    assert.strictEqual(accessCounts.get('ordered_list'), 1);
-    assert.strictEqual(accessCounts.get('ordered_child'), 1);
-});
-
-test('single-pass decode: quote node has linear node access and fails closed on invalid child', () => {
-    const accessCounts = new Map<string, number>();
-    function trackNode<T extends Record<string, unknown>>(id: string, obj: T): T {
-        accessCounts.set(id, 0);
-        return new Proxy(obj, {
-            get(target, prop, receiver) {
-                if (prop === 'nodeType') {
-                    accessCounts.set(id, (accessCounts.get(id) ?? 0) + 1);
-                }
-                return Reflect.get(target, prop, receiver);
-            }
-        });
-    }
-
-    const quoteChild = trackNode('quote_child', { nodeType: 18, text: 'Quoted block' });
-    const quoteNode = trackNode('quote', {
-        nodeType: 15,
-        children: [quoteChild]
-    });
-
-    const decoded = decodeGeminiStructuredNode(quoteNode);
-    assert.ok(decoded);
-    assert.strictEqual(decoded.nodeType, 15);
-    assert.strictEqual(accessCounts.get('quote'), 1);
-    assert.strictEqual(accessCounts.get('quote_child'), 1);
-});
-
-test('single-pass decode: mixed heterogeneous hierarchy (Table -> Cell -> Quote -> List -> Text) decodes each node exactly once', () => {
-    const accessCounts = new Map<string, number>();
-    function trackNode<T extends Record<string, unknown>>(id: string, obj: T): T {
-        accessCounts.set(id, 0);
-        return new Proxy(obj, {
-            get(target, prop, receiver) {
-                if (prop === 'nodeType') {
-                    accessCounts.set(id, (accessCounts.get(id) ?? 0) + 1);
-                }
-                return Reflect.get(target, prop, receiver);
-            }
-        });
-    }
-
-    const text = trackNode('hetero_text', { nodeType: 18, text: 'Deepest content' });
-    const list = trackNode('hetero_list', { nodeType: 20, items: [{ children: [text] }] });
-    const quote = trackNode('hetero_quote', { nodeType: 15, children: [list] });
-    const table = trackNode('hetero_table', {
-        nodeType: 17,
-        rows: [
-            {
-                cells: [
-                    { children: [quote], colSpan: 2, rowSpan: 1 }
-                ]
-            }
-        ]
-    });
-
-    const decoded = decodeGeminiStructuredNode(table);
-    assert.ok(decoded);
-    assert.strictEqual(accessCounts.get('hetero_table'), 1);
-    assert.strictEqual(accessCounts.get('hetero_quote'), 1);
-    assert.strictEqual(accessCounts.get('hetero_list'), 1);
-    assert.strictEqual(accessCounts.get('hetero_text'), 1);
-});
-
-test('fail-closed semantics: malformed container payloads safely return null', () => {
-    // List with null item
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [null] }), null);
-    // List with item missing children
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [{}] }), null);
-    // List with non-array children
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 20, items: [{ children: 'invalid' }] }), null);
-
-    // Table with null row
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [null] }), null);
-    // Table with row missing cells
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{}] }), null);
-    // Table with null cell
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{ cells: [null] }] }), null);
-    // Table with cell missing children
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{ cells: [{}] }] }), null);
-    // Table with non-array cells
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 17, rows: [{ cells: 123 }] }), null);
-
-    // Quote with non-array children
-    assert.strictEqual(decodeGeminiStructuredNode({ nodeType: 15, children: 123 }), null);
-});
-
