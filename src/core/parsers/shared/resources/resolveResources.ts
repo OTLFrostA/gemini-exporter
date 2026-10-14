@@ -1,9 +1,12 @@
 import { extractAttachmentInlineBytes } from '../../../utils/attachmentBytes.js';
 import type { ResourceEvidence } from './resourceEvidence.js';
+import { normalizeTimestamp } from '../../../domain/time.js';
 import { sameGenerationEvent } from './generationEvent.js';
 
 /** Acquisition aliases are resolved here; none of these lists is part of Domain. */
-export interface LegacyAttachmentInput extends Partial<ResourceEvidence> {
+export interface LegacyAttachmentInput extends Omit<Partial<ResourceEvidence>, 'generation' | 'createdAt'> {
+    generation?: Omit<NonNullable<ResourceEvidence['generation']>, 'time'> & { time?: number | null };
+    createdAt?: number | string | null;
     token?: unknown;
     dataBuffer?: ArrayBuffer | ArrayBufferView | number[];
 }
@@ -17,7 +20,7 @@ const attachmentFields = [
     'url', 'sourceUrl', 'resolvedUrl', 'src', 'localName', 'fileName', 'name', 'title',
     'mimeType', 'mime', 'size', 'width', 'height', 'source', 'subDir', 'isGenerated',
     'providerRequestId', 'imageOrdinal', 'isImage', 'blobBase64', 'dataBase64', 'failureReason',
-    'id', 'createdAt', 'chipUrl', 'contentMarkdown', 'hasFabricatedText',
+    'id', 'chipUrl', 'contentMarkdown', 'hasFabricatedText',
 ] as const;
 
 function portableBytes(value: LegacyAttachmentInput['dataBuffer']): string | undefined {
@@ -38,7 +41,13 @@ function copyAttachment(input: LegacyAttachmentInput, defaultType: string): Reso
     for (const field of attachmentFields) {
         if (input[field] !== undefined) Object.assign(result, { [field]: input[field] });
     }
-    if (input.generation) result.generation = { ...input.generation };
+    const createdAt = normalizeTimestamp(input.createdAt);
+    if (createdAt !== undefined) result.createdAt = createdAt;
+    if (input.generation) {
+        const { time: rawTime, ...generation } = input.generation;
+        const time = normalizeTimestamp(rawTime);
+        result.generation = { ...generation, ...(time !== undefined ? { time } : {}) };
+    }
     if (input.sections) result.sections = [...input.sections];
     if (input.links) result.links = input.links.map(link => ({ ...link }));
     if (input.candidates) result.candidates = [...input.candidates];

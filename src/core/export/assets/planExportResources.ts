@@ -42,7 +42,7 @@ export async function planExportResources(result: ResourceConversationParseResul
         used.add(path);
         const source = result.acquisitionHints[asset.id] ?? {};
         const generation = asset.generation?.chatId && asset.generation.generationOrdinal !== undefined
-            ? { ...asset.generation, chatId: asset.generation.chatId, generationOrdinal: asset.generation.generationOrdinal } : undefined;
+            ? asset.generation : undefined;
         const item: AssetPipelineItem = { assetId: asset.id, url: source.url ?? asset.source?.uri,
             sourceUrl: source.sourceUrl ?? asset.source?.uri, resolvedUrl: source.resolvedUrl ?? (isImage && /^https?:/.test(asset.source?.uri ?? '') ? highResVariant(asset.source!.uri!) : undefined),
             src: source.src, candidates: source.candidates, localName: path, fileName: path.split('/').pop(),

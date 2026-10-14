@@ -1,8 +1,7 @@
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { findResourceMatch, resourceIdentity, type ResourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
-import type {
-    GeneratedMediaIdentity
-} from '../../../types/conversation.js';
+import type { DomainGeneratedMediaIdentity } from '../../domain/conversationDetail.js';
+import type { LegacyAttachmentInput } from '../../parsers/shared/resources/resolveResources.js';
 import { normId as utilsNormId } from "../../utils/utils.js";
 
 interface TakeoutMediaFile {
@@ -14,7 +13,7 @@ interface TakeoutMediaFile {
 interface StoredTakeoutMedia {
     filename: string;
     fileObj?: TakeoutMediaFile;
-    generation?: GeneratedMediaIdentity;
+    generation?: LegacyAttachmentInput['generation'];
     imageOrdinal?: number;
     isGenerated?: boolean;
     providerRequestId?: string;
@@ -24,7 +23,7 @@ interface StoredTakeoutMedia {
 export interface TakeoutResourceLookup {
     assetId: string;
     sourceUri?: string;
-    generation?: GeneratedMediaIdentity;
+    generation?: Partial<DomainGeneratedMediaIdentity>;
 }
 
 export type TakeoutCachedConversation = ResourceConversationParseResult;
@@ -142,7 +141,7 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
         try { return await readTakeoutBytes(path ? store.globalMedia[path] : undefined); } catch { return null; }
     }
     const media = store.mediaMap[nid] || [];
-    const match = findResourceMatch(nid, requested, media.map(item => ({ assetId: '', generation: item.generation,
+    const match = findResourceMatch(nid, requested, media.map(item => ({ assetId: '', generation: item.generation ? { ...item.generation, time: item.generation.time ?? undefined } : undefined,
         sourceUris: [item.filename, item.fileObj?.name, item.fileObj?.path].filter((uri): uri is string => !!uri) })));
     if (match === null) return null;
     try { return await readTakeoutBytes(media[match].fileObj); } catch { return null; }

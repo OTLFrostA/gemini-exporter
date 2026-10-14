@@ -110,3 +110,21 @@ void rejectedMissingAssets;
 
 const generationEvent: DomainMessage = { role: 'assistant', content: body(''), generation: { mediaKind: 'image', outputCount: 2 } };
 void generationEvent;
+
+// Normalized resource consumers cannot widen their time contract for a legacy producer.
+import type { ResourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
+import type { ResourceEvidence } from '../src/core/parsers/shared/resources/resourceEvidence.js';
+import type { ResourceAcquisitionHint } from '../src/core/parsers/shared/resources/resourceAcquisitionHints.js';
+import type { TakeoutResourceLookup } from '../src/core/compatibility/takeout/mediaIndex.js';
+// @ts-expect-error Core resource identity never accepts legacy null times.
+const nullResourceIdentity: ResourceIdentity = { assetId: 'x', sourceUris: [], generation: { time: null } };
+// @ts-expect-error Resolved evidence has already crossed the source normalization boundary.
+const nullResourceEvidence: ResourceEvidence = { type: 'file', createdAt: null };
+// @ts-expect-error Acquisition hints carry normalized identity rather than legacy media metadata.
+const nullAcquisitionHint: ResourceAcquisitionHint = { generation: { chatId: 'c', generationOrdinal: 0, time: null } };
+// @ts-expect-error Domain resource lookups cannot inherit nullable times from the old media map.
+const nullTakeoutLookup: TakeoutResourceLookup = { assetId: 'x', generation: { time: null } };
+void nullResourceIdentity;
+void nullResourceEvidence;
+void nullAcquisitionHint;
+void nullTakeoutLookup;

@@ -4,7 +4,6 @@ import type { DomainAsset, DomainAssetKind, DomainMessage } from '../../../domai
 import type { ResourceEvidence } from './resourceEvidence.js';
 import { normalizedSourceReference, normalizedResourceReference, resolveLegacyAttachmentGroups, type LegacyAttachmentGroup } from './resolveResources.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
-import { normalizeTimestamp } from '../../../domain/time.js';
 
 /** Stable semantic identities do not depend on message order or export numbering. */
 function resourceId(key: string): string {
@@ -48,19 +47,14 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     const uri = record.resolvedUrl || record.sourceUrl || record.url || record.src || (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
     const mediaType = record.mimeType || record.mime;
     const dataBase64 = record.dataBase64 || record.blobBase64;
-    const docTime = normalizeTimestamp(record.createdAt);
-    const documentFields = ['id', 'chipUrl', 'sections', 'links', 'contentMarkdown', 'candidates', 'hasFabricatedText'] as const;
+    const documentFields = ['id', 'createdAt', 'chipUrl', 'sections', 'links', 'contentMarkdown', 'candidates', 'hasFabricatedText'] as const;
     const document = {
         ...Object.fromEntries(documentFields.flatMap(field => record[field] !== undefined ? [[field, record[field]]] : [])),
-        ...(docTime !== undefined ? { createdAt: docTime } : {}),
     };
-    const genTime = normalizeTimestamp(record.generation?.time);
-    const { time: _t, ...baseGen } = record.generation ?? {};
     const generation = {
-        ...baseGen,
+        ...record.generation,
         ...(!record.generation?.providerRequestId && record.providerRequestId ? { providerRequestId: record.providerRequestId } : {}),
         ...(record.generation?.imageOrdinal === undefined && record.imageOrdinal !== undefined ? { imageOrdinal: record.imageOrdinal } : {}),
-        ...(genTime !== undefined ? { time: genTime } : {}),
     };
     return { id, kind, ...(name ? { name } : {}),
         ...(mediaType ? { mediaType } : {}),
