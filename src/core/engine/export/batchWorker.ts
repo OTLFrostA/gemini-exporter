@@ -1,14 +1,15 @@
+import { indexFromDetail } from '../../compatibility/index/parseIndex.js';
+import { mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { StorageService } from '../../storage/storageService.js';
 import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import { requestNativeDetail, requestNativeBatch, type NativeBatchReply } from '../../utils/nativeDetailTransport.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
-import type { Conversation } from '../../../types/conversation.js';
+import type { DomainConversationIndex } from '../../../types/conversation.js';
 import type { TabServiceModule } from '../../../types/utils.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { AssetPipelineItem } from '../assetPipeline.js';
-import { normalizeReliableTitleSource } from '../../utils/titleUtils.js';
-import { normId, cleanTitle, isRealTitle, resolveTitle, getErrorMessage } from '../../utils/utils.js';
+import { normId, getErrorMessage } from '../../utils/utils.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
 import TabService from '../../utils/tabService.js';
 import { isConfirmedDeletedError } from '../../protocol/protocol.js';
@@ -18,7 +19,7 @@ interface TabServiceLike { sendToGeminiTab?: (message: unknown, slot?: string, t
 interface FetchChatDetailOptions { messageSender?: MessageSenderFunction | null; tabService?: TabServiceModule | TabServiceLike | null }
 export type FetchChatDetailResult = NativeBatchReply;
 export type ResolvedConversationSource = 'online' | 'takeout' | 'local_snapshot' | 'unspecified';
-export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: Conversation['cloudAvailability'] };
+export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: DomainConversationIndex['cloudAvailability'] };
 export type WorkerChat = ResourceConversationParseResult;
 export type WorkerChatResolveInput = NativeConversationInput;
 export type WorkerMessageAttachment = AssetPipelineItem;
@@ -158,7 +159,7 @@ export async function fetchChatDetail(
 }
 
 /** Resolve source or durable Domain bodies; historical strings are never export inputs. */
-export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: Partial<Conversation> | null,
+export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: DomainConversationIndex | null,
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}, source: ResolvedConversationSource = 'unspecified'): Promise<{ result: NativeConversationInput; source: ResolvedConversationSource }> {
     if (isResourceConversationParseResult(value) && value.conversation.messages.length) return { result: value, source };
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
@@ -174,7 +175,7 @@ export async function resolveConversationData(value: NativeConversationInput, id
     return { result: value, source };
 }
 
-export async function resolveChat(value: NativeConversationInput, requested: BatchWorkerRequestedItem, list?: Partial<Conversation> | null,
+export async function resolveChat(value: NativeConversationInput, requested: BatchWorkerRequestedItem, list?: DomainConversationIndex | null,
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0',
     onTitleUpdated: (id: string, title: string, source: string) => void = () => {},
     onLog: (message: string, level?: string) => void = () => {}, options: ResolveChatOptions = {}): Promise<ResolveChatResult> {
@@ -201,19 +202,14 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error, convsNeedSave: false };
     }
     const domain = result.conversation;
-    const titles = { ...list?.titles };
-    if (domain.titleSource && isRealTitle(domain.title, id)) titles[domain.titleSource] = cleanTitle(domain.title);
-    const resolved = resolveTitle({ id, title: list?.title || domain.title, titleSource: list?.titleSource || domain.titleSource, titles });
-    const title = resolved.title || domain.title || requested.title || id;
-    const source = resolved.source || domain.titleSource;
-    const storedTitles = Object.fromEntries(Object.entries(titles).flatMap(([key, value]) => {
-        const reliable = normalizeReliableTitleSource(key);
-        return reliable ? [[reliable, value]] : [];
-    }));
-    const changed = !!list && (list.title !== title || list.titleSource !== source || JSON.stringify(list.titles) !== JSON.stringify(storedTitles));
-    if (changed && list) { list.title = title; list.titleSource = normalizeReliableTitleSource(source); list.titles = storedTitles; onTitleUpdated(id, title, source || ''); }
-    return { isError: false, chat: { ...result, conversation: { ...domain, title, titleSource: source } }, source: dataSource,
-        listTitle: title, isConfirmedDeleted: false, errMsg: null, convsNeedSave: changed };
+    const merged = mergeConversationIndex(list ?? undefined, indexFromDetail(domain, dataSource === 'takeout' ? 'takeout' : dataSource === 'local_snapshot' ? 'snapshot' : 'detail'));
+    const changed = !!list && JSON.stringify(list) !== JSON.stringify(merged);
+    if (changed && list) {
+        Object.assign(list, merged);
+        onTitleUpdated(id, merged.title, merged.titleSource);
+    }
+    return { isError: false, chat: { ...result, conversation: { ...domain, title: merged.title, titleSource: merged.titleSource } }, source: dataSource,
+        listTitle: merged.title, isConfirmedDeleted: false, errMsg: null, convsNeedSave: changed };
 }
 export const isWorkerChat = isResourceConversationParseResult;
 export function formatDebugInfo(debug: unknown): string {

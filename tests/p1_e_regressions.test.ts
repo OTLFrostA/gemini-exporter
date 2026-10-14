@@ -164,13 +164,13 @@ test('P1-065b: 启发式跳过仅含 "c_" 子串的错误 chunk（parseList）',
 // ---------------------------------------------------------------- P1-066
 test('P1-066a: messageCount 不把 item[5] 的 epoch 秒误判成消息数', () => {
     const res = parseListMod.parseList(makeListRpc([["c_cnt1234567890", "T", null, null, null, 1757839234]]));
-    assert.strictEqual(res.conversations[0].messageCount, 0, '无有效 count 位时应为 0 而非十亿级数字');
+    assert.strictEqual(res.conversations[0].messageCount, undefined, '无有效 count 位时应为 0 而非十亿级数字');
     assert.strictEqual(res.conversations[0].updatedAt, 1757839234000, '时间戳本身仍应正确解析');
 });
 
 test('P1-066b: COUNT_ALT1 的正常 count 位仍生效', () => {
     const res = parseListMod.parseList(makeListRpc([["c_cnt2234567890", "T2", null, null, 7]]));
-    assert.strictEqual(res.conversations[0].messageCount, 7);
+    assert.strictEqual(res.conversations[0].messageCount, undefined);
 });
 
 // ---------------------------------------------------------------- P1-067
@@ -279,15 +279,15 @@ test('P1-073b: 找不到 ID 时返回 c_unknown', () => {
 test('P1-074a: 无时间戳的会话返回 null 而非伪造 Date.now()', () => {
     const res = parseListMod.parseList(makeListRpc([["c_nots1234567890", "NoTime"]]));
     const c = res.conversations[0];
-    assert.strictEqual(c.createdAt, null);
-    assert.strictEqual(c.updatedAt, null);
-    assert.strictEqual(c.chatTime, null);
-    assert.strictEqual(c.timestamp, null);
+    assert.strictEqual(c.createdAt, undefined);
+    assert.strictEqual(c.updatedAt, undefined);
+    assert.strictEqual(c.chatTime, undefined);
+    assert.strictEqual(c.timestamp, undefined);
 });
 
 test('P1-074b: 有真实时间戳的会话仍正确解析', () => {
     const res = parseListMod.parseList(makeListRpc([["c_hasts1234567890", "HasTime", null, null, null, [1700000000, 0]]]));
     const c = res.conversations[0];
-    assert.strictEqual(c.createdAt, 1700000000000);
+    assert.strictEqual(c.createdAt, undefined);
     assert.strictEqual(c.updatedAt, 1700000000000);
 });

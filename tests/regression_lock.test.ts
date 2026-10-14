@@ -545,7 +545,6 @@ test('audit fix: isRealTitle fallback filters invalid titles properly', () => {
     assert.strictEqual(isRealTitle('Valid Chat Title 2026', 'c_123'), true, 'Real title should be accepted');
 });
 
-
 test('regression: gemini_parser image naming must be globally unique across turns', () => {
     const seq = { value: 1 };
     const imgObj1 = ['https://lh3.googleusercontent.com/a1b2c3d4', 100, 200];

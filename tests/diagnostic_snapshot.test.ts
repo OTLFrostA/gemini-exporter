@@ -109,7 +109,7 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
             workbenchLogs: [{ time: '12:00:00', level: 'info', msg: 'Started export' }]
         });
 
-        assert.strictEqual(snapshot.diagnosticVersion, '2.0.0');
+        assert.strictEqual(snapshot.diagnosticVersion, '3.0.0');
         assert.strictEqual(snapshot.environment.currentSlot, 'u0');
         assert.strictEqual(snapshot.environment.isDevMode, true);
         assert.strictEqual(snapshot.storageOverview.totalConversations, 2);

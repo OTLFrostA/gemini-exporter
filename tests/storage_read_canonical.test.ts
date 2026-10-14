@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 /**
  * Canonical Storage Read Invariant Tests (PR B — Retire Migration-on-Read)
  * Contract Classification: Permanent Contract
@@ -96,8 +97,8 @@ function installMock() {
 test('PR-B: Current-schema read paths read only canonical keys', async () => {
     const env = installMock();
     try {
-        env.localStore['gemini_conversations'] = [{ id: 'u0_c1', title: 'U0 Conv', timestamp: 100 }];
-        env.localStore['gemini_conversations_u1'] = [{ id: 'u1_c1', title: 'U1 Conv', timestamp: 200 }];
+        env.localStore['gemini_conversations'] = ([{ id: 'u0_c1', title: 'U0 Conv', timestamp: 100 }]).map(indexFixture);
+        env.localStore['gemini_conversations_u1'] = ([{ id: 'u1_c1', title: 'U1 Conv', timestamp: 200 }]).map(indexFixture);
         env.localStore['exportedIds'] = { 'u0_c1': { status: 'ok' } };
         env.localStore['gemini_exported_u1'] = { 'u1_c1': { status: 'ok' } };
         env.sessionStore['gemini_credentials_map'] = {
@@ -128,8 +129,8 @@ test('PR-B: Current-schema read paths read only canonical keys', async () => {
 test('PR-B: Current-schema read paths are strictly non-mutating (0 writes, 0 deletes)', async () => {
     const env = installMock();
     try {
-        env.localStore['gemini_conversations'] = [{ id: 'c1', title: 'C1' }];
-        env.localStore['gemini_conversations_u1'] = [{ id: 'c2', title: 'C2' }];
+        env.localStore['gemini_conversations'] = ([{ id: 'c1', title: 'C1' }]).map(indexFixture);
+        env.localStore['gemini_conversations_u1'] = ([{ id: 'c2', title: 'C2' }]).map(indexFixture);
         env.localStore['exportedIds'] = { 'c1': { status: 'ok' } };
         env.localStore['gemini_exported_u1'] = { 'c2': { status: 'ok' } };
         env.sessionStore['gemini_credentials_map'] = { 's1': { sid: 's1' } };
@@ -199,7 +200,7 @@ test('PR-B: Legacy storage is upgraded strictly through migration boundary, then
         await SchemaMigration.ensureStorageReady();
 
         // Migration must have populated canonical keys and removed legacy keys
-        assert.strictEqual(env.localStore['gemini_schema_version'], 2);
+        assert.strictEqual(env.localStore['gemini_schema_version'], 3);
         assert.strictEqual(env.localStore['gemini_conversations_u0'], undefined, 'Legacy u0 conv key removed');
         assert.strictEqual(env.localStore['gemini_exported_u0'], undefined, 'Legacy u0 export key removed');
         assert.strictEqual(env.sessionStore['gemini_credentials'], undefined, 'Legacy single cred key removed');

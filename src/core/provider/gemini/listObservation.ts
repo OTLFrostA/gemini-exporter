@@ -20,8 +20,12 @@ export function readGeminiListRequest(body: unknown): GeminiListRequestContext |
         if (!Array.isArray(args) || args.length !== 3 || !Number.isInteger(args[0]) || args[0] <= 0
             || !(args[1] === null || typeof args[1] === 'string') || !Array.isArray(args[2])) return null;
         const filter = args[2];
-        if (filter.length !== 3 || ![0, 1].includes(filter[0]) || filter[1] !== null || filter[2] !== 1) return null;
-        return { streamId: filter[0] === 1 ? 'pinned' : 'recent', requestCursor: args[1] };
+        const classic = filter.length === 3 && [0, 1].includes(filter[0]) && filter[1] === null && filter[2] === 1;
+        // Captured webpage recent-list request. The expanded filter is exact evidence;
+        // arbitrary extra fields still cannot establish scan coverage.
+        const expandedRecent = filter.length === 10 && filter.every((value, index) => value === (index === 2 || index === 9 ? 1 : null));
+        if (!classic && !expandedRecent) return null;
+        return { streamId: classic && filter[0] === 1 ? 'pinned' : 'recent', requestCursor: args[1] };
     } catch { return null; }
 }
 

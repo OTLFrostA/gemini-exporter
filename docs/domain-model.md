@@ -50,9 +50,9 @@ The production import/cache/storage path keeps its compatibility API around nati
 - Resources with original `sourceUri`, canonical document Markdown and necessary generation identity.
 - Required `completeness: 'complete' | 'partial' | 'unknown'`. Unknown means insufficient evidence; partial indicates incomplete source coverage, including DOM observations restricted to currently available messages; complete requires coverage evidence. Message count alone proves none of these states.
 
-All times are finite epoch-millisecond numbers, omitted when unknown. Creation and update times are independent facts. Source parsers must not invent creation time from the earliest observed message or update time from a local scan. Conversation List `lastSeen` and ExportRecord `chatTime` remain separate application facts.
+All times are finite epoch-millisecond numbers, omitted when unknown. Creation and update times are independent facts. Source parsers must not invent creation time from the earliest observed message or update time from a local scan. Index activity uses only canonical `updatedAt`/`createdAt`; local observation time never becomes authored conversation time. ExportRecord `chatTime` remains an independent export fact.
 
-Domain has no conversation `timestamp`, `chatTime`, `lastSeen`, `href`, `titles` or `provenance`. Parser boundaries choose titles using the shared `domain/titleAuthority.ts` ranking; the list index alone keeps source alternatives. Storage protects the confirmed title independently of body selection. Unknown source roles map to `unknown`; raw role strings and message provenance do not enter Domain. `titleSource` uses the existing `TitleSource` union and runtime enum; unknown legacy sources use the existing default tier.
+Domain has no conversation `timestamp`, `chatTime`, `lastSeen`, `href`, `titles` or `provenance`. Parser boundaries choose titles using the shared `domain/titleAuthority.ts` ranking; the index stores one confirmed title/source as well. Historical source alternatives are interpreted only at acquisition or migration boundaries. Storage protects the confirmed title independently of body selection. Unknown source roles map to `unknown`; raw role strings and message provenance do not enter Domain. `titleSource` uses the existing `TitleSource` union and runtime enum; unknown legacy sources use the existing default tier.
 
 Domain does not own diagnostics, pagination, source debugging payloads, export destinations, acquired export bytes, layout preferences or renderer labels. Acquisition origin stays in the existing call/storage context. It cannot select different export semantics.
 
@@ -98,8 +98,9 @@ Each migration needs source-specific fidelity tests, stable identities, closure 
 The separately authorized storage upgrade adopts a versioned Domain repository.
 Native captures write structured Domain directly; old chrome/IndexedDB records
 are explicit legacy-storage parser inputs, backed up before interpretation and
-transfer. The lightweight conversation index and independent settings/account/
-export APIs retain their existing keys. Runtime string projections are not the
+transfer. The canonical `DomainConversationIndex` and independent settings/account/
+export APIs retain their existing keys. Application schema v3 migrates the index;
+body storage remains v2. Runtime string projections are not the
 new durable body. See [Domain storage contract and upgrade behavior](domain-storage.md).
 
 Raw source parsers remain independent of storage. Only the legacy-storage parser

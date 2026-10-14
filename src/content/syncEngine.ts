@@ -1,5 +1,7 @@
+import { parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
+import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
-import { isStoredObject, type StoredValue } from '../core/storage/storageCompatibility.js';
+import { type StoredValue } from '../core/storage/storageCompatibility.js';
 import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
 import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
@@ -111,11 +113,10 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const slot = getAccountSlot();
             const Storage = getStorage();
             const existing = Storage ? await Storage.getConversations(slot) : [];
-            const rawFound = existing.find((c: any) => normId(c.id) === activeId);
-            const found = isStoredObject(rawFound) && !Array.isArray(rawFound) ? rawFound : null;
-            const hasResolvedTitle = found && isRealTitle(typeof found.title === 'string' ? found.title : undefined, activeId)
+            const found = existing.find(c => c.id === activeId);
+            const hasResolvedTitle = found && found.title !== ''
                 && found.titleSource !== 'sniff' && found.titleSource !== 'default';
-            if (!options?.force && hasResolvedTitle && (found.updatedAt || found.timestamp)) {
+            if (!options?.force && hasResolvedTitle && found.updatedAt !== undefined) {
                 return;
             }
 
@@ -125,17 +126,15 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const d = native.conversation;
             if (d && d.id) {
                 const nid = normId(d.id);
-                const targetTs = d.updatedAt ?? null;
-                if (targetTs) {
+                const targetTs = d.updatedAt;
+                if (targetTs !== undefined) {
                     await upsertConversations([{
                         id: nid,
                         title: d.title,
-                        titleSource: d.titleSource || 'rpc',
+                        titleSource: d.titleSource,
                         url: d.url || `https://gemini.google.com/app/${nid}`,
-                        href: d.url || `https://gemini.google.com/app/${nid}`,
-                        timestamp: targetTs,
                         updatedAt: targetTs,
-                        createdAt: d.createdAt || null,
+                        createdAt: d.createdAt,
                         messageCount: d.messages.length
                     }], 'active-detail-sync');
                 }
@@ -194,12 +193,11 @@ export async function touchActiveConversation(
     // are only ever written from RPC/list/detail data. A touch must NOT stamp the
     // client clock here: merge is Math.max-monotonic, so a client-ahead clock
     // would permanently poison the record and no later server timestamp could
-    // repair it. Touch updates recency signals only (sidebarIndex/lastSeen);
+    // repair it. Touch updates tie order only (sidebarIndex);
     // the next list sync brings the real server timestamp.
-    const item: any = {
+    const item: IndexObservationInput = {
         id: nid,
         url: `https://gemini.google.com/app/${nid}`,
-        href: `https://gemini.google.com/app/${nid}`,
         sidebarIndex: 0
     };
 
@@ -208,7 +206,6 @@ export async function touchActiveConversation(
         const sourceTier = normalizeReliableTitleSource(activeTitleObj.source) || 'dom';
         item.title = cleanT;
         item.titleSource = sourceTier;
-        item.titles = { [sourceTier]: cleanT };
     }
 
     if (typeof document !== 'undefined') {
@@ -238,7 +235,7 @@ let __storageWriteQueue = Promise.resolve<RpcListIngestResult>(emptyIngest());
 let __lastKnownCount = 0;
 let __syncOnceInFlight = false;
 
-export function upsertConversations(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<number> {
+export function upsertConversations(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<number> {
     return persistConversationBatch(incomingItems, source, forceWrite, targetSlot).then(result => result.count);
 }
 
@@ -266,21 +263,25 @@ export async function ingestPageObservation(page: PageObservation<GeminiProvider
     return receipt;
 }
 
-function persistConversationBatch(incomingItems: any[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<RpcListIngestResult> {
+function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<RpcListIngestResult> {
     if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
     // If incoming items lack valid IDs or are malformed (e.g. schema drift resulting
     // in 'c_unknown' or missing IDs), filter them out. If no valid items remain,
     // abort storage transaction immediately to protect existing data from corruption.
-    const validIncoming = incomingItems.filter(c => {
-        if (!c || !c.id) return false;
-        const rawId = String(c.id).trim();
-        if (rawId === 'c_unknown' || rawId === 'c_' || rawId.toLowerCase() === 'unknown') return false;
-        const nid = normId(rawId);
-        if (!nid || nid === 'unknown' || nid.length < 3 || isReservedRoute(nid)) return false;
-        return true;
-    });
+    const kind: IndexSource = source === 'network-list' || source === 'batchexecute' ? 'rpc-list'
+        : source.includes('detail') ? 'detail' : 'dom';
+    const validIncoming: DomainConversationIndex[] = [];
+    const touched = new Set<string>();
+    for (const item of incomingItems) {
+        try {
+            const index = parseIndexObservation(item, kind);
+            validIncoming.push(index);
+            if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.id);
+        }
+        catch (error) { if (!(error instanceof TypeError)) throw error; }
+    }
 
     if (validIncoming.length === 0) {
         console.warn('[Gemini Exporter] Fail-Closed: incoming batch has no valid conversation IDs, aborting storage write to protect existing data.');
@@ -292,53 +293,29 @@ function persistConversationBatch(incomingItems: any[], source: string, forceWri
             const slot = targetSlot || getAccountSlot();
             const Storage = getStorage();
             if (!Storage) throw new Error('Conversation storage unavailable');
-            const now = Date.now();
 
             // Cross-tab: read + merge + write run atomically inside the storage
             // transaction. The old shape read outside the lock, so two tabs
             // could build on the same stale snapshot and the later write would
             // silently discard the earlier tab's updates (lost update).
             let accepted = 0;
-            const tx = await Storage.transactConversations(slot, (existing: any[]) => {
-                const map = new Map<string, any>();
-                existing.forEach((c: any) => {
-                    if (!c || !c.id) return;
-                    const nid = normId(c.id);
-                    c.id = nid;
-                    map.set(nid, c);
-                });
+            const tx = await Storage.transactConversations(slot, existing => {
+                const map = new Map(existing.map(c => [`${c.providerId}:${c.id}`, c]));
                 let changed = 0;
-
-                validIncoming.forEach((c, idx) => {
-                    if (!c || !c.id) return;
-                    const nid = normId(c.id);
-                    if (confirmedDeleted.get(slot)?.has(nid)) return;
-                    c.id = nid;
-                    const old = map.get(nid);
-                    if (old?.cloudAvailability === 'deleted') return;
+                for (const incoming of validIncoming) {
+                    if (confirmedDeleted.get(slot)?.has(incoming.id)) continue;
+                    const old = map.get(`${incoming.providerId}:${incoming.id}`);
+                    if (old?.cloudAvailability === 'deleted') continue;
                     accepted++;
-
-                    const res = mergeConversation(old, c, {
-                        source,
-                        targetSlot: slot
-                    });
-
-                    if (res.isChanged) {
-                        changed++;
-                    }
-
-                    res.merged.lastSeen = res.merged.lastSeen || new Date(now - idx).toISOString();
-                    res.merged.source = source || (old && old.source) || 'unknown';
-                    res.merged.accountSlot = slot;
-
-                    if (old?.cloudAvailability === 'unlisted' && (source === 'batchexecute' || source === 'network-list')) res.merged.cloudAvailability = undefined;
-                    map.set(nid, res.merged);
-                });
-
-                const merged = Array.from(map.values());
-                merged.sort(compareConversations);
-
-                if (!forceWrite && changed === 0) return null;
+                    const result = mergeConversation(old, incoming);
+                    if (result.isChanged) changed++;
+                    map.set(`${incoming.providerId}:${incoming.id}`, result.merged);
+                }
+                // Local touches change tie order only, never authored activity timestamps.
+                const merged = [...map.values()].sort((a, b) => compareConversations(a, b)
+                    || Number(touched.has(b.id)) - Number(touched.has(a.id)));
+                const reordered = merged.some((item, index) => item.id !== existing[index]?.id);
+                if (!forceWrite && changed === 0 && !reordered) return null;
                 return { list: merged, changed };
             });
 
@@ -393,20 +370,16 @@ export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
     try {
-        const items: any[] = [];
+        const items: IndexObservationInput[] = [];
         const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
         if (activeId) {
             const activeTitleObj = extractActiveChatTitle(activeId);
             if (activeTitleObj && activeTitleObj.title) {
-                const titlesMap: Record<string, string> = {};
-                titlesMap[activeTitleObj.source] = activeTitleObj.title;
                 items.push({
                     id: activeId,
                     title: activeTitleObj.title,
                     titleSource: activeTitleObj.source,
-                    titles: titlesMap,
                     url: `https://gemini.google.com/app/${activeId}`,
-                    href: `https://gemini.google.com/app/${activeId}`
                 });
             }
         }
@@ -542,7 +515,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         }
 
         const finalStatus = scanStatus(all, verifiedIncrementalStop);
-        const timestamps = all.items.map(item => item.timestamp).filter((ts): ts is number =>
+        const timestamps = all.items.map(item => item.updatedAt).filter((ts): ts is number =>
             typeof ts === 'number' && Number.isFinite(ts) && ts > 0);
         const baseline = finalStatus === 'complete' ? {
             headTimestamp: timestamps.length ? timestamps.reduce((max, ts) => Math.max(max, ts), 0) : null,

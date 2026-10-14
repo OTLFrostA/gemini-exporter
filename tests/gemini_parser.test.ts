@@ -59,7 +59,7 @@ test('gemini_parser - parseList with valid batchexecute RPC text', () => {
 });
 
 test('utils - resolveTitle multi-tier source priority arbitration', () => {
-    const { resolveTitle, setTitleBySource } = require('../src/core/utils/utils.js');
+    const { resolveTitle } = require('../src/core/utils/utils.js');
 
     // 1. Takeout only
     const chatTakeout = {
@@ -72,25 +72,25 @@ test('utils - resolveTitle multi-tier source priority arbitration', () => {
 
     // 2. Takeout + Sniffed low-tier loading title (e.g. Google Gemini)
     // Low tier should NOT trample Takeout!
-    setTitleBySource(chatTakeout, 'sniff', 'Google Gemini');
+    Object.assign(chatTakeout.titles, { 'sniff': 'Google Gemini' });
     const res2 = resolveTitle(chatTakeout);
     assert.strictEqual(res2.title, '什么是量子计算？');
     assert.strictEqual(res2.source, 'takeout');
 
     // 3. Takeout + DOM Header (DOM should win over Takeout)
-    setTitleBySource(chatTakeout, 'dom', '量子计算超导路线详解');
+    Object.assign(chatTakeout.titles, { 'dom': '量子计算超导路线详解' });
     const res3 = resolveTitle(chatTakeout);
     assert.strictEqual(res3.title, '量子计算超导路线详解');
     assert.strictEqual(res3.source, 'dom');
 
     // 4. RPC arrives (RPC Tier 1 should win over DOM and Takeout)
-    setTitleBySource(chatTakeout, 'rpc', '量子计算与超导量子比特深度解析');
+    Object.assign(chatTakeout.titles, { 'rpc': '量子计算与超导量子比特深度解析' });
     const res4 = resolveTitle(chatTakeout);
     assert.strictEqual(res4.title, '量子计算与超导量子比特深度解析');
     assert.strictEqual(res4.source, 'rpc');
 
     // 5. Subsequent sniff should NEVER degrade RPC title
-    setTitleBySource(chatTakeout, 'sniff', '辅助嗅探文本');
+    Object.assign(chatTakeout.titles, { 'sniff': '辅助嗅探文本' });
     const res5 = resolveTitle(chatTakeout);
     assert.strictEqual(res5.title, '量子计算与超导量子比特深度解析');
     assert.strictEqual(res5.source, 'rpc');

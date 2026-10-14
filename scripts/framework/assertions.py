@@ -237,10 +237,10 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
     frozen_head = frozen_head or (original.get('baseline') or {}).get('headTimestamp', 0) or 0
     span = current['streams']['recent'].get('range')
     for cid in target_ids:
-        old_time = old_rows.get(cid, {}).get('timestamp', frozen_head)
+        old_time = old_rows.get(cid, {}).get('updatedAt', frozen_head)
         row = new_rows.get(cid) or {}
-        if (row.get('titleSource') != 'rpc' or row.get('timestamp', 0) <= old_time
-                or span and span['head']['time'] < row.get('timestamp', 0)):
+        if (row.get('titleSource') != 'rpc' or row.get('updatedAt', 0) <= old_time
+                or span and span['head']['time'] < row.get('updatedAt', 0)):
             return False, f'Real activity was not saved or coverage did not advance: {cid}'
     for state in (initial, before):
         if (not {r['id'] for r in state.get('rows', [])}.issubset(new_rows)
@@ -324,8 +324,8 @@ class CDPAssertions:
                     const idx2 = domItems.indexOf(el2);
 
                     resolve({{
-                        ts1: c1 ? (c1.updatedAt || c1.timestamp || 0) : 0,
-                        ts2: c2 ? (c2.updatedAt || c2.timestamp || 0) : 0,
+                        ts1: c1 ? (c1.updatedAt ?? c1.createdAt ?? 0) : 0,
+                        ts2: c2 ? (c2.updatedAt ?? c2.createdAt ?? 0) : 0,
                         idx1: idx1,
                         idx2: idx2,
                         totalDom: domItems.length,
@@ -479,7 +479,7 @@ class CDPAssertions:
                             id: c.id,
                             title: c.title,
                             source: c.titleSource,
-                            titles: c.titles || {{}}
+                            hasTakeoutImport: c.hasTakeoutImport
                         }}))
                     }});
                 }});
@@ -496,10 +496,9 @@ class CDPAssertions:
 
         upgraded_count = 0
         for m in matched:
-            titles = m.get("titles", {})
             source = m.get("source", "")
-            has_takeout = "takeout" in titles
-            is_rpc = source == "rpc" and bool(titles.get("rpc")) and m.get("title") == titles.get("rpc")
+            has_takeout = m.get("hasTakeoutImport") is True
+            is_rpc = source == "rpc" and bool(m.get("title"))
             if has_takeout and is_rpc:
                 upgraded_count += 1
 

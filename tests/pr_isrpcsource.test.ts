@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 /**
  * PR-4 regression: isRpcSource plumbing removed; timestamp arbitration is
  * source-agnostic strict monotonicity (newer-wins, never regress).
@@ -28,9 +29,9 @@ test('PR-4: older network-detail incoming never regresses updatedAt (newer-wins,
         ...base('c_nd'), timestamp: 1000, updatedAt: 1000,
         source: 'network-detail', titleSource: 'rpc'
     };
-    const r = mergeConversation(old, incoming, { source: 'network-detail' });
+    const r = mergeConversation(indexFixture(old), indexFixture(incoming), { source: 'network-detail' });
     assert.strictEqual(r.merged.updatedAt, 2000, 'older network-detail timestamp regressed updatedAt');
-    assert.strictEqual(r.merged.timestamp, 2000, 'older network-detail timestamp regressed timestamp');
+    assert.strictEqual(r.merged.updatedAt, 2000, 'older network-detail timestamp regressed timestamp');
 });
 
 test('PR-4: newer network-detail incoming still advances (strict monotonicity is symmetric)', () => {
@@ -39,9 +40,9 @@ test('PR-4: newer network-detail incoming still advances (strict monotonicity is
         ...base('c_nd2'), timestamp: 3000, updatedAt: 3000,
         source: 'network-detail', titleSource: 'rpc'
     };
-    const r = mergeConversation(old, incoming, { source: 'network-detail' });
+    const r = mergeConversation(indexFixture(old), indexFixture(incoming), { source: 'network-detail' });
     assert.strictEqual(r.merged.updatedAt, 3000, 'newer network-detail timestamp did not win');
-    assert.strictEqual(r.merged.timestamp, 3000, 'newer network-detail timestamp did not win');
+    assert.strictEqual(r.merged.updatedAt, 3000, 'newer network-detail timestamp did not win');
 });
 
 test('PR-4: arbitration is source-agnostic — same result regardless of source label', () => {
@@ -50,9 +51,9 @@ test('PR-4: arbitration is source-agnostic — same result regardless of source 
         ...base('c_src'), timestamp: ts, updatedAt: ts, source, titleSource: 'rpc'
     });
     for (const source of ['network-list', 'network-detail', 'stream-live', 'takeout', 'sniff', 'unknown']) {
-        const older = mergeConversation(old, mkIncoming(source, 1000), { source });
+        const older = mergeConversation(indexFixture(old), indexFixture(mkIncoming(source, 1000)), { source });
         assert.strictEqual(older.merged.updatedAt, 2000, `older ${source} timestamp regressed updatedAt`);
-        const newer = mergeConversation(old, mkIncoming(source, 3000), { source });
+        const newer = mergeConversation(indexFixture(old), indexFixture(mkIncoming(source, 3000)), { source });
         assert.strictEqual(newer.merged.updatedAt, 3000, `newer ${source} timestamp did not win`);
     }
 });
@@ -62,6 +63,6 @@ test('PR-4: MergeConversationOptions no longer exposes isRpcSource (dead flag go
     // a stray isRpcSource flag (defensive: old callers should not crash).
     const old: any = { ...base('c_opt'), timestamp: 2000, updatedAt: 2000 };
     const incoming: any = { ...base('c_opt'), timestamp: 1000, updatedAt: 1000 };
-    const r = mergeConversation(old, incoming, { source: 'network-list' } as any);
+    const r = mergeConversation(indexFixture(old), indexFixture(incoming), { source: 'network-list' } as any);
     assert.strictEqual(r.merged.updatedAt, 2000);
 });

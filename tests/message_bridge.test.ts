@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
 const test = require('node:test');
@@ -34,7 +35,7 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
                 removedId = id;
                 return true;
             },
-            getConversations: async () => [{ id: 'c_remaining' }]
+            getConversations: async () => ([{ id: 'c_remaining' }]).map(indexFixture)
         },
         getAccountSlot: () => 'u0'
     });
@@ -145,7 +146,7 @@ test('client - getAllConversations respects opts.signal', async () => {
         aborted: false,
         isAborted: () => false,
         getConversationList: async () => {
-            return { conversations: [{ id: 'c_1', title: 'Chat 1' }], nextPageToken: 'tC_2' };
+            return { conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), nextPageToken: 'tC_2' };
         }
     };
 

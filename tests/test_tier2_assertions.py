@@ -582,12 +582,12 @@ class ScanAndImportTests(unittest.TestCase):
                     'initialized': True, 'historyComplete': True, 'activeRunId': None, 'lastStatus': 'up_to_date',
                     'streams': {'recent': {'initialized': True, 'range': {
                         'head': {'id': CID, 'time': 100}, 'tail': {'id': 'tail', 'time': 10}}}}}
-        initial = {'coverage': coverage, 'rows': [{'id': CID, 'timestamp': 100, 'titleSource': 'rpc'},
-                    {'id': 'tail', 'timestamp': 10, 'titleSource': 'rpc'}], 'exportIds': [CID]}
+        initial = {'coverage': coverage, 'rows': [{'id': CID, 'updatedAt': 100, 'titleSource': 'rpc'},
+                    {'id': 'tail', 'updatedAt': 10, 'titleSource': 'rpc'}], 'exportIds': [CID]}
         after = copy.deepcopy(initial)
         after['coverage']['streams']['recent']['range']['head'] = {'id': OTHER, 'time': 120}
-        after['rows'][0]['timestamp'] = 110
-        after['rows'].append({'id': OTHER, 'timestamp': 120, 'titleSource': 'rpc'})
+        after['rows'][0]['updatedAt'] = 110
+        after['rows'].append({'id': OTHER, 'updatedAt': 120, 'titleSource': 'rpc'})
         scan = scan_evidence()
         scan['response']['status'] = 'up_to_date'
         scan['response']['diagnostics'].update(incremental=True, stopReason='Connected to verified activity coverage')
@@ -657,7 +657,7 @@ class ScanAndImportTests(unittest.TestCase):
         for cid in (CID, OTHER):
             broken = copy.deepcopy(after)
             row = next(row for row in broken['rows'] if row['id'] == cid)
-            row['timestamp'] = 100
+            row['updatedAt'] = 100
             self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [cid])[0])
         for key in ('accountId', 'generation'):
             broken = copy.deepcopy(baseline)
@@ -686,7 +686,7 @@ class ScanAndImportTests(unittest.TestCase):
             broken = copy.deepcopy(after)
             broken[key] = [row for row in broken[key] if not isinstance(row, dict) or row['id'] != 'tail'] if key == 'rows' else []
             self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [OTHER])[0], key)
-        before['rows'].append({'id': 'offline-only', 'timestamp': 5})
+        before['rows'].append({'id': 'offline-only', 'updatedAt': 5})
         self.assertFalse(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
 
     def test_complete_fast_scan_passes_without_sampling_busy_state(self):
@@ -719,8 +719,8 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_all_matched_titles_must_upgrade(self):
         cdp = MagicMock()
-        first = {'id': CID, 'title': 'Online title', 'source': 'rpc', 'titles': {'takeout': 'Offline', 'rpc': 'Online title'}}
-        second = {'id': OTHER, 'title': 'Offline', 'source': 'takeout', 'titles': {'takeout': 'Offline'}}
+        first = {'id': CID, 'title': 'Online title', 'source': 'rpc', 'hasTakeoutImport': True}
+        second = {'id': OTHER, 'title': 'Offline', 'source': 'takeout', 'hasTakeoutImport': True}
         cdp.eval.return_value = {'matched': [first, second]}
         self.assertFalse(CDPAssertions.assert_title_upgraded(cdp, [CID, OTHER])[0])
         cdp.eval.return_value = {'matched': [first]}
@@ -729,7 +729,7 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_takeout_empty_import_and_missing_resources_fail_idempotent_passes(self):
         media = {'image.png': hashlib.sha256(b'image bytes').hexdigest()}
-        record = {'id': CID, 'ok': True, 'summary': {'titles': {'takeout': 'Prompt'}},
+        record = {'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
                   'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                       {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]},
                   'resources': [{'sourcePath': 'Takeout/image.png', 'bytes': base64.b64encode(b'image bytes').decode()}]}
@@ -753,7 +753,7 @@ class ScanAndImportTests(unittest.TestCase):
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
             cdp = ctx.connect_options.return_value
-            cdp.eval.return_value = [{'id': CID, 'ok': True, 'summary': {'titles': {'takeout': 'Prompt'}},
+            cdp.eval.return_value = [{'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
                 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                     {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}, 'resources': []}]
             result = {'success': True, 'importedIds': [CID], 'status': 'ok', 'addedCount': 0}
@@ -763,7 +763,7 @@ class ScanAndImportTests(unittest.TestCase):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
 
     def test_empty_image_reply_requires_source_recorded_generation(self):
-        record = {'id': CID, 'ok': True, 'summary': {'titles': {'takeout': 'Draw'}},
+        record = {'id': CID, 'ok': True, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
                   'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                       {'role': 'user', 'content': [{'text': 'Draw'}]},
                       {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]},
@@ -782,7 +782,7 @@ class ScanAndImportTests(unittest.TestCase):
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
             ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True,
-                'summary': {'titles': {'takeout': 'Draw'}}, 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
+                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                     {'role': 'user', 'content': [{'text': 'Draw'}]},
                     {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}, 'resources': []}]
             res = {'success': True, 'importedIds': [CID], 'status': 'ok', 'totalMediaCount': 1}

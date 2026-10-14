@@ -18,8 +18,8 @@ export function estimateMemoryUsage(selected: any[], conversations: any[]): numb
         const norm = normId(rawId);
         const conv = (norm ? convMap.get(norm) : null) || (typeof item === 'object' ? item : null);
         if (conv) {
-            totalAttachments += (conv.attachmentCount || conv.attachments?.length || 0);
-            totalMessages += (conv.messageCount || conv.messages?.length || 0);
+
+            totalMessages += (conv.messageCount ?? 0);
         }
     }
     return Math.round((totalAttachments * 1.8) + (totalMessages * 0.02) + (selected.length * 0.05));

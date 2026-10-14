@@ -1,4 +1,4 @@
-import type { ConversationMergeInput } from '../core/utils/mergeUtils.js';
+import type { IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
@@ -17,10 +17,7 @@ import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
 
-/** Detail deltas copy updatedAt into timestamp, including its existing string form. */
-export type MessageBridgeConversationInput = Omit<ConversationMergeInput, 'timestamp'> & {
-    timestamp?: ConversationMergeInput['timestamp'] | ConversationMergeInput['updatedAt'];
-};
+export type MessageBridgeConversationInput = IndexObservationInput;
 
 export interface MessageBridgeDeps {
     ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
@@ -124,7 +121,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     if (detailRes && detailRes.id) {
                         const nid = normId(detailRes.id);
                         let title = cleanTitle(detailRes.title);
-                        let sourceTier = detailRes.titleSource || 'rpc';
+                        let sourceTier = detailRes.titleSource || 'legacy';
                         if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
                             const sniffed = resolveDetailTitle(detailRes.messages.map(message => ({ role: message.role, content: message.content.map(block => extractBlockText(block)).join('\n\n') })), nid);
                             if (sniffed) {
@@ -132,22 +129,16 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 sourceTier = sniffed.source;
                             }
                         }
-                        const titlesObj: Record<string, string> = {};
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
                         await persistNativeConversation(targetSlot, native);
 
                         if (isRealTitle(title, nid)) {
-                            titlesObj[sourceTier] = title;
                             await upsertConversations([{
                                 id: nid,
                                 title: title,
                                 titleSource: sourceTier,
-                                titles: titlesObj,
                                 url: `https://gemini.google.com/app/${nid}`,
-                                href: `https://gemini.google.com/app/${nid}`,
-                                timestamp: detailRes.updatedAt,
                                 updatedAt: detailRes.updatedAt,
-                                createdAt: detailRes.createdAt,
                                 sidebarIndex: 0
                             }], 'network-detail', false, targetSlot);
                         }
@@ -213,7 +204,6 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     await upsertConversations([{
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
-                        href: `https://gemini.google.com/app/${nid}`,
                         sidebarIndex: 0
                     }], 'stream-start', true, targetSlot);
                 }
@@ -244,10 +234,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     // SSOT timestamp authority: no client-clock timestamp here;
                     // timestamp/updatedAt are server-authoritative (see
                     // touchActiveConversation in syncEngine.ts).
-                    const item: ConversationMergeInput = {
+                    const item: IndexObservationInput = {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
-                        href: `https://gemini.google.com/app/${nid}`,
                         sidebarIndex: 0
                     };
                     if (typeof _deps?.extractActiveChatTitle === 'function') {
@@ -256,7 +245,6 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                             item.title = cleanTitle(titleObj.title);
                             const sourceTier = normalizeReliableTitleSource(titleObj.source) || 'dom';
                             item.titleSource = sourceTier;
-                            item.titles = { [sourceTier]: item.title };
                         }
                     }
                     await upsertConversations([item], 'stream-complete', true, targetSlot);

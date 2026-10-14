@@ -119,7 +119,7 @@ test('production Takeout binds extension variations once and carries native Doma
         assert.equal('parsed' in parsed.conversations[0], false);
         assert.equal('messages' in parsed.conversations[0], false);
         assert.equal('turns' in parsed.conversations[0], false);
-        assert.equal(parsed.conversations[0].source, 'takeout-import');
+        assert.equal(parsed.conversations[0].hasTakeoutImport, true);
         assert.ok(Array.isArray(view.conversation.messages[0].content));
         for (const [i, asset] of view.conversation.assets.entries()) assert.deepEqual(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: view.resourceHints[asset.id].archivePath! }, slot), new Uint8Array([i + 1]));
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', { assetId: '', sourceUri: 'image-hash' }, slot), null);

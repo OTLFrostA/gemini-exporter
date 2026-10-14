@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { StorageService } from '../src/core/storage/storageService.js';
@@ -91,8 +92,8 @@ test('cache writes and Takeout-compatible ingestion cannot advance RPC coverage;
     const next = await StorageService.beginScanCoverage('u0', 'account-a');
     const frozen = structuredClone(next.previous);
     const before = structuredClone(await StorageService.getScanCoverage('u0'));
-    await ingestRpcList([{ id: 'newabcdef123', title: 'Sniffed', titleSource: 'rpc', titles: { rpc: 'Sniffed' },
-        timestamp: 1800000000000, updatedAt: 1800000000000, createdAt: null, chatTime: 1800000000000, url: '', messageCount: 1 }], 'u0');
+    await ingestRpcList([indexFixture({ id: 'newabcdef123', title: 'Sniffed', titleSource: 'rpc', titles: { rpc: 'Sniffed' },
+        timestamp: 1800000000000, updatedAt: 1800000000000, createdAt: null, chatTime: 1800000000000, url: '', messageCount: 1 })], 'u0');
     assert.deepEqual(await StorageService.getScanCoverage('u0'), before);
     assert.deepEqual(next.previous, frozen);
 }));
@@ -131,10 +132,10 @@ test('unknown identities and invalid evidence cannot initialize coverage; cancel
 }));
 
 test('completed or incremental scan absence never changes archives, other accounts, bodies, resources or export records', async () => fixture(async data => {
-    data.gemini_conversations = [{ id: 'absent', title: 'Archived', timestamp: 1 },
+    data.gemini_conversations = ([{ id: 'absent', title: 'Archived', timestamp: 1 },
         { id: 'deleted', title: 'Deleted archive', timestamp: 2, cloudAvailability: 'deleted' },
-        { id: 'offline', title: 'Takeout archive', timestamp: 3, isTakeoutOnly: true }];
-    data.gemini_conversations_u1 = [{ id: 'absent', title: 'Other account', timestamp: 9 }];
+        { id: 'offline', title: 'Takeout archive', timestamp: 3, isTakeoutOnly: true }]).map(indexFixture);
+    data.gemini_conversations_u1 = ([{ id: 'absent', title: 'Other account', timestamp: 9 }]).map(indexFixture);
     data.exportedIds = { absent: { status: 'ok' } };
     data.domainBodies = { absent: { messages: ['Saved answer'], assets: [1, 2, 3] } };
     const untouched = structuredClone(data);

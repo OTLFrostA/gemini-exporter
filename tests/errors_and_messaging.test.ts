@@ -115,7 +115,7 @@ test('utils facade - modular sub-utilities re-exported with full compatibility',
     assert.strictEqual(typeof utils.cleanTitle, 'function');
     assert.strictEqual(typeof utils.isRealTitle, 'function');
     assert.strictEqual(typeof utils.resolveTitle, 'function');
-    assert.strictEqual(typeof utils.setTitleBySource, 'function');
+    assert.strictEqual(utils.setTitleBySource, undefined);
 
     // Path utils
     assert.strictEqual(typeof utils.sanitizeFileName, 'function');

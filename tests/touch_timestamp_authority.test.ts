@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -13,7 +14,7 @@ function mockStorageContext() {
     let savedList: any[] = [];
     let checkpoint: number | null = null;
     const mockStorage = {
-        getConversations: async () => [...savedList],
+        getConversations: async () => ([...savedList]).map(indexFixture),
         transactConversations: async (_slot: string, updater: any) => {
             const res = updater([...savedList]);
             if (res && res.list) savedList = res.list;
@@ -27,7 +28,7 @@ function mockStorageContext() {
     (global as any).chrome = { runtime: { sendMessage: () => {} } };
     __setModuleOverride('StorageService', mockStorage);
     return {
-        seed: (items: any[]) => { savedList = items.map(c => ({ ...c })); },
+        seed: (items: any[]) => { savedList = items.map(indexFixture); },
         getSavedList: () => savedList,
         find: (id: string) => savedList.find((c: any) => c.id === id),
         getCheckpoint: () => checkpoint,
@@ -57,10 +58,10 @@ test('touch preserves server timestamp on existing record', async () => {
 
     const rec = ctx.find('srv_chat_1');
     assert.ok(rec, 'record still exists');
-    assert.strictEqual(rec.timestamp, SERVER_TS, 'server timestamp must not be overwritten by client clock');
+    assert.strictEqual(rec.updatedAt, SERVER_TS, 'server timestamp must not be overwritten by client clock');
     assert.strictEqual(rec.updatedAt, SERVER_TS, 'server updatedAt must not be overwritten by client clock');
-    assert.strictEqual(rec.sidebarIndex, 0, 'touch still pins sidebarIndex');
-    assert.ok(rec.lastSeen, 'touch still refreshes lastSeen');
+    assert.equal('sidebarIndex' in rec, false);
+    assert.equal('lastSeen' in rec, false);
 });
 
 test('touch on unknown record creates entry without client timestamp', async () => {
@@ -72,8 +73,8 @@ test('touch on unknown record creates entry without client timestamp', async () 
     assert.ok(rec, 'record created');
     assert.ok(rec.timestamp == null, 'no client-stamped timestamp on new record');
     assert.ok(rec.updatedAt == null, 'no client-stamped updatedAt on new record');
-    assert.strictEqual(rec.sidebarIndex, 0);
-    assert.ok(rec.lastSeen, 'lastSeen records the touch');
+    assert.equal('sidebarIndex' in rec, false);
+    assert.equal('lastSeen' in rec, false);
 });
 
 test('touch never moves the scan checkpoint', async () => {

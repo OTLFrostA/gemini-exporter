@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { syncConversations } from '../src/content/syncEngine.js';
@@ -10,7 +11,7 @@ import { getAllConversations } from '../src/core/api/client/pagination.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
 import type { PaginationCompletionReason, PaginationStopDecision, GeminiPaginationDiagnostics } from '../src/core/api/client/pagination.js';
-import type { Conversation } from '../src/types/conversation.js';
+import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
 import { GeminiProtocol } from '../src/core/protocol/protocol.js';
 
 type Assert<T extends true> = T;
@@ -19,9 +20,9 @@ const typedResult: Assert<Equal<Awaited<ReturnType<typeof syncConversations>>, P
 const typedDiagnostics: Assert<Equal<ProviderSyncResult['diagnostics'], GeminiPaginationDiagnostics>> = true;
 const NOW = 1700000000000;
 function item(id = 'chat_visible'): GeminiProviderConversationItem {
-    return { id, title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' },
+    return indexFixture({ id, title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' },
         createdAt: null, updatedAt: NOW, timestamp: NOW, chatTime: NOW,
-        messageCount: 2, url: `https://gemini.google.com/u/2/app/${id}` };
+        messageCount: 2, url: `https://gemini.google.com/u/2/app/${id}` });
 }
 function page(reason: PaginationCompletionReason = 'natural_exhaustion'): GeminiProviderPageResult {
     const items = [item()];
@@ -52,10 +53,10 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     contentContext.setLanguage(setup.language || 'zh');
     const globals = ['document', 'location', 'chrome', 'localStorage'] as const;
     const descriptors = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
-    let records: Conversation[] = [
+    let records: Conversation[] = ([
         { id: 'chat_old', title: 'Old server chat', timestamp: NOW - 1000, accountSlot: 'u2' },
         { id: 'chat_archive', title: 'Takeout archive', timestamp: NOW - 2000, isTakeoutOnly: true, accountSlot: 'u2' }
-    ];
+    ]).map(indexFixture);
     const initialCheckpoint = setup.checkpoint === undefined ? null : setup.checkpoint;
     let checkpoint = initialCheckpoint;
     const trace = {
@@ -76,7 +77,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         async transactConversations(slot: string, apply: (existing: Conversation[]) => { list: Conversation[]; changed: number } | null) {
             trace.slots.push(slot);
             if (setup.failWrite) throw new Error('Injected quota failure');
-            const result = apply(records);
+            const result = apply(records.map(indexFixture));
             if (result) records = result.list;
             return { list: records, written: !!result, changed: result?.changed || 0 };
         },
@@ -88,8 +89,8 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
             assert.strictEqual(items, input.items);
             assert.deepEqual(options, { keepTakeout: true });
             const ids = new Set(items.map(c => c.id));
-            const removedIds = records.filter(c => !c.isTakeoutOnly && !ids.has(c.id)).map(c => c.id);
-            records = records.filter(c => c.isTakeoutOnly || ids.has(c.id));
+            const removedIds = records.filter(c => !c.hasTakeoutImport && !ids.has(c.id)).map(c => c.id);
+            records = records.filter(c => c.hasTakeoutImport || ids.has(c.id));
             return { kept: records.length, removed: removedIds.length, removedIds };
         }
     };
@@ -193,10 +194,10 @@ test('sync provider: complete cloud data preserves unseen local archives and Tak
     assert.equal(result?.count, 1); // successfully fetched cloud items
     assert.deepEqual(records.map(c => c.id).sort(), ['chat_archive', 'chat_old', 'chat_visible']);
     const visible = records.find(c => c.id === 'chat_visible');
-    assert.equal(visible?.timestamp, NOW);
-    assert.equal(visible?.createdAt, null);
+    assert.equal(visible?.updatedAt, NOW);
+    assert.equal(visible?.createdAt, undefined);
     assert.equal(visible?.titleSource, 'rpc');
-    assert.equal(visible?.titles?.rpc, 'RPC title');
+    assert.equal(visible?.titleSource, 'rpc');
     assert.ok(trace.slots.every(slot => slot === 'u2'));
     assert.deepEqual(trace.checkpointWrites, [NOW]);
     assert.strictEqual(result?.diagnostics, input.diagnostics);
@@ -278,7 +279,7 @@ test('sync safety: real pagination edge results pass through adapter without rec
         const actual = await getAllConversations({ async getConversationList() {
             if (edge === 'negative-budget') throw new Error('negative budget must not fetch');
             if (edge === 'empty-no-inner') return malformed;
-            if (calls++ === 0) return { conversations: [item()], nextPageToken: 'tC_more' };
+            if (calls++ === 0) return { conversations: ([item()]).map(indexFixture), nextPageToken: 'tC_more' };
             if (edge === 'partial-abort') throw abort;
             return malformed;
         } }, { maxPages: edge === 'negative-budget' ? -1 : 4, incremental: true });
@@ -304,12 +305,12 @@ test('sync safety: real pagination edge results pass through adapter without rec
 
 test('sync safety: later pages with newer updates are saved even when the first page crosses the legacy checkpoint', async () => {
     const timed = (id: string, delta: number) => ({ ...item(id), timestamp: NOW + delta, updatedAt: NOW + delta });
-    const first = { conversations: [timed('head120', 120), timed('head110', 110), timed('old090', 90)], nextPageToken: 'tC_more' };
-    const later = { conversations: [timed('late105', 105)], nextPageToken: null };
+    const first = { conversations: ([timed('head120', 120), timed('head110', 110), timed('old090', 90)]).map(indexFixture), nextPageToken: 'tC_more' };
+    const later = { conversations: ([timed('late105', 105)]).map(indexFixture), nextPageToken: null };
     const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, wirePages: [first, later] });
     assert.equal(result?.status, 'complete');
     assert.equal(result?.diagnostics.totalPagesFetched, 3);
-    assert.equal(records.find(record => record.id === 'late105')?.timestamp, NOW + 105);
+    assert.equal(records.find(record => record.id === 'late105')?.updatedAt, NOW + 105);
     assert.deepEqual(trace.checkpointWrites, [NOW + 120]);
 });
 
@@ -318,7 +319,7 @@ test('sync safety: a limited first scan and retry never claim complete coverage'
         _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
     for (let attempt = 0; attempt < 2; attempt++) {
         const { result, trace, records } = await scan(page(), { wirePages: [
-            { conversations: [item()], nextPageToken: 'tC_limit' }, limited
+            { conversations: ([item()]).map(indexFixture), nextPageToken: 'tC_limit' }, limited
         ] });
         assert.equal(result?.status, 'partial_limit');
         assert.equal(result?.diagnostics.totalPagesFetched, 3);
@@ -342,13 +343,13 @@ test('sync covers pinned-only chats and persists a later-page rename with an unc
     const pinned = { ...item('pinned_only'), timestamp: NOW - 10000, updatedAt: NOW - 10000 };
     const renamed = { ...item('chat_old'), title: 'Renamed on another device', titles: { rpc: 'Renamed on another device' },
         timestamp: NOW - 1000, updatedAt: NOW - 1000 };
-    const { result, records, trace } = await scan(page(), { pinnedPages: [{ conversations: [pinned], nextPageToken: null }],
-        wirePages: [{ conversations: [item()], nextPageToken: 'tC_old' }, { conversations: [renamed], nextPageToken: null }] });
+    const { result, records, trace } = await scan(page(), { pinnedPages: [{ conversations: ([pinned]).map(indexFixture), nextPageToken: null }],
+        wirePages: [{ conversations: ([item()]).map(indexFixture), nextPageToken: 'tC_old' }, { conversations: ([renamed]).map(indexFixture), nextPageToken: null }] });
     assert.equal(result?.status, 'complete');
     assert.equal(result?.count, 3);
     assert.equal(result?.diagnostics.totalPagesFetched, 3);
     assert.equal(records.find(record => record.id === 'chat_old')?.title, 'Renamed on another device');
-    assert.equal(records.find(record => record.id === 'chat_old')?.timestamp, NOW - 1000);
+    assert.equal(records.find(record => record.id === 'chat_old')?.updatedAt, NOW - 1000);
     assert.ok(records.some(record => record.id === 'pinned_only'));
     assert.deepEqual(trace.checkpointWrites, [NOW]);
 });

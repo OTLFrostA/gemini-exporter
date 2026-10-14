@@ -8,7 +8,7 @@ new raw source → native parser → TrustedDomain → v2 repository
 v2 repository → shared snapshot restoration → TrustedDomain → Document AST → renderer
 ```
 
-`gemini_schema_version = 2` marks the application migration. The repository lives
+`gemini_schema_version = 3` marks the application index migration (the body repository remains v2). The repository lives
 under the extension origin in `gemini_exporter_domain` (IndexedDB version 2).
 Content scripts use the background message broker; they do not create a second
 Domain repository under the Gemini web origin. Old web-origin detail databases
@@ -41,8 +41,7 @@ numbers. Domain contract version is now **2**, independently of IndexedDB/storag
 version 2. Both reads and writes accept only the final schema. Unsupported
 versions and obsolete fields fail closed without rewriting originals. Released
 users migrate directly from Storage v1 through the legacy-storage Parser; the
-unshipped intermediate Domain schema has no compatibility layer. Storage remains
-v2, with no v3 migration.
+unshipped intermediate Domain schema has no compatibility layer. The body storage envelope remains v2; application schema v3 changes only the metadata index.
 
 Restored report assets retain `document.hasFabricatedText` so export status can remain partial even after transient parser diagnostics are gone. Resource acquisition failures are recomputed during export through the existing ResourceResult/PreparedResources path; no Domain `failureReason` or replacement persistent error field is stored.
 
@@ -89,9 +88,34 @@ own marker and report, stamped only after its transfer completes.
 
 ## Application compatibility
 
-Conversation list metadata, export status, account mappings, credentials,
-preferences and directory handles retain their existing independent APIs. The
-chrome conversation list remains the UI index. It is not the semantic body store.
+`DomainConversationIndex` is the exact metadata contract stored in the existing
+`gemini_conversations[_uN]` chrome keys. Body/attachments remain physically separate
+in the v2 Domain repository. List/sidebar/import observations normalize above Domain;
+consumers read one title with explicit authority, `createdAt`/`updatedAt` in epoch
+milliseconds, explicit cloud availability and the independent `hasTakeoutImport` fact.
+Unknown titles are empty strings (`default` authority); UI supplies a localized label.
+Missing authored time/count is absent. `messageCount` is the largest observed number
+of individual messages; ambiguous RPC turn counts and old declared counts are omitted.
+Body snapshots can establish an observed count during migration. A title upgrade
+cannot erase Takeout history. Merge preserves strongest title authority, earliest
+creation, latest activity, largest observed count and confirmed cloud deletion.
+
+Index storage strictly restores detached exact-schema records and rejects malformed
+containers/rows, duplicate provider+ID pairs and extra fields. Reads never repair or
+write. The list setter stores indexes only; `setNativeConversations` explicitly saves
+native detail before its index. Index updates cannot write/truncate a body. Export
+records, settings, account mappings and credentials retain independent APIs.
+
+The startup v3 migration runs under the cross-tab conversation lock, backs up every
+original container to `legacy_imports` before conversion, merges the u0 alias and
+records rejected rows/containers in `gemini_index_migration_v3`. Body migration uses
+the existing native store. Durable failures withhold the schema stamp and preserve
+aliases for retry; invalid source data stays recoverable in backups. Once converted,
+`titles`, `timestamp`, `chatTime`, `lastSeen`, `source`, `isTakeoutOnly`, body and parse
+transport state never enter the new index.
+
+The next step will expose index plus optional detail through one aggregate gateway;
+this migration establishes canonical metadata and storage separation first.
 Fresh native captures from network interception, detail fetching, DOM fallback,
 live saving and Takeout import write Domain directly to the new repository.
 Takeout import also stores source-bound file bytes before reporting success.

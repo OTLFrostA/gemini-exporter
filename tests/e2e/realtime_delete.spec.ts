@@ -16,7 +16,7 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
 
     await optionsPage.evaluate(async (convs) => {
       await chrome.storage.local.set({
-        gemini_conversations: convs,
+        gemini_conversations: (convs).map(canonicalIndexFixture),
         gemini_conversations_count_u0: convs.length,
         exportedIds: { [convs[0].id]: { status: 'ok', exportedAt: 1700000000000 } }
       });

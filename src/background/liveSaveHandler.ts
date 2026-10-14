@@ -1,3 +1,4 @@
+import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
@@ -184,10 +185,10 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         // Phase A (P1-2): 主 md 成功即写记录；附件有失败则标 partial（与导出管线
         // sessionRecovery 的 partial 惯例对齐），保证下次增量不跳过、可重试。
         try {
-            let convInStore: any = null;
+            let convInStore: DomainConversationIndex | undefined;
             try {
                 const list = await StorageService.getConversations(accountSlot || 'u0');
-                convInStore = list.find((c: any) => normId(c.id) === nid);
+                convInStore = list.find(c => c.id === nid);
             } catch {}
 
             let turnTsFromMsgs = 0;
@@ -197,8 +198,8 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
                 }
             }
-            const effectiveChatTime = turnTsFromMsgs || chat.conversation.updatedAt || convInStore?.updatedAt || convInStore?.timestamp || null;
-            const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || chat.conversation.messageCount || 0;
+            const effectiveChatTime = turnTsFromMsgs || chat.conversation.updatedAt || convInStore?.updatedAt || null;
+            const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || 0;
 
             await completeConversationExport(
                 StorageService,
@@ -209,9 +210,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                         ...chat.conversation,
                         messageCount: effectiveMsgCount,
                         ...(effectiveChatTime ? {
-                            chatTime: effectiveChatTime,
-                            updatedAt: effectiveChatTime,
-                            timestamp: effectiveChatTime
+                            updatedAt: effectiveChatTime
                         } : {})
                     },
                     conversationId: nid,
@@ -220,7 +219,6 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     failedAssets,
                     titleCandidate: safeTitle,
                     titleProvenance: chat.conversation.titleSource || convInStore?.titleSource,
-                    titles: convInStore?.titles,
                     messageCount: effectiveMsgCount,
                     chatTime: effectiveChatTime
                 }

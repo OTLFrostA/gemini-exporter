@@ -1,16 +1,14 @@
-import type { Conversation } from '../../types/conversation.js';
+import type { DomainConversationIndex } from '../../types/conversation.js';
 import type { AccountSlots, ReconcileOptions, ExportRecord, IConversationsStore } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 
 import StorageService from '../../core/storage/storageService.js';
 import GeminiUtils, {
-    normId as utilsNormId,
-    deduplicateConversations as utilsDeduplicateConversations,
-    isTakeoutConversation
+    normId as utilsNormId
 } from '../../core/utils/utils.js';
 import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
-let conversations: Conversation[] = [];
+let conversations: DomainConversationIndex[] = [];
 let exportedIds: Record<string, ExportRecord> = {};
 let currentSlot: string = 'u0';
 let accountSlots: AccountSlots = {};
@@ -24,8 +22,8 @@ export const normId = (id?: string | null): string => {
     return utilsNormId(id);
 };
 
-export function getConversations(): Conversation[] { return conversations; }
-export function setConversations(list: Conversation[]): void { conversations = list || []; }
+export function getConversations(): DomainConversationIndex[] { return conversations; }
+export function setConversations(list: DomainConversationIndex[]): void { conversations = list || []; }
 export function getExportedIds(): Record<string, ExportRecord> { return exportedIds; }
 
 // Fold legacy alias keys ('c_<id>' / raw id) into canonical normId keys for consistent in-memory lookups
@@ -55,7 +53,7 @@ export function getExportedRecord(id?: string | null): ExportRecord | null {
     return exportedIds[normId(id)] || null;
 }
 
-export function getSignature(list?: Conversation[]): string {
+export function getSignature(list?: DomainConversationIndex[]): string {
     const l = list || conversations;
     if (!l || !l.length) return 'empty';
     try {
@@ -69,7 +67,7 @@ export function getSignature(list?: Conversation[]): string {
 }
 
 export async function loadStore(slotOverride?: string): Promise<{
-    conversations: Conversation[];
+    conversations: DomainConversationIndex[];
     exportedIds: Record<string, ExportRecord>;
     slot: string;
     accountSlots: AccountSlots;
@@ -107,7 +105,7 @@ export async function getLastSync(slot?: string): Promise<{ timestamp: number | 
     return { timestamp: null, count: 0 };
 }
 
-export async function saveConversations(slot: string, list: Conversation[]): Promise<void> {
+export async function saveConversations(slot: string, list: DomainConversationIndex[]): Promise<void> {
     const s = slot || currentSlot;
     const storage = getStorage();
     if (storage?.setConversations) await storage.setConversations(s, list);
@@ -154,7 +152,7 @@ export async function setDevMode(devOn: boolean): Promise<void> {
     if (storage?.setDevMode) await storage.setDevMode(devOn);
 }
 
-export async function removeConversation(id: string): Promise<Conversation[]> {
+export async function removeConversation(id: string): Promise<DomainConversationIndex[]> {
     if (!id) return conversations;
     const nid = normId(id);
     const storage = getStorage();
@@ -164,19 +162,19 @@ export async function removeConversation(id: string): Promise<Conversation[]> {
     if (storage?.removeConversation) {
         await storage.removeConversation(currentSlot, nid);
     }
-    conversations = (conversations || []).filter(c => normId(c.id) !== nid);
+    conversations = (conversations || []).filter(c => c.id !== nid);
     return conversations;
 }
 
-export async function reconcileWithCloud(activeCloudList: Pick<Conversation, 'id'>[], options: ReconcileOptions = {}): Promise<{ kept: number; removed: number; removedIds: string[] }> {
+export async function reconcileWithCloud(activeCloudList: Pick<DomainConversationIndex, 'id'>[], options: ReconcileOptions = {}): Promise<{ kept: number; removed: number; removedIds: string[] }> {
     const storage = getStorage();
     if (storage && storage.reconcileConversations) {
         const res = await storage.reconcileConversations(currentSlot, activeCloudList, options);
-        const activeIdSet = new Set((activeCloudList || []).map(c => normId(c.id)));
+        const activeIdSet = new Set((activeCloudList || []).map(c => c.id));
         const keepTakeout = options.keepTakeout !== false;
         conversations = (conversations || []).filter(c => {
-            const nid = normId(c.id);
-            const isTakeout = keepTakeout && isTakeoutConversation(c);
+            const nid = c.id;
+            const isTakeout = keepTakeout && c.hasTakeoutImport;
             return activeIdSet.has(nid) || isTakeout;
         });
         return res;
@@ -184,20 +182,9 @@ export async function reconcileWithCloud(activeCloudList: Pick<Conversation, 'id
     return { kept: conversations.length, removed: 0, removedIds: [] };
 }
 
-export function normalizeAndDeduplicate(incoming: Conversation[]): { processed: Conversation[]; hasDirtyTitles: boolean; changedCount: number } {
-    if (!Array.isArray(incoming)) return { processed: [], hasDirtyTitles: false, changedCount: 0 };
-    const utils = getUtils();
-    if (utils && typeof utils.deduplicateConversations === 'function') {
-        const res = utils.deduplicateConversations(incoming);
-        return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles, changedCount: res.changedCount || 0 };
-    }
-
-    const res = utilsDeduplicateConversations(incoming);
-    return { processed: res.processed, hasDirtyTitles: res.hasDirtyTitles, changedCount: res.changedCount || 0 };
-}
 
 export function hasTakeoutData(): boolean {
-    return (conversations || []).some(c => c && isTakeoutConversation(c));
+    return (conversations || []).some(c => c && c.hasTakeoutImport);
 }
 
 export const ConversationsStore: IConversationsStore = {
@@ -220,7 +207,6 @@ export const ConversationsStore: IConversationsStore = {
     clearAll,
     getDevMode,
     setDevMode,
-    normalizeAndDeduplicate,
     hasTakeoutData,
     normId
 };

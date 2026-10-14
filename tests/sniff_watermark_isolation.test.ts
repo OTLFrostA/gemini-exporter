@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ingestRpcList } from '../src/content/syncEngine.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
-import type { Conversation } from '../src/types/conversation.js';
+import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
+import { indexFixture } from './helpers/indexFixture.js';
 
 test('interleaved repeated RPC captures preserve authoritative timestamps without accessing coverage', async () => {
     let records: Conversation[] = [];
@@ -19,18 +20,17 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
     });
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
-    const item = { id: 'abcdef123', title: 'A', titleSource: 'rpc' as const, titles: { rpc: 'A' },
-        timestamp: 1700000000000, updatedAt: 1700000000000, createdAt: null, chatTime: 1700000000000, messageCount: 1, url: '' };
+    const item = indexFixture({ id: 'abcdef123', title: 'A', titleSource: 'rpc' as const, titles: { rpc: 'A' },
+        timestamp: 1700000000000, updatedAt: 1700000000000, createdAt: null, chatTime: 1700000000000, messageCount: 1, url: '' });
     try {
         await ingestRpcList([item], 'u0');
-        await ingestRpcList([{ ...item, timestamp: item.timestamp - 1000, updatedAt: item.updatedAt - 1000 }], 'u0');
+        await ingestRpcList([{ ...item, updatedAt: item.updatedAt! - 1000 }], 'u0');
         assert.equal(records.length, 1, 'an older repeated capture must not create a second chat');
         assert.equal(records[0].updatedAt, item.updatedAt, 'an older capture must not regress updatedAt');
-        assert.equal(records[0].timestamp, item.timestamp, 'an older capture must not regress timestamp');
         await ingestRpcList([{ ...item }], 'u0');
         assert.equal(records.length, 1);
         assert.equal(records[0].updatedAt, item.updatedAt);
-        assert.equal(records[0].source, 'network-list');
+        assert.equal(records[0].cloudAvailability, 'available');
     } finally {
         __clearModuleOverrides();
         if (previous) Object.defineProperty(globalThis, 'chrome', previous);

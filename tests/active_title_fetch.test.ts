@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -10,7 +11,6 @@ test('active detail fetch retries unresolved or undated titles, but skips timest
     const original = ProviderRegistry.getDefault();
     assert.ok(original, 'Gemini provider must be registered');
     const fetched: string[] = [];
-
     t.mock.timers.enable({ apis: ['setTimeout'] });
     try {
         ProviderRegistry.register({
@@ -24,12 +24,12 @@ test('active detail fetch retries unresolved or undated titles, but skips timest
                 return rpcFixture({ id, title: 'Fetched detail', messages: [] });
             }
         });
-        __setModuleOverride('StorageService', { getConversations: async () => [
+        __setModuleOverride('StorageService', { getConversations: async () => ([
             { id: 'generic_title_01', title: 'Gemini', titleSource: 'default', timestamp: 1700000000000 },
             { id: 'sniff_title_01', title: 'Initial question', titleSource: 'sniff', timestamp: 1700000000000 },
             { id: 'resolved_title_01', title: 'A resolved conversation title', titleSource: 'rpc', timestamp: 1700000000000 },
             { id: 'undated_rpc_01', title: 'RPC title without server time', titleSource: 'rpc' }
-        ] });
+        ]).map(indexFixture) });
 
         for (const id of ['generic_title_01', 'sniff_title_01', 'resolved_title_01', 'undated_rpc_01']) {
             scheduleActiveChatDetailFetch(id);

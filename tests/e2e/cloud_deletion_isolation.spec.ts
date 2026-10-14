@@ -17,6 +17,7 @@ test.beforeAll(async () => {
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import * as domain from './src/core/storage/domain/domainStore.ts';
         import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
+        import { indexFixture } from './tests/helpers/indexFixture.ts';
         import { historicalFixture } from './tests/helpers/nativeFixture.ts';
         import { __setModuleOverride, __clearModuleOverrides } from './src/core/utils/moduleOverrides.ts';
         globalThis.deletionProbe = { ...domain, getDomainConversationResult, async run(scenario) {
@@ -28,7 +29,7 @@ test.beforeAll(async () => {
             ] }] });
             const [cached, takeout] = source.conversation.assets;
             await domain.saveDomainConversation('u0', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
-            const list = scenario.noList ? [] : [{ id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' }];
+            const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' })];
             await StorageService.setConversations('u0', list);
             let writeFailures = 0, remoteCalls = 0, domCalls = 0;
             const order = [], warnings = [], logs = [], replies = [];
@@ -50,7 +51,7 @@ test.beforeAll(async () => {
             let listener;
             console.warn = (...args) => { warnings.push(args.map(String).join(' ')); };
             chrome.runtime.onMessage.addListener = fn => { listener = fn; };
-            init({ storage, assets: null, utils: null,
+            init({ storage, assets: null,
                 syncEngine: { ...SyncEngine, markConfirmedDeleted: (slot, cid) => {
                     order.push('memory'); SyncEngine.markConfirmedDeleted(slot, cid);
                 } },

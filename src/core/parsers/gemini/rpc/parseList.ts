@@ -1,16 +1,7 @@
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
-export interface ConversationListItem {
-    id: string;
-    title: string;
-    titleSource: "rpc" | "default";
-    titles: { rpc: string };
-    createdAt: number | null;
-    updatedAt: number | null;
-    chatTime: number | null;
-    timestamp: number | null;
-    messageCount: number;
-    url: string;
-}
+import { restoreConversationIndex } from '../../../domain/conversationIndex.js';
+import type { DomainConversationIndex } from '../../../domain/conversationIndex.js';
+export type ConversationListItem = DomainConversationIndex;
 
 export interface ListParseResult {
     conversations: ConversationListItem[];
@@ -125,8 +116,7 @@ function getProtocol(): GeminiProtocolModule {
                 let id = item[listItemSchema.ID] || item[0] || "",
                     title = item[listItemSchema.TITLE] || item[1] || "",
                     createTs: number | null = null,
-                    updateTs: number | null = null,
-                    count = 0;
+                    updateTs: number | null = null;
 
                 let serverTs = extractListItemTimestamp(item);
 
@@ -137,28 +127,16 @@ function getProtocol(): GeminiProtocolModule {
 
                 let effectiveTime = serverTs || updateTs || createTs;
 
-                if (typeof item[listItemSchema.COUNT_ALT2] === "number") {
-                    count = item[listItemSchema.COUNT_ALT2];
-                } else if (typeof item[listItemSchema.COUNT_ALT1] === "number") {
-                    count = item[listItemSchema.COUNT_ALT1];
-                }
 
                 if (id) {
                     let cleanId = normId(id);
                     const cleanT = cleanTitle(title || cleanId);
                     const isReal = isRealTitle(cleanT, cleanId);
-                    convs.push({
-                        id: cleanId,
-                        title: cleanT,
-                        titleSource: isReal ? "rpc" : "default",
-                        titles: { rpc: cleanT },
-                        createdAt: createTs || effectiveTime || null,
-                        updatedAt: effectiveTime || null,
-                        chatTime: effectiveTime || null,
-                        timestamp: effectiveTime || null,
-                        messageCount: count,
-                        url: `https://gemini.google.com/app/${cleanId}`
-                    });
+                    convs.push(restoreConversationIndex({ providerId: 'gemini', id: cleanId, title: isReal ? cleanT : '',
+                        titleSource: isReal ? 'rpc' : 'default',
+                        cloudAvailability: 'available', hasTakeoutImport: false,
+                        ...(createTs !== null ? { createdAt: createTs } : {}), ...(effectiveTime !== null ? { updatedAt: effectiveTime } : {}),
+                        url: `https://gemini.google.com/app/${cleanId}` }));
                 }
             }
             const nextToken = extractNextPageToken(inner, innerSchema.NEXT_TOKEN_CANDIDATES);

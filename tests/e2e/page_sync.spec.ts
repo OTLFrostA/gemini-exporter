@@ -12,7 +12,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         { id: '39d5b41870e49a67', title: '未命名对话(39d5b4)', timestamp: 1680000000000 },
         { id: 'newer_chat_999', title: '最新对话', timestamp: 1700000000000 }
       ];
-      await chrome.storage.local.set({ gemini_conversations: initialConvs });
+      await chrome.storage.local.set({ gemini_conversations: (initialConvs).map(canonicalIndexFixture) });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }
@@ -114,7 +114,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
       const takeoutConvs = [
         { id: 'takeout_chat_888', title: '微服务与分布式事务设计', timestamp: 1670000000000 }
       ];
-      await chrome.storage.local.set({ gemini_conversations: takeoutConvs });
+      await chrome.storage.local.set({ gemini_conversations: (takeoutConvs).map(canonicalIndexFixture) });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }
@@ -176,7 +176,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
       const convs = [
         { id: 'loading_chat_777', title: '如何用Rust实现异步Actor模型', timestamp: 1670000000000 }
       ];
-      await chrome.storage.local.set({ gemini_conversations: convs });
+      await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
       }

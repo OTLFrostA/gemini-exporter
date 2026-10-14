@@ -1,44 +1,5 @@
 [
   {
-    "id": "graphics_homogeneous_clipping_perspective",
-    "domain": "computer_graphics_homogeneous_clipping",
-    "title": "齐次裁剪与透视插值：从投影矩阵到光栅化",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "投影约定、齐次裁剪、属性透视校正、数值稳健性和可重复验证",
-    "turns": [
-      "从右手坐标系推导透视投影矩阵，明确相机朝向、近远裁剪面、齐次坐标和 NDC 深度范围。用 LaTeX 展示变换顺序，解释为什么透视除法不能提前到齐次裁剪之前。",
-      "推导三角形与齐次裁剪平面的交点参数，说明顶点位于相机后方或 w 接近零时的处理。写出完整的 Sutherland–Hodgman 齐次裁剪伪代码，并分析退化边与浮点容差。",
-      "用 Python 实现齐次裁剪和三角扇重建，提供跨越近裁剪面、跨越视锥侧面、完全可见与完全不可见的固定输入，并用断言验证裁剪后顶点满足所有平面约束。",
-      "从屏幕重心坐标推导纹理坐标的透视正确插值公式，给出可运行代码对比线性屏幕插值与透视插值，解释深度插值、倒数 w 和属性插值的不同约定。",
-      "用 Markdown 表格比较不同投影深度约定、普通与反向深度的数值精度特征，设计验证裁剪接缝、共享边一致性和远近深度精度的测试方案，指出具体实现中应统一的坐标与符号规则。"
-    ]
-  },
-  {
-    "id": "telecom_ofdm_cyclic_prefix_channel_equalization",
-    "title": "OFDM：循环前缀、频域均衡与误差预算",
-    "domain": "telecom_ofdm_channel_equalization",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "用 LaTeX 从离散线性卷积推导 OFDM 循环前缀足够长时的循环卷积模型，说明 DFT 对角化和子载波频域均衡。设置一个虚构的三抽头信道，明确每个变量的单位和索引约定。",
-      "推导零迫与 MMSE 单抽头均衡器，比较深衰落处的噪声放大，代入前面的三抽头信道计算几个指定子载波上的系数。所有数字仅作教学例子。",
-      "写完整 Python/NumPy 仿真，固定随机种子完成 QPSK、IFFT、循环前缀、信道、噪声和均衡，输出比特错误率及 EVM。禁止省略核心函数，加入无噪声恢复、功率归一化和前缀长度三类断言。",
-      "用 Markdown 表格比较前缀不足、载波频偏、采样偏差和信道估计偏差的误差特征，给出可区分这些错误的数值检查，并用 LaTeX 推导一个简化频偏引起的子载波泄漏例子。",
-      "写一份较长的工程教学报告，汇总链路预算、前缀开销、导频密度与统计置信区间，解释仿真如何支持或不能支持实际系统结论。提供逐项复现实验步骤和失败诊断清单。"
-    ]
-  },
-  {
     "id": "finite_fields_reed_solomon_erasure_recovery",
     "title": "有限域编码：Reed–Solomon 擦除恢复",
     "domain": "algebra_finite_fields_reed_solomon",
@@ -195,27 +156,6 @@
     ]
   },
   {
-    "id": "cartography_cube_map_projection_seams",
-    "domain": "cartography_spherical_cube_mapping",
-    "title": "Spherical cartography: cube-map face coordinates and seam continuity",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an actual image using Imagen: an original annotated educational illustration of a globe surrounded by its six cube-map faces, indicating shared edges and axes. Then define the coordinate frames and explain the mapping assumptions in prose.",
-      "Derive forward direction-to-face and inverse face-to-direction maps in LaTeX. State the exact tie-breaking rule on edges and corners, and prove reconstruction up to normalization.",
-      "Provide complete runnable Python with only the standard library to map vectors to cube faces and back, with randomized round-trip tests and explicit edge/corner cases.",
-      "Compare cube-map, equirectangular and octahedral parameterizations in a Markdown table covering area distortion, seam rules, storage and interpolation. Add an English and Chinese glossary.",
-      "Write a detailed numerical audit of seam continuity and finite precision. Include error norms, test vectors, threshold tables and reproducible code without suggesting rendering agreement proves geometric correctness."
-    ]
-  },
-  {
     "id": "algebra_smith_normal_form_integer_modules",
     "domain": "algebra_integer_module_normal_forms",
     "title": "Integer modules: Smith normal form, invariant factors and Diophantine feasibility",
@@ -232,28 +172,6 @@
       "Provide complete runnable Python implementing exact-integer reduction with independently verified U*A*V=D tests, unimodular determinant checks and randomly generated small cases.",
       "Compare Smith and Hermite normal forms in a Markdown table covering uniqueness conventions, preserved modules and computational costs. Give an English and Chinese glossary.",
       "Design a reproducible Diophantine-system feasibility audit using invariant factors. Include exact examples, counterexamples, solution parameterizations, rank-deficient cases and a thorough validation table."
-    ]
-  },
-  {
-    "id": "metallurgy_binary_eutectic_lever_rule",
-    "domain": "metallurgy_binary_phase_diagram",
-    "title": "Binary alloys: phase diagrams and lever-rule reasoning",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Synthetic phase-diagram illustration, mass balance, reproducible phase fractions, tables and solidification report.",
-    "turns": [
-      "Generate an original educational illustration of a fictional binary eutectic alloy phase diagram with clearly separated liquid, alpha, beta and two-phase regions. Explain the schematic axes and labels in English and Chinese, and explicitly identify all numerical values as hypothetical.",
-      "Use LaTeX to derive the lever rule from total mass and solute conservation. Work through one hypothetical tie-line example, state the concentration basis and verify both phase fractions sum to one.",
-      "Write complete runnable Python using only the standard library to compute phase fractions for hypothetical tie lines. Validate physical bounds and reject inconsistent endpoints; include deterministic assertions and a bisection routine for a fictional temperature-dependent boundary.",
-      "Create a Markdown table comparing equilibrium cooling, finite-rate solidification and diffusion-limited segregation. Separate model assumptions from measured facts and include bilingual terminology and dimensional checks.",
-      "Write a detailed methods report about numerical conditioning near a phase boundary, uncertainty propagation and why a schematic diagram cannot predict a real alloy. Include algorithm pseudocode, reproducible synthetic parameter tables and LaTeX error estimates."
     ]
   },
   {
@@ -398,6 +316,90 @@
       "Write complete Python code using exact rational or integer arithmetic for the determinant and a brute-force oracle on small graphs. Include disconnected, parallel-edge and single-vertex cases.",
       "Compare cofactor evaluation, deletion-contraction and enumeration in a Markdown table. Derive how changing one edge weight affects the weighted sum and state assumptions for effective resistance.",
       "Write a long verification report with fixed graph fixtures, random small-graph cross-checks, complexity analysis, numerical failure modes and a reproducible exact-arithmetic audit checklist."
+    ]
+  },
+  {
+    "id": "origami_planar_linkage_rigidity",
+    "domain": "mechanisms_planar_linkage_rigidity",
+    "title": "Planar mechanisms: four-bar geometry and toggle singularities",
+    "description": "Authored mechanism illustration, geometric closure, branch-aware numerical code and singularity audits.",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an actual image using Imagen: a clean educational illustration of a planar four-bar linkage made of four colored rigid bars joined by circular pins on white paper. Label ground pivots A and D, moving pivots B and C, and distinguish the crossed and open configurations in separate panels. Include no decorative machinery. Then define all bar lengths and joint angles in LaTeX using a fictional numerical example.",
+      "Derive the two scalar loop-closure equations and a circle-intersection construction for point C. State feasibility inequalities and the two assembly branches. Explain how your illustration relates to the chosen coordinate convention without assuming the drawing is to scale.",
+      "Write complete runnable Python using only the standard library to enumerate both branches over a sweep of input angles. Handle no-intersection, tangent and coincident-circle cases explicitly, retain branch continuity, and assert rigid-bar length residuals for fixed test inputs.",
+      "Derive the Jacobian mapping input angular velocity to output angular velocity. Identify toggle configurations and explain why numerical derivatives become unreliable near a singularity. Use a Markdown table to compare regular, tangent, infeasible and degenerate cases with concrete checks and units.",
+      "Write a detailed reproducibility audit combining the geometric proof, LaTeX equations, numerical residual tables, branch-continuity tests and an annotated interpretation of the generated image. Clearly separate exact geometric conclusions from visual estimates and explain limitations of the rigid planar model."
+    ]
+  },
+  {
+    "id": "scheduling_interval_partitioning_certificates",
+    "domain": "algorithms_interval_partitioning_optimality",
+    "title": "Interval scheduling: optimal room allocation and certificates",
+    "description": "Half-open interval semantics, greedy proof, executable optimality certificates and adversarial boundary cases.",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a fictional laboratory booking problem using half-open time intervals with integer minute endpoints. Provide ten intervals including ties, nested intervals and back-to-back bookings. Write the conflict definition and room-minimization objective in LaTeX, and state how empty intervals are treated.",
+      "Prove that assigning intervals in start-time order with a min-heap of room availability uses the minimum number of rooms. Construct a maximum-overlap lower-bound certificate and explain precisely why end events must precede start events at equal timestamps under the chosen semantics.",
+      "Write complete runnable standard-library Python implementing the allocator, a sweep-line overlap calculator and an independent exhaustive solver for small cases. Return both room assignments and an optimality certificate. Include fixed-seed randomized comparisons and assertions for all endpoint edge cases.",
+      "Use Markdown tables to compare interval partitioning, maximum-cardinality interval scheduling, weighted interval scheduling and general graph coloring. Give their input assumptions, objectives, algorithms and complexity with LaTeX derivations, and supply a counterexample to confusing these greedy rules.",
+      "Write a long verification report for the booking implementation with pseudocode, a traced heap table for the original ten intervals, certificate validation and adversarial test design. Discuss stable tie-breaking, input permutations, invalid intervals and the limits of extending the proof to room-specific constraints."
+    ]
+  },
+  {
+    "id": "crystallography_miller_plane_diffraction",
+    "domain": "crystallography_reciprocal_lattice",
+    "title": "Crystal geometry: Miller planes and diffraction conditions",
+    "description": "Generated cubic-cell diagram, reciprocal-lattice derivations, exact integer geometry and diffraction tables.",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an actual image using Imagen: a clean scientific illustration of two transparent cubic unit cells side by side, with the (100) plane shaded blue and the (111) plane shaded amber. Label the three coordinate axes and intercepts, draw lattice vertices clearly, and use no decorative objects. Define Miller indices, direct-lattice vectors and the reciprocal-lattice convention in LaTeX without inferring numerical measurements from the image.",
+      "Derive the plane equation and interplanar spacing for an orthogonal cubic cell. Explain why parallel planes have the same Miller indices and why a negative or zero index needs careful intercept interpretation. Work exact examples for (100), (110), (111) and (210), specifying all units.",
+      "Write complete runnable standard-library Python that reduces integer Miller triples, computes plane intersections with a unit cube using rational arithmetic, and sorts the resulting polygon vertices on the plane. Include assertions for axis-parallel, negative-index, empty-intersection and invalid zero-vector cases.",
+      "Derive Bragg diffraction and the reciprocal-lattice scattering condition using your declared convention. Use a Markdown table to compare simple cubic, body-centered cubic and face-centered cubic allowed reflections, derive their structure-factor selection rules, and distinguish geometric spacing from experimental intensity.",
+      "Produce a detailed reproducibility report combining the generated cell illustration, exact intersection coordinates, spacing calculations, numerical test results and selection-rule tables. Explain the assumptions behind kinematic scattering, how orientation affects visible reflections, and which conclusions the illustration alone cannot establish."
+    ]
+  },
+  {
+    "id": "population_sir_invariant_final_size",
+    "domain": "dynamical_systems_sir_final_size",
+    "title": "SIR dynamics: invariants, thresholds and numerical conservation",
+    "description": "Fictional closed-population mathematics with invariant-based validation and solver convergence; no real-world clinical recommendations.",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a purely mathematical closed-population SIR model using dimensionless population fractions, symbolic positive rate constants and fictional initial conditions. Derive the governing differential equations in LaTeX from transition rates, state conservation and nonnegativity, and define the dimensionless threshold parameter with its assumptions.",
+      "Derive the phase-plane invariant and the threshold condition for an initial increase in the infected fraction. Show how to locate the infection peak and derive the implicit final-size equation, including the difference between a small positive seed and exactly zero initial infection.",
+      "Write complete runnable standard-library Python with an RK4 trajectory solver and a bracketed final-size root solver. Compare multiple step sizes, calculate population-conservation and invariant residuals, and include assertions for zero initial infection, a sub-threshold example and an invalid-input case. Report mathematical results without giving real-world health advice.",
+      "Use Markdown tables to compare Euler and RK4 convergence, positivity, conservation and cost on your fictional example. Explain why clipping negative states can conceal numerical errors, derive a local step-size diagnostic, and test the final-size solver independently against the phase-plane invariant.",
+      "Write a long mathematical verification report containing the proofs, LaTeX equations, solver pseudocode, convergence tables and reproducibility instructions. Discuss identifiability and the limitations introduced by a closed homogeneous population assumption, and separate exact properties from numerical approximations and interpretation."
     ]
   }
 ]

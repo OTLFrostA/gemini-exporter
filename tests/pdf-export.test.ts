@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
@@ -29,6 +30,7 @@ function makeSample(idSuffix: string, title: string) {
     const c = JSON.parse(JSON.stringify(sample));
     c.id = `pdf-test-${idSuffix}`;
     c.title = title;
+    c.titles = { [c.titleSource || 'legacy']: title };
     return c;
 }
 
@@ -125,7 +127,7 @@ test('success is only marked after the Writer actually wrote the file', async ()
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -157,7 +159,7 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -181,7 +183,7 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     const retry = await retryExporter.run(
         {
             selected: [{ id: result.failed[0].id, title: result.failed[0].title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer: retryWriter,
         },
@@ -200,7 +202,7 @@ test('one failed item does not block the rest of the batch', async () => {
     const result = await exporter.run(
         {
             selected: [bad, good1, good2].map((c) => ({ id: c.id, title: c.title })),
-            conversations: [bad, good1, good2], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([bad, good1, good2]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([bad, good1, good2]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([bad, good1, good2]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -251,7 +253,7 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: failing,
@@ -272,7 +274,7 @@ test('zip mode packages only after successful writes', async () => {
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async (_blob: Blob, filename: string) => {
@@ -299,7 +301,7 @@ test('zip: generateBlob failure never reports success and commits no records (§
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -330,7 +332,7 @@ test('zip: downloadHandler failure never reports success and commits no records 
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -383,7 +385,7 @@ test('zip: missing generateBlob on the writer fails closed, never reports succes
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {},
@@ -406,7 +408,7 @@ test('zip: missing downloadHandler fails closed, never counts staged as delivere
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             // NOTE: no downloadHandler — the ZIP could never reach the user.
@@ -431,7 +433,7 @@ test('§11: export-record persistence failure keeps the artifact successful but 
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
         },
@@ -457,7 +459,7 @@ test('§11 (zip): record failure during delivery commit keeps staged items deliv
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {},
@@ -495,7 +497,7 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: warningCompiler,
@@ -516,7 +518,7 @@ test('result carries UI-contract aliases so failures are visible to the summary/
     const result = await exporter.run(
         {
             selected: [{ id: sample.id, title: sample.title }],
-            conversations: [sample], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: failing,
@@ -579,7 +581,7 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
     const result = await exporter.run(
         {
             selected: [convSmall, convBig].map((c) => ({ id: c.id, title: c.title })),
-            conversations: [convSmall, convBig], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([convSmall, convBig]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([convSmall, convBig]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([convSmall, convBig]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             compiler: sizedCompiler,
@@ -641,7 +643,7 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
             const records: Array<{ status: string }> = [];
             try {
                 const result = await new PdfExporter(new StubPdfCompiler()).run({
-                    selected: [{ id }], conversations: [{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }],
+                    selected: [{ id }], conversations: ([{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }]).map(indexFixture),
                     useZip, writer: makeFakeWriter(), downloadHandler: async () => {}, includeAssets: false,
                     takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
                     fetchChatDetail: async () => fallback ? { success: false, error: 'offline' }

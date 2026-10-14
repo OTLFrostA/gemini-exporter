@@ -19,7 +19,7 @@ test.describe('Workbench UI & Selection Controls', () => {
         'chat_001': { exportedAt: '2026-08-30T00:00:00Z', title: '量子计算的基本原理' }
       };
       await chrome.storage.local.set({
-        gemini_conversations: mockConvs,
+        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         exportedIds: mockExported,
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
@@ -153,7 +153,7 @@ test.describe('Workbench UI & Selection Controls', () => {
         'chat_empty': { exportedAt: new Date(now - 3600000).toISOString(), status: 'empty', messageCount: 0 }
       };
       await chrome.storage.local.set({
-        gemini_conversations: mockConvs,
+        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         exportedIds: mockExported,
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'

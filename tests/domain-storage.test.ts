@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test, beforeEach } from 'node:test';
@@ -104,7 +105,7 @@ test('identical captures retain the current record token', async () => {
 test('future schema freezes writes and deletion while known Domain remains readable', async () => {
     await saveDomainConversation('u0', source());
     const before = globalThis.chrome;
-    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 3 }) } } } as unknown as typeof chrome;
+    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 4 }) } } } as unknown as typeof chrome;
     try {
         await assert.rejects(saveDomainConversation('u0', source('new')), { name: 'SchemaFrozenError' });
         await assert.rejects(removeStoredDomain(storageIdentity('gemini', 'u0', 'chat')), { name: 'SchemaFrozenError' });
@@ -114,7 +115,7 @@ test('future schema freezes writes and deletion while known Domain remains reada
 });
 test('legacy upgrade does not guess ownership for shared IDs or orphan detail; source data survives', async () => {
     const before = globalThis.chrome;
-    const values: Record<string, unknown> = { gemini_conversations: [{ id: 'shared', title: 'Account A', timestamp: 1 }], gemini_conversations_u1: [{ id: 'shared', title: 'Account B', timestamp: 2 }], gemini_schema_version: 1 };
+    const values: Record<string, unknown> = { gemini_conversations: ([{ id: 'shared', title: 'Account A', timestamp: 1 }]).map(indexFixture), gemini_conversations_u1: ([{ id: 'shared', title: 'Account B', timestamp: 2 }]).map(indexFixture), gemini_schema_version: 1 };
     globalThis.chrome = { storage: { local: { get: async () => structuredClone(values), set: async (v: Record<string, unknown>) => { Object.assign(values, v); } } } } as unknown as typeof chrome;
     try {
         await saveConversationDetail('shared', { messages: [{ role: 'user', content: 'Unscoped' }] });
@@ -125,7 +126,7 @@ test('legacy upgrade does not guess ownership for shared IDs or orphan detail; s
         assert.ok(report.issues.some(i => i.code === 'LEGACY_ORPHAN_DETAIL'));
         assert.equal((await getStoredDomain(storageIdentity('gemini', 'u0', 'shared')))!.conversation.messages.length, 0);
         assert.equal((await getStoredDomain(storageIdentity('gemini', 'u1', 'shared')))!.conversation.title, 'Account B');
-        assert.deepEqual(values.gemini_conversations, [{ id: 'shared', title: 'Account A', timestamp: 1 }]);
+        assert.deepEqual(values.gemini_conversations, [indexFixture({ id: 'shared', title: 'Account A', timestamp: 1 })]);
     } finally { globalThis.chrome = before; }
 });
 

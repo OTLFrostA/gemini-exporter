@@ -11,7 +11,8 @@ import { setScanRunning } from '../src/ui/controllers/syncController.js';
 import { OptionsExport } from '../src/ui/options/modules/optionsExport.js';
 import { ProgressView } from '../src/ui/views/progressView.js';
 import { LOCALES } from '../src/core/utils/i18n.js';
-import type { Conversation } from '../src/types/conversation.js';
+import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
+import { indexFixture } from './helpers/indexFixture.js';
 import type { UIExportResult } from '../src/types/ui.js';
 
 function globals(values: Record<string, unknown>): () => void {
@@ -55,7 +56,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
     });
     try {
         const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'deleted_local' }], currentSlot: 'u0',
-            conversations: [{ id: 'deleted_local', title: 'Deleted local', timestamp: 1, cloudAvailability: 'deleted' }], worker: BatchWorker,
+            conversations: [indexFixture({ id: 'deleted_local', title: 'Deleted local', timestamp: 1, cloudAvailability: 'deleted' })], worker: BatchWorker,
             takeoutEngine: { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [],
                 getTakeoutFallbackMedia: async (_id, lookup) => lookup.assetId === takeout.id ? new Uint8Array([4, 5, 6]) : null }
         }, { onLog: message => logs.push(message) });
@@ -84,7 +85,7 @@ test('normal export fetches fresh cloud content first and falls back to a local 
             } });
             const logs: string[] = [];
             const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
-                conversations: [{ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 }], worker: BatchWorker
+                conversations: [indexFixture({ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 })], worker: BatchWorker
             }, { onLog: message => logs.push(message) });
             assert.equal(result.landedChats, 1);
             assert.equal(result.failedChats.length, 0);
@@ -105,7 +106,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     await saveDomainConversation('u0', local);
     let calls = 0;
     let available = false;
-    const list: Conversation = { id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 };
+    const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
         calls++; return available ? { success: true, domainEnvelopeVersion: 2, data: fresh } : { success: false, error: 'HTTP 503' };
     } });
@@ -138,8 +139,8 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     await saveDomainConversation('u0', source);
     let assetRequests = 0;
     let writes = 0;
-    let memoryAtWrite: Conversation['cloudAvailability'];
-    const list: Conversation = { id: source.conversation.id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' };
+    let memoryAtWrite: Conversation['cloudAvailability'] = 'unknown';
+    const list: Conversation = indexFixture({ id: source.conversation.id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' });
     __setModuleOverride('StorageService', { getExportedIds: async () => records,
         saveExportRecord: async (_slot: string, id: string, record: unknown) => { records[id] = record; return records; },
         updateConversation: async (_slot: string, _id: string, update: unknown) => {
@@ -177,7 +178,7 @@ test('export completion warns for attachment-only and mixed failures in both lan
     const selected = [{ id: 'completion_test', title: 'Completion test', timestamp: 1 }];
     let result: UIExportResult = {};
     const logs: { message: string; level?: string }[] = [];
-    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => selected, getExportedIds: () => ({}) });
+    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => (selected).map(indexFixture), getExportedIds: () => ({}) });
     __setModuleOverride('ListView', { getSelectedIds: () => new Set(['completion_test']), setSelectedIds: () => {} });
     __setModuleOverride('FormatStore', { loadFormat: async () => ({ format: 'markdown' }) });
     __setModuleOverride('DirHandleController', { getDirHandle: () => null, restoreSavedDirHandle: async () => null });
@@ -266,7 +267,7 @@ test('a failed cloud fetch without a same-account body remains a failed export',
     __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
     try {
         const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], currentSlot: 'u0', includeAssets: false,
-            conversations: [{ id: 'missing_local', title: 'Unavailable', timestamp: 1 }], worker: BatchWorker });
+            conversations: [indexFixture({ id: 'missing_local', title: 'Unavailable', timestamp: 1 })], worker: BatchWorker });
         assert.equal(result.landedChats, 0);
         assert.equal(result.failedChats.length, 1);
         assert.equal(records.missing_local, undefined);

@@ -1,6 +1,6 @@
 export type { GetConversationDetailResponse } from './detailTransport.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import type { Conversation } from './conversation.js';
+import type { DomainConversationIndex } from './conversation.js';
 import type { LiveSaveConfig } from './liveSave.js';
 
 export const MESSAGE_ACTIONS = {
@@ -36,7 +36,7 @@ export interface SyncUpdateMessage extends BaseMessage {
     slot: string;
     count?: number;
     from?: string;
-    conversations?: Conversation[];
+    conversations?: DomainConversationIndex[];
 }
 
 export interface ScanProgressMessage extends BaseMessage {

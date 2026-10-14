@@ -1,6 +1,6 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
-import type { Conversation } from '../../../types/conversation.js';
+import type { DomainConversationIndex } from '../../../types/conversation.js';
 import {
     BatchWorker,
     resolveConversationData,
@@ -128,7 +128,7 @@ export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFail
 
 export interface PreparePdfItemContext {
     source?: ResolvedConversationSource;
-    conversations?: Array<{ id: string; title?: string; cloudAvailability?: Conversation['cloudAvailability']; isTakeoutOnly?: boolean }>;
+    conversations?: DomainConversationIndex[];
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
@@ -239,7 +239,7 @@ async function prepareNativePdfItem(
     const drift = extractChatParseDrift(parsed);
     const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
-        && !listItem?.isTakeoutOnly;
+        && !(listItem?.hasTakeoutImport && listItem.cloudAvailability !== 'available');
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);

@@ -4,9 +4,9 @@ test('deleted notice stays visible during repeated list updates', async ({ conte
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: [
+        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: ([
             { id: 'deleted_notice', title: 'Deleted conversation', cloudAvailability: 'deleted', timestamp: 1 }
-        ] });
+        ]).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);
     });
     await expect(page.locator('#archiveNotice')).toBeVisible();
@@ -31,11 +31,11 @@ test('keep dismisses the notice without deleting records; new deletion prompts a
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: [
+        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: ([
             { id: 'deleted_notice', title: 'Deleted conversation', cloudAvailability: 'deleted', timestamp: 1 },
             { id: 'unlisted_notice', title: 'Unconfirmed conversation', cloudAvailability: 'unlisted', timestamp: 2 },
             { id: 'another_notice', title: 'Another conversation', timestamp: 3 }
-        ] });
+        ]).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);
     });
     await page.locator('#archiveNotice button').filter({ hasText: /Keep local records|保留本地记录/ }).click();
@@ -45,8 +45,8 @@ test('keep dismisses the notice without deleting records; new deletion prompts a
     await expect(page.locator('#list .item')).toHaveCount(3);
     await page.evaluate(async () => {
         const { gemini_conversations } = await chrome.storage.local.get('gemini_conversations');
-        await chrome.storage.local.set({ gemini_conversations: (gemini_conversations as { id: string }[]).map(c =>
-            c.id === 'another_notice' ? { ...c, cloudAvailability: 'deleted' } : c) });
+        await chrome.storage.local.set({ gemini_conversations: ((gemini_conversations as { id: string }[]).map(c =>
+            c.id === 'another_notice' ? { ...c, cloudAvailability: 'deleted' } : c)).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);
     });
     await expect(page.locator('#archiveNotice')).toBeVisible();
@@ -65,9 +65,9 @@ test('unlisted conversations alone do not show a deletion notice', async ({ cont
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: [
+        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: ([
             { id: 'unlisted_notice', title: 'Unconfirmed conversation', cloudAvailability: 'unlisted', timestamp: 1 }
-        ] });
+        ]).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);
     });
     await expect(page.locator('#archiveNotice')).toBeHidden();

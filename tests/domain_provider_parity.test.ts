@@ -2,7 +2,7 @@ import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixt
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import { composeFixture } from './helpers/documentFixture.js';
 
 async function assertDomainParity(conversation: Conversation): Promise<void> {

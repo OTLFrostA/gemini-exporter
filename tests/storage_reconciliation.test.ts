@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -36,11 +37,11 @@ test.beforeEach(() => {
 const StorageService = require('../src/core/storage/storageService.js');
 
 test('StorageService.removeConversation - removes target conversation by id or c_id', async () => {
-    await StorageService.setConversations('u0', [
+    await StorageService.setConversations('u0', ([
         { id: 'cca63136d0630930', title: 'Deleted Chat', source: 'page-sync', timestamp: 1700000000000 },
         { id: '1dc469a46941004f', title: 'Active Chat 1', source: 'network-list', timestamp: 1700000000000 },
         { id: 'c_6ea653f1f5f2f533', title: 'Active Chat 2', source: 'network-list', timestamp: 1700000000000 }
-    ]);
+    ]).map(indexFixture));
 
     const res1 = await StorageService.removeConversation('u0', 'cca63136d0630930');
     assert.strictEqual(res1, true);
@@ -61,12 +62,12 @@ test('StorageService.removeConversation - removes target conversation by id or c
 });
 
 test('StorageService.reconcileConversations - prunes absent cloud chats while keeping Takeout chats', async () => {
-    await StorageService.setConversations('u0', [
+    await StorageService.setConversations('u0', ([
         { id: 'cca63136d0630930', title: 'Deleted on Cloud', source: 'page-sync', timestamp: 1700000000000 },
         { id: '0214ab4226767bf9', title: 'Active Cloud Chat', source: 'network-list', timestamp: 1700000000000 },
         { id: 'takeout_offline_1', title: 'Takeout Imported Chat', source: 'takeout', timestamp: 1700000000000 },
         { id: 'takeout_offline_2', title: 'Takeout Title Source', titleSource: 'takeout', titles: { takeout: 'Takeout Title' }, timestamp: 1700000000000 }
-    ]);
+    ]).map(indexFixture));
 
     const activeCloudList = [
         { id: '0214ab4226767bf9', title: 'Active Cloud Chat' }

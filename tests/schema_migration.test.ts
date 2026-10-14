@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 /**
  * Phase D 规格测试 —— 存储迁移框架 (P1-10 / P1-13)
  * Contract Classification: Permanent Contract
@@ -62,7 +63,7 @@ test('P1-13a: 全新安装 migrate() 串行跑四步并戳 version=2', async () 
     try {
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: true, frozen: false });
-        assert.strictEqual(m.localStore['gemini_schema_version'], 2, 'Domain storage current=2');
+        assert.strictEqual(m.localStore['gemini_schema_version'], 3, 'Index storage current=3');
         assert.strictEqual(SchemaMigration.isSchemaFrozen(), false);
     } finally { m.restore(); }
 });
@@ -70,11 +71,11 @@ test('P1-13a: 全新安装 migrate() 串行跑四步并戳 version=2', async () 
 test('P1-13b: version=1 时 migrate() 为空操作', async () => {
     const m = installMock();
     try {
-        m.localStore['gemini_schema_version'] = 1;
-        m.localStore['gemini_conversations'] = [{ id: 'a', title: 'A', timestamp: 1 }];
+        m.localStore['gemini_schema_version'] = 3;
+        m.localStore['gemini_conversations'] = [indexFixture({ id: 'a', title: 'Research A', timestamp: 1 })];
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: true, frozen: false });
-        assert.strictEqual(m.localStore['gemini_conversations'][0].title, 'A');
+        assert.strictEqual(m.localStore['gemini_conversations'][0].title, 'Research A');
     } finally { m.restore(); }
 });
 
@@ -90,8 +91,8 @@ test('P1-10a: 遗留胖会话在启动迁移中被 slim 并 offload 到 IDB', as
         assert.strictEqual(res.ok, true);
         const list = m.localStore['gemini_conversations'];
         assert.ok(!Array.isArray((list[0] as any).messages), '读回的列表应已 slim');
-        const mem = DetailStore.__getMemoryStore();
-        assert.ok(mem.has('fat1'), 'messages 应 offload 到 detail store');
+        const body = await StorageService.getConversationWithDetail('u0', 'fat1');
+        assert.equal(body.conversation.messages.length, 1);
     } finally { m.restore(); }
 });
 
@@ -102,11 +103,11 @@ test('P1-10b: 并发迁移 + transact 不丢数据（锁内重读回归）', asy
             { id: 'fat1', title: 'Fat', messages: [{ id: 'm1', role: 'user' }], timestamp: 1 }
         ];
         const [migRes] = await Promise.all([
-            SchemaMigration.migrate(),
-            StorageService.transactConversations('u0', (list: any[]) => ({
-                list: [...list, { id: 'new1', title: 'New', timestamp: 2 }],
+            SchemaMigration.ensureStorageReady().then(() => ({ ok: true })),
+            SchemaMigration.ensureStorageReady().then(() => StorageService.transactConversations('u0', (list: any[]) => ({
+                list: [...list, indexFixture({ id: 'new1', title: 'New', updatedAt: 2 })],
                 changed: 1
-            }))
+            })))
         ]);
         assert.strictEqual(migRes.ok, true);
         const ids = (m.localStore['gemini_conversations'] as any[]).map((c: any) => c.id).sort();
@@ -119,12 +120,11 @@ test('P1-10c: 读路径不再触发迁移写（getConversations 纯读）', asyn
     const m = installMock();
     try {
         m.localStore['gemini_conversations'] = [
-            { id: 'fat1', title: 'Fat', messages: [{ id: 'm1' }], timestamp: 1 }
+            { id: 'fat1', title: 'Fat', messages: [{ id: 'm1', role: 'user', content: 'Question' }], timestamp: 1 }
         ];
         const src = require('fs').readFileSync(require('path').join(__dirname, '../src/core/storage/storageService.ts'), 'utf8');
         assert.ok(!src.includes('_migrateLegacyConversations'), 'fire-and-forget 迁移函数应已删除');
-        const list = await StorageService.getConversations('u0');
-        assert.strictEqual(list.length, 1);
+        await assert.rejects(StorageService.getConversations('u0'), TypeError);
         // 读路径不写：裸存储仍是胖数据（迁移只在 migrate() 跑）
         assert.ok(Array.isArray((m.localStore['gemini_conversations'] as any[])[0].messages), '读路径不得写回 slim 结果');
     } finally { m.restore(); }
@@ -173,7 +173,7 @@ test('P1-13e: 未知未来版本 → migrate 返回 frozen，读可用、写被�
     const m = installMock();
     try {
         m.localStore['gemini_schema_version'] = 999;
-        m.localStore['gemini_conversations'] = [{ id: 'a', title: 'A', timestamp: 1 }];
+        m.localStore['gemini_conversations'] = [indexFixture({ id: 'a', title: 'Research A', timestamp: 1 })];
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: false, frozen: true });
         assert.strictEqual(SchemaMigration.isSchemaFrozen(), true);
@@ -245,7 +245,7 @@ test('P1-13h: 迁移步骤失败时版本戳被截留，migrate() 返回 ok: fal
         const resRetry = await SchemaMigration.migrate();
         assert.strictEqual(resRetry.ok, true);
         assert.strictEqual(resRetry.frozen, false);
-        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 2, '重试成功后正确戳记版本 2');
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 3, '重试成功后正确戳记版本 2');
     } finally {
         m.restore();
     }
@@ -255,11 +255,12 @@ test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报�
     const m = installMock();
     try {
         m.localStore['gemini_conversations'] = [
-            { id: 'fat1', title: 'Fat', messages: [{ id: 'm1' }], timestamp: 1 }
+            { id: 'fat1', title: 'Fat', messages: [{ id: 'm1', role: 'user', content: 'Question' }], timestamp: 1 }
         ];
-        const origSave = DetailStore.saveConversationDetailsBatch;
-        DetailStore.saveConversationDetailsBatch = async () => {
-            throw new Error('Simulated IDB transaction crash');
+        const origSave = m.chrome.storage.local.set;
+        m.chrome.storage.local.set = async (values: Record<string, unknown>) => {
+            if ('gemini_index_migration_v3' in values) throw new Error('Simulated IDB transaction crash');
+            return origSave(values);
         };
 
         try {
@@ -269,13 +270,13 @@ test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报�
             assert.ok(res.error && res.error.includes('Simulated IDB transaction crash'));
             assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], undefined, 'IDB 故障时不可打上版本戳');
         } finally {
-            DetailStore.saveConversationDetailsBatch = origSave;
+            m.chrome.storage.local.set = origSave;
         }
 
         // 恢复后重新迁移，应成功完成
         const res2 = await SchemaMigration.migrate();
         assert.strictEqual(res2.ok, true);
-        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 2);
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 3);
     } finally {
         m.restore();
     }

@@ -164,8 +164,7 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
             syncEngine: Sync,
             scraper: Scraper,
             assets: Assets,
-            storage: Storage,
-            utils: Utils
+            storage: Storage
         });
     }
 

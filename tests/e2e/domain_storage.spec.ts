@@ -5,6 +5,7 @@ import * as path from 'node:path';
 let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
+        import { indexFixture } from './tests/helpers/indexFixture.ts';
         import * as store from './src/core/storage/domain/domainStore.ts';
         import { migrate, CURRENT_SCHEMA_VERSION } from './src/core/storage/schemaMigration.ts';
         import { saveConversationDetail, getConversationDetail } from './src/core/storage/conversationDetailStore.ts';
@@ -14,7 +15,7 @@ test.beforeAll(async () => {
         import { preparePdfResources } from './src/core/export/pdf/prepareResources.ts';
         import { extractChatParseDrift } from './src/core/engine/export/parseDrift.ts';
         import { formatMarkdownDocument } from './src/core/engine/chatFormatter.ts';
-        globalThis.storageProbe = { ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument, preparePdfResources, extractChatParseDrift };
+        globalThis.storageProbe = { indexFixture, ...store, migrate, CURRENT_SCHEMA_VERSION, saveConversationDetail, getConversationDetail, StorageService, getDomainConversationResult, AssetPipeline, formatMarkdownDocument, preparePdfResources, extractChatParseDrift };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });
@@ -50,7 +51,7 @@ test('v1 disk migration joins metadata/body, survives restart and exports native
         const markdown = await api.formatMarkdownDocument(view);
         return { version: (await chrome.storage.local.get(['gemini_schema_version'])).gemini_schema_version, conversation: view.conversation, markdown: markdown.content };
     });
-    expect(restored.version).toBe(2);
+    expect(restored.version).toBe(3);
     expect(restored.conversation.messages).toHaveLength(2);
     expect(restored.conversation.messages[1].model).toBe('Remembered model');
     expect(restored.conversation.messages[1].reasoning).toBeTruthy();
@@ -138,8 +139,8 @@ for (const method of ['remove', 'reconcile'] as const) {
                     acquisitionHints: {}, resourceHints: {}, diagnostics: []
                 };
                 await chrome.storage.local.set({ gemini_schema_version: 2,
-                    gemini_conversations: [{ id: 'c_retry-delete', title: 'Delete' }],
-                    gemini_conversations_u1: [{ id: 'retry-delete', title: 'Other account' }],
+                    gemini_conversations: [{ id: 'retry-delete', title: 'Delete' }].map(api.indexFixture),
+                    gemini_conversations_u1: [{ id: 'retry-delete', title: 'Other account' }].map(api.indexFixture),
                     exportedIds: { 'retry-delete': { timestamp: 1 }, 'c_retry-delete': { timestamp: 1 }, keep: { timestamp: 1 } },
                     gemini_exported_u1: { 'retry-delete': { timestamp: 2 } }
                 });
@@ -301,4 +302,55 @@ test('restart retains report caution and detects missing image bytes without sav
     expect(result.bytesMissing).toBe(true);
     expect(result.failure).toBeTruthy();
     expect(result.diagnostics).toEqual([expect.objectContaining({ code: 'RESOURCE_UNAVAILABLE', path: 'asset:image' })]);
+});
+
+
+test('v2 index migration backs up raw disk values, separates body and rejects read-time repair after restart', async ({ page }) => {
+    await install(page);
+    const raw = [{ id: 'c_index-migration', title: 'Offline title', titleSource: 'takeout', timestamp: '1700000000',
+        titles: { takeout: 'Offline title' }, lastSeen: 9999999999999,
+        messages: [{ role: 'user', content: 'Physical original body' }] }, null];
+    const migrated = await page.evaluate(async raw => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations_u0: raw });
+        return api.migrate();
+    }, raw);
+    expect(migrated).toEqual({ ok: true, frozen: false });
+    await page.reload(); await install(page);
+    const restored = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const backup = await new Promise((resolve, reject) => {
+            const open = indexedDB.open('gemini_exporter_domain');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+                const db = open.result;
+                const tx = db.transaction('legacy_imports', 'readonly');
+                const request = tx.objectStore('legacy_imports').get('index-v3:gemini_conversations_u0');
+                request.onsuccess = () => resolve(request.result.value);
+                tx.oncomplete = () => db.close();
+                tx.onerror = () => reject(tx.error);
+            };
+        });
+        const indexes = await api.StorageService.getConversations('u0');
+        const body = await api.getDomainConversationResult('u0', 'index-migration');
+        const before = await chrome.storage.local.get(null);
+        await api.StorageService.getConversations('u0');
+        const after = await chrome.storage.local.get(null);
+        await chrome.storage.local.set({ gemini_conversations: [{ ...indexes[0], timestamp: 123 }] });
+        let rejected = false;
+        try { await api.StorageService.getConversations('u0'); } catch (error) { rejected = error instanceof TypeError; }
+        return { backup, indexes, body: body.conversation, before, after, rejected,
+            corrupted: (await chrome.storage.local.get(['gemini_conversations'])).gemini_conversations };
+    });
+    expect(restored.backup).toEqual(raw);
+    expect(restored.indexes).toHaveLength(1);
+    expect(restored.indexes[0]).toMatchObject({ providerId: 'gemini', id: 'index-migration', title: 'Offline title',
+        titleSource: 'takeout', hasTakeoutImport: true, updatedAt: 1700000000000, messageCount: 1 });
+    for (const key of ['messages', 'titles', 'timestamp', 'lastSeen']) expect(restored.indexes[0]).not.toHaveProperty(key);
+    expect(restored.body.messages[0].content).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'Physical original body' }] }]);
+    expect(restored.before.gemini_conversations_u0).toBeUndefined();
+    expect((restored.before.gemini_index_migration_v3 as { issues: unknown[] }).issues).toHaveLength(1);
+    expect(restored.after).toEqual(restored.before);
+    expect(restored.rejected).toBe(true);
+    expect((restored.corrupted as { timestamp: number }[])[0].timestamp).toBe(123);
 });

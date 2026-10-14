@@ -19,7 +19,9 @@ const REMOVED = 'removed_conversations';
 const removedMemory = new Set<string>();
 const byteMemory = new Map<string, Uint8Array>();
 const memory = new Map<string, TrustedDomainStorageRecord>();
-export function __clearDomainMemory(): void { memory.clear(); byteMemory.clear(); removedMemory.clear(); }
+const backupMemory = new Map<string, unknown>();
+export function __getLegacyBackupForTest(key: string): unknown { return structuredClone(backupMemory.get(key)); }
+export function __clearDomainMemory(): void { memory.clear(); byteMemory.clear(); removedMemory.clear(); backupMemory.clear(); }
 
 export function storageIdentity(providerId: string, accountSlot: string, conversationId: string): DomainStorageIdentity {
     if (!providerId.trim() || !accountSlot.trim() || !conversationId.trim()) throw new TypeError('Invalid Domain storage identity');
@@ -323,7 +325,7 @@ export async function removeStoredDomain(identity: DomainStorageIdentity): Promi
 /** Original legacy values remain recoverable, including records that cannot be interpreted. */
 export async function backupLegacyValue(key: string, value: unknown): Promise<void> {
     if (needsDomainBroker()) { await callDomainBroker('backup', { key: `origin:${location.origin}:${key}`, value }); return; }
-    if (typeof indexedDB === 'undefined') return;
+    if (typeof indexedDB === 'undefined') { if (!backupMemory.has(key)) backupMemory.set(key, structuredClone(value)); return; }
     const db = await openDomainDB();
     try {
         await new Promise<void>((resolve, reject) => {

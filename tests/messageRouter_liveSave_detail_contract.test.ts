@@ -10,7 +10,7 @@ import type { DomDetail, GetConversationDetailResponse, DetailFailure } from '..
 
 // Compile-time regression: explicit null disables these optional runtime dependencies.
 // Keep this assignment typed; routing through an unchecked fixture would hide the bug.
-const deps: MessageRouterDeps = { syncEngine: null, scraper: null, assets: null, storage: null, utils: null };
+const deps: MessageRouterDeps = { syncEngine: null, scraper: null, assets: null, storage: null };
 void deps;
 
 function detail(): GeminiProviderConversationDetail {

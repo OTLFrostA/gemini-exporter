@@ -1,4 +1,4 @@
-import type { Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { DomainAsset, DomainConversationDetail, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
 import { historicalFixtureDomain } from './helpers/nativeFixture.js';
 
