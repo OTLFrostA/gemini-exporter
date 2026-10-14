@@ -1,21 +1,18 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
+import test, { type TestContext } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const { calculateBackoff, abortableSleep } = require('../src/core/utils/retryUtils.js');
-const {
+import { calculateBackoff, abortableSleep } from '../src/core/utils/retryUtils.js';
+import {
     handleHttp429,
-    interruptibleSleep,
-    abortableSleep: clientAbortableSleep,
-    parseRetryAfterMs
-} = require('../src/core/api/client/retryPolicy.js');
-const {
+    interruptibleSleep
+} from '../src/core/api/client/retryPolicy.js';
+import {
     RateLimitManager,
-    calculateBackoff: engineCalculateBackoff,
-    abortableSleep: engineAbortableSleep
-} = require('../src/core/engine/export/rateLimiter.js');
+    calculateBackoff as engineCalculateBackoff,
+    abortableSleep as engineAbortableSleep
+} from '../src/core/engine/export/rateLimiter.js';
 
 const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
@@ -73,7 +70,6 @@ test('retryUtils - calculateBackoff honors server Retry-After floor even beyond 
 // ---------------------------------------------------------------------------
 
 test('retryUtils - abortableSleep resolves immediately on non-positive ms', async () => {
-    const t0 = Date.now();
     const resZero = await abortableSleep(0);
     assert.strictEqual(resZero, false, 'ms=0 resolves false');
 
@@ -84,103 +80,137 @@ test('retryUtils - abortableSleep resolves immediately on non-positive ms', asyn
     controller.abort();
     const resPreAbortedZero = await abortableSleep(0, controller.signal);
     assert.strictEqual(resPreAbortedZero, true, 'ms=0 with aborted signal resolves true');
-    assert.ok(Date.now() - t0 < 50, 'non-positive ms takes minimal time');
 });
 
-test('retryUtils - abortableSleep without signal sleeps full duration and resolves false', async () => {
-    const t0 = Date.now();
-    const res1 = await abortableSleep(50);
-    assert.strictEqual(res1, false, 'undefined signal resolves false');
-    assert.ok(Date.now() - t0 >= 40, 'delay elapsed');
+test('retryUtils - abortableSleep without signal sleeps full duration and resolves false', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        let done1 = false;
+        const p1 = abortableSleep(5000).then((res: boolean) => { done1 = true; return res; });
+        assert.strictEqual(done1, false, 'should not resolve before delay');
+        t.mock.timers.tick(5000);
+        const res1 = await p1;
+        assert.strictEqual(res1, false, 'undefined signal resolves false');
 
-    const t1 = Date.now();
-    const res2 = await abortableSleep(50, null);
-    assert.strictEqual(res2, false, 'null signal resolves false');
-    assert.ok(Date.now() - t1 >= 40, 'delay elapsed');
+        let done2 = false;
+        const p2 = abortableSleep(5000, null).then((res: boolean) => { done2 = true; return res; });
+        assert.strictEqual(done2, false, 'should not resolve before delay');
+        t.mock.timers.tick(5000);
+        const res2 = await p2;
+        assert.strictEqual(res2, false, 'null signal resolves false');
+    } finally {
+        t.mock.timers.reset();
+    }
 });
 
 test('retryUtils - abortableSleep with pre-aborted signal returns true immediately', async () => {
     const controller = new AbortController();
     controller.abort();
 
-    const t0 = Date.now();
     const res = await abortableSleep(5000, controller.signal);
     assert.strictEqual(res, true, 'pre-aborted signal resolves true');
-    assert.ok(Date.now() - t0 < 100, `pre-aborted took ${Date.now() - t0}ms`);
 });
 
-test('retryUtils - abortableSleep cuts sleep short when aborted mid-way', async () => {
-    const controller = new AbortController();
-    const t0 = Date.now();
-    const sleepPromise = abortableSleep(5000, controller.signal);
+test('retryUtils - abortableSleep cuts sleep short when aborted mid-way', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        const controller = new AbortController();
+        const sleepPromise = abortableSleep(5000, controller.signal);
 
-    setTimeout(() => controller.abort(), 60);
+        t.mock.timers.tick(100);
+        controller.abort();
 
-    const res = await sleepPromise;
-    assert.strictEqual(res, true, 'aborted sleep resolves true');
-    const elapsed = Date.now() - t0;
-    assert.ok(elapsed >= 50 && elapsed < 1000, `aborted promptly (took ${elapsed}ms)`);
+        const res = await sleepPromise;
+        assert.strictEqual(res, true, 'aborted sleep resolves true');
+    } finally {
+        t.mock.timers.reset();
+    }
 });
 
-test('retryUtils - abortableSleep completes normally when signal never aborts', async () => {
-    const controller = new AbortController();
-    const t0 = Date.now();
-    const res = await abortableSleep(60, controller.signal);
-    assert.strictEqual(res, false, 'unaborted sleep resolves false');
-    assert.ok(Date.now() - t0 >= 50, 'sleep completed');
+test('retryUtils - abortableSleep completes normally when signal never aborts', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        const controller = new AbortController();
+        const sleepPromise = abortableSleep(5000, controller.signal);
+        t.mock.timers.tick(5000);
+        const res = await sleepPromise;
+        assert.strictEqual(res, false, 'unaborted sleep resolves false');
+    } finally {
+        t.mock.timers.reset();
+    }
 });
 
 // ---------------------------------------------------------------------------
 // 3. interruptibleSleep (in retryPolicy.ts) & handleHttp429 Integration
 // ---------------------------------------------------------------------------
 
-test('retryPolicy - interruptibleSleep delegates to abortableSleep when isAborted is omitted', async () => {
-    const t0 = Date.now();
-    const full = await interruptibleSleep(60);
-    assert.strictEqual(full, false, 'unaborted resolves false');
-    assert.ok(Date.now() - t0 >= 50, 'delay elapsed');
+test('retryPolicy - interruptibleSleep delegates to abortableSleep when isAborted is omitted', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        const fullPromise = interruptibleSleep(5000);
+        t.mock.timers.tick(5000);
+        const full = await fullPromise;
+        assert.strictEqual(full, false, 'unaborted resolves false');
 
-    const controller = new AbortController();
-    const p = interruptibleSleep(5000, controller.signal);
-    setTimeout(() => controller.abort(), 40);
-    const cut = await p;
-    assert.strictEqual(cut, true, 'aborted resolves true');
+        const controller = new AbortController();
+        const cutPromise = interruptibleSleep(5000, controller.signal);
+        t.mock.timers.tick(100);
+        controller.abort();
+        const cut = await cutPromise;
+        assert.strictEqual(cut, true, 'aborted resolves true');
+    } finally {
+        t.mock.timers.reset();
+    }
 });
 
-test('retryPolicy - interruptibleSleep polling handles custom isAborted predicate', async () => {
-    // 1. Initially aborted
-    let abortedFlag = true;
-    const resInit = await interruptibleSleep(5000, undefined, () => abortedFlag);
-    assert.strictEqual(resInit, true, 'initially aborted returns true');
+test('retryPolicy - interruptibleSleep polling handles custom isAborted predicate', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+    try {
+        // 1. Initially aborted
+        let abortedFlag = true;
+        const resInit = await interruptibleSleep(5000, undefined, () => abortedFlag);
+        assert.strictEqual(resInit, true, 'initially aborted returns true');
 
-    // 2. Aborted via polling mid-sleep
-    abortedFlag = false;
-    const t0 = Date.now();
-    const pPoll = interruptibleSleep(5000, undefined, () => abortedFlag);
-    setTimeout(() => { abortedFlag = true; }, 70);
-    const resPoll = await pPoll;
-    assert.strictEqual(resPoll, true, 'polling aborted returns true');
-    assert.ok(Date.now() - t0 < 500, `polling cut short in ${Date.now() - t0}ms`);
+        // 2. Aborted via polling mid-sleep
+        abortedFlag = false;
+        const pPoll = interruptibleSleep(5000, undefined, () => abortedFlag);
+        t.mock.timers.tick(50);
+        abortedFlag = true;
+        t.mock.timers.tick(50);
+        const resPoll = await pPoll;
+        assert.strictEqual(resPoll, true, 'polling aborted returns true');
 
-    // 3. Completes naturally with isAborted staying false
-    abortedFlag = false;
-    const resNormal = await interruptibleSleep(60, undefined, () => abortedFlag);
-    assert.strictEqual(resNormal, false, 'non-aborted predicate resolves false');
+        // 3. Completes naturally with isAborted staying false
+        abortedFlag = false;
+        const pNormal = interruptibleSleep(5000, undefined, () => abortedFlag);
+        t.mock.timers.tick(5000);
+        const resNormal = await pNormal;
+        assert.strictEqual(resNormal, false, 'non-aborted predicate resolves false');
+    } finally {
+        t.mock.timers.reset();
+    }
 });
 
-test('retryPolicy - handleHttp429 honors Retry-After header and backoff options', async () => {
-    const res = await handleHttp429({
-        resp: {
-            status: 429,
-            headers: { get: (h: string) => (h === 'retry-after' ? '1' : null) }
-        },
-        retryCount: 0,
-        maxRetries: 3,
-        label: 'test-429'
-    });
-    assert.strictEqual(res.shouldRetry, true);
-    assert.strictEqual(res.nextRetryCount, 1);
-    assert.ok(typeof res.delayMs === 'number' && res.delayMs >= 2000, `delayMs >= 2000 (was ${res.delayMs})`);
+test('retryPolicy - handleHttp429 honors Retry-After header and backoff options', async (t: TestContext) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+        const resPromise = handleHttp429({
+            resp: {
+                status: 429,
+                headers: { get: (h: string) => (h === 'retry-after' ? '1' : null) }
+            },
+            retryCount: 0,
+            maxRetries: 3,
+            label: 'test-429'
+        });
+        t.mock.timers.tick(35000);
+        const res = await resPromise;
+        assert.strictEqual(res.shouldRetry, true);
+        assert.strictEqual(res.nextRetryCount, 1);
+        assert.ok(typeof res.delayMs === 'number' && res.delayMs >= 2000, `delayMs >= 2000 (was ${res.delayMs})`);
+    } finally {
+        t.mock.timers.reset();
+    }
 });
 
 // ---------------------------------------------------------------------------

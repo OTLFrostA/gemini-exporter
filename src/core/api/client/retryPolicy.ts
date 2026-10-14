@@ -48,7 +48,6 @@ export interface GeminiClientRetryPolicyModule {
     handleHttp401: (params: Http401Params) => Promise<void>;
     handleHttp429: (params: Http429Params) => Promise<Http429Result>;
     interruptibleSleep: (ms: number, signal?: AbortSignal | null, isAborted?: () => boolean) => Promise<boolean>;
-    abortableSleep?: (ms: number, signal?: AbortSignal | null) => Promise<boolean>;
     parseRetryAfterMs: (value: string | null | undefined) => number | undefined;
 }
 
@@ -220,7 +219,6 @@ export {
     handleHttp401,
     handleHttp429,
     interruptibleSleep,
-    abortableSleep,
     parseRetryAfterMs
 };
 
@@ -229,7 +227,6 @@ export const GeminiClientRetryPolicy: GeminiClientRetryPolicyModule = {
     handleHttp401,
     handleHttp429,
     interruptibleSleep,
-    abortableSleep,
     parseRetryAfterMs
 };
 
