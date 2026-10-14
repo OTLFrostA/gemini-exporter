@@ -98,18 +98,19 @@ function recoverV1(value: unknown): unknown {
     if (typeof rest.title === 'string') candidates.push({ value: rest.title, source: typeof rest.titleSource === 'string' && TITLE_SOURCES.has(rest.titleSource) ? rest.titleSource : 'default' });
     const title = resolveTitle(candidates);
     // Extract historical thought bodies recursively instead of silently deleting real reasoning.
-    const extract = (nodes: unknown, reasoning: unknown[]): unknown => Array.isArray(nodes) ? nodes.flatMap((node: unknown): unknown[] => {
+    const extract = (nodes: unknown, reasoning: unknown[], inReasoning = false): unknown => Array.isArray(nodes) ? nodes.flatMap((node: unknown): unknown[] => {
         if (!object(node)) return [node];
         if (node.type === 'thought') {
             if (!Array.isArray(node.blocks)) throw new TypeError('Invalid historical thought body');
-            const blocks = extract(node.blocks, reasoning);
+            const blocks = extract(node.blocks, reasoning, true);
+            if (inReasoning) return Array.isArray(blocks) ? blocks as unknown[] : [];
             if (Array.isArray(blocks)) reasoning.push(...blocks as unknown[]);
             return [];
         }
         const copy = { ...node };
         if (copy.type === 'code') delete copy.filename;
-        if (Array.isArray(copy.blocks)) copy.blocks = extract(copy.blocks, reasoning);
-        if (Array.isArray(copy.items)) copy.items = copy.items.map((item: unknown): unknown => object(item) ? { ...item, blocks: extract(item.blocks, reasoning) } : item);
+        if (Array.isArray(copy.blocks)) copy.blocks = extract(copy.blocks, reasoning, inReasoning);
+        if (Array.isArray(copy.items)) copy.items = copy.items.map((item: unknown): unknown => object(item) ? { ...item, blocks: extract(item.blocks, reasoning, inReasoning) } : item);
         if (copy.type === 'table' && Array.isArray(copy.columns)) copy.columns = copy.columns.map((column: unknown): unknown => object(column) && column.align === 'default' ? Object.fromEntries(Object.entries(column).filter(([key]) => key !== 'align')) : column);
         return [copy];
     }) : nodes;
@@ -117,7 +118,7 @@ function recoverV1(value: unknown): unknown {
         if (!object(m)) return m;
         const thoughts: unknown[] = [];
         const copy: Record<string, unknown> = { ...m, content: extract(m.content, thoughts) };
-        const reasoning = extract(m.reasoning ?? [], thoughts);
+        const reasoning = extract(m.reasoning ?? [], thoughts, true);
         if (!Array.isArray(reasoning)) throw new TypeError('Invalid historical reasoning');
         if (reasoning.length || thoughts.length) Object.assign(copy, { reasoning: [...reasoning as unknown[], ...thoughts] });
         if (object(copy.provenance)) {

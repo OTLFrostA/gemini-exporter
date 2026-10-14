@@ -64,3 +64,14 @@ test('historical generated flag can recover only from unambiguous explicit owner
     assert.throws(() => restoreDomainSnapshot({ ...old, messages: [...old.messages, { ...old.messages[0], provenance: { providerRequestId: 'conflict' } }] }, 1), /identity evidence/);
     assert.equal(Object.hasOwn(old.assets[0], 'generated'), true);
 });
+
+test('nested historical thoughts preserve reasoning order instead of moving inner content before its parent', () => {
+    const paragraph = (text: string) => ({ type: 'paragraph', children: [{ type: 'text', text }] });
+    const thought = (blocks: unknown[]) => ({ type: 'thought', disclosure: 'providerExposed', blocks });
+    const old = { ...base(), completeness: { status: 'unknown' }, messages: [{ role: 'assistant',
+        reasoning: [thought([paragraph('Existing A'), thought([paragraph('Existing B')])]), paragraph('Existing C')],
+        content: [thought([paragraph('A'), thought([paragraph('B')]), paragraph('C')]), paragraph('Body')] }] };
+    const restored = restoreDomainSnapshot(old, 1);
+    assert.deepEqual(restored.messages[0].reasoning, ['Existing A', 'Existing B', 'Existing C', 'A', 'B', 'C'].map(paragraph));
+    assert.deepEqual(restored.messages[0].content, [paragraph('Body')]);
+});

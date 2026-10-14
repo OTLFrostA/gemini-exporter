@@ -106,7 +106,7 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
     const origSend = TabService.sendToGeminiTab;
     TabService.getGeminiTab = async () => ({ id: 123 });
     TabService.sendToGeminiTab = async (msg: any, _slot?: string) => ({
-        success: true, domainEnvelopeVersion: 1,
+        success: true, domainEnvelopeVersion: 2,
         data: historicalFixture({ id: msg.conversationId, title: 'ok-chat', messages: [] })
     });
 

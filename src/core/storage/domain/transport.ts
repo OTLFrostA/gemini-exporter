@@ -1,3 +1,4 @@
+import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../../utils/nativeDetailTransport.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 import type { TrustedDomainStorageRecord } from './contracts.js';
 
@@ -17,7 +18,7 @@ export async function callDomainBroker(command: DomainStoreCommand, payload: unk
     }
     const value = 'value' in response ? response.value : undefined;
     if (command === 'get' || command === 'save') {
-        if (!('domainEnvelopeVersion' in response) || response.domainEnvelopeVersion !== 1) throw new TypeError('Incompatible Domain storage reply');
+        if (!('domainEnvelopeVersion' in response) || response.domainEnvelopeVersion !== NATIVE_DETAIL_ENVELOPE_VERSION) throw new TypeError('Incompatible Domain storage reply');
         if (value === null) return null;
         if (!value || typeof value !== 'object' || !('conversation' in value) || !('resources' in value) || !Array.isArray(value.resources)) throw new TypeError('Invalid Domain storage reply');
         // Current-version extension background restored this graph from storage.

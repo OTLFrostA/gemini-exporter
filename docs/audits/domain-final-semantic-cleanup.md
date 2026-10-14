@@ -16,7 +16,7 @@ Counts compare this change against its parent commit. Fields count named propert
 | Removed redundant state forms | 5 | absent completeness as another unknown; generated boolean; thought AST; explicit default alignment; Domain title candidate map |
 | Removed helpers/factories | 9 | normalizeMessageProvenance, nullable, dictionary, generationSchema, documentSchema, assetSchema, normalizeLegacyAsset, asSpreadSource, mergeTitleSources |
 | Removed fallback paths | 8 | Markdown creation aliases, update alias, URL alias; index creation aliases, update aliases; source-specific archive destination reuse; independent list legacy-title fallback; repeated Takeout-title fallback |
-| Production lines (`git diff --numstat -- src`) | +256 / −352, net **-96** | Excludes tests/docs/generated output |
+| Production lines (`git diff --numstat -- src`) | +267 / −358, net **-91** | Excludes tests/docs/generated output |
 
 The 22 properties are `Conversation.{timestamp,chatTime,lastSeen,href,titles,provenance}`, `Asset.{origin,dimensions,generated,source}`, `Asset.document.{createdAt,chipUrl,sections,links,candidates}`, `Generation.{chatId,turnId}`, `Message.provenance.providerRequestId`, `Citation.kind`, `Code.filename`, and `completeness.{status,reason}`. The completeness property itself becomes a required scalar.
 
@@ -310,9 +310,9 @@ export interface LineBreakInline {
 
 ## Historical persistence and safety
 
-New parser finalization and detached storage writes reject deleted fields at every schema level. `restoreDomainSnapshot(value, 1)` is the sole converter for old Domain records, selected by persisted envelope version; default/new writes require v2. Successful reads return v2 snapshots without rewriting the physical original. Unknown versions/fields fail closed.
+New parser finalization and detached storage writes reject deleted fields at every schema level. `restoreDomainSnapshot(value, 1)` is the sole converter for old Domain records, selected by persisted envelope version; default/new writes require v2. Successful reads return v2 snapshots without rewriting the physical original. Unknown versions/fields fail closed. The authenticated detail/batch/storage communication envelope also advances to version 2 using its existing shared constant, so stale extension/page code cannot claim trust for a v1 payload; rejected replies request a page refresh.
 
-Recovery extracts nested historical thoughts into reasoning and preserves resource references; it flattens URI/completeness and arbitrates historical title candidates. A historical generated resource with no identity may recover a request ID only from an unambiguous message that explicitly owns that asset. It never infers ownership/identity from array position or a filename. Missing/conflicting identity evidence, conflicting parent IDs or report sections/links not demonstrably present in canonical Markdown cause an explicit error while retaining the original row. This deliberate rejection is a compatibility cost, not a claim that old content was successfully migrated.
+Recovery extracts nested historical thoughts into reasoning, preserving authored nesting order and resource references; it flattens URI/completeness and arbitrates historical title candidates. A historical generated resource with no identity may recover a request ID only from an unambiguous message that explicitly owns that asset. It never infers ownership/identity from array position or a filename. Missing/conflicting identity evidence, conflicting parent IDs or report sections/links not demonstrably present in canonical Markdown cause an explicit error while retaining the original row. This deliberate rejection is a compatibility cost, not a claim that old content was successfully migrated.
 
 Real IndexedDB browser checks cover v1 read conversion, original-row preservation, v2 rejection of old writes, rejected unsafe recovery, restart/byte durability and account-scoped cleanup.
 
@@ -330,7 +330,7 @@ The complete `npm test` gate exited 0. The final source was additionally checked
 - Scoped zero-any gate: PASS through `npm test`.
 - Repository lint (`npm run lint`, Oxlint type-aware rules): 0 errors; 1478 warnings versus 1484 on clean main. Comparing per-file/rule/message after removing line/column differences found zero new warnings (6 removed).
 - Supplemental ESLint 10.12.0: 0 errors / 0 warnings on `src/`, using an isolated TypeScript parser and the rules `no-dupe-keys`, `no-duplicate-case`, `no-unreachable`, `no-unsafe-negation`, `valid-typeof`, `no-loss-of-precision`, `no-self-assign`, `constructor-super`, `no-async-promise-executor`. This is an additional structural audit; the repository's configured type-aware lint gate is Oxlint. No dependency/config was added to the project merely for this audit.
-- Complete unit, parser, Domain contract, storage recovery and HTML/Markdown/PDF/JSON export suites: PASS (265 TypeScript unit suite files through the Python runner; the final full Node invocation passed all 2023 checks, 0 skipped). Python harness/architecture checks also passed.
+- Complete unit, parser, Domain contract, storage recovery and HTML/Markdown/PDF/JSON export suites: PASS (265 TypeScript unit suite files through the Python runner; the final full Node invocation passed all 2024 checks, 0 skipped). Python harness/architecture checks also passed.
 - Production build: PASS (6 bundles, 0 production build warnings).
 - Complete Playwright suite: PASS (95/95, 0 skipped), including actual downloads, rendering/compilation, extension transport and physical IndexedDB recovery.
 - Targeted added recovery/resource/numbering/completeness regressions: PASS.

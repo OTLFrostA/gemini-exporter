@@ -138,8 +138,8 @@ test('popup rejects malformed transport replies without download, releases guard
   await page.addInitScript(() => {
     const replies: unknown[] = [
       { success: 'true', data: { messages: [] } },
-      { success: true, domainEnvelopeVersion: 1, data: {} },
-      { success: true, domainEnvelopeVersion: 1, data: { diagnostics: [], resourceHints: {}, acquisitionHints: {},
+      { success: true, domainEnvelopeVersion: 2, data: {} },
+      { success: true, domainEnvelopeVersion: 2, data: { diagnostics: [], resourceHints: {}, acquisitionHints: {},
         conversation: { providerId: 'gemini', id: 'abcdef0123456789', title: 'Boundary regression',
           updatedAt: 1700000000000, completeness: 'unknown', assets: [], messages: [
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Transport boundary prompt' }] }], timestamp: 1700000000000 },
@@ -188,7 +188,7 @@ for (const format of ['html', 'markdown', 'json']) test(`popup ${format} single-
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{ id: 999, active: true,
             url: 'https://gemini.google.com/app/abcdef0123456789', title: 'Resource boundary - Gemini' }] });
         Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value: (message: { action?: string }, callback: (value: unknown) => void) => callback(message.action === 'fetchChat' ? {
-            success: true, domainEnvelopeVersion: 1, data: { diagnostics: [], acquisitionHints: {}, resourceHints: { image: { archivePath: 'assets/never-delivered.png' } },
+            success: true, domainEnvelopeVersion: 2, data: { diagnostics: [], acquisitionHints: {}, resourceHints: { image: { archivePath: 'assets/never-delivered.png' } },
                 conversation: { providerId: 'gemini', id: 'abcdef0123456789', title: 'Resource boundary', completeness: 'unknown',
                     assets: [{ id: 'image', kind: 'image', name: 'photo.png', sourceUri: 'photo.png' }],
                     messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body survives' }] }, { type: 'image', assetId: 'image' }] }] } },
