@@ -94,7 +94,9 @@ export class ChatGPTProvider implements AIProvider {
     }
 
     private async getAccessToken(): Promise<string> {
-        const res = await this.fetchFn(`${this.origin}/api/auth/session`);
+        const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
+            credentials: 'include',
+        });
         if (!res.ok) throw new Error(`ChatGPT session probe failed: ${res.status}`);
         const session = (await res.json()) as ChatGPTApiSession;
         if (!session.accessToken) throw new Error('ChatGPT session has no accessToken (logged out?)');
@@ -104,6 +106,7 @@ export class ChatGPTProvider implements AIProvider {
     private async authedGet<T>(path: string): Promise<T> {
         const token = await this.getAccessToken();
         const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
+            credentials: 'include',
             headers: {
                 Authorization: `Bearer ${token}`,
                 'X-Authorization': `Bearer ${token}`,
@@ -115,7 +118,9 @@ export class ChatGPTProvider implements AIProvider {
 
     async checkReadiness(): Promise<ProviderReadiness> {
         try {
-            const res = await this.fetchFn(`${this.origin}/api/auth/session`);
+            const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
+                credentials: 'include',
+            });
             if (!res.ok) return { ready: false, error: `ChatGPT session HTTP ${res.status}` };
             const session = (await res.json()) as ChatGPTApiSession;
             if (!session.accessToken) {

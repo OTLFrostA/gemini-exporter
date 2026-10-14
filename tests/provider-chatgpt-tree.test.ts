@@ -75,10 +75,18 @@ test('system and empty assistant turns are skipped, user turns kept in order', (
 });
 
 test('consecutive assistant turns merge into one node', () => {
+    const a1 = textNode('a1', 'u1', 'assistant', 'part1');
+    const a2 = textNode('a2', 'a1', 'assistant', 'part2');
+    if (a2.message) {
+        a2.message.metadata = {
+            model_slug: 'gpt-6-pro',
+            citations: [{ metadata: { title: 'Cite', url: 'https://ex.com' } }],
+        };
+    }
     const nodes = [
         textNode('u1', 'root', 'user', 'q'),
-        textNode('a1', 'u1', 'assistant', 'part1'),
-        textNode('a2', 'a1', 'assistant', 'part2'),
+        a1,
+        a2,
     ];
     const merged = mergeChatGPTContinuations(nodes);
     assert.equal(merged.length, 2);
@@ -86,6 +94,8 @@ test('consecutive assistant turns merge into one node', () => {
         (merged[1]?.message?.content as { parts: string[] }).parts.join(''),
         'part1part2',
     );
+    assert.equal(merged[1]?.message?.metadata?.model_slug, 'gpt-6-pro');
+    assert.equal(merged[1]?.message?.metadata?.citations?.length, 1);
 });
 
 test('processChatGPTMapping walks from current_node to root', () => {
@@ -94,18 +104,20 @@ test('processChatGPTMapping walks from current_node to root', () => {
         title: 'demo',
         create_time: 1700000000,
         update_time: 1700000600,
-        current_node: 'd',
+        current_node: 'e',
         is_archived: false,
         mapping: {
             root: { id: 'root', children: ['b'] },
             b: textNode('b', 'root', 'user', 'hi'),
             d: textNode('d', 'b', 'assistant', 'hello there'),
+            e: textNode('e', 'd', 'assistant', 'follow up'),
         },
     };
     conversation.mapping.b.children = ['d'];
-    conversation.mapping.d.children = [];
+    conversation.mapping.d.children = ['e'];
+    conversation.mapping.e.children = [];
     const nodes = processChatGPTMapping(conversation);
-    assert.deepEqual(nodes.map((n) => n.id), ['b', 'd']);
+    assert.deepEqual(nodes.map((n) => n.id), ['b', 'd', 'e']);
 });
 
 test('ChatGPTProvider matches only chatgpt hostnames', () => {
@@ -116,14 +128,18 @@ test('ChatGPTProvider matches only chatgpt hostnames', () => {
 });
 
 test('ChatGPTProvider checkReadiness reports logged-out session', async () => {
+    let seenCredentials: RequestCredentials | undefined;
     const provider = new ChatGPTProvider({
-        fetchFn: () =>
-            Promise.resolve(
+        fetchFn: (_url, init) => {
+            seenCredentials = init?.credentials;
+            return Promise.resolve(
                 new Response(JSON.stringify({}), { status: 200 }),
-            ),
+            );
+        },
     });
     const readiness = await provider.checkReadiness();
     assert.equal(readiness.ready, false);
+    assert.equal(seenCredentials, 'include');
 });
 
 test('tool image nodes are kept and their sediment pointers collected', () => {
@@ -181,7 +197,14 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
             id: 'u1', parent: 'root', children: ['t1'],
             message: {
                 author: { role: 'user', metadata: {} },
-                content: { content_type: 'text', parts: ['draw a cat'] },
+                content: {
+                    content_type: 'multimodal_text',
+                    parts: [
+                        'before image',
+                        { content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_cat' },
+                        'after image',
+                    ],
+                },
                 id: 'msg-u1', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
         },
@@ -191,7 +214,7 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
                 author: { role: 'tool', metadata: {} },
                 content: {
                     content_type: 'multimodal_text',
-                    parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_cat' }],
+                    parts: [{ content_type: 'image_asset_pointer', asset_pointer: 'sediment://file_missing' }],
                 },
                 id: 'msg-t1', recipient: 'all', status: 'finished_successfully', weight: 1,
             },
@@ -211,10 +234,13 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
             if (u.endsWith('/api/auth/session')) {
                 return Promise.resolve(new Response(JSON.stringify({ accessToken: 'tok' }), { status: 200 }));
             }
-            if (u.includes('/files/download/')) {
+            if (u.includes('/files/download/file_cat')) {
                 return Promise.resolve(new Response(JSON.stringify({
                     status: 'success', download_url: 'https://dl/img.png', file_name: 'cat.png',
                 }), { status: 200 }));
+            }
+            if (u.includes('/files/download/file_missing')) {
+                return Promise.resolve(new Response(JSON.stringify({ status: 'error' }), { status: 404 }));
             }
             if (u === 'https://dl/img.png') {
                 return Promise.resolve(new Response(pngBytes, {
@@ -231,14 +257,22 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
         },
     });
     const detail = await provider.fetchConversationDetail('conv-img');
-    assert.equal(detail.conversation.assets.length, 1);
+    assert.equal(detail.conversation.assets.length, 2);
     assert.equal(detail.conversation.assets[0]?.kind, 'image');
     assert.equal(detail.conversation.assets[0]?.sourceUri, 'sediment://file_cat');
     assert.equal(detail.conversation.assets[0]?.mediaType, 'image/png');
     assert.ok((detail.conversation.assets[0]?.dataBase64 ?? '').length > 0);
+    // In-place order preserved: text -> image -> text
+    const userMsg = detail.conversation.messages.find((m) => m.id === 'u1');
+    assert.deepEqual(userMsg?.content.map((b) => b.type), ['paragraph', 'image', 'paragraph']);
+    // Failed download preserves placeholder asset + image block + partial completeness + diagnostic
+    assert.equal(detail.conversation.assets[1]?.sourceUri, 'sediment://file_missing');
+    assert.equal(detail.conversation.assets[1]?.dataBase64, undefined);
     const toolMsg = detail.conversation.messages.find((m) => m.id === 't1');
-    assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.assets[0]?.id]);
+    assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.assets[1]?.id]);
     assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
+    assert.equal(detail.conversation.completeness, 'partial');
+    assert.ok(detail.diagnostics.some((d) => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
 });
 
 test('thinking walk attaches hidden reasoning to the following assistant node', () => {

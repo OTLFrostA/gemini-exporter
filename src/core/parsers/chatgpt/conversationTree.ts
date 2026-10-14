@@ -126,6 +126,30 @@ export function mergeChatGPTContinuations(
             const lastIdx = prevMsg.content.parts.length - 1;
             prevMsg.content.parts[lastIdx] += sep + curMsg.content.parts[0];
             prevMsg.content.parts.push(...curMsg.content.parts.slice(1));
+            if (curMsg.metadata) {
+                const prevMeta = (prevMsg.metadata ??= {});
+                if (curMsg.metadata.citations?.length) {
+                    prevMeta.citations = [
+                        ...(prevMeta.citations ?? []),
+                        ...curMsg.metadata.citations,
+                    ];
+                }
+                if (curMsg.metadata.content_references?.length) {
+                    prevMeta.content_references = [
+                        ...(prevMeta.content_references ?? []),
+                        ...curMsg.metadata.content_references,
+                    ];
+                }
+                if (curMsg.metadata.attachments?.length) {
+                    prevMeta.attachments = [
+                        ...(prevMeta.attachments ?? []),
+                        ...curMsg.metadata.attachments,
+                    ];
+                }
+                if (curMsg.metadata.model_slug) {
+                    prevMeta.model_slug = curMsg.metadata.model_slug;
+                }
+            }
         } else {
             result.push(node);
         }
@@ -149,7 +173,10 @@ export function extractChatGPTModelSlug(
     return '';
 }
 
-/** Linearize + merge in one call; throws when the tree has no usable leaf. */
+/**
+ * Linearize current_node -> root without auto-merging adjacent assistant turns
+ * so per-turn structure, citations and model metadata stay intact.
+ */
 export function processChatGPTMapping(
     conversation: ChatGPTApiConversationWithId,
 ): ChatGPTConversationNode[] {
@@ -157,9 +184,7 @@ export function processChatGPTMapping(
         conversation.current_node
         || Object.values(conversation.mapping).find((n) => !n.children || n.children.length === 0)?.id;
     if (!startId) throw new Error('Failed to find start node.');
-    return mergeChatGPTContinuations(
-        extractChatGPTLinearNodes(conversation.mapping, startId),
-    );
+    return extractChatGPTLinearNodes(conversation.mapping, startId);
 }
 
 /** Text of a node for Domain conversion; non-text parts become empty. */
@@ -177,6 +202,62 @@ export function chatGPTNodeText(node: ChatGPTConversationNode): string {
     }
     if (content.content_type === 'reasoning_recap') return content.content ?? '';
     return '';
+}
+
+/** Deterministic asset id derived from the pointer (stable across exports). */
+export function assetIdForPointer(pointer: string): string {
+    return `img-${pointer.replace('sediment://', '').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+}
+
+export type ChatGPTNodeSegment =
+    | { kind: 'text'; text: string }
+    | { kind: 'image'; pointer: string };
+
+/**
+ * Ordered text and image segments of a node so mixed text+image turns
+ * (`multimodal_text` and `execution_output`) preserve their in-place order.
+ */
+export function chatGPTNodeSegments(node: ChatGPTConversationNode): ChatGPTNodeSegment[] {
+    const content = node.message?.content;
+    if (!content) return [];
+    if (content.content_type === 'multimodal_text' && Array.isArray(content.parts)) {
+        const segments: ChatGPTNodeSegment[] = [];
+        let pendingText = '';
+        const flushText = (): void => {
+            if (pendingText.trim()) {
+                segments.push({ kind: 'text', text: pendingText });
+            }
+            pendingText = '';
+        };
+        for (const p of content.parts) {
+            if (typeof p === 'string') {
+                pendingText += p;
+            } else if (p.content_type === 'image_asset_pointer' && p.asset_pointer) {
+                flushText();
+                segments.push({ kind: 'image', pointer: p.asset_pointer });
+            }
+        }
+        flushText();
+        return segments;
+    }
+    if (content.content_type === 'execution_output') {
+        const segments: ChatGPTNodeSegment[] = [];
+        const text = content.text ?? '';
+        if (text.trim()) {
+            segments.push({ kind: 'text', text });
+        }
+        const messages = node.message?.metadata?.aggregate_result?.messages;
+        if (Array.isArray(messages)) {
+            for (const m of messages) {
+                if (m.message_type === 'image' && m.image_url) {
+                    segments.push({ kind: 'image', pointer: m.image_url });
+                }
+            }
+        }
+        return segments;
+    }
+    const text = chatGPTNodeText(node);
+    return text.trim() ? [{ kind: 'text', text }] : [];
 }
 
 /** Role mapping into our neutral Domain vocabulary. */

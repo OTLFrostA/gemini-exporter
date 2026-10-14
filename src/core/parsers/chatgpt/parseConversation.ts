@@ -31,10 +31,10 @@ import {
     uploadedFilesOfChatGPTNode,
 } from './conversationDetail.js';
 import {
+    assetIdForPointer,
     chatGPTNodeRole,
-    chatGPTNodeText,
+    chatGPTNodeSegments,
     extractChatGPTModelSlug,
-    imagePointersOfNode,
     processChatGPTMapping,
 } from './conversationTree.js';
 import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
@@ -112,8 +112,13 @@ function messageOfNode(
     thinking: ChatGPTThinking | undefined,
     ctx: MarkdownParseContext,
 ): DomainMessage {
-    const content: BlockNode[] = parseBody(chatGPTNodeText(node), node.id, ctx);
+    const content: BlockNode[] = [];
     const attachmentIds: string[] = [];
+    const addAttachmentId = (assetId: string): void => {
+        if (!attachmentIds.includes(assetId)) {
+            attachmentIds.push(assetId);
+        }
+    };
     // P0: asset identity is conversation-global (closure rejects duplicates),
     // so repeated pointers reuse the first asset instead of pushing a twin.
     const claim = (assetId: string): boolean => {
@@ -121,22 +126,43 @@ function messageOfNode(
         seenAssetIds.add(assetId);
         return true;
     };
-    for (const image of resolved?.images ?? []) {
-        // Defensive: ignore resolutions that do not belong to this node.
-        if (!imagePointersOfNode(node).includes(image.pointer)) continue;
-        if (claim(image.assetId)) {
-            assets.push({
-                id: image.assetId,
-                kind: 'image',
-                name: image.fileName,
-                mediaType: image.mediaType,
-                byteLength: image.byteLength,
-                sourceUri: image.pointer,
-                dataBase64: image.dataBase64,
-            });
+    for (const seg of chatGPTNodeSegments(node)) {
+        if (seg.kind === 'text') {
+            content.push(...parseBody(seg.text, node.id, ctx));
+            continue;
         }
-        attachmentIds.push(image.assetId);
-        content.push({ type: 'image', assetId: image.assetId });
+        const image = resolved?.images.find((img) => img.pointer === seg.pointer);
+        const assetId = image?.assetId ?? assetIdForPointer(seg.pointer);
+        if (claim(assetId)) {
+            if (image) {
+                assets.push({
+                    id: assetId,
+                    kind: 'image',
+                    name: image.fileName,
+                    mediaType: image.mediaType,
+                    byteLength: image.byteLength,
+                    sourceUri: image.pointer,
+                    dataBase64: image.dataBase64,
+                });
+            } else {
+                // Keep placeholder asset + diagnostic instead of silently dropping the image.
+                assets.push({
+                    id: assetId,
+                    kind: 'image',
+                    sourceUri: seg.pointer,
+                });
+                ctx.diagnostics.push({
+                    id: `image-unavailable:${node.id}:${assetId}`,
+                    severity: 'warning',
+                    code: 'CHATGPT_IMAGE_ASSET_UNAVAILABLE',
+                    message: `Image asset '${seg.pointer}' could not be downloaded; preserved as placeholder`,
+                    sourceRef: ctx.sourceRef,
+                    path: `messages[${node.id}].assets[${assetId}]`,
+                });
+            }
+        }
+        addAttachmentId(assetId);
+        content.push({ type: 'image', assetId });
     }
     for (const file of uploadedFilesOfChatGPTNode(node)) {
         const bytes = resolved?.files.find((f) => f.id === file.id);
@@ -152,7 +178,7 @@ function messageOfNode(
                 ...(bytes?.dataBase64 ? { dataBase64: bytes.dataBase64 } : {}),
             });
         }
-        attachmentIds.push(assetId);
+        addAttachmentId(assetId);
         content.push({ type: 'file', assetId, label: file.name });
     }
     const citations = citationsOfChatGPTNode(node);
@@ -202,10 +228,11 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
             { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
         ),
     );
+    const hasMissingImage = assets.some((a) => a.kind === 'image' && !a.dataBase64);
     return {
         conversation: validateParserDomain({
             providerId: 'chatgpt',
-            completeness: 'complete',
+            completeness: hasMissingImage ? 'partial' : 'complete',
             assets,
             id: conversation.id,
             title: conversation.title || 'ChatGPT Conversation',

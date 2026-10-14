@@ -36,10 +36,9 @@ export function buildFileDownloadPath(fileId: string): string {
     return `/files/download/${encodeURIComponent(fileId)}`;
 }
 
-/** Deterministic asset id derived from the pointer (stable across exports). */
-export function assetIdForPointer(pointer: string): string {
-    return `img-${pointer.replace('sediment://', '').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-}
+import { assetIdForPointer } from '../../parsers/chatgpt/conversationTree.js';
+
+export { assetIdForPointer };
 
 /** Narrow the files/download payload without ever upgrading unknown data. */
 export function parseFileDownloadPayload(value: unknown): ChatGPTParsedDownload | null {
