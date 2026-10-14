@@ -162,7 +162,7 @@ export function init({
                         if (Storage && typeof Storage.updateConversation === 'function') {
                             const index = indexFromDetail(chatObj.conversation);
                             await Storage.updateConversation(slot, nid, { title: index.title, titleSource: index.titleSource,
-                                updatedAt: index.updatedAt, createdAt: index.createdAt, messageCount: index.messageCount });
+                                lastMessageAt: index.lastMessageAt, messageCount: index.messageCount });
                         }
                     } catch (err) {
                         console.warn('[Gemini Exporter] persistDetailIndex error', err);

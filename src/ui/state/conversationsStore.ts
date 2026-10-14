@@ -56,14 +56,9 @@ export function getExportedRecord(id?: string | null): ExportRecord | null {
 export function getSignature(list?: DomainConversationIndex[]): string {
     const l = list || conversations;
     if (!l || !l.length) return 'empty';
-    try {
-        const items = l.map(c => `${c.id}:${(c.title || '').slice(0, 15)}:${c.cloudAvailability || ''}`);
-        if (items.length <= 6) return items.join('|') + '|' + items.length;
-        const titleSum = l.reduce((acc, c) => acc + (c.title ? c.title.charCodeAt(0) : 0), 0);
-        return items.slice(0, 3).join(',') + '|' + items.slice(-3).join(',') + '|len=' + items.length + '|ts=' + titleSum + '|cloud=' + l.filter(c => c.cloudAvailability).map(c => c.id + ':' + c.cloudAvailability).join(',');
-    } catch {
-        return 'err-' + (l.length || 0);
-    }
+    // Every canonical metadata change can affect visible status, dates or selection,
+    // including message activity on an item whose title and position stay unchanged.
+    return JSON.stringify(l);
 }
 
 export async function loadStore(slotOverride?: string): Promise<{

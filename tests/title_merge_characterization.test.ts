@@ -30,7 +30,7 @@ test('index merging preserves independent times, sampled counts, and import hist
         messages: ['legacy body'], turns: ['legacy turn'], lastSeen: 9000, extensionData: true }, 'takeout');
     const result = mergeConversation(old, incoming);
     assert.equal(result.merged.updatedAt, 5000);
-    assert.equal(result.merged.createdAt, 1000);
+    assert.equal(result.merged.createdAt, 2000, 'Takeout message times cannot replace metadata creation');
     assert.equal(result.merged.messageCount, 8);
     assert.equal(result.merged.hasTakeoutImport, true);
     assert.equal(result.isChanged, true, 'import history is a meaningful metadata change');

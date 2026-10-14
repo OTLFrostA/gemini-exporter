@@ -12,6 +12,7 @@ export interface MaskedConversationMirror {
     titleSource?: string;
     createdAt?: number;
     updatedAt?: number;
+    lastMessageAt?: number;
     messageCount?: number;
     isTakeout: boolean;
     exportRecord: {
@@ -147,6 +148,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             titleSource: c?.titleSource,
             createdAt: c.createdAt,
             updatedAt: c?.updatedAt,
+            lastMessageAt: c.lastMessageAt,
             messageCount: c.messageCount,
             isTakeout: isTakeoutConversation(c),
             exportRecord: rec ? {

@@ -1,4 +1,3 @@
-import { toTimestampMs } from '../utils/titleUtils.js';
 import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
 import { deduplicateConversations } from '../utils/mergeUtils.js';
 import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
@@ -157,7 +156,11 @@ export async function migrateConversationIndexes(): Promise<void> {
                     if (parsed) await saveDomainConversation(slot, parsed, [], true);
                 }
                 const body = await getDomainConversationResult(slot, index.id, index.providerId);
-                if (body && (body.conversation.messages.length > 0 || body.conversation.completeness === 'complete')) index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.messages.length);
+                if (body && (body.conversation.messages.length > 0 || body.conversation.completeness === 'complete')) {
+                    index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.messages.length);
+                    const lastMessageAt = indexFromDetail(body.conversation, 'snapshot').lastMessageAt;
+                    if (lastMessageAt !== undefined) index.lastMessageAt = index.lastMessageAt === undefined ? lastMessageAt : Math.max(index.lastMessageAt, lastMessageAt);
+                }
                 list.push(index);
             }
         }
@@ -247,16 +250,17 @@ async function _setConversationsRaw(slot: string | null | undefined, list: reado
 async function setConversations(slot: string | null | undefined, list: readonly DomainConversationIndex[]): Promise<void> {
     await withConversationLock(() => _setConversationsRaw(slot, list));
 }
-/** Explicit native import; the list setter cannot hide a second body write. */
+/** Upsert a partial native import; unrelated indexes and stronger metadata remain intact. */
 async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
     await withConversationLock(async () => {
-        const metadata: DomainConversationIndex[] = [];
+        if (!list.length) return;
+        const metadata = await getConversations(slot);
         for (const parsed of list) {
             const selected = await saveDomainConversation(normSlot(slot), parsed);
             metadata.push(indexFromDetail(selected.conversation, 'snapshot'));
             // Persisting a local native snapshot is not evidence of current cloud availability.
         }
-        await _setConversationsRaw(slot, metadata);
+        await _setConversationsRaw(slot, deduplicateConversations(metadata).processed);
     });
 }
 
@@ -545,11 +549,13 @@ async function finalizeConversationExport<T = ExportRecord>(
                 title: update.title ?? (typeof rec.title === 'string' ? rec.title : undefined),
                 titleSource: update.titleSource ?? 'legacy',
                 messageCount: update.messageCount ?? rec.messageCount,
-                updatedAt: update.updatedAt ?? toTimestampMs(rec.chatTime) }, 'export');
+                updatedAt: update.updatedAt }, 'export');
             await withConversationLock(async () => {
                 const list = await getConversations(slot);
                 const position = list.findIndex(c => c.id === targetId);
-                const merged = mergeConversationIndex(position < 0 ? undefined : list[position], incoming);
+                const merged = mergeConversationIndex(position < 0 ? undefined : list[position], restoreConversationIndex({ ...incoming,
+                    ...(update.updatedAt !== undefined ? { updatedAt: update.updatedAt } : {}),
+                    ...(update.createdAt !== undefined ? { createdAt: update.createdAt } : {}) }));
                 if (position < 0) list.push(merged); else list[position] = merged;
                 await _setConversationsRaw(slot, list);
             });
@@ -849,7 +855,7 @@ async function getConversationWithDetail(slot: string | null | undefined, id: st
     const native = await getDomainConversationResult(normSlot(slot), targetId);
     if (!native) return null;
     return { ...native, conversation: { ...native.conversation, title: rawMeta.title, titleSource: rawMeta.titleSource,
-        updatedAt: rawMeta.updatedAt, createdAt: rawMeta.createdAt, url: rawMeta.url } };
+        url: rawMeta.url } };
 }
 
 export {

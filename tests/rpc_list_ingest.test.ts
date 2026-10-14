@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ingestRpcList } from '../src/content/syncEngine.js';
+import { ingestRpcList, markConfirmedDeleted } from '../src/content/syncEngine.js';
 import { init } from '../src/content/messageBridge.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
@@ -45,12 +45,18 @@ test('RPC lists from the bridge and scanner persist identical titles, time, sour
     assert.equal(state.checkpoints, 0);
 }));
 
-test('RPC ingest receipts reject invalid and confirmed-deleted IDs without claiming they persisted', async () => fixture(async state => {
+test('RPC receipts reject invalid/stale observations and acknowledge fresh authoritative cloud restoration', async () => fixture(async state => {
     state.records.push(indexFixture({ id: 'deleted123456', title: 'Archived', timestamp: 1690000000000, cloudAvailability: 'deleted' }));
     const good = batch()[0];
-    const receipt = await ingestRpcList([good, { ...good, id: 'c_unknown' }, { ...good, id: 'deleted123456' }], 'u2');
-    assert.deepEqual(receipt, { count: 2, accepted: 1, rejected: 2, persisted: 1 });
+    const items = [good, { ...good, id: 'c_unknown' }, { ...good, id: 'deleted123456' }];
+    markConfirmedDeleted('u2', 'deleted123456');
+    const stale = await ingestRpcList(items, 'u2', 0);
+    assert.deepEqual(stale, { count: 2, accepted: 1, rejected: 2, persisted: 1 });
     assert.equal(state.records.find(item => item.id === 'deleted123456')?.title, 'Archived');
+    const fresh = await ingestRpcList(items, 'u2', Date.now() + 1000);
+    assert.deepEqual(fresh, { count: 2, accepted: 2, rejected: 1, persisted: 2 });
+    assert.equal(state.records.find(item => item.id === 'deleted123456')?.cloudAvailability, 'available');
+    assert.equal(state.records.find(item => item.id === 'deleted123456')?.title, 'Server title');
 }));
 
 test('scanner sees storage failures; bridge catches them at its event boundary and a retry commits', async () => fixture(async state => {

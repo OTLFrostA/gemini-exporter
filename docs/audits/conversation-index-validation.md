@@ -11,9 +11,24 @@ and the corresponding backup/report names have been corrected before release.
 The historical evidence directory below retains its original name. The live evidence
 below predates this version correction; Tier 2 has not been rerun for this revision.
 
+## Review corrections
+
+- Native import is a partial upsert under the conversation lock, preserving unrelated
+  indexes and stronger existing metadata. Empty imports cannot erase the list.
+- Authoritative list presence can restore deleted cloud availability. Requests begun
+  before a same-context deletion and cached/body observations cannot restore it;
+  failed storage commits retain the deletion fence.
+- Detail message timestamps establish `lastMessageAt`, independently of list metadata
+  `updatedAt`. Ordering/freshness use the Domain activity selector; exporting does not
+  copy an export baseline into metadata time, and loading detail preserves its own times.
+- Regression coverage includes concurrent imports, fresh/stale/failed cloud recovery,
+  independent timestamp facts and physical IndexedDB reload.
+
+The live evidence below predates these review corrections; Tier 2 has not been rerun.
+
 ## Completed checks
 
-- `npm test` rerun after the storage-version correction: scoped zero-any, strict TypeScript, Python contracts, 267 Node unit suites, production build and 96 Playwright tests passed.
+- `npm test` rerun after the storage-version and review corrections: scoped zero-any, strict TypeScript, Python contracts, 267 Node unit suites, production build and 97 Playwright tests passed.
 - Physical IndexedDB/reload tests verify original index backups, body separation, malformed-row reporting, pure reads, schema rejection and deletion retry.
 - Negative type contracts reject historical aliases, title maps, bodies, nullable activity and identity-changing patches.
 - The final default-pool live run passed real multi-turn creation and activity synchronization, natural passive Coverage, exhaustive/incremental pagination, cloud deletion with local archive retention, Takeout import and 4/4 authoritative title upgrades, continued-chat ordering, generated images and stale-tab image export.

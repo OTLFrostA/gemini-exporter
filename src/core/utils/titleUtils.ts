@@ -1,4 +1,4 @@
-import { compareConversationIndexes } from '../domain/conversationIndex.js';
+import { compareConversationIndexes, indexActivityTime } from '../domain/conversationIndex.js';
 import type { DomainConversationIndex, TitleSource } from '../../types/index.js';
 export type { TitleSource };
 import type { ExportRecord } from '../../types/ui.js';
@@ -204,7 +204,7 @@ export function toTimestampMs(raw: unknown): number | null {
 
 /** Canonical index facts only; historical conversion belongs to acquisition/migration. */
 export function getEffectiveTimestamp(chat?: Partial<DomainConversationIndex> | null): number {
-    return chat?.updatedAt ?? chat?.createdAt ?? 0;
+    return chat ? indexActivityTime(chat) ?? 0 : 0;
 }
 export function compareConversations(a: DomainConversationIndex, b: DomainConversationIndex): number {
     return compareConversationIndexes(a, b);

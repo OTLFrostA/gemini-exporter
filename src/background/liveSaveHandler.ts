@@ -198,7 +198,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     if (mt && mt > turnTsFromMsgs) turnTsFromMsgs = mt;
                 }
             }
-            const effectiveChatTime = turnTsFromMsgs || chat.conversation.updatedAt || convInStore?.updatedAt || null;
+            const effectiveChatTime = Math.max(turnTsFromMsgs, chat.conversation.updatedAt ?? 0, getEffectiveTimestamp(convInStore)) || null;
             const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || 0;
 
             await completeConversationExport(

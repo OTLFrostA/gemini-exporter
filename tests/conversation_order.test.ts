@@ -31,3 +31,12 @@ test('list parsing provides strict indexes and independent source times, with no
     assert.equal(index.cloudAvailability, 'available');
     for (const key of ['timestamp', 'chatTime', 'titles', 'messages', 'lastSeen']) assert.equal(Object.hasOwn(index, key), false);
 });
+
+
+test('message activity advances ordering and export freshness without mutating list metadata time', () => {
+    const list = indexFixture({ id: 'chat', title: 'Research', updatedAt: 100, lastMessageAt: 200 });
+    assert.equal(indexActivityTime(list), 200);
+    assert.equal(indexActivityTime({ ...list, updatedAt: 300 }), 300);
+    assert.equal(indexActivityTime({ ...list, updatedAt: undefined }), 200);
+    assert.equal(mergeConversationIndex(list, { ...list, lastMessageAt: 150 }).lastMessageAt, 200);
+});

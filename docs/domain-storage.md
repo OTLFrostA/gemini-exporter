@@ -91,19 +91,30 @@ own marker and report, stamped only after its transfer completes.
 `DomainConversationIndex` is the exact metadata contract stored in the existing
 `gemini_conversations[_uN]` chrome keys. Body/attachments remain physically separate
 in the v2 Domain repository. List/sidebar/import observations normalize above Domain;
-consumers read one title with explicit authority, `createdAt`/`updatedAt` in epoch
-milliseconds, explicit cloud availability and the independent `hasTakeoutImport` fact.
+consumers read one title with explicit authority, metadata `createdAt`/`updatedAt` in epoch
+milliseconds, a distinct `lastMessageAt` from observed message timestamps, explicit cloud availability and the independent `hasTakeoutImport` fact.
 Unknown titles are empty strings (`default` authority); UI supplies a localized label.
 Missing authored time/count is absent. `messageCount` is the largest observed number
 of individual messages; ambiguous RPC turn counts and old declared counts are omitted.
 Body snapshots can establish an observed count during migration. A title upgrade
 cannot erase Takeout history. Merge preserves strongest title authority, earliest
-creation, latest activity, largest observed count and confirmed cloud deletion.
+creation, latest metadata update, latest observed message time and largest observed count.
+`indexActivityTime` provides the latest metadata/message activity for ordering and export
+freshness without rewriting either underlying fact. Detail/Takeout/snapshot acquisition
+never copies its `updatedAt`/`createdAt` into index metadata times. Export `chatTime`
+is an export baseline and does not establish an index metadata update.
+
+Confirmed cloud deletion survives unknown, unlisted and cached/body observations.
+A successful authoritative RPC list observation may restore `available`. Same-context
+requests begun before deletion remain fenced; the in-memory fence clears only after
+the recovered index commits. Availability is not inferred from receiving a detail body.
 
 Index storage strictly restores detached exact-schema records and rejects malformed
 containers/rows, duplicate provider+ID pairs and extra fields. Reads never repair or
 write. The list setter stores indexes only; `setNativeConversations` explicitly saves
-native detail before its index. Index updates cannot write/truncate a body. Export
+native detail before merging its index under the same conversation lock. Partial and
+concurrent native imports retain unrelated indexes; an empty native import is a no-op.
+Index updates cannot write/truncate a body. Export
 records, settings, account mappings and credentials retain independent APIs.
 
 The index step of the startup v1-to-v2 migration runs under the cross-tab conversation lock, backs up every

@@ -354,3 +354,32 @@ test('v1 to final v2 migration backs up raw disk values, separates body and reje
     expect(restored.rejected).toBe(true);
     expect((restored.corrupted as { timestamp: number }[])[0].timestamp).toBe(123);
 });
+
+
+test('partial native imports retain indexes and distinct metadata/message times through physical reload', async ({ page }) => {
+    await install(page);
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        await chrome.storage.local.set({ gemini_schema_version: 2 });
+        await api.StorageService.setConversations('u0', [
+            api.indexFixture({ id: 'retained', title: 'Untouched index', updatedAt: 50 }),
+            api.indexFixture({ id: 'chat', title: 'RPC metadata', titleSource: 'rpc', updatedAt: 100, cloudAvailability: 'deleted' })
+        ]);
+        const parsed = { conversation: { providerId: 'gemini', id: 'chat', title: 'Weaker body title', titleSource: 'sniff',
+            updatedAt: 999999, completeness: 'complete', assets: [], messages: [{ role: 'user', timestamp: 200,
+                content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body retained on disk' }] }] }] },
+            acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
+        await api.StorageService.setNativeConversations('u0', [parsed]);
+        await api.StorageService.setNativeConversations('u0', []);
+    });
+    await page.reload(); await install(page);
+    const restored = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        return { indexes: await api.StorageService.getConversations('u0'),
+            detail: await api.StorageService.getConversationWithDetail('u0', 'chat') };
+    });
+    expect(restored.indexes.map((row: { id: string }) => row.id)).toEqual(['chat', 'retained']);
+    expect(restored.indexes[0]).toMatchObject({ title: 'RPC metadata', updatedAt: 100, lastMessageAt: 200, cloudAvailability: 'deleted' });
+    expect(restored.detail.conversation.updatedAt).toBe(999999);
+    expect(restored.detail.conversation.messages[0].content[0].children[0].text).toBe('Body retained on disk');
+});

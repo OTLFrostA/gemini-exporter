@@ -1,3 +1,4 @@
+import { indexActivityTime } from '../../core/domain/conversationIndex.js';
 import type { DomainConversationIndex } from '../../types/conversation.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { I18n as I18nStatic } from '../../core/utils/i18n.js';
@@ -215,7 +216,7 @@ export function render(
 
         const displayTitle = escapeHtml(c.title || (t('untitledChat') || 'Untitled conversation'));
         const titleStyle = c.titleSource === 'default' ? 'color:var(--warn); opacity:0.85;' : '';
-        const ts = c.updatedAt ?? c.createdAt;
+        const ts = indexActivityTime(c);
         const dateStr = ts === undefined ? '' : new Date(ts).toLocaleDateString() + ' '
             + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 

@@ -841,7 +841,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 try {
                                     if (listC) await storageService.updateConversation(currentSlot, nid, {
                                         title: listC.title, titleSource: listC.titleSource,
-                                        updatedAt: listC.updatedAt, createdAt: listC.createdAt, messageCount: listC.messageCount,
+                                        updatedAt: listC.updatedAt, createdAt: listC.createdAt, lastMessageAt: listC.lastMessageAt, messageCount: listC.messageCount,
                                     });
                                 } catch (err) {
                                     if (typeof console !== 'undefined' && console.warn) {

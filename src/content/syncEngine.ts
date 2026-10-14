@@ -1,4 +1,4 @@
-import { parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
+import { indexFromDetail, parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
@@ -50,11 +50,11 @@ export function setLanguage(lang: string): void {
     contentContext.setLanguage(lang);
 }
 
-const confirmedDeleted = new Map<string, Set<string>>();
+const confirmedDeleted = new Map<string, Map<string, { at: number }>>();
 /** A still-open deleted page cannot reintroduce its stale sidebar/title observations. */
 export function markConfirmedDeleted(slot: string, id: string): void {
-    const ids = confirmedDeleted.get(slot) ?? new Set<string>();
-    ids.add(normId(id)); confirmedDeleted.set(slot, ids);
+    const ids = confirmedDeleted.get(slot) ?? new Map<string, { at: number }>();
+    ids.set(normId(id), { at: Date.now() }); confirmedDeleted.set(slot, ids);
 }
 
 export function getAccountSlot(): string {
@@ -126,18 +126,15 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const d = native.conversation;
             if (d && d.id) {
                 const nid = normId(d.id);
-                const targetTs = d.updatedAt;
-                if (targetTs !== undefined) {
-                    await upsertConversations([{
-                        id: nid,
-                        title: d.title,
-                        titleSource: d.titleSource,
-                        url: d.url || `https://gemini.google.com/app/${nid}`,
-                        updatedAt: targetTs,
-                        createdAt: d.createdAt,
-                        messageCount: d.messages.length
-                    }], 'active-detail-sync');
-                }
+                const index = indexFromDetail(d);
+                await upsertConversations([{
+                    id: nid,
+                    title: d.title,
+                    titleSource: d.titleSource,
+                    url: d.url || `https://gemini.google.com/app/${nid}`,
+                    lastMessageAt: index.lastMessageAt,
+                    messageCount: d.messages.length
+                }], 'active-detail-sync');
             }
         } catch (err) {
             if (contentContext.isDevMode()) console.debug('[Gemini Exporter] scheduleActiveChatDetailFetch err', err);
@@ -189,9 +186,9 @@ export async function touchActiveConversation(
     const targetSlot = slot || getAccountSlot();
     const activeTitleObj = extractActiveChatTitle(nid);
 
-    // SSOT timestamp authority: timestamp/updatedAt are server-authoritative and
-    // are only ever written from RPC/list/detail data. A touch must NOT stamp the
-    // client clock here: merge is Math.max-monotonic, so a client-ahead clock
+    // SSOT timestamp authority: conversation metadata times are server-authoritative and
+    // are only ever written from conversation metadata. Message times remain lastMessageAt.
+    // A touch must NOT stamp the client clock here: merge is Math.max-monotonic, so a client-ahead clock
     // would permanently poison the record and no later server timestamp could
     // repair it. Touch updates tie order only (sidebarIndex);
     // the next list sync brings the real server timestamp.
@@ -240,9 +237,9 @@ export function upsertConversations(incomingItems: readonly unknown[], source: s
 }
 
 /** Both RPC acquisition paths commit through the same merge and storage transaction. */
-export async function ingestRpcList(items: GeminiProviderConversationItem[], slot: string): Promise<RpcListIngestResult> {
+export async function ingestRpcList(items: GeminiProviderConversationItem[], slot: string, requestedAt = Date.now()): Promise<RpcListIngestResult> {
     await assertSchemaWritable();
-    return persistConversationBatch(items, 'network-list', true, slot);
+    return persistConversationBatch(items, 'network-list', true, slot, requestedAt);
 }
 
 /** Both passive and active pages pass through this trigger-independent boundary. */
@@ -254,16 +251,16 @@ export async function ingestPageObservation(page: PageObservation<GeminiProvider
         && (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
         && (runId === undefined || !contentContext.isAborted());
     if (!canCommit()) throw new Error('Page observation belongs to a stale account or cancelled request');
-    if (page.accountId === null) return ingestRpcList(page.items, slot);
+    if (page.accountId === null) return ingestRpcList(page.items, slot, page.requestedAt);
     const context: ScanCoverage = await Storage.preparePageCoverage(slot, page.accountId, page.providerId);
-    const receipt = await ingestRpcList(page.items, slot);
+    const receipt = await ingestRpcList(page.items, slot, page.requestedAt);
     if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) return receipt;
     if (!await Storage.recordPageCoverage(slot, page, context, page.streamId === 'recent', ['pinned', 'recent'], runId, canCommit)
         && runId !== undefined) throw new Error('Coverage was cleared, cancelled or superseded');
     return receipt;
 }
 
-function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<RpcListIngestResult> {
+function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now()): Promise<RpcListIngestResult> {
     if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
@@ -299,13 +296,17 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
             // could build on the same stale snapshot and the later write would
             // silently discard the earlier tab's updates (lost update).
             let accepted = 0;
+            const recovered = new Map<string, { at: number }>();
             const tx = await Storage.transactConversations(slot, existing => {
                 const map = new Map(existing.map(c => [`${c.providerId}:${c.id}`, c]));
                 let changed = 0;
                 for (const incoming of validIncoming) {
-                    if (confirmedDeleted.get(slot)?.has(incoming.id)) continue;
+                    const deletion = confirmedDeleted.get(slot)?.get(incoming.id);
+                    const authoritativePresence = kind === 'rpc-list' && incoming.cloudAvailability === 'available';
+                    if (deletion && (!authoritativePresence || requestedAt <= deletion.at)) continue;
                     const old = map.get(`${incoming.providerId}:${incoming.id}`);
-                    if (old?.cloudAvailability === 'deleted') continue;
+                    if (old?.cloudAvailability === 'deleted' && !authoritativePresence) continue;
+                    if (deletion && authoritativePresence) recovered.set(incoming.id, deletion);
                     accepted++;
                     const result = mergeConversation(old, incoming);
                     if (result.isChanged) changed++;
@@ -319,6 +320,9 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
                 return { list: merged, changed };
             });
 
+            if (tx.written) for (const [id, deletion] of recovered) {
+                if (confirmedDeleted.get(slot)?.get(id) === deletion) confirmedDeleted.get(slot)?.delete(id);
+            }
             const mergedLength = tx.list.length;
             const result: RpcListIngestResult = { count: mergedLength, accepted,
                 rejected: incomingItems.length - accepted, persisted: tx.written ? accepted : 0 };
