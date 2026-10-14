@@ -121,5 +121,6 @@
   "src/core/parsers/chatgpt/conversationDetail.ts",
   "src/core/parsers/chatgpt/parseConversation.ts",
   "src/core/provider/chatgpt/chatgptProvider.ts",
-  "src/core/provider/chatgpt/imageAssets.ts"
+  "src/core/provider/chatgpt/imageAssets.ts",
+  "src/core/parsers/chatgpt/markdownCompatibility.ts"
 ]
