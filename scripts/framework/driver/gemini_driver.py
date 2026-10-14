@@ -140,7 +140,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         """
         严格校验并锁定 Gemini 模型与思考模式。
         如果 target_model="3.8 Flash"，严格检查菜单中是否存在 3.8 Flash 选项。
-        如果 target_thinking=True，严格检查菜单中是否存在 High (高强度思考) 选项。
+        如果 target_thinking=True，严格检查菜单中是否存在 Medium (中等强度思考) 选项。
         若任一能力在当前账号/界面中不存在，立即主动抛出致命异常中断测试，绝不隐式降级或盲跑。
         """
         cdp = self.cdp
@@ -229,7 +229,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 target_model_label = target_model
 
             has_thinking_opt = any(
-                (it["text"].lower().split(" ", 1)[0] == "high")
+                (it["text"].lower().split(" ", 1)[0] == "medium")
                 for it in menu_info
             )
 
@@ -237,7 +237,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             if not has_target_model_opt:
                 missing.append(f"{target_model_label} 模型选项")
             if target_thinking and not has_thinking_opt:
-                missing.append("High (高强度思考) 选项")
+                missing.append("Medium (中等强度思考) 选项")
 
             if missing:
                 cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
@@ -252,7 +252,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 for it in menu_info
             )
             is_thinking_selected = not target_thinking or any(
-                (it["text"].lower().split(" ", 1)[0] == "high" and it["isSelected"])
+                (it["text"].lower().split(" ", 1)[0] == "medium" and it["isSelected"])
                 for it in menu_info
             )
 
@@ -297,7 +297,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                     const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
                     for (const el of items) {{
                         const t = (el.textContent || '').trim().toLowerCase();
-                        if (/^high(?:\\s|$)/.test(t)) {{
+                        if (/^medium(?:\\s|$)/.test(t)) {{
                             el.click();
                             return;
                         }}
@@ -316,7 +316,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             return btn ? ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')) : '';
         }})()
         """) or ""
-        raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + High！当前状态: '{final_status}'。测试已被主动终止。")
+        raise RuntimeError(f"❌【测试安全门禁拦截】无法将模型切换至 3.8 Flash + Medium！当前状态: '{final_status}'。测试已被主动终止。")
 
     def execute_turn_pipeline(
         self,
@@ -447,7 +447,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
     def prepare_turn_environment(self, is_image: bool = False) -> bool:
         """
         发帖前环境准备：
-        1. 确保模型为 3.8 Flash + High
+        1. 确保模型为 3.8 Flash + Medium
         2. 挂载网络流式完成事件监听器
         """
         self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)

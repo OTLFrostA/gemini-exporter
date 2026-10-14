@@ -87,6 +87,42 @@ The isolated run's logs, snapshots and physical archives are in
 The consumed mechanism and rollback-union-find scenarios were replaced with reservoir
 mass conservation and barycentric interpolation scenarios; the pool validates at 20.
 
+### Follow-up investigation and Medium default
+
+At the user's request, Tier 2 now selects **3.8 Flash + Medium** instead of High.
+The driver verifies the selected menu item after switching and rejects a missing
+Medium option or a selection that does not stick. Fourteen driver unit checks pass,
+and the real Gemini menu was switched and verified without sending another prompt.
+Full `npm test` also passed after this change: 268 unit suites, production build
+and 98/98 Playwright checks, along with zero-any, strict typing and Python gates.
+The 14/3/7 result above was obtained with High; it is not a full Medium rerun or a
+High-versus-Medium latency comparison. Lowering thinking does not fix the completed
+text reply being classified as another image request.
+
+The fast-skip feature checks that already-exported, unchanged conversations are
+excluded quickly and that a mixed batch exports only its unexported target. Its
+setup requires six exported badges, but it has no DAG prerequisites. In the recorded
+run it executed before any export and failed setup at zero badges, so the product's
+skip behavior was not reached.
+
+PDF investigation used the original HTML/PDF case implementations against the same
+five historical/Takeout targets. A recorded replay passed five physical PDFs in
+5.48 seconds (609,025-byte ZIP), with no page errors. Three further uninjected
+HTML-to-PDF sequences also produced PDF archives. The compiler failure did not recur.
+A separate controlled post-export-refresh timing probe reproduced no PDF start and
+no PDF download while the next trigger observed a disabled export button with five
+targets selected. The helper's `if (btn && !btn.disabled) btn.click()` silently skips
+the click but still waits for a ZIP. Download completion can precede export cleanup;
+page readiness and actual task start need explicit evidence. The original failing
+run lacks that click-time snapshot, so this reproducible failure mode remains a
+candidate explanation for that run, not a conclusively attributed root cause. The
+outer export mutex can also outlive the controller's button unlock during list
+refresh; its involvement in the original run was not established.
+
+These diagnostic replays do not generate new chats and do not replace full Tier 2
+acceptance. Logs, click states and physical ZIPs are preserved in
+`/Users/cui/Documents/GeminiExporterTests/conversation-time-alignment-2026-10-14/pdf-trigger-investigation/`.
+
 ### Earlier attempts
 
 The completed timestamp-alignment attempt **before removal of Detail `updatedAt`**
