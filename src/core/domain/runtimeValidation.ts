@@ -1,4 +1,4 @@
-import { normalizeConversationTimes } from './time.js';
+import { normalizeConversationTimes, normalizeTimestamp } from './time.js';
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
 
@@ -13,9 +13,9 @@ const enumeration = (...values: string[]): Check => v => typeof v === 'string' &
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype; }
 const shape = (fields: Record<string, Check>): Check => v => object(v) && Object.keys(v).every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
 const dictionary = (check: Check): Check => v => object(v) && Object.values(v).every(check);
-const generation = shape({ chatId: optional(text), providerRequestId: optional(text), time: optional(nullable(number)), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number), turnId: optional(text) });
+const generation = shape({ chatId: optional(text), providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number), turnId: optional(text) });
 const citation = shape({ id: text, kind: optional(enumeration('web', 'attachment', 'other')), number: optional(number), url: optional(text), title: optional(text) });
-const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), dimensions: optional(shape({ width: optional(number), height: optional(number) })), source: optional(shape({ uri: optional(text) })), dataBase64: optional(text), failureReason: optional(text), origin: optional(text), generated: optional(boolean), generation: optional(generation), document: optional(shape({ id: optional(text), createdAt: optional(nullable(number)), chipUrl: optional(text), sections: optional(array(text)), links: optional(array(shape({ title: text, url: text }))), contentMarkdown: optional(text), candidates: optional(array(text)), hasFabricatedText: optional(boolean) })) });
+const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), dimensions: optional(shape({ width: optional(number), height: optional(number) })), source: optional(shape({ uri: optional(text) })), dataBase64: optional(text), failureReason: optional(text), origin: optional(text), generated: optional(boolean), generation: optional(generation), document: optional(shape({ id: optional(text), createdAt: optional(number), chipUrl: optional(text), sections: optional(array(text)), links: optional(array(shape({ title: text, url: text }))), contentMarkdown: optional(text), candidates: optional(array(text)), hasFabricatedText: optional(boolean) })) });
 
 function inline(v: unknown): boolean {
     if (!object(v)) return false;
@@ -88,17 +88,43 @@ export function validateParserDomain(value: DomainConversationDetail): TrustedDo
     return value as TrustedDomain;
 }
 
+const legacyGeneration = shape({ chatId: optional(text), providerRequestId: optional(text), time: optional(nullable(number)), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number), turnId: optional(text) });
+const legacyDocument = shape({ id: optional(text), createdAt: optional(nullable(number)), chipUrl: optional(text), sections: optional(array(text)), links: optional(array(shape({ title: text, url: text }))), contentMarkdown: optional(text), candidates: optional(array(text)), hasFabricatedText: optional(boolean) });
+const legacyAsset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), dimensions: optional(shape({ width: optional(number), height: optional(number) })), source: optional(shape({ uri: optional(text) })), dataBase64: optional(text), failureReason: optional(text), origin: optional(text), generated: optional(boolean), generation: optional(legacyGeneration), document: optional(legacyDocument) });
+
+function normalizeLegacyAsset(a: unknown): unknown {
+    if (!object(a)) return a;
+    let updated = a;
+    if (object(a.document) && 'createdAt' in a.document) {
+        const createdAt = normalizeTimestamp(a.document.createdAt);
+        const { createdAt: _c, ...docRest } = a.document;
+        updated = { ...updated, document: { ...docRest, ...(createdAt !== undefined ? { createdAt } : {}) } };
+    }
+    if (object(a.generation) && 'time' in a.generation) {
+        const time = normalizeTimestamp(a.generation.time);
+        const { time: _t, ...genRest } = a.generation;
+        updated = { ...updated, generation: { ...genRest, ...(time !== undefined ? { time } : {}) } };
+    }
+    return updated;
+}
+
 /** Disk recovery keeps both pre/post serialization checks and detached snapshots. */
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     // Validate the historical contract before conversion; never hide unrelated corruption.
     serializeDomain(value);
     const legacyTime = optional((v: unknown) => v === null || text(v) || number(v));
-    if (!shape({ ...domainFields, createdAt: legacyTime, updatedAt: legacyTime })(value) || !object(value)) {
+    if (!shape({ ...domainFields, createdAt: legacyTime, updatedAt: legacyTime, assets: array(legacyAsset) })(value) || !object(value)) {
         assertSchema(value);
     }
     if (object(value)) {
         const { createdAt, updatedAt, ...rest } = value;
-        value = { ...rest, ...normalizeConversationTimes({ timestamp: value.timestamp, createdAt, updatedAt }) };
+        if (Array.isArray(rest.assets)) {
+            (rest as Record<string, unknown>).assets = rest.assets.map(normalizeLegacyAsset);
+        }
+        value = {
+            ...rest,
+            ...normalizeConversationTimes({ timestamp: value.timestamp, createdAt, updatedAt }),
+        };
     }
     const json = serializeDomain(value);
     const clone: unknown = json === undefined ? undefined : JSON.parse(json);

@@ -53,7 +53,7 @@ test('all legacy resource paths produce one Domain resource, with document and g
     assert.equal(resources[0].name, 'Report');
     assert.deepEqual(resources[0].source, { uri: document.url });
     assert.deepEqual(resources[0].document, {
-        id: document.id, createdAt: null, chipUrl: document.chipUrl, contentMarkdown: document.contentMarkdown,
+        id: document.id, chipUrl: document.chipUrl, contentMarkdown: document.contentMarkdown,
         sections: document.sections, links: document.links, candidates: document.candidates, hasFabricatedText: false,
     });
     assert.deepEqual(resources[1].generation, generation);

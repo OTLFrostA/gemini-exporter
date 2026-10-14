@@ -1,4 +1,4 @@
-import type { DomainGeneratedMediaIdentity as GeneratedMediaIdentity } from '../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity } from '../../types/conversation.js';
 
 export type GenerationAttachment = {
     type?: string;

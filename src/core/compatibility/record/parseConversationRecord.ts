@@ -1,4 +1,4 @@
-import { normalizeConversationTimes } from '../../domain/time.js';
+import { normalizeConversationTimes, normalizeTimestamp } from '../../domain/time.js';
 import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
 import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
@@ -24,7 +24,9 @@ import type {
 } from '../../domain/conversationDetail.js';
 
 function copyGeneratedMedia(value: GeneratedMediaIdentity): DomainGeneratedMediaIdentity {
-    return { ...value };
+    const time = normalizeTimestamp(value.time);
+    const { time: _t, ...rest } = value;
+    return { ...rest, ...(time !== undefined ? { time } : {}) };
 }
 
 function copyAttachment(value: ConversationRecordAttachment): ConversationRecordAttachment {

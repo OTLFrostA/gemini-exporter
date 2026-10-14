@@ -1,18 +1,19 @@
-import type { DomainAsset, DomainGeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
+import type { DomainAsset } from '../../../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
 import { eventSecond, normalizeChatId } from './generationEvent.js';
 
 export interface ResourceIdentity {
     assetId: string;
     sourceUris: readonly string[];
-    generation?: Partial<DomainGeneratedMediaIdentity>;
+    generation?: Partial<GeneratedMediaIdentity>;
 }
 export function resourceIdentity(asset: DomainAsset): ResourceIdentity {
     return { assetId: asset.id, sourceUris: asset.source?.uri ? [asset.source.uri] : [], generation: asset.generation };
 }
-function requestId(generation?: Partial<DomainGeneratedMediaIdentity>): string {
+function requestId(generation?: Partial<GeneratedMediaIdentity>): string {
     return generation?.providerRequestId?.trim().replace(/^r_/i, '').toLowerCase() ?? '';
 }
-function ordinal(generation?: Partial<DomainGeneratedMediaIdentity>): number | undefined {
+function ordinal(generation?: Partial<GeneratedMediaIdentity>): number | undefined {
     const value = generation?.imageOrdinal ?? (generation?.imageCount === 1 ? 0 : undefined);
     return value !== undefined && Number.isInteger(value) && value >= 0
         && (generation?.imageCount === undefined || value < generation.imageCount) ? value : undefined;
