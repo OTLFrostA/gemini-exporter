@@ -881,5 +881,133 @@ class CoverageTests(unittest.TestCase):
         self.assertEqual(ctx.registry.get_result('dependent').status, TestStatus.SKIP)
 
 
+class SearchSelectionCounterexamples(unittest.TestCase):
+    """搜索/选择弱断言的反证：误匹配、错误 ID、漏选、选中失败必须 FAIL。"""
+
+    def fake_cdp(self, vis_info):
+        cdp = MagicMock()
+        cdp.eval.return_value = vis_info
+        return cdp
+
+    def vis(self, items, total=5):
+        return {
+            'query': '', 'totalCount': total, 'visibleCount': len(items),
+            'firstVisibleId': items[0]['id'] if items else None,
+            'firstVisibleTitle': items[0]['title'] if items else '',
+            'visibleItems': items,
+        }
+
+    def test_keyword_rejects_same_count_mismatch(self):
+        # 同数量但含误匹配项：旧断言只看数量会误通过，新断言必须 FAIL
+        bad = self.vis([
+            {'id': 'aaa', 'title': 'Python 性能优化指南'},
+            {'id': 'bbb', 'title': '量子计算的基本原理'},
+        ])
+        ok, msg, _ = CDPAssertions.assert_search_filter(self.fake_cdp(bad), 'Python', expected_visible_min=1, timeout=0.2)
+        self.assertFalse(ok, f"误匹配必须 FAIL: {msg}")
+        self.assertIn('误匹配', msg)
+        # 逐项均匹配时 PASS
+        good = self.vis([
+            {'id': 'aaa', 'title': 'Python 性能优化指南'},
+            {'id': 'ccc', 'title': 'Python 并发模型'},
+        ])
+        self.assertTrue(CDPAssertions.assert_search_filter(self.fake_cdp(good), 'Python', expected_visible_min=1, timeout=0.2)[0])
+
+    def test_id_search_requires_unique_exact_hit(self):
+        # 错误 ID：标题含查询串但 ID 不一致必须 FAIL（证明 expected_ids 精确比对）
+        wrong = self.vis([{'id': OTHER, 'title': 't ' + CID}], total=5)
+        ok, msg, _ = CDPAssertions.assert_search_filter(
+            self.fake_cdp(wrong), CID, expected_visible_min=1, expected_visible_max=1,
+            expected_ids=[CID], timeout=0.2)
+        self.assertFalse(ok, f"错误 ID 必须 FAIL: {msg}")
+        # 同数量的其他会话（2 项）即使数量在旧区间 [1,2] 内，唯一命中也必须 FAIL
+        two = self.vis([
+            {'id': CID, 'title': 't ' + CID},
+            {'id': OTHER, 'title': 't ' + CID + ' collision'},
+        ], total=5)
+        ok, _, _ = CDPAssertions.assert_search_filter(
+            self.fake_cdp(two), CID, expected_visible_min=1, expected_visible_max=1,
+            expected_ids=[CID], timeout=0.2)
+        self.assertFalse(ok)
+        # 正确唯一命中 PASS（含 c_ 前缀归一化）
+        exact = self.vis([{'id': CID, 'title': 't ' + CID}], total=5)
+        self.assertTrue(CDPAssertions.assert_search_filter(
+            self.fake_cdp(exact), CID, expected_visible_min=1, expected_visible_max=1,
+            expected_ids=[CID], timeout=0.2)[0])
+        prefixed = self.vis([{'id': 'c_' + CID, 'title': 't ' + CID}], total=5)
+        self.assertTrue(CDPAssertions.assert_search_filter(
+            self.fake_cdp(prefixed), CID, expected_visible_min=1, expected_visible_max=1,
+            expected_ids=['c_' + CID], timeout=0.2)[0])
+
+    def _search_id_ctx(self, vis_items, select_ret, is_checked):
+        from scripts.framework.cases.workbench import SearchIdCase
+        cdp = MagicMock()
+
+        def eval_dispatch(script, *a, **k):
+            if 'visibleItems' in str(script) or 'visibleCount' in str(script):
+                return dict(self.vis(vis_items, total=5))
+            if 'input[type=checkbox]:checked' in str(script):
+                return is_checked
+            if "dataset.chatId" in str(script):
+                return CID
+            return None
+        cdp.eval.side_effect = eval_dispatch
+        ctx = MagicMock()
+        ctx.shared_data = {}
+        ctx.connect_options.return_value = cdp
+        return SearchIdCase(), ctx, cdp, select_ret
+
+    def test_search_id_case_requires_select_return_and_checked(self):
+        from scripts.framework.cases.workbench import SearchIdCase  # noqa
+        good_items = [{'id': CID, 'title': 't ' + CID}]
+        # select 返回 False 必须 FAIL
+        case, ctx, _, _ = self._search_id_ctx(good_items, False, True)
+        with patch.object(CDPActions, 'search_workbench', return_value=1), \
+             patch.object(CDPActions, 'select_workbench_item', return_value=False):
+            self.assertFalse(case.execute(ctx)[0])
+        # 返回 True 但复选框未实际选中必须 FAIL
+        case, ctx, _, _ = self._search_id_ctx(good_items, True, False)
+        with patch.object(CDPActions, 'search_workbench', return_value=1), \
+             patch.object(CDPActions, 'select_workbench_item', return_value=True):
+            self.assertFalse(case.execute(ctx)[0])
+        # 错误 ID 可见项必须 FAIL（即使 select 成功）
+        case, ctx, _, _ = self._search_id_ctx([{'id': OTHER, 'title': 't ' + OTHER}], True, True)
+        with patch.object(CDPActions, 'search_workbench', return_value=1), \
+             patch.object(CDPActions, 'select_workbench_item', return_value=True):
+            self.assertFalse(case.execute(ctx)[0])
+        # 正确搜索 + 选中成功 PASS
+        case, ctx, _, _ = self._search_id_ctx(good_items, True, True)
+        with patch.object(CDPActions, 'search_workbench', return_value=1), \
+             patch.object(CDPActions, 'select_workbench_item', return_value=True):
+            self.assertTrue(case.execute(ctx)[0])
+
+    def test_selection_controls_rejects_partial_select(self):
+        from scripts.framework.cases.workbench import SelectionControlsCase  # noqa
+        none_state = {'total': 3, 'enabledTotal': 3, 'checked': 0, 'checkedEnabled': 0, 'checkedIds': [], 'uncheckedIds': ['a', 'b', 'c']}
+        # 全选漏一项：返回 2>0，旧断言会误通过，新断言必须 FAIL
+        partial_all = {'total': 3, 'enabledTotal': 3, 'checked': 2, 'checkedEnabled': 2, 'checkedIds': ['a', 'b'], 'uncheckedIds': ['c']}
+        ctx = MagicMock()
+        ctx.connect_options.return_value = MagicMock()
+        with patch.object(CDPActions, 'clear_search_workbench', return_value=3), \
+             patch.object(CDPActions, 'toggle_select_none', return_value=0), \
+             patch.object(CDPActions, 'toggle_select_all', return_value=2), \
+             patch.object(CDPAssertions, 'assert_selection_state', side_effect=[none_state, partial_all]):
+            self.assertFalse(SelectionControlsCase().execute(ctx)[0])
+        # 全选完整且计数准确 PASS
+        full_all = {'total': 3, 'enabledTotal': 3, 'checked': 3, 'checkedEnabled': 3, 'checkedIds': ['a', 'b', 'c'], 'uncheckedIds': []}
+        with patch.object(CDPActions, 'clear_search_workbench', return_value=3), \
+             patch.object(CDPActions, 'toggle_select_none', return_value=0), \
+             patch.object(CDPActions, 'toggle_select_all', return_value=3), \
+             patch.object(CDPAssertions, 'assert_selection_state', side_effect=[none_state, full_all]):
+            self.assertTrue(SelectionControlsCase().execute(ctx)[0])
+        # 取消全选残留一项必须 FAIL
+        dirty_none = {'total': 3, 'enabledTotal': 3, 'checked': 1, 'checkedEnabled': 1, 'checkedIds': ['a'], 'uncheckedIds': ['b', 'c']}
+        with patch.object(CDPActions, 'clear_search_workbench', return_value=3), \
+             patch.object(CDPActions, 'toggle_select_none', return_value=1), \
+             patch.object(CDPActions, 'toggle_select_all', return_value=3), \
+             patch.object(CDPAssertions, 'assert_selection_state', side_effect=[dirty_none, full_all]):
+            self.assertFalse(SelectionControlsCase().execute(ctx)[0])
+
+
 if __name__ == '__main__':
     unittest.main()
