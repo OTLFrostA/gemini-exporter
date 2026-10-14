@@ -95,7 +95,8 @@ test('Domain adapter preserves generated media identity and export output', asyn
         }] }],
     };
     await assertExportEquivalent(conversation);
-    assert.equal(messageAssets(historicalFixtureDomain(conversation))?.[0].generation?.time, null);
+    assert.equal(messageAssets(historicalFixtureDomain(conversation))?.[0].generation?.time, undefined);
+    assert.equal('time' in (messageAssets(historicalFixtureDomain(conversation))?.[0].generation ?? {}), false);
 });
 
 test('Domain adapter preserves citations, document metadata, reasoning, and structured body semantics', async () => {

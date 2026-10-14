@@ -4,14 +4,14 @@ import { collectDocumentResources } from '../src/core/document/ast/resourceRefer
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ChatMessage, Conversation, GeneratedMediaIdentity } from '../src/types/conversation.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { ChatMessage, Conversation } from '../src/types/conversation.js';
+import type { DomainConversationDetail, DomainGeneratedMediaIdentity } from '../src/core/domain/conversationDetail.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import { supplementLegacyGeneratedMedia } from '../src/core/compatibility/legacyGeneratedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
 const requestId = 'abcd1234abcd1234';
-const generation: GeneratedMediaIdentity = {
+const generation: DomainGeneratedMediaIdentity = {
     chatId: metadata.id, providerRequestId: requestId, time: metadata.timestamp,
     prompt: 'Draw a cat', generationOrdinal: 0, imageCount: 1, imageOrdinal: 0,
 };

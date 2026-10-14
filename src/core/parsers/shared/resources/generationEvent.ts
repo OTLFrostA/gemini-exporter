@@ -1,4 +1,4 @@
-import type { DomainGeneratedMediaIdentity as GeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
 
 /** Takeout activity timestamps have second precision; RPC retains milliseconds. */
 export function eventSecond(value: unknown): number | null {

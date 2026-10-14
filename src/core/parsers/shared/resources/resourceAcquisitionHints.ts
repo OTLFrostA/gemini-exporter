@@ -1,4 +1,4 @@
-import type { DomainGeneratedMediaIdentity as GeneratedMediaIdentity } from '../../../domain/conversationDetail.js';
+import type { GeneratedMediaIdentity } from '../../../../types/conversation.js';
 
 /** Parser-owned transport evidence. Never serialized as Domain or Document AST. */
 export interface ResourceAcquisitionHint {

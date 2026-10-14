@@ -1,7 +1,7 @@
 import { normalizeConversationTimes } from '../../../domain/time.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
-import type { DomainCitation, DomainConversationDetail, DomainGeneratedMediaIdentity, DomainMessage } from '../../../domain/conversationDetail.js';
+import type { DomainCitation, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
@@ -59,7 +59,7 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     });
     const resources = closeDomainResources('gemini', messages, evidence.messages.map(message => {
         // These resources were explicitly extracted from this turn; preserve its original token.
-        const sourceGeneration = <T extends { isGenerated?: boolean; providerRequestId?: string; generation?: DomainGeneratedMediaIdentity }>(asset: T): T =>
+        const sourceGeneration = <T extends { isGenerated?: boolean; providerRequestId?: string; generation?: object }>(asset: T): T =>
             asset.isGenerated && message.rawProviderRequestId ? { ...asset, providerRequestId: message.rawProviderRequestId,
                 ...(asset.generation ? { generation: { ...asset.generation, providerRequestId: message.rawProviderRequestId } } : {}) } : asset;
         return { input: { ...message, images: message.images?.map(sourceGeneration), attachments: message.attachments?.map(sourceGeneration) }, bodyAttachments: structuredBodyAttachments(message) };

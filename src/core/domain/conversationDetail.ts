@@ -27,7 +27,8 @@ export interface DomainAsset {
     generation?: Partial<DomainGeneratedMediaIdentity>;
     document?: {
         id?: string;
-        createdAt?: number | null;
+        /** Unix epoch milliseconds; omit when unknown. */
+        createdAt?: number;
         chipUrl?: string;
         sections?: string[];
         links?: Array<{ title: string; url: string }>;
@@ -40,7 +41,8 @@ export interface DomainAsset {
 export interface DomainGeneratedMediaIdentity {
     chatId: string;
     providerRequestId?: string;
-    time?: number | null;
+    /** Unix epoch milliseconds; omit when unknown. */
+    time?: number;
     prompt?: string;
     generationOrdinal: number;
     imageCount?: number;
