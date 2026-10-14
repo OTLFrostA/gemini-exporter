@@ -220,3 +220,81 @@ test('cancel semantics - rate-limit backoff is abortable (no 30s stall on cancel
     assert.strictEqual(result.failedChats.length, 0, 'cancel during backoff must not be recorded as failure');
     assert.strictEqual(downloadCalls, 0);
 });
+
+test('ZIP delivery makes cancellation during Storage await ineffective; next run can still cancel', async () => {
+    const Storage = require('../src/core/storage/storageService.js');
+    const { SessionStore } = require('../src/core/storage/sessionStore.js');
+    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const previousChrome = Reflect.get(globalThis, 'chrome');
+    const memory: Record<string, unknown> = {};
+    const { expKey } = Storage.getStorageKeys('u0');
+    let releaseWrite = () => {};
+    let startedWrite = () => {};
+    const paused = new Promise<void>(resolve => { startedWrite = resolve; });
+    const release = new Promise<void>(resolve => { releaseWrite = resolve; });
+    let blockFirstWrite = true, downloads = 0, cancellations = 0;
+    Reflect.set(globalThis, 'chrome', {
+        runtime: { sendMessage: (message: { action: string }, callback: () => void) => {
+            if (message.action === 'cancelExport') cancellations++;
+            callback();
+        } },
+        storage: { local: {
+            get: async (keys: string | string[] | null) => structuredClone(Object.fromEntries(Object.entries(memory)
+                .filter(([key]) => keys === null || (Array.isArray(keys) ? keys.includes(key) : keys === key)))),
+            set: async (patch: Record<string, unknown>) => {
+                if (patch[expKey] && blockFirstWrite) {
+                    blockFirstWrite = false;
+                    assert.equal(downloads, 1);
+                    startedWrite();
+                    await release;
+                }
+                Object.assign(memory, structuredClone(patch));
+            },
+            remove: async () => {},
+        } },
+    });
+    setupMockJSZip();
+    __setModuleOverride('StorageService', Storage);
+    const orchestrator = new ExportOrchestrator();
+    const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => ({ success: true,
+        chat: historicalFixture({ id: item.id, messages: [{ role: 'user', content: 'Hello' }] }),
+    }) });
+    const notified: string[] = [];
+    try {
+        const pending = orchestrator.run(baseOptions({ worker, downloadHandler: () => { downloads++; } }), {
+            onItemExported: (id: string) => { notified.push(id); },
+        });
+        await paused;
+        orchestrator.abort();
+        assert.equal(cancellations, 0, 'confirmed delivery must not send backend cancellation');
+        assert.equal((await SessionStore.getSession()).status, 'running');
+        releaseWrite();
+        const result = await pending;
+        assert.equal(result.aborted, false);
+        assert.equal(result.landedChats, 2);
+        assert.equal(result.exportedCount, 2);
+        assert.equal(downloads, 1);
+        assert.deepEqual(Object.keys(await Storage.getExportedIds('u0')).sort(), ['chat-cancel-1', 'chat-cancel-2']);
+        assert.equal(notified.length, 2);
+        assert.equal((await SessionStore.getSession()).status, 'completed');
+        assert.equal(cancellations, 0);
+
+        const before = structuredClone(memory);
+        notified.length = 0;
+        const cancelled = await orchestrator.run(baseOptions({ worker, downloadHandler: () => {
+            downloads++;
+            orchestrator.abort();
+        } }), { onItemExported: (id: string) => { notified.push(id); } });
+        assert.equal(cancelled.aborted, true, 'delivery flag must reset on every run');
+        assert.equal(cancelled.landedChats, 0);
+        assert.deepEqual(memory[expKey], before[expKey], 'cancellation inside download callback cannot commit');
+        assert.deepEqual(notified, []);
+        assert.equal((await SessionStore.getSession()).status, 'aborted');
+        assert.equal(cancellations, 1);
+    } finally {
+        releaseWrite();
+        __clearModuleOverrides();
+        if (previousChrome === undefined) Reflect.deleteProperty(globalThis, 'chrome');
+        else Reflect.set(globalThis, 'chrome', previousChrome);
+    }
+});

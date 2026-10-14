@@ -357,6 +357,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
     class ExportOrchestrator {
         aborted: boolean;
+        private zipDelivered = false;
         _abortController: AbortController | null;
         rateLimiter: ExportRateLimiter;
 
@@ -376,6 +377,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
         }
 
         abort(): void {
+            if (this.zipDelivered) return;
             this.aborted = true;
             try { this._abortController && this._abortController.abort(); } catch (_) { /* intentional */ }
             try {
@@ -410,6 +412,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             }
 
             this.aborted = false;
+            this.zipDelivered = false;
             if (this.rateLimiter && typeof this.rateLimiter.reset === 'function') {
                 this.rateLimiter.reset();
             }
@@ -606,6 +609,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             if (this.aborted || this._abortController?.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
             await options.downloadHandler(blob, zipFileName);
             if (this.aborted || this._abortController?.signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
+            this.zipDelivered = true;
         }
 
         async run(options: ExportOptions, callbacks: ExportCallbacks = {}): Promise<ExportResult> {
@@ -734,7 +738,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
             async function finalizeChatExport(targetId: string) {
                 if (recovery && recovery.finalizeChatExport) {
-                    await recovery.finalizeChatExport(targetId, {
+                    return recovery.finalizeChatExport(targetId, {
                         finalizedChatsSet,
                         chatRecordsMap,
                         chatFailedAssetsSet,
@@ -1195,9 +1199,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             this.aborted = true;
                         }
                         if (!this.aborted && !abortSignal?.aborted) {
-                            landedChats = chatRecordsMap.size;
                             for (const [id, entry] of chatRecordsMap) {
-                                try { await finalizeChatExport(id); }
+                                try { if (await finalizeChatExport(id)) landedChats++; }
                                 catch (error) {
                                     const message = `ExportRecord persistence failed after ZIP delivery: ${getErrorMessage(error)}`;
                                     onLog(`[${id}] ${message}`, 'error');

@@ -1005,7 +1005,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
     for (const format of ['markdown', 'html', 'json']) {
         for (const failure of ['none', 'generate', 'download-throw', 'download-reject', 'missing-handler', 'cancel-generate', 'cancel-download', 'index', 'meta', 'storage', 'item']) {
             const slot = 'u1', { expKey } = Storage.getStorageKeys(slot);
-            const old = { n1: { status: 'ok', exportedAt: new Date(1000).toISOString(), chatTime: 1, title: 'Old export' },
+            const old = { n2: { status: 'ok', exportedAt: new Date(1000).toISOString(), chatTime: 1, title: 'Old export' },
                 history: { status: 'ok', exportedAt: new Date(1000).toISOString(), title: 'Unrelated history' } };
             let injecting = true;
             const memory: Record<string, unknown> = { [expKey]: structuredClone(old) };
@@ -1016,7 +1016,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                 set: async (patch: Record<string, unknown>) => {
                     const records = patch[expKey], before = await Storage.getExportedIds(slot);
                     if (records && typeof records === 'object') {
-                        if (injecting && failure === 'storage' && 'n2' in records) throw new Error('Injected record persistence failure');
+                        if (injecting && failure === 'storage' && JSON.stringify(Reflect.get(records, 'n2')) !== JSON.stringify(old.n2)) throw new Error('Injected record persistence failure');
                         for (const [id, record] of Object.entries(records)) {
                             if (JSON.stringify(record) !== JSON.stringify(before[id])) persisted.push(id);
                         }
@@ -1038,14 +1038,16 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                     } };
                 }
                 async generateAsync() {
-                    assert.deepEqual(await Storage.getExportedIds(slot), old, 'no records at packaging');
-                    assert.equal(notified.length, 0);
+                    if (injecting) {
+                        assert.deepEqual(await Storage.getExportedIds(slot), old, 'no records at packaging');
+                        assert.equal(notified.length, 0);
+                    }
                     if (injecting && failure === 'generate') throw new Error('Injected generation failure');
                     if (injecting && failure === 'cancel-generate') orchestrator.abort();
                     return super.generateAsync();
                 }
             });
-            const selected = ['n1', 'n2', 'n3', 'c_n1', ...(failure === 'item' ? ['broken'] : [])].map(id => ({ id, title: id }));
+            const selected = ['n1', 'n2', 'n3', ...(failure === 'storage' ? [] : ['c_n1']), ...(failure === 'item' ? ['broken'] : [])].map(id => ({ id, title: id }));
             const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => {
                 fetches++;
                 if (item.id === 'broken') return { success: false, error: 'Injected detail failure' };
@@ -1055,7 +1057,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                     messages: [{ role: 'user', content: 'Q' }, { role: 'model', content: 'A' }],
                 }) };
             } });
-            const options = { selected, format, useZip: true, currentSlot: slot, includeAssets: false, includeIndex: true, concurrency: 4,
+            const options = { selected, format, useZip: true, currentSlot: slot, includeAssets: false, includeIndex: true, concurrency: failure === 'storage' ? 1 : 4,
                 conversations: selected.map(item => ({ ...item, timestamp: 1720000000000 })), exportedIds: ui, worker,
                 downloadHandler: failure === 'missing-handler' ? undefined : () => {
                     downloads++;
@@ -1079,7 +1081,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                 } else {
                     const result = await orchestrator.run(options, callbacks);
                     const cancelled = failure.startsWith('cancel');
-                    assert.equal(result.landedChats, cancelled ? 0 : 3, `${format}/${failure}`);
+                    assert.equal(result.landedChats, cancelled ? 0 : failure === 'storage' ? 2 : 3, `${format}/${failure}`);
                     assert.equal(result.exportedCount, result.landedChats);
                     assert.equal(result.aborted, cancelled);
                     assert.equal(result.failedChats.length, failure === 'storage' || failure === 'item' ? 1 : 0);
@@ -1096,7 +1098,16 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                             assert.equal(records[id].status, id === 'n2' ? 'partial' : 'ok');
                             assert.equal(meta.find((item: { id: string }) => item.id === id).status, records[id].status === 'ok' ? 'success' : records[id].status);
                         }
-                        if (failure === 'storage') assert.equal(records.n2, undefined);
+                        if (failure === 'storage') {
+                            assert.deepEqual(records.n2, old.n2);
+                            assert.equal(meta.length, 3, 'delivered ZIP keeps all three distinct conversations');
+                            assert.equal(Object.keys(zips[0].files).filter(path => path.endsWith(format === 'markdown' ? '.md' : format === 'html' ? '.html' : '.json') && !['00_INDEX.md', 'meta.json'].includes(path)).length, 3);
+                            assert.match(result.failedChats[0].error, /persistence failed after ZIP delivery/);
+                            injecting = false;
+                            const retry = await new ExportOrchestrator().run({ ...options, selected: [{ id: 'n2', title: 'n2' }], skip: true, downloadHandler: () => {} });
+                            assert.equal(retry.landedChats, 1);
+                            assert.equal((await Storage.getExportedIds(slot)).n2.status, 'partial');
+                        }
                     }
                 }
                 if (undelivered || failure.startsWith('cancel')) {
@@ -1117,4 +1128,26 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
             }
         }
     }
+});
+
+test('ZIP finalize returning false does not count a newly completed record', async () => {
+    const recovery = require('../src/core/engine/export/sessionRecovery.js').default;
+    const finalize = recovery.finalizeChatExport;
+    const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    setupMockJSZip();
+    const { savedRecords } = setupMockStorage();
+    recovery.finalizeChatExport = async () => false;
+    let notified = 0;
+    try {
+        const result = await new ExportOrchestrator().run({
+            selected: [{ id: 'n1', title: 'n1' }], useZip: true, includeAssets: false,
+            downloadHandler: () => {}, worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true,
+                chat: historicalFixture({ id: 'n1', messages: [{ role: 'user', content: 'Q' }] }),
+            }) }),
+        }, { onItemExported: () => { notified++; } });
+        assert.equal(result.landedChats, 0);
+        assert.equal(result.exportedCount, 0);
+        assert.equal(notified, 0);
+        assert.deepEqual(savedRecords, {});
+    } finally { recovery.finalizeChatExport = finalize; __clearModuleOverrides(); }
 });
