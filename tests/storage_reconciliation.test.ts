@@ -3,7 +3,8 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-// Mock chrome.storage.local
+// Mock chrome.storage.local; restore the global after this file's tests.
+const previousChrome = (global as any).chrome;
 const mockStorage: Record<string, any> = {};
 (global as any).chrome = {
     storage: {
@@ -27,6 +28,8 @@ const mockStorage: Record<string, any> = {};
         }
     }
 };
+
+test.after(() => { (global as any).chrome = previousChrome; });
 
 test.beforeEach(() => {
     for (const k of Object.keys(mockStorage)) {
@@ -65,8 +68,9 @@ test('StorageService.reconcileConversations - prunes absent cloud chats while ke
     await StorageService.setConversations('u0', ([
         { id: 'cca63136d0630930', title: 'Deleted on Cloud', source: 'page-sync', timestamp: 1700000000000 },
         { id: '0214ab4226767bf9', title: 'Active Cloud Chat', source: 'network-list', timestamp: 1700000000000 },
-        { id: 'takeout_offline_1', title: 'Takeout Imported Chat', source: 'takeout', timestamp: 1700000000000 },
-        { id: 'takeout_offline_2', title: 'Takeout Title Source', titleSource: 'takeout', titles: { takeout: 'Takeout Title' }, timestamp: 1700000000000 }
+        { providerId: 'gemini', id: 'takeout_offline_1', title: 'Imported Chat Renamed Online', titleSource: 'rpc', cloudAvailability: 'unknown', hasTakeoutImport: true },
+        { providerId: 'gemini', id: 'takeout_offline_2', title: 'Takeout Title Source', titleSource: 'takeout', cloudAvailability: 'unknown', hasTakeoutImport: true },
+        { providerId: 'gemini', id: 'takeout_title_only', title: 'Takeout-looking Title', titleSource: 'takeout', cloudAvailability: 'unknown', hasTakeoutImport: false }
     ]).map(indexFixture));
 
     const activeCloudList = [
@@ -75,8 +79,8 @@ test('StorageService.reconcileConversations - prunes absent cloud chats while ke
 
     const result = await StorageService.reconcileConversations('u0', activeCloudList, { keepTakeout: true });
 
-    assert.strictEqual(result.removed, 1);
-    assert.deepStrictEqual(result.removedIds, ['cca63136d0630930']);
+    assert.strictEqual(result.removed, 2);
+    assert.deepStrictEqual(result.removedIds, ['cca63136d0630930', 'takeout_title_only']);
     assert.strictEqual(result.kept, 3);
 
     const updatedList = await StorageService.getConversations('u0');
@@ -86,4 +90,16 @@ test('StorageService.reconcileConversations - prunes absent cloud chats while ke
     assert.strictEqual(updatedIds.includes('0214ab4226767bf9'), true);
     assert.strictEqual(updatedIds.includes('takeout_offline_1'), true);
     assert.strictEqual(updatedIds.includes('takeout_offline_2'), true);
+    assert.strictEqual(updatedIds.includes('takeout_title_only'), false);
+    assert.ok(updatedList.find((c: any) => c.id === 'takeout_offline_1')?.hasTakeoutImport);
+});
+
+test('StorageService.reconcileConversations - keepTakeout false removes offline imports', async () => {
+    await StorageService.setConversations('u0', [
+        indexFixture({ providerId: 'gemini', id: 'offline_import', title: 'Offline import', titleSource: 'takeout', cloudAvailability: 'unknown', hasTakeoutImport: true }),
+        indexFixture({ providerId: 'gemini', id: 'cloud_active', title: 'Cloud chat', titleSource: 'rpc', cloudAvailability: 'available', hasTakeoutImport: false }),
+    ]);
+    const result = await StorageService.reconcileConversations('u0', [{ id: 'cloud_active' }], { keepTakeout: false });
+    assert.deepStrictEqual(result, { kept: 1, removed: 1, removedIds: ['offline_import'] });
+    assert.deepStrictEqual((await StorageService.getConversations('u0')).map((c: any) => c.id), ['cloud_active']);
 });

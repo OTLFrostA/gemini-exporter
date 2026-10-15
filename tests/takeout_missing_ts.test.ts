@@ -1,28 +1,9 @@
 import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as TakeoutEngine from '../src/core/engine/takeoutEngine.js';
+import { mergeConversation } from '../src/core/utils/mergeUtils.js';
 
-// Regression tests (audit M1): a Takeout record with no parsable timestamp
-// must keep `timestamp: null` ("missing stays missing", P1-085/P1-067
-// precedent) instead of a fabricated Date.now(). A fabricated "now" is client
-// time injected into a server-authoritative field: it wins max-arbitration in
-// mergeConversation and permanently pollutes the record, since later real
-// server timestamps can never "un-win" it.
-//
-// Session-level only: message-level turn timestamp fallbacks are untouched.
-
-const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
-const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
-
-function buildZip(html: string) {
-    (global as any).JSZip = require('../lib/jszip.min.js');
-    const zip = new (global as any).JSZip();
-    zip.file('Takeout/Gemini/MyActivity.html', html);
-    return zip.generateAsync({ type: 'nodebuffer' });
-}
-
-// A takeout block with NO timestamp text anywhere (no en/zh/iso date match).
 const htmlNoTimestamp = `
 <html><body>
   <div class="outer-cell">
@@ -33,65 +14,36 @@ const htmlNoTimestamp = `
 </body></html>
 `;
 
-test('takeout_missing_ts - parser leaves timestamp null when the block has no timestamp', async () => {
+test('untimed Takeout ZIP yields no activity version and cannot replace server time', async () => {
+    const previousJSZip = (global as any).JSZip;
+    (global as any).JSZip = require('../lib/jszip.min.js');
     TakeoutEngine.clearTakeoutData();
-    const buf = await buildZip(htmlNoTimestamp);
-    const result = await TakeoutEngine.parseTakeoutZip(buf);
+    try {
+        const zip = new (global as any).JSZip();
+        zip.file('Takeout/Gemini/MyActivity.html', htmlNoTimestamp);
+        const parsed = await TakeoutEngine.parseTakeoutZip(await zip.generateAsync({ type: 'nodebuffer' }));
+        assert.equal(parsed.conversations.length, 1);
+        const takeout = parsed.conversations[0];
 
-    assert.strictEqual(result.conversations.length, 1);
-    const conv = result.conversations[0];
-    // Old behavior: `timestamp: ts || Date.now()` fabricated "now" here.
-    assert.strictEqual(conv.updatedAt, undefined, 'missing timestamp must stay null, never Date.now()');
-});
+        // Physical Domain schema omits unknown times; it does not store null or Date.now().
+        assert.equal(Object.hasOwn(takeout, 'updatedAt'), false);
+        assert.equal(takeout.hasTakeoutImport, true);
 
-test('takeout_missing_ts - merge with a null-timestamp takeout record keeps the old timestamp', () => {
-    const oldTs = 1700000000000; // fixed server timestamp, must survive
-    const old = {
-        id: 'NoTimestamp_4242',
-        title: 'old title',
-        titleSource: 'rpc',
-        titles: { rpc: 'old title' },
-        timestamp: oldTs,
-        updatedAt: oldTs,
-        messageCount: 3,
-    };
-    const incoming = {
-        id: 'NoTimestamp_4242',
-        title: '什么是光合作用？',
-        titleSource: 'takeout',
-        titles: { takeout: '什么是光合作用？' },
-        timestamp: null, // what the parser now produces for missing ts
-        messageCount: 1,
-    };
+        const oldServer = indexFixture({
+            id: takeout.id, title: 'Server title', titleSource: 'rpc', updatedAt: 1700000000000
+        });
+        const mergedServer = mergeConversation(oldServer, takeout).merged;
+        assert.equal(mergedServer.updatedAt, 1700000000000);
+        assert.equal(mergedServer.hasTakeoutImport, true);
+        assert.equal(oldServer.updatedAt, 1700000000000);
 
-    const { merged } = mergeConversation(indexFixture(old), indexFixture(incoming), {});
-    assert.strictEqual(merged.updatedAt, oldTs, 'merge must keep old server timestamp, not null');
-});
-
-test('takeout_missing_ts - merge with no timestamps anywhere stays null, not Date.now()', () => {
-    const old = {
-        id: 'NoTimestamp_4242',
-        title: 'old title',
-        titleSource: 'rpc',
-        titles: { rpc: 'old title' },
-        timestamp: null,
-        messageCount: 1,
-    };
-    const incoming = {
-        id: 'NoTimestamp_4242',
-        title: '什么是光合作用？',
-        titleSource: 'takeout',
-        titles: { takeout: '什么是光合作用？' },
-        timestamp: null,
-        messageCount: 1,
-    };
-
-    const before = Date.now();
-    const { merged } = mergeConversation(indexFixture(old), indexFixture(incoming), {});
-    const after = Date.now();
-    assert.strictEqual(merged.updatedAt, undefined, 'no server time anywhere -> null, never fabricated now');
-    assert.ok(
-        !(typeof merged.timestamp === 'number' && merged.timestamp >= before && merged.timestamp <= after),
-        'merged timestamp must not be a fabricated Date.now()'
-    );
+        const oldUntimed = indexFixture({ id: takeout.id, title: 'Untimed server title', titleSource: 'rpc' });
+        const mergedUntimed = mergeConversation(oldUntimed, takeout).merged;
+        assert.equal(Object.hasOwn(mergedUntimed, 'updatedAt'), false);
+        assert.equal(mergedUntimed.hasTakeoutImport, true);
+    } finally {
+        TakeoutEngine.clearTakeoutData();
+        if (previousJSZip === undefined) delete (global as any).JSZip;
+        else (global as any).JSZip = previousJSZip;
+    }
 });
