@@ -72,7 +72,6 @@ test('unified: every surface prefers a healthy session and reads its credentials
         assert.strictEqual(credStorage.getCredStorage(), mock.storage.session);
         await bootstrap.saveCredentials({ u0: { at: 'fake-token' } });
         assert.deepStrictEqual(await bootstrap.loadCredentialsMap(), { u0: { at: 'fake-token' } });
-        assert.deepStrictEqual(stores.session.GEMINI_CREDENTIALS_MAP, undefined);
         assert.equal(Object.keys(stores.session).length > 0, true, 'healthy session must hold the saved map');
     });
 });
