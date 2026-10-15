@@ -38,7 +38,7 @@ test('export alias migration cannot overwrite a concurrent runtime export record
             new: { status: 'partial', exportedAt: 1700000001000 }
         };
         assert.deepStrictEqual(store.exportedIds, expected, 'migration must not erase the runtime write or old metadata');
-        assert.deepStrictEqual(store.gemini_exported_u0, expected, 'canonical slot alias must stay synchronized');
+        assert.strictEqual(store.gemini_exported_u0, undefined, 'retired u0 alias must not be written back');
         assert.deepStrictEqual(saved, expected, 'save must return the merged records, not a stale snapshot');
     } finally {
         release();
