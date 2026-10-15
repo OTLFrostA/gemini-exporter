@@ -93,7 +93,7 @@ test('environment - gracefully falls back to true in non-extension environments'
         (global as any).chrome = originalChrome;
     }
 });
- 
+
 test('environment - a failed manifest read does not claim an unpacked developer install', () => {
     const previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
