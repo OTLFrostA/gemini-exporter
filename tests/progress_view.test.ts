@@ -76,3 +76,40 @@ test('ProgressView - updates DOM styles, text content and bounds clamping', () =
         (globalThis as any).document = oldDoc;
     }
 });
+
+test('ProgressView - new progress cancels delayed hide and a later hide resets the visible UI', (t: any) => {
+    const priorDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const wrap = { style: { display: 'none' } };
+    const bar = { style: { width: '0%' } };
+    const label = { textContent: '' };
+    const elements: Record<string, unknown> = { progWrap: wrap, bar, progText: label };
+    Object.defineProperty(globalThis, 'document', {
+        configurable: true,
+        value: { getElementById: (id: string) => elements[id] ?? null }
+    });
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+
+    try {
+        ProgressView.show(10, 'Preparing');
+        ProgressView.hide(500);
+        t.mock.timers.tick(200);
+        ProgressView.update(55, 'Still exporting');
+        t.mock.timers.tick(500);
+        assert.strictEqual(wrap.style.display, 'block', 'stale hide must not erase new progress');
+        assert.strictEqual(bar.style.width, '55%');
+        assert.strictEqual(label.textContent, 'Still exporting');
+
+        ProgressView.hide(500);
+        t.mock.timers.tick(499);
+        assert.strictEqual(wrap.style.display, 'block', 'active hide must respect its delay');
+        t.mock.timers.tick(1);
+        assert.strictEqual(wrap.style.display, 'none');
+        assert.strictEqual(bar.style.width, '0%');
+        assert.strictEqual(label.textContent, '');
+    } finally {
+        ProgressView.reset();
+        t.mock.timers.reset();
+        if (priorDocument) Object.defineProperty(globalThis, 'document', priorDocument);
+        else Reflect.deleteProperty(globalThis, 'document');
+    }
+});
