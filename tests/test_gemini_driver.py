@@ -68,6 +68,21 @@ class TestGeminiDriverSuite(unittest.TestCase):
         with patch("scripts.framework.driver.gemini_driver.time.sleep"):
             self.assertTrue(GeminiDriver(cdp).ensure_model(force_menu_check=True))
 
+    def test_model_gate_reports_google_verification_instead_of_missing_model(self):
+        cdp = MockCDP()
+        cdp.eval_responses = [{'blocked': True}]
+        with self.assertRaisesRegex(RuntimeError, 'Google 人机验证拦截'):
+            GeminiDriver(cdp).ensure_model()
+        self.assertFalse(any(kind == 'call' for kind, *_ in cdp.calls))
+
+    def test_model_gate_waits_for_delayed_menu_before_verifying_selection(self):
+        cdp = self.check_model_menu([self.model_menu(level="Medium")])
+        cdp.eval_responses[3:3] = [None, None]
+        with patch("scripts.framework.driver.gemini_driver.time.sleep"):
+            self.assertTrue(GeminiDriver(cdp).ensure_model())
+        clicks = [script for kind, script, *rest in cdp.calls if kind == 'eval' and 'btn.click()' in script]
+        self.assertEqual(len(clicks), 1)
+
     def test_model_gate_switches_low_and_high_and_rechecks_selection(self):
         for level in ["Low", "High"]:
             with self.subTest(level=level):

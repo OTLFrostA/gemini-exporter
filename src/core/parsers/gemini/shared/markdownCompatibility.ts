@@ -12,6 +12,8 @@
  *   - Narrow deterministic transformation.
  */
 
+import { inlineMathMarkdown } from '../../../utils/markdownMath.js';
+
 export interface CompatRuleMetadata {
     /** Unique rule identifier, e.g. 'GM-MD-001' or 'GM-TEX-001' */
     readonly id: string;
@@ -207,9 +209,72 @@ export const GM_MD_002_TABLE_MATH_PIPES: MarkdownCompatRule = Object.freeze({
     transform: normalizeTableMathPipes,
 });
 
+/** Gemini treats a backslash-dollar inside a formula as source, unlike micromark. */
+export function normalizeEscapedDollarMath(source: string): string {
+    if (!/\\\$/.test(source)) return source;
+    const protectedRanges = new Map<number, number>();
+    let offset = 0, fence = '', displayMath = false;
+    for (const line of source.split(/(?<=\n)/)) {
+        const marker = /^ {0,3}(?:> ?)*(`{3,}|~{3,})/.exec(line)?.[1];
+        const display = /^ {0,3}(?:> ?)*\$\$[ \t]*(?:\r?\n)?$/.test(line);
+        if (fence || marker || displayMath || display || /^(?: {4}|\t)/.test(line)) {
+            protectedRanges.set(offset, offset + line.length);
+        }
+        if (marker) {
+            if (!fence) fence = marker;
+            else if (marker[0] === fence[0] && marker.length >= fence.length) fence = '';
+        }
+        if (!fence && display) displayMath = !displayMath;
+        offset += line.length;
+    }
+    let result = '';
+    for (let i = 0; i < source.length;) {
+        const protectedEnd = protectedRanges.get(i);
+        if (protectedEnd !== undefined) { result += source.slice(i, protectedEnd); i = protectedEnd; continue; }
+        if (source[i] === '`') {
+            const run = /^`+/.exec(source.slice(i))![0];
+            let end = i + run.length;
+            while ((end = source.indexOf(run, end)) >= 0) {
+                if (source[end - 1] !== '`' && source[end + run.length] !== '`') break;
+                end += run.length;
+            }
+            if (end >= 0) { result += source.slice(i, end + run.length); i = end + run.length; continue; }
+        }
+        if (source[i] === '$' && source[i + 1] === '$') {
+            const run = /^\$+/.exec(source.slice(i))![0];
+            const end = source.indexOf(run, i + run.length);
+            if (end >= 0) { result += source.slice(i, end + run.length); i = end + run.length; continue; }
+        }
+        if (source[i] !== '$' || source[i - 1] === '\\' || source[i - 1] === '$' || source[i + 1] === '$') {
+            result += source[i++]; continue;
+        }
+        let end = i + 1, escapedDollar = false;
+        while (end < source.length && source[end] !== '\n' && !protectedRanges.has(end)) {
+            if (source[end] === '\\') {
+                while (source[end] === '\\') end++;
+                if (source[end] === '$') { escapedDollar = true; end++; }
+            } else if (source[end] === '$') break;
+            else end++;
+        }
+        if (escapedDollar && source[end] === '$' && source[end + 1] !== '$') {
+            result += inlineMathMarkdown(source.slice(i + 1, end)); i = end + 1;
+        } else result += source[i++];
+    }
+    return result;
+}
+
+export const GM_MD_003_ESCAPED_DOLLAR_MATH: MarkdownCompatRule = Object.freeze({
+    id: 'GM-MD-003', domain: 'markdown',
+    evidence: 'tests/fixtures/provider/math/gm_md_003_evidence.md',
+    observedAt: '2026-10-15T19:07:00Z',
+    description: 'Live arithmetic-coding answer renders escaped dollar symbols inside three inline formulas. Use longer padded math delimiters without changing their TeX source; exclude code and existing display math.',
+    transform: normalizeEscapedDollarMath,
+});
+
 export const GEMINI_MARKDOWN_COMPAT_RULES: readonly MarkdownCompatRule[] = Object.freeze([
     GM_MD_001_FENCE_NORMALIZATION,
     GM_MD_002_TABLE_MATH_PIPES,
+    GM_MD_003_ESCAPED_DOLLAR_MATH,
 ]);
 
 /**

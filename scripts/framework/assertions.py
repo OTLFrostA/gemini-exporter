@@ -86,8 +86,8 @@ def assert_turn_content(text: str, evidence: List[Dict[str, Any]]) -> Tuple[bool
         user, model = messages[2 * idx:2 * idx + 2]
         if (user['role'], model['role']) != ('user', 'model'):
             return False, f"第 {idx + 1} 轮角色次序错误"
-        prompt = normalized_text(turn.get('prompt', ''))
-        if not prompt or prompt not in normalized_text(user['content']):
+        prompt = normalized_answer(turn.get('prompt', ''))
+        if not prompt or prompt not in normalized_answer(user['content'], markdown=True, visible_reference=turn.get('prompt', '')):
             return False, f"第 {idx + 1} 轮真实用户 Prompt 缺失"
         response = normalized_answer(turn.get('response', ''))
         actual = normalized_answer(model['content'], markdown=True, visible_reference=turn.get('response', ''))

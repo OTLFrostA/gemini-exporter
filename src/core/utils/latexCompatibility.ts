@@ -19,12 +19,28 @@ export const MATHSCR_COMPAT_RULE: LatexCompatRule = Object.freeze({
     transform: (source: string) => source.replace(/\\mathscr(?![a-zA-Z])/g, '\\mathcal'),
 });
 
+/** Escape literal underscores only in flat TeX text arguments, never math subscripts. */
+export function normalizeTextUnderscores(source: string): string {
+    return source.replace(/(\\+)text\{([^{}]*)\}/g, (match, slashes: string, body: string) =>
+        slashes.length % 2 === 0 ? match : slashes + 'text{' + body.replace(/(\\*)_/g,
+            (token, escapes: string) => escapes.length % 2 ? token : escapes + '\\_') + '}');
+}
+
+export const TEXT_UNDERSCORE_COMPAT_RULE: LatexCompatRule = Object.freeze({
+    id: 'GM-TEX-002', domain: 'tex',
+    evidence: 'tests/fixtures/provider/math/gm_tex_002_evidence.tex',
+    observedAt: '2026-10-15T19:58:00Z',
+    description: 'Live arithmetic-coding RPC emits \\text{run_length}, while Gemini displays \\text{run\\_length}. Escape bare underscores in flat text arguments so KaTeX renders the same literal identifier instead of failing.',
+    transform: normalizeTextUnderscores,
+});
+
 /**
  * Active LaTeX compatibility rules.
  * Admitted per Section 4 & 31 admission policy with physical evidence fixture.
  */
 export const LATEX_COMPAT_RULES: readonly LatexCompatRule[] = Object.freeze([
     MATHSCR_COMPAT_RULE,
+    TEXT_UNDERSCORE_COMPAT_RULE,
 ]);
 
 export function preprocessLatex(source: string): string {

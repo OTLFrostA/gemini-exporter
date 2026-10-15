@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 import sys
@@ -41,7 +42,8 @@ EVIDENCE = [{'prompt': 'Explain **pressure** and mass_balance.', 'response': REP
 def document(evidence=EVIDENCE, cid=CID):
     body = f'---\nid: "{cid}"\n---\n# Conversation\n'
     for t in evidence:
-        body += f"\n## 👤 You\n\n{t['prompt']}\n\n## 🤖 Assistant\n\n{t['response']}\n"
+        prompt = re.sub(r'([\\`*_\[\]#~$])', r'\\\1', t['prompt'])
+        body += f"\n## 👤 You\n\n{prompt}\n\n## 🤖 Assistant\n\n{t['response']}\n"
     return body
 
 
@@ -247,6 +249,14 @@ class DiskContentTests(unittest.TestCase):
         evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
         text = document().replace(REPLY, '```markdown\n## 👤 You\n```\n' + REPLY)
         self.assertTrue(assert_turn_content(text, evidence)[0])
+
+    def test_user_prompt_punctuation_and_escapes_are_required(self):
+        evidence = [{'prompt': r'Use f(\$)=1 and **literal** text.', 'response': REPLY}]
+        exported = document(evidence)
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace(r'\\\$', r'\$'), exported.replace('=1', '+1'),
+                        exported.replace(r'\*\*literal\*\*', 'literal')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
 
     def test_hidden_thinking_content_is_excluded_from_authored_body(self):
         authored_response = '系统在受扰动后将沿极限环收敛，其李雅普诺夫指数满足严格负定。'
@@ -708,18 +718,25 @@ class ScanAndImportTests(unittest.TestCase):
     def test_takeout_empty_import_and_missing_resources_fail_idempotent_passes(self):
         media = {'image.png': hashlib.sha256(b'image bytes').hexdigest()}
         record = {'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                  'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
-                      {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]},
+                  'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
+                      {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}},
                   'resources': [{'sourcePath': 'Takeout/image.png', 'bytes': base64.b64encode(b'image bytes').decode()}]}
         self.assertTrue(validate_takeout_records([CID], media, [record])[0])
         self.assertFalse(validate_takeout_records([CID], media, [])[0])
+        for section, field, value in [('index', 'id', OTHER), ('index', 'providerId', 'chatgpt')]:
+            broken = copy.deepcopy(record)
+            broken['domain'][section][field] = value
+            self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
+        broken = copy.deepcopy(record)
+        broken['domain'] = {**record['domain']['index'], **record['domain']['detail']}
+        self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
         for key in ('messages', 'resources', 'summary'):
             broken = copy.deepcopy(record)
-            if key == 'messages': broken['domain']['messages'] = []
+            if key == 'messages': broken['domain']['detail']['messages'] = []
             else: broken[key] = [] if key == 'resources' else {}
             self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
         broken = copy.deepcopy(record)
-        broken['domain']['messages'][0]['content'] = [{'type': 'paragraph', 'children': []}]
+        broken['domain']['detail']['messages'][0]['content'] = [{'type': 'paragraph', 'children': []}]
         self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
 
     def test_takeout_case_accepts_real_readable_reimport_with_zero_added(self):
@@ -732,8 +749,8 @@ class ScanAndImportTests(unittest.TestCase):
             ctx.shared_data = {}
             cdp = ctx.connect_options.return_value
             cdp.eval.return_value = [{'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
-                    {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}, 'resources': []}]
+                'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
+                    {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}}, 'resources': []}]
             result = {'success': True, 'importedIds': [CID], 'status': 'ok', 'addedCount': 0}
             with patch.object(CDPActions, 'import_takeout_zip', return_value=result):
                 self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
@@ -742,13 +759,13 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_empty_image_reply_requires_source_recorded_generation(self):
         record = {'id': CID, 'ok': True, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
-                  'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
+                  'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
                       {'role': 'user', 'content': [{'text': 'Draw'}]},
-                      {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]},
+                      {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}},
                   'resources': []}
         self.assertFalse(validate_takeout_records([CID], {}, [record])[0])
         self.assertTrue(validate_takeout_records([CID], {}, [record], {CID})[0])
-        record['domain']['messages'][1]['generation']['outputCount'] = 0
+        record['domain']['detail']['messages'][1]['generation']['outputCount'] = 0
         self.assertFalse(validate_takeout_records([CID], {}, [record], {CID})[0])
 
     def test_takeout_resource_count_cannot_replace_readable_bytes(self):
@@ -760,9 +777,9 @@ class ScanAndImportTests(unittest.TestCase):
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
             ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True,
-                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
+                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
                     {'role': 'user', 'content': [{'text': 'Draw'}]},
-                    {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}, 'resources': []}]
+                    {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}}, 'resources': []}]
             res = {'success': True, 'importedIds': [CID], 'status': 'ok', 'totalMediaCount': 1}
             with patch.object(CDPActions, 'import_takeout_zip', return_value=res):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])

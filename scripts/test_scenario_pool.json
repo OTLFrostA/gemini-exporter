@@ -1,44 +1,5 @@
 [
   {
-    "id": "optics_fermat_refraction_stationary_path",
-    "title": "Fermat paths: refraction geometry and stationary travel time",
-    "domain": "geometrical_optics_variational_paths",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational image of a light ray crossing a straight boundary between two transparent media. Show the normal, incident and refracted angles and two fixed endpoints. Use an idealized schematic and distinguish ray geometry from a wavefront illustration.",
-      "Derive Snell's law from stationary travel time for two positive refractive indices and fixed endpoints on opposite sides of a planar interface. Use LaTeX, state the angle convention and explain the limits of the geometric-optics model.",
-      "Write complete runnable standard-library Python finding the crossing point by a bracketed scalar solve. Include endpoint validation, equal-index straight-line checks, mirrored-geometry symmetry and a separate finite-difference derivative check with explicit tolerances.",
-      "Use a Markdown table comparing several fictional index pairs and endpoint geometries. Report crossing point, angles, travel time and the Snell residual with consistent units. Explain why this opposite-side transmission problem does not exhibit total internal reflection.",
-      "Write a detailed verification report connecting the illustration, variational derivation and numerical checks. Discuss uniqueness for this geometry, discretization error, phase versus group index, dispersion, interface assumptions and what would change for multiple layers. Include a Chinese-English terminology table."
-    ]
-  },
-  {
-    "id": "information_theory_exact_arithmetic_coding",
-    "title": "Arithmetic coding: exact intervals and reproducible decoding",
-    "domain": "information_theory_lossless_coding",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define arithmetic coding for a finite alphabet with fixed positive integer frequencies. Derive the nested half-open interval update in LaTeX and encode a short example using exact rational arithmetic, specifying termination and message-length information.",
-      "Derive a deterministic algorithm selecting a finite binary fraction strictly inside the final interval. Explain interval endpoint conventions, prefix ambiguity and why a complete decoder needs a length or end marker.",
-      "Write complete runnable standard-library Python using fractions.Fraction for exact encoding and decoding with a supplied message length. Validate symbol tables and add executable tests for empty messages, repeated symbols, unknown symbols and invalid code points.",
-      "Build fixed-seed differential tests over short strings and small frequency tables. Use a Markdown table reporting final interval width, chosen binary length, empirical symbol frequencies and ideal information length, distinguishing code overhead from entropy.",
-      "Write a long reproducibility report including proofs of interval nesting and round-trip decoding, complete code and counterexamples for incorrect upper-bound handling. Discuss finite-precision range coding, renormalization, model synchronization and practical memory limits without implying that rational arithmetic is a production compression format."
-    ]
-  },
-  {
     "id": "materials_binary_phase_diagram_lever_rule",
     "title": "Binary phase equilibria: tie lines and lever-rule verification",
     "domain": "materials_science_binary_phase_equilibria",
@@ -392,6 +353,48 @@
       "Derive reduced costs and complementary slackness for the chosen sign convention. Compute node potentials for the example and present a dual optimality certificate, clearly addressing saturated and unused arcs.",
       "Use a Markdown table comparing changed supply, a capacity bottleneck and a cost perturbation. Report feasibility, optimum, oracle agreement and certificate checks. Explain when an infeasibility cut is more informative than a missing path.",
       "Write a long reproducibility report containing the model, complete code, oracle and certificates. Discuss integral solutions, negative cycles, complexity, degeneracy and limitations of tiny enumeration as evidence for general solver correctness. Include a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "oceanography_gravity_wave_dispersion_group_velocity",
+    "title": "Ocean waves: dispersion and wave-packet verification",
+    "domain": "oceanography_surface_wave_dispersion",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational illustration of an idealized surface-gravity wave packet above a flat seabed. Label wavelength, water depth, phase motion and envelope motion. Distinguish a schematic illustration from measured ocean data.",
+      "Derive phase and group velocities from the linear surface-gravity dispersion relation in LaTeX. State the inviscid, incompressible, irrotational and small-amplitude assumptions, and show the shallow-water and deep-water limits with units.",
+      "Write complete runnable standard-library Python computing frequency, phase velocity and group velocity with stable small-argument handling. Include assertions for limiting behavior, positive depths, dimensional scaling and an independent finite-difference derivative check.",
+      "Use a Markdown table comparing synthetic wavelengths and depths. Report the nondimensional depth, period, phase velocity and group velocity with explicit units and tolerances. Explain what changes when capillarity, currents or nonlinear breaking matter.",
+      "Write a detailed reproducibility report connecting the illustration, dispersion derivation and numerical checks. Explain the distinction between a crest and an energy-carrying envelope, finite packet bandwidth and limitations of the linear model. Include a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "optimization_convex_quadratic_active_set_certificates",
+    "title": "Quadratic optimization: active sets and KKT certificates",
+    "domain": "optimization_convex_quadratic_programming",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a synthetic strictly convex quadratic objective in two variables with a bounded polygonal feasible region. Write the objective and inequalities in LaTeX with an explicit sign convention and units for all coefficients.",
+      "Derive the Karush-Kuhn-Tucker conditions, including stationarity, primal feasibility, dual feasibility and complementary slackness. Explain the role of convexity and constraint qualifications in necessity and sufficiency.",
+      "Solve one interior-optimum example and one boundary-optimum example by hand. Show the candidate active set, linear system, solution and multipliers without silently discarding infeasible candidates.",
+      "Write complete runnable standard-library Python enumerating active sets for these small problems. Validate Hessian symmetry and positive definiteness, singular active constraints and inconsistent inequalities, with explicit numerical tolerances.",
+      "Implement an independent geometric oracle checking polygon vertices and one-dimensional edge minima. Compare its objective values with the active-set solver on deterministic generated instances.",
+      "Use a Markdown table reporting candidates, active constraints, objective values and maximum KKT residuals for several synthetic perturbations. Separate true infeasibility from numerical singularity.",
+      "Investigate a nearly parallel pair of constraints and a nearly singular Hessian. Report sensitivity under controlled perturbations, define the conditioning diagnostic and explain why a small objective error alone does not prove coordinate accuracy.",
+      "Write a detailed reproducibility report containing the model, full code, geometric oracle and certificates. Discuss degeneracy, redundant constraints, nonconvex counterexamples, scaling and the limits of tiny active-set enumeration. Include a Chinese-English terminology table."
     ]
   }
 ]

@@ -44,7 +44,8 @@
     });
     // Gemini wraps generated images in a clickable button. Read image evidence
     // before removing control text; disk assertions still require real assets.
-    const hasImages = clone.querySelectorAll('img, [data-image-id]').length > 0;
+    const hasImages = [...clone.querySelectorAll('img, [data-image-id]')]
+        .some(image => !image.closest('[data-math], .katex, .katex-display, [aria-hidden="true"]'));
     clone.querySelectorAll('button, .code-block-decoration, .cdk-visually-hidden, [aria-hidden="true"]').forEach(element => element.remove());
     const pdfSegments = [];
     let prose = '';

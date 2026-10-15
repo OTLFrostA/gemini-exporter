@@ -180,6 +180,18 @@ class TestPipelineDecoupling(unittest.TestCase):
                 result, _ = self.run_wait([state] * 5, timeout=5)
                 self.assertFalse(result.success)
 
+    def test_timeout_reports_failed_conditions_without_authored_content(self):
+        state = self.settled_state()
+        state.update(newReply=False, modelCount=3, beforeSendCount=3, content='private answer')
+        result, _ = self.run_wait([state] * 5, timeout=5)
+        self.assertFalse(result.success)
+        self.assertFalse(result.data['newReply'])
+        self.assertEqual(result.data['modelCount'], 3)
+        self.assertEqual(result.data['contentLength'], len('private answer'))
+        self.assertEqual(result.data['stableSamples'], 0)
+        self.assertNotIn('private answer', result.message)
+        self.assertNotIn('content', result.data)
+
     def test_same_length_changes_reset_stability_and_busy_resets_it(self):
         ready = self.settled_state()
         changed = dict(ready, content='NO')

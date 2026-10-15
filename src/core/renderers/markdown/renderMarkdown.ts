@@ -2,6 +2,7 @@ import { codeHeader, disclosureTitle, messageLabel } from '../shared/backendPres
 import { getRendererStrings } from '../shared/renderStrings.js';
 import type { MarkdownRenderOptions } from '../shared/renderOptions.js';
 import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst, ResourceBindings } from '../../document/ast/ast.js';
+import { inlineMathMarkdown } from '../../utils/markdownMath.js';
 
 function escapeText(text: string): string {
     return text.replace(/\\/g, '\\\\').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!))
@@ -61,7 +62,7 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 // as TeX commands in cells to preserve norms and table columns.
                 const source = tableCell ? node.source.replace(/(\\*)\|/g, (_match, slashes: string) =>
                     slashes.length % 2 ? slashes.slice(0, -1) + '\\Vert{}' : slashes + '\\vert{}') : node.source;
-                return `$${source}$`;
+                return inlineMathMarkdown(source);
             }
             case 'citation': return citation(node);
             case 'placeholder': return placeholder(node);

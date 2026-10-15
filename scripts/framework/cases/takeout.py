@@ -22,11 +22,12 @@ def validate_takeout_records(expected_ids, expected_media, records, generation_i
     acquired = {}
     for record in records:
         domain, summary = record.get('domain') or {}, record.get('summary') or {}
-        if (record.get('ok') is not True or domain.get('id') != record['id']
-                or domain.get('providerId') != 'gemini' or summary.get('hasTakeoutImport') is not True or not summary.get('title')):
+        index, detail = domain.get('index') or {}, domain.get('detail') or {}
+        if (record.get('ok') is not True or index.get('id') != record['id']
+                or index.get('providerId') != 'gemini' or summary.get('hasTakeoutImport') is not True or not summary.get('title')):
             return False, f"Takeout 会话身份/临时标题未进入正常存储: {record['id']}"
-        messages = domain.get('messages') or []
-        asset_ids = {a.get('id') for a in domain.get('assets', [])}
+        messages = detail.get('messages') or []
+        asset_ids = {a.get('id') for a in detail.get('assets', [])}
         def has_content(value):
             if isinstance(value, list):
                 return any(has_content(child) for child in value)
