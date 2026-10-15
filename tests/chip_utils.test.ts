@@ -35,6 +35,10 @@ test('chipUtils - stripInternalChipMarkdown removes standalone chips and unwraps
         'Refer to the report: Deep Research Analysis.'
     );
 
+    // User-authored external links, including other googleusercontent resources, are not UI chips.
+    const legitimateLinks = 'Read [manual](https://example.com/deep_research) and https://googleusercontent.com/avatar/profile.jpg';
+    assert.strictEqual(stripInternalChipMarkdown(legitimateLinks), legitimateLinks);
+
     // 2. Standalone URL lines
     const textWithStandalone = 'Line 1\nhttps://googleusercontent.com/map_content/loc1\nLine 2';
     assert.strictEqual(
