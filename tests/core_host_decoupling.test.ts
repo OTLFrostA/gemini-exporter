@@ -1,164 +1,154 @@
 import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
-import assert from 'node:assert';
+import assert from 'node:assert/strict';
 
-import * as GeminiUtils from '../src/core/utils/utils.js';
 import { __setModuleOverride, __getModuleOverride, __resolveModule } from '../src/core/utils/moduleOverrides.js';
-__setModuleOverride('GeminiUtils', GeminiUtils);
-
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
 import * as BatchWorker from '../src/core/engine/export/batchWorker.js';
 import * as SessionRecovery from '../src/core/engine/export/sessionRecovery.js';
 import { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
-test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegate', async () => {
-    const origChrome = (global as any).chrome;
-    delete (global as any).chrome;
-
-
+/** Temporarily hide one host API without leaking an absent/undefined property. */
+async function withoutGlobal<T>(key: 'chrome' | 'window', run: () => Promise<T> | T): Promise<T> {
+    const host = globalThis as any;
+    const prior = Object.getOwnPropertyDescriptor(host, key);
     try {
-        const savedFiles: any[] = [];
-        const mockWriter = {
-            writeFile: async (name: string, bytes: any) => {
-                savedFiles.push({ name, bytes });
-                return name;
-            }
-        };
+        Reflect.deleteProperty(host, key);
+        assert.equal(key in host, false, `${key} must actually be absent during this test`);
+        return await run();
+    } finally {
+        if (prior) Object.defineProperty(host, key, prior);
+        else Reflect.deleteProperty(host, key);
+    }
+}
 
+test('AssetPipeline uses an injected asset fetcher and writer without Chrome tabs', async () => {
+    await withoutGlobal('chrome', async () => {
+        const savedFiles: Array<{ name: string; bytes: Uint8Array }> = [];
         const delegateCalls: any[] = [];
         const pipeline = new AssetPipeline({
             currentSlot: 'u0',
             useZip: true,
-            writer: mockWriter,
-            fetchAssetDelegate: async (req) => {
+            writer: {
+                writeFile: async (name: string, bytes: Uint8Array) => {
+                    savedFiles.push({ name, bytes });
+                    return name;
+                },
+            },
+            fetchAssetDelegate: async req => {
                 delegateCalls.push(req);
-                return {
-                    success: true,
-                    dataBuffer: new Uint8Array([1, 2, 3, 4]).buffer
-                };
-            }
+                return { success: true, dataBuffer: new Uint8Array([1, 2, 3, 4]).buffer };
+            },
         });
 
-        const item = { assetId: 'test-asset', url: 'https://example.com/asset.png', fileName: 'asset.png' };
-        const chat = { id: 'c_test_1' };
-
-        const result = await pipeline.processAsset(item, chat, { isImage: true });
-
-        assert.strictEqual(delegateCalls.length, 1, 'fetchAssetDelegate must be invoked');
-        assert.strictEqual(delegateCalls[0].url, 'https://example.com/asset.png');
-        assert.strictEqual(delegateCalls[0].preferBuffer, true);
-        assert.strictEqual(result.ok, true, 'Asset should be successfully marked as saved');
-        assert.strictEqual(savedFiles.length, 1, 'Asset file must be written to zip folder');
-        assert.strictEqual(savedFiles[0].name, 'asset.png');
-
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+        const result = await pipeline.processAsset(
+            { assetId: 'test-asset', url: 'https://example.com/asset.png', fileName: 'asset.png' },
+            { id: 'c_test_1' }, { isImage: true },
+        );
+        assert.equal(delegateCalls.length, 1);
+        assert.equal(delegateCalls[0].url, 'https://example.com/asset.png');
+        assert.equal(delegateCalls[0].preferBuffer, true);
+        assert.equal(result.ok, true);
+        assert.equal(savedFiles.length, 1);
+        assert.equal(savedFiles[0].name, 'asset.png');
+        assert.deepEqual([...savedFiles[0].bytes], [1, 2, 3, 4],
+            'the writer must receive the delegate\'s original bytes, not just a success marker');
+        if (result.ok) assert.equal(result.value.path, 'asset.png');
+    });
 });
 
-test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via injected messageSender', async () => {
-    const origChrome = (global as any).chrome;
-    delete (global as any).chrome;
-    // Clear any TabService test override so the seam resolves to null
-    __setModuleOverride('TabService', undefined);
-
-    try {
-        let sentMessage: any = null;
-        const mockSender = (msg: any, callback: any) => {
-            sentMessage = msg;
-            callback({
-                success: true, domainEnvelopeVersion: 2,
-                results: [historicalFixture({ id: 'chat_999', title: 'Decoupled Remote Chat' })]
-            });
-        };
-
+test('BatchWorker uses the injected message sender without Chrome runtime or TabService', async () => {
+    await withoutGlobal('chrome', async () => {
+        const requests: unknown[] = [];
         const result = await BatchWorker.fetchChatDetail(
-            { id: 'chat_999' } as any,
-            0,
-            1,
-            'u0',
-            false,
-            'md',
-            null as any,
-            { messageSender: mockSender } as any
+            { id: 'chat_999' },
+            0, 1, 'u0', false, 'md', null,
+            {
+                tabService: {}, // force the transport seam instead of trying the browser implementation
+                messageSender: (msg: unknown, callback: (reply: unknown) => void) => {
+                    requests.push(msg);
+                    callback({
+                        success: true, domainEnvelopeVersion: 2,
+                        results: [historicalFixture({ id: 'chat_999', title: 'Decoupled Remote Chat' })],
+                    });
+                },
+            },
         );
-
-        assert.ok(sentMessage, 'Injected messageSender must be called');
-        assert.strictEqual(sentMessage.action, 'fetchBatch');
-        assert.ok(result && typeof result === 'object' && 'success' in result && 'results' in result);
-        assert.strictEqual(result.success, true);
+        assert.equal(requests.length, 1, 'the injected transport must receive the request');
+        assert.deepEqual(requests[0], {
+            action: 'fetchBatch', ids: [{ id: 'chat_999' }], format: 'md',
+            skipExported: false, globalOffset: 0, globalTotal: 1, accountSlot: 'u0',
+        });
+        assert.equal(result.success, true);
         assert.ok(Array.isArray(result.results));
+        assert.equal(result.results?.length, 1);
         const chat = result.results![0];
         assert.ok(chat && 'conversation' in chat);
-        assert.strictEqual(chat.conversation.index.title, 'Decoupled Remote Chat');
+        assert.equal(chat.conversation.index.title, 'Decoupled Remote Chat');
+    });
+});
+
+test('GeminiAPIClient honors constructor and request AbortSignals without browser state', async () => {
+    const host = globalThis as any;
+    const previous = Object.getOwnPropertyDescriptor(host, '__gemExporterAborted');
+    try {
+        Reflect.deleteProperty(host, '__gemExporterAborted');
+        await withoutGlobal('window', () => {
+            const controller = new AbortController();
+            const perCall = new AbortController();
+            const client = new GeminiAPIClient({ signal: controller.signal });
+            assert.equal(client.isAborted(), false);
+            perCall.abort();
+            assert.equal(client.isAborted(perCall.signal), true, 'per-call cancellation must work without a window');
+            assert.equal(client.isAborted(), false, 'per-call cancellation must not permanently abort the client');
+            controller.abort();
+            assert.equal(client.isAborted(), true);
+            const already = new AbortController();
+            already.abort();
+            assert.equal(new GeminiAPIClient({ signal: already.signal }).isAborted(), true);
+        });
     } finally {
-        (global as any).chrome = origChrome;
-        __setModuleOverride('TabService', undefined);
+        if (previous) Object.defineProperty(host, '__gemExporterAborted', previous);
+        else Reflect.deleteProperty(host, '__gemExporterAborted');
     }
 });
 
-test('Decoupling 3: GeminiAPIClient respects standard AbortSignal without window.__gemExporterAborted', () => {
-    const origWindow = (global as any).window;
-    delete (global as any).window;
-    if ((globalThis as any).__gemExporterAborted) delete (globalThis as any).__gemExporterAborted;
-
-    try {
-        const controller = new AbortController();
-        const client = new GeminiAPIClient({ signal: controller.signal });
-
-        assert.strictEqual(client.isAborted(), false, 'Should not be aborted initially');
-
-        controller.abort();
-        assert.strictEqual(
-            client.isAborted(),
-            true,
-            'client.isAborted() must return true when AbortSignal triggers abort'
-        );
-    } finally {
-        (global as any).window = origWindow;
-    }
-});
-
-test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter without chrome.storage', async () => {
-    const origChrome = (global as any).chrome;
-    delete (global as any).chrome;
-
-    try {
-        let persistedRecord: any = null;
-        const mockStorageAdapter = {
-            saveExportRecord: async (slot: any, id: any, rec: any) => {
-                persistedRecord = { slot, id, rec };
-            }
-        };
-
-        const recordsMap = new Map();
-        recordsMap.set('12345', { id: '12345', title: 'Exported Test Chat' });
-
+test('SessionRecovery finalizes through its injected adapter without Chrome storage', async () => {
+    await withoutGlobal('chrome', async () => {
+        const writes: Array<{ slot: string; id: string; rec: any }> = [];
+        const callbacks: Array<{ id: string; rec: any }> = [];
+        const record = { id: '12345', title: 'Exported Test Chat', exportedAt: 1700000000000 };
         const finalized = await SessionRecovery.finalizeChatExport('12345', {
-            chatRecordsMap: recordsMap,
-            storageAdapter: mockStorageAdapter as any,
-            slot: 'u0'
+            chatRecordsMap: new Map([['12345', record]]),
+            storageAdapter: {
+                saveExportRecord: async (slot: string, id: string, rec: any) => { writes.push({ slot, id, rec }); },
+            },
+            onItemExported: (id: string, rec: any) => { callbacks.push({ id, rec }); },
+            slot: 'u0',
         } as any);
-
-        assert.strictEqual(finalized, true);
-        assert.ok(persistedRecord, 'Record must be saved via storageAdapter');
-        assert.strictEqual(persistedRecord.id, '12345');
-        assert.strictEqual(persistedRecord.slot, 'u0');
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+        assert.equal(finalized, true);
+        assert.equal(writes.length, 1);
+        assert.deepEqual(writes[0], { slot: 'u0', id: '12345', rec: record });
+        assert.deepEqual(callbacks, [{ id: '12345', rec: record }]);
+    });
 });
 
-test('Decoupling 5: moduleOverrides rejects overrides and ignores mocks in NODE_ENV=production', () => {
-    const origEnv = process.env.NODE_ENV;
+test('production mode ignores injected test overrides and cannot install new ones', () => {
+    const key = 'Batch046ProdOnly';
+    const previous = __getModuleOverride(key);
+    const priorMode = process.env.NODE_ENV;
     try {
+        __setModuleOverride(key, { value: 'dev-mock' });
+        assert.deepEqual(__resolveModule(key, { value: 'fallback' }), { value: 'dev-mock' });
         process.env.NODE_ENV = 'production';
-        __setModuleOverride('TestMockSeam', { mock: true });
-        assert.strictEqual(__getModuleOverride('TestMockSeam'), undefined, 'Overrides must not be stored in production');
-        const resolved = __resolveModule('TestMockSeam', 'defaultFallback');
-        assert.strictEqual(resolved, 'defaultFallback', 'Must resolve to fallback directly in production');
+        __setModuleOverride(key, { value: 'should-not-appear' });
+        assert.equal(__getModuleOverride(key), undefined);
+        assert.deepEqual(__resolveModule(key, { value: 'fallback' }), { value: 'fallback' });
     } finally {
-        process.env.NODE_ENV = origEnv;
+        if (priorMode === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = priorMode;
+        __setModuleOverride(key, previous);
     }
+    assert.deepEqual(__getModuleOverride(key), previous,
+        'production-mode test must restore its override state for other tests');
 });
-
