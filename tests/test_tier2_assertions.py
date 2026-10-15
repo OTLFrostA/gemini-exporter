@@ -23,7 +23,7 @@ from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
 from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
-    FastSkipExportedCase, select_format_targets,
+    FastSkipExportedCase, StaleTabImageExportCase, select_format_targets,
 )
 from scripts.framework.cases.takeout import validate_takeout_records, TakeoutZipImportCase
 from scripts.framework.cases.sync import wait_for_prior_scan
@@ -54,6 +54,50 @@ def scan_evidence():
         'stopReason': '第 2 页未返回下页游标 nextPageToken，Google 服务端游标已到底',
         'pageHistory': [{'page': 1, 'hasNextPageToken': True}, {'page': 2, 'hasNextPageToken': False}],
     }}}
+
+
+class StaleTabHistoryTests(unittest.TestCase):
+    def run_case(self, scan, after_scan=None):
+        ctx = MagicMock()
+        ctx.port = 9222
+        ctx.ext_id = 'fixture'
+        ctx.shared_data = {'golden_image_evidence': [{'images': [{'fixture': True}]}]}
+        ctx.env.reinstall_extension.return_value = 'fixture'
+        cdp = ctx.connect_options.return_value
+        receivers = {'stale': {'error': 'Receiving end does not exist'},
+                     'good': {'reply': {'ok': True}}, 'freshId': 8}
+        # If the row is still absent after sync, the original target assertion
+        # must fail; the export action must never be used to fake success.
+        cdp.eval.side_effect = [7, receivers, None, after_scan or receivers, False, None]
+        with patch('scripts.framework.cases.export.wait_for_prior_scan') as prior, \
+             patch('scripts.framework.cases.export.reset_only_coverage') as reset, \
+             patch.object(CDPActions, 'trigger_deep_scan', return_value=scan) as sync, \
+             patch.object(CDPActions, 'trigger_export_zip') as export:
+            result = StaleTabImageExportCase().execute(ctx)
+            prior.assert_called_once_with(cdp)
+            reset.assert_called_once_with(cdp)
+            sync.assert_called_once_with(cdp)
+            export.assert_not_called()
+        return result
+
+    def test_recent_page_without_older_target_requires_real_sync_and_still_fails_if_target_absent(self):
+        ok, message, details = self.run_case(scan_evidence())
+        self.assertFalse(ok)
+        self.assertIn('未找到指定 Imagen', message)
+        self.assertEqual(details['historyScan'], scan_evidence())
+
+    def test_incomplete_sync_cannot_proceed_to_image_export(self):
+        evidence = scan_evidence()
+        evidence['finished'] = False
+        ok, message, _ = self.run_case(evidence)
+        self.assertFalse(ok)
+        self.assertIn('历史同步未完成', message)
+
+    def test_sync_must_not_heal_the_stale_tab(self):
+        healed = {'stale': {'reply': {'ok': True}}, 'good': {'reply': {'ok': True}}}
+        ok, message, _ = self.run_case(scan_evidence(), healed)
+        self.assertFalse(ok)
+        self.assertIn('无接收端状态', message)
 
 
 class SettledEvidenceTests(unittest.TestCase):

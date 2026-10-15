@@ -12,10 +12,11 @@ from scripts.framework.archive_resources import validate_archive_resources
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
 from scripts.framework.actions import CDPActions
-from scripts.framework.assertions import CDPAssertions, assert_archive_targets
+from scripts.framework.assertions import CDPAssertions, assert_archive_targets, assert_scan_result
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
+from scripts.framework.cases.sync import wait_for_prior_scan, reset_only_coverage
 
 DESIGNATED_HISTORICAL_CHATS = [
     {
@@ -441,7 +442,31 @@ class StaleTabImageExportCase(FeatureTestCase):
                 if not setup.get("good", {}).get("reply", {}).get("ok"):
                     return False, f"已刷新标签页尚未注入内容脚本: {setup}", setup
 
-                # A clean install can show onboarding; dismiss it before choosing one known Imagen chat.
+                # Reinstall removes the historical index. Natural sidebar loading
+                # only observes a recent page, so an older target is not guaranteed
+                # to exist until a real paginated sync finishes.
+                cdp_opt.eval("document.getElementById('tourSkipBtn')?.click()")
+                wait_for_prior_scan(cdp_opt)
+                reset_only_coverage(cdp_opt)
+                scan = CDPActions.trigger_deep_scan(cdp_opt)
+                scan_ok, message = assert_scan_result(scan)
+                setup['historyScan'] = scan
+                if not scan_ok:
+                    return False, f"重装后历史同步未完成: {message}", setup
+                # Sync must not repair/reload the deliberately receiver-less tab.
+                after_scan = cdp_opt.eval(f"""(async () => {{
+                    const probe = id => new Promise(resolve => chrome.tabs.sendMessage(id, {{action: 'ping'}}, reply =>
+                        resolve({{reply, error: chrome.runtime.lastError?.message || ''}})));
+                    await chrome.tabs.update({stale_id}, {{active: true}});
+                    return {{stale: await probe({stale_id}), good: await probe({setup['freshId']})}};
+                }})()""", await_promise=True, timeout=15) or {}
+                setup['afterHistoryScan'] = after_scan
+                if "Receiving end does not exist" not in after_scan.get('stale', {}).get('error', ''):
+                    return False, "历史同步改变了旧标签页的无接收端状态", setup
+                if not after_scan.get('good', {}).get('reply', {}).get('ok'):
+                    return False, "历史同步后可用标签页失去接收端", setup
+
+                # Select only a genuinely observed row after the completed sync.
                 selected = cdp_opt.eval(f"""(async () => {{
                     // A content-script ping proves injection, not completion of
                     // Gemini's asynchronous list response/account hydration.
