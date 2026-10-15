@@ -30,13 +30,16 @@ test('DOM parser retains long text, nested code/list, rich table images, math an
     <audio preload="none"><source src="https://example.test/source.wav" type="audio/wav"></audio></div></model-response>`);
     await page.addScriptTag({ content: bundle });
     const parsed = await page.evaluate(() => (globalThis as unknown as { nativeParserProbe: (doc: Document) => unknown }).nativeParserProbe(document)) as {
-        result: { conversation: { messages: Array<{ model?: string; timestamp?: number; content: Array<{ type: string }> }>; assets: Array<{ kind: string }>; completeness: string } }; images: string[]; ast: unknown;
+        result: { conversation: { messages: Array<{ role: string; model?: string; timestamp?: number; content: Array<{ type: string }> }>; assets: Array<{ kind: string }>; completeness: string } }; images: string[]; ast: unknown;
     };
     expect(parsed.result.conversation.messages).toHaveLength(2);
+    expect(parsed.result.conversation.messages.map(m => m.role)).toEqual(['user', 'assistant']);
     expect(parsed.result.conversation.messages[1].model).toBe('Gemini source model');
     expect(parsed.result.conversation.messages[1].timestamp).toBe(1700000000000);
     expect(parsed.result.conversation.messages[1].content.map(b => b.type)).toEqual(['paragraph', 'code', 'list', 'table', 'math']);
-    expect(JSON.stringify(parsed.result.conversation)).toContain('END_OF_LONG_BODY');
+    const responseContent = JSON.stringify(parsed.result.conversation.messages[1].content);
+    expect(responseContent.split('长文')).toHaveLength(13001); // all 13,000 authored repetitions survive
+    expect(responseContent).toContain('END_OF_LONG_BODY');
     expect(JSON.stringify(parsed.result.conversation).split('ONE_CODE_OCCURRENCE')).toHaveLength(2);
     expect(JSON.stringify(parsed.result.conversation)).toContain('Second line');
     expect(parsed.result.conversation.assets.map(a => a.kind)).toEqual(['file', 'image', 'audio']);
