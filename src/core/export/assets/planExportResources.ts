@@ -2,7 +2,7 @@ import type { ResourceConversationParseResult } from '../../parsers/parsingResul
 import { attemptResource, missingResource, type ResourceFailure } from '../../resources/resourceResult.js';
 import type { AssetPipelineItem } from '../../engine/assetPipeline.js';
 import { sanitizeFileName, sanitizeRelativePath, shortScope } from '../../utils/pathUtils.js';
-import { highResVariant } from '../../compatibility/gemini/attachments.js';
+import { highResVariant } from '../../resources/geminiImageUrl.js';
 import { decodeDataUrlAsset } from './dataUrl.js';
 
 export interface ExportAssetPlan { assetId: string; item: AssetPipelineItem; isImage: boolean; content?: string | Uint8Array }

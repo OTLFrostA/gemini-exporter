@@ -9,7 +9,8 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
 import { migrate, CURRENT_SCHEMA_VERSION } from '../src/core/storage/schemaMigration.js';
 import { __getLegacyBackupForTest as getLegacyBackup } from '../src/core/storage/domain/domainStore.js';
-import { indexFromDetail, indexFromParsed, parseIndexObservation } from '../src/core/compatibility/index/parseIndex.js';
+import { indexFromDetail, indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
+import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
 import { indexActivityTime, mergeConversationIndex, restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
 
 const row = () => indexFixture({ id: 'chat', title: 'Research', titleSource: 'rpc', updatedAt: 50, messageCount: 4 });
@@ -152,7 +153,7 @@ test('native Detail source versions align with Index without claiming cloud rest
         assert.equal(indexActivityTime(merged), 300);
         assert.equal(merged.createdAt, 10);
         assert.equal(merged.cloudAvailability, 'deleted');
-        const listed = mergeConversationIndex(merged, parseIndexObservation({ id: 'chat', title: 'Research', updatedAt: 350 }, 'rpc-list'));
+        const listed = mergeConversationIndex(merged, parseGeminiIndexObservation({ id: 'chat', title: 'Research', updatedAt: 350 }, 'rpc-list'));
         assert.equal(listed.updatedAt, 350);
         assert.equal(listed.cloudAvailability, 'available');
     }

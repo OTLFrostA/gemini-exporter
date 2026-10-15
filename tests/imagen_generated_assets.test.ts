@@ -1,6 +1,6 @@
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+const { extractImages } = require('../src/core/parsers/legacyStorage/attachments.js');
 export {};
 
 const test = require('node:test');

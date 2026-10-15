@@ -24,9 +24,11 @@
 
 Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解耦为 **主世界网络嗅探层**、**隔离世界内容脚本层**、**后台服务工作线程 (Service Worker)**、**跨平台通用 Provider 与解析核心**、**领域导出/打包引擎**、**响应式持久化层** 以及 **用户界面展示层**。
 
-语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，现有数据格式的转换属于 `compatibility/`，问题记录属于 `diagnostics/`。目录移动不改变 storage 或用户升级数据格式，也不表示生产 parser 迁移已经完成。
+语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，旧磁盘格式解释仅属于 `parsers/legacyStorage/`，导入编排属于 `imports/`，离线资源缓存与获取辅助属于 `resources/`，问题记录属于 `diagnostics/`。已移除通用 `compatibility` 目录；存储与用户升级数据格式不变。
 
 依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有 `legacyStorage` 迁移边界可调用历史 record 解码，运行时和导出直接消费原生 Domain 结果。具体目录见 [Source Directory Guide](../src/README.md)。
+
+旧索引的 `timestamp`、`chatTime`、`titles` 等别名只由 `parsers/legacyStorage/parseIndex.ts` 解释。当前 Gemini 元数据观测使用独立的 `parsers/gemini/parseIndexObservation.ts`，不读取旧字段；`storage/conversationIndexFromParsed.ts` 仅把已解析正文及采集版本投影为 Index，不再复用旧格式解析。
 
 外部正文统一通过 `StorageService.ingestConversation(slot, parsed, resources, source)` 接受：parser 负责来源解释，入库入口在现有会话锁内保存正文、合并完整 Index，并返回按权威 Index 投影的实际保留正文。RPC 拦截、主动拉取、DOM、Takeout、live-save 和导出采集共用这一入口。已有快照只从 scoped repository 读取，Index 不存在时不使用孤立正文。此锁不表示 Chrome Storage 与 IndexedDB 之间存在跨存储事务。
 
@@ -36,7 +38,7 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 ```text
 raw input → parsers/parseConversation → Domain
-existing record → compatibility/record ────────┘
+old disk record → parsers/legacyStorage ────────┘
                                                ↓ composeDomainDocument
                                           Document AST
                                                ├─ HTML backend
@@ -99,7 +101,7 @@ graph TD
 
         subgraph ApiParserLayer ["协议通信 (api/) 与来源解析 (parsers/)"]
             API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager / credStorage (严格单向隔离)"]
-            API_Parser["parsers/gemini/rpc & takeout<br/>兼容输出 facade 位于 compatibility/gemini"]
+            API_Parser["parsers/gemini/rpc & takeout<br/>历史记录仅经 parsers/legacyStorage"]
         end
 
         subgraph ExportEngines ["导出、转换与打包引擎 (src/core/engine/)"]
@@ -217,7 +219,7 @@ graph TD
 | `src/core/parsers/gemini/rpc/parseList.ts` | Core: API Parser | `parseList`, `extractListItemTimestamp` | 从 batchexecute 响应中提取会话列表项（ID、标题、修改时间）。 | `geminiClient`, `messageBridge` | 原始数组 -> 会话摘要列表 | `API_Parser` |
 | `src/core/api/client/detailTypes.ts` | Core: API Transport | `DetailParseResult` | 原生 Domain 的应用详情返回类型及分页、调试旁路字段。 | `geminiClient`, `pagination`, 原生详情调用方 | 类型定义 | `API_Transport` |
 | `src/core/parsers/gemini/rpc/extractors.ts` | Core: API Parser | `extractCandidateText`, `extractThoughts`, `extractCitations` | 提取模型思考推理过程（Thought Blocks）、候选回答文本与网络引用链接。 | `detailDecoder.ts` | 候选数据块 -> 纯文本与引用元数据 | `API_Parser` |
-| `src/core/compatibility/gemini/attachments.ts` | Core: API Parser | `extractImages`, `extractUserFiles`, `extractDocumentsMeta` | 保留仍被应用兼容边界使用的附件辅助函数和类型。 | `types/attachment`, `detailTypes` | 附件原始元数据 -> `Attachment[]` | `API_Parser` |
+| `src/core/parsers/legacyStorage/attachments.ts` | Core: Legacy Parser | `extractImages`, `extractResponseImages` | 仅旧记录迁移保留历史图片命名与附件解析。 | `parsers/legacyStorage` | 历史附件证据 | `API_Parser` |
 | `src/core/parsers/gemini/rpc/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `detailDecoder.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
@@ -227,9 +229,9 @@ graph TD
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
 | `src/core/engine/takeoutEngine.ts` | Core: Engine | `TakeoutEngine` (Facade) | Google Takeout 历史导入与脱机解析统一门面。 | UI 控制器、测试用例 | `takeout/*` 子模块 | `ENG_Takeout` |
-| `src/core/compatibility/takeout/takeoutParser.ts` | Core: Engine | `parseTakeoutZip` | 解析官方 Takeout ZIP 归档（JSZip 全量载入，非流式），提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | 原生 Takeout parser, `mediaIndex.ts` | `ENG_Takeout` |
+| `src/core/imports/takeout/importTakeout.ts` | Core: Engine | `parseTakeoutZip` | 解析官方 Takeout ZIP 归档（JSZip 全量载入，非流式），提取 HTML 会话文件与嵌入的媒体附件。 | `takeoutEngine.ts` | 原生 Takeout parser, `mediaIndex.ts` | `ENG_Takeout` |
 | `src/core/parsers/gemini/takeout/decodeHtml.ts` | Core: Engine | `decodeTakeoutHtml` / `parseTakeoutPrompt` / `unescapeHtmlEntities`… | 提取 Takeout HTML 的源活动、日期和明确资源引用。 | 原生 Takeout parser | HTML 文本 -> 活动源证据 | `ENG_Takeout` |
-| `src/core/compatibility/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 基于图片 C2PA 元数据与哈希建立离线媒体索引池，支持脱机媒体回填。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
+| `src/core/resources/takeout/mediaIndex.ts` | Core: Engine | `extractC2PATimestamp`, `getTakeoutFallbackMedia` | 保存来源绑定的离线资源映射，支持按资产身份读取附件字节；C2PA 证据提取位于 parser。 | `takeoutEngine.ts` | 内存媒体映射表 | `ENG_Takeout` |
 | `src/core/parsers/shared/archive/zipBombGuard.ts` | Core: Engine | `validateZipFile`, `validateZipEntries` | 安全防御模块，校验条目总数、压缩包体积与解压后总尺寸上界，杜绝 Zip 炸弹 DoS 攻击。 | `takeoutParser.ts` | 安全校验通过 / 抛出异常中断 | `ENG_Takeout` |
 | `src/core/renderers/html/htmlTemplate.ts` | Core: Engine | `GEM_HTML_CSS`, `GEM_HTML_SCRIPT`, `sanitizeUrl` | Document HTML backend 使用的共享样式、交互脚本和安全输出 helpers。 | `renderHtml.ts` | HTML 样式、脚本及安全字符串 | `ENG_Formatter` |
 | `src/core/engine/chatFormatter.ts` | Core: Engine | `ChatFormatter`（`formatMarkdownDocument` / `formatHtmlDocument` / `formatContent`） | Markdown / HTML 通过 parser → Domain → Document AST → backend 导出；JSON 保留同步独立序列化路径。 | `exportOrchestrator`, `liveSaveWriter`, `popup.ts` | 格式化文本字符串 | `ENG_Formatter` |

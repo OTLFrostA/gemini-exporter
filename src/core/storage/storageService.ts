@@ -3,7 +3,8 @@ import type { StoredDomainResource } from './domain/contracts.js';
 import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
 import { deduplicateConversations } from '../utils/mergeUtils.js';
 import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
-import { parseIndexObservation, indexFromParsed } from '../compatibility/index/parseIndex.js';
+import { parseLegacyConversationIndex } from '../parsers/legacyStorage/parseIndex.js';
+import { indexFromParsed } from './conversationIndexFromParsed.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from '../sync/streamCoverage.js';
 import type { PageObservation } from '../sync/pageObservation.js';
 import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
@@ -137,7 +138,7 @@ export async function migrateConversationIndexes(): Promise<void> {
                 let index: DomainConversationIndex;
                 try {
                     try { index = restoreConversationIndex(row); }
-                    catch { index = parseIndexObservation(row, 'legacy'); }
+                    catch { index = parseLegacyConversationIndex(row); }
                 } catch (error) {
                     if (!(error instanceof TypeError)) throw error;
                     issues.push({ key: `${key}[${position}]`, code: 'INVALID_ROW', message: error.message });

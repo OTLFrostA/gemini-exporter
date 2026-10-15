@@ -1,6 +1,6 @@
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const { parseList } = require('../src/core/parsers/gemini/rpc/parseList.js');
-const { highResVariant } = require('../src/core/compatibility/gemini/attachments.js');
+const { highResVariant } = require('../src/core/resources/geminiImageUrl.js');
 const { isRealTitle, detectTurnSchemaDrift, robustFirstPayload } = require('../src/core/parsers/gemini/rpc/extractors.js');
 export {};
 const test = require('node:test');
@@ -263,7 +263,7 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
 
 test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
-    const attachments = require('../src/core/compatibility/gemini/attachments.js');
+    const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
     const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
 
     // 1. deepWalk unified tree walker
@@ -301,7 +301,7 @@ test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     assert.strictEqual(citations[0].title, "Quantum Supremacy Paper");
 
     // 3. attachments: highResVariant & isInternalChipUrl
-    assert.strictEqual(attachments.highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"), "https://lh3.googleusercontent.com/pic=s0");
+    assert.strictEqual(highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"), "https://lh3.googleusercontent.com/pic=s0");
     assert.strictEqual(attachments.isInternalChipUrl("https://googleusercontent.com/immersive_entry_chip/abc"), true);
     assert.strictEqual(attachments.isInternalChipUrl("https://example.com/normal.png"), false);
 

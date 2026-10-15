@@ -4,7 +4,7 @@ import { mediaSources, mediaChatId, mediaPrompt, mediaBytes, mediaTime } from '.
 import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
 import { planExportResources } from '../src/core/export/assets/planExportResources.js';
 import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
-import { commitTakeoutData, clearTakeoutData } from '../src/core/compatibility/takeout/mediaIndex.js';
+import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
 import { __clearDomainMemory, saveDomainConversation, getDomainResource, getStoredDomain, cacheDomainResource, storageIdentity, removeStoredDomain } from '../src/core/storage/domain/domainStore.js';
 import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 

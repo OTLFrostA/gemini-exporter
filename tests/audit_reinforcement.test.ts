@@ -27,7 +27,7 @@ test('storageService rejects fat metadata without changing stored indexes', asyn
 
 // 2. Takeout MediaIndex Strict Slot Isolation Verification
 test('mediaIndex: strict slot isolation prevents cross-account data corruption', () => {
-    const MediaIndex = require('../src/core/compatibility/takeout/mediaIndex.js');
+    const MediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
 
     // Commit takeout data for Slot u0
     MediaIndex.commitTakeoutData('u0', {

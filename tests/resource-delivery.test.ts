@@ -15,8 +15,8 @@ import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js'
 import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
 import { PdfExporter } from '../src/core/export/pdf/pdfExporter.js';
 import { StubPdfCompiler } from './helpers/stubPdfCompiler.js';
-import { parseTakeoutZip } from '../src/core/compatibility/takeout/takeoutParser.js';
-import { clearTakeoutData } from '../src/core/compatibility/takeout/mediaIndex.js';
+import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
+import { clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
 import { attemptResource, waitForResources } from '../src/core/resources/resourceResult.js';
 const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');

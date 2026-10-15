@@ -1,16 +1,16 @@
 import { normalizeConversationTimes } from '../../domain/time.js';
-import { structuredBodyAttachments } from '../gemini/contentAdapter.js';
-import { closeLegacyCitations } from '../../parsers/shared/resources/domainCitationAdapter.js';
-import { closeDomainResources } from '../../parsers/shared/resources/domainResourceAdapter.js';
+import { structuredBodyAttachments } from './contentAdapter.js';
+import { closeLegacyCitations } from '../shared/resources/domainCitationAdapter.js';
+import { closeDomainResources } from '../shared/resources/domainResourceAdapter.js';
 import { resolveTitle, isTitleSource } from '../../domain/titleAuthority.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
-import { parseImportedBody } from '../../parsers/shared/importedContentAdapter.js';
-import { parseGeminiBody, parseLegacyReasoning } from '../../parsers/gemini/shared/contentAdapter.js';
-import { supplementLegacyGeneratedMedia } from '../legacyGeneratedMediaReconciliation.js';
+import { parseImportedBody } from '../shared/importedContentAdapter.js';
+import { parseGeminiBody, parseLegacyReasoning } from '../gemini/shared/contentAdapter.js';
+import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
-import type { ConversationParseContext } from '../../parsers/contracts.js';
-import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
+import type { ConversationParseContext } from '../contracts.js';
+import type { ResourceConversationParseResult } from '../parsingResult.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { Diagnostic } from '../../diagnostics/contentDiagnostic.js';
 import { isObjectRecord } from '../../utils/messageResponses.js';
@@ -110,9 +110,6 @@ export interface ConversationRecordParseContext extends ConversationParseContext
     completenessOverride?: DomainConversationDetail['completeness'];
 }
 
-/** Compatibility preparation evidence is outside the shared semantic parse result. */
-export interface ConversationRecordParseResult extends ResourceConversationParseResult {}
-
 function copyCompleteness(input: ConversationRecordInput): Pick<DomainConversationDetail, 'completeness'> {
     const partial = input.truncated === true || input.isTruncated === true || Boolean(input.nextPageToken?.trim());
     return { completeness: partial ? 'partial' : input.completeness?.status ?? 'unknown' };
@@ -129,7 +126,7 @@ function legacyTitle(conversation: ConversationRecordInput) {
 }
 
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
-export function parseConversationRecord(conversation: ConversationRecordInput, options: ConversationRecordParseContext): ConversationRecordParseResult {
+export function parseConversationRecord(conversation: ConversationRecordInput, options: ConversationRecordParseContext): ResourceConversationParseResult {
     if (typeof options.providerId !== 'string' || !options.providerId.trim()) throw new TypeError('Domain providerId must be a non-empty string');
     const diagnostics: DocumentDiagnostic[] = [];
     const parserDiagnostics: Diagnostic[] = [];

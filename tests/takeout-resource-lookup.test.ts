@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AssetPipeline, type AssetPipelineItem } from '../src/core/engine/assetPipeline.js';
 import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
-import { commitTakeoutData, clearTakeoutData } from '../src/core/compatibility/takeout/mediaIndex.js';
+import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
 import { planExportResources } from '../src/core/export/assets/planExportResources.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import type { DomainAsset } from '../src/core/domain/conversationDetail.js';

@@ -82,19 +82,11 @@ function dependencies(file: string, text = readFileSync(file, 'utf8')): Edge[] {
 }
 const graph = new Map([...sources].map(([name, file]) => [name, dependencies(file)]));
 
-test('retired compatibility modules are absent and no production source imports them', () => {
-    const retired = new Set([
-        'compatibility/gemini/exportInput.ts',
-        'compatibility/gemini/geminiParser.ts',
-        'compatibility/gemini/parseDetail.ts',
-        'compatibility/gemini/legacyDetailProjection.ts',
-        'compatibility/takeout/takeoutHtmlParser.ts',
-        'compatibility/conversationParser.ts'
-    ]);
-    for (const name of retired) assert.equal(existsSync(resolve(core, name)), false, `retired module exists: ${name}`);
+test('the compatibility directory is retired and no production source imports it', () => {
+    assert.equal(existsSync(resolve(core, 'compatibility')), false);
     for (const file of files(resolve(root, 'src'))) {
         for (const edge of dependencies(file)) {
-            assert.ok(!retired.has(edge.target), `${relative(root, file)} imports retired ${edge.target}`);
+            assert.ok(!edge.target.startsWith('compatibility/'), `${relative(root, file)} imports retired ${edge.target}`);
         }
     }
 });
@@ -102,12 +94,11 @@ function forbidden(owner: string, target: string): boolean {
     if (owner.startsWith('domain/')) return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
     if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);
-    if (owner.startsWith('renderers/')) return /^(parsers\/|compatibility\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
+    if (owner.startsWith('renderers/')) return /^(parsers\/|imports\/|domain\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
     if (owner.startsWith('parsers/')) {
-        // The legacy-storage source decoder may explicitly reuse the historical record grammar.
-        // Native RPC/Takeout/DOM parsers cannot reach this bridge.
-        if (owner === 'parsers/legacyStorage/parseConversation.ts' && /^compatibility\/record\/(?:conversationRecord|parseConversationRecord)\.ts$/.test(target)) return false;
-        return /^(compatibility\/|document\/|renderers\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
+        if (target.startsWith('parsers/legacyStorage/') && !owner.startsWith('parsers/legacyStorage/')
+            && owner !== 'parsers/parseConversation.ts' && owner !== 'parsers/index.ts') return true;
+        return /^(imports\/|document\/|renderers\/|provider\/|api\/|engine\/|export\/|storage\/)/.test(target);
     }
     return false;
 }
@@ -123,7 +114,7 @@ test('semantic layers own their files and obey dependency direction, including t
 
 test('native parsers and renderers cannot acquire forbidden dependencies through a shared runtime helper', () => {
     for (const owner of graph.keys()) {
-        if (!owner.startsWith('renderers/') && !/^parsers\/(gemini|shared)\//.test(owner)) continue;
+        if (!owner.startsWith('renderers/') && !/^parsers\//.test(owner)) continue;
         function walk(current: string, chain: string[], seen: Set<string>): void {
             if (seen.has(current)) return;
             seen.add(current);
@@ -144,7 +135,7 @@ test('boundary reader detects re-export, type-only, dynamic import and require e
         export { parseConversation } from '../../parsers/parseConversation.js';
         const decoder = import('../../parsers/gemini/rpc/detailDecoder.js');
         const storage = require('../../storage/storageService.js');
-        type Record = import('../../compatibility/record/conversationRecord.js').ConversationRecordInput;
+        type Record = import('../../parsers/legacyStorage/conversationRecord.js').ConversationRecordInput;
     `);
     assert.equal(edges.length, 5);
     assert.deepEqual(edges.map(edge => edge.runtime), [false, true, true, true, false]);
@@ -163,17 +154,18 @@ test('native parsing does not allocate export paths or sanitized filenames', () 
 });
 
 test('normal runtime cannot parse historical records or depend on application projections', () => {
-    const removed = new Set(['compatibility/legacyConversationAdapter.ts', 'compatibility/gemini/nativeDetailView.ts', 'compatibility/record/projectDomainRecord.ts']);
     const obsolete = new Set(['parseLegacyConversation', 'toDomainConversationDetail', 'createParsedConversationView', 'readParsedConversation', 'createNativeDetailView', 'ParsedConversationView']);
-    for (const name of removed) assert.equal(existsSync(resolve(core, name)), false, `retired runtime adapter exists: ${name}`);
     for (const file of files(resolve(root, 'src'))) {
         const name = relative(core, file).replace(/\\/g, '/');
-        const migration = name.startsWith('parsers/legacyStorage/') || name.startsWith('compatibility/record/');
+        const migration = name.startsWith('parsers/legacyStorage/');
         const text = readFileSync(file, 'utf8');
         for (const edge of dependencies(file, text)) {
-            assert.ok(!removed.has(edge.target), `${name} imports ${edge.target}`);
-            if (/^compatibility\/record\/(?:parseConversationRecord|conversationRecord|legacyProvider)\.ts$/.test(edge.target)) {
+            if (/^parsers\/legacyStorage\/(?:parseRecord|conversationRecord|attachments|contentAdapter|generationIdentity|generatedMediaReconciliation)\.ts$/.test(edge.target)) {
                 assert.ok(migration, `${name} depends on the historical record boundary`);
+            }
+            if (edge.target === 'parsers/legacyStorage/parseIndex.ts') {
+                assert.ok(migration || name === 'storage/storageService.ts' || name === 'diagnostics/diagnosticSnapshot.ts',
+                    `${name} interprets historical indexes outside migration/recovery`);
             }
         }
         for (const token of tokens(text)) {

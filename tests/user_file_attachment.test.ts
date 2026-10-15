@@ -3,7 +3,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const attachments = require('../src/core/compatibility/gemini/attachments.js');
+const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
 const decodeGeminiDetail = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 

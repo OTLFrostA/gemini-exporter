@@ -1,5 +1,5 @@
 import { ingestConversation } from '../core/storage/storageService.js';
-import { parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
+import { parseGeminiIndexObservation, type GeminiIndexObservationSource, type GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
@@ -184,7 +184,7 @@ export async function touchActiveConversation(
     // would permanently poison the record and no later server timestamp could
     // repair it. Touch updates tie order only (sidebarIndex);
     // the next list sync brings the real server timestamp.
-    const item: IndexObservationInput = {
+    const item: GeminiIndexObservationInput = {
         id: nid,
         url: `https://gemini.google.com/app/${nid}`,
         sidebarIndex: 0
@@ -259,13 +259,13 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
     // If incoming items lack valid IDs or are malformed (e.g. schema drift resulting
     // in 'c_unknown' or missing IDs), filter them out. If no valid items remain,
     // abort storage transaction immediately to protect existing data from corruption.
-    const kind: IndexSource = source === 'network-list' || source === 'batchexecute' ? 'rpc-list'
+    const kind: GeminiIndexObservationSource = source === 'network-list' || source === 'batchexecute' ? 'rpc-list'
         : source.includes('detail') ? 'detail' : 'dom';
     const validIncoming: DomainConversationIndex[] = [];
     const touched = new Set<string>();
     for (const item of incomingItems) {
         try {
-            const index = parseIndexObservation(item, kind);
+            const index = parseGeminiIndexObservation(item, kind);
             validIncoming.push(index);
             if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.id);
         }
@@ -366,7 +366,7 @@ export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
     try {
-        const items: IndexObservationInput[] = [];
+        const items: GeminiIndexObservationInput[] = [];
         const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
         if (activeId) {
             const activeTitleObj = extractActiveChatTitle(activeId);

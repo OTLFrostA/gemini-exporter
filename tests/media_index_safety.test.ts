@@ -13,7 +13,7 @@ import mediaIndex, {
     clearTakeoutData,
     readTakeoutBytes,
     __slotTakeouts
-} from '../src/core/compatibility/takeout/mediaIndex.js';
+} from '../src/core/resources/takeout/mediaIndex.js';
 
 // ==========================================
 // 1. Storage Isolation and Lifecycle

@@ -1,47 +1,5 @@
 [
   {
-    "id": "hydrology_reservoir_finite_volume_conservation",
-    "title": "Reservoir networks: water balance and conservative timesteps",
-    "domain": "hydrology_conservative_simulation",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an actual original image using Imagen: an educational cutaway of two fictional connected reservoirs with rainfall, evaporation, an inter-reservoir channel and a controlled outlet. Use arrows and a compact legend; make clear that this is a conceptual water-balance diagram, not a real engineering design.",
-      "Define a two-reservoir water-balance model with explicit units and hypothetical parameters. Derive a finite-volume update in LaTeX, distinguish external fluxes from internal transfers, and prove the discrete total-volume conservation identity.",
-      "Write complete runnable standard-library Python to simulate the model with piecewise constant inflows. Enforce nonnegative storage and capacity limits using explicitly accounted spill fluxes. Include assertions for dry tanks, zero rainfall, full capacity, unequal timesteps and whole-network mass residuals.",
-      "Use a Markdown table to compare coarse and fine timesteps, reporting initial storage, external inflow, evaporation, controlled outflow, spill, final storage and the conservation residual. Explain which errors reduce with timestep refinement and which indicate broken bookkeeping.",
-      "Write a detailed reproducibility report linking the illustration to the equations and executable model. Discuss positivity, flux limiting, discontinuous forcing, unit conversion, uncertainty and the limitations of this fictional educational simulation."
-    ]
-  },
-  {
-    "id": "numerical_analysis_barycentric_interpolation",
-    "title": "Polynomial interpolation: barycentric weights and conditioning",
-    "domain": "numerical_analysis_interpolation",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define polynomial interpolation at distinct real nodes and derive the Lagrange basis in LaTeX. Use a small rational-node example with an explicitly stated polynomial so exact answers can be checked.",
-      "Derive the first and second barycentric interpolation formulas and explain the cancellation leading to the second formula. State the assumptions and the special behavior exactly at an interpolation node.",
-      "Write complete runnable standard-library Python using fractions.Fraction for exact weights and interpolation. Assert exact recovery of a known polynomial at both nodes and new rational points, reject repeated nodes and mismatched lengths, and define the one-node case.",
-      "Implement floating-point barycentric evaluation with explicit handling of exact node hits. Compare its results with the exact rational reference and explain why arbitrary near-node tolerances may silently change the interpolant.",
-      "Use a Markdown table to compare equispaced nodes and Chebyshev nodes for a clearly defined Runge-function example. Include node count, maximum sampled error and the exact evaluation grid; distinguish sampled errors from proven suprema.",
-      "Explain the Lebesgue function and derive an interpolation-error bound. Distinguish approximation error, conditioning with respect to data, and numerical stability of an evaluation algorithm.",
-      "Add deterministic verification cases for constant and linear data, input permutation, large common weight scaling and query values at or near nodes. Discuss overflow, underflow and why an implementation should avoid explicitly expanding polynomial coefficients.",
-      "Write a long synthesis report connecting the exact derivation, executable checks and floating-point experiments. Include a bilingual Chinese-English terminology table and explain when piecewise interpolation is preferable to one high-degree polynomial."
-    ]
-  },
-  {
     "id": "botany_phyllotaxis_golden_angle_spiral_sampling",
     "title": "Phyllotaxis: golden-angle sampling and geometric evidence",
     "domain": "botany_phyllotaxis_geometry",
@@ -389,6 +347,48 @@
       "Write complete runnable standard-library Python using fractions.Fraction and Gaussian elimination to calculate exact absorption probabilities and hitting times. Test a chain with immediate absorption, a self-loop, and a state that cannot reach absorption.",
       "Use a Markdown table to report exact and decimal probabilities and expected times for every transient state. Compare them with a seeded Monte Carlo simulation and distinguish sampling error from implementation error.",
       "Write a detailed numerical audit discussing conditioning, nearly absorbing states, termination bounds, uncertainty intervals, and the distinction between finite sample evidence and exact algebraic verification."
+    ]
+  },
+  {
+    "id": "coastal_wetland_sediment_elevation_budget",
+    "title": "Tidal wetlands: sediment budgets and elevation resilience",
+    "domain": "hydrology_coastal_wetland_sediment",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an actual original image using Imagen: an educational cross-section of a fictional tidal salt marsh, showing a creek, suspended sediment entering on flood tide, settling onto a vegetated platform, erosion at the edge and rising mean sea level. Include a compact legend and identify it as a conceptual illustration, not a real coastal engineering design.",
+      "Derive a hypothetical marsh elevation and sediment-mass budget in LaTeX with explicit units. Distinguish mineral deposition, organic accumulation, compaction, edge erosion and relative sea-level rise; state which processes conserve sediment and which exchange mass with the external estuary.",
+      "Write complete runnable standard-library Python for the fictional budget with periodic tidal inundation and a step change in sediment supply. Track external sediment input, deposition, resuspension and remaining suspended mass; include assertions for zero sediment supply, no inundation, nonnegative mass and convergence under timestep refinement.",
+      "Present a Markdown sensitivity table for low, medium and high sediment supply combined with two sea-level-rise rates. Separate computed hypothetical results from qualitative expectations and report elevation change, deposition and sediment balance residuals with units.",
+      "Write a detailed bilingual English-Chinese reproducibility note connecting the illustration, equations and code. Discuss feedback between plant growth and inundation, parameter identifiability, uncertainty, mass-conservation checks and the limitations of this educational model."
+    ]
+  },
+  {
+    "id": "adaptive_quadrature_endpoint_singularity_audit",
+    "title": "Adaptive quadrature: error control and endpoint singularities",
+    "domain": "numerical_analysis_adaptive_quadrature",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive an adaptive Simpson quadrature method in LaTeX, explaining the local error estimate, Richardson correction and allocation of an absolute error budget to child intervals. State the smoothness assumptions needed for the estimate.",
+      "Write complete runnable standard-library Python with cached function evaluations, an explicit work stack, absolute and relative tolerances, a maximum evaluation budget and a result object reporting value, estimated error, evaluation count and termination reason.",
+      "Add meaningful tests for a constant, a quartic with a known integral, a narrow smooth peak, reversed bounds and a zero-width interval. Demonstrate that exhausting the evaluation budget returns an explicit incomplete result rather than a false success.",
+      "Analyze the integral of x to the power minus one half over the unit interval. Show why a naive endpoint evaluation fails, derive a substitution that removes the singularity and implement the transformed integral without sampling an undefined value.",
+      "Use a Markdown table to compare composite trapezoidal, fixed Simpson and adaptive Simpson methods on the same smooth and transformed problems. Report actual error separately from estimated error and label any results that have not been executed.",
+      "Construct a counterexample involving a narrow oscillation or localized feature that the initial samples can miss. Explain why an adaptive error estimate is conditional evidence, not a universal proof of accuracy.",
+      "Discuss floating-point cancellation, summation order, near-identical subdivision endpoints and interval stagnation. Add safeguards and diagnostics while keeping the implementation readable and reproducible.",
+      "Produce a detailed technical report combining equations, fenced Python code, a method-selection table and a reproducibility checklist. Explain when a variable substitution or domain-specific quadrature rule is more useful than tightening the same adaptive tolerance."
     ]
   }
 ]

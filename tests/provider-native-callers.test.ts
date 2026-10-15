@@ -12,8 +12,8 @@ import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../sr
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
-import { parseTakeoutZip } from '../src/core/compatibility/takeout/takeoutParser.js';
-import { MediaIndex } from '../src/core/compatibility/takeout/mediaIndex.js';
+import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
+import { MediaIndex } from '../src/core/resources/takeout/mediaIndex.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import { getDomainConversationResult } from '../src/core/storage/domain/nativePersistence.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
@@ -71,7 +71,7 @@ test('native token loops retain diagnostics and explicitly mark incomplete cover
 
 test('native exports use Domain without invoking the historical record parser', async () => {
     const view = result('data:image/png;base64,iVBORw0KGgo=');
-    const recordParser = require('../src/core/compatibility/record/parseConversationRecord.js') as { parseConversationRecord: (...args: unknown[]) => unknown };
+    const recordParser = require('../src/core/parsers/legacyStorage/parseRecord.js') as { parseConversationRecord: (...args: unknown[]) => unknown };
     const old = recordParser.parseConversationRecord;
     recordParser.parseConversationRecord = () => { throw new Error('A native result cannot be reparsed as a record'); };
     try {

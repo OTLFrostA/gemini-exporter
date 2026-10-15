@@ -6,7 +6,7 @@ import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail, findTurnsDeep } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
 import { robustFirstPayload, extractModelCandidates, extractCandidateText, extractThoughts, extractCitations } from '../src/core/parsers/gemini/rpc/extractors.js';
 import { extractInnerPayload, extractNextPageToken } from '../src/core/parsers/gemini/rpc/payload.js';
-import { extractImages, extractUserFiles, extractDocumentsMeta } from '../src/core/compatibility/gemini/attachments.js';
+import { extractImages, extractUserFiles, extractDocumentsMeta } from '../src/core/parsers/legacyStorage/attachments.js';
 import { decodeGeminiStructuredPayload } from '../src/core/parsers/gemini/rpc/structuredContent.js';
 
 // Synthetic boundary probes based on existing gemini_parser/parse_observability

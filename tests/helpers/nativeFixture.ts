@@ -1,9 +1,8 @@
-import { parseConversationRecord, type ConversationRecordParseContext } from '../../src/core/compatibility/record/parseConversationRecord.js';
-import { inferLegacyProviderId } from '../../src/core/compatibility/record/legacyProvider.js';
-import type { ConversationRecordInput } from '../../src/core/compatibility/record/conversationRecord.js';
+import { parseConversationRecord, type ConversationRecordParseContext } from '../../src/core/parsers/legacyStorage/parseRecord.js';
+import type { ConversationRecordInput } from '../../src/core/parsers/legacyStorage/conversationRecord.js';
 /** Historical test evidence is parsed explicitly; production never accepts this input. */
 export function historicalFixture(record: ConversationRecordInput, options: Partial<ConversationRecordParseContext> = {}) {
-    return parseConversationRecord(record, { ...options, providerId: options.providerId ?? inferLegacyProviderId(record) });
+    return parseConversationRecord(record, { ...options, providerId: options.providerId ?? (record.source?.startsWith('openai') ? 'openai' : 'gemini') });
 }
 export function historicalFixtureDomain(record: ConversationRecordInput, options: Partial<ConversationRecordParseContext> = {}) {
     return historicalFixture(record, options).conversation;

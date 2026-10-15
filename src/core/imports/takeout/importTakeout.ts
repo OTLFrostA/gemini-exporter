@@ -1,10 +1,10 @@
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { ingestConversation, getConversations } from '../../storage/storageService.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
-import { ZipBombGuard } from '../archive/zipBombGuard.js';
+import { ZipBombGuard } from './zipBombGuard.js';
 import { I18n } from '../../utils/i18n.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
-import { MediaIndex, readTakeoutBytes, type TakeoutStore } from './mediaIndex.js';
+import { MediaIndex, readTakeoutBytes, type TakeoutStore } from '../../resources/takeout/mediaIndex.js';
 import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive, type GeminiTakeoutZipRaw } from '../../parsers/gemini/takeout/parseZip.js';
 import { TakeoutParseError } from '../../../types/errors.js';
@@ -17,10 +17,6 @@ export interface TakeoutParseResult extends TakeoutStore {
     diagnostics: DocumentDiagnostic[];
     resourceResults: ResourceResult<ResourceDelivery>[];
     status: 'ok' | 'partial';
-}
-export interface TakeoutParserModule {
-    stripHtmlTags: typeof stripHtmlTags;
-    parseTakeoutZip: typeof parseTakeoutZip;
 }
 export { stripHtmlTags };
 
@@ -107,5 +103,3 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     return { ...store, conversations, totalMediaCount, resourceResults, status: resourceResults.some(result => !result.ok) ? 'partial' : 'ok',
         diagnostics: [...diagnostics, ...resourceDiagnostics(resourceResults).filter(d => !diagnostics.some(existing => existing.path === d.path && existing.code === d.code))] };
 }
-export const TakeoutParser: TakeoutParserModule = { stripHtmlTags, parseTakeoutZip };
-export default TakeoutParser;

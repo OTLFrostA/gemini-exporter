@@ -1,11 +1,11 @@
 import { restoreConversationIndex } from '../../src/core/domain/conversationIndex.js';
-import { parseIndexObservation } from '../../src/core/compatibility/index/parseIndex.js';
+import { parseLegacyConversationIndex } from '../../src/core/parsers/legacyStorage/parseIndex.js';
 import type { DomainConversationIndex } from '../../src/core/domain/conversationIndex.js';
 
 /** Fixtures explicitly adapt historical metadata before exercising canonical consumers. */
 export function indexFixture(raw: unknown): DomainConversationIndex {
     try { return restoreConversationIndex(raw); } catch {}
-    const index = parseIndexObservation(raw, 'legacy');
+    const index = parseLegacyConversationIndex(raw);
     const fields = raw as Record<string, unknown>;
     // Tests declaring counts here mean observed individual messages, not raw list RPC slots.
     if (typeof fields.messageCount === 'number' && Number.isSafeInteger(fields.messageCount) && fields.messageCount >= 0) index.messageCount = fields.messageCount;
