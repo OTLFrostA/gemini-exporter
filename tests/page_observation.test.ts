@@ -10,8 +10,19 @@ test('active and passive normalization retain identical independent cursor and o
         const result = parseList(wire([row('abcdef123', 1700000020), row('abcdef456', 1700000010)]));
         const request = readGeminiListRequest(body([streamId === 'recent' ? 0 : 1, null, 1], 'incoming'));
         assert.deepEqual(request, { streamId, requestCursor: 'incoming' });
-        assert.deepEqual(geminiListObservation(result, request, 'account'), geminiListObservation(result, { streamId, requestCursor: 'incoming' }, 'account'));
-        assert.equal(geminiListObservation(result, request, 'account').ordered, streamId === 'recent');
+        const observation = geminiListObservation(result, request, 'account');
+        assert.equal(observation.providerId, 'gemini');
+        assert.equal(observation.accountId, 'account');
+        assert.equal(observation.streamId, streamId);
+        assert.equal(observation.requestKnown, true);
+        assert.equal(observation.requestCursor, 'incoming');
+        assert.equal(observation.nextCursor, null);
+        assert.equal(observation.valid, true);
+        assert.deepEqual(observation.keys, [
+            { id: 'abcdef123', time: 1700000020000 },
+            { id: 'abcdef456', time: 1700000010000 },
+        ]);
+        assert.equal(observation.ordered, streamId === 'recent');
     }
 });
 test('fallback timestamps, rising times, malformed or truncated responses cannot certify ordering', () => {
