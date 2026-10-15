@@ -830,7 +830,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
                         const actualMsgCount = chat.messages.length;
                         let needUpdateStorage = !!resolvedRes.convsNeedSave;
-                        if (listC && typeof listC === 'object' && actualMsgCount > 0 && listC.messageCount !== actualMsgCount) {
+                        if (resolvedRes.source !== 'local_snapshot' && listC && typeof listC === 'object' && actualMsgCount > (listC.messageCount ?? 0)) {
                             listC.messageCount = actualMsgCount;
                             needUpdateStorage = true;
                         }
@@ -944,6 +944,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             failedAssets: resourceResults.filter(r => !r.ok).length,
                             evidence: chatDrift,
                             usedLocalSnapshot,
+                            metadataSource: resolvedRes.source === 'local_snapshot' ? 'saved' : 'acquisition',
                             statusOverride: mainWriteError ? 'failed' : undefined,
                             truncateReason: chatDrift.truncated
                                 ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
@@ -979,6 +980,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 ...completion.exportRecord,
                                 exportRecord: completion.exportRecord,
                                 conversationUpdate: completion.conversationUpdate,
+                                skipConversationUpdate: completion.skipConversationUpdate,
                                 targetId: completion.targetId
                             });
                             if (!useZip) await finalizeChatExport(chatId);

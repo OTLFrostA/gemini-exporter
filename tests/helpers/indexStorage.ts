@@ -1,3 +1,4 @@
+import { beforeEach, afterEach } from 'node:test';
 import { __resetStorageReadyForTest } from '../../src/core/storage/schemaMigration.js';
 import { __clearDomainMemory } from '../../src/core/storage/domain/domainStore.js';
 
@@ -21,4 +22,11 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     __clearDomainMemory();
     return { local, writes: () => writes, fail: (key?: string) => { failKey = key; },
         restore() { globalThis.chrome = previous; __resetStorageReadyForTest(); __clearDomainMemory(); } };
+}
+
+/** Catalog-aware application tests use the same storage boundary as production reads. */
+export function useIndexStorage(): void {
+    let environment: ReturnType<typeof indexStorage>;
+    beforeEach(() => { environment = indexStorage(); });
+    afterEach(() => { environment.restore(); });
 }

@@ -1,3 +1,6 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
@@ -645,7 +648,7 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                 });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (scenario === 'snapshot' || scenario === 'deleted') await store.saveDomainConversation('u0', parsed);
+            if (scenario === 'snapshot' || scenario === 'deleted') await catalogStorage.setNativeConversations('u0', [parsed]);
             const records: Array<{ status: string }> = [];
             try {
                 const result = await new PdfExporter(new StubPdfCompiler()).run({

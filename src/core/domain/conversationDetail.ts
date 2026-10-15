@@ -71,7 +71,8 @@ export interface DomainMessage {
     citations?: DomainCitation[];
 }
 
-/** Canonical conversation facts, independent of acquisition and presentation. */
+/** Parser/storage snapshot contract. Application reads use DomainConversation:
+ * its index owns metadata and its detail exposes only body facts. */
 export interface DomainConversationDetail {
     providerId: string;
     completeness: 'complete' | 'partial' | 'unknown';

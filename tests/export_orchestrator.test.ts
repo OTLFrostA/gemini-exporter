@@ -1,3 +1,6 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { FetchAssetParams } from '../src/core/engine/assetPipeline.js';
@@ -970,7 +973,8 @@ test('all ordinary formats use completion for both records and meta, including f
             }
             const { savedRecords } = setupMockStorage();
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (scenario === 'snapshot' || scenario === 'deleted') await store.saveDomainConversation('u0', parsed);
+            if (scenario === 'snapshot' || scenario === 'deleted') await catalogStorage.setNativeConversations('u0', [parsed]);
+            if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
             try {
                 const result = await new ExportOrchestrator().run({
                     selected: [{ id, title: 'Integrity contract' }], format, useZip: true, downloadHandler: async () => {}, includeAssets: false, includeIndex: true,

@@ -77,6 +77,8 @@ export interface BuildExportCompletionInput {
     /** Integrity evidence facts */
     evidence?: ChatParseDrift;
     usedLocalSnapshot?: boolean;
+    /** Saved projections cannot publish new catalog facts, including retained deleted archives. */
+    metadataSource?: 'acquisition' | 'saved';
 }
 
 export type StandardExportRecord = {
@@ -94,6 +96,8 @@ export type StandardExportRecord = {
 export type StandardConversationUpdate = ConversationIndexPatch;
 
 export interface ExportCompletionResult {
+    /** Exporting a saved projection provides no fresh catalog metadata. */
+    skipConversationUpdate?: true;
     /** Canonical normalized conversation ID without c_ prefix */
     targetId: string;
     /** Standardized ExportRecord to store in exportedIds SSoT */
@@ -300,7 +304,8 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
     return {
         targetId,
         exportRecord,
-        conversationUpdate
+        conversationUpdate,
+        ...(input.metadataSource === 'saved' || input.usedLocalSnapshot ? { skipConversationUpdate: true as const } : {}),
     };
 }
 
@@ -325,7 +330,7 @@ export async function completeConversationExport(
             completion.exportRecord,
             {
                 conversationUpdate: completion.conversationUpdate,
-                skipConversationUpdate: options?.skipConversationUpdate,
+                skipConversationUpdate: completion.skipConversationUpdate || options?.skipConversationUpdate,
                 onItemExported: options?.onItemExported
             }
         );

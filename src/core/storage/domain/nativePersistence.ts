@@ -5,6 +5,8 @@ import type { StoredDomainResource } from './contracts.js';
 export async function persistNativeConversation(accountSlot: string, result: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = []): Promise<void> {
     await saveDomainConversation(accountSlot, result, resources);
 }
+/** Raw persistence primitive for migration/recovery. Application reads use the scoped
+ * conversation repository so saved metadata cannot compete with the current index. */
 export async function getDomainConversationResult(accountSlot: string, id: string, providerId = 'gemini'): Promise<ResourceConversationParseResult | null> {
     const stored = await getStoredDomain(storageIdentity(providerId, accountSlot, id));
     return stored ? storedParseResult(stored) : null;
