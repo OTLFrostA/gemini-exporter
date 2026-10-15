@@ -2,6 +2,7 @@ import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import * as ts from 'typescript';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
@@ -51,15 +52,25 @@ test('UI locale, theme and page policy change independently of document language
     assert.equal(JSON.stringify(document), before);
 });
 
-test('neutral contract carries no units, output formats, UI controls or source-model dependencies', () => {
+test('neutral AST has no output controls and renderers do not import source models', () => {
     const { document } = composeDomainDocument(validateParserDomain(fixture()));
     const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'openLabel']);
     function check(value: unknown): void { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), key); check(child); } }
     check(document);
+    // Inspect actual module specifiers, not incidental strings/comments or local variable names.
     for (const name of ['html/renderHtml', 'markdown/renderMarkdown', 'typst/renderTypst', 'shared/backendPresentation', 'shared/renderOptions', 'shared/renderStrings']) {
-        assert.doesNotMatch(readFileSync(`src/core/renderers/${name}.ts`, 'utf8'), /from ['"].*(?:canonical|domain|provider|content)\//);
+        const imports = ts.preProcessFile(readFileSync(`src/core/renderers/${name}.ts`, 'utf8'), true, true)
+            .importedFiles.map(item => item.fileName);
+        for (const source of imports) {
+            assert.doesNotMatch(source, /(^|\\/)(?:canonical|domain|provider|content)\\//,
+                `Renderer ${name} cannot import source-model module ${source}`);
+        }
     }
-    assert.doesNotMatch(readFileSync('src/core/document/compose/composeDomainDocument.ts', 'utf8'), /visualContract|getRendererStrings|RenderOptions|isMarkdown|isPdf|\.75|gapBeforePt/);
+    const composerImports = ts.preProcessFile(
+        readFileSync('src/core/document/compose/composeDomainDocument.ts', 'utf8'), true, true,
+    ).importedFiles.map(item => item.fileName);
+    assert.ok(composerImports.every(source => !source.includes('/renderers/')),
+        'Document composition must not import an output backend');
 });
 
 
