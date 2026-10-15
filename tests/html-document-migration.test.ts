@@ -1,24 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import { fixtureResourceResults } from './helpers/documentFixture.js';
-const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
-/**
- * tests/html-document-migration.test.ts
- * Item 1 (P0): production HTML export routes through the canonical path
- * (ChatFormatter.formatHtmlDocument: parseConversation -> Domain -> Document AST -> HTML backend).
- *
- * History: this file originally compared the legacy toHtml() output with
- * the new production entry as migration evidence. Item 2 (P0) removed the
- * legacy toHtml() pipeline entirely; the remaining assertions verify the
- * production entry directly: turn count/order and no dropped content
- * class (text, attachments, images, thought, code, table, citation).
- * Not pixel-perfect: tags/styles may differ.
- */
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import { historicalFixture } from './helpers/nativeFixture.js';
+import { ChatFormatter } from '../src/core/engine/chatFormatter.js';
 
-const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
-
+// This tests the current HTML export entry. Historical records are adapted
+// explicitly in the fixture; the test does not claim to exercise live RPC input.
 const chat: any = {
     id: 'migrate_001',
     title: 'HTML Canonical Migration',
@@ -68,7 +55,8 @@ const chat: any = {
     ],
 };
 
-/** Role sequence of top-level turn sections, in document order. */
+
+/** Role sequence of top-level exported turns, in display order. */
 function turnRoles(html: string): string[] {
     const roles: string[] = [];
     const re = /<section class="gem-turn gem-turn-(user|model)"/g;
@@ -77,75 +65,64 @@ function turnRoles(html: string): string[] {
     return roles;
 }
 
-let newHtml: string;
-
-test('migration setup: production entry returns a valid HTML FormattedResult', async () => {
+test('HTML production export retains every message and authored content type', async t => {
     const native = historicalFixture(chat);
-    const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
-    assert.strictEqual(res.ext, 'html');
-    assert.strictEqual(res.mime, 'text/html');
-    assert.ok(String(res.content).startsWith('<!DOCTYPE html>'), 'must be a full HTML document');
-    newHtml = String(res.content);
+    const res = await ChatFormatter.formatHtmlDocument(native, {
+        resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints),
+    });
+    const html = String(res.content);
+
+    await t.test('complete offline HTML document and ordered turns', () => {
+        assert.equal(res.ext, 'html');
+        assert.equal(res.mime, 'text/html');
+        assert.ok(html.startsWith('<!DOCTYPE html>'));
+        assert.deepEqual(turnRoles(html), ['user', 'model', 'user', 'model']);
+    });
+    await t.test('authored body text remains present', () => {
+        for (const phrase of [
+            'Please analyze this screenshot', 'key metric', 'rising',
+            'explain the', 'It sums the values',
+        ]) assert.ok(html.includes(phrase), `body text missing: ${phrase}`);
+    });
+    await t.test('image placements and downloadable files retain their prepared paths', () => {
+        for (const path of ['report.pdf', 'screen.png', 'inline-photo.jpg', 'assets/inline-photo.jpg']) {
+            assert.ok(html.includes(path), `missing export resource: ${path}`);
+        }
+        assert.ok((html.match(/<img\b/g) || []).length >= 2, 'two image placements must survive export');
+    });
+    await t.test('authored reasoning text survives', () => {
+        assert.ok(html.includes('gem-thoughts'));
+        assert.ok(html.includes('Verify the numbers in the table'));
+    });
+    await t.test('code contents and language remain visible', () => {
+        assert.ok(html.includes('def trend(xs):'));
+        assert.ok(html.includes('language-python'));
+    });
+    await t.test('table structure and cells survive', () => {
+        assert.ok(html.includes('<table'));
+        assert.ok(html.includes('Metric'));
+        assert.ok(html.includes('rising'));
+    });
+    await t.test('citations retain their source URL', () => {
+        assert.ok(html.includes('https://example.com/dataset.csv'));
+        assert.ok(html.includes('gem-citation'));
+    });
 });
 
-test('migration: message count and order are correct', () => {
-    const newRoles = turnRoles(newHtml);
-    assert.deepStrictEqual(newRoles, ['user', 'model', 'user', 'model']);
-});
-
-test('migration: body text not dropped', () => {
-    for (const needle of [
-        'Please analyze this screenshot',
-        'key metric',
-        'rising',
-        'explain the',
-        'It sums the values',
-    ]) {
-        assert.ok(newHtml.includes(needle), `body text missing: ${needle}`);
-    }
-});
-
-test('migration: attachments and images not dropped', () => {
-    assert.ok(newHtml.includes('report.pdf'), 'file attachment name missing');
-    assert.ok(newHtml.includes('screen.png'), 'image attachment name missing');
-    assert.ok(newHtml.includes('inline-photo.jpg'), 'inline image name missing');
-    assert.ok(newHtml.includes('assets/inline-photo.jpg'), 'inline image src missing');
-    const imgCount = (newHtml.match(/<img\b/g) || []).length;
-    assert.ok(imgCount >= 2, `expected >=2 <img> tags, got ${imgCount}`);
-});
-
-test('migration: thought not dropped', () => {
-    assert.ok(newHtml.includes('gem-thoughts'), 'thought block missing');
-    assert.ok(newHtml.includes('Verify the numbers in the table'), 'thought text missing');
-});
-
-test('migration: code block not dropped', () => {
-    assert.ok(newHtml.includes('def trend(xs):'), 'code text missing');
-    assert.ok(newHtml.includes('language-python'), 'code language marker missing');
-});
-
-test('migration: table not dropped', () => {
-    assert.ok(newHtml.includes('<table'), 'table element missing');
-    assert.ok(newHtml.includes('Metric'), 'table header cell missing');
-    assert.ok(newHtml.includes('rising'), 'table body cell missing');
-});
-
-test('migration: citation not dropped', () => {
-    assert.ok(newHtml.includes('https://example.com/dataset.csv'), 'citation URL missing');
-    assert.ok(newHtml.includes('gem-citation'), 'citation markup missing');
-});
-
-test('migration: duplicate source message IDs preserve every message at export', async () => {
-    const dupChat: any = {
-        id: 'dup_001',
-        title: 'Duplicate Id Chat',
+test('HTML export preserves distinct turns even when the provider reuses a message id', async () => {
+    const repeated = historicalFixture({
+        id: 'dup_001', title: 'Repeated Message ID',
         messages: [
-            { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
-            { id: 'rc_dup_1', role: 'model', content: 'model answer' },
-            { id: 'c_dup_001', role: 'user', content: 'first user prompt' },
+            { id: 'c_dup_001', role: 'user', content: 'the first user prompt' },
+            { id: 'rc_dup_1', role: 'model', content: 'middle model answer' },
+            { id: 'c_dup_001', role: 'user', content: 'the later user prompt' },
         ],
-    };
-    const result = await ChatFormatter.formatHtmlDocument(historicalFixture(dupChat));
-    assert.equal(result.content.match(/first user prompt/g)?.length, 2);
-    assert.ok(result.content.includes('model answer'));
+    });
+    const result = await ChatFormatter.formatHtmlDocument(repeated);
+    const html = result.content;
+    assert.deepEqual(turnRoles(html), ['user', 'model', 'user'], 'two distinct turns cannot collapse due to a reused source id');
+    const first = html.indexOf('the first user prompt');
+    const middle = html.indexOf('middle model answer');
+    const last = html.indexOf('the later user prompt');
+    assert.ok(first >= 0 && first < middle && middle < last, 'repeated source IDs must not reorder or drop authored bodies');
 });
