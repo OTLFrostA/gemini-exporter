@@ -11,12 +11,16 @@ const valid = () => ({ schemaVersion: 2, header: { title: 'T', providerLabel: 'c
 test('every visual/parity corpus fixture satisfies the exact current DocumentAst definition', () => {
     const entries: Array<{ value: unknown; context: string }> = [];
     for (const directory of ['tests/fixtures/visual-corpus', 'tests/parity-corpus']) {
-        for (const file of readdirSync(directory).filter(file => file.endsWith('.json'))) {
+        const files = readdirSync(directory).filter(file => file.endsWith('.json'));
+        assert.ok(files.length > 0, `${directory} must contain contract fixtures`);
+        for (const file of files) {
             const fixture = JSON.parse(readFileSync(`${directory}/${file}`, 'utf8'));
             entries.push({ value: fixture.document, context: `${directory}/${file}.document` });
         }
     }
-    for (const file of readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'))) {
+    const domainFixtures = readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'));
+    assert.ok(domainFixtures.length > 0, 'document-domain must contain contract fixtures');
+    for (const file of domainFixtures) {
         const input: DomainConversationDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
         entries.push({ value: composeDomainDocument(validateParserDomain(input)).document, context: file });
     }
