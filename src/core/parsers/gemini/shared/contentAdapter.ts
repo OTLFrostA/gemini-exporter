@@ -62,6 +62,11 @@ export function parseGeminiBody(
         } catch {
             // Includes malformed annotation arrays and nested provider containers.
         }
+        context.diagnostics.push({
+            severity: 'warning', code: 'GEMINI_STRUCTURED_FALLBACK',
+            message: 'Structured body could not be adapted; using Markdown fallback',
+            sourceRef: context.sourceRef, details: { reason: 'adapter_rejected' },
+        });
     }
     if (typeof content === 'string') return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context));
     if (content === undefined || content === null) return [];

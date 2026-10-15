@@ -44,6 +44,14 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };
+        const extraction = message.structuredExtraction;
+        if (extraction && extraction.status !== 'decoded') contentDiagnostics.push({
+            severity: extraction.status === 'decode_rejected' ? 'warning' : 'info',
+            code: 'GEMINI_STRUCTURED_FALLBACK',
+            message: 'Native structured body unavailable; using Markdown fallback',
+            sourceRef,
+            details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? { issue: { ...extraction.issue } } : {}) },
+        });
         const reasoning = parseLegacyReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
         const citations = citationsOf(message);
         return closeLegacyCitations({

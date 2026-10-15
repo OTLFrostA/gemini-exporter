@@ -44,7 +44,7 @@ import GeminiUtils from "../../../utils/utils.js";
 import { extractInnerPayload, extractNextPageToken } from "./payload.js";
 import { resolveDetailTitle, RESEARCH_PROMPT_PREFIX_RE } from "../../../utils/titleUtils.js";
 import { shortId } from "../../../utils/pathUtils.js";
-import { extractStructuredContent } from "./structuredContent.js";
+import { inspectStructuredContent } from "./structuredContent.js";
 
 const DOC_TITLE_FALLBACK_RE = /^#\s+(.+)$/m;
 
@@ -355,7 +355,8 @@ function parseCandidateResponse(
         responseText = textArr.join("\n\n");
     }
 
-    const structuredContent = extractStructuredContent(turn, cand, candidateIndex);
+    const structuredExtraction = inspectStructuredContent(turn, cand, candidateIndex);
+    const structuredContent = structuredExtraction.status === 'decoded' ? structuredExtraction.document : undefined;
     const rawAnswerDocument = candidateIndex === 0 && Array.isArray(turn?.[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD])
         ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD][GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12]
         : undefined;
@@ -520,6 +521,7 @@ function parseCandidateResponse(
         attachmentCount: attachments.length,
         messageCount: 1,
         ...(structuredContent ? { structuredContent } : {}),
+        structuredExtraction,
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {})
     };
 }
