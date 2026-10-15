@@ -974,7 +974,7 @@ test('all ordinary formats use completion for both records and meta, including f
     }
 });
 
-test('ZIP delivery boundary preserves real Storage, UI, counts and retry across failure stages', async () => {
+test('ZIP delivery with stub generator preserves real Storage, UI, counts and retry across failure stages', async () => {
     const Storage = require('../src/core/storage/storageService.js');
     const { SessionStore } = require('../src/core/storage/sessionStore.js');
     const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
