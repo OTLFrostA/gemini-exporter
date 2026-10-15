@@ -31,12 +31,28 @@ void cursor;
 parseConversation({ format: 'gemini-rpc', data: '[]' });
 // @ts-expect-error Raw RPC parsing requires response text rather than a record.
 parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: {} });
-// @ts-expect-error Problems remain outside the semantic conversation.
-const diagnosticsInDomain: DomainConversationDetail = { providerId: 'provider', id: '', title: '', timestamp: null, assets: [], messages: [], diagnostics: [] };
-// @ts-expect-error Cursors are acquisition context, not permanent conversation facts.
-const cursorInDomain: DomainConversationDetail = { providerId: 'provider', id: '', title: '', timestamp: null, assets: [], messages: [], nextPageToken: 'cursor' };
-// @ts-expect-error Completeness has a closed vocabulary independent of any provider status.
-const invalidCoverage: DomainConversationDetail = { providerId: 'provider', id: '', title: '', timestamp: null, assets: [], messages: [], completeness: { status: 'finished' } };
+// Build every negative type case from a valid Domain baseline, so @ts-expect-error
+// cannot be satisfied by an unrelated missing required field or stale timestamp alias.
+const validDomain: DomainConversationDetail = {
+    providerId: 'provider', id: 'typed', title: 'Typed conversation',
+    completeness: 'unknown', assets: [], messages: [],
+};
+const diagnosticsInDomain: DomainConversationDetail = {
+    ...validDomain,
+    // @ts-expect-error Problems remain outside the semantic conversation.
+    diagnostics: [],
+};
+const cursorInDomain: DomainConversationDetail = {
+    ...validDomain,
+    // @ts-expect-error Cursors are acquisition context, not permanent conversation facts.
+    nextPageToken: 'cursor',
+};
+const invalidCoverage: DomainConversationDetail = {
+    ...validDomain,
+    // @ts-expect-error Completeness has a closed vocabulary independent of any provider status.
+    completeness: { status: 'finished' },
+};
+void validDomain;
 void diagnosticsInDomain;
 void cursorInDomain;
 void invalidCoverage;
