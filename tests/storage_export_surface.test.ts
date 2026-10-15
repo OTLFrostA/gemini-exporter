@@ -31,12 +31,16 @@ test('storageService: 裸写 setter 不再是命名导出', () => {
     const path = require('node:path');
     const src = fs.readFileSync(
         path.join(__dirname, '../src/core/storage/storageService.ts'), 'utf8');
-    const m = src.match(/export\s*\{([\s\S]*?)\};/);
-    assert.ok(m, '应找到 export { ... } 命名导出块');
-    const blockWithoutComments = m[1].replace(/\/\/[^\n]*/g, '');
-    const specifiers = blockWithoutComments.split(',')
-        .map((s: string) => s.trim().split(/\s+as\s+/).pop()!.trim())
-        .filter(Boolean);
+    // Inspect every named export block, not just the first: adding a second
+    // export block must not silently bypass the policy.
+    const source = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const blocks = [...source.matchAll(/\bexport\s*\{([\s\S]*?)\}\s*;/g)];
+    assert.ok(blocks.length > 0, 'expected actual named exports');
+    const specifiers = blocks.flatMap(match => match[1].split(',')
+        .map((name: string) => name.trim().split(/\s+as\s+/).pop()!.trim())
+        .filter(Boolean));
+    assert.doesNotMatch(source, /\bexport\s+(?:(?:async|declare)\s+)*(?:function|const|let|var|class)\s+(?:setExportedIds|setAccountSlots|_setConversationsRaw)\b/,
+        'raw setters must not be exposed through direct named declarations');
 
     assert.ok(!specifiers.includes('setExportedIds'),
         'setExportedIds 不得出现在命名导出中');
