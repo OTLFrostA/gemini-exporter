@@ -11,7 +11,7 @@ const store = require('../src/core/storage/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
 test('PDF successful empty online response selects Takeout rather than reporting a cache fallback', async () => {
-    const id = 'pdf-takeout-044', slot = 'pdf-takeout-slot-044';
+    const id = 'pdf-takeout-044', slot = 'u440';
     const takeout = historicalFixture({ id, messages: [message('Recovered Takeout')] });
     let takeoutReads = 0;
     await catalogStorage.setNativeConversations(slot, [takeout]);
@@ -37,7 +37,7 @@ test('PDF successful empty online response selects Takeout rather than reporting
 });
 
 test('shared acquisition prefers valid online input and uses local cache after unusable Takeout', async () => {
-    const id = 'pdf-cache-044', slot = 'pdf-cache-slot-044';
+    const id = 'pdf-cache-044', slot = 'u441';
     let calls = 0;
     const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id, messages: [] }); } };
     const online = historicalFixture({ id, messages: [message('online')] });
@@ -109,7 +109,7 @@ test('detail extraction prefers the native results envelope over a competing nat
     );
 
     const result = await preparePdfItem({ id }, {
-        currentSlot: 'pdf-precedence-slot-044', includeAssets: false,
+        currentSlot: 'u442', includeAssets: false,
         fetchChatDetail: async () => ({ success: true, results: [fromResults], chat: fromChat }),
     });
     assert.equal(result.ok, true);
