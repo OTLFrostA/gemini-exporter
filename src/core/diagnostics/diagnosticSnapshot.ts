@@ -2,7 +2,7 @@ import { parseLegacyConversationIndex } from '../parsers/legacyStorage/parseInde
 import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
 import { normId } from '../utils/pathUtils.js';
-import { isTakeoutConversation, resolveConversationExportState } from '../utils/titleUtils.js';
+import { isTakeoutConversation, resolveConversationExportState, type ExportActivityRecord } from '../utils/titleUtils.js';
 import { FlightRecorder, type FlightEvent } from './flightRecorder.js';
 
 export interface MaskedConversationMirror {
@@ -59,10 +59,11 @@ export interface DiagnosticSnapshot {
     };
     conversationsStateMirror: MaskedConversationMirror[];
     indexRecoveryIssues: string[];
-    syncDiagnostics: any;
-    lastExportSession: any;
+    exportRecoveryIssues: string[];
+    syncDiagnostics: unknown;
+    lastExportSession: unknown;
     flightRecorder: FlightEvent[];
-    workbenchLogs?: any[];
+    workbenchLogs?: readonly unknown[];
 }
 
 export function maskTitle(title?: string | null): { maskedTitle: string; titleLength: number } {
@@ -81,15 +82,15 @@ export function maskTitle(title?: string | null): { maskedTitle: string; titleLe
     };
 }
 
-export function explainStateDerivation(c: DomainConversationIndex, rec?: any): string {
+export function explainStateDerivation(c: Readonly<Partial<DomainConversationIndex>>, rec?: ExportActivityRecord | null): string {
     if (!rec) {
         return 'No export record in storage (unexported)';
     }
-    const st = (rec as any).status;
+    const st = rec.status;
     if (st === 'pending_assets') {
         return 'Export record has status=pending_assets';
     }
-    if (st === 'partial' || (rec as any).hasFailedAssets) {
+    if (st === 'partial' || rec.hasFailedAssets) {
         return 'Export record marked partial / failed assets; requires incremental retry';
     }
     const derived = resolveConversationExportState(c, rec);
@@ -102,17 +103,48 @@ export function explainStateDerivation(c: DomainConversationIndex, rec?: any): s
 
 export interface BuildSnapshotOptions {
     slot?: string | null;
-    conversations?: DomainConversationIndex[];
-    exportedIds?: Record<string, any>;
-    workbenchLogs?: any[];
+    conversations?: readonly Readonly<DomainConversationIndex>[];
+    exportedIds?: unknown;
+    workbenchLogs?: readonly unknown[];
+}
+
+function stringOr(value: unknown, fallback: string): string { return typeof value === 'string' ? value : fallback; }
+
+function object(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Raw recovery data is interpreted once, before calling typed state consumers. */
+function readExportActivity(value: unknown): ExportActivityRecord | undefined {
+    if (!object(value)) return undefined;
+    const { exportedAt, chatTime, messageCount, status, hasFailedAssets, isTruncated, truncated } = value;
+    const timestamp = (v: unknown): v is string | number | undefined => v === undefined || typeof v === 'string' || typeof v === 'number' && Number.isFinite(v);
+    if (!timestamp(exportedAt) || !timestamp(chatTime)
+        || messageCount !== undefined && (typeof messageCount !== 'number' || !Number.isSafeInteger(messageCount) || messageCount < 0)
+        || status !== undefined && typeof status !== 'string'
+        || hasFailedAssets !== undefined && typeof hasFailedAssets !== 'boolean'
+        || isTruncated !== undefined && typeof isTruncated !== 'boolean'
+        || truncated !== undefined && typeof truncated !== 'boolean') return undefined;
+    return { exportedAt, chatTime, messageCount, status, hasFailedAssets, isTruncated, truncated };
+}
+
+function readExportActivities(value: unknown, issues: string[]): ReadonlyMap<string, ExportActivityRecord> {
+    const records = new Map<string, ExportActivityRecord>();
+    if (!object(value)) { issues.push('Invalid export record container'); return records; }
+    for (const [id, raw] of Object.entries(value)) {
+        const record = readExportActivity(raw);
+        if (record) records.set(id, record);
+        else issues.push(`Rejected export record: ${id}`);
+    }
+    return records;
 }
 
 export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}): Promise<DiagnosticSnapshot> {
     const slot = options.slot || 'u0';
-    let rawStorage: Record<string, any> = {};
+    let rawStorage: Record<string, unknown> = {};
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         try {
-            rawStorage = await chrome.storage.local.get(null);
+            rawStorage = await chrome.storage.local.get<Record<string, unknown>>(null);
         } catch {}
     }
 
@@ -130,14 +162,16 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             catch { convs.push(parseLegacyConversationIndex(row)); recoveryIssues.push(`Historical index at position ${position}`); }
         } catch { recoveryIssues.push(`Rejected index at position ${position}`); }
     }
-    const expMap: Record<string, any> = options.exportedIds || rawStorage[expKey] || {};
+    const exportRecoveryIssues: string[] = [];
+    const expMap = readExportActivities(options.exportedIds ?? rawStorage[expKey] ?? {}, exportRecoveryIssues);
 
-    const slotsMap = rawStorage[STORAGE_KEYS.ACCOUNT_SLOTS] || {};
+    const rawSlots = rawStorage[STORAGE_KEYS.ACCOUNT_SLOTS];
+    const slotsMap = object(rawSlots) ? rawSlots : {};
     const accountSlots = Object.keys(slotsMap).length > 0 ? Object.keys(slotsMap) : ['u0'];
 
     const stateMirror: MaskedConversationMirror[] = convs.map(c => {
         const nid = normId(c?.id);
-        const rec = expMap[nid] || expMap[c?.id] || null;
+        const rec = expMap.get(nid) ?? expMap.get(c.id) ?? null;
         const derived = resolveConversationExportState(c, rec);
         const { maskedTitle, titleLength } = maskTitle(c?.title);
 
@@ -173,26 +207,27 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     return {
         diagnosticVersion: '3.0.0',
         indexRecoveryIssues: recoveryIssues,
+        exportRecoveryIssues,
         generatedAt: new Date().toISOString(),
         environment: {
             extensionVersion: getExtensionVersion(),
             userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-            platform: typeof navigator !== 'undefined' ? (navigator as any).userAgentData?.platform || navigator.platform : undefined,
+            platform: typeof navigator !== 'undefined' ? ('userAgentData' in navigator && object(navigator.userAgentData) && typeof navigator.userAgentData.platform === 'string' ? navigator.userAgentData.platform : navigator.platform) : undefined,
             currentSlot: slot,
             isDevMode: !!rawStorage[STORAGE_KEYS.DEV_MODE]
         },
         storageOverview: {
             totalConversations: convs.length,
-            totalExportedRecords: Object.keys(expMap).length,
+            totalExportedRecords: expMap.size,
             accountSlots,
             hasTakeoutData: !!rawStorage[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT] || convs.some(c => isTakeoutConversation(c)),
             preferences: {
-                format: rawStorage[STORAGE_KEYS.FORMAT] || 'md',
+                format: stringOr(rawStorage[STORAGE_KEYS.FORMAT], 'md'),
                 useZip: typeof rawStorage[STORAGE_KEYS.ZIP] !== 'undefined' ? !!rawStorage[STORAGE_KEYS.ZIP] : true,
-                lang: rawStorage[STORAGE_KEYS.LANG] || 'zh',
+                lang: stringOr(rawStorage[STORAGE_KEYS.LANG], 'zh'),
                 suppressDirectWritePrompt: !!rawStorage[STORAGE_KEYS.SUPPRESS_DIRECT_WRITE_PROMPT],
                 hasCompletedTour: !!rawStorage[STORAGE_KEYS.HAS_COMPLETED_TOUR],
-                lastSeenFeatureVersion: rawStorage[STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION] || '0.0.0'
+                lastSeenFeatureVersion: stringOr(rawStorage[STORAGE_KEYS.LAST_SEEN_FEATURE_VERSION], '0.0.0')
             }
         },
         conversationsStateMirror: stateMirror,

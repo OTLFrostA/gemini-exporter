@@ -96,3 +96,39 @@ test('both entry points reject holes and undefined elements throughout nested Do
     assert.throws(() => validateParserDomain(undefinedNode), TypeError);
     assert.throws(() => restoreDomainSnapshot(undefinedNode), TypeError);
 });
+
+test('parser and recovery reject nonintegral, out-of-range, and over-wide table grids before composition', () => {
+    const withTable = (table: import('../src/core/domain/content/blocks.js').TableBlock) => {
+        const value = valid(); value.detail.messages[0].content = [table]; return value;
+    };
+    const invalidTables: import('../src/core/domain/content/blocks.js').TableBlock[] = [];
+    for (const span of [0, -1, 1.5, 4294967296, Number.MAX_VALUE]) {
+        invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], colSpan: span }] }] });
+        invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], rowSpan: span }] }] });
+    }
+    invalidTables.push(
+        { type: 'table', rows: [{ cells: [{ children: [], colSpan: 1001 }] }] },
+        { type: 'table', rows: [{ cells: [{ children: [], rowSpan: 65535 }] }] },
+        { type: 'table', columns: Array.from({ length: 1001 }, () => ({})), rows: [] },
+        { type: 'table', rows: [{ cells: [{ children: [], colSpan: 1000 }, { children: [] }] }] },
+        // Individually valid rows can overflow once the header's rowspan occupies columns.
+        { type: 'table', headerRows: [{ cells: [{ children: [], colSpan: 1000, rowSpan: 2 }] }], rows: [{ cells: [{ children: [] }] }] },
+    );
+    for (const table of invalidTables) {
+        const value = withTable(table);
+        assert.throws(() => validateParserDomain(value), TypeError);
+        assert.throws(() => restoreDomainSnapshot(value), TypeError);
+        // Nested tables use the same boundary rules.
+        value.detail.messages[0].content = [{ type: 'quote', blocks: [table] }];
+        assert.throws(() => validateParserDomain(value), TypeError);
+    }
+    for (const table of [
+        { type: 'table' as const, rows: [] },
+        { type: 'table' as const, rows: [{ cells: [] }] },
+        { type: 'table' as const, rows: [{ cells: [{ children: [], colSpan: 1000, rowSpan: 65534 }] }] },
+    ]) {
+        const value = withTable(table);
+        assert.equal(validateParserDomain(value), value);
+        assert.deepEqual(restoreDomainSnapshot(value), value);
+    }
+});

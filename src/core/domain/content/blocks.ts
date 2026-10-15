@@ -60,7 +60,9 @@ export interface TableColumn {
 
 export interface TableCell {
     children: InlineNode[];
+    /** Positive integer, at most 1000; the complete logical grid is also at most 1000 columns. */
     colSpan?: number;
+    /** Positive integer, at most 65534. */
     rowSpan?: number;
 }
 
