@@ -4,6 +4,7 @@ const assert = require('node:assert');
 
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
 const { TypstSandboxCompiler } = require('../src/core/export/typst/typstSandboxCompiler.js');
 const { convertMath } = require('../src/core/renderers/typst/mathConverter.js');
 const { extractPdfText } = require('./helpers/pdfTextExtract.js');
@@ -13,7 +14,11 @@ const {
 } = require('./helpers/realWasmSandbox.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return { providerId: 'gemini', id: 'c1', title: 'Fixture', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
+    // Use a valid, trusted Domain graph before testing DocumentAst/Typst behavior.
+    return validateParserDomain({
+        providerId: 'gemini', id: 'c1', title: 'Fixture', completeness: 'unknown',
+        createdAt: Date.parse('2026-09-26T10:00:00Z'), assets, messages,
+    });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
