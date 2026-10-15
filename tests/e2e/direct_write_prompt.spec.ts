@@ -72,7 +72,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
     await page.reload();
     await expect(page.locator('#list .item')).toHaveCount(55);
     await page.click('#btnSelectAll');
-    await expect(page.locator('#selectedStat')).toHaveText(/\\b55\\b/);
+    await expect(page.locator('#selectedStat')).toHaveText(/\b55\b/);
     expect(await page.evaluate(async () =>
       (await chrome.storage.local.get('gemini_suppress_direct_write_prompt')).gemini_suppress_direct_write_prompt
     )).toBe(true);
