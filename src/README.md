@@ -59,6 +59,7 @@ src/
       gemini/takeout/           Activity HTML and cooperative ZIP parsing → Domain
       gemini/dom/               Authored DOM trees → Domain; observed coverage stays partial
       gemini/shared/            Gemini structured content and Markdown interpretation
+      legacyStorage/           Released disk record/index grammar, only migration and recovery
       shared/                  Markdown/HTML, archive validation and resource/citation closure
 
     domain/                    Long-term semantic conversation contract and closure checks
@@ -74,11 +75,11 @@ src/
       typst/                   Typst renderer, templates, layout, math and private payload
       shared/                  Renderer options, strings and shared presentation policy
 
-    compatibility/             Historical grammar, final JSON serialization and acquisition adapters
-      gemini/                  Legacy media extraction/acquisition utilities
-      takeout/                 Native import/cache and source-bound offline acquisition adapters
-      record/                  Historical storage record → Domain
-      archive/                 Existing localized ZIP guard errors
+    imports/                   Import workflow: parsing, resource acquisition and ingestion
+      takeout/                 ZIP import orchestration and localized archive errors
+
+    resources/                 Resource delivery contracts and acquisition/cache helpers
+      takeout/                 Source-bound offline media cache
 
     diagnostics/               Parsing, composition and rendering problem records
 

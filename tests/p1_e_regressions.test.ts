@@ -1,3 +1,4 @@
+import { highResVariant } from '../src/core/resources/geminiImageUrl.js';
 /**
  * P1-E 回归测试 —— 2026-09-15 代码审查 E 组「解析器：形态识别误判与静默丢数据」
  * P1-061 ~ P1-074，共 30 个用例。
@@ -18,7 +19,7 @@ const path = require('path');
 const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
 const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
-const attachments = require('../src/core/compatibility/gemini/attachments.js');
+const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
 
 // ---------------------------------------------------------------- helpers
 function makeDetailRpc(inner: unknown): string {
@@ -218,14 +219,14 @@ test('P1-069c: extractUserFiles 拒绝非 Google 媒体 host 的 URL', () => {
 // ---------------------------------------------------------------- P1-070
 test('P1-070a: highResVariant 保留 query 参数（鉴权参数不被吞掉）', () => {
     assert.strictEqual(
-        attachments.highResVariant("https://lh3.googleusercontent.com/abc=w1024?authuser=0&sz=1"),
+        highResVariant("https://lh3.googleusercontent.com/abc=w1024?authuser=0&sz=1"),
         "https://lh3.googleusercontent.com/abc=s0?authuser=0&sz=1"
     );
 });
 
 test('P1-070b: highResVariant 仍归一化末尾尺寸参数', () => {
     assert.strictEqual(
-        attachments.highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"),
+        highResVariant("https://lh3.googleusercontent.com/pic=w500-h300"),
         "https://lh3.googleusercontent.com/pic=s0"
     );
 });

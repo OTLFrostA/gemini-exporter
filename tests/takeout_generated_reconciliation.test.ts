@@ -3,8 +3,8 @@ useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseTakeoutZip } from '../src/core/compatibility/takeout/takeoutParser.js';
-import { clearTakeoutData } from '../src/core/compatibility/takeout/mediaIndex.js';
+import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
+import { clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 
 const activity = (id: string, date: string, response: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/${id}">Chat</a>

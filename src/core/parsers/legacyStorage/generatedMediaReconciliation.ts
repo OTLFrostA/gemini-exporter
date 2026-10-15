@@ -1,4 +1,4 @@
-import type { GeneratedMediaIdentity } from '../../types/conversation.js';
+import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
 import { findGenerationModelMessage, hasGenerationImage, type GenerationMessage } from './generationIdentity.js';
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { indexFromParsed } from '../src/core/compatibility/index/parseIndex.js';
+import { indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
 import { __clearDomainMemory, saveDomainConversation } from '../src/core/storage/domain/domainStore.js';
 import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
 import { resolveConversationExportState } from '../src/core/utils/titleUtils.js';

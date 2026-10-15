@@ -46,7 +46,7 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
 });
 
 test('RPC generated-media detector preserves generated status while inline images remain unmarked', () => {
-    const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+    const { extractImages } = require('../src/core/parsers/legacyStorage/attachments.js');
     const generated: any[] = Array(16).fill(null);
     generated[2] = jpg;
     generated[3] = 'https://lh3.googleusercontent.com/generated';
@@ -57,7 +57,7 @@ test('RPC generated-media detector preserves generated status while inline image
 });
 
 test('regression: extractImages suppresses 2x inline tuple duplicate sharing token with generated media', () => {
-    const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+    const { extractImages } = require('../src/core/parsers/legacyStorage/attachments.js');
     const token = '8815680899422160530';
     const inlineTuple = ['https://lh3.googleusercontent.com/inline-2x', 2816, 1536, token];
     const generatedNode: any[] = Array(16).fill(null);
@@ -85,7 +85,7 @@ test('regression: extractImages suppresses 2x inline tuple duplicate sharing tok
 });
 
 test('regression: extractImages suppresses 2x upscale derivative rendition (slot 8 === 2) and retains authoritative 1x watermarked image', () => {
-    const { extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+    const { extractImages } = require('../src/core/parsers/legacyStorage/attachments.js');
     const baseNode: any[] = Array(16).fill(null);
     baseNode[2] = 'watermarked_img_4528137010801751197.jpg';
     baseNode[3] = 'https://lh3.googleusercontent.com/gg/original';

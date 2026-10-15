@@ -1,9 +1,8 @@
-import * as source from '../../parsers/gemini/rpc/sourceAttachments.js';
-import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../../parsers/gemini/rpc/sourceAttachments.js';
-export * from '../../parsers/gemini/rpc/sourceAttachments.js';
+import * as source from '../gemini/rpc/sourceAttachments.js';
+import type { RawImageCandidate, ImageAttachment, UserFileAttachment, DeepResearchDocMeta, DocSectionsResult } from '../gemini/rpc/sourceAttachments.js';
+export * from '../gemini/rpc/sourceAttachments.js';
 export interface GeminiParserAttachmentsModule {
     IMAGE_GEN_RE: RegExp;
-    highResVariant: (url?: string | null) => string;
     isInternalChipUrl: (u?: string | null) => boolean;
     extractImageSelectionIndex: (sourceUrl?: string | null) => number | undefined;
     getImageDedupKey: (imageObj: Partial<ImageAttachment>) => string;
@@ -20,21 +19,6 @@ export interface GeminiParserAttachmentsModule {
     itemMatchesFilename: (name?: string | null) => boolean;
     extractFileNameFromUrl: (url: string) => string | null;
 }
-
-    function highResVariant(url?: string | null): string {
-        if (!url || typeof url !== "string") return url || "";
-        if (url.includes("googleusercontent.com/p/") || url.includes("/places/v1/media")) {
-            return url;
-        }
-        const qIdx = url.indexOf("?");
-        const base = qIdx === -1 ? url : url.slice(0, qIdx);
-        const query = qIdx === -1 ? "" : url.slice(qIdx);
-        let resized = base.replace(/=[sw]\d+(?:-[a-z0-9]+)*$/i, "=s0");
-        if ((base.includes("/gg/") || base.includes("/rd-gg/")) && !/=[sw]\d+/i.test(base) && !base.endsWith("=s0")) {
-            resized = base + "=s0";
-        }
-        return resized + query;
-    }
 
     const IMAGE_EXT_MIME: Record<string, string> = {
         ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
@@ -102,7 +86,6 @@ export function extractImages(obj: unknown, seqRef?: { value: number }): ImageAt
 export function extractResponseImages(candidate: unknown, visibleMedia: unknown, text: string, seqRef?: { value: number }): ImageAttachment[] {
     return source.responseImages(candidate, visibleMedia, text, seqRef, extractImages);
 }
-export { highResVariant };
-export const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, highResVariant, extractImages, extractResponseImages };
+export const GeminiParserAttachments: GeminiParserAttachmentsModule = { ...source, extractImages, extractResponseImages };
 if (typeof module === 'object' && module.exports) module.exports = GeminiParserAttachments;
 export default GeminiParserAttachments;

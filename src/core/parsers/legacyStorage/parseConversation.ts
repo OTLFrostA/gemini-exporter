@@ -1,7 +1,7 @@
-import { parseConversationRecord } from '../../compatibility/record/parseConversationRecord.js';
-import type { ConversationRecordInput } from '../../compatibility/record/conversationRecord.js';
+import { parseConversationRecord } from './parseRecord.js';
+import type { ConversationRecordInput } from './conversationRecord.js';
 import type { ResourceConversationParseResult } from '../parsingResult.js';
-import type { ConversationRecordParseContext } from '../../compatibility/record/parseConversationRecord.js';
+import type { ConversationRecordParseContext } from './parseRecord.js';
 import { normId } from '../../utils/pathUtils.js';
 
 export interface LegacyStorageRaw { metadata: unknown; detail?: unknown }

@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mergeConversation } from '../src/core/utils/mergeUtils.js';
-import { parseIndexObservation } from '../src/core/compatibility/index/parseIndex.js';
+import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
+import { indexFromDetail } from '../src/core/storage/conversationIndexFromParsed.js';
+import { historicalFixture } from './helpers/nativeFixture.js';
+import { parseLegacyConversationIndex } from '../src/core/parsers/legacyStorage/parseIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
 
 test('index title authority survives weaker observations and adopts same-tier renames', () => {
@@ -15,19 +18,19 @@ test('index title authority survives weaker observations and adopts same-tier re
 test('placeholder and malformed provenance are handled before index merging', () => {
     const old = indexFixture({ id: 'empty-title', title: 'Stored RPC title', titleSource: 'rpc' });
     for (const title of ['', '   ', '\t\n', 'Google Gemini']) {
-        const incoming = parseIndexObservation({ id: old.id, title, titleSource: 'rpc' }, 'detail');
+        const incoming = parseGeminiIndexObservation({ id: old.id, title, titleSource: 'rpc' }, 'detail');
         assert.equal(incoming.title, '');
         assert.equal(incoming.titleSource, 'default');
         assert.equal(mergeConversation(old, incoming).merged.title, old.title);
     }
-    const dirty = parseIndexObservation({ id: old.id, title: 'Candidate', titleSource: 'export', titles: { made_up: 'Injected title' } }, 'legacy');
+    const dirty = parseLegacyConversationIndex({ id: old.id, title: 'Candidate', titleSource: 'export', titles: { made_up: 'Injected title' } });
     assert.equal(dirty.titleSource, 'legacy');
     assert.equal(Object.hasOwn(dirty, 'titles'), false);
 });
 test('index merging preserves independent times, sampled counts, and import history without extension fields', () => {
     const old = indexFixture({ id: 'merge-fields', title: 'RPC title', titleSource: 'rpc', updatedAt: 5000, createdAt: 2000, messageCount: 8 });
-    const incoming = parseIndexObservation({ id: old.id, title: 'Offline title', titleSource: 'takeout', updatedAt: 3000, createdAt: 1000, messageCount: 2,
-        messages: ['legacy body'], turns: ['legacy turn'], lastSeen: 9000, extensionData: true }, 'takeout');
+    const incoming = indexFromDetail(historicalFixture({ id: old.id, title: 'Offline title', titleSource: 'takeout',
+        messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }] }).conversation, 'takeout');
     const result = mergeConversation(old, incoming);
     assert.equal(result.merged.updatedAt, 5000);
     assert.equal(result.merged.createdAt, 2000, 'Takeout message times cannot replace metadata creation');
@@ -37,11 +40,11 @@ test('index merging preserves independent times, sampled counts, and import hist
     for (const field of ['messages', 'turns', 'lastSeen', 'extensionData', 'timestamp', 'titles']) assert.equal(Object.hasOwn(result.merged, field), false);
 });
 test('legacy aliases are normalized once; missing source facts remain missing', () => {
-    const index = parseIndexObservation({ id: 'c_legacy123', title: 'Historical title', updatedAt: 'invalid', timestamp: '1700000000', createdAt: 0, lastSeen: 9999999999999 }, 'legacy');
+    const index = parseLegacyConversationIndex({ id: 'c_legacy123', title: 'Historical title', updatedAt: 'invalid', timestamp: '1700000000', createdAt: 0, lastSeen: 9999999999999 });
     assert.equal(index.id, 'legacy123');
     assert.equal(index.updatedAt, 1700000000000);
     assert.equal(index.createdAt, 0);
-    const unknown = parseIndexObservation({ id: 'unknown-time', title: 'Untimed title', lastSeen: 9999999999999, messageCount: 100, turns: [1, 2] }, 'legacy');
+    const unknown = parseLegacyConversationIndex({ id: 'unknown-time', title: 'Untimed title', lastSeen: 9999999999999, messageCount: 100, turns: [1, 2] });
     assert.equal(unknown.updatedAt, undefined);
     assert.equal(unknown.createdAt, undefined);
     assert.equal(unknown.messageCount, undefined, 'mixed historical counts are not promoted to message facts');
@@ -49,7 +52,7 @@ test('legacy aliases are normalized once; missing source facts remain missing', 
 
 
 test('historical import source survives authoritative title replacement without a candidate map', () => {
-    const index = parseIndexObservation({ id: 'import-history', title: 'Online rename', titleSource: 'rpc', source: 'takeout-import' }, 'legacy');
+    const index = parseLegacyConversationIndex({ id: 'import-history', title: 'Online rename', titleSource: 'rpc', source: 'takeout-import' });
     assert.equal(index.hasTakeoutImport, true);
     assert.equal(index.titleSource, 'rpc');
     assert.equal(index.title, 'Online rename');

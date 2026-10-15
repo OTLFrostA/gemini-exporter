@@ -1,4 +1,4 @@
-import type { IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
+import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import type { DomDetail, DetailFailure } from '../types/detailTransport.js';
 import { parseGeminiDomConversation } from '../core/parsers/gemini/dom/parseConversation.js';
 import { contentContext } from './contentContext.js';
@@ -76,9 +76,9 @@ export function getScrollContainer(): HTMLElement | null {
     return null;
 }
 
-export function getConversationLinks(): IndexObservationInput[] {
+export function getConversationLinks(): GeminiIndexObservationInput[] {
     if (typeof document === 'undefined') return [];
-    const items: IndexObservationInput[] = [];
+    const items: GeminiIndexObservationInput[] = [];
     const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/app/"]');
     for (const a of Array.from(links)) {
         const href = a.href || a.getAttribute('href') || '';

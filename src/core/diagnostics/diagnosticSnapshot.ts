@@ -1,4 +1,4 @@
-import { parseIndexObservation } from '../compatibility/index/parseIndex.js';
+import { parseLegacyConversationIndex } from '../parsers/legacyStorage/parseIndex.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
 import { normId } from '../utils/pathUtils.js';
@@ -127,7 +127,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     else for (const [position, row] of rawIndexes.entries()) {
         try {
             try { convs.push(restoreConversationIndex(row)); }
-            catch { convs.push(parseIndexObservation(row, 'legacy')); recoveryIssues.push(`Historical index at position ${position}`); }
+            catch { convs.push(parseLegacyConversationIndex(row)); recoveryIssues.push(`Historical index at position ${position}`); }
         } catch { recoveryIssues.push(`Rejected index at position ${position}`); }
     }
     const expMap: Record<string, any> = options.exportedIds || rawStorage[expKey] || {};

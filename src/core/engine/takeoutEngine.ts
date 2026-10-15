@@ -1,9 +1,8 @@
 // Stable public facade for Takeout operations.
 //
 // Design intent — kept deliberately, this is not an empty shell:
-// - This module is the SOLE public entry point for Takeout APIs. Nothing imports
-//   ./takeout/mediaIndex.js or ./takeout/takeoutParser.js directly.
-// - It aggregates two implementation modules (mediaIndex + takeoutParser) into one
+// - This module is the public application entry point for Takeout APIs.
+// - It aggregates import orchestration and the offline resource cache into one
 //   coherent `TakeoutEngine` namespace, so consumers are insulated from internal
 //   file moves.
 // - The `TakeoutEngine` namespace object is the identity key of the
@@ -21,11 +20,11 @@ import {
     __slotTakeouts,
     type TakeoutStore,
     type TakeoutResourceLookup
-} from "../compatibility/takeout/mediaIndex.js";
+} from "../resources/takeout/mediaIndex.js";
 import {
     parseTakeoutZip,
     type TakeoutParseResult
-} from "../compatibility/takeout/takeoutParser.js";
+} from "../imports/takeout/importTakeout.js";
 
 export type { TakeoutStore, TakeoutParseResult, TakeoutResourceLookup };
 

@@ -116,7 +116,7 @@ void generationEvent;
 import type { ResourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 import type { ResourceEvidence } from '../src/core/parsers/shared/resources/resourceEvidence.js';
 import type { ResourceAcquisitionHint } from '../src/core/parsers/shared/resources/resourceAcquisitionHints.js';
-import type { TakeoutResourceLookup } from '../src/core/compatibility/takeout/mediaIndex.js';
+import type { TakeoutResourceLookup } from '../src/core/resources/takeout/mediaIndex.js';
 // @ts-expect-error Core resource identity never accepts legacy null times.
 const nullResourceIdentity: ResourceIdentity = { assetId: 'x', sourceUris: [], generation: { time: null } };
 // @ts-expect-error Resolved evidence has already crossed the source normalization boundary.

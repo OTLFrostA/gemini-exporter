@@ -8,7 +8,7 @@ import type { HistoricalConversation as Conversation } from './helpers/historica
 import type { ChatMessage } from '../src/types/conversation.js';
 import type { DomainConversationDetail, DomainGeneratedMediaIdentity } from '../src/core/domain/conversationDetail.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { supplementLegacyGeneratedMedia } from '../src/core/compatibility/legacyGeneratedMediaReconciliation.js';
+import { supplementLegacyGeneratedMedia } from '../src/core/parsers/legacyStorage/generatedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
 const requestId = 'abcd1234abcd1234';

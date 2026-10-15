@@ -11,7 +11,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const attachments = require('../src/core/compatibility/gemini/attachments.js');
+const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
 const pagination = require('../src/core/api/client/pagination.js');
 const { resolveExportRecordStatus } = require('../src/core/engine/export/exportCompletion.js');
 const parseDrift = require('../src/core/engine/export/parseDrift.js');

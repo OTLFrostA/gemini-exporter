@@ -1,8 +1,8 @@
-/** Transitional application/provider records. These are not raw RPC, HTML or archive schemas. */
+/** Historical disk record grammar, accepted only by the legacy-storage parser. */
 
 import type { GeneratedMediaIdentity } from '../../../types/conversation.js';
-import type { LegacyAttachmentInput as ConversationRecordAttachment } from '../../parsers/shared/resources/resolveResources.js';
-export type { LegacyAttachmentInput as ConversationRecordAttachment } from '../../parsers/shared/resources/resolveResources.js';
+import type { LegacyAttachmentInput as ConversationRecordAttachment } from '../shared/resources/resolveResources.js';
+export type { LegacyAttachmentInput as ConversationRecordAttachment } from '../shared/resources/resolveResources.js';
 
 export interface ConversationRecordMessage {
     id?: string;

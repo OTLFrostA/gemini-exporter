@@ -3,8 +3,8 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
-const zipBombGuard = require('../src/core/compatibility/archive/zipBombGuard.js');
-const mediaIndex = require('../src/core/compatibility/takeout/mediaIndex.js');
+const zipBombGuard = require('../src/core/imports/takeout/zipBombGuard.js');
+const mediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
 
 // ---------- P1-112: no substring cross-file matching ----------
 test('p1_h1 - P1-112: fallback media never returns an unrelated file via substring', async () => {
