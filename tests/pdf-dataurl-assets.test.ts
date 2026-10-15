@@ -1,3 +1,5 @@
+import { resourceValue } from './helpers/resources.js';
+import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /** Original data URI facts are parsed into Domain; decoded bytes belong to PreparedResources. */
@@ -34,8 +36,8 @@ test('original base64 PNG facts survive JSON; preparation produces the real cont
     const asset = result.domain.assets[0];
     assert.equal(asset.sourceUri, source);
     assert.equal(result.pathMap.get(asset.id), PNG_REF);
-    assert.equal(result.resources.get(asset.id).mediaType, 'image/png');
-    assert.deepEqual(Buffer.from(result.resources.get(asset.id).bytes), Buffer.from(PNG_B64, 'base64'));
+    assert.equal(resourceValue<ResourceBytes>(result.resources.get(asset.id)).mediaType, 'image/png');
+    assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(result.resources.get(asset.id)).bytes), Buffer.from(PNG_B64, 'base64'));
     assert.equal(result.mounts[0].bytes.length, 70);
     assert.deepEqual(result.diagnostics, []);
     assert.deepEqual(JSON.parse(JSON.stringify(result.domain)), result.domain);
@@ -50,7 +52,7 @@ test('percent-encoded SVG input decodes before image mounting', async () => {
     const text = '<svg xmlns="http://www.w3.org/2000/svg"/>';
     const result = await prepare(`![v](data:image/svg+xml,${encodeURIComponent(text)})`);
     const id = result.domain.assets[0].id;
-    assert.deepEqual(Buffer.from(result.resources.get(id).bytes), Buffer.from(text));
+    assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(result.resources.get(id)).bytes), Buffer.from(text));
     assert.ok(result.pathMap.get(id).endsWith('.svg'));
     assert.deepEqual(result.diagnostics, []);
 });
@@ -58,8 +60,8 @@ test('oversized original data URL is refused in preparation without changing Dom
     const over = 'A'.repeat(Math.ceil((10 * 1024 * 1024 + 1) / 3) * 4);
     const result = await prepare(`![big](data:image/png;base64,${over})`);
     const id = result.domain.assets[0].id;
-    assert.equal(result.resources.get(id).bytes, undefined);
-    assert.ok(result.resources.get(id).failureReason);
+    assert.equal(result.resources.get(id).ok, false);
+    assert.ok(result.resources.get(id).reason);
     assert.equal(result.pathMap.size, 0);
     assert.ok(result.diagnostics.some((d: any) => d.code === 'DATA_URL_TOO_LARGE' && d.severity === 'warning'));
 });
@@ -68,7 +70,7 @@ test('malformed original data URL failures are sidecar diagnostics', async () =>
         const result = await prepare(`![x](${uri})`);
         const id = result.domain.assets[0].id;
         assert.equal(result.domain.assets[0].sourceUri, uri);
-        assert.equal(result.resources.get(id).bytes, undefined);
+        assert.equal(result.resources.get(id).ok, false);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'DATA_URL_MALFORMED'));
     }
 });
@@ -77,7 +79,7 @@ test('remote input remains a URI fact; offline preparation cannot invent bytes',
     const result = await prepare(`![a](${uri})`);
     const id = result.domain.assets[0].id;
     assert.equal(result.domain.assets[0].sourceUri, uri);
-    assert.equal(result.resources.get(id).bytes, undefined);
+    assert.equal(result.resources.get(id).ok, false);
     assert.equal(result.pathMap.size, 0);
     assert.match(result.unresolved[0].reason, /no network fetch/);
 });
@@ -124,7 +126,7 @@ test('prepared bytes are isolated between export runs and remain intact in the o
     assert.equal(second.resources.size, 0);
     const id = first.domain.assets[0].id;
     assert.equal(second.resources.get(id), undefined);
-    assert.deepEqual(Buffer.from(first.resources.get(id).bytes), Buffer.from(PNG_B64, 'base64'));
+    assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(first.resources.get(id)).bytes), Buffer.from(PNG_B64, 'base64'));
 });
 test('repeated original data URI has one semantic asset and two content placements', async () => {
     const uri = `data:image/png;base64,${PNG_B64}`;

@@ -1,18 +1,18 @@
-/** Image validation and binary mounting use only Document AST + PreparedResources. */
+/** Image validation and binary mounting use only Document AST + ResourceBytess. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
 import { MAX_ASSET_BYTES, buildVirtualAssetPath } from '../src/core/export/assets/imageContent.js';
 import { sha256Hex } from '../src/core/export/assets/sha256.js';
-import type { PreparedResource } from '../src/core/export/assets/preparedResources.js';
+import { missingResource, type ResourceFailure, type ResourceBytes } from '../src/core/resources/resourceResult.js';
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
 function sha256hex(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
 const PATH_RE = /^assets\/sha256\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{64}\.[a-z0-9]+$/;
-async function mount(resources: Record<string, PreparedResource>, ids = Object.keys(resources)) {
+async function mount(resources: Record<string, ResourceBytes | ResourceFailure>, ids = Object.keys(resources)) {
     const document: DocumentAst = { schemaVersion: 2, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
     const before = JSON.stringify(document);
-    const result = await resourceStage({ document, resources: new Map(Object.entries(resources)) }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
+    const result = await resourceStage({ document, resources: new Map(Object.entries(resources).map(([resourceId, value]) => [resourceId, 'ok' in value ? value : { ok: true as const, resourceId, value }])) }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
     assert.equal(JSON.stringify(document), before);
     return { ...result.output, diagnostics: result.diagnostics };
 }
@@ -91,10 +91,10 @@ test('unprepared, absent and failed images never acquire bytes in the offline st
     const previous = globalThis.fetch;
     globalThis.fetch = async () => { throw new Error('resourceStage must never fetch'); };
     try {
-        const result = await mount({ remote: {}, missing: { failureReason: 'evicted from cache' }, failed: { failureReason: 'decode error' }, notFetched: {} }, ['remote', 'missing', 'failed', 'notFetched', 'absent']);
+        const result = await mount({ remote: missingResource('remote', 'no network fetch'), missing: missingResource('missing', 'evicted from cache'), failed: missingResource('failed', 'decode error'), notFetched: missingResource('notFetched', 'no network fetch') }, ['remote', 'missing', 'failed', 'notFetched', 'absent']);
         assert.equal(result.pathMap.size, 0);
         assert.equal(result.unresolved.length, 5);
-        for (const entry of result.unresolved) assert.deepEqual(codesFor(result, entry.assetId), ['RESOURCE_ASSET_UNRESOLVED']);
+        for (const entry of result.unresolved) assert.deepEqual(codesFor(result, entry.assetId), ['RESOURCE_UNAVAILABLE']);
         assert.match(result.unresolved[0].reason, /no network fetch/);
         assert.match(result.unresolved[1].reason, /evicted from cache/);
         assert.match(result.unresolved[2].reason, /decode error/);

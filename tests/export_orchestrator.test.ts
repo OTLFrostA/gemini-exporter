@@ -557,7 +557,7 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
     const origPipeline = __getModuleOverride('AssetPipeline');
     __setModuleOverride('AssetPipeline', class {
         async processAsset(item: any) {
-            return { saved: true, localName: item.localName || 'assets/img.png' };
+            return { ok: true as const, resourceId: item.assetId, value: { path: item.localName || 'assets/img.png' } };
         }
     });
 
@@ -679,10 +679,10 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
     let receivedChat: unknown;
     const origPipeline = __getModuleOverride('AssetPipeline');
     __setModuleOverride('AssetPipeline', class {
-        async processAsset(item: unknown, chat: unknown) {
+        async processAsset(item: { assetId: string }, chat: unknown) {
             receivedItem = item;
             receivedChat = chat;
-            return { saved: true, localName: attachment.localName };
+            return { ok: true as const, resourceId: item.assetId, value: { path: attachment.localName } };
         }
     });
 
@@ -846,12 +846,13 @@ test('AssetPipeline - preserves URL priorities and filename fallbacks for typed 
             requests.push(params);
             return { success: true, dataBuffer: new Uint8Array([1, 2, 3]) };
         } });
-        const result = await pipeline.acquireAssetBytes(scenario.item, chat, { isImage: scenario.isImage, maxRetries: 0 });
+        const item = { ...scenario.item, assetId: 'test-asset' };
+        const result = await pipeline.acquireAssetBytes(item, chat, { isImage: scenario.isImage, maxRetries: 0 });
         assert.strictEqual(result.ok, true);
         assert.strictEqual(requests[0].url, scenario.url);
-        assert.strictEqual(requests[0].item, scenario.item);
+        assert.strictEqual(requests[0].item, item);
         assert.strictEqual(requests[0].chat, chat);
-        assert.strictEqual(result.localName, scenario.localName);
+        assert.strictEqual(result.value.name, scenario.localName);
     }
 });
 
@@ -868,7 +869,6 @@ test('AssetPipeline - passes the original generation identity to Takeout fallbac
     });
     const result = await pipeline.acquireAssetBytes({ assetId: 'online-image', sourceUrl: 'Takeout/original.png', fileName: 'generated.png', generation }, { id: 'generated_boundary' }, { isImage: true });
     assert.strictEqual(result.ok, true);
-    assert.strictEqual(result.recoveredFromTakeout, true);
     assert.deepStrictEqual(received, ['generated_boundary', { assetId: 'online-image', sourceUri: 'Takeout/original.png', generation }, 'u1']);
     assert.strictEqual((received[1] as { generation: unknown }).generation, generation);
 });
@@ -888,10 +888,10 @@ test('ExportOrchestrator - queues image and file attachments while preserving im
     const received: { item: unknown; isImage: boolean }[] = [];
     const origPipeline = __getModuleOverride('AssetPipeline');
     __setModuleOverride('AssetPipeline', class {
-        async processAsset(item: { localName?: string }, receivedChat: unknown, options: { isImage: boolean }) {
+        async processAsset(item: { assetId: string; localName?: string }, receivedChat: unknown, options: { isImage: boolean }) {
             assert.equal((receivedChat as any).id, chat.id);
             received.push({ item, isImage: options.isImage });
-            return { saved: true, localName: item.localName };
+            return { ok: true as const, resourceId: item.assetId, value: { path: item.localName } };
         }
     });
     try {

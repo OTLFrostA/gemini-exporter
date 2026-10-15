@@ -1,3 +1,6 @@
+import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
+import { resourceValue } from './helpers/resources.js';
+import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -21,7 +24,7 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
  * 3. Acquisition failure:
  *    - both network fetch and Takeout fallback fail
  *    - export does not crash and still writes the PDF
- *    - prepared resource carries failureReason without bytes
+ *    - prepared resource carries a structured failure
  *      (never PSEUDO_AVAILABLE even when localName was pre-populated by parseDetail)
  *    - resourceStage + payloadStage preserve the existing 'missing-image'
  *      fallback block and warning diagnostics
@@ -128,7 +131,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     assert.strictEqual((rawChat.messages[1].attachments![0] as any).dataBuffer, undefined, 'caller conversation object must not be mutated');
 
     const { document, resources } = prepared;
-    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
+    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resourceValue<ResourceBytes>(resource) }));
     assert.strictEqual(entries.length, 1, 'one prepared image resource is registered');
     const imgAsset = entries[0];
     assert.ok(imgAsset.bytes?.length);
@@ -298,7 +301,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     assert.strictEqual(takeoutFallbackCalls, 1, 'Takeout fallback must be consulted after network fetch fails');
 
     const { document, resources } = prepared;
-    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
+    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resourceValue<ResourceBytes>(resource) }));
     assert.strictEqual(entries.length, 1);
     const imgAsset = entries[0];
     assert.ok(imgAsset.bytes?.length);
@@ -390,11 +393,10 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     if (!prepared.ok) return;
 
     const { document, resources } = prepared;
-    const entries = [...resources].map(([id, resource]: any) => ({ id, ...resource }));
-    assert.strictEqual(entries.length, 1);
-    const imgAsset = entries[0];
-    assert.equal(imgAsset.bytes, undefined, 'failed acquisition cannot claim mountable bytes');
-    assert.ok(imgAsset.failureReason && imgAsset.failureReason.includes('HTTP 404'), 'failureReason must record the acquisition error');
+    assert.equal(resources.size, 1);
+    const imgAsset = [...resources.values()][0];
+    assert.equal(imgAsset.ok, false);
+    assert.ok(!imgAsset.ok && imgAsset.reason.includes('HTTP 404'), 'failure must record the acquisition error');
 
     const ctx = makeStageCtx();
     const s2 = await resourceStage({ document, resources }, ctx);
@@ -601,16 +603,9 @@ test('hydrated image bytes and image classification do not mutate the original i
     const dummyBytes = new Uint8Array([10, 20, 30, 40]);
     let acquireCalls = 0;
     const fakePipeline = {
-        acquireAssetBytes: async () => {
+        acquireAssetBytes: async (item: ResourceRequest) => {
             acquireCalls++;
-            return {
-                ok: true,
-                bytes: dummyBytes,
-                mimeType: 'image/png',
-                failReason: '',
-                recoveredFromTakeout: false,
-                localName: 'test_photo.png',
-            };
+            return { ok: true as const, resourceId: item.assetId, value: { bytes: dummyBytes, mediaType: 'image/png' } };
         },
     };
 
@@ -641,16 +636,9 @@ test('references to one Domain asset acquire once and share the prepared resourc
     const dummyBytes = new Uint8Array([1, 2, 3, 4, 5]);
     let acquireCalls = 0;
     const fakePipeline = {
-        acquireAssetBytes: async () => {
+        acquireAssetBytes: async (item: ResourceRequest) => {
             acquireCalls++;
-            return {
-                ok: true,
-                bytes: dummyBytes,
-                mimeType: 'image/png',
-                failReason: '',
-                recoveredFromTakeout: false,
-                localName: 'shared_image.png',
-            };
+            return { ok: true as const, resourceId: item.assetId, value: { bytes: dummyBytes, mediaType: 'image/png' } };
         },
     };
 
@@ -662,7 +650,7 @@ test('references to one Domain asset acquire once and share the prepared resourc
     assert.strictEqual(acquireCalls, 1, 'acquireAssetBytes must be called only once for one Domain asset ID');
     assert.strictEqual([...result.resources.values()].length >= 1, true);
     for (const asset of [...result.resources.values()]) {
-        assert.ok(asset.bytes?.length);
+        assert.ok(resourceValue<ResourceBytes>(asset).bytes.length);
     }
 });
 
@@ -684,16 +672,9 @@ test('inline bytes skip acquisition', async () => {
 
     let acquireCalls = 0;
     const fakePipeline = {
-        acquireAssetBytes: async () => {
+        acquireAssetBytes: async (item: ResourceRequest) => {
             acquireCalls++;
-            return {
-                ok: true,
-                bytes: new Uint8Array([1, 2, 3]),
-                mimeType: 'image/png',
-                failReason: '',
-                recoveredFromTakeout: false,
-                localName: 'inline_cat.png',
-            };
+            return { ok: true as const, resourceId: item.assetId, value: { bytes: new Uint8Array([1, 2, 3]), mediaType: 'image/png' } };
         },
     };
 
@@ -725,16 +706,9 @@ test('acquisition keeps the legacy destination hint while source URI controls gr
     };
 
     const fakePipeline = {
-        acquireAssetBytes: async (item: { localName?: string }) => {
+        acquireAssetBytes: async (item: ResourceRequest) => {
             capturedItem = item;
-            return {
-                ok: true,
-                bytes: new Uint8Array([1, 2, 3]),
-                mimeType: 'image/png',
-                failReason: '',
-                recoveredFromTakeout: false,
-                localName: item.localName || 'asset.png',
-            };
+            return { ok: true as const, resourceId: item.assetId, value: { bytes: new Uint8Array([1, 2, 3]), mediaType: 'image/png' } };
         },
     };
 

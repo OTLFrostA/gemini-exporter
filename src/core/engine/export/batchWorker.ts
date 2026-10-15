@@ -6,7 +6,6 @@ import type { FetchBatchMessage } from '../../../types/messages.js';
 import type { DomainConversationIndex } from '../../../types/conversation.js';
 import type { TabServiceModule } from '../../../types/utils.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
-import type { AssetPipelineItem } from '../assetPipeline.js';
 import { normId, getErrorMessage } from '../../utils/utils.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
 import TabService from '../../utils/tabService.js';
@@ -20,7 +19,6 @@ export type ResolvedConversationSource = 'online' | 'takeout' | 'local_snapshot'
 export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: DomainConversationIndex['cloudAvailability'] };
 export type WorkerChat = ResourceConversationParseResult;
 export type WorkerChatResolveInput = NativeConversationInput;
-export type WorkerMessageAttachment = AssetPipelineItem;
 export type ResolveChatResult = {
     isError: false; chat: ResourceConversationParseResult; source: ResolvedConversationSource;
     isConfirmedDeleted: false; errMsg: null;

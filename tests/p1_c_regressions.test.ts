@@ -326,14 +326,13 @@ test('p1c - processAsset: 瞬时失败重试后成功（默认最多 3 次重试
         }
     });
     const res = await pipe.processAsset(
-        { url: 'https://example.com/a.png', localName: 'a.png' },
+        { assetId: 'test-asset', url: 'https://example.com/a.png', localName: 'a.png' },
         { id: 'c_1', title: 'chat' },
         { isImage: true }
     );
-    assert.strictEqual(res.saved, true, 'should succeed after transient failures');
+    assert.strictEqual(res.ok, true, 'should succeed after transient failures');
     assert.strictEqual(calls, 3, 'initial attempt + 2 retries');
     assert.strictEqual(files.length, 1);
-    assert.strictEqual(res.failReason, '');
 });
 
 test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间取消）', async () => {
@@ -346,9 +345,7 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
         writer: { writeFile: async () => 'a.png' },
         fetchAssetDelegate: async () => { callsA++; return { success: false, error: 'x' }; }
     });
-    const resA = await pipeA.processAsset({ url: 'https://example.com/a.png' }, { id: 'c_1' }, { signal: cA.signal, maxRetries: 3 });
-    assert.strictEqual(resA.saved, false);
-    assert.strictEqual(resA.failReason, 'aborted');
+    await assert.rejects(pipeA.processAsset({ assetId: 'test-asset', url: 'https://example.com/a.png' }, { id: 'c_1' }, { signal: cA.signal, maxRetries: 3 }), { name: 'AbortError' });
     assert.strictEqual(callsA, 0, 'no download attempt after pre-abort');
 
     // 情形 B：退避期间取消 → 停止重试，不再打满 3 次
@@ -359,11 +356,9 @@ test('p1c - processAsset: abort 中断下载（调用前已取消 / 退避期间
         writer: { writeFile: async () => 'b.png' },
         fetchAssetDelegate: async () => { callsB++; return { success: false, error: 'timeout' }; }
     });
-    const pB = pipeB.processAsset({ url: 'https://example.com/b.png' }, { id: 'c_2' }, { signal: cB.signal, maxRetries: 3 });
+    const pB = pipeB.processAsset({ assetId: 'test-asset', url: 'https://example.com/b.png' }, { id: 'c_2' }, { signal: cB.signal, maxRetries: 3 });
     setTimeout(() => cB.abort(), 300); // 首轮 backoff 约 1000-1500ms，300ms 时中断
-    const resB = await pB;
-    assert.strictEqual(resB.saved, false);
-    assert.strictEqual(resB.failReason, 'aborted');
+    await assert.rejects(pB, { name: 'AbortError' });
     assert.strictEqual(callsB, 1, `should stop retrying after abort (calls: ${callsB})`);
 });
 
@@ -382,12 +377,12 @@ test('p1c - processAsset: 本地写入异常立即终止，不盲目重试网络
         }
     });
     const res = await pipe.processAsset(
-        { url: 'https://example.com/asset.png', localName: 'asset.png' },
+        { assetId: 'test-asset', url: 'https://example.com/asset.png', localName: 'asset.png' },
         { id: 'c_write_err', title: 'chat' },
         { isImage: true, maxRetries: 3 }
     );
-    assert.strictEqual(res.saved, false);
-    assert.ok(res.failReason.includes('NotAllowedError'));
+    assert.strictEqual(res.ok, false);
+    assert.ok(res.reason.includes('NotAllowedError'));
     assert.strictEqual(fetchCalls, 1, 'must not re-fetch from network if local write fails');
 });
 

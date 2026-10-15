@@ -1,3 +1,4 @@
+import { resourceValue } from './helpers/resources.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -5,7 +6,7 @@ import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/conversationRecord.js';
-import type { AcquireAssetBytesResult } from '../src/core/engine/assetPipeline.js';
+import { missingResource, type ResourceResult, type ResourceBytes } from '../src/core/resources/resourceResult.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
@@ -14,9 +15,8 @@ import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 const url = 'https://example.test/shared-image';
 const firstBytes = new Uint8Array([11, 22, 33]);
 const secondBytes = new Uint8Array([44, 55, 66]);
-function result(bytes: Uint8Array | null): AcquireAssetBytesResult {
-    return { ok: !!bytes, bytes, mimeType: 'image/png', failReason: bytes ? '' : 'HTTP 404',
-        recoveredFromTakeout: false, localName: 'same.png' };
+function result(resourceId: string, bytes: Uint8Array | null): ResourceResult<ResourceBytes> {
+    return bytes ? { ok: true, resourceId, value: { bytes, mediaType: 'image/png' } } : missingResource(resourceId, 'HTTP 404', 'HTTP_NOT_FOUND');
 }
 function input() {
     return { id: 'resource-boundary', url: 'https://gemini.google.com/app/resource-boundary', title: 'Boundary', messages: ['request-one', 'request-two'].map((request, index) => ({
@@ -44,23 +44,23 @@ test('same URL with different generation/provider identities acquires separately
             assert.equal(hint.localName, 'assets/same.png');
             assert.equal(hint.generation?.providerRequestId, id === ids[0] ? 'request-one' : 'request-two');
             assert.deepEqual(hint.candidates, [`https://example.test/fallback-${id === ids[0] ? 0 : 1}`]);
-            return result(id === ids[0] ? firstBytes : secondBytes);
+            return result(id, id === ids[0] ? firstBytes : secondBytes);
         },
     });
     assert.deepEqual(calls, ids);
-    assert.deepEqual(prepared.resources.get(ids[0])?.bytes, firstBytes);
-    assert.deepEqual(prepared.resources.get(ids[1])?.bytes, secondBytes);
+    assert.deepEqual(resourceValue(prepared.resources.get(ids[0])).bytes, firstBytes);
+    assert.deepEqual(resourceValue(prepared.resources.get(ids[1])).bytes, secondBytes);
     // Exercise the actual PDF orchestrator as well, not just the preparation helper.
     const requests: Array<string | undefined> = [];
     const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async hint => {
         requests.push(hint.generation?.providerRequestId);
-        return result(hint.generation?.providerRequestId === 'request-one' ? firstBytes : secondBytes);
+        return result(hint.assetId, hint.generation?.providerRequestId === 'request-one' ? firstBytes : secondBytes);
     } } });
     assert.equal(pdf.ok, true);
     assert.deepEqual(requests, ['request-one', 'request-two']);
     assert.deepEqual(pdf.document, document);
-    assert.deepEqual(pdf.resources.get(ids[0])?.bytes, firstBytes);
-    assert.deepEqual(pdf.resources.get(ids[1])?.bytes, secondBytes);
+    assert.deepEqual(resourceValue(pdf.resources.get(ids[0])).bytes, firstBytes);
+    assert.deepEqual(resourceValue(pdf.resources.get(ids[1])).bytes, secondBytes);
     assert.deepEqual(raw, original);
 });
 
@@ -74,11 +74,11 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
     const imageIds = collectDocumentResources(document).imageIds;
     for (const bytes of [firstBytes, null]) {
         const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
-            acquire: async (_id, hint) => {
+            acquire: async (id, hint) => {
                 // Even a transport that mutates its request must not mutate parser output.
                 hint.generation!.prompt = 'transport-only';
                 hint.candidates!.push('transport-only');
-                return result(bytes);
+                return result(id, bytes);
             },
         });
         assert.equal(JSON.stringify(parsed.conversation), domainJson);
@@ -89,10 +89,10 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         assert.ok(!domainJson.includes('dataBase64'));
         assert.ok(!domainJson.includes(Buffer.from(firstBytes).toString('base64')));
         for (const resource of prepared.resources.values()) {
-            assert.deepEqual(resource.bytes, bytes ?? undefined);
-            assert.equal(resource.failureReason, bytes ? undefined : 'HTTP 404');
+            if (resource.ok) assert.deepEqual(resource.value.bytes, bytes);
+            else { assert.equal(bytes, null); assert.equal(resource.reason, 'HTTP 404'); assert.equal(resource.code, 'HTTP_NOT_FOUND'); }
         }
-        const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async () => result(bytes) } });
+        const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async item => result(item.assetId, bytes) } });
         assert.equal(pdf.ok, true);
             assert.equal(JSON.stringify(pdf.document), astJson);
     }
@@ -111,5 +111,5 @@ test('source-provided original bytes survive JSON round-trip and bypass runtime 
     const prepared = await preparePdfResources(domain, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async () => { assert.fail('original inline bytes must skip acquisition'); },
     });
-    assert.deepEqual(prepared.resources.get(domain.assets[0].id)?.bytes, firstBytes);
+    assert.deepEqual(resourceValue(prepared.resources.get(domain.assets[0].id)).bytes, firstBytes);
 });

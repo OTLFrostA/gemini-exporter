@@ -18,19 +18,20 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
     };
     for (const id of imageIds) {
         ctx.signal.throwIfAborted();
-        const resource = input.resources.get(id);
+        const acquired = input.resources.get(id);
+        const resource = acquired?.ok ? acquired.value : undefined;
         const bytes = resource?.bytes;
         let reason: string | undefined;
-        if (!resource) reason = 'image placement has no registered prepared resource';
-        else if (!bytes) reason = resource.failureReason ?? 'no prepared image bytes (offline resource stage performs no network fetch)';
-        else if (!bytes.length) {
+        if (!acquired) reason = 'image placement has no registered prepared resource';
+        else if (!acquired.ok) reason = acquired.reason;
+        else if (!bytes?.length) {
             reason = 'image resolved to zero bytes';
             diag(id, 'warning', 'ASSET_ZERO_BYTES', reason);
-        } else if (bytes.length > MAX_ASSET_BYTES) {
+        } else if (bytes!.length > MAX_ASSET_BYTES) {
             reason = `image exceeds the ${MAX_ASSET_BYTES}-byte limit`;
             diag(id, 'warning', 'ASSET_TOO_LARGE', reason);
         } else {
-            const verdict = checkImageContent({ id, name: resource.name, mimeType: resource.mediaType }, bytes, diag);
+            const verdict = checkImageContent({ id, name: resource?.name, mimeType: resource?.mediaType }, bytes, diag);
             if (!verdict.ok) reason = 'image bytes are corrupt or unsupported';
             else {
                 try {
@@ -49,11 +50,12 @@ export const resourceStage: StageFn<ResourceStageInput, ResourceStageOutput> = a
                 }
             }
         }
-        if (reason) {
-            resourceResults.push(missingResource(id, reason));
+        if (reason !== undefined) {
+            const failure = acquired && !acquired.ok ? acquired : missingResource(id, reason);
+            resourceResults.push(failure);
             unresolved.push({ assetId: id, reason });
             if (!diagnostics.some(d => d.path === `asset:${id}` && d.severity !== 'info')) {
-                diagnostics.push(...resourceDiagnostics([missingResource(id, reason, 'RESOURCE_ASSET_UNRESOLVED')]));
+                diagnostics.push(...resourceDiagnostics([failure]));
             }
         }
     }

@@ -106,7 +106,7 @@ class FakeJSZip {
 class FakeAssetPipeline {
     constructor(_opts?: any) {}
     async processAsset(item: any, _chat?: any, _meta?: any) {
-        return { saved: true, localName: item.localName || item.fileName || 'asset.bin' };
+        return { ok: true as const, resourceId: item.assetId, value: { path: item.localName || item.fileName || 'asset.bin' } };
     }
 }
 
@@ -676,7 +676,7 @@ test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: tr
             writer: { writeFile: async () => 'test.png' }
         });
 
-        const item = { url: 'https://lh3.googleusercontent.com/test.png', fileName: 'test.png' };
+        const item = { assetId: 'test-asset', url: 'https://lh3.googleusercontent.com/test.png', fileName: 'test.png' };
         const chat = { id: 'c_test123' };
 
         await pipeline.processAsset(item, chat, { isImage: true });

@@ -1,3 +1,4 @@
+import { resourceValue } from './helpers/resources.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
@@ -116,10 +117,10 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     const acquired: string[] = [];
     const prepared = await preparePdfResources(input, imageIds, {}, { acquire: async id => {
         acquired.push(id);
-        return { ok: true, bytes: new Uint8Array([1]), mimeType: 'image/png', failReason: '', recoveredFromTakeout: false, localName: `${id}.png` };
+        return { ok: true as const, resourceId: id, value: { bytes: new Uint8Array([1]), mediaType: 'image/png' } };
     } });
     assert.deepEqual(acquired.sort(), [...rendered, ...rich].sort());
-    for (const id of rich) assert.equal(prepared.resources.get(id)?.bytes?.length, 1);
+    for (const id of rich) assert.equal(resourceValue(prepared.resources.get(id)).bytes?.length, 1);
     const bindings = Object.fromEntries([...collectDocumentResources(document).referencedIds].map(id => [id, `assets/${id}.png`]));
     assert.ok(renderDocumentHtml(document, bindings).html.includes('src="assets/image-caption.png"'));
     assert.ok(renderDocumentMarkdown(document, bindings).includes('assets/image-caption.png'));

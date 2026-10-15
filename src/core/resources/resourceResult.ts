@@ -5,7 +5,11 @@ export type ResourceResult<T> =
     | { ok: true; resourceId: string; value: T }
     | { ok: false; resourceId: string; reason: string; code: string };
 export type ResourceFailure = Extract<ResourceResult<never>, { ok: false }>;
+/** Transport encodings are normalized once; successful acquisition always contains bytes. */
+export interface ResourceBytes { bytes: Uint8Array; mediaType?: string; name?: string }
+/** Only a successful write/mount produces a delivery receipt. */
 export interface ResourceDelivery { path: string }
+export type PreparedResources = ReadonlyMap<string, ResourceResult<ResourceBytes>>;
 
 export function missingResource(resourceId: string, reason: string, code = 'RESOURCE_UNAVAILABLE'): ResourceFailure {
     return { ok: false, resourceId, reason, code };

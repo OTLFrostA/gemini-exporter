@@ -37,7 +37,7 @@ test('direct asset writer rejection records failure instead of success or refetc
         });
 
         const result = await pipeline.processAsset(
-            {
+            { assetId: 'test-asset',
                 sourceUrl: 'https://encrypted-tbn2.gstatic.com/licensed-image?q=test',
                 localName: 'assets/search.png',
             },
@@ -45,9 +45,8 @@ test('direct asset writer rejection records failure instead of success or refetc
             { isImage: true, maxRetries: 0 },
         );
 
-        assert.equal(result.saved, false, 'a rejected write must never be marked saved');
-        assert.match(result.failReason, /disk full/);
-        assert.equal(result.recoveredFromTakeout, false);
+        assert.equal(result.ok, false, 'a rejected write must never be marked saved');
+        assert.match(result.reason, /disk full/);
         assert.equal(writeCalls, 1, 'the writer must be reached exactly once');
         assert.ok(fetchCallsAtWrite > 0, 'the asset must be acquired before the writer runs');
         assert.equal(fetchCalls, fetchCallsAtWrite, 'local write failures must not re-fetch acquired bytes');

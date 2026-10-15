@@ -96,7 +96,7 @@ test('durable attachment bytes remain outside Domain and are acquired offline af
         const view = await api.getDomainConversationResult('u0', 'offline');
         const pipeline = new api.AssetPipeline({ currentSlot: 'u0', fetchAsset: async () => { throw new Error('Network must not be needed'); } });
         const bytes = await pipeline.acquireAssetBytes({ assetId: view.conversation.assets[0].id, url: view.conversation.assets[0].sourceUri }, { id: 'offline', title: 'Offline' });
-        return { bytes: [...bytes.bytes], conversation: view.conversation };
+        return { bytes: [...bytes.value.bytes], conversation: view.conversation };
     });
     expect(restored.bytes).toEqual([137, 80, 78, 71, 13, 10, 26, 10, 1]);
     expect(JSON.stringify(restored.conversation)).not.toMatch(/bytes|dataBuffer|archivePath|localName/);
@@ -294,7 +294,7 @@ test('restart retains report caution and detects missing image bytes without sav
         const parsed = await api.getDomainConversationResult('u0', 'report-caution');
         const prepared = await api.preparePdfResources(parsed.conversation, new Set(['image']), parsed.acquisitionHints);
         return { conversation: parsed.conversation, drift: api.extractChatParseDrift(parsed), diagnostics: prepared.diagnostics,
-            bytesMissing: prepared.resources.get('image').bytes === undefined, failure: prepared.resources.get('image').failureReason };
+            bytesMissing: !prepared.resources.get('image').ok, failure: prepared.resources.get('image').reason };
     });
     expect(result.conversation.assets[0].document).toEqual({ id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true });
     expect(result.conversation.assets[1]).not.toHaveProperty('failureReason');

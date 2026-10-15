@@ -26,7 +26,7 @@ import type { TakeoutEngineModule, TakeoutResourceLookup } from '../../engine/ta
 import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../document/ast/resourceReferences.js';
 import type { DocumentAst } from '../../document/ast/ast.js';
-import type { PreparedResources } from '../assets/preparedResources.js';
+import type { PreparedResources } from '../../resources/resourceResult.js';
 import { preparePdfResources } from './prepareResources.js';
 import type { Diagnostic as RenderDiagnostic } from '../../diagnostics/diagnostic.js';
 

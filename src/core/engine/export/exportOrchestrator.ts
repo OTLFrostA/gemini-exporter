@@ -837,22 +837,24 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             const task: AssetTask = async () => {
                                 let outcome: ResourceResult<ResourceDelivery>;
                                 try {
-                                    outcome = await attemptResource(asset.assetId, async () => {
-                                        if (asset.content !== undefined) {
-                                            if (!asset.content.length) throw new Error('Resource contains zero bytes');
-                                            const path = await writeExportFile(asset.item.localName, asset.content);
+                                    const content = asset.content;
+                                    if (content !== undefined) {
+                                        outcome = await attemptResource(asset.assetId, async () => {
+                                            if (!content.length) throw new Error('Resource contains zero bytes');
+                                            const path = await writeExportFile(asset.item.localName, content);
                                             return { path: normalizeArchivePath(path) };
-                                        }
-                                        if (!assetPipeline) throw new Error('Resource acquisition is unavailable');
-                                        const saved = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal,
+                                        }, abortSignal);
+                                    } else if (!assetPipeline) {
+                                        outcome = missingResource(asset.assetId, 'Resource acquisition is unavailable');
+                                    } else {
+                                        outcome = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal,
                                             localOnly: listC?.cloudAvailability === 'deleted' || requestedItem.cloudAvailability === 'deleted' });
-                                        if (saved.failReason === 'aborted') throw new DOMException('Resource acquisition aborted', 'AbortError');
-                                        if (!saved.saved) throw new Error(saved.failReason || 'Resource could not be delivered');
-                                        return { path: normalizeArchivePath(saved.localName) };
-                                    }, abortSignal);
+                                        if (outcome.ok) outcome = { ...outcome, value: { path: normalizeArchivePath(outcome.value.path) } };
+                                    }
                                 } catch (error) {
-                                    if (isNamedError(error, 'AbortError')) this.abort();
-                                    outcome = missingResource(asset.assetId, getErrorMessage(error), 'RESOURCE_CANCELLED');
+                                    const cancelled = isNamedError(error, 'AbortError');
+                                    if (cancelled) this.abort();
+                                    outcome = missingResource(asset.assetId, getErrorMessage(error), cancelled ? 'RESOURCE_CANCELLED' : 'RESOURCE_UNAVAILABLE');
                                 }
                                 resolve(outcome);
                             };

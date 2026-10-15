@@ -226,14 +226,14 @@ test('perf - AssetPipeline times out and recovers gracefully when tabs.sendMessa
 
         const start = Date.now();
         const res = await pipeline.processAsset(
-            { url: 'https://example.com/hanging-asset.jpg', fileName: 'test.jpg' },
+            { assetId: 'test-asset', url: 'https://example.com/hanging-asset.jpg', fileName: 'test.jpg' },
             { id: 'chat_123' },
             { isImage: true }
         );
         const duration = Date.now() - start;
 
-        assert.strictEqual(res.saved, false, 'should not be marked as saved');
-        assert.ok(res.failReason.includes('timed out'), `failReason should indicate timeout, got "${res.failReason}"`);
+        assert.strictEqual(res.ok, false, 'should not be marked as saved');
+        assert.ok(res.reason.includes('timed out'), `failReason should indicate timeout, got "${res.reason}"`);
         assert.ok(duration >= 45, `should have waited for timeout, duration: ${duration}ms`);
     } finally {
         (global as any).chrome = originalChrome;

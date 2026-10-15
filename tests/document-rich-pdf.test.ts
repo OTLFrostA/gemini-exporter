@@ -1,3 +1,4 @@
+import { preparedResources } from './helpers/resources.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -29,7 +30,7 @@ test('rich PDF fields render physical images, including captions of missing pare
     const document = fixture(), before = JSON.stringify(document);
     const corpus = JSON.parse(readFileSync('tests/fixtures/visual-corpus/08-image-caption.json', 'utf8'));
     const png = new Uint8Array(Buffer.from(Object.values(corpus.binaries)[0] as string, 'base64'));
-    const staged = await resourceStage({ document, resources: new Map(['main', 'rich'].map(id => [id, { bytes: png, mediaType: 'image/png' }])) }, {
+    const staged = await resourceStage({ document, resources: preparedResources(['main', 'rich'].map(id => [id, { bytes: png, mediaType: 'image/png' }])) }, {
         signal: new AbortController().signal, log: () => undefined, reportProgress: () => undefined,
     });
     assert.deepEqual([...collectDocumentResources(document).imageIds].sort(), ['main', 'rich', 'unavailable']);

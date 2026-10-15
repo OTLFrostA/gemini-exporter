@@ -9,12 +9,12 @@ test('batch A asset no-response keeps the historical default failure reason', as
         fetchAssetDelegate: async () => undefined
     });
     const result = await pipeline.processAsset(
-        { url: 'https://example.test/image.png', localName: 'image.png' },
+        { assetId: 'test-asset', url: 'https://example.test/image.png', localName: 'image.png' },
         { id: 'chat-no-response' },
         { isImage: true, maxRetries: 0 }
     );
-    assert.equal(result.saved, false);
-    assert.equal(result.failReason, 'image direct download failed');
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'image direct download failed');
 });
 
 const takeoutHtml = `<div class="outer-cell"><a href="https://gemini.google.com/app/histimg01">Chat</a>

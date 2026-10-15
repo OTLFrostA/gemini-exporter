@@ -1,6 +1,6 @@
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
-import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
+import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 
 export const DOMAIN_STORAGE_VERSION = 2;
 export const DOMAIN_CONTRACT_VERSION = 2;

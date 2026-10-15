@@ -1,7 +1,8 @@
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { AssetPipeline, type AssetPipelineItem } from '../src/core/engine/assetPipeline.js';
+import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
+import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
 import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
 import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
 import { planExportResources } from '../src/core/export/assets/planExportResources.js';
@@ -19,7 +20,7 @@ const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
         [asset.id, { archivePath: asset.sourceUri!! }])),
 });
 
-async function recover(assets: DomainAsset[], item: AssetPipelineItem) {
+async function recover(assets: DomainAsset[], item: ResourceRequest) {
     const slot = 'lookup-regression-slot';
     let downloads = 0;
     const written: Array<{ path: string; bytes: Uint8Array }> = [];
@@ -42,8 +43,7 @@ test('Takeout lookup through AssetPipeline preserves source identity when export
     assert.notEqual(item.localName, asset.sourceUri!);
     const recovered = await recover([asset], item);
     assert.equal(recovered.downloads, 1);
-    assert.equal(recovered.result.saved, true);
-    assert.equal(recovered.result.recoveredFromTakeout, true);
+    assert.equal(recovered.result.ok, true);
     assert.deepEqual(recovered.written, [{ path: item.localName, bytes: new Uint8Array([1, 42]) }]);
 });
 
@@ -51,7 +51,7 @@ test('Takeout lookup through AssetPipeline uses the exact source URI when asset 
     const asset = { ...source('takeout-id'), generation: undefined };
     const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: asset.sourceUri!,
         resolvedUrl: 'https://offline.test/image.png', localName: 'assets/abcdef_diagram.png' });
-    assert.equal(recovered.result.saved, true);
+    assert.equal(recovered.result.ok, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
 });
 
@@ -60,7 +60,7 @@ test('Takeout lookup through AssetPipeline links different IDs by a unique gener
         assetId: 'online-1', sourceUrl: 'https://offline.test/online.png', localName: 'assets/abcdef_diagram.png',
         generation: { ...generation, time: 1700000000999, imageOrdinal: 1 } });
     assert.equal(recovered.downloads, 1);
-    assert.equal(recovered.result.saved, true);
+    assert.equal(recovered.result.ok, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([2, 42]));
 });
 
@@ -68,12 +68,12 @@ test('Takeout lookup through AssetPipeline refuses ambiguous images, missing ord
     for (const assets of [[source('one', 0), source('two', 0)], [source('one'), source('two', 1)], [source('one'), source('two', 0)]]) {
         const recovered = await recover(assets, { assetId: 'online', sourceUrl: 'https://offline.test/image.png',
             localName: 'assets/abcdef_diagram.png', generation: { ...generation, imageOrdinal: 0 } });
-        assert.equal(recovered.result.saved, false);
+        assert.equal(recovered.result.ok, false);
         assert.deepEqual(recovered.written, []);
     }
     const recovered = await recover([{ ...source('one'), generation: undefined }], {
         assetId: 'online', sourceUrl: 'https://offline.test/one.png', localName: 'Takeout/Gemini Apps/one.png' });
-    assert.equal(recovered.result.saved, false, 'neither output path nor URI basename establishes ownership');
+    assert.equal(recovered.result.ok, false, 'neither output path nor URI basename establishes ownership');
     assert.deepEqual(recovered.written, []);
 });
 
@@ -87,7 +87,7 @@ test('Takeout lookup through AssetPipeline rejects conflicting source and genera
         { ...base, assetId: 'online', generation },
     ]) {
         const recovered = await recover(assets, item);
-        assert.equal(recovered.result.saved, false);
+        assert.equal(recovered.result.ok, false);
         assert.deepEqual(recovered.written, []);
     }
 });
@@ -100,10 +100,10 @@ test('Takeout lookup through AssetPipeline requires a unique event before select
     const item = { assetId: 'online', sourceUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png',
         generation: { ...generation, imageOrdinal: 1 } };
     const ambiguous = await recover(assets, item);
-    assert.equal(ambiguous.result.saved, false);
+    assert.equal(ambiguous.result.ok, false);
     assert.deepEqual(ambiguous.written, []);
     const exactRequest = await recover(assets, { ...item, generation: { ...item.generation, providerRequestId: 'request-b' } });
-    assert.equal(exactRequest.result.saved, true);
+    assert.equal(exactRequest.result.ok, true);
     assert.deepEqual(exactRequest.written[0].bytes, new Uint8Array([2, 42]));
 });
 
@@ -111,7 +111,7 @@ test('Takeout lookup through AssetPipeline allows exact identity without inferri
     const asset = source('takeout-id');
     const recovered = await recover([asset], { assetId: asset.id, sourceUrl: asset.sourceUri!,
         resolvedUrl: 'https://offline.test/image.png', localName: 'assets/diagram.png', generation });
-    assert.equal(recovered.result.saved, true);
+    assert.equal(recovered.result.ok, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
 });
 
@@ -119,6 +119,6 @@ test('Takeout lookup through AssetPipeline resolves a unique single-image event 
     const asset = { ...source('takeout-id'), generation: { ...generation, imageCount: 1 } };
     const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: 'https://offline.test/image.png',
         localName: 'assets/diagram.png', generation: { ...generation, imageCount: 1 } });
-    assert.equal(recovered.result.saved, true);
+    assert.equal(recovered.result.ok, true);
     assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
 });
