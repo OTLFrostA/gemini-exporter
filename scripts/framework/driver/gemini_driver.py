@@ -37,7 +37,8 @@ class GeminiChatSession:
         self,
         prompt: Union[str, Dict[str, Any]],
         max_wait: int = 300,
-        file_attachment: Optional[str] = None
+        file_attachment: Optional[str] = None,
+        expect_image: Optional[bool] = None
     ) -> TurnResult:
         """
         Send a conversational prompt to this session, waiting deterministically for stream settlement.
@@ -62,6 +63,8 @@ class GeminiChatSession:
             ("生成" in prompt_text and "图" in prompt_text) or
             any(kw in p_lower for kw in ["画", "生图", "图片", "image", "draw", "imagen", "photo", "picture", "illustration"])
         )
+        if expect_image is not None:
+            is_image_turn = expect_image
         wait_timeout = max(max_wait, 240) if is_image_turn else max_wait
 
         # 通过 Driver 单飞原子流水线发帖 (受网关速率控制与主动熔断保护)

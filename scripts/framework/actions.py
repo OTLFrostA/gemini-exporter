@@ -457,6 +457,20 @@ class ExtensionActions:
             })()""")
 
     @staticmethod
+    def wait_for_export_idle(cdp_opt, max_wait: float = 30) -> bool:
+        """Wait for the full export session, including post-download storage refresh."""
+        deadline = time.monotonic() + max_wait
+        while time.monotonic() < deadline:
+            ready = cdp_opt.eval("""(() => {
+                const btn = document.getElementById('btnExport');
+                return !!btn && !btn.disabled && btn.getAttribute('aria-busy') !== 'true';
+            })()""")
+            if ready is True:
+                return True
+            time.sleep(0.1)
+        return False
+
+    @staticmethod
     def trigger_export_zip(
         cdp_opt,
         output_dir: str,
@@ -479,6 +493,9 @@ class ExtensionActions:
         except Exception as exc:
             print(f"❌ ZIP 测试下载目录设置失败: {exc}")
             return None
+        if not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
+            print("❌ ZIP export not started: previous export did not become idle")
+            return None
         # TestEnvironment routes downloads to output_dir. Avoid scanning the user's
         # Downloads folder, where cloud-backed entries can block directory reads.
         # 记录导出触发前已存在的 ZIP 文件与修改时间戳，杜绝旧文件误命中。
@@ -493,7 +510,7 @@ class ExtensionActions:
                         except OSError:
                             pass
 
-        cdp_opt.eval(f"""
+        trigger = cdp_opt.eval(f"""
         (() => {{
             const formatType = {json.dumps(format_type)};
             if (formatType) {{
@@ -517,7 +534,8 @@ class ExtensionActions:
                 zipCb.dispatchEvent(new Event('change', {{ bubbles: true }}));
             }}
             const btn = document.querySelector('{WorkbenchSelectors.BTN_EXPORT}');
-            if (btn && !btn.disabled) btn.click();
+            if (!btn || btn.disabled || btn.getAttribute('aria-busy') === 'true') return {{ clicked: false }};
+            btn.click();
 
             setTimeout(() => {{
                 const continueZip = document.getElementById('btnModalContinueZip');
@@ -525,8 +543,12 @@ class ExtensionActions:
                     continueZip.click();
                 }}
             }}, 300);
+            return {{ clicked: true }};
         }})()
         """, user_gesture=True)
+        if not isinstance(trigger, dict) or not trigger.get('clicked'):
+            print("❌ ZIP export not started: export button was unavailable at click time")
+            return None
         start_time = time.time()
         downloaded_zip = None
 
@@ -557,6 +579,9 @@ class ExtensionActions:
                     downloaded_zip = candidates[0][1]
                     break
 
+        if downloaded_zip and not ExtensionActions.wait_for_export_idle(cdp_opt, max_wait=max_wait):
+            print("❌ ZIP downloaded, but export UI/storage cleanup did not finish")
+            return None
         return downloaded_zip
 
 

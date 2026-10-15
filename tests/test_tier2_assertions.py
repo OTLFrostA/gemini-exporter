@@ -187,14 +187,31 @@ class DiskContentTests(unittest.TestCase):
         cdp = MagicMock()
         cdp.call.return_value = {'id': 1, 'result': {}}
         path = self.root / 'gemini_export_fresh.zip'
-        def export_now(*args, **kwargs):
-            path.write_bytes(b'fresh ZIP bytes')
+        def export_now(script, *args, **kwargs):
+            if "return !!btn" in script:
+                return True
+            if "const formatType" in script:
+                path.write_bytes(b'fresh ZIP bytes')
+                return {'clicked': True}
         cdp.eval.side_effect = export_now
         with patch('scripts.framework.actions.time.sleep'):
             result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
         self.assertEqual(result, str(path))
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
             'behavior': 'allow', 'downloadPath': str(self.root), 'eventsEnabled': True})
+
+    def test_export_idle_wait_observes_cleanup_and_trigger_refuses_a_missed_click(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = [False, False, True]
+        with patch('scripts.framework.actions.time.sleep'):
+            self.assertTrue(CDPActions.wait_for_export_idle(cdp, max_wait=1))
+        self.assertEqual(cdp.eval.call_count, 3)
+        cdp.reset_mock()
+        cdp.call.return_value = {'result': {}}
+        cdp.eval.side_effect = [True, {'clicked': False}]
+        with patch('scripts.framework.actions.time.sleep') as sleep:
+            self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
+        sleep.assert_not_called()  # Never enter the download wait after a missed click.
 
     def test_download_routing_failure_cannot_click_or_reuse_old_zip(self):
         (self.root / 'gemini_export_old.zip').write_bytes(b'old ZIP bytes')
@@ -832,7 +849,8 @@ class CoverageTests(unittest.TestCase):
         ctx = MagicMock()
         ctx.chat_records = [{'chat_id': CID}]
         ctx.connect_options.return_value.eval.return_value = {'matched': [OTHER], 'missing': [CID]}
-        with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
+        with patch.object(CDPActions, 'wait_for_export_idle', return_value=True):
+            with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
 
     def test_html_and_pdf_cases_reject_wrong_archive_targets(self):
         for case, extension in ((HtmlExportDownloadCase(), '.html'), (PdfExportDownloadCase(), '.pdf')):
@@ -871,7 +889,8 @@ class CoverageTests(unittest.TestCase):
             ctx.chat_records = []
             cdp = ctx.connect_options.return_value
             cdp.eval.return_value = {}
-            with patch.object(CDPActions, 'clear_search_workbench'), \
+            with patch.object(CDPActions, 'wait_for_export_idle', return_value=True), \
+                 patch.object(CDPActions, 'clear_search_workbench'), \
                  patch.object(CDPActions, 'trigger_export_zip'):
                 ZipExportDownloadCase().execute(ctx)
             scripts = [str(call.args[0]) for call in cdp.eval.call_args_list]
@@ -880,8 +899,9 @@ class CoverageTests(unittest.TestCase):
 
     def test_partial_skip_requires_both_states_and_exact_zip_contents(self):
         for partial, zip_ids, expected in (({'exportedId': OTHER}, [CID], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID}, [CID, OTHER], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID}, [CID], True)):
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'deleted'}, [CID], False),
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'available'}, [CID, OTHER], False),
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'available'}, [CID], True)):
             with self.subTest(partial=partial, zip_ids=zip_ids), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / 'partial.zip'
                 with zipfile.ZipFile(path, 'w') as zf:

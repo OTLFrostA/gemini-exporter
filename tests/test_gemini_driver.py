@@ -146,6 +146,19 @@ class TestGeminiDriverSuite(unittest.TestCase):
                 self.assertTrue(res2.has_images)
                 self.assertEqual(len(session.turns), 2)
 
+    def test_explicit_image_expectation_overrides_prompt_keyword_guesses(self):
+        driver = GeminiDriver(MockCDP())
+        session = GeminiChatSession(driver, chat_id="image-expectation")
+        for prompt, expect_image in [("Explain the earlier illustration and drawing.", False),
+                                     ("Create the requested visual.", True)]:
+            with self.subTest(expect_image=expect_image), \
+                 patch.object(driver, "execute_turn_pipeline", return_value=(True, "OK")) as run, \
+                 patch.object(driver, "get_current_chat_id", return_value=session.chat_id), \
+                 patch.object(driver, "extract_turn_result", return_value=TurnResult(success=True, prompt=prompt)) as extract:
+                self.assertTrue(session.send_turn(prompt, expect_image=expect_image).success)
+                self.assertEqual(run.call_args.kwargs['is_image'], expect_image)
+                self.assertEqual(extract.call_args.kwargs['is_image'], expect_image)
+
     def test_gemini_chat_session_turn_failure_fail_fast(self):
         cdp = MockCDP()
         driver = GeminiDriver(cdp)

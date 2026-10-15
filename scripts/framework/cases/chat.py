@@ -117,7 +117,11 @@ description: "Dynamically created test attachment to verify multi-format user up
                         p_text = f"{p_text}\n\n（我附带上传了一个测试参考文件 {rnd_fname}，请阅读并确认收到该文件）"
                         print(f"         📁 现场生成随机多格式测试文件: {rnd_fname} (大小: {len(f_bytes)} bytes, SHA256: {f_sha256[:12]}...)")
 
-                    turn_res = session.send_turn(p_text, max_wait=300, file_attachment=current_attachment)
+                    # Scenarios declare image turns; references to an earlier illustration
+                    # must not demand a newly generated image in a text-only answer.
+                    image_turns = sc.get('image_turns', [1] if 'imagen' in sc.get('features', []) else [])
+                    turn_res = session.send_turn(p_text, max_wait=300, file_attachment=current_attachment,
+                                                 expect_image=turn_no in image_turns)
                     if not turn_res.success:
                         return False, f"会话 {chat_idx + 1} 轮次 {turn_no} 失败 (Fail-Fast 熔断安全停机): {turn_res.error}", None
                     ctx.record_turn(record, turn_res)

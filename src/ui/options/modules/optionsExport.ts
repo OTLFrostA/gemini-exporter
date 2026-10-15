@@ -23,7 +23,7 @@ import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 import { warmLocalFontCache } from '../../../core/export/typst/fonts/localFontProvider.js';
-import { $ } from '../../uiCommon.js';
+import { $, setExportSessionBusy } from '../../uiCommon.js';
 
 export { normId, isRealTitle };
 
@@ -398,6 +398,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
     if (_isExporting) return;
     _isExporting = true;
     try {
+        setExportSessionBusy(true);
         const Store = getStore();
         const List = getList();
         const Formats = getFormats();
@@ -543,6 +544,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
     await startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle);
     } finally {
         _isExporting = false;
+        setExportSessionBusy(false);
     }
 }
 

@@ -52,7 +52,17 @@ export const WORKBENCH_ACTION_BUTTON_IDS = [
     'btnSelectNone'
 ] as const;
 
+let exportSessionBusy = false;
+
+/** Keep controls locked through post-export selection and storage refresh. */
+export function setExportSessionBusy(busy: boolean): void {
+    exportSessionBusy = busy;
+    $('btnExport')?.setAttribute('aria-busy', String(busy));
+    setWorkbenchControlsDisabled(busy);
+}
+
 export function setWorkbenchControlsDisabled(disabled: boolean): void {
+    disabled = disabled || exportSessionBusy;
     for (const id of WORKBENCH_ACTION_BUTTON_IDS) {
         const el = document.getElementById(id);
         if (el && 'disabled' in el) el.disabled = !!disabled;

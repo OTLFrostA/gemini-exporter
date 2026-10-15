@@ -45,6 +45,95 @@ The historical evidence directory below retains its original name. Historical li
 
 ## Current live attempts
 
+### Export sequencing fixes and full Medium run
+
+The outer Options export session now holds the workbench controls and `aria-busy`
+through post-download selection cleanup and awaited storage refresh. Inner controller
+completion cannot unlock the next export early. Both resolved and rejected refreshes
+release the lock; reentrant exports remain blocked. The live helper waits for the
+whole session before selection/trigger and after download, confirms the click, and
+reports unavailable controls immediately instead of waiting for a nonexistent ZIP.
+
+Fast-skip now depends on successful chat generation and the mixed-batch Markdown
+ZIP. Its six-record requirement remains intact. Exact conversation IDs select export
+targets, counting every matched checkbox including already-selected targets. A negative
+DAG regression confirms that generation failure leaves historical ZIP checks runnable
+while withholding the six-target fast-skip check. HTML and PDF remain independent.
+Mixed fast-skip selection also requires the unexported target to have canonical Index
+`cloudAvailability: available`; the deleted ephemeral test archive is not a cloud-fetch
+candidate. Missing store evidence or nonavailable target evidence fails preparation.
+Scenario turns explicitly declare whether a new image is required (Imagen scenarios
+default to the first turn), so a later textual reference to an illustration does not
+require another image. Real first-turn image verification remains mandatory.
+
+The **final-script full Medium run** (including available-target selection) completed
+**15 PASS / 1 FAIL / 8 dependent SKIP / 0 WARN**, exit 1. Conversation
+`10bf81a87a36506c` generated the required first-turn image, but its second submitted
+prompt yielded no authored response within 300 seconds. Two user-query nodes existed,
+the editor was empty, and the second model node contained only "Gemini said". The
+snapshot had no Stop button, streaming DOM or error alert, and no captured stream
+completion event. This establishes the timeout conditions, not the underlying server
+or interception cause. The runner continued all independent stages without filters.
+
+PDF passed with five physical PDFs in a 609,026-byte ZIP (6.9s); HTML and Markdown
+historical archives also passed. Natural passive Coverage, full/incremental pagination,
+Takeout/title upgrades and cloud deletion with local retention passed. These archive
+checks verified **zero completed new scenario turns**, so they do not establish full
+live-content acceptance. Fast-skip correctly remained dependency-skipped in this run;
+its positive physical replay below is separate evidence. The prior citation discrepancy
+also remains unresolved. Full acceptance has not passed and the PR remains draft.
+
+Final-script evidence is in
+`/Users/cui/Documents/GeminiExporterTests/conversation-time-alignment-2026-10-14/tier2-medium-final-available/`.
+Full `npm test` passed (268 Node suites, 98/98 Playwright checks, zero-any, strict typing,
+Python checks and build). The 72 harness assertions and 19 DAG checks passed. One earlier
+gate retry timed out waiting for a Service Worker before entering a browser test;
+that file then passed 2/2, followed by the successful full gate. The pool was replenished
+after every attempt and validates at 20.
+
+The first complete 24-feature Medium attempt finished **15 PASS / 2 FAIL / 7 dependent
+SKIP / 0 WARN**, exit 1. PDF passed with five physical files (609,026-byte ZIP, 6.7s),
+HTML and Markdown archives passed their historical-target checks, and cloud deletion,
+natural passive Coverage, exhaustive/incremental sync and Takeout/title upgrade passed.
+These archive checks verified zero new scenario turns and do not establish full live
+content acceptance.
+
+Gemini's first Imagen reply in `09f1157882d06d43` was a 139-character access-style
+response ("Normally I can help with things like this, but I don't seem to have access
+to that content...") with no image. The image-required wait expired after 300 seconds.
+The snapshot shows no Stop button or streaming DOM and a ready editor. There is no
+evidence establishing a quota, policy, or thinking-level cause. Fast-skip then found
+only five historical exported records: this exposed the additional live-generation
+dependency, which was added after this attempt. Its failure did not exercise product
+skip behavior. Logs, the actual reply and physical archives are preserved privately in
+`/Users/cui/Documents/GeminiExporterTests/conversation-time-alignment-2026-10-14/tier2-medium-fixed/`.
+
+The next full Medium attempt (after adding the live-generation dependency) finished
+**12 PASS / 4 FAIL / 8 dependent SKIP / 0 WARN**, exit 1. Conversation `207fe4fcc05430f0`
+generated a real image and completed five turns. Its initial Markdown baseline failed
+on turn five's exact code comparison. Frozen web evidence and physical Markdown show
+four code blocks each; five literal `[cite: 1]` markers appear inside exported ASCII
+diagrams but not at those code positions in the web evidence. The complete normalized
+answer contains nine markers on each side, with five at different positions. Removing
+only these markers makes the normalized answers equal; this diagnostic does not relax
+the assertions or establish which representation is authoritative.
+
+HTML and PDF also downloaded and failed content checks for that same turn; PDF took
+6.6 seconds and did not stall at trigger/download. The second scenario never began
+because the initial baseline is mandatory, so the combined specification check failed
+its second-scenario presence requirement. Fast-skip was correctly dependency-skipped
+instead of reporting another insufficient-badge failure. Evidence is preserved in
+`/Users/cui/Documents/GeminiExporterTests/conversation-time-alignment-2026-10-14/tier2-medium-final/`,
+including `code-mismatch.json` and `citation-comparison.json`.
+
+An isolated replay of the actual fast-skip case used six already exported records
+from that run. It initially selected the deleted ephemeral archive as its unexported
+target; normal export correctly withheld that cloud fetch. After restricting selection
+to canonical available indexes, the replay passed: full skip completed in 0.26 seconds
+without a ZIP, and the mixed ZIP contained only the unexported target. This replay does
+not replace a complete Tier 2 pass. Its result and physical ZIP are preserved in
+`/Users/cui/Documents/GeminiExporterTests/conversation-time-alignment-2026-10-14/fast-skip-fixed-replay-available/`.
+
 ### Isolated final-build rerun
 
 A fresh full 24-feature run after fixing extension-page discovery completed with

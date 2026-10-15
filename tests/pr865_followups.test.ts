@@ -10,6 +10,7 @@ import { OptionsSync } from '../src/ui/options/modules/optionsSync.js';
 import { setScanRunning } from '../src/ui/controllers/syncController.js';
 import { OptionsExport } from '../src/ui/options/modules/optionsExport.js';
 import { ProgressView } from '../src/ui/views/progressView.js';
+import { setWorkbenchControlsDisabled } from '../src/ui/uiCommon.js';
 import { LOCALES } from '../src/core/utils/i18n.js';
 import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
@@ -293,4 +294,46 @@ test('batch export records the fetched body version rather than a newer Index ve
         assert.equal((await run(true)).skipped, 0, 'newer source activity cannot be hidden by exporting an older body');
         assert.equal(requests, 2);
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
+});
+
+
+test('export session holds UI lock until storage refresh settles, including refresh rejection', async () => {
+    for (const rejectRefresh of [false, true]) {
+        const attrs = new Map<string, string>();
+        const button = { disabled: false, style: {}, textContent: '',
+            setAttribute: (key: string, value: string) => attrs.set(key, value),
+            addEventListener: () => {} };
+        const listElement = { dataset: {}, style: {}, querySelectorAll: () => [] };
+        const restore = globals({ document: { getElementById: (id: string) => id === 'btnExport' ? button : id === 'list' ? listElement : null } });
+        const selected = [indexFixture({ id: 'session-lock', title: 'Session lock', timestamp: 1 })];
+        let release!: () => void;
+        let entered!: () => void;
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        const refreshStarted = new Promise<void>(resolve => { entered = resolve; });
+        let calls = 0;
+        __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => selected, getExportedIds: () => ({}) });
+        __setModuleOverride('ListView', { getSelected: () => selected, getSelectedIds: () => new Set(['session-lock']), setSelectedIds: () => {} });
+        __setModuleOverride('FormatStore', { loadFormat: async () => ({ format: 'markdown' }), getCurrentFormat: () => 'markdown' });
+        __setModuleOverride('DirHandleController', { getDirHandle: () => null, restoreSavedDirHandle: async () => null });
+        __setModuleOverride('DialogView', { hideExportFailureBanner: () => {}, renderExportFailureBanner: () => {} });
+        __setModuleOverride('ExportController', { runExport: async () => {
+            calls++;
+            setWorkbenchControlsDisabled(false); // Inner engine completes before refresh.
+            return { landedChats: 1 };
+        } });
+        try {
+            await OptionsExport.init({ loadStore: async () => { entered(); await gate; if (rejectRefresh) throw new Error('Refresh rejected'); } });
+            const pending = OptionsExport.exportSelected();
+            await refreshStarted;
+            assert.equal(button.disabled, true, 'a downloaded ZIP must not unlock the next export');
+            assert.equal(attrs.get('aria-busy'), 'true');
+            await OptionsExport.exportSelected();
+            assert.equal(calls, 1, 'reentrant click cannot start another export during refresh');
+            release();
+            if (rejectRefresh) await assert.rejects(pending, /Refresh rejected/);
+            else await pending;
+            assert.equal(button.disabled, false);
+            assert.equal(attrs.get('aria-busy'), 'false');
+        } finally { release(); __clearModuleOverrides(); restore(); }
+    }
 });
