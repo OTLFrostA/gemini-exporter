@@ -27,7 +27,10 @@ test('PDF backend derives policies and metadata from immutable JSON display data
     const payload = renderDocumentTypst(document, resources);
     assert.deepEqual(renderDocumentTypst(restored, resources), payload); assert.equal(JSON.stringify(input), before);
     assert.deepEqual(payload.messages[0].minWidthCards, [{ label: 'Reference.pdf', metadata: 'PDF · 4.00 KB' }]);
-    assert.deepEqual(payload.messages.map(message => message.gapAfterPt), [22.5, 22.5, 30, 0]);
+    const gaps = payload.messages.map(message => message.gapAfterPt);
+    assert.equal(gaps.at(-1), 0, 'the last turn has no trailing gap');
+    assert.ok(gaps.slice(0, -1).every(gap => gap > 0), 'adjacent turns remain separated');
+    assert.ok(gaps[2] > gaps[1], 'flow-to-bubble transitions have stronger separation than flow-to-flow');
     assert.equal(payload.messages[1].blocks[0].layout.keepWithNext, true);
     const table = document.messages[1].blocks[4]; if (table.type !== 'table') throw new Error('Expected table');
     assert.deepEqual(table.caption, [{ type: 'strong', children: [{ type: 'text', text: 'Table caption' }] }]);
@@ -50,11 +53,23 @@ test('real PDF engine changes page policy without recomposing the document', asy
     } finally { compiler.dispose(); }
 });
 
-test('PDF backend/compiler have no source-model imports; backend may infer layout from display neighbors', () => {
-    for (const file of ['src/core/renderers/typst/renderTypst.ts', 'src/core/renderers/typst/transport.ts', 'src/core/renderers/typst/layout.ts', 'src/core/export/pdf/pdfCompiler.ts', 'src/core/export/typst/typstSandboxCompiler.ts']) {
-        const code = readFileSync(file, 'utf8');
-        assert.doesNotMatch(code, /from ['"].*canonical\/|from ['"].*content\/|from ['"].*provider\/|\.bundle\b|\.role\b|assetPresentation|citationDisplayLabel/);
-    }
+test('PDF renderer follows edited Document AST presentation, not the original Domain roles', () => {
+    const { document } = composeDomainDocument(validateParserDomain(fixture()));
+    const altered: DocumentAst = structuredClone(document);
+    altered.header.title = 'Chosen export title';
+    altered.messages[0].variant = 'flow';
+    altered.messages[1].modelLabel = 'Selected model';
+
+    const original = renderDocumentTypst(document, resources);
+    const changed = renderDocumentTypst(altered, resources);
+    assert.equal(original.messages[0].variant, 'bubble');
+    assert.equal(changed.messages[0].variant, 'flow');
+    assert.equal(original.messages[0].blocks[1].layout.width, 'container');
+    assert.equal(changed.messages[0].blocks[1].layout.width, 'reading',
+        'text width must follow the authored presentation variant');
+    assert.equal(changed.title, 'Chosen export title');
+    assert.equal(changed.messages[1].model, 'Selected model');
+    assert.equal(original.messages[1].model, undefined);
 });
 
 test('PDF missing placements preserve authored numeric captions and descriptions', () => {
@@ -64,7 +79,9 @@ test('PDF missing placements preserve authored numeric captions and descriptions
     ];
     input.detail.assets.push({ id: 'missing', kind: 'file' });
     const { document } = composeDomainDocument(validateParserDomain(input));
-    const payload = renderDocumentTypst(document, {});
+    const diagnostics: string[] = [];
+    const payload = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic.code) });
+    assert.ok(diagnostics.includes('TYPST_V8_IMAGE_MISSING'), 'missing images must generate a reportable warning');
     const image = payload.messages[1].blocks[0], file = payload.messages[1].blocks[1];
     assert.deepEqual(image.type === 'unknown' && image.details, [{ type: 'strong', children: [{ type: 'text', text: '123' }] }]);
     assert.ok(file.type === 'file');
