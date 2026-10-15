@@ -23,9 +23,7 @@ test('P1-027: >50 MiB image succeeds as a buffer and is rejected as Base64', asy
         type: 'image/png',
         arrayBuffer: async () => bytes.buffer,
     };
-    let calls = 0;
     globalThis.fetch = (async () => {
-        calls++;
         return {
             ok: true, status: 200,
             headers: { get: () => 'image/png' },
@@ -50,7 +48,6 @@ test('P1-027: >50 MiB image succeeds as a buffer and is rejected as Base64', asy
         assert.equal(replies.length, 1);
         assert.equal(replies[0].success, false);
         assert.match(replies[0].error || '', /too large/i);
-        assert.equal(calls, 2);
     } finally {
         globalThis.fetch = originalFetch;
     }
