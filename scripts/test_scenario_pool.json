@@ -1,44 +1,5 @@
 [
   {
-    "id": "botany_phyllotaxis_golden_angle_spiral_sampling",
-    "title": "Phyllotaxis: golden-angle sampling and geometric evidence",
-    "domain": "botany_phyllotaxis_geometry",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an actual original image using Imagen: an educational botanical plate comparing a sunflower-like seed head and a schematic spiral point pattern. Distinguish a biological observation from a mathematical construction, label radial and angular coordinates, and do not claim that the drawing proves an exact Fibonacci count.",
-      "Define a deterministic planar phyllotaxis model with radius proportional to the square root of the seed index and constant golden-angle increments. Derive the golden angle in LaTeX and explain area density, coordinate conventions and the role of continued-fraction approximations.",
-      "Write complete runnable standard-library Python generating the coordinates and computing exact-index invariants plus numerical nearest-neighbor distances. Include assertions for empty and single-point inputs, duplicate indices, rotation invariance and deterministic output; explain which quantities require floating-point tolerances.",
-      "Use a Markdown table to compare golden-angle sampling, a rational angular increment and seeded random angular increments on the same radial law. Report clearly defined nearest-neighbor statistics, boundary handling and sample size, distinguishing measured statistics from mathematical guarantees.",
-      "Write a detailed reproducibility report linking the botanical illustration, geometric model, code and experiments. Discuss parastichy counting, finite-size effects, biological variability, measurement uncertainty and why visual resemblance alone cannot establish a growth mechanism. Include a Chinese-English terminology table."
-    ]
-  },
-  {
-    "id": "distributed_systems_vector_clocks_causal_delivery",
-    "title": "Causal delivery: vector clocks and independently checked traces",
-    "domain": "distributed_systems_logical_clocks",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a fictional three-process message trace with local events, sends and receives. Define Lamport's happens-before relation and vector-clock comparison in LaTeX, stating the delivery and process assumptions.",
-      "Derive the vector-clock update rules and compute every event's timestamp for the trace. Include at least one concurrent pair and one causal pair, explaining why a scalar logical clock cannot fully distinguish them.",
-      "Write complete runnable standard-library Python simulating vector clocks and a causal-delivery buffer under a deterministic out-of-order network schedule. Validate message identity, sender sequence numbers and dependency satisfaction, with assertions for duplicates, delayed prerequisites and malformed vectors.",
-      "Build a separate graph-reachability oracle for the finite event trace and compare its causal relation with componentwise vector-clock comparisons. Use a Markdown table to show representative event pairs, graph reachability, timestamps and concurrency classification.",
-      "Write a long verification report distinguishing causality, real time, total ordering and delivery order. Discuss dynamic membership, failed processes, storage cost, garbage collection assumptions and reproducible counterexamples to incorrect clock-comparison rules."
-    ]
-  },
-  {
     "id": "optics_fermat_refraction_stationary_path",
     "title": "Fermat paths: refraction geometry and stationary travel time",
     "domain": "geometrical_optics_variational_paths",
@@ -389,6 +350,48 @@
       "Construct a counterexample involving a narrow oscillation or localized feature that the initial samples can miss. Explain why an adaptive error estimate is conditional evidence, not a universal proof of accuracy.",
       "Discuss floating-point cancellation, summation order, near-identical subdivision endpoints and interval stagnation. Add safeguards and diagnostics while keeping the implementation readable and reproducible.",
       "Produce a detailed technical report combining equations, fenced Python code, a method-selection table and a reproducibility checklist. Explain when a variable substitution or domain-specific quadrature rule is more useful than tightening the same adaptive tolerance."
+    ]
+  },
+  {
+    "id": "geodesy_trilateration_range_uncertainty",
+    "title": "Trilateration: range geometry and uncertainty audit",
+    "domain": "geodesy_range_localization",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational image showing three survey beacons and intersecting range circles on a synthetic planar map. Label coordinates and distance units, show an ambiguous two-beacon intersection, and distinguish schematic artwork from measured survey evidence.",
+      "Derive planar trilateration from squared range equations in LaTeX. State identifiability assumptions and explain collinear beacons, coordinate translation, inconsistent noisy ranges and why subtracting equations changes the noise structure.",
+      "Write complete runnable standard-library Python solving a synthetic three-beacon problem and refining noisy ranges with a damped least-squares iteration. Include assertions for exact recovery, rigid translation, rank deficiency and invalid or negative distances. Specify convergence and singularity handling.",
+      "Use a Markdown table comparing well-spread and nearly collinear beacon geometries under the same fixed-seed range perturbations. Report coordinate error, range residuals and a defined conditioning diagnostic, distinguishing empirical sensitivity from a statistical confidence interval.",
+      "Write a detailed reproducibility report connecting the illustration, equations, solver and independent forward-range checks. Discuss uncertainty propagation, outliers, distance bias, local coordinate assumptions and limits of extrapolating a planar model to Earth-scale surveys. Include a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "operations_research_min_cost_flow_duality",
+    "title": "Minimum-cost flow: residual paths and dual certificates",
+    "domain": "operations_research_network_flow_duality",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a small fictional capacitated transport network with integer costs, supplies and demands. Define the minimum-cost flow linear program in LaTeX and state a consistent sign convention for node balances.",
+      "Derive the residual graph including reverse arcs and explain flow conservation, augmenting paths and why ignoring reverse arcs can trap a greedy allocation in a suboptimal state.",
+      "Give a concrete numerical example where a cheapest-first allocation fails. Show every augmentation and its effect on feasibility and total cost in a Markdown table.",
+      "Write complete runnable standard-library Python solving the small bounded integer instance using residual augmentations. Handle unreachable demand, parallel arcs, zero capacity and negative residual costs explicitly; justify the shortest-path algorithm used.",
+      "Implement an independent exhaustive enumeration oracle for tiny capacities and compare its optimum with the residual solver over deterministic generated feasible cases. Include assertions for balance conservation, capacity limits and total-cost accounting.",
+      "Derive reduced costs and complementary slackness for the chosen sign convention. Compute node potentials for the example and present a dual optimality certificate, clearly addressing saturated and unused arcs.",
+      "Use a Markdown table comparing changed supply, a capacity bottleneck and a cost perturbation. Report feasibility, optimum, oracle agreement and certificate checks. Explain when an infeasibility cut is more informative than a missing path.",
+      "Write a long reproducibility report containing the model, complete code, oracle and certificates. Discuss integral solutions, negative cycles, complexity, degeneracy and limitations of tiny enumeration as evidence for general solver correctness. Include a Chinese-English glossary."
     ]
   }
 ]
