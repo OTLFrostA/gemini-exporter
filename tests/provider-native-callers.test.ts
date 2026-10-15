@@ -11,7 +11,6 @@ import { getConversationDetail } from '../src/core/api/client/pagination.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
 import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
 import { MediaIndex } from '../src/core/resources/takeout/mediaIndex.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
@@ -26,7 +25,7 @@ function page(request: string, seconds: number, cursor: string | null = null) {
         ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_native', 'Title', null, null, null, [1700000010, 0]]]])]]), { providerId: 'gemini', targetConvId: 'native' });
 }
 const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({
-    sourceVersion: timestamp, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'native', title: 'Title' }, detail: { completeness: 'unknown', messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
+    sourceVersion: timestamp, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'native', title: 'Title' }, detail: { quality: { status: 'unknown' }, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
         content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }], assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { sourceUri: uri } : {}) }] } }),
     diagnostics: [], resourceHints: {}, acquisitionHints: {},
 });
@@ -61,11 +60,11 @@ test('page merge dedupes stable messages and shared source images without collap
 test('native token loops retain diagnostics and explicitly mark incomplete coverage', async () => {
     const view = page('r_one', 1700000000, 'tC_repeat');
     const detail = await getConversationDetail({ async fetchConversationPage() { return view; } }, 'native');
-    assert.equal(detail.transport.truncateReason, 'token_loop');
+    assert.equal(detail.conversation.detail.quality.truncation, 'token_loop');
     assert.equal(detail.conversation.detail.messages.length, 2);
-    assert.equal(detail.conversation.detail.completeness, 'partial');
+    assert.equal(detail.conversation.detail.quality.status, 'partial');
     assert.ok(detail.diagnostics.some(d => d.code === 'GEMINI_PAGINATION_TRUNCATED'));
-    assert.equal(resolveExportRecordStatus({ evidence: extractChatParseDrift(detail) }).status, 'partial');
+    assert.equal(resolveExportRecordStatus({ quality: detail.conversation.detail.quality }).status, 'partial');
 });
 
 test('native exports use Domain without invoking the historical record parser', async () => {
@@ -231,7 +230,7 @@ test('metadata-only detail retry follows native pagination to its terminal page'
     assert.equal(calls[2].token, 'tC_retry_older');
     assert.equal(calls[2].detailOnly, true);
     assert.equal(detail.conversation.detail.messages.length, 4);
-    assert.equal(detail.transport.truncated, undefined);
+    assert.equal(Boolean(detail.conversation.detail.quality.truncation), false);
 });
 
 test('cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics', async () => {

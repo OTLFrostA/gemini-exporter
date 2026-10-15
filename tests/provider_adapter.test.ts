@@ -40,15 +40,13 @@ test('adapter: absent and explicit undefined optional transport evidence keep th
     const page = await list();
     for (const mode of ['absent', 'undefined'] as const) {
         const data = detail();
-        delete data.transport.decodedPayload; delete data.transport.schemaDrift;
-        if (mode === 'undefined') { data.transport.decodedPayload = undefined; data.transport.schemaDrift = undefined; }
+        delete data.transport.decodedPayload;
+        if (mode === 'undefined') { data.transport.decodedPayload = undefined; }
         const mapped = await new GeminiProvider(client(data, page)).fetchConversationDetail('adapter');
         assert.strictEqual(mapped, data);
         assert.equal(Object.hasOwn(mapped.transport, 'decodedPayload'), mode === 'undefined');
-        assert.equal(Object.hasOwn(mapped.transport, 'schemaDrift'), mode === 'undefined');
         if (mode === 'undefined') {
             assert.equal(mapped.transport.decodedPayload, undefined);
-            assert.equal(mapped.transport.schemaDrift, undefined);
         }
     }
 });

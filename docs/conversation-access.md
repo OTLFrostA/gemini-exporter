@@ -13,7 +13,7 @@ const conversation = await repository.getConversation(id);
 ```
 
 The aggregate is `{ index: DomainConversationIndex, detail?: DomainConversationBody }`.
-The body contains only `messages`, `assets` and `completeness`. Title, title source,
+The body contains only `messages`, `assets` and `quality`. Title, title source,
 creation time and URL are read exclusively from `index`; there is no second metadata
 copy to arbitrate inside the aggregate. Identity belongs to the aggregate's index.
 Message timestamps remain message facts. List messageCount is the largest observed
@@ -24,7 +24,7 @@ individual-message count, not a promise that the saved body contains that many m
 - No catalog index: `null`. An orphan body is not silently published or repaired.
 - Index but no saved body: an aggregate with no `detail` property.
 - Saved empty body: `detail` is present with an empty `messages` array.
-- Partial/unknown coverage: preserve `detail.completeness`; do not disguise it as absence.
+- Partial/unknown coverage: preserve `detail.quality`; do not disguise it as absence.
 - Storage, broker and schema errors: reject the promise, rather than returning `null`.
 
 `getConversationIndex` does not read IndexedDB or decode a body. Both methods return

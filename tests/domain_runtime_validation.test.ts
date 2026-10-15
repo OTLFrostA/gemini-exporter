@@ -4,7 +4,7 @@ import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 function valid(): DomainConversationWithDetail {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future', id: 'independent', title: 'Fixture' }, detail: { completeness: 'unknown', assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future', id: 'independent', title: 'Fixture' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
             citations: [{ id: 'cite', url: 'https://example.test' }],
             content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'cite' }] },
                 { type: 'unknown', sourceType: 'future', text: 'preserved' }] }] } };
@@ -27,7 +27,7 @@ test('parser validation preserves identity; recovery isolates all nested objects
 test('both entry points reject independent malformed graphs and nonportable values', () => {
     const negatives: unknown[] = [
         { index: { ...valid().index, title: 4 }, detail: { ...valid().detail } }, { index: { ...valid().index }, detail: { ...valid().detail, messages: {} } }, { index: { ...valid().index }, detail: { ...valid().detail }, timestamp: Infinity },
-        { index: { ...valid().index }, detail: { ...valid().detail, completeness: { status: 'fabricated' } } }, { index: { ...valid().index }, detail: { ...valid().detail }, extra: true },
+        { index: { ...valid().index }, detail: { ...valid().detail, quality: { status: 'fabricated' } } }, { index: { ...valid().index }, detail: { ...valid().detail }, extra: true },
         { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 1 }] }] }] } },
         { index: { ...valid().index }, detail: { ...valid().detail, assets: [] } },
         { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'missing' }] }] }] } },
@@ -35,6 +35,12 @@ test('both entry points reject independent malformed graphs and nonportable valu
         { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [], attachmentIds: ['image', 'image'] }] } },
         { index: { ...valid().index, title: () => 'bad' }, detail: { ...valid().detail } }, { index: { ...valid().index }, detail: { ...valid().detail }, timestamp: 1n },
     ];
+    for (const quality of [{ status: 'complete', rejectedTurns: 1 }, { status: 'partial', rejectedTurns: -1 },
+        { status: 'partial', rejectedTurns: 0 }, { status: 'partial', rejectedTurns: 1.5 }, { status: 'partial', truncation: ' ' },
+        { status: 'partial', heuristicDocumentIds: ['missing'] }, { status: 'partial', heuristicDocumentIds: ['image', 'image'] },
+        { status: 'partial', extra: true }]) negatives.push({ ...valid(), detail: { ...valid().detail, quality } });
+    negatives.push({ ...valid(), detail: { ...valid().detail, completeness: 'unknown' } });
+    negatives.push({ ...valid(), detail: { ...valid().detail, assets: [{ id: 'image', kind: 'image', document: { hasFabricatedText: true } }] } });
     const cycle = valid(); cycle.detail.messages[0].content.push({ type: 'quote', blocks: cycle.detail.messages[0].content });
     negatives.push(cycle);
     for (const input of negatives) {

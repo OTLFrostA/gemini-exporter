@@ -9,7 +9,7 @@ import type { DomainConversationWithDetail } from '../src/core/domain/conversati
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 
-const metadata = { index: { id: 'semantic', title: 'Semantic input', titleSource: 'legacy' as const, cloudAvailability: 'unknown' as const, hasTakeoutImport: false, providerId: 'other' }, detail: { completeness: 'unknown' as const, assets: [] } };
+const metadata = { index: { id: 'semantic', title: 'Semantic input', titleSource: 'legacy' as const, cloudAvailability: 'unknown' as const, hasTakeoutImport: false, providerId: 'other' }, detail: { quality: { status: 'unknown' } as const, assets: [] } };
 
 test('Document composition contains no body parsing or provider-format decisions', () => {
     for (const file of ['composeDomainDocument.ts', 'composeContent.ts']) {

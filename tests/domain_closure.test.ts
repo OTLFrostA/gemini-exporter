@@ -90,7 +90,7 @@ test('document aliases merge across messages without losing metadata or byte pay
     assert.equal(asset.kind, 'file');
     assert.equal(asset.name, 'Report');
     assert.equal(asset.dataBase64, 'AQID');
-    const expectedDocument = { id: document.id, contentMarkdown: '# Report\n\nIntro\n\nIntro\n\n[Source](https://example.test)', hasFabricatedText: document.hasFabricatedText };
+    const expectedDocument = { id: document.id, contentMarkdown: '# Report\n\nIntro\n\nIntro\n\n[Source](https://example.test)' };
     assert.deepEqual(asset.document, expectedDocument);
     assert.equal(messageAssets(domain, 0)[0], messageAssets(domain, 1)[0]);
     const restored: DomainConversationWithDetail = JSON.parse(JSON.stringify(domain));
@@ -123,7 +123,7 @@ test('missing evidence, unknown ordinals and conflicting documents never collaps
 });
 
 test('downstream binding respects Domain identity even when two URIs have the same basename', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { completeness: 'unknown', assets: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [
         { id: 'one', kind: 'image', name: 'Attachment', sourceUri: 'https://one.test/shared.png' },
         { id: 'two', kind: 'image', sourceUri: 'https://two.test/shared.png' },
     ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'two', alt: 'Inline' }], attachmentIds: ['one'] }] } };
@@ -135,7 +135,7 @@ test('downstream binding respects Domain identity even when two URIs have the sa
 });
 
 test('resource IDs never collide with export numbering or acquisition URI aliases', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { completeness: 'unknown', assets: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [
         { id: 'msg-0-a1', kind: 'image', name: 'First', sourceUri: 'https://first.test/image' },
         { id: 'second', kind: 'image', name: 'Second', sourceUri: 'msg-0-a1' },
     ], messages: [{ role: 'assistant', attachmentIds: ['msg-0-a1', 'second'],
@@ -145,7 +145,7 @@ test('resource IDs never collide with export numbering or acquisition URI aliase
 });
 
 test('resource metadata and audio/video kinds survive neutral downstream adaptation', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { completeness: 'unknown', assets: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [
         { id: 'audio', kind: 'audio', name: 'Audio' }, { id: 'video', kind: 'video', name: 'Video' },
         { id: 'image', kind: 'image', name: 'Shared', mediaType: 'image/png',
             sourceUri: 'https://example.test/image' },
@@ -168,7 +168,7 @@ test('reasoning is parsed at the producer boundary and Domain reasoning text sta
     assert.ok(parsed.detail.messages[0].reasoning?.[0].type === 'paragraph');
     assert.equal(parsed.detail.messages[0].reasoning[0].children[0].type, 'strong');
     assert.equal(parsed.detail.assets.length, 1);
-    const literal: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { completeness: 'unknown', assets: [], messages: [{
+    const literal: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{
         role: 'assistant', content: text('Body'), reasoning: text('**literal** <b>HTML</b> ![image](url) $x$'),
     }] } };
     const original = structuredClone(literal);
@@ -200,7 +200,7 @@ test('provider identity is assigned only by producers, with OpenAI and Takeout c
 });
 
 test('Domain closure rejects invalid provider, repeated registry/message IDs and dangling references', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { completeness: 'unknown', assets: [{ id: 'asset', kind: 'file' }], messages: [{ role: 'assistant', content: [], attachmentIds: ['asset'] }] } };
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'file' }], messages: [{ role: 'assistant', content: [], attachmentIds: ['asset'] }] } };
     assertDomainClosure((domain).detail);
     const invalid: DomainConversationWithDetail[] = [
         { index: { ...domain.index, providerId: '' }, detail: { ...domain.detail } },

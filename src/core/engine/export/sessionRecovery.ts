@@ -1,5 +1,6 @@
 import type { FailedChat, FailedAttachment } from "../../../types/ui.js";
-import type { ChatParseDrift } from "./parseDrift.js";
+import type { ContentQuality } from '../../domain/quality.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { ExportSessionData } from "../../storage/sessionStore.js";
 import type { StorageServiceModule, FinalizeExportOptions } from "../../storage/storageService.js";
 import type { StoredExportRecordMap, StoredExportRecord } from "../../storage/storageCompatibility.js";
@@ -30,7 +31,9 @@ interface SessionLogFailedAttachmentEntry extends Partial<FailedAttachment> {
     reason?: string;
 }
 
-interface SessionParseDriftEntry extends Partial<ChatParseDrift> {
+export interface SessionParseDriftEntry {
+    quality: ContentQuality;
+    diagnostics: Diagnostic[];
     id?: string;
     title?: string;
 }
@@ -231,13 +234,15 @@ function buildSessionLogText({
         fullLogText += `[PARSE DRIFT / PARTIAL SESSIONS]\n`;
         for (const pd of parseDrift) {
             const bits: string[] = [];
-            const turnsRejected = pd.turnsRejected;
+            bits.push(`quality=${pd.quality.status}`);
+            if (pd.quality.truncation) bits.push(`truncation=${pd.quality.truncation}`);
+            const turnsRejected = pd.quality.rejectedTurns;
             if (turnsRejected !== undefined && turnsRejected > 0) bits.push(`turnsRejected=${turnsRejected}`);
-            if (pd.hasHeuristicDocs) bits.push(`heuristicDocs`);
+            if (pd.quality.heuristicDocumentIds?.length) bits.push(`heuristicDocs`);
             fullLogText += `  - ${pd.id || 'unknown'} | "${(pd.title || '').slice(0, 60)}" | ${bits.join(", ") || "schema drift"}\n`;
-            if (Array.isArray(pd.schemaDrift)) {
-                for (const w of pd.schemaDrift.slice(0, 5)) {
-                    fullLogText += `    [drift] ${String(w).slice(0, 200)}\n`;
+            if (Array.isArray(pd.diagnostics)) {
+                for (const w of pd.diagnostics.slice(0, 5)) {
+                    fullLogText += `    [drift] ${`${w.code}: ${w.message}`.slice(0, 200)}\n`;
                 }
             }
         }

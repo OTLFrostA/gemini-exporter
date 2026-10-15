@@ -1,3 +1,4 @@
+import { contentQuality } from '../../../domain/quality.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainMessage } from '../../../domain/conversationDetail.js';
@@ -87,7 +88,7 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
         index: parseIndexMetadata({ providerId: 'gemini', id, title: authoredTitle ? title : '',
             titleSource: authoredTitle ? 'dom' : 'default', messageCount: resources.messages.length,
             url: raw.url ?? `https://gemini.google.com/app/${id}` }),
-        detail: { completeness: 'partial' as const, messages: resources.messages, assets: resources.assets },
+        detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), messages: resources.messages, assets: resources.assets },
     };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics,

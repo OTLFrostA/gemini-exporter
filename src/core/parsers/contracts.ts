@@ -6,7 +6,7 @@ export interface ConversationParseContext {
     providerId: string;
 }
 
-/** Shared parser output. Problems are side-channel records, never conversation fields. */
+/** Parsers establish semantic quality in Domain; diagnostics report observations only. */
 export interface ConversationParseResult {
     conversation: TrustedDomain;
     /** Source activity version captured with this body (epoch ms). Persist as savedAt.

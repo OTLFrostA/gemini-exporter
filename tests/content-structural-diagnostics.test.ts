@@ -7,7 +7,7 @@ import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 test('nested resource references are checked before composition; unavailable bytes are backend diagnostics', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'test', id: 'conversation', title: 'Nested' }, detail: { completeness: 'unknown', assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] } };
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'test', id: 'conversation', title: 'Nested' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [{ type: 'list', ordered: false, items: [{ blocks: [{ type: 'quote', blocks: [{ type: 'image', assetId: 'missing', alt: 'Nested figure' }] }] }] }] }] } };
     assert.throws(() => assertDomainClosure((domain).detail), /Unregistered Domain asset 'missing' in messages\[0\]/);
     domain.detail.assets.push({ id: 'missing', kind: 'image' });
     const document = composeDomainDocument(validateParserDomain(domain)).document;

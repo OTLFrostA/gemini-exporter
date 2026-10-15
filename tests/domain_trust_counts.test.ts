@@ -11,7 +11,7 @@ import type { DomainConversationWithDetail } from '../src/core/domain/conversati
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     for (const status of ['complete', 'partial', 'unknown'] as const) {
-        const builder: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph' }, detail: { completeness: status, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }], messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
+        const builder: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph' }, detail: { quality: { status }, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }], messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
                 content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) } };
         const trusted = validateParserDomain(builder);
         assert.equal(restoreDomainSnapshot(trusted).detail.messages.length, 1000);
@@ -22,7 +22,7 @@ test('large provider-neutral graphs preserve complete/partial/unknown coverage a
         const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.index.id));
         assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
-        assert.equal(read.conversation.detail.completeness, status);
+        assert.equal(read.conversation.detail.quality.status, status);
         assert.equal(read.conversation.detail.messages[999].content[0].type, 'unknown');
         assert.equal(Object.getOwnPropertySymbols(read.conversation).length, 0);
     }

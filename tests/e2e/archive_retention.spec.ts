@@ -13,7 +13,7 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
                 { id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000, cloudAvailability: 'deleted' },
                 { id: 'metadata_only', title: 'Title without body', timestamp: 1, cloudAvailability: 'deleted' }
             ]).map(canonicalIndexFixture), exportedIds: { archive_local: { status: 'ok', exportedAt: 1700000000000, format: 'markdown', title: 'Retained local archive', messageCount: 2 } } });
-        const native = { sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'archive_local', title: 'Retained local archive' }, detail: { completeness: 'unknown', assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }], messages: [
+        const native = { sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'archive_local', title: 'Retained local archive' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }], messages: [
                 { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local question' }] }] },
                 { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local answer' }, { type: 'image', assetId: 'img' }] }], attachmentIds: ['img'] }
             ] } }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] };

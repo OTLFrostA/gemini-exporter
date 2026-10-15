@@ -1,16 +1,17 @@
+import { contentQuality } from '../../../domain/quality.js';
 import type { DomainAsset, DomainMessage } from '../../../domain/conversationDetail.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
-import type { GeminiRpcParseResult } from './parseConversation.js';
 
-type ConversationPage = ResourceConversationParseResult & { transport?: Pick<GeminiRpcParseResult['transport'], 'turnsRejected'> };
+type ConversationPage = ResourceConversationParseResult;
 
 /** Pages arrive newest first. Asset collisions without shared source identity remain distinct. */
 export function mergeConversationPages(pages: readonly ConversationPage[], truncatedReason?: string): ResourceConversationParseResult {
     if (!pages.length) throw new TypeError('No conversation pages');
     const first = pages[0].conversation;
     const assets = new Map<string, DomainAsset>();
+    const heuristicDocumentIds: string[] = [];
     const seenMessages = new Set<string>();
     let messages: DomainMessage[] = [];
     const resourceHints: Record<string, ResourceConversationParseResult['resourceHints'][string]> = {};
@@ -32,6 +33,7 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
             if (page.resourceHints[asset.id]) resourceHints[id] = { ...page.resourceHints[asset.id], ...resourceHints[id] };
             if (page.acquisitionHints[asset.id]) acquisitionHints[id] = { ...page.acquisitionHints[asset.id], ...acquisitionHints[id] };
         }
+        heuristicDocumentIds.push(...(page.conversation.detail.quality.heuristicDocumentIds ?? []).map(id => aliases.get(id) ?? id));
         const fresh = page.conversation.detail.messages.filter(message => {
             if (!message.id) return true;
             if (seenMessages.has(message.id)) return false;
@@ -42,12 +44,14 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
             ...(message.attachmentIds ? { attachmentIds: [...new Set(message.attachmentIds.map(id => aliases.get(id) ?? id))] } : {}) }));
         messages = [...fresh, ...messages];
     }
-    const rejected = pages.some(page => (page.transport?.turnsRejected ?? 0) > 0);
+    const rejectedTurns = pages.reduce((sum, page) => sum + (page.conversation.detail.quality.rejectedTurns ?? 0), 0);
     const versionMismatch = pages.some(page => page.sourceVersion !== undefined
         && page.conversation.detail.messages.some(message => message.timestamp !== undefined && message.timestamp > page.sourceVersion!));
     const versionChanged = pages.some(page => page.sourceVersion !== pages[0].sourceVersion);
+    const truncation = truncatedReason ?? pages.map(page => page.conversation.detail.quality.truncation).find(reason => reason && reason !== 'pagination_pending');
+    const sourcePartial = pages.some(page => page.conversation.detail.quality.status === 'partial' && page.conversation.detail.quality.truncation !== 'pagination_pending');
     const conversation = { index: { ...first.index, messageCount: messages.length }, detail: { messages, assets: [...assets.values()],
-        completeness: truncatedReason || rejected || versionMismatch || versionChanged ? 'partial' as const : 'unknown' as const } };
+        quality: contentQuality({ status: sourcePartial || versionMismatch || versionChanged ? 'partial' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds }) } };
     return { ...(pages[0].sourceVersion !== undefined ? { sourceVersion: pages[0].sourceVersion } : {}), conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
         ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };

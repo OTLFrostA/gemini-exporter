@@ -53,7 +53,7 @@ test('all legacy resource paths produce one Domain resource, with document and g
     assert.equal(resources[0].name, 'Report');
     assert.deepEqual(resources[0].sourceUri, document.url);
     assert.deepEqual(resources[0].document, {
-        id: document.id, contentMarkdown: '# Report\n\nIntro\n\n[Source](https://example.test/source)', hasFabricatedText: false,
+        id: document.id, contentMarkdown: '# Report\n\nIntro\n\n[Source](https://example.test/source)',
     });
     assert.deepEqual(resources[1].generation, Object.fromEntries(Object.entries(generation).filter(([key]) => key !== 'chatId' && key !== 'turnId')));
     assert.equal(Reflect.get(resources[1], 'generated'), undefined);
@@ -206,7 +206,7 @@ test('binary views survive Domain JSON round trips without changing input bytes'
 
 test('shared source gate rejects runtime legacy aliases; Composer uses explicit Domain resources', async () => {
     const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] } };
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] } };
     const expected = await composeFixture(domain);
     const leaked = { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ ...domain.detail.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] } };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);

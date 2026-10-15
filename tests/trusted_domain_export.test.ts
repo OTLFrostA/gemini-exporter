@@ -20,7 +20,7 @@ function rawIsNotExportable(raw: DomainConversationWithDetail): void {
 void rawIsNotExportable;
 
 test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves messages', async () => {
-    const raw: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'pdf-source', title: 'Title' }, detail: { completeness: 'unknown', messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] } };
+    const raw: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'pdf-source', title: 'Title' }, detail: { quality: { status: 'unknown' }, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] } };
     // @ts-expect-error Raw Domain is neither request metadata nor a trusted result.
     const rejected = await preparePdfItem(raw, { includeAssets: false });
     assert.equal(rejected.ok, false);
@@ -32,7 +32,7 @@ test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves
 });
 
 test('one trusted graph preserves independent content across HTML, Markdown, JSON and PDF preparation', async () => {
-    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'exports', title: '<Independent>' }, detail: { assets: [], completeness: 'partial', messages: [
+    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'exports', title: '<Independent>' }, detail: { assets: [], quality: { status: 'partial' }, messages: [
             { id: 'q', role: 'user', content: [{ type: 'paragraph',
                 children: [{ type: 'text', text: 'Question <safe>' }] }] },
             { id: 'a', role: 'assistant', reasoning: [{ type: 'paragraph',
@@ -51,7 +51,7 @@ test('one trusted graph preserves independent content across HTML, Markdown, JSO
     assert.match(html, /Reasoning evidence/);
     assert.match(markdown, /const value = 2;/);
     assert.match(markdown, /Reasoning evidence/);
-    assert.equal(native.conversation.detail.completeness, 'partial');
+    assert.equal(native.conversation.detail.quality.status, 'partial');
     assert.deepEqual(native.conversation.detail.messages.map((message: { role: string }) => message.role), ['user', 'assistant']);
     assert.match(JSON.stringify(native.conversation.detail.messages[1].content), /const value = 2;/);
     assert.equal(pdf.ok, true);

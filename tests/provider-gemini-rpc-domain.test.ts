@@ -87,15 +87,15 @@ test('missing timestamps and request evidence are never fabricated', () => {
 test('pagination and rejected turns yield partial coverage and side-channel diagnostics', () => {
     const rejected = [['x_not_a_turn'], null, [['Unrecognized source prompt']]];
     const result = native(rpc([[turn(), rejected], 'tC_native_cursor']));
-    assert.equal(result.conversation.detail.completeness, 'partial');
+    assert.equal(result.conversation.detail.quality.status, 'partial');
     assert.equal(result.transport.nextPageToken, 'tC_native_cursor');
-    assert.equal(result.transport.turnsRejected, 1);
+    assert.equal(result.conversation.detail.quality.rejectedTurns, 1);
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_TURNS_REJECTED'));
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT'));
     const json = JSON.stringify(result.conversation);
     for (const field of ['transport', 'nextPageToken', '_raw', '_debug', 'schemaDrift', 'turnsRejected', 'diagnostics']) assert.ok(!json.includes(`"${field}":`));
     assert.ok(!json.includes('tC_native_cursor'));
-    assert.equal(native(rpc([[turn()]])).conversation.detail.completeness, 'unknown');
+    assert.equal(native(rpc([[turn()]])).conversation.detail.quality.status, 'unknown');
 });
 
 test('metadata-only pages preserve title evidence without claiming a complete conversation', () => {
@@ -105,7 +105,7 @@ test('metadata-only pages preserve title evidence without claiming a complete co
     assert.equal(result.conversation.index.titleSource, 'rpc');
     assert.equal(decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]])).metadataConversation?.title, 'Metadata title');
     assert.equal(result.conversation.detail.messages.length, 0);
-    assert.equal(result.conversation.detail.completeness, 'unknown');
+    assert.equal(result.conversation.detail.quality.status, 'unknown');
     assert.ok(result.diagnostics.some(d => d.code === 'GEMINI_SCHEMA_DRIFT'));
 });
 

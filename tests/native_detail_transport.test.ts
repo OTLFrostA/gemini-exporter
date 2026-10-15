@@ -18,7 +18,7 @@ test('current extension reply preserves native identity; legacy and malformed en
     const batch = await requestNativeBatch(async () => ({ success: true, domainEnvelopeVersion: 2, results: [parsed, { error: 'deleted', isDeleted: true }] }));
     assert.equal(batch.success, true);
     if (batch.success) assert.equal(batch.results?.[0], parsed);
-    for (const raw of [null, 42, {}, { success: true, data: parsed }, { success: true, domainEnvelopeVersion: 1, data: parsed },
+    for (const raw of [null, 42, {}, { success: true, data: parsed }, { success: true, domainEnvelopeVersion: 1, data: parsed }, { success: true, domainEnvelopeVersion: 3, data: parsed },
         { success: true, domainEnvelopeVersion: 2, data: { conversation: {} } },
         { success: true, domainEnvelopeVersion: 2, data: { error: 42 } }]) {
         assert.equal((await requestNativeDetail(async () => raw)).success, false);
@@ -42,7 +42,7 @@ test('authenticated storage transport requires version and preserves resource by
     assert.deepEqual(decodeDomainRecord(wire), record);
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
-        for (const version of [undefined, 1, 2, 3]) {
+        for (const version of [undefined, 1, 2, 3, 4]) {
             Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => ({ ok: true, value: wire, domainEnvelopeVersion: version }) } } });
             if (version === 2) assert.equal(await callDomainBroker('get', {}), wire);
             else await assert.rejects(callDomainBroker('get', {}), /Incompatible/);

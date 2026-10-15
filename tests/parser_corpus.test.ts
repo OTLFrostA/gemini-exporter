@@ -83,7 +83,7 @@ test('Parser Migration Corpus: Injectable runner executes with real Typst compil
         candidateParser: async (content: string, id: string) => {
             candidateParserCalled = true;
             return {
-                conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id, title: '', providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: content }] }] }] } },
+                conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id, title: '', providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: content }] }] }] } },
                 diagnostics: [],
             };
         },

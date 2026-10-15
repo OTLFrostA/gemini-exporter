@@ -1,3 +1,4 @@
+import { contentQuality } from '../../domain/quality.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 /**
  * ChatGPT conversation parser: assembled mapping evidence -> branded Domain.
@@ -229,7 +230,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
                 title: conversation.title?.trim() || '', titleSource: 'provider',
                 createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
-            detail: { completeness: hasMissingImage ? 'partial' : 'complete', assets, messages },
+            detail: { quality: contentQuality({ status: hasMissingImage ? 'partial' : 'complete' }), assets, messages },
         }),
         diagnostics: contentDiagnostics,
         resourceHints: {},

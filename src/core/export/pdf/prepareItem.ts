@@ -91,8 +91,7 @@ export async function resolveFullChatDetail(args: {
     } catch (error) { return { ok: false, error: getErrorMessage(error) }; }
 }
 
-import { extractChatParseDrift } from '../../engine/export/parseDrift.js';
-import type { ChatParseDrift } from '../../engine/export/parseDrift.js';
+import type { ContentQuality } from '../../domain/quality.js';
 
 export interface PreparedPdfItemSuccess {
     ok: true;
@@ -101,7 +100,7 @@ export interface PreparedPdfItemSuccess {
     document: DocumentAst;
     resources: PreparedResources;
     diagnostics: RenderDiagnostic[];
-    drift: ChatParseDrift;
+    quality: ContentQuality;
     usedLocalSnapshot: boolean;
     messageCount: number;
     sourceVersion?: number;
@@ -228,7 +227,7 @@ async function prepareNativePdfItem(
     parsed = resolved.chat;
     dataSource = resolved.source;
     title = parsed.conversation.index.title;
-    const drift = extractChatParseDrift(parsed);
+    const quality = parsed.conversation.detail.quality;
     const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
         && !(listItem?.hasTakeoutImport && listItem.cloudAvailability !== 'available');
@@ -258,7 +257,7 @@ async function prepareNativePdfItem(
     });
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, sourceVersion: parsed.sourceVersion, messageCount: document.messages.length };
+    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, quality, usedLocalSnapshot, sourceVersion: parsed.sourceVersion, messageCount: document.messages.length };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

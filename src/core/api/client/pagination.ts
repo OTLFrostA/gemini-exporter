@@ -130,10 +130,7 @@ export interface GeminiPaginationDetailClient {
 }
 
 export interface PaginatedDetailResult extends ResourceConversationParseResult {
-    transport: DetailParseResult['transport'] & {
-        truncated?: boolean;
-        truncateReason?: 'token_loop' | 'max_turns_page_limit_20';
-    };
+    transport: DetailParseResult['transport'];
 }
 
 export interface GeminiClientPaginationModule {
@@ -393,7 +390,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         const pages: DetailParseResult[] = [];
         const seenTokens = new Set<string>();
         let token: string | null = null;
-        let truncateReason: PaginatedDetailResult['transport']['truncateReason'];
+        let truncateReason: 'token_loop' | 'max_turns_page_limit_20' | undefined;
         do {
             const page = await client.fetchConversationPage(conversationId, token, targetSid);
             if (!isResourceConversationParseResult(page)) throw new TypeError('Detail pagination requires native conversation results');
@@ -439,11 +436,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         const sourceTitle = pages.find(page => page.conversation.index.titleSource === 'rpc')?.conversation ?? first.conversation;
         result.conversation = { ...result.conversation, index: { ...result.conversation.index, id: String(conversationId).replace(/^c_/, '').trim(),
             title: sourceTitle.index.title, titleSource: sourceTitle.index.titleSource } };
-        const schemaDrift = [...new Set(pages.flatMap(page => page.transport.schemaDrift ?? []))];
-        const turnsRejected = pages.reduce((sum, page) => sum + (page.transport.turnsRejected ?? 0), 0);
-        return { ...result, transport: { ...first.transport, nextPageToken: null,
-            ...(schemaDrift.length ? { schemaDrift } : {}), ...(turnsRejected ? { turnsRejected } : {}),
-            ...(truncateReason ? { truncated: true, truncateReason } : {}) } };
+        return { ...result, transport: { ...first.transport, nextPageToken: null } };
     }
 
 export {
