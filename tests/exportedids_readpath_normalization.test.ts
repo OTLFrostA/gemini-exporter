@@ -79,17 +79,16 @@ test('read-path normalization - ConversationsStore.setExportedIds normalizes the
     const rec = { exportedAt: 5000 };
     try {
         ConversationsStore.setExportedIds({ 'c_123': rec, '  456  ': rec });
-    const ids = ConversationsStore.getExportedIds();
-    assert.deepStrictEqual(Object.keys(ids).sort(), ['123', '456']);
+        const ids = ConversationsStore.getExportedIds();
+        assert.deepStrictEqual(Object.keys(ids).sort(), ['123', '456']);
 
-    // getExportedRecord resolves every id form through the single canonical
-    // probe — no triple lookup needed.
-    assert.strictEqual(ConversationsStore.getExportedRecord('123'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('c_123'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('  123  '), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('456'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('nope'), null);
-
+        // getExportedRecord resolves every id form through the single canonical
+        // probe — no triple lookup needed.
+        assert.strictEqual(ConversationsStore.getExportedRecord('123'), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('c_123'), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('  123  '), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('456'), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('nope'), null);
     } finally {
         ConversationsStore.setExportedIds(previous);
     }
