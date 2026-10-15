@@ -32,7 +32,7 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
     assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
     const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
     assert.ok(prepared.ok);
-    assert.deepEqual(prepared.document, composeDomainDocument({ ...domain, url: `https://gemini.google.com/app/${domain.id}` }, { sourceVersion: parsed.sourceVersion }).document);
+    assert.deepEqual(prepared.document, composeDomainDocument({ index: { ...domain.index, url: `https://gemini.google.com/app/${domain.index.id}` }, detail: { ...domain.detail } }).document);
     assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
     assert.ok(!('bundle' in prepared) && !('byteStore' in prepared));
     assert.deepEqual(parsed.conversation, domain);
@@ -42,9 +42,9 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
 test('intrinsic file size and unknown role survive parser and JSON without output formatting', () => {
     const raw = { id: 'file', messages: [{ role: 'historical-tool', content: 'Answer', attachments: [{ type: 'file', name: 'note.txt', dataBuffer: new Uint8Array([65, 66, 67]) }] }] };
     const parsed = historicalFixture(raw, { providerId: 'gemini' }).conversation;
-    assert.equal(parsed.assets[0].byteLength, 3);
-    assert.equal(parsed.messages[0].role, 'unknown');
-    assert.equal(Object.hasOwn(parsed.messages[0], 'provenance'), false);
+    assert.equal(parsed.detail.assets[0].byteLength, 3);
+    assert.equal(parsed.detail.messages[0].role, 'unknown');
+    assert.equal(Object.hasOwn(parsed.detail.messages[0], 'provenance'), false);
     const restored = JSON.parse(JSON.stringify(parsed)) as typeof parsed;
     assert.deepEqual(composeDomainDocument(restored), composeDomainDocument(parsed));
     const file = composeDomainDocument(parsed).document.messages[0].blocks.find(block => block.type === 'file');

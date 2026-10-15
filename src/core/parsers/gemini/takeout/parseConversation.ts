@@ -1,6 +1,7 @@
+import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
-import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
+import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
@@ -125,9 +126,12 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()))
         ?? selected.find(a => a.promptText);
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
-    const conversation: DomainConversationDetail = { providerId: 'gemini', id, title, titleSource: 'takeout',
-        completeness: 'partial',
-        url: `https://gemini.google.com/app/${id}`, assets: resources.assets, messages: resources.messages };
+    const conversation = {
+        index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
+            ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,
+            url: `https://gemini.google.com/app/${id}` }, 'takeout'),
+        detail: { completeness: 'partial' as const, assets: resources.assets, messages: resources.messages },
+    };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
         const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;

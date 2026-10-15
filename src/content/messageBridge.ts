@@ -117,7 +117,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 try {
                     const native = parseGeminiRpcConversation(text, { providerId: 'gemini' });
                     const detailRes = native.conversation;
-                    if (detailRes && detailRes.id) {
+                    if (detailRes && detailRes.index.id) {
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
                         await ingestConversation(targetSlot, native);
                     }

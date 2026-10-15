@@ -4,7 +4,7 @@ test('legacy detail under the Gemini web origin transfers to the extension repos
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations: ([{ id: 'page_legacy', title: 'Page legacy', timestamp: 1, messageCount: 1 }]).map(canonicalIndexFixture) });
+        await chrome.storage.local.set({ gemini_schema_version: 3, gemini_conversations: ([{ id: 'page_legacy', title: 'Page legacy', timestamp: 1, messageCount: 1 }]).map(canonicalIndexFixture) });
     });
     const source = await context.newPage();
     await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `
@@ -20,7 +20,7 @@ test('legacy detail under the Gemini web origin transfers to the extension repos
     await source.goto('https://gemini.google.com/app');
     await expect.poll(async () => options.evaluate(async () => {
         const response = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountSlot: 'u0', conversationId: 'page_legacy' } } });
-        return response.value?.conversation?.messages?.[0]?.model;
+        return response.value?.conversation?.detail.messages?.[0]?.model;
     })).toBe('Page origin model');
     const report = await options.evaluate(async () => chrome.storage.local.get(['gemini_domain_host_migration_v2:https://gemini.google.com']));
     expect(report['gemini_domain_host_migration_v2:https://gemini.google.com']).toBe(2);
@@ -45,8 +45,8 @@ test('content-script native detail is committed in extension IndexedDB and remai
         return chrome.tabs.sendMessage(tabs[0].id!, { action: 'getConversationDetail', conversationId: 'cross_origin_native', accountSlot: 'default' });
     });
     expect(response.success).toBe(true);
-    expect(response.data.conversation.messages).toHaveLength(2);
-    expect(response.data.conversation.completeness).toBe('partial');
+    expect(response.data.conversation.detail.messages).toHaveLength(2);
+    expect(response.data.conversation.detail.completeness).toBe('partial');
     await source.close();
     const stored = await options.evaluate(async () => {
         const request = indexedDB.open('gemini_exporter_domain');
@@ -61,10 +61,10 @@ test('content-script native detail is committed in extension IndexedDB and remai
                 tx.onerror = () => reject(tx.error);
             });
         } finally { db.close(); }
-    }) as { conversation: { messages: Array<{ model?: string; content: unknown[] }> }; storageVersion: number; identity: { accountSlot: string } };
-    expect(stored.storageVersion).toBe(2);
+    }) as { conversation: { detail: { messages: Array<{ model?: string; content: unknown[] }> } }; storageVersion: number; identity: { accountSlot: string } };
+    expect(stored.storageVersion).toBe(3);
     expect(stored.identity.accountSlot).toBe('u0');
-    expect(stored.conversation.messages).toHaveLength(2);
-    expect(stored.conversation.messages[1].model).toBe('Cross origin model');
+    expect(stored.conversation.detail.messages).toHaveLength(2);
+    expect(stored.conversation.detail.messages[1].model).toBe('Cross origin model');
     expect(JSON.stringify(stored.conversation)).toContain('Persist this answer');
 });

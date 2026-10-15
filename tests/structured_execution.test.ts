@@ -7,15 +7,14 @@ import { decodeGeminiStructuredNode, decodeGeminiStructuredPayload } from '../sr
 import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 test('captured execution panels survive structured RPC, Domain and physical Markdown grammar with exact code/stdout', () => {
     const fixture = JSON.parse(readFileSync('tests/fixtures/provider/gemini_execution_nodes.json', 'utf8')) as { nodes: [{ '39': [string, string, number, null, number] }][] };
     const content = parseGeminiBody('', decodeGeminiStructuredPayload(fixture.nodes));
     assert.equal(content.length, 2);
     assert.ok(content.every(node => node.type === 'code'));
-    const domain: DomainConversationDetail = { providerId: 'gemini', id: 'execution', title: 'Execution', completeness: 'unknown', assets: [],
-        messages: [{ id: 'm', role: 'assistant', content }] };
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'execution', title: 'Execution' }, detail: { completeness: 'unknown', assets: [], messages: [{ id: 'm', role: 'assistant', content }] } };
     const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     const result = spawnSync('node', ['scripts/framework/markdown_evidence.mjs'], { input: JSON.stringify(serialized), encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);

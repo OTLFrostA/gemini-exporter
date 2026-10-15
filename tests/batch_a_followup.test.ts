@@ -25,9 +25,9 @@ test('batch A native Takeout keeps explicitly referenced user images as semantic
     const parsed = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data: {
         htmlText: takeoutHtml, archiveFiles: { 'cat.png': { dir: false } }
     } });
-    const user = parsed.conversation.messages[0];
+    const user = parsed.conversation.detail.messages[0];
     assert.equal(user.role, 'user');
-    const asset = parsed.conversation.assets[0];
+    const asset = parsed.conversation.detail.assets[0];
     assert.deepEqual(user.attachmentIds, [asset!.id]);
     assert.equal(asset?.kind, 'image');
     assert.equal(asset?.name, 'cat.png');
@@ -37,9 +37,9 @@ test('batch A native Takeout keeps explicitly referenced user images as semantic
 
 test('batch A native Takeout reports missing archive references without inventing a match', () => {
     const parsed = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data: { htmlText: takeoutHtml } });
-    assert.equal(parsed.conversation.assets.length, 1);
+    assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'));
-    assert.equal(Object.hasOwn(parsed.conversation.assets[0], 'failureReason'), false);
+    assert.equal(Object.hasOwn(parsed.conversation.detail.assets[0], 'failureReason'), false);
     assert.deepEqual(parsed.archiveResources, {});
 });
 

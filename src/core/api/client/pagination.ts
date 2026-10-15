@@ -406,14 +406,14 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         const first = pages[0];
         if (!first) throw new Error('no data');
         const inner = first.transport.decodedPayload;
-        const metadataOnly = !pages.some(page => page.conversation.messages.length) && Array.isArray(inner)
+        const metadataOnly = !pages.some(page => page.conversation.detail.messages.length) && Array.isArray(inner)
             && inner[0] === null && inner[1] === null && Array.isArray(inner[2])
             && typeof inner[2][0]?.[0] === 'string' && inner[2][0][0].startsWith('c_');
         if (metadataOnly) {
             try {
                 const retry = await client.fetchConversationPage(conversationId, null, targetSid, { detailOnly: true, altParams: true });
                 if (!isResourceConversationParseResult(retry)) throw new TypeError('Detail retry requires native conversation results');
-                if (retry.conversation.messages.length) {
+                if (retry.conversation.detail.messages.length) {
                     // The retry is a new detail chain; follow its real cursor before claiming completeness.
                     pages.push(retry);
                     seenTokens.clear();
@@ -430,15 +430,15 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     if (token && !truncateReason) truncateReason = 'max_turns_page_limit_20';
                 }
             } catch (error: unknown) {
-                if (pages.some(page => page.conversation.messages.length)) throw error;
+                if (pages.some(page => page.conversation.detail.messages.length)) throw error;
                 if (isDevMode()) console.warn('[Gemini Exporter Client] metadata-only retry failed:', getErrorMessage(error));
             }
         }
-        const normalizedPages = pages.map(page => ({ ...page, conversation: { ...page.conversation, id: normId(page.conversation.id) } }));
+        const normalizedPages = pages.map(page => ({ ...page, conversation: { ...page.conversation, index: { ...page.conversation.index, id: normId(page.conversation.index.id) } } }));
         const result = mergeConversationPages(normalizedPages, truncateReason);
-        const sourceTitle = pages.find(page => page.conversation.titleSource === 'rpc')?.conversation ?? first.conversation;
-        result.conversation = { ...result.conversation, id: String(conversationId).replace(/^c_/, '').trim(),
-            title: sourceTitle.title, titleSource: sourceTitle.titleSource };
+        const sourceTitle = pages.find(page => page.conversation.index.titleSource === 'rpc')?.conversation ?? first.conversation;
+        result.conversation = { ...result.conversation, index: { ...result.conversation.index, id: String(conversationId).replace(/^c_/, '').trim(),
+            title: sourceTitle.index.title, titleSource: sourceTitle.index.titleSource } };
         const schemaDrift = [...new Set(pages.flatMap(page => page.transport.schemaDrift ?? []))];
         const turnsRejected = pages.reduce((sum, page) => sum + (page.transport.turnsRejected ?? 0), 0);
         return { ...result, transport: { ...first.transport, nextPageToken: null,

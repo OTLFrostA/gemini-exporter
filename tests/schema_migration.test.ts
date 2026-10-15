@@ -63,7 +63,7 @@ test('P1-13a: 全新安装 migrate() 串行完成所有步骤后戳 version=2', 
     try {
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: true, frozen: false });
-        assert.strictEqual(m.localStore['gemini_schema_version'], 2, 'Released v1 upgrades directly to final storage v2');
+        assert.strictEqual(m.localStore['gemini_schema_version'], 3, 'Released v1 upgrades directly to final storage v2');
         assert.strictEqual(SchemaMigration.isSchemaFrozen(), false);
     } finally { m.restore(); }
 });
@@ -71,7 +71,7 @@ test('P1-13a: 全新安装 migrate() 串行完成所有步骤后戳 version=2', 
 test('P1-13b: 最终 version=2 时 migrate() 为空操作', async () => {
     const m = installMock();
     try {
-        m.localStore['gemini_schema_version'] = 2;
+        m.localStore['gemini_schema_version'] = 3;
         m.localStore['gemini_conversations'] = [indexFixture({ id: 'a', title: 'Research A', timestamp: 1 })];
         const res = await SchemaMigration.migrate();
         assert.deepStrictEqual(res, { ok: true, frozen: false });
@@ -245,7 +245,7 @@ test('P1-13h: 迁移步骤失败时版本戳被截留，migrate() 返回 ok: fal
         const resRetry = await SchemaMigration.migrate();
         assert.strictEqual(resRetry.ok, true);
         assert.strictEqual(resRetry.frozen, false);
-        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 2, '重试成功后正确戳记版本 2');
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 3, '重试成功后正确戳记版本 3');
     } finally {
         m.restore();
     }
@@ -276,7 +276,7 @@ test('P1-13i: 子步骤 (如 slim 迁移) 抛错时截留版本戳并向外报�
         // 恢复后重新迁移，应成功完成
         const res2 = await SchemaMigration.migrate();
         assert.strictEqual(res2.ok, true);
-        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 2);
+        assert.strictEqual(m.localStore[SchemaMigration.SCHEMA_VERSION_KEY], 3);
     } finally {
         m.restore();
     }

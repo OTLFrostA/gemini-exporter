@@ -126,7 +126,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     __setModuleOverride('TabService', {
         sendToGeminiTab: async (msg: any) => {
             assert.strictEqual(msg.action, 'getConversationDetail');
-            return { success: true, domainEnvelopeVersion: 2, data: historicalFixture(chatDetail) };
+            return { success: true, domainEnvelopeVersion: 3, data: historicalFixture(chatDetail) };
         }
     });
 
@@ -756,8 +756,8 @@ test('Bug repro - takeout title stale when second block is non-explicit prompt',
         assert.strictEqual(res.conversations[0].title, 'Corrected Title', 'extractedMap title should be corrected');
         const offline = TakeoutEngine.getTakeoutOfflineChat('BUG_REPRO_001');
         assert.ok(offline, 'offline chat should exist');
-        assert.strictEqual(offline.conversation.title, 'Corrected Title', 'offlineCache title should be sync to Corrected Title');
-        assert.strictEqual(offline.conversation.title, 'Corrected Title', 'offlineCache titles.takeout should be sync');
+        assert.strictEqual(offline.conversation.index.title, 'Corrected Title', 'offlineCache title should be sync to Corrected Title');
+        assert.strictEqual(offline.conversation.index.title, 'Corrected Title', 'offlineCache titles.takeout should be sync');
     } finally {
         (global as any).JSZip = origJSZip;
     }
@@ -803,7 +803,7 @@ test('regression: dom_scraper must try live document before fetch shell', () => 
 
 test('regression: content.js must fallback to DOM when batchexecute returns empty', () => {
     const ctContent = readSrc('../src/content/content.js') + readSrc('../src/content/messageRouter.js');
-    assert.ok(ctContent.includes('detail.conversation.messages.length > 0'), 'should check length>0 before success');
+    assert.ok(ctContent.includes('detail.conversation.detail.messages.length > 0'), 'should check length>0 before success');
     assert.ok(ctContent.includes('batchexecute returned empty messages, fallback to DOM'), 'should warn and fallback');
 });
 

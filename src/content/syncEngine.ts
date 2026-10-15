@@ -107,7 +107,7 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             if (!provider) return;
             const native = await provider.fetchConversationDetail(activeId);
             const d = native.conversation;
-            if (d && d.id) {
+            if (d && d.index.id) {
                 await ingestConversation(slot, native);
             }
         } catch (err) {

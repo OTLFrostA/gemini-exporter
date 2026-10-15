@@ -21,7 +21,7 @@ type OutputContracts = [
     Assert<Equal<ListParseResult['_raw'], unknown>>,
     Assert<Equal<DetailParseResult['transport']['decodedPayload'], unknown>>,
     Assert<Equal<ListParseResult['_debug'], ListParseDiagnostics | undefined>>,
-    Assert<Equal<DetailParseResult['conversation']['messages'][number], DomainMessage>>,
+    Assert<Equal<DetailParseResult['conversation']['detail']['messages'][number], DomainMessage>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getProtocol']>, GeminiProtocolModule>>,
     Assert<Equal<ReturnType<GeminiParserExtractorsModule['getUtils']>, GeminiUtilsModule>>,
     Assert<Equal<ReturnType<typeof parseList>, ListParseResult>>,

@@ -798,7 +798,7 @@ test('BatchWorker - accepts typed native results; storage rejects a mutated grap
     assert.equal((await BatchWorker.resolveChat(record, { id: 'boundary' })).isError, true);
     assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' })).isError, false);
     const invalid = structuredClone(native);
-    invalid.conversation.messages[0].attachmentIds = ['missing'];
+    invalid.conversation.detail.messages[0].attachmentIds = ['missing'];
     const { saveDomainConversation } = require('../src/core/storage/domain/domainStore.js');
     await assert.rejects(saveDomainConversation('u0', invalid), /asset|missing|reference/i);
 });
@@ -921,9 +921,9 @@ test('all ordinary formats use completion for both records and meta, including f
             }, { turnsRejected: scenario === 'rejected' ? 1 : 0, truncated: scenario === 'truncated', schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
                 const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
-                parsed.conversation = validateParserDomain({ ...parsed.conversation,
+                parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { ...parsed.conversation.detail,
                     assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated', hasFabricatedText: true } }],
-                });
+                } });
             }
             const zips = setupMockJSZip();
             if (scenario === 'write-failed') {

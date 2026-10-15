@@ -15,11 +15,10 @@ import type { ResourceConversationParseResult } from '../src/core/parsers/parsin
 
 test('cloud-deleted archive exports durable body and resource bytes without fetching cloud or deleting metadata', async () => {
     __clearDomainMemory();
-    const source: ResourceConversationParseResult = { sourceVersion: 1, conversation: validateParserDomain({ providerId: 'gemini', id: 'retained', title: 'Saved conversation', completeness: 'unknown',
-        assets: [{ id: 'image', kind: 'image', sourceUri: 'assets/image.png' }], messages: [
+    const source: ResourceConversationParseResult = { sourceVersion: 1, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'retained', title: 'Saved conversation' }, detail: { completeness: 'unknown', assets: [{ id: 'image', kind: 'image', sourceUri: 'assets/image.png' }], messages: [
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
-        ] }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+        ] } }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
     await catalogStorage.setNativeConversations('u0', [source]);
     await saveDomainConversation('u0', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
     await saveDomainConversation('u1', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }));
@@ -33,7 +32,7 @@ test('cloud-deleted archive exports durable body and resource bytes without fetc
         assert.ok(Array.isArray(result.results));
         const resolved = await resolveChat(result.results[0], { id: 'retained' }, null, null, 'u0');
         assert.equal(resolved.isError, false);
-        if (!resolved.isError) assert.deepEqual(resolved.chat.conversation.messages, source.conversation.messages);
+        if (!resolved.isError) assert.deepEqual(resolved.chat.conversation.detail.messages, source.conversation.detail.messages);
         assert.equal(fetched, false); assert.equal(deleted, false);
         assert.deepEqual(await getDomainResource(storageIdentity('gemini', 'u0', 'retained'), 'image'), new Uint8Array([1, 2, 3]));
         assert.match(JSON.stringify((await getDomainConversationResult('u1', 'retained'))?.conversation), /Other account/);

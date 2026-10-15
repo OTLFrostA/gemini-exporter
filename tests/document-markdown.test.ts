@@ -2,14 +2,14 @@ import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 
 const time = '2026-10-06T00:00:00Z';
-function fixture(): DomainConversationDetail {
+function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-markdown.json', 'utf8'));
 }
 
@@ -75,7 +75,8 @@ test('Markdown renderer cannot depend on provider, Domain or storage services', 
 });
 
 test('Markdown front matter reads identity and source dates only from Document AST', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), { sourceVersion: 1000 });
+    const input = fixture(); input.index.updatedAt = 1000;
+    const { document } = composeDomainDocument(validateParserDomain(input));
     document.header.title = 'true';
     document.metadata!.id = 'null';
     document.metadata!.url = 'https://example.test/accepted';

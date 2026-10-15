@@ -13,19 +13,19 @@ export function nativeExportInput(input: ChatExportInput): ResourceConversationP
         return input;
     }
     // Defend the API envelope against malformed runtime calls without restoring Domain trust.
-    if (typeof input.providerId !== 'string' || typeof input.id !== 'string' || typeof input.title !== 'string'
-        || !Array.isArray(input.messages) || !Array.isArray(input.assets)) throw new TypeError('Malformed trusted Domain input');
+    if (typeof input.index.providerId !== 'string' || typeof input.index.id !== 'string' || typeof input.index.title !== 'string'
+        || !Array.isArray(input.detail.messages) || !Array.isArray(input.detail.assets)) throw new TypeError('Malformed trusted Domain input');
     return { conversation: input, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
 export async function formatHtmlDocument(input: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
     const parsed = nativeExportInput(input);
     const conversation = parsed.conversation;
-    return { content: await exportDomainHtml(conversation, { ...opts, sourceVersion: parsed.sourceVersion ?? opts.sourceVersion }), ext: 'html', mime: 'text/html' };
+    return { content: await exportDomainHtml(conversation, opts), ext: 'html', mime: 'text/html' };
 }
 export async function formatMarkdownDocument(input: ChatExportInput, opts: DomainMarkdownExportOptions = {}): Promise<FormattedResult> {
     const parsed = nativeExportInput(input);
     const conversation = parsed.conversation;
-    return { content: await exportDomainMarkdown(conversation, { ...opts, sourceVersion: parsed.sourceVersion ?? opts.sourceVersion }), ext: 'md', mime: 'text/markdown' };
+    return { content: await exportDomainMarkdown(conversation, opts), ext: 'md', mime: 'text/markdown' };
 }
 export function formatContent(input: ChatExportInput, formatType: string, resources: readonly ResourceResult<ResourceDelivery>[] = []): FormattedResult {
     const result = nativeExportInput(input);

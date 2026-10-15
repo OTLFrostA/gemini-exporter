@@ -9,7 +9,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
 import { migrate, CURRENT_SCHEMA_VERSION } from '../src/core/storage/schemaMigration.js';
 import { __getLegacyBackupForTest as getLegacyBackup } from '../src/core/storage/domain/domainStore.js';
-import { indexFromDetail, indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
+import { indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
 import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
 import { indexActivityTime, mergeConversationIndex, restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
 
@@ -83,8 +83,8 @@ test('released v1 upgrades directly to final v2 indexes once, merges u0 aliases,
     try {
         await assert.rejects(storage.getConversations('u0'), TypeError);
         assert.deepEqual(await migrate(), { ok: true, frozen: false });
-        assert.equal(CURRENT_SCHEMA_VERSION, 2);
-        assert.equal(env.local.gemini_schema_version, 2);
+        assert.equal(CURRENT_SCHEMA_VERSION, 3);
+        assert.equal(env.local.gemini_schema_version, 3);
         const index = (await storage.getConversations('u0'))[0];
         assert.equal(index.title, 'Online title'); assert.equal(index.titleSource, 'rpc');
         assert.equal(index.hasTakeoutImport, true); assert.equal(index.updatedAt, 1700000005000);
@@ -135,7 +135,7 @@ test('partial and concurrent native imports retain unrelated indexes and existin
         assert.deepEqual(rows.find(value => value.id === 'other'), other);
         assert.deepEqual(rows.find(value => value.id === 'chat'), { ...existing, updatedAt: 999999 });
         assert.deepEqual(await storage.getConversations('u1'), [other]);
-        assert.equal((await getDomainConversationResult('u0', 'chat'))?.conversation.messages.length, 1);
+        assert.equal((await getDomainConversationResult('u0', 'chat'))?.conversation.detail.messages.length, 1);
         const writes = env.writes();
         await storage.setNativeConversations('u0', []);
         assert.equal(env.writes(), writes, 'empty partial import cannot clear the list');
@@ -160,7 +160,7 @@ test('native Detail source versions align with Index without claiming cloud rest
         assert.equal(listed.cloudAvailability, 'available');
     }
     const { sourceVersion, ...unversioned } = detail;
-    assert.equal(indexFromParsed(unversioned).updatedAt, undefined, 'message dates cannot manufacture a source version');
+    assert.equal(indexFromParsed(unversioned).updatedAt, 300, 'Index retains source-authored activity independently of the body capture envelope');
     assert.equal(mergeConversationIndex(old, { ...old, cloudAvailability: 'unlisted' }).cloudAvailability, 'deleted');
 });
 

@@ -31,13 +31,13 @@ function input() {
 test('same URL with different generation/provider identities acquires separately by Domain asset ID', async () => {
     const raw = input(), original = structuredClone(raw);
     const parsed = historicalFixture(raw, { providerId: 'gemini' });
-    assert.equal(parsed.conversation.assets.length, 2);
-    const ids = parsed.conversation.assets.map(asset => asset.id);
+    assert.equal(parsed.conversation.detail.assets.length, 2);
+    const ids = parsed.conversation.detail.assets.map(asset => asset.id);
     assert.notEqual(ids[0], ids[1]);
     assert.deepEqual(Object.keys(parsed.acquisitionHints), ids);
     const document = composeDomainDocument(parsed.conversation).document;
     const calls: string[] = [];
-    const prepared = await preparePdfResources(parsed.conversation, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
+    const prepared = await preparePdfResources((parsed.conversation).detail, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async (id, hint) => {
             calls.push(id);
             assert.equal(hint.url, url);
@@ -73,7 +73,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
     const astJson = JSON.stringify(document);
     const imageIds = collectDocumentResources(document).imageIds;
     for (const bytes of [firstBytes, null]) {
-        const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
+        const prepared = await preparePdfResources(parsed.conversation.detail, imageIds, parsed.acquisitionHints, {
             acquire: async (id, hint) => {
                 // Even a transport that mutates its request must not mutate parser output.
                 hint.generation!.prompt = 'transport-only';
@@ -105,11 +105,11 @@ test('source-provided original bytes survive JSON round-trip and bypass runtime 
     const raw: ConversationRecordInput = { id: 'inline-fact', messages: [{ role: 'model', content: '',
         images: [{ type: 'image', dataBuffer: firstBytes, mimeType: 'image/png' }] }] };
     const parsed = historicalFixture(raw, { providerId: 'gemini' });
-    assert.equal(parsed.conversation.assets[0].dataBase64, Buffer.from(firstBytes).toString('base64'));
+    assert.equal(parsed.conversation.detail.assets[0].dataBase64, Buffer.from(firstBytes).toString('base64'));
     const domain = JSON.parse(JSON.stringify(parsed.conversation));
     const document = composeDomainDocument(domain).document;
-    const prepared = await preparePdfResources(domain, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
+    const prepared = await preparePdfResources((domain).detail, collectDocumentResources(document).imageIds, parsed.acquisitionHints, {
         acquire: async () => { assert.fail('original inline bytes must skip acquisition'); },
     });
-    assert.deepEqual(resourceValue(prepared.resources.get(domain.assets[0].id)).bytes, firstBytes);
+    assert.deepEqual(resourceValue(prepared.resources.get(domain.detail.assets[0].id)).bytes, firstBytes);
 });

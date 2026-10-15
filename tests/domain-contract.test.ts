@@ -11,31 +11,31 @@ import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import { normalizeArchiveResourceName } from '../src/core/export/assets/archivePath.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
-function domain(): DomainConversationDetail {
-    return { providerId: 'test', id: 'contract', title: 'Contract', completeness: 'unknown', assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] };
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+function domain(): DomainConversationWithDetail {
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'test', id: 'contract', title: 'Contract' }, detail: { completeness: 'unknown', assets: [], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'unknown', sourceType: 'widget', text: 'Visible fallback' }] }] } };
 }
 test('Domain closure rejects missing provider identity and duplicate resource identities', () => {
-    const value = domain(); value.providerId = '';
-    assert.throws(() => assertDomainClosure(value), /providerId/);
-    value.providerId = 'test'; value.assets = [{ id: 'same', kind: 'image' }, { id: 'same', kind: 'image' }];
-    assert.throws(() => assertDomainClosure(value), /Duplicate.*asset identity/);
+    const value = domain(); value.index.providerId = '';
+    assert.throws(() => validateParserDomain(value), /index/);
+    value.index.providerId = 'test'; value.detail.assets = [{ id: 'same', kind: 'image' }, { id: 'same', kind: 'image' }];
+    assert.throws(() => assertDomainClosure((value).detail), /Duplicate.*asset identity/);
 });
 test('composer gives every message a unique positional ID without changing authored identities', () => {
     const value = domain();
-    value.messages = [undefined, 'msg-0', 'same', 'same', '', '   '].map((id, index) => ({
+    value.detail.messages = [undefined, 'msg-0', 'same', 'same', '', '   '].map((id, index) => ({
         ...(id !== undefined ? { id } : {}), role: 'assistant',
         content: [{ type: 'paragraph', children: [{ type: 'text', text: `Message ${index}` }] }],
         citations: [{ id: 'citation', url: `https://example.test/${index}` }],
     }));
     const original = structuredClone(value);
     const document = composeDomainDocument(validateParserDomain(value)).document;
-    assert.deepEqual(document.messages.map(message => message.id), value.messages.map((_, index) => `msg-${index}`));
-    assert.equal(new Set(document.messages.flatMap(message => message.sources?.items.map(item => item.id) ?? [])).size, value.messages.length);
+    assert.deepEqual(document.messages.map(message => message.id), value.detail.messages.map((_, index) => `msg-${index}`));
+    assert.equal(new Set(document.messages.flatMap(message => message.sources?.items.map(item => item.id) ?? [])).size, value.detail.messages.length);
     assert.deepEqual(value, original);
 });
 test('unknown content and message order survive a JSON round trip across all backends', () => {
-    const value = domain(); value.messages.push({ id: 'second', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second message' }] }] });
+    const value = domain(); value.detail.messages.push({ id: 'second', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second message' }] }] });
     const document = composeDomainDocument(validateParserDomain(value)).document;
     assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(value))).document, document);
     for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {}), JSON.stringify(renderDocumentTypst(document, {}))]) {
@@ -45,7 +45,7 @@ test('unknown content and message order survive a JSON round trip across all bac
 });
 test('HTML and Markdown sanitize hostile link protocols without rejecting visible labels', () => {
     for (const href of ['javascript:alert(1)', 'vbscript:evil', 'data:text/html,evil']) {
-        const value = domain(); value.messages[0].content = [{ type: 'paragraph', children: [{ type: 'link', href, children: [{ type: 'text', text: 'Safe label' }] }] }];
+        const value = domain(); value.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'link', href, children: [{ type: 'text', text: 'Safe label' }] }] }];
         const document = composeDomainDocument(validateParserDomain(value)).document;
         for (const output of [renderDocumentHtml(document, {}).html, renderDocumentMarkdown(document, {})]) {
             assert.ok(output.includes('Safe label'));
@@ -57,10 +57,10 @@ test('archive preparation rejects traversal and absolute destinations', () => {
     for (const path of ['../x.png', 'assets/../x.png', '/absolute.png', 'C:/x.png', 'assets/%2e%2e/x.png', '//host/x.png']) assert.throws(() => normalizeArchiveResourceName(path));
 });
 test('unknown provider bodies have a bounded deterministic fallback, and raw input stays intact', () => {
-    const raw = { id: 'unknown', messages: [{ role: 'widget', content: { message: 'x'.repeat(5000) } }] };
+    const raw = { id: 'unknown-content', messages: [{ role: 'widget', content: { message: 'x'.repeat(5000) } }] };
     const original = structuredClone(raw);
     const parsed = historicalFixture(raw, { providerId: 'gemini' });
-    const content = parsed.conversation.messages[0].content[0];
+    const content = parsed.conversation.detail.messages[0].content[0];
     assert.equal(content.type, 'unknown');
     if (content.type === 'unknown') { assert.ok(content.text.length <= 2001); assert.ok(content.text.endsWith('…')); assert.ok(content.sourceType); }
     assert.deepEqual(raw, original);

@@ -1,3 +1,4 @@
+import type { DomainConversationWithDetail } from '../../domain/conversation.js';
 import type { ChatParseDrift } from './parseDrift.js';
 import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
 import type { TitleSources } from '../../../types/conversation.js';
@@ -42,7 +43,7 @@ export interface ExportCompletionFacts {
     completeness?: string;
 }
 
-export type ExportCompletionConversation = ExportCompletionFacts | string | number | boolean | null | undefined;
+export type ExportCompletionConversation = ExportCompletionFacts | DomainConversationWithDetail | string | number | boolean | null | undefined;
 
 export interface BuildExportCompletionInput {
     /** The conversation object with messages/turns/timestamps */
@@ -102,6 +103,7 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
         return explicitCount;
     }
     if (!conversation || typeof conversation !== 'object') return 0;
+    if ('index' in conversation) return Math.max(conversation.index.messageCount ?? 0, conversation.detail.messages.length);
     const candidates = [
         conversation.messageCount,
         Array.isArray(conversation.messages) ? conversation.messages.length : 0,
@@ -119,6 +121,8 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
  * Computes the authoritative timestamp for a conversation across candidate fields.
  */
 export function computeAuthoritativeTimestamp(conversation: ExportCompletionConversation, explicitTime?: number | string | Date | null): number | undefined {
+    // Native metadata may be newer than the retained body; only its explicit capture version proves freshness.
+    if (conversation && typeof conversation === 'object' && 'index' in conversation) return toTimestampMs(explicitTime) ?? undefined;
     const metadata = conversation && typeof conversation === 'object' ? conversation : undefined;
     // A saved/exported version is a source update value. Neither local export time,
     // creation time nor arbitrary message dates can manufacture that version.
@@ -181,7 +185,9 @@ export function applyAssetFailureToExportRecord(record: { status?: string; hasFa
  * live-save and batch exports.
  */
 export function buildExportCompletion(input: BuildExportCompletionInput): ExportCompletionResult {
-    const chat = input.conversation && typeof input.conversation === 'object' ? input.conversation : {};
+    const value = input.conversation && typeof input.conversation === 'object' ? input.conversation : {};
+    const native = 'index' in value ? value : undefined;
+    const chat: ExportCompletionFacts = native ? native.index : value as ExportCompletionFacts;
     const rawId = input.conversationId || chat.id || '';
     const targetId = normId(rawId);
 
@@ -202,10 +208,10 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
     // 2. Resolve timestamps
     const nowMs = toTimestampMs(input.exportedAt) || Date.now();
     const exportedAtIso = new Date(nowMs).toISOString();
-    const chatTime = computeAuthoritativeTimestamp(chat, input.chatTime);
+    const chatTime = computeAuthoritativeTimestamp(native ?? chat, input.chatTime);
 
     // 3. Resolve message count
-    const messageCount = computeExportMessageCount(chat, input.messageCount);
+    const messageCount = computeExportMessageCount(native ?? chat, input.messageCount);
 
     // 4. Resolve status & failed assets
     const failedAssetsCount = Array.isArray(input.failedAssets)
@@ -228,7 +234,7 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         isEmpty: !!chat.isEmpty || !!chat._empty,
         usedLocalSnapshot: input.usedLocalSnapshot,
         evidence: {
-            sourcePartial: chat.completeness === 'partial' || !!input.evidence?.sourcePartial,
+            sourcePartial: (native?.detail.completeness ?? chat.completeness) === 'partial' || !!input.evidence?.sourcePartial,
             turnsRejected: input.evidence?.turnsRejected ?? 0,
             hasHeuristicDocs: input.evidence?.hasHeuristicDocs ?? false,
             truncated: isTruncated,

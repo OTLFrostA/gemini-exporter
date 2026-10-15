@@ -67,7 +67,7 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         const mockSender = (msg: any, callback: any) => {
             sentMessage = msg;
             callback({
-                success: true, domainEnvelopeVersion: 2,
+                success: true, domainEnvelopeVersion: 3,
                 results: [historicalFixture({ id: 'chat_999', title: 'Decoupled Remote Chat' })]
             });
         };
@@ -90,7 +90,7 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         assert.ok(Array.isArray(result.results));
         const chat = result.results![0];
         assert.ok(chat && 'conversation' in chat);
-        assert.strictEqual(chat.conversation.title, 'Decoupled Remote Chat');
+        assert.strictEqual(chat.conversation.index.title, 'Decoupled Remote Chat');
     } finally {
         (global as any).chrome = origChrome;
         __setModuleOverride('TabService', undefined);

@@ -20,7 +20,7 @@ async function inlineNodes(content: string): Promise<any[]> {
         messages: [{ id: 'm1', role: 'user', content }],
     };
     const { conversation: domain } = await historicalFixture(raw, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const out: any[] = [];
     for (const b of msg.content) {
         if (b.children) out.push(...b.children);

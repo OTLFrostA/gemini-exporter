@@ -643,9 +643,9 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
             }, { turnsRejected: scenario === 'rejected' ? 1 : 0, truncated: scenario === 'truncated', schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
                 const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
-                parsed.conversation = validateParserDomain({ ...parsed.conversation,
+                parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { ...parsed.conversation.detail,
                     assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated', hasFabricatedText: true } }],
-                });
+                } });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
             if (['takeout', 'snapshot', 'deleted', 'cache-response'].includes(scenario)) await catalogStorage.setNativeConversations('u0', [parsed]);

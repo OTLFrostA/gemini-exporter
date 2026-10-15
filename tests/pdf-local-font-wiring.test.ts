@@ -152,10 +152,10 @@ async function driveCompileRoundTrip(host: FakeHost): Promise<any> {
 }
 
 function makeDomain() {
-    return { providerId: 'gemini', id: 'c1', title: 'Test convo', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages: [
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Test convo', createdAt: '2026-09-20T10:00:00Z' }, detail: { completeness: 'unknown', assets: [], messages: [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
         { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
-    ] };
+    ] } };
 }
 
 function makeContext(domain: any) {
@@ -176,13 +176,13 @@ function assetPathFor(asset: any) {
 }
 
 function makePayload(domain: any) {
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
     return {
         rendererSchemaVersion: 1,
 
 
         document,
-        assetPaths: new Map((domain.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
+        assetPaths: new Map((domain.detail.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
     };
 }
 
@@ -341,7 +341,7 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
             role: i % 2 === 0 ? 'user' : 'assistant',
             content: [para(`第${i + 1}段：${s}`)],
         }));
-        const domain = { providerId: 'gemini', id: 'local-font-cjk', title: '本地字体 CJK 路径测试', timestamp: null, createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z', assets: [], messages };
+        const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'local-font-cjk', title: '本地字体 CJK 路径测试', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { completeness: 'unknown', assets: [], messages } };
         const context = {
 
             assets: { resolve: async () => null },

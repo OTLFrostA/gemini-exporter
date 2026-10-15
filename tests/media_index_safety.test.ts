@@ -61,22 +61,22 @@ test('mediaIndex - slot isolation and store lifecycle', () => {
     // Inspect stores
     const store0 = getStore('u0');
     const store1 = getStore('u1');
-    assert.strictEqual(store0.convCache['100']?.conversation.title, 'Conversation U0');
+    assert.strictEqual(store0.convCache['100']?.conversation.index.title, 'Conversation U0');
     assert.strictEqual(store0.convCache['200'], undefined);
-    assert.strictEqual(store1.convCache['200']?.conversation.title, 'Conversation U1');
+    assert.strictEqual(store1.convCache['200']?.conversation.index.title, 'Conversation U1');
     assert.strictEqual(store1.convCache['100'], undefined);
 
     // getTakeoutOfflineChat isolation
-    assert.strictEqual(getTakeoutOfflineChat('c_100', 'u0')?.conversation.title, 'Conversation U0');
+    assert.strictEqual(getTakeoutOfflineChat('c_100', 'u0')?.conversation.index.title, 'Conversation U0');
     assert.strictEqual(getTakeoutOfflineChat('c_100', 'u1'), null);
-    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u1')?.conversation.title, 'Conversation U1');
+    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u1')?.conversation.index.title, 'Conversation U1');
     assert.strictEqual(getTakeoutOfflineChat('c_200', 'u0'), null);
 
     // Clearing u0 leaves u1 completely intact
     clearTakeoutData('u0');
     assert.strictEqual(__slotTakeouts.has('u0'), false);
     assert.strictEqual(__slotTakeouts.has('u1'), true);
-    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u1')?.conversation.title, 'Conversation U1');
+    assert.strictEqual(getTakeoutOfflineChat('c_200', 'u1')?.conversation.index.title, 'Conversation U1');
 
     // Global clear clears all
     clearTakeoutData();

@@ -2,13 +2,13 @@ import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { renderDocumentTypst, defaultPdfLayout } from '../src/core/renderers/typst/renderTypst.js';
 
-function fixture(): DomainConversationDetail {
+function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-neutral.json', 'utf8'));
 }
 
@@ -64,7 +64,7 @@ test('neutral contract carries no units, output formats, UI controls or source-m
 
 
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
-    const input = fixture(); input.messages[0].reasoning = undefined; input.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
+    const input = fixture(); input.detail.messages[0].reasoning = undefined; input.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
     const { document } = composeDomainDocument(validateParserDomain(input)), before = JSON.stringify(document);
     const diagnostics: import('../src/core/diagnostics/diagnostic.js').Diagnostic[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });

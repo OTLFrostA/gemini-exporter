@@ -22,26 +22,26 @@ const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(bl
 
 test('Takeout raw HTML constructs Domain without persisted records or fabricated message dates', () => {
     const { conversation } = native({ htmlText: activity() });
-    assert.equal(conversation.id, ID);
-    assert.equal(conversation.title, 'Question');
+    assert.equal(conversation.index.id, ID);
+    assert.equal(conversation.index.title, 'Question');
     assert.equal(Reflect.get(conversation, 'provenance'), undefined);
-    assert.deepEqual(conversation.messages.map(m => m.role), ['user', 'assistant']);
-    assert.equal(text(conversation.messages[1].content), 'Answer');
+    assert.deepEqual(conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
+    assert.equal(text(conversation.detail.messages[1].content), 'Answer');
     const timestamp = Date.parse('2026-09-02T12:00:00Z');
-    assert.deepEqual(conversation.messages.map(m => m.timestamp), [timestamp, timestamp]);
-    assert.equal(conversation.createdAt, undefined);
+    assert.deepEqual(conversation.detail.messages.map(m => m.timestamp), [timestamp, timestamp]);
+    assert.equal(conversation.index.createdAt, undefined);
     assert.equal(native({ htmlText: activity('Question', '<p>Answer</p>') }).sourceVersion, timestamp);
     assert.equal('updatedAt' in conversation, false);
-    for (const message of conversation.messages) assert.equal(message.id, undefined);
-    assertDomainClosure(conversation);
+    for (const message of conversation.detail.messages) assert.equal(message.id, undefined);
+    assertDomainClosure((conversation).detail);
 });
 
 test('missing Takeout dates remain absent and activity logs never claim complete coverage', () => {
     const { conversation } = native({ htmlText: activity('Question', '<p>Answer</p>', '') });
     assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
-    assert.equal(conversation.createdAt, undefined);
-    for (const message of conversation.messages) assert.equal(message.timestamp, undefined);
-    assert.equal(conversation.completeness, 'partial');
+    assert.equal(conversation.index.createdAt, undefined);
+    for (const message of conversation.detail.messages) assert.equal(message.timestamp, undefined);
+    assert.equal(conversation.detail.completeness, 'partial');
 });
 
 test('batch and selected parsing preserve separate conversation identities and source chronology', () => {
@@ -51,15 +51,15 @@ test('batch and selected parsing preserve separate conversation identities and s
     assert.equal(batch.length, 2);
     const selected = native({ htmlText }, `c_${ID}`);
     assert.deepEqual(selected.conversation, batch[0].conversation);
-    assert.deepEqual(selected.conversation.messages.map(m => text(m.content)), ['Older', 'Answer', 'Newer', 'New answer']);
-    assert.equal(batch[1].conversation.id, 'other_chat_99');
+    assert.deepEqual(selected.conversation.detail.messages.map(m => text(m.content)), ['Older', 'Answer', 'Newer', 'New answer']);
+    assert.equal(batch[1].conversation.index.id, 'other_chat_99');
 });
 
 test('archive source paths and handles stay separate from export destinations', () => {
     const entry = { _data: { uncompressedSize: 123 }, async: async () => 'source bytes' };
     const raw = { htmlText: activity('Read <a href="docs/report%3F.pdf">report</a>'), archiveFiles: { 'docs/report?.pdf': entry } };
     const result = native(raw);
-    const asset = result.conversation.assets[0];
+    const asset = result.conversation.detail.assets[0];
     assert.equal(asset.kind, 'file');
     assert.equal(asset.name, 'report?.pdf');
     assert.equal(asset.byteLength, 123);
@@ -67,57 +67,57 @@ test('archive source paths and handles stay separate from export destinations', 
     assert.equal(result.archiveResources[asset.id].entry, entry);
     assert.equal(result.archiveResources[asset.id].path, 'docs/report?.pdf');
     assert.deepEqual(result.resourceHints, {});
-    assert.deepEqual(result.conversation.messages[0].attachmentIds, [asset.id]);
+    assert.deepEqual(result.conversation.detail.messages[0].attachmentIds, [asset.id]);
     for (const field of ['localName', 'archiveResources', 'diagnostics', 'async', 'chatTime', 'lastSeen']) assert.ok(!JSON.stringify(result.conversation).includes(`"${field}":`));
-    assertDomainClosure(result.conversation);
+    assertDomainClosure((result.conversation).detail);
 });
 
 test('missing and ambiguous archive files remain explicit resources with diagnostics', () => {
     const result = native({ htmlText: activity('Read <a href="photo.png">image</a> and <a href="missing.pdf">file</a>'), archiveFiles: { 'one/photo.png': {}, 'two/photo.png': {} } });
-    assert.equal(result.conversation.assets.length, 2);
+    assert.equal(result.conversation.detail.assets.length, 2);
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_MISSING_RESOURCE'));
     assert.deepEqual(result.archiveResources, {});
-    for (const asset of result.conversation.assets) assert.equal(Object.hasOwn(asset, 'failureReason'), false);
-    assertDomainClosure(result.conversation);
+    for (const asset of result.conversation.detail.assets) assert.equal(Object.hasOwn(asset, 'failureReason'), false);
+    assertDomainClosure((result.conversation).detail);
 });
 
 test('a recorded generation event survives missing files without guessing ZIP ownership', () => {
     const result = native({ htmlText: activity('Draw', '', '', ID, '2 generated images'), archiveFiles: { 'watermarked_img_unrelated.png': {} } });
-    assert.deepEqual(result.conversation.messages[1].generation, { mediaKind: 'image', outputCount: 2 });
-    assert.equal(result.conversation.assets.length, 0);
+    assert.deepEqual(result.conversation.detail.messages[1].generation, { mediaKind: 'image', outputCount: 2 });
+    assert.equal(result.conversation.detail.assets.length, 0);
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
     const restored = JSON.parse(JSON.stringify(result.conversation));
-    assert.deepEqual(restored.messages[1].generation, result.conversation.messages[1].generation);
-    assertDomainClosure(restored);
+    assert.deepEqual(restored.detail.messages[1].generation, result.conversation.detail.messages[1].generation);
+    assertDomainClosure((restored).detail);
 });
 
 test('explicit generated output references close body and attachment relationships over one source asset', () => {
     const result = native({ htmlText: activity('Draw', '<p>Output <img src="images/source.png"></p>', '', ID, '1 generated image'), archiveFiles: { 'images/source.png': {} } });
-    const asset = result.conversation.assets[0];
-    assert.equal(result.conversation.assets.length, 1);
+    const asset = result.conversation.detail.assets[0];
+    assert.equal(result.conversation.detail.assets.length, 1);
     assert.equal(Reflect.get(asset ?? {}, 'generated'), undefined);
     assert.equal(asset.generation?.imageOrdinal, 0);
-    assert.deepEqual(result.conversation.messages[1].attachmentIds, [asset.id]);
-    assert.deepEqual(result.conversation.messages[1].generation, { mediaKind: 'image', outputCount: 1 });
-    assertDomainClosure(result.conversation);
+    assert.deepEqual(result.conversation.detail.messages[1].attachmentIds, [asset.id]);
+    assert.deepEqual(result.conversation.detail.messages[1].generation, { mediaKind: 'image', outputCount: 1 });
+    assertDomainClosure((result.conversation).detail);
 });
 
 test('uncertain media ownership preserves the source resource without inventing a message relationship', () => {
     const result = native({ htmlText: activity('Question', '<p>Answer</p>', '', ID, '<img src="unbound.png">'), archiveFiles: { 'unbound.png': {} } });
-    assert.equal(result.conversation.assets.length, 1);
-    for (const message of result.conversation.messages) assert.deepEqual(message.attachmentIds ?? [], []);
+    assert.equal(result.conversation.detail.assets.length, 1);
+    for (const message of result.conversation.detail.messages) assert.deepEqual(message.attachmentIds ?? [], []);
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_UNBOUND_RESOURCE'));
-    assertDomainClosure(result.conversation);
+    assertDomainClosure((result.conversation).detail);
 });
 
 test('long report HTML becomes authored Content AST without synthetic document IDs or filenames', () => {
     const report = `<h1>Research report</h1><div><p>${'Evidence '.repeat(400)}</p></div><p>Tail evidence</p><table><tr><th>Item</th></tr><tr><td>Value</td></tr></table>`;
     const result = native({ htmlText: activity('Research', report, '') });
-    assert.equal(result.conversation.assets.length, 0);
-    assert.ok(text(result.conversation.messages[1].content).includes('Tail evidence'));
-    assert.ok(result.conversation.messages[1].content.some(block => block.type === 'heading'));
-    assert.ok(result.conversation.messages[1].content.some(block => block.type === 'table'));
+    assert.equal(result.conversation.detail.assets.length, 0);
+    assert.ok(text(result.conversation.detail.messages[1].content).includes('Tail evidence'));
+    assert.ok(result.conversation.detail.messages[1].content.some(block => block.type === 'heading'));
+    assert.ok(result.conversation.detail.messages[1].content.some(block => block.type === 'table'));
     const before = JSON.stringify(result.conversation);
     const document = composeDomainDocument(result.conversation).document;
     const restored = composeDomainDocument(JSON.parse(before)).document;
@@ -126,7 +126,7 @@ test('long report HTML becomes authored Content AST without synthetic document I
 });
 
 test('Takeout extraction has no export naming and native parsing does not call compatibility constructors', () => {
-    assert.equal(native({ htmlText: activity() }).conversation.messages.length, 2);
+    assert.equal(native({ htmlText: activity() }).conversation.detail.messages.length, 2);
     const source = readFileSync(join(__dirname, '../src/core/parsers/gemini/takeout/parseConversation.ts'), 'utf8');
     assert.doesNotMatch(source, /parseTakeoutHtmlBlocks|correlateGeneratedImages|parseConversationRecord|Date\.now|sanitizeFileName|localName/);
     assert.equal(decodeTakeoutHtml(activity())[0].conversationIds[0], ID);
@@ -142,12 +142,12 @@ test('raw ZIP bytes decode directly to selected and batch Domain results with ac
     zip.file('Takeout/Gemini/photo.png', 'image source bytes');
     const data = await zip.generateAsync({ type: 'uint8array' });
     const result = await parseConversation({ format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: bytes => JSZip.loadAsync(bytes) });
-    assert.equal(result.conversation.id, ID);
-    assert.equal(result.conversation.assets.length, 1);
-    const handle = result.archiveResources[result.conversation.assets[0].id];
+    assert.equal(result.conversation.index.id, ID);
+    assert.equal(result.conversation.detail.assets.length, 1);
+    const handle = result.archiveResources[result.conversation.detail.assets[0].id];
     assert.equal(handle.path, 'Takeout/Gemini/photo.png');
     assert.equal(await handle.entry.async!('text'), 'image source bytes');
-    assertDomainClosure(JSON.parse(JSON.stringify(result.conversation)));
+    assertDomainClosure((JSON.parse(JSON.stringify(result.conversation))).detail);
     const batch = await parseGeminiTakeoutZipArchive(data, { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
     assert.deepEqual(batch[0].conversation, result.conversation);
 });
@@ -166,27 +166,27 @@ test('Domain generation events reject invalid media kinds and output counts', ()
     const { conversation } = native({ htmlText: activity('Draw', '', '', ID, '2 generated images') });
     for (const outputCount of [-1, 1.5, Infinity, NaN]) {
         const invalid = structuredClone(conversation);
-        invalid.messages[1].generation!.outputCount = outputCount;
-        assert.throws(() => assertDomainClosure(invalid), /generation event/);
+        invalid.detail.messages[1].generation!.outputCount = outputCount;
+        assert.throws(() => assertDomainClosure((invalid).detail), /generation event/);
     }
     const invalid = structuredClone(conversation);
-    invalid.messages[1].generation!.mediaKind = 'unknown' as never;
-    assert.throws(() => assertDomainClosure(invalid), /generation event/);
+    invalid.detail.messages[1].generation!.mediaKind = 'unknown' as never;
+    assert.throws(() => assertDomainClosure((invalid).detail), /generation event/);
 });
 
 
 test('response-only activity cannot fabricate a user prompt from its first content cell', () => {
     const htmlText = activity().replace('Prompted Question<br>', '');
     const { conversation } = native({ htmlText });
-    assert.deepEqual(conversation.messages.map(m => m.role), ['assistant']);
-    assert.equal(text(conversation.messages[0].content), 'Answer');
+    assert.deepEqual(conversation.detail.messages.map(m => m.role), ['assistant']);
+    assert.equal(text(conversation.detail.messages[0].content), 'Answer');
 });
 
 
 test('authored assets prefixes are source paths and cannot collapse different ZIP entries', () => {
     const result = native({ htmlText: activity('Question', '<p><img src="assets/photo.png"><img src="photo.png"></p>'), archiveFiles: { 'assets/photo.png': {}, 'photo.png': {} } });
-    assert.equal(result.conversation.assets.length, 2);
-    assert.deepEqual(result.conversation.assets.map(asset => asset.sourceUri).sort(), ['assets/photo.png', 'photo.png']);
-    assert.equal(result.conversation.messages[1].attachmentIds?.length, 2);
-    assertDomainClosure(result.conversation);
+    assert.equal(result.conversation.detail.assets.length, 2);
+    assert.deepEqual(result.conversation.detail.assets.map(asset => asset.sourceUri).sort(), ['assets/photo.png', 'photo.png']);
+    assert.equal(result.conversation.detail.messages[1].attachmentIds?.length, 2);
+    assertDomainClosure((result.conversation).detail);
 });

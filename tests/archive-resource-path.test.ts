@@ -29,7 +29,7 @@ test('Domain attachment uses files namespace through HTML output', async () => {
             type: 'file', name: 'test_config.json', localName: 'files/cb8bd7_test_config.json',
         }],
     }] });
-    assert.equal(resources[domain.assets[0].id], 'files/cb8bd7_test_config.json');
+    assert.equal(resources[domain.detail.assets[0].id], 'files/cb8bd7_test_config.json');
     const result = renderDocumentHtml(document, resources);
     assert.match(typeof result === 'string' ? result : result.html, /href="files\/cb8bd7_test_config.json"/);
 });

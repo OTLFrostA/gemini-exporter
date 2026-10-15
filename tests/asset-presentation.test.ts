@@ -18,7 +18,7 @@ test('asset labels suppress opaque storage names and preserve meaningful multili
 
 test('opaque generated image caption policy agrees across Markdown HTML and Typst', () => {
     const name = 'watermarked_img_11204364633950674587.jpg';
-    const domain = { providerId: 'gemini', id: 'c', title: 'Title', completeness: 'unknown', assets: [{ id: 'i', name, kind: 'image' }], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'image', assetId: 'i', alt: name, caption: [{ type: 'text', text: name }] }] }] };
+    const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c', title: 'Title' }, detail: { completeness: 'unknown', assets: [{ id: 'i', name, kind: 'image' }], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'image', assetId: 'i', alt: name, caption: [{ type: 'text', text: name }] }] }] } };
     const document = composeDomainDocument(validateParserDomain(domain)).document;
     const resources = { i: 'assets/image.jpg' };
     const md = renderDocumentMarkdown(document, resources);

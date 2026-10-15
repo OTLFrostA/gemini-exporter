@@ -11,7 +11,7 @@ test.beforeAll(async () => {
         import { collectDocumentResources } from './src/core/document/ast/resourceReferences.ts';
         globalThis.nativeParserProbe = (document) => {
             const result = parseGeminiDomConversation({ document, id: 'native_dom_123' }, { providerId: 'gemini' });
-            assertDomainClosure(JSON.parse(JSON.stringify(result.conversation)));
+            assertDomainClosure(JSON.parse(JSON.stringify(result.conversation.detail)));
             const { document: ast } = composeDomainDocument(result.conversation);
             return { result, ast, images: [...collectDocumentResources(ast).imageIds] };
         };`, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, format: 'iife', platform: 'browser' });
@@ -30,29 +30,29 @@ test('DOM parser retains long text, nested code/list, rich table images, math an
     <audio preload="none"><source src="https://example.test/source.wav" type="audio/wav"></audio></div></model-response>`);
     await page.addScriptTag({ content: bundle });
     const parsed = await page.evaluate(() => (globalThis as unknown as { nativeParserProbe: (doc: Document) => unknown }).nativeParserProbe(document)) as {
-        result: { conversation: { messages: Array<{ role: string; model?: string; timestamp?: number; content: Array<{ type: string }> }>; assets: Array<{ kind: string }>; completeness: string } }; images: string[]; ast: unknown;
+        result: { conversation: { detail: { messages: Array<{ role: string; model?: string; timestamp?: number; content: Array<{ type: string }> }>; assets: Array<{ kind: string }>; completeness: string } } }; images: string[]; ast: unknown;
     };
-    expect(parsed.result.conversation.messages).toHaveLength(2);
-    expect(parsed.result.conversation.messages.map(m => m.role)).toEqual(['user', 'assistant']);
-    expect(parsed.result.conversation.messages[1].model).toBe('Gemini source model');
-    expect(parsed.result.conversation.messages[1].timestamp).toBe(1700000000000);
-    expect(parsed.result.conversation.messages[1].content.map(b => b.type)).toEqual(['paragraph', 'code', 'list', 'table', 'math']);
-    const responseContent = JSON.stringify(parsed.result.conversation.messages[1].content);
+    expect(parsed.result.conversation.detail.messages).toHaveLength(2);
+    expect(parsed.result.conversation.detail.messages.map(m => m.role)).toEqual(['user', 'assistant']);
+    expect(parsed.result.conversation.detail.messages[1].model).toBe('Gemini source model');
+    expect(parsed.result.conversation.detail.messages[1].timestamp).toBe(1700000000000);
+    expect(parsed.result.conversation.detail.messages[1].content.map(b => b.type)).toEqual(['paragraph', 'code', 'list', 'table', 'math']);
+    const responseContent = JSON.stringify(parsed.result.conversation.detail.messages[1].content);
     expect(responseContent.split('长文')).toHaveLength(13001); // all 13,000 authored repetitions survive
     expect(responseContent).toContain('END_OF_LONG_BODY');
     expect(JSON.stringify(parsed.result.conversation).split('ONE_CODE_OCCURRENCE')).toHaveLength(2);
     expect(JSON.stringify(parsed.result.conversation)).toContain('Second line');
-    expect(parsed.result.conversation.assets.map(a => a.kind)).toEqual(['file', 'image', 'audio']);
+    expect(parsed.result.conversation.detail.assets.map(a => a.kind)).toEqual(['file', 'image', 'audio']);
     expect(parsed.images).toHaveLength(1);
-    expect(parsed.result.conversation.completeness).toBe('partial');
+    expect(parsed.result.conversation.detail.completeness).toBe('partial');
     expect(JSON.stringify(parsed.result.conversation)).not.toMatch(/"(?:diagnostics|localName|archivePath)":/);
 });
 
 test('DOM fallback keeps separate roles and extracts nested message nodes once', async ({ page }) => {
     await page.setContent(`<div data-test-id="conversation-turn" role="article"><div data-message-author-role="user"><div class="query-text">Question</div></div><div data-message-author-role="assistant"><div data-test-id="model-response"><div class="markdown"><p>Answer</p></div></div></div></div>`);
     await page.addScriptTag({ content: bundle });
-    const parsed = await page.evaluate(() => (globalThis as unknown as { nativeParserProbe: (doc: Document) => unknown }).nativeParserProbe(document)) as { result: { conversation: { messages: Array<{ role: string; timestamp?: number }> }; transport: { nodeCount: number } } };
-    expect(parsed.result.conversation.messages.map(m => m.role)).toEqual(['user', 'assistant']);
+    const parsed = await page.evaluate(() => (globalThis as unknown as { nativeParserProbe: (doc: Document) => unknown }).nativeParserProbe(document)) as { result: { conversation: { detail: { messages: Array<{ role: string; timestamp?: number }> } }; transport: { nodeCount: number } } };
+    expect(parsed.result.conversation.detail.messages.map(m => m.role)).toEqual(['user', 'assistant']);
     expect(parsed.result.transport.nodeCount).toBe(2);
-    expect(parsed.result.conversation.messages.every(m => m.timestamp === undefined)).toBe(true);
+    expect(parsed.result.conversation.detail.messages.every(m => m.timestamp === undefined)).toBe(true);
 });

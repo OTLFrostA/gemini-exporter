@@ -25,8 +25,8 @@ export function extractChatParseDrift(result: ResourceConversationParseResult): 
         if (!schemaDrift.includes(warning)) schemaDrift.push(warning);
     }
     const turnsRejected = 'turnsRejected' in transport && typeof transport.turnsRejected === 'number' ? transport.turnsRejected : 0;
-    return { schemaDrift, turnsRejected, hasHeuristicDocs: result.conversation.assets.some(asset => asset.document?.hasFabricatedText),
-        sourcePartial: result.conversation.completeness === 'partial',
+    return { schemaDrift, turnsRejected, hasHeuristicDocs: result.conversation.detail.assets.some(asset => asset.document?.hasFabricatedText),
+        sourcePartial: result.conversation.detail.completeness === 'partial',
         truncated: 'truncated' in transport && transport.truncated === true,
         truncateReason: 'truncateReason' in transport && typeof transport.truncateReason === 'string' ? transport.truncateReason : undefined };
 }

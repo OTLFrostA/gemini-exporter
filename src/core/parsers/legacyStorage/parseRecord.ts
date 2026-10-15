@@ -1,3 +1,4 @@
+import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
 import { closeLegacyCitations } from '../shared/resources/domainCitationAdapter.js';
@@ -160,18 +161,14 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
     const resources = closeDomainResources(providerId, legacyMessages.map(message => copyMessage(message, parseContent, parseReasoning)),
         legacyMessages.map(message => ({ input: message, bodyAttachments: providerId === 'gemini' ? structuredBodyAttachments(message) : [] })));
     const title = legacyTitle(conversation);
-    const domain: DomainConversationDetail = {
-        providerId,
-        assets: resources.assets,
-        id: conversation.id ?? '',
-        title: title?.value ?? '',
-        ...(title ? { titleSource: title.source } : {}),
-        ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
-        ...copyCompleteness(conversation),
-        ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),
-        ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}),
-        messages: resources.messages,
-    };
     const sourceVersion = normalizeConversationTimes({ updatedAt: conversation.updatedAt }).updatedAt;
+    const domain = {
+        index: parseIndexMetadata({ providerId, id: conversation.id ?? '', title: title?.value ?? '',
+            ...(title ? { titleSource: title.source } : {}), ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
+            ...(sourceVersion !== undefined ? { updatedAt: sourceVersion } : {}), messageCount: resources.messages.length,
+            ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}) }),
+        detail: { assets: resources.assets, messages: resources.messages, ...copyCompleteness(conversation),
+            ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}) },
+    };
     return { ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
 }

@@ -15,7 +15,13 @@ const { composeDomainDocument } = require('../src/core/document/compose/composeD
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { collectReferencedAssetIds } = require('../src/core/domain/content/collectAssetReferences.js');
 
-function domainFixture(messages: any[], extra: any = {}) { return { providerId: 'gemini', id: 'c1', title: 'Test convo', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages, ...extra }; }
+function domainFixture(messages: any[], extra: any = {}) {
+    const createdAt = require('../src/core/domain/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
+    const updatedAt = require('../src/core/domain/time.js').normalizeTimestamp(extra.updatedAt);
+    return { index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
+        ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
+        detail: { completeness: 'unknown', assets: extra.assets ?? [], messages } };
+}
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
     return { id, role, content: blocks, ...extra };
@@ -118,7 +124,7 @@ test('inline image maps to a formal transport node', async () => {
         ])],
         { assets: [{ id: 'a-inline', kind: 'image', name: 'd.png', mediaType: 'image/png' }] },
     );
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
     const para: any = payload.messages[0].blocks[0];
     assert.strictEqual(para.type, 'paragraph');
     assert.deepStrictEqual(para.children.map((c: any) => c.type), ['text', 'image', 'text']);
@@ -134,7 +140,7 @@ test('inline image without alt omits the alt key', async () => {
         ])],
         { assets: [{ id: 'a-inline', kind: 'image', name: 'd.png', mediaType: 'image/png' }] },
     );
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
     assert.deepStrictEqual((payload.messages[0].blocks[0] as any).children[0],
         { type: 'image', asset: 'assets/a-inline.png' });
 });
@@ -198,7 +204,7 @@ test('inline image placements are intact in blocks', async () => {
             { id: 'a-cell', kind: 'image', name: 'c.png', mediaType: 'image/png' },
         ] },
     );
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
     assert.strictEqual((payload.messages[0] as any).attachments, undefined);
     assert.strictEqual((payload.messages[0].blocks[0] as any).children[1].type, 'image');
     assert.strictEqual((payload.messages[0].blocks[1] as any).rows[0][0].children[0].type, 'image');
@@ -267,9 +273,9 @@ test('system role becomes a visible note prefix', async () => {
 
 test('PDF date uses document timestamps and stays unknown without them', () => {
     const b: any = domainFixture([]);
-    assert.strictEqual(renderTypstFixture(composeDomainDocument(b, { sourceVersion: Date.parse('2026-09-28T00:00:00Z') }).document, {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages');
+    assert.strictEqual(renderTypstFixture(composeDomainDocument({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } }).document, {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages');
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b).document, {}, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages');
-    delete b.createdAt;
+    delete b.index.createdAt;
     const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b).document, {}, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages`);
 });

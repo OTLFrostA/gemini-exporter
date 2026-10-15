@@ -11,8 +11,8 @@ import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/
 beforeEach(() => { __clearDomainMemory(); clearTakeoutData(); });
 test('real RPC turns expose only source-authored event time/prompt and single-image position', () => {
     const { online, offline } = mediaSources();
-    const onlineImage = online.conversation.assets[0];
-    const offlineImage = offline.conversation.assets.find(a => a.generation?.prompt === mediaPrompt)!;
+    const onlineImage = online.conversation.detail.assets[0];
+    const offlineImage = offline.conversation.detail.assets.find(a => a.generation?.prompt === mediaPrompt)!;
     assert.equal(onlineImage.generation?.time, mediaTime + 123);
     assert.equal(onlineImage.generation?.prompt, mediaPrompt);
     assert.equal(onlineImage.generation?.providerRequestId, 'r_request-9');
@@ -22,10 +22,10 @@ test('real RPC turns expose only source-authored event time/prompt and single-im
     assert.notEqual(onlineImage.id, offlineImage.id);
     assert.notEqual(onlineImage.sourceUri, offlineImage.sourceUri);
     for (const options of [{ noTime: true }, { noPrompt: true }]) {
-        const image = mediaSources(options).online.conversation.assets[0];
+        const image = mediaSources(options).online.conversation.detail.assets[0];
         assert.equal(options.noTime ? image.generation?.time : image.generation?.prompt, undefined);
     }
-    for (const image of mediaSources({ multi: true }).online.conversation.assets) assert.equal(image.generation?.imageOrdinal, undefined, 'a traversal index is not a stable source ordinal');
+    for (const image of mediaSources({ multi: true }).online.conversation.detail.assets) assert.equal(image.generation?.imageOrdinal, undefined, 'a traversal index is not a stable source ordinal');
 });
 
 test('real parsed sources recover renamed exports and refuse insufficient or ambiguous event evidence through AssetPipeline', async () => {
@@ -50,47 +50,51 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         await saveDomainConversation('u0', offline, resources);
         if (order === 'takeout-first') await saveDomainConversation('u0', online);
         const identity = storageIdentity('gemini', 'u0', mediaChatId);
-        assert.deepEqual((await getStoredDomain(identity))!.conversation, snapshot);
-        assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
+        assert.deepEqual((await getStoredDomain(identity))!.conversation.detail, snapshot.detail);
+        assert.equal((await getStoredDomain(identity))!.conversation.index.hasTakeoutImport, true);
+        assert.equal((await getStoredDomain(identity))!.conversation.index.title, snapshot.index.title);
+        assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
         await saveDomainConversation('u0', offline, resources);
-        assert.deepEqual((await getStoredDomain(identity))!.conversation, snapshot);
-        assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
-        assert.equal(await getDomainResource(storageIdentity('gemini', 'u1', mediaChatId), online.conversation.assets[0].id), null);
+        assert.deepEqual((await getStoredDomain(identity))!.conversation.detail, snapshot.detail);
+        assert.equal((await getStoredDomain(identity))!.conversation.index.hasTakeoutImport, true);
+        assert.equal((await getStoredDomain(identity))!.conversation.index.title, snapshot.index.title);
+        assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
+        assert.equal(await getDomainResource(storageIdentity('gemini', 'u1', mediaChatId), online.conversation.detail.assets[0].id), null);
     });
 }
 
 test('DomainStore rebinds existing byte-cache entries only with unique event proof', async () => {
     const { online, offline } = mediaSources();
     await saveDomainConversation('u0', offline);
-    const original = offline.conversation.assets.find(a => a.generation?.prompt === mediaPrompt)!;
+    const original = offline.conversation.detail.assets.find(a => a.generation?.prompt === mediaPrompt)!;
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
     await cacheDomainResource(identity, original.id, original.sourceUri!!, mediaBytes);
     await saveDomainConversation('u0', online);
-    assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
-    const changed = structuredClone(online); changed.conversation.assets[0].sourceUri! = 'https://lh3.googleusercontent.com/another';
-    changed.conversation.assets[0].generation!.prompt = 'Unrelated prompt';
+    assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
+    const changed = structuredClone(online); changed.conversation.detail.assets[0].sourceUri! = 'https://lh3.googleusercontent.com/another';
+    changed.conversation.detail.assets[0].generation!.prompt = 'Unrelated prompt';
     changed.acquisitionHints = {};
     await saveDomainConversation('u0', changed);
-    assert.equal(await getDomainResource(identity, changed.conversation.assets[0].id), null);
+    assert.equal(await getDomainResource(identity, changed.conversation.detail.assets[0].id), null);
 });
 
 test('production RPC request conflicts reject cross-source reuse even with identical event timestamps and prompts', async () => {
     const first = mediaSources().online;
     const second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
-    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.assets[0], first.conversation.id), second.conversation.assets.map(asset => resourceIdentity(asset, second.conversation.id))), null);
-    await saveDomainConversation('u0', first, [{ assetId: first.conversation.assets[0].id, bytes: mediaBytes }]);
+    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], first.conversation.index.id), second.conversation.detail.assets.map(asset => resourceIdentity(asset, second.conversation.index.id))), null);
+    await saveDomainConversation('u0', first, [{ assetId: first.conversation.detail.assets[0].id, bytes: mediaBytes }]);
     await saveDomainConversation('u0', second);
-    assert.equal(await getDomainResource(storageIdentity('gemini', 'u0', mediaChatId), second.conversation.assets[0].id), null);
+    assert.equal(await getDomainResource(storageIdentity('gemini', 'u0', mediaChatId), second.conversation.detail.assets[0].id), null);
 });
 
 test('byte-cache reuse cannot bypass conflicting event evidence when an asset ID and URI are reused', async () => {
     const { online } = mediaSources();
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
-    const image = online.conversation.assets[0];
+    const image = online.conversation.detail.assets[0];
     await saveDomainConversation('u0', online);
     await cacheDomainResource(identity, image.id, image.sourceUri!!, mediaBytes);
     const changed = structuredClone(online);
-    changed.conversation.assets[0].generation!.prompt = 'A different event';
+    changed.conversation.detail.assets[0].generation!.prompt = 'A different event';
     await saveDomainConversation('u0', changed);
     assert.equal(await getDomainResource(identity, image.id), null);
 });
@@ -101,27 +105,27 @@ test('DomainStore refuses ambiguous matches in either direction and deletion era
         const { online, offline, resources } = mediaSources(options);
         await saveDomainConversation('u0', online);
         await saveDomainConversation('u0', offline, resources);
-        assert.equal(await getDomainResource(storageIdentity('gemini', 'u0', mediaChatId), online.conversation.assets[0].id), null);
+        assert.equal(await getDomainResource(storageIdentity('gemini', 'u0', mediaChatId), online.conversation.detail.assets[0].id), null);
     }
     __clearDomainMemory();
     const { online, offline, resources } = mediaSources();
     await saveDomainConversation('u0', online);
     await saveDomainConversation('u0', offline, resources);
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
-    assert.deepEqual(await getDomainResource(identity, online.conversation.assets[0].id), mediaBytes);
+    assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
     await removeStoredDomain(identity);
     await saveDomainConversation('u0', online);
-    assert.equal(await getDomainResource(identity, online.conversation.assets[0].id), null);
+    assert.equal(await getDomainResource(identity, online.conversation.detail.assets[0].id), null);
 });
 
 test('URI-less imported resources remain retrievable without carrying inline bytes into current or subsequent saves', async () => {
     const parsed = mediaSources().online;
-    const asset = parsed.conversation.assets[0]; delete asset.sourceUri;
+    const asset = parsed.conversation.detail.assets[0]; delete asset.sourceUri;
     parsed.acquisitionHints = {};
     const identity = storageIdentity('gemini', 'u0', mediaChatId);
     const initial = await saveDomainConversation('u0', parsed, [{ assetId: asset.id, bytes: mediaBytes }]);
     assert.equal(initial.resources.length, 0);
-    parsed.conversation.title = 'Continued conversation';
+    parsed.conversation.index.title = 'Continued conversation';
     const continued = await saveDomainConversation('u0', parsed);
     assert.equal(continued.resources.length, 0);
     assert.deepEqual(await getDomainResource(identity, asset.id), mediaBytes);
@@ -129,7 +133,7 @@ test('URI-less imported resources remain retrievable without carrying inline byt
 
 test('current resource receipts update archive paths while repeated receipts stay idempotent', async () => {
     const parsed = mediaSources().online;
-    const resource = { assetId: parsed.conversation.assets[0].id, sourcePath: 'archive/original.png', bytes: mediaBytes };
+    const resource = { assetId: parsed.conversation.detail.assets[0].id, sourcePath: 'archive/original.png', bytes: mediaBytes };
     await saveDomainConversation('u0', parsed, [resource]);
     resource.sourcePath = 'archive/relocated.png';
     const relocated = await saveDomainConversation('u0', parsed, [resource]);

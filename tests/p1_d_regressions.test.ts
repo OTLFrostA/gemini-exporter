@@ -521,6 +521,6 @@ test('P1-060: detail pagination stops on token loops and dedupes messages by id'
     };
     const res = await Pagination.getConversationDetail(client, 'c_det');
     assert.strictEqual(calls, 2, `token loop was not stopped (fetch calls: ${calls})`);
-    const ids = (res.conversation.messages as any[]).map((m) => m.id);
+    const ids = (res.conversation.detail.messages as any[]).map((m) => m.id);
     assert.deepStrictEqual(ids, ['m3', 'm1', 'm2'], `duplicate/looped messages leaked: ${JSON.stringify(ids)}`);
 });

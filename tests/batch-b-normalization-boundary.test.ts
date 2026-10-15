@@ -40,9 +40,9 @@ test('provider parser contract accepts missing metadata and historical aliases w
     };
     const snapshot = structuredClone(raw);
     const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini' });
-    assert.equal(domain.assets[0].kind, 'image');
-    assert.equal(domain.assets[0].name, 'historical');
-    assert.equal(Object.hasOwn(domain.messages[0], 'provenance'), false);
+    assert.equal(domain.detail.assets[0].kind, 'image');
+    assert.equal(domain.detail.assets[0].name, 'historical');
+    assert.equal(Object.hasOwn(domain.detail.messages[0], 'provenance'), false);
     assert.ok(diagnostics.some((d) => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
     assert.deepEqual(raw, snapshot);
 });

@@ -79,7 +79,7 @@ const {build}=await import('esbuild');
 const bundle=await build({stdin:{contents:"export {parseLegacyStorageConversation} from './src/core/parsers/legacyStorage/parseConversation.ts'",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node'});
 const {parseLegacyStorageConversation}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const conversation=parseLegacyStorageConversation({metadata:before.local.gemini_conversations[0]},{providerId:'gemini'}).conversation;
-const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:2,domainVersion:1,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
+const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:3,domainVersion:3,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
 const migrated={local:empty.local,databases:{...before.databases,gemini_exporter_domain:{stores:{conversations:[record]}}}};
 await assertPersistedBaseline(before,migrated);
 const padded=structuredClone(before);padded.local.gemini_conversations[0].id=' c_a '.trim();
@@ -88,10 +88,10 @@ const spaced=structuredClone(before);spaced.local.gemini_conversations[0].id=' a
 await assertPersistedBaseline(spaced,migrated); // Production normalizes surrounding whitespace.
 for(const change of [
  r=>{r.identity.accountSlot='u1';r.key=JSON.stringify(['gemini','u1','a']);},
- r=>{r.identity.conversationId='other';r.key=JSON.stringify(['gemini','u0','other']);r.conversation.id='other';},
+ r=>{r.identity.conversationId='other';r.key=JSON.stringify(['gemini','u0','other']);r.conversation.index.id='other';},
  r=>{r.identity.accountSlot='u1';}, // Correct-looking key cannot mask mismatched identity.
- r=>{r.conversation.id='other';},
- r=>{r.conversation.messages=[];},
+ r=>{r.conversation.index.id='other';},
+ r=>{r.conversation.detail.messages=[];},
 ]){
  const lost=structuredClone(migrated);change(lost.databases.gemini_exporter_domain.stores.conversations[0]);
  lost.databases.backup=before; // Arbitrary backup must never satisfy the bound assertion.

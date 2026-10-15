@@ -60,7 +60,7 @@ export async function fetchChatDetail(
     if (abortSignal?.aborted) return { success: false, error: 'aborted' };
     if (requestedItem.cloudAvailability === 'deleted') {
         const stored = await readSavedConversation(currentSlot, nid);
-        if (stored?.conversation.messages.length) return { success: true, results: [stored], source: 'local-cache' };
+        if (stored?.conversation.detail.messages.length) return { success: true, results: [stored], source: 'local-cache' };
     }
     if (requestedItem.cloudAvailability === 'deleted') {
         // Do not fetch a resource already authoritatively deleted. Resolution below
@@ -165,14 +165,14 @@ export async function fetchChatDetail(
 /** Resolve source or durable Domain bodies; historical strings are never export inputs. */
 export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: DomainConversationIndex | null,
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}, source: ResolvedConversationSource = 'unspecified'): Promise<{ result: NativeConversationInput; source: ResolvedConversationSource }> {
-    if (isResourceConversationParseResult(value) && value.conversation.messages.length) return { result: value, source };
+    if (isResourceConversationParseResult(value) && value.conversation.detail.messages.length) return { result: value, source };
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
-    if (isResourceConversationParseResult(offline) && offline.conversation.messages.length) {
+    if (isResourceConversationParseResult(offline) && offline.conversation.detail.messages.length) {
         onLog('[Takeout] Recovered ' + id, 'info');
         return { result: offline, source: 'takeout' };
     }
     const stored = await readSavedConversation(slot, id);
-    if (stored?.conversation.messages.length) {
+    if (stored?.conversation.detail.messages.length) {
         onLog(`Exporting local snapshot: ${id}; latest cloud content was not fetched.`, 'warn');
         return { result: stored, source: 'local_snapshot' };
     }
@@ -197,7 +197,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         } catch (error) { onLog(`Could not save cloud availability: ${getErrorMessage(error)}. Local archive retained.`, 'warn'); }
     }
     const { result, source: dataSource } = await resolveConversationData(value, id, list, takeout, slot, onLog, options.source);
-    if (!isResourceConversationParseResult(result) || !result.conversation.messages.length) {
+    if (!isResourceConversationParseResult(result) || !result.conversation.detail.messages.length) {
         const raw = result && !isResourceConversationParseResult(result) ? result : undefined;
         const error = typeof raw?.error === 'string' ? raw.error : 'Conversation body is unavailable; fetch or migrate its source before exporting';
         const deleted = raw?.isDeleted === true || isConfirmedDeletedError(error);
@@ -211,7 +211,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         : cached ? result : await StorageService.ingestConversation(slot, result);
     if (!accepted) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
-    const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.providerId, accountSlot: slot }).getConversationIndex(accepted.conversation.id);
+    const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.index.providerId, accountSlot: slot }).getConversationIndex(accepted.conversation.index.id);
     if (!canonical) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
     if (confirmedDeleted) canonical.cloudAvailability = 'deleted';

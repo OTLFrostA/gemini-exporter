@@ -32,7 +32,7 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
         const result = await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, 'identity');
         const offline = TakeoutEngine.getTakeoutOfflineChat(id, 'identity');
         assert.ok(offline.conversation, 'production cache must carry native Domain');
-        const model = offline.conversation.messages.find((m: any) => m.role === 'assistant');
+        const model = offline.conversation.detail.messages.find((m: any) => m.role === 'assistant');
         assert.deepEqual(model.generation, { mediaKind: 'image', outputCount: 1 });
         assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, 'identity'), []);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));

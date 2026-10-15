@@ -196,10 +196,10 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
 // ---------------------------------------------------------------------------
 
 function makeDomain(extra: any = {}) {
-    return { providerId: 'gemini', id: 'c1', title: 'Test convo', timestamp: null, createdAt: '2026-09-20T10:00:00Z', assets: [], messages: [
+    return { index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false, createdAt: Date.parse('2026-09-20T10:00:00Z') }, detail: { completeness: 'unknown', assets: extra.assets ?? [], messages: extra.messages ?? [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
         { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
-    ], ...extra };
+    ] } };
 }
 
 function assetPathFor(asset: any) {
@@ -210,7 +210,7 @@ function assetPathFor(asset: any) {
 }
 
 function makePayload(domain: any, opts: { convertMath?: (source: string, display: boolean) => string | undefined } = {}) {
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
         ...(opts.convertMath ? { convertMath: opts.convertMath } : {}),
     });
     return {
@@ -218,7 +218,7 @@ function makePayload(domain: any, opts: { convertMath?: (source: string, display
 
 
         document,
-        assetPaths: new Map((domain.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
+        assetPaths: new Map((domain.detail.assets ?? []).map((asset: any) => [asset.id, assetPathFor(asset)])),
     };
 }
 
@@ -474,7 +474,7 @@ test('compile: without a MATH font, converted math is stripped with a diagnostic
     const compiler = makeCompiler(host);
     const controller = new AbortController();
     const domain = makeDomain();
-    domain.messages[0].content.push({ type: 'math', source: 'x^2' });
+    domain.detail.messages[0].content.push({ type: 'math', source: 'x^2' });
     const promise = compiler.compile(
         makePayload(domain, { convertMath: () => 'x^2' }),
         { ...makeContext(controller.signal) },
@@ -503,7 +503,7 @@ test('compile: inline image asset bytes are mounted as shadow files', async () =
     const domain = makeDomain({
         assets: [{ id: 'a1', kind: 'image', name: 'pic.png', mediaType: 'image/png' }],
     });
-    domain.messages[0].content = [{
+    domain.detail.messages[0].content = [{
         type: 'paragraph',
         children: [
             { type: 'text', text: 'see ' },
@@ -612,7 +612,7 @@ test('compile: nested struck media mounts and math fallback never mutate the inp
     const host = new FakeHost(undefined, fakeFontBytes(false));
     const compiler = makeCompiler(host);
     const domain = makeDomain({ assets: [{ id: 'nested', kind: 'image', name: 'nested.png', }] });
-    domain.messages[0].content = [{ type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'inlineMath', source: 'x' }, { type: 'image', assetId: 'nested' }] }] }];
+    domain.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'inlineMath', source: 'x' }, { type: 'image', assetId: 'nested' }] }] }];
     const payload = makePayload(domain, { convertMath: () => 'x' });
     const before = JSON.stringify(payload.document);
     const freeze = (value: unknown): void => {

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentAst.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 const valid = () => ({ schemaVersion: 2, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
 
@@ -21,7 +21,7 @@ test('every visual/parity corpus fixture satisfies the exact current DocumentAst
     const domainFixtures = readdirSync('tests/fixtures/document-domain').filter(file => file.endsWith('.json'));
     assert.ok(domainFixtures.length > 0, 'document-domain must contain contract fixtures');
     for (const file of domainFixtures) {
-        const input: DomainConversationDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
+        const input: DomainConversationWithDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
         entries.push({ value: composeDomainDocument(validateParserDomain(input)).document, context: file });
     }
     assertDocumentAsts(entries);

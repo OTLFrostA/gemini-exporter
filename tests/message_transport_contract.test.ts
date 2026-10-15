@@ -22,7 +22,7 @@ type Contracts = [
     Assert<Equal<ReturnType<typeof readPopupFetchResult>, PopupFetchResult>>,
     Assert<Equal<Awaited<ReturnType<typeof openGeminiPage>>, unknown>>,
     Assert<Equal<Awaited<ReturnType<typeof reloadGeminiTab>>, unknown>>,
-    Assert<Equal<PopupExportInput['conversation']['messages'][number]['role'], 'user' | 'assistant' | 'system' | 'developer' | 'unknown'>>
+    Assert<Equal<PopupExportInput['conversation']['detail']['messages'][number]['role'], 'user' | 'assistant' | 'system' | 'developer' | 'unknown'>>
 ];
 const contracts: Contracts = [true, true, true, true, true, true, true, true, true, true];
 function actionOnly(input: unknown): void {

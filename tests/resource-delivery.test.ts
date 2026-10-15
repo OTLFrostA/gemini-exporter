@@ -24,7 +24,7 @@ const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');
 afterEach(() => { __clearModuleOverrides(); mock.restoreAll(); });
 function native(failure: string): ResourceConversationParseResult {
-    return { conversation: validateParserDomain({ providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure', completeness: 'unknown', assets: [
+    return { conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure' }, detail: { completeness: 'unknown', assets: [
         { id: 'good', kind: 'image', name: `${'delivered_'.repeat(10)}.png`, mediaType: 'image/png', sourceUri: 'https://example.test/good' },
         { id: 'good-doc', kind: 'file', name: 'good.md', document: { contentMarkdown: '# Delivered companion' } },
         { id: 'bad', kind: failure === 'file-write' ? 'file' : 'image', name: 'bad.png',
@@ -34,7 +34,7 @@ function native(failure: string): ResourceConversationParseResult {
         { type: 'paragraph', children: [{ type: 'text', text: 'Conversation survives resource failure' }] },
         { type: 'image', assetId: 'good' }, { type: 'file', assetId: 'good-doc' },
         { type: failure === 'file-write' ? 'file' : 'image', assetId: 'bad' },
-    ] }] }), diagnostics: [], acquisitionHints: {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
+    ] }] } }), diagnostics: [], acquisitionHints: {}, resourceHints: { bad: { archivePath: 'assets/never-delivered.png' } } };
 }
 for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw', 'empty', 'write', 'file-write', 'inline']) {
     test(`${format}: ${failure} preserves body, delivered references and partial status in actual ZIP`, async () => {
@@ -64,13 +64,13 @@ for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw
         }
         let archive: Blob | undefined;
         const worker = makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) });
-        const result = await new ExportOrchestrator().run({ selected: [{ id: source.conversation.id, title: source.conversation.title }], format, useZip: true, includeAssets: true, includeIndex: true,
+        const result = await new ExportOrchestrator().run({ selected: [{ id: source.conversation.index.id, title: source.conversation.index.title }], format, useZip: true, includeAssets: true, includeIndex: true,
             worker, downloadHandler: blob => { assert.deepEqual(records, {}, 'no partial records before ZIP delivery'); archive = blob; } });
         assert.equal(result.landedChats, 1); assert.equal(result.failedChats.length, 0);
-        assert.equal(result.failedAttachments.length, 1); assert.equal(records[source.conversation.id].status, 'partial');
+        assert.equal(result.failedAttachments.length, 1); assert.equal(records[source.conversation.index.id].status, 'partial');
         assert.ok(archive);
         const zip = await JSZip.loadAsync(await archive.arrayBuffer());
-        assert.equal(JSON.parse(await zip.file('gemini_export/meta.json').async('string')).conversations[0].status, records[source.conversation.id].status);
+        assert.equal(JSON.parse(await zip.file('gemini_export/meta.json').async('string')).conversations[0].status, records[source.conversation.index.id].status);
         const bodyPath = Object.keys(zip.files).find(path => path.endsWith(format === 'html' ? '.html' : format === 'markdown' ? '.md' : '.json') && !path.includes('/files/'))!;
         const body: string = await zip.files[bodyPath].async('text');
         assert.match(body, /Conversation survives resource failure/);
@@ -125,7 +125,7 @@ test('Takeout entry rejection or zero bytes retains its conversation and healthy
         archive.files['Takeout/Gemini/bad.png'].async = async () => { if (mode === 'throw') throw new Error('Injected CRC read failure'); return new Uint8Array(); };
         const imported = await parseTakeoutZip(archive, null, slot);
         assert.equal(imported.conversations.length, 1); assert.equal(imported.status, 'partial');
-        const result = imported.convCache['delivery-takeout']; assert.ok(result.conversation.messages.length);
+        const result = imported.convCache['delivery-takeout']; assert.ok(result.conversation.detail.messages.length);
         assert.equal(Object.keys(result.resourceHints).length, 1); assert.equal(imported.resourceResults.filter(result => !result.ok).length, 1);
         assert.ok(imported.diagnostics.some(diagnostic => diagnostic.code === 'RESOURCE_UNAVAILABLE'));
         const good = imported.resourceResults.find(result => result.ok); assert.ok(good?.ok);
@@ -165,7 +165,7 @@ test('background live save renders only after attachments settle and keeps a par
     setMemoryDirHandle(directory(''));
     try {
         const source = native('throw');
-        const result = await handleLiveSaveViaHandle({ chat: source, safeTitle: source.conversation.title, nid: source.conversation.id,
+        const result = await handleLiveSaveViaHandle({ chat: source, safeTitle: source.conversation.index.title, nid: source.conversation.index.id,
             assets: ['good', 'bad'].map(assetId => ({ assetId, fileName: `${assetId}.png`, subDir: 'assets', base64: png.toString('base64') })) });
         assert.equal(result.ok, false); assert.equal(result.failedAssets.length, 1);
         assert.equal(records[0].status, 'partial');
@@ -190,7 +190,7 @@ for (const mode of ['queued', 'transport']) test(`resource cancellation ${mode} 
         }
     });
     const engine = new ExportOrchestrator(); let downloaded = false;
-    const pending = engine.run({ selected: [{ id: source.conversation.id, title: source.conversation.title }],
+    const pending = engine.run({ selected: [{ id: source.conversation.index.id, title: source.conversation.index.title }],
         worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) }),
         useZip: true, includeIndex: false, downloadHandler: () => { downloaded = true; } });
     await startedWork;
@@ -205,8 +205,8 @@ test('long companion filenames remain distinct after writer normalization and re
     const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
     __setModuleOverride('JSZip', JSZip);
     const source = native('throw');
-    source.conversation.assets = ['first', 'second'].map(id => ({ id, kind: 'file', name: `${'same-long-name-'.repeat(10)}.md`, document: { contentMarkdown: `# ${id}` } }));
-    source.conversation.messages[0].content = source.conversation.assets.map(asset => ({ type: 'file', assetId: asset.id }));
+    source.conversation.detail.assets = ['first', 'second'].map(id => ({ id, kind: 'file', name: `${'same-long-name-'.repeat(10)}.md`, document: { contentMarkdown: `# ${id}` } }));
+    source.conversation.detail.messages[0].content = source.conversation.detail.assets.map(asset => ({ type: 'file', assetId: asset.id }));
     const planned = await planExportResources(source);
     const writer = new ZipWriter('gemini_export');
     const receipts = planned.assets.map((asset: { assetId: string; item: { localName: string }; content: string }) => ({
@@ -234,8 +234,8 @@ for (const [kind, broken] of [
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost() });
     const source = native('throw');
     // Two distinct assets with identical broken bytes share one content-addressed mount.
-    source.conversation.assets.push({ id: 'bad-alias', kind: 'image', name: 'also-broken.png' });
-    source.conversation.messages[0].content.push({ type: 'paragraph', children: [{ type: 'image', assetId: 'bad-alias' }] });
+    source.conversation.detail.assets.push({ id: 'bad-alias', kind: 'image', name: 'also-broken.png' });
+    source.conversation.detail.messages[0].content.push({ type: 'paragraph', children: [{ type: 'image', assetId: 'bad-alias' }] });
     const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: item.assetId === 'good' ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') : broken, mediaType: 'image/png' } }) };
     const files: Uint8Array[] = [], records: Array<{ status: string; hasFailedAssets: boolean }> = [];
     try {
@@ -262,7 +262,7 @@ test('direct live save uses distinct actual filesystem paths for long image name
         }) }),
     });
     const source = native('throw');
-    for (const asset of source.conversation.assets.filter(asset => asset.kind === 'image')) {
+    for (const asset of source.conversation.detail.assets.filter(asset => asset.kind === 'image')) {
         asset.name = `${'long_name_'.repeat(10)}${asset.id}.png`;
         asset.dataBase64 = png.toString('base64');
         delete asset.sourceUri;
@@ -270,7 +270,7 @@ test('direct live save uses distinct actual filesystem paths for long image name
     const receipts: import('../src/core/resources/resourceResult.js').ResourceResult<import('../src/core/resources/resourceResult.js').ResourceDelivery>[] = [];
     const failures: Array<{ file: string; error: string }> = [];
     const writer = await createLiveSaveWriter(directory(''));
-    await processAndSaveImages(source, source.conversation.id, writer, failures, receipts);
+    await processAndSaveImages(source, source.conversation.index.id, writer, failures, receipts);
     assert.equal(failures.length, 0); assert.equal(receipts.length, 2);
     const paths = receipts.flatMap(result => result.ok ? [result.value.path] : []);
     assert.equal(new Set(paths).size, 2);

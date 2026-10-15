@@ -28,11 +28,11 @@ type TypeContracts = [
     Assert<string extends keyof DomainConversationIndex ? false : true>,
     Assert<'titleSource' extends keyof ProviderConversationDetail ? false : true>,
     Assert<'_raw' extends keyof ProviderConversationDetail ? false : true>,
-    Assert<Equal<ProviderConversationDetail['conversation']['messages'][number], DomainMessage>>,
+    Assert<Equal<ProviderConversationDetail['conversation']['detail']['messages'][number], DomainMessage>>,
     Assert<'targetSid' extends keyof ProviderListOptions ? false : true>,
     Assert<Equal<Parameters<AIProvider['fetchConversationDetail']>[1], unknown>>,
     Assert<Equal<GeminiProviderPageResult['diagnostics'], GeminiPaginationDiagnostics>>,
-    Assert<Equal<GeminiProviderConversationDetail['conversation']['messages'][number], DomainMessage>>,
+    Assert<Equal<GeminiProviderConversationDetail['conversation']['detail']['messages'][number], DomainMessage>>,
     Assert<GeminiProvider extends AIProvider ? true : false>,
     Assert<GeminiProvider extends ApplicationProvider ? true : false>,
     Assert<Equal<ReturnType<typeof resolveProvider>, AIProvider | undefined>>,
@@ -75,7 +75,7 @@ function client(list: PaginationResult, data = detail()): GeminiProviderClient {
 test('provider contract: neutral surface requires completeness and excludes Gemini evidence', () => {
     assert.ok(typeContracts.every(Boolean));
     const core: ProviderConversationDetail = historicalFixture({ id: 'neutral', title: 'Neutral', messages: [{ role: 'assistant', content: 'text' }] }, { providerId: 'neutral' });
-    assert.deepEqual(core.conversation.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'text' }] }]);
+    assert.deepEqual(core.conversation.detail.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'text' }] }]);
 });
 
 test('provider contract: all seven upstream reasons and diagnostic identity survive the adapter', async () => {
@@ -125,19 +125,19 @@ test('provider contract: detailed media, provenance and parser evidence retain t
     const data = detail();
     const slots: (string | null | undefined)[] = [];
     const provider: ApplicationProvider = new GeminiProvider({ ...client(result('natural_exhaustion')), async getConversationDetail(id, sid) {
-        assert.equal(id, data.conversation.id); slots.push(sid); return data;
+        assert.equal(id, data.conversation.index.id); slots.push(sid); return data;
     } });
-    const returned = await provider.fetchConversationDetail(data.conversation.id, { targetSid: 'u2', slot: 'u1' });
-    await provider.fetchConversationDetail(data.conversation.id, { slot: 'u1' });
-    await provider.fetchConversationDetail(data.conversation.id, { targetSid: '', slot: 'u3' });
-    await provider.fetchConversationDetail(data.conversation.id);
+    const returned = await provider.fetchConversationDetail(data.conversation.index.id, { targetSid: 'u2', slot: 'u1' });
+    await provider.fetchConversationDetail(data.conversation.index.id, { slot: 'u1' });
+    await provider.fetchConversationDetail(data.conversation.index.id, { targetSid: '', slot: 'u3' });
+    await provider.fetchConversationDetail(data.conversation.index.id);
     assert.deepEqual(slots, ['u2', 'u1', 'u3', null]);
     assert.deepEqual(returned, data);
-    assert.strictEqual(returned.conversation.messages, data.conversation.messages);
+    assert.strictEqual(returned.conversation.detail.messages, data.conversation.detail.messages);
     assert.strictEqual(returned.transport.decodedPayload, data.transport.decodedPayload);
     assert.strictEqual(returned.transport, data.transport);
-    assert.equal(returned.conversation.assets[0].sourceUri, 'https://example.com/image');
-    assert.equal(returned.conversation.messages[0].citations?.[0].url, 'https://example.com');
+    assert.equal(returned.conversation.detail.assets[0].sourceUri, 'https://example.com/image');
+    assert.equal(returned.conversation.detail.messages[0].citations?.[0].url, 'https://example.com');
     assert.equal(returned.sourceVersion, 2);
     assert.strictEqual(returned, data);
 });
@@ -199,7 +199,7 @@ test('provider contract: a neutral non-Gemini AIProvider registers without compa
     assert.strictEqual(byDefault, neutralProvider);
     assert.strictEqual(byUrl, neutralProvider);
     assert.equal((await byId!.listConversations()).completionReason, 'fixture_complete');
-    assert.equal((await byUrl!.fetchConversationDetail('neutral')).conversation.messages[0].role, 'assistant');
+    assert.equal((await byUrl!.fetchConversationDetail('neutral')).conversation.detail.messages[0].role, 'assistant');
 });
 
 test('provider contract: an explicitly specialized registry preserves Gemini evidence', async () => {

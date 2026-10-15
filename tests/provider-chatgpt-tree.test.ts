@@ -258,23 +258,23 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
     });
     const detail = await provider.fetchConversationDetail('conv-img');
     assert.equal(detail.sourceVersion, 1700000060000);
-    assert.equal(detail.conversation.createdAt, 1700000000000);
+    assert.equal(detail.conversation.index.createdAt, 1700000000000);
     assert.equal(Object.hasOwn(detail.conversation, 'updatedAt'), false);
-    assert.equal(detail.conversation.assets.length, 2);
-    assert.equal(detail.conversation.assets[0]?.kind, 'image');
-    assert.equal(detail.conversation.assets[0]?.sourceUri, 'sediment://file_cat');
-    assert.equal(detail.conversation.assets[0]?.mediaType, 'image/png');
-    assert.ok((detail.conversation.assets[0]?.dataBase64 ?? '').length > 0);
+    assert.equal(detail.conversation.detail.assets.length, 2);
+    assert.equal(detail.conversation.detail.assets[0]?.kind, 'image');
+    assert.equal(detail.conversation.detail.assets[0]?.sourceUri, 'sediment://file_cat');
+    assert.equal(detail.conversation.detail.assets[0]?.mediaType, 'image/png');
+    assert.ok((detail.conversation.detail.assets[0]?.dataBase64 ?? '').length > 0);
     // In-place order preserved: text -> image -> text
-    const userMsg = detail.conversation.messages.find((m) => m.id === 'u1');
+    const userMsg = detail.conversation.detail.messages.find((m) => m.id === 'u1');
     assert.deepEqual(userMsg?.content.map((b) => b.type), ['paragraph', 'image', 'paragraph']);
     // Failed download preserves placeholder asset + image block + partial completeness + diagnostic
-    assert.equal(detail.conversation.assets[1]?.sourceUri, 'sediment://file_missing');
-    assert.equal(detail.conversation.assets[1]?.dataBase64, undefined);
-    const toolMsg = detail.conversation.messages.find((m) => m.id === 't1');
-    assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.assets[1]?.id]);
+    assert.equal(detail.conversation.detail.assets[1]?.sourceUri, 'sediment://file_missing');
+    assert.equal(detail.conversation.detail.assets[1]?.dataBase64, undefined);
+    const toolMsg = detail.conversation.detail.messages.find((m) => m.id === 't1');
+    assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.detail.assets[1]?.id]);
     assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
-    assert.equal(detail.conversation.completeness, 'partial');
+    assert.equal(detail.conversation.detail.completeness, 'partial');
     assert.ok(detail.diagnostics.some((d) => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
 });
 
@@ -328,7 +328,7 @@ test('thinking walk attaches hidden reasoning to the following assistant node', 
         },
         assetsByNode: new Map(),
     });
-    const assistant = parsed.conversation.messages.find((m) => m.id === 'a1');
+    const assistant = parsed.conversation.detail.messages.find((m) => m.id === 'a1');
     assert.ok(assistant?.reasoning && assistant.reasoning.length >= 2);
     assert.match(JSON.stringify(assistant?.reasoning[0]), /12/);
 });
@@ -381,11 +381,11 @@ test('bodies parse to structured blocks and models stay per-message', () => {
     });
     assert.equal(parsed.sourceVersion, 2000);
     assert.equal(Object.hasOwn(parsed.conversation, 'updatedAt'), false);
-    const kinds = parsed.conversation.messages.find((m) => m.id === 'a1')?.content.map((b) => b.type);
+    const kinds = parsed.conversation.detail.messages.find((m) => m.id === 'a1')?.content.map((b) => b.type);
     assert.ok(kinds?.includes('heading'));
     assert.ok(kinds?.includes('code'));
     assert.deepEqual(
-        parsed.conversation.messages.map((m) => m.model),
+        parsed.conversation.detail.messages.map((m) => m.model),
         ['gpt-6', 'gpt-6-pro'],
     );
 });
@@ -426,9 +426,9 @@ test('repeated image pointers reuse one asset instead of breaking closure', () =
             ['t2', { nodeId: 't2', images: [img], files: [] }],
         ]),
     });
-    assert.equal(parsed.conversation.assets.length, 1);
+    assert.equal(parsed.conversation.detail.assets.length, 1);
     assert.deepEqual(
-        parsed.conversation.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.attachmentIds),
+        parsed.conversation.detail.messages.filter((m) => m.id === 't1' || m.id === 't2').map((m) => m.attachmentIds),
         [['img-file_dup'], ['img-file_dup']],
     );
 });

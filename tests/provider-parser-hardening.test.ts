@@ -22,7 +22,7 @@ async function norm(content: string, extra?: Record<string, unknown>) {
         messages: [{ id: 'm1', role: 'user', content, ...(extra || {}) }],
     };
     const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini' });
-    return { domain, diagnostics, msg: domain.messages[0] };
+    return { domain, diagnostics, msg: domain.detail.messages[0] };
 }
 
 function inlineText(nodes: any[]): string {
@@ -121,10 +121,10 @@ test('bare remote image becomes a first-class ImageInline with a remote asset', 
     assert.ok(img?.type === 'image');
     assert.ok(img, 'image inline found');
     assert.strictEqual(img.alt, 'alt text');
-    const asset = domain.assets.find((a: any) => a.id === img.assetId);
+    const asset = domain.detail.assets.find((a: any) => a.id === img.assetId);
     assert.ok(asset, 'asset registered');
     assert.strictEqual(asset.sourceUri, 'https://example.com/i.png');
-    assert.doesNotThrow(() => assertDomainClosure(domain));
+    assert.doesNotThrow(() => assertDomainClosure((domain).detail));
 });
 
 test('linked image parses as link wrapping an ImageInline', async () => {
@@ -137,7 +137,7 @@ test('linked image parses as link wrapping an ImageInline', async () => {
     assert.strictEqual(link.children[0].type, 'image');
     assert.ok(link.children[0]?.type === 'image');
     assert.strictEqual(link.children[0].alt, 'alt');
-    assert.ok(domain.assets.some((a: any) => a.id === link.children[0].assetId), 'asset registered');
+    assert.ok(domain.detail.assets.some((a: any) => a.id === link.children[0].assetId), 'asset registered');
 });
 
 test('inline image reuses the matching attachment asset', async () => {
@@ -147,8 +147,8 @@ test('inline image reuses the matching attachment asset', async () => {
     const img = msg.content[0].children.find((c: any) => c.type === 'image');
     assert.ok(img?.type === 'image');
     assert.ok(img, 'image inline found');
-    assert.strictEqual(img.assetId, domain.assets[0].id);
-    assert.strictEqual(domain.assets.length, 1);
+    assert.strictEqual(img.assetId, domain.detail.assets[0].id);
+    assert.strictEqual(domain.detail.assets.length, 1);
 });
 
 test('image with no source remains a semantic asset and the backend reports unavailable resources', async () => {
@@ -156,10 +156,10 @@ test('image with no source remains a semantic asset and the backend reports unav
     const img = msg.content[0].children.find((c: any) => c.type === 'image');
     assert.ok(img?.type === 'image');
     assert.ok(img, 'image inline found');
-    const asset = domain.assets.find((a: any) => a.id === img.assetId);
+    const asset = domain.detail.assets.find((a: any) => a.id === img.assetId);
     assert.ok(asset, 'asset registered');
     assert.ok(!asset.sourceUri);
-    assert.doesNotThrow(() => assertDomainClosure(domain));
+    assert.doesNotThrow(() => assertDomainClosure((domain).detail));
     const rendered = renderDocumentHtml(composeDomainDocument(domain).document, {});
     assert.ok(rendered.diagnostics.some((d: any) => d.code === 'HTML_ASSET_UNRESOLVED'));
     assert.ok(rendered.html.includes('gem-missing-asset'));
@@ -170,7 +170,7 @@ test('multiple images in one paragraph each get their own asset', async () => {
     const imgs = msg.content[0].children.filter((c: any) => c.type === 'image');
     assert.strictEqual(imgs.length, 2);
     assert.notStrictEqual(imgs[0].assetId, imgs[1].assetId);
-    assert.strictEqual(domain.assets.length, 2);
+    assert.strictEqual(domain.detail.assets.length, 2);
 });
 
 test('nested emphasis: strong containing emphasis', async () => {

@@ -13,18 +13,18 @@ import { finalizeChatExport } from '../src/core/engine/export/sessionRecovery.js
 import { withConversationMetadata } from '../src/core/domain/runtimeValidation.js';
 
 const scope = { providerId: 'gemini', accountSlot: 'u0' };
-const parsed = () => ({ ...historicalFixture({ id: 'chat', title: 'Old title', titleSource: 'rpc',
+const parsed = () => ({ ...historicalFixture({ id: 'chat', title: 'Old title', titleSource: 'rpc', updatedAt: 100,
     messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }] }), sourceVersion: 100 });
 
 test('metadata projection erases absent optional fields even when passed a structurally assignable full snapshot', () => {
     const source = parsed().conversation;
-    source.createdAt = 90; source.url = 'https://gemini.google.com/app/old';
+    source.index.createdAt = 90; source.index.url = 'https://gemini.google.com/app/old';
     const { url: _url, ...index } = indexFixture({ id: 'chat', title: 'Canonical' });
-    const projected = withConversationMetadata(source, index);
+    const projected = withConversationMetadata(source.detail, index);
     assert.equal(Object.hasOwn(projected, 'createdAt'), false);
     assert.equal(Object.hasOwn(projected, 'url'), false);
-    assert.equal(projected.messages, source.messages);
-    assert.equal(source.createdAt, 90);
+    assert.equal(projected.detail.messages, source.detail.messages);
+    assert.equal(source.index.createdAt, 90);
 });
 
 test('index-only, absent, empty saved body and incomplete body remain distinct without read repair', async () => {
@@ -40,7 +40,7 @@ test('index-only, absent, empty saved body and incomplete body remain distinct w
         await saveDomainConversation('u0', historicalFixture({ id: 'chat', messages: [] }));
         const empty = await repository.getConversation('chat');
         assert.deepEqual(empty?.detail?.messages, []);
-        const partial = parsed(); partial.conversation.completeness = 'partial';
+        const partial = parsed(); partial.conversation.detail.completeness = 'partial';
         await saveDomainConversation('u0', partial);
         const capture = await repository.getConversation('chat');
         assert.equal(capture?.detail?.completeness, 'partial');
@@ -66,16 +66,16 @@ test('index owns every metadata field while capture retains the actual older bod
         assert.equal(resolved.isError, false);
         if (resolved.isError) return;
         const projected = resolved.chat;
-        assert.equal(projected.conversation.title, 'Renamed');
-        assert.equal(projected.conversation.createdAt, 50);
-        assert.equal(projected.conversation.url, 'https://gemini.google.com/u/1/app/chat');
+        assert.equal(projected.conversation.index.title, 'Renamed');
+        assert.equal(projected.conversation.index.createdAt, 50);
+        assert.equal(projected.conversation.index.url, 'https://gemini.google.com/u/1/app/chat');
         assert.equal(projected.sourceVersion, 100);
         assert.equal('updatedAt' in projected.conversation, false);
         assert.equal(resolved.isError, false);
         if (!resolved.isError) {
-            assert.equal(resolved.chat.conversation.title, 'Renamed');
-            assert.equal(resolved.chat.conversation.createdAt, 50);
-            assert.equal(resolved.chat.conversation.url, projected.conversation.url);
+            assert.equal(resolved.chat.conversation.index.title, 'Renamed');
+            assert.equal(resolved.chat.conversation.index.createdAt, 50);
+            assert.equal(resolved.chat.conversation.index.url, projected.conversation.index.url);
             assert.equal(resolved.chat.sourceVersion, 100);
         }
         assert.equal(env.writes(), writes);
@@ -98,11 +98,11 @@ test('cached projections cannot roll back newer metadata passed by a caller', as
         const resolved = await resolveChat(cached, { id: 'chat' }, selection, null, 'u0', undefined, undefined, { source: 'local_snapshot' });
         assert.equal(resolved.isError, false);
         if (!resolved.isError) {
-            assert.equal(resolved.chat.conversation.title, 'Renamed');
-            assert.equal(resolved.chat.conversation.createdAt, 50);
-            assert.equal(resolved.chat.conversation.url, current.url);
+            assert.equal(resolved.chat.conversation.index.title, 'Renamed');
+            assert.equal(resolved.chat.conversation.index.createdAt, 50);
+            assert.equal(resolved.chat.conversation.index.url, current.url);
         }
-        assert.equal(cached.conversation.title, 'Old title');
+        assert.equal(cached.conversation.index.title, 'Old title');
     } finally { env.restore(); }
 });
 
@@ -133,9 +133,9 @@ test('bound scope isolates accounts/providers, rejects unsupported slots and ign
         const repository = storage.conversationRepository(mutableScope);
         mutableScope.accountSlot = 'u1';
         await storage.setNativeConversations('u0', [parsed()]);
-        const other = parsed(); other.conversation.title = 'Other account';
+        const other = parsed(); other.conversation.index.title = 'Other account';
         await storage.setNativeConversations('u1', [other]);
-        const foreign = parsed(); foreign.conversation.providerId = 'other'; foreign.conversation.title = 'Other provider';
+        const foreign = parsed(); foreign.conversation.index.providerId = 'other'; foreign.conversation.index.title = 'Other provider';
         await storage.setNativeConversations('u0', [foreign]);
         assert.equal((await repository.getConversationIndex('chat'))?.title, 'Old title');
         assert.equal((await storage.conversationRepository({ ...scope, accountSlot: 'u1' }).getConversationIndex('chat'))?.title, 'Other account');
@@ -145,7 +145,7 @@ test('bound scope isolates accounts/providers, rejects unsupported slots and ign
         assert.throws(() => storage.conversationRepository({ ...scope, providerId: ' gemini' }), /scope/);
         await assert.rejects(repository.getConversation(''), /ID/);
         await assert.rejects(repository.getConversationIndex('c_'), /ID/);
-        const orphan = parsed(); orphan.conversation.id = 'orphan';
+        const orphan = parsed(); orphan.conversation.index.id = 'orphan';
         await saveDomainConversation('u0', orphan);
         assert.equal(await repository.getConversation('orphan'), null);
         assert.ok(await getStoredDomain(storageIdentity('gemini', 'u0', 'orphan')));
@@ -185,18 +185,18 @@ test('fresh acquisition commits all metadata before rendering, independently of 
     const env = indexStorage();
     try {
         const fresh = parsed();
-        fresh.conversation.createdAt = 20;
-        fresh.conversation.url = 'https://gemini.google.com/u/0/app/chat';
+        fresh.conversation.index.createdAt = 20;
+        fresh.conversation.index.url = 'https://gemini.google.com/u/0/app/chat';
         const prepared = await preparePdfItem({ id: 'chat', title: 'Stale selection' }, { includeAssets: false,
             fetchChatDetail: async () => ({ success: true, chat: fresh }) });
         assert.equal(prepared.ok, true);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
         assert.ok(stored?.detail);
-        assert.equal(stored.index.title, fresh.conversation.title);
+        assert.equal(stored.index.title, fresh.conversation.index.title);
         assert.equal(stored.index.titleSource, 'rpc');
         assert.equal(stored.index.createdAt, 20);
         assert.equal(stored.index.updatedAt, 100);
-        assert.equal(stored.index.url, fresh.conversation.url);
+        assert.equal(stored.index.url, fresh.conversation.index.url);
         assert.equal(stored.index.messageCount, 2);
         assert.deepEqual(await storage.getExportedIds('u0'), {});
     } finally { env.restore(); }
@@ -207,13 +207,13 @@ test('accepting a partial observation advances Index but returns the retained co
     try {
         await storage.ingestConversation('u0', parsed());
         const partial = parsed();
-        partial.conversation.messages = partial.conversation.messages.slice(0, 1);
-        partial.conversation.completeness = 'partial';
-        partial.conversation.title = 'New authoritative title';
-        partial.sourceVersion = 200;
+        partial.conversation.detail.messages = partial.conversation.detail.messages.slice(0, 1);
+        partial.conversation.detail.completeness = 'partial';
+        partial.conversation.index.title = 'New authoritative title';
+        partial.sourceVersion = 200; partial.conversation.index.updatedAt = 200;
         const accepted = await storage.ingestConversation('u0', partial);
-        assert.equal(accepted.conversation.title, 'New authoritative title');
-        assert.equal(accepted.conversation.messages.length, 2);
+        assert.equal(accepted.conversation.index.title, 'New authoritative title');
+        assert.equal(accepted.conversation.detail.messages.length, 2);
         assert.equal(accepted.sourceVersion, 100);
         const index = await storage.conversationRepository(scope).getConversationIndex('chat');
         assert.equal(index?.updatedAt, 200);
@@ -225,7 +225,7 @@ test('accepting a partial observation advances Index but returns the retained co
 test('initial partial capture publishes activity to Index without claiming a saved complete-body version', async () => {
     const env = indexStorage();
     try {
-        const partial = parsed(); partial.conversation.completeness = 'partial';
+        const partial = parsed(); partial.conversation.detail.completeness = 'partial';
         const accepted = await storage.ingestConversation('u0', partial);
         assert.equal(accepted.sourceVersion, undefined);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
@@ -238,16 +238,16 @@ test('Takeout export cache reads current Domain and cannot republish old metadat
     const env = indexStorage();
     try {
         const cached = await storage.ingestConversation('u0', parsed(), [], 'takeout');
-        const fresh = parsed(); fresh.sourceVersion = 200; fresh.conversation.title = 'New title';
-        fresh.conversation.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'New body' }] }];
+        const fresh = parsed(); fresh.sourceVersion = 200; fresh.conversation.index.updatedAt = 200; fresh.conversation.index.title = 'New title';
+        fresh.conversation.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'New body' }] }];
         await storage.ingestConversation('u0', fresh);
         const writes = env.writes();
         const takeout = { getTakeoutOfflineChat: () => cached };
         const resolved = await resolveChat({ error: 'offline' }, { id: 'chat' }, null, takeout);
         assert.equal(resolved.isError, false);
         if (!resolved.isError) {
-            assert.equal(resolved.chat.conversation.title, 'New title');
-            assert.match(JSON.stringify(resolved.chat.conversation.messages), /New body/);
+            assert.equal(resolved.chat.conversation.index.title, 'New title');
+            assert.match(JSON.stringify(resolved.chat.conversation.detail.messages), /New body/);
             assert.equal(resolved.chat.sourceVersion, 200);
         }
         assert.equal(env.writes(), writes);

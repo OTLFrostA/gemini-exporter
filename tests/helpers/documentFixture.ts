@@ -6,8 +6,8 @@ import { composeDomainDocument } from '../../src/core/document/compose/composeDo
 import { prepareDomainResources } from '../../src/core/export/assets/prepareDomainResources.js';
 
 /** Exercise the public semantic and resource boundaries independently. */
-export async function composeFixture(domain: DomainConversationDetail, resourceHints: LegacyResourceHints = {}, sourceVersion?: number) {
-    return { ...composeDomainDocument(validateParserDomain(domain), { sourceVersion }), resources: await prepareDomainResources(await fixtureResourceResults(domain, resourceHints)) };
+export async function composeFixture(domain: DomainConversationWithDetail, resourceHints: LegacyResourceHints = {}, sourceVersion?: number) {
+    return { ...composeDomainDocument(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } })), resources: await prepareDomainResources(await fixtureResourceResults(domain, resourceHints)) };
 }
 
 import type { ConversationRecordInput } from '../../src/core/parsers/legacyStorage/conversationRecord.js';
@@ -20,15 +20,15 @@ export async function parseFixture(raw: ConversationRecordInput) {
 }
 
 import type { LegacyResourceHints } from '../../src/core/parsers/shared/resources/resourceHints.js';
-import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../../src/core/domain/conversation.js';
 import { normalizeArchiveResourceName } from '../../src/core/export/assets/archivePath.js';
 import { decodeDataUrlAsset, buildDataUrlStorageRef, sha256Hex } from '../../src/core/export/assets/index.js';
 import type { ResourceBindings } from '../../src/core/document/ast/ast.js';
 
 /** Resource preparation is a side channel; never replace Domain identities with export identities. */
-async function fixtureBindings(conversation: DomainConversationDetail, hints: LegacyResourceHints = {}): Promise<ResourceBindings> {
+async function fixtureBindings(conversation: DomainConversationWithDetail, hints: LegacyResourceHints = {}): Promise<ResourceBindings> {
     const bindings: Record<string, string> = {};
-    for (const asset of conversation.assets) {
+    for (const asset of conversation.detail.assets) {
         const path = hints[asset.id]?.archivePath;
         if (path) {
             bindings[asset.id] = normalizeArchiveResourceName(path);
@@ -53,6 +53,6 @@ async function fixtureBindings(conversation: DomainConversationDetail, hints: Le
 }
 
 /** Renderer fixtures declare available resources; production receipts come from actual writes. */
-export async function fixtureResourceResults(domain: DomainConversationDetail, hints: LegacyResourceHints = {}) {
+export async function fixtureResourceResults(domain: DomainConversationWithDetail, hints: LegacyResourceHints = {}) {
     return Object.entries(await fixtureBindings(domain, hints)).map(([resourceId, path]) => ({ ok: true as const, resourceId, value: { path } }));
 }

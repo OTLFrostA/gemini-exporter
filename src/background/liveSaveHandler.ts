@@ -112,7 +112,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         // Shared live-save writer: filename format + markdown formatting + write.
         // Serialized through withLiveSaveLock per file to prevent concurrent createWritable
         // collisions (NoModificationAllowedError) when multiple tabs write simultaneously.
-        const fileLockKey = String(fileName || nid || safeTitle || chat.conversation.id || 'live_save');
+        const fileLockKey = String(fileName || nid || safeTitle || chat.conversation.index.id || 'live_save');
 
         const { targetFile, failedAssets } = await withLiveSaveLock(fileLockKey, async () => {
             const writer = await createLiveSaveWriter(handle);
@@ -153,7 +153,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                             const safeSubDir = sanitizeRelativePath(asset.subDir || 'assets', 'assets');
                             const safeAssetFileName = sanitizeFileName(asset.fileName, 'attachment');
                             const written = await writer.writeFile(safeSubDir, safeAssetFileName, fileData);
-                            if (asset.assetId && chat.conversation.assets.some((item: { id: string }) => item.id === asset.assetId)) {
+                            if (asset.assetId && chat.conversation.detail.assets.some((item: { id: string }) => item.id === asset.assetId)) {
                                 resourceResults.push({ ok: true, resourceId: asset.assetId, value: { path: typeof written === 'string' && written ? written : `${safeSubDir}/${safeAssetFileName}` } });
                             }
                         } catch (assetErr) {
@@ -193,7 +193,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
                     exportedAt: now,
                     failedAssets,
                     titleCandidate: safeTitle,
-                    messageCount: chat.conversation.messages.length,
+                    messageCount: chat.conversation.detail.messages.length,
                     chatTime: chat.sourceVersion
                 }
             );

@@ -18,7 +18,7 @@ import { historicalFixture } from '../../tests/helpers/nativeFixture.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../../src/core/domain/conversation.js';
 import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
 import { convertMathWithMitex, initMitexWasm } from '../../src/core/renderers/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
@@ -228,7 +228,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 });
             }
 
-            const msg = baseRes?.conversation?.messages?.[0];
+            const msg = baseRes?.conversation?.detail.messages?.[0];
             for (const block of msg?.content || []) {
                 report.markdown.baseline.blockDistribution[block.type] =
                     (report.markdown.baseline.blockDistribution[block.type] || 0) + 1;
@@ -259,7 +259,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                     });
                 }
 
-                const msg = candRes?.conversation?.messages?.[0];
+                const msg = candRes?.conversation?.detail.messages?.[0];
                 for (const block of msg?.content || []) {
                     report.markdown.candidate!.blockDistribution[block.type] =
                         (report.markdown.candidate!.blockDistribution[block.type] || 0) + 1;
@@ -281,7 +281,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
         // 1c. Differential comparison if candidate parser was active
         if (activeCandidateParser) {
             if (baseRes && candRes) {
-                const diff = compareMarkdownAst(doc.text, baseRes.conversation.messages[0]?.content ?? [], candRes.conversation.messages[0]?.content ?? []);
+                const diff = compareMarkdownAst(doc.text, baseRes.conversation.detail.messages[0]?.content ?? [], candRes.conversation.detail.messages[0]?.content ?? []);
                 if (diff.hasDiff) {
                     report.markdown.diffCount += 1;
                     if (diff.category) {
@@ -476,13 +476,13 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const domain: DomainConversationDetail = {
+                    const domain: DomainConversationWithDetail = { index: { titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
                         providerId: 'gemini', id: 'corpus-math-baseline-compile-gate',
-                        title: 'Corpus Math Baseline Compile Gate', timestamp: Date.parse('2026-09-28T00:00:00Z'),
+                        title: 'Corpus Math Baseline Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { completeness: 'unknown',
                         assets: [], messages: [{ id: 'm1', role: 'assistant',
                             content: baselineSuccessful.map(e => ({ type: 'math', source: e.latex })),
                         }],
-                    };
+                    } };
                     // Direct lookup of the cached exact Typst output from conversion phase:
                     const baseTypstMap = new Map<string, string>();
                     for (const e of baselineSuccessful) {
@@ -522,13 +522,13 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const domain: DomainConversationDetail = {
+                    const domain: DomainConversationWithDetail = { index: { titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
                         providerId: 'gemini', id: 'corpus-math-candidate-compile-gate',
-                        title: 'Corpus Math Candidate Compile Gate', timestamp: Date.parse('2026-09-28T00:00:00Z'),
+                        title: 'Corpus Math Candidate Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { completeness: 'unknown',
                         assets: [], messages: [{ id: 'm1', role: 'assistant',
                             content: candidateSuccessful.map(e => ({ type: 'math', source: e.latex })),
                         }],
-                    };
+                    } };
                     // Direct lookup of the cached exact Typst output from conversion phase:
                     const candTypstMap = new Map<string, string>();
                     for (const e of candidateSuccessful) {

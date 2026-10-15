@@ -34,7 +34,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     // 1. Direct TabService success
     const mockDirectTabService = {
         sendToGeminiTab: async () => ({
-            success: true, domainEnvelopeVersion: 2,
+            success: true, domainEnvelopeVersion: 3,
             data: historicalFixture({ id: 'chat_direct_1', title: 'Direct Tab Chat', messages: [] })
         })
     };
@@ -55,7 +55,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { tabService: mockDirectTabService, messageSender: mockRuntimeSender }
     );
     assert.equal(directResult.success, true);
-    assert.equal(directResult.results?.[0]?.conversation?.title, 'Direct Tab Chat');
+    assert.equal(directResult.results?.[0]?.conversation?.index.title, 'Direct Tab Chat');
     assert.equal(runtimeCalled, false, 'Runtime sender must not be called when direct transport succeeds');
 
     // 2. Explicit direct error: must return error directly and NOT fall back to runtime sender
@@ -109,7 +109,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     const mockFallbackSender = (msg: unknown, callback?: (res: unknown) => void) => {
         remotePayload = msg;
         callback?.({
-            success: true, domainEnvelopeVersion: 2,
+            success: true, domainEnvelopeVersion: 3,
             results: [historicalFixture({ id: 'chat_remote_1', title: 'Remote Fallback Chat', messages: [] })]
         });
     };
@@ -124,7 +124,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { tabService: mockFailingTabService, messageSender: mockFallbackSender }
     );
     assert.equal(fallbackResult.success, true);
-    assert.equal(fallbackResult.results?.[0]?.conversation?.title, 'Remote Fallback Chat');
+    assert.equal(fallbackResult.results?.[0]?.conversation?.index.title, 'Remote Fallback Chat');
     assert.ok(remotePayload, 'Fallback sender must be invoked');
 });
 
@@ -179,7 +179,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
 test('C1 review: malformed raw replies are reportable failures rather than native results', async () => {
     const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
     const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 2, data: payload }) }
+        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 3, data: payload }) }
     });
     assert.equal(direct.success, false);
     assert.equal(direct.results, undefined);
@@ -206,8 +206,8 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
     await catalogStorage.setNativeConversations(slot, [stored]);
     try {
         const recovered = await resolveConversationData({ error: 'offline' }, id, null, null, slot);
-        assert.deepEqual(recovered.result.conversation.messages, stored.conversation.messages);
-        assert.equal(recovered.result.conversation.title, stored.conversation.title);
+        assert.deepEqual(recovered.result.conversation.detail.messages, stored.conversation.detail.messages);
+        assert.equal(recovered.result.conversation.index.title, stored.conversation.index.title);
         const rejected = await resolveChat({ id, messages: [{ role: 'model', content: 'legacy runtime' }] }, { id: 'unmigrated' }, null, null, slot);
         assert.equal(rejected.isError, true); assert.equal(rejected.chat, undefined);
     } finally { __clearDomainMemory(); }
@@ -217,9 +217,9 @@ test('native resolver retains unknown source blocks and arbitrates titles withou
     const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
     const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
     const resolved = await resolveChat(native, { id: 'native-title' }, list);
-    assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.title, 'RPC title');
-    assert.deepEqual(resolved.chat.conversation.messages, native.conversation.messages);
-    assert.equal(resolved.chat.conversation.messages[0].role, 'unknown');
+    assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.index.title, 'RPC title');
+    assert.deepEqual(resolved.chat.conversation.detail.messages, native.conversation.detail.messages);
+    assert.equal(resolved.chat.conversation.detail.messages[0].role, 'unknown');
     const deleted = await resolveChat({ id: 'deleted-native', error: 'Conversation not found', isDeleted: true }, { id: 'deleted-native' });
     assert.equal(deleted.isConfirmedDeleted, true); assert.equal(deleted.chat, undefined);
 });

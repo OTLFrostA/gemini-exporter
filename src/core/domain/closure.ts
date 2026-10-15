@@ -3,9 +3,6 @@ import { mapContentAssetReferences } from './content/assetReferences.js';
 
 /** Domain is a closed, JSON-portable semantic graph; invalid references never reach exporters. */
 export function assertDomainClosure(conversation: DomainConversationDetail): void {
-    if (typeof conversation.providerId !== 'string' || !conversation.providerId.trim()) {
-        throw new TypeError('Domain providerId must be a non-empty string');
-    }
     if (!['complete', 'partial', 'unknown'].includes(conversation.completeness)) throw new TypeError('Invalid Domain completeness');
     const assets = new Set<string>();
     for (const asset of conversation.assets) {

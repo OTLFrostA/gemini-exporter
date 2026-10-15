@@ -318,5 +318,5 @@ test('messageBridge normalizes detail conversation id before persisting to Domai
     });
     const stored = await getStoredDomain(storageIdentity('gemini', 'u0', '1bd028d5c5b0c0e2'));
     assert.ok(stored);
-    assert.strictEqual(stored.conversation.id, '1bd028d5c5b0c0e2');
+    assert.strictEqual(stored.conversation.index.id, '1bd028d5c5b0c0e2');
 });

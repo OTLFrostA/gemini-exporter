@@ -82,7 +82,7 @@ function fakeConvertMath(source: string, _display: boolean): string | undefined 
 }
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return { providerId: 'gemini', id: 'c1', title: 'P0 门禁回归', timestamp: null, createdAt: '2026-09-26T10:00:00Z', assets, messages: messages };
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'P0 门禁回归', createdAt: '2026-09-26T10:00:00Z' }, detail: { completeness: 'unknown', assets, messages: messages } };
 }
 
 function msg(id: string, role: string, blocks: any[]) {
@@ -251,15 +251,15 @@ test('P0 gate (c): unconvertible formula degrades to visible source fallback, ne
 
 test('P0 gate (c2): formula node count reconciles against bundle input (no silent loss)', () => {
     const b = gatesBundle();
-    const inputMathCount = b.messages
+    const inputMathCount = b.detail.messages
         .flatMap((m: any) => m.content)
         .filter((blk: any) => blk.type === 'math').length
-        + b.messages
+        + b.detail.messages
             .flatMap((m: any) => m.content)
             .flatMap((blk: any) => blk.children ?? [])
             .filter((n: any) => n.type === 'inlineMath').length;
     assert.strictEqual(inputMathCount, 3);
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     assert.strictEqual(collectMathNodes(payload).length, inputMathCount,
         'payload math node count must equal bundle math node count');
 });

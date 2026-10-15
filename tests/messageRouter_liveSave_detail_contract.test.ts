@@ -52,19 +52,19 @@ async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail |
     }
 }
 const dom: DomDetail = { ...historicalFixture({ id: 'detail123', title: 'DOM title', titleSource: 'dom', messages: [{ role: 'user', content: 'DOM' }] }), transport: { nodeCount: 1, htmlLen: 42, fallbackUsed: null } };
-const emptyDom: DomDetail = { ...dom, conversation: { ...dom.conversation, messages: [] } };
+const emptyDom: DomDetail = { ...dom, conversation: { index: { ...dom.conversation.index }, detail: { ...dom.conversation.detail, messages: [] } } };
 
 test('messageRouter: provider success preserves all companion and multimodal evidence', async () => withProvider(async set => {
     const payload = detail(); set(async () => payload);
     const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute');
-    assert.deepEqual(('conversation' in result.data && result.data.conversation.messages), payload.conversation.messages);
+    assert.deepEqual(('conversation' in result.data && result.data.conversation.detail.messages), payload.conversation.detail.messages);
     assert.deepEqual('transport' in result.data && result.data.transport, payload.transport);
     assert.equal(removed, '');
 }));
 
 test('messageRouter: empty RPC retains raw previews and DOM debug without pruning', async () => withProvider(async set => {
-    const payload = detail(); payload.conversation.messages = []; set(async () => payload);
+    const payload = detail(); payload.conversation.detail.messages = []; set(async () => payload);
     const { result, removed } = await route(emptyDom);
     assert.ok(result.success && result.source === 'dom' && '_empty' in result.data);
     const debug = result.data._debug; assert.ok(debug && 'batchexecuteEmptyDebug' in debug);
@@ -76,7 +76,7 @@ test('messageRouter: empty RPC retains raw previews and DOM debug without prunin
 test('messageRouter: provider failure permits valid DOM fallback; 404 only marks confirmed cloud deletion', async () => withProvider(async set => {
     set(async () => { throw new Error('temporary failure'); });
     const success = await route(dom);
-    assert.ok(success.result.success && success.result.source === 'dom'); assert.deepEqual('conversation' in success.result.data && success.result.data.conversation.messages, dom.conversation.messages);
+    assert.ok(success.result.success && success.result.source === 'dom'); assert.deepEqual('conversation' in success.result.data && success.result.data.conversation.detail.messages, dom.conversation.detail.messages);
     assert.equal(success.removed, '');
     const deleted = await route({ id: 'detail123', isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
     assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
@@ -112,12 +112,12 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         set(async () => { if (injected) throw new Error('provider must not run'); return payload; });
         class Client { async getConversationDetail(id: string) { calledId = id; return payload; } }
         initLive(injected ? { clientClass: Client } : {});
-        const before = structuredClone(payload.conversation.messages);
+        const before = structuredClone(payload.conversation.detail.messages);
         const resolved = await resolveConversationDetail('c_detail123');
-        assert.notEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
+        assert.notEqual(resolved, payload); assert.deepEqual(resolved?.conversation.detail.messages, before);
         assert.equal(Object.hasOwn(resolved!.conversation, 'chatTime'), false);
-        assert.equal(resolved?.sourceVersion, undefined); assert.equal(resolved?.conversation.createdAt, undefined);
-        assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
+        assert.equal(resolved?.sourceVersion, undefined); assert.equal(resolved?.conversation.index.createdAt, undefined);
+        assert.equal(resolved?.conversation.index.titleSource, 'rpc'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
         if (injected) assert.equal(calledId, 'detail123');
     }
     const existing = detail(); existing.sourceVersion = 1500000000000;
@@ -127,12 +127,12 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
 }));
 
 test('liveSave: empty/failed provider and failed injected client still permit DOM acquisition', async () => withProvider(async set => {
-    const empty = detail(); empty.conversation.messages = [];
+    const empty = detail(); empty.conversation.detail.messages = [];
     for (const mode of ['empty', 'failed', 'injected']) {
         set(async () => { if (mode === 'empty') return empty; throw new Error('failure'); });
         class Client { async getConversationDetail(): Promise<GeminiProviderConversationDetail> { throw new Error('injected failure'); } }
         initLive({ scraper: { ...DomScraper, parseDoc: () => dom }, ...(mode === 'injected' ? { clientClass: Client } : {}) });
-        assert.deepEqual((await resolveConversationDetail('detail123'))?.conversation.messages, dom.conversation.messages);
+        assert.deepEqual((await resolveConversationDetail('detail123'))?.conversation.detail.messages, dom.conversation.detail.messages);
     }
 }));
 

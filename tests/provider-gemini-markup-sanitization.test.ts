@@ -48,15 +48,8 @@ test('Gemini interactive markup is removed by provider content adapter before Do
         '思考过程：\n<Elicitation label="内部测试"/>\n分析比特与量子比特。',
         { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'messages[0].reasoning' } },
     );
-    const domain = validateParserDomain({
-        id: 'gemini_markup_test_chat',
-        providerId: 'gemini',
-        completeness: 'unknown',
-        title: 'Structured Markup Sanitization Test',
-        assets: [],
-        messages: [{ id: 'm1', role: 'assistant', content: parseGeminiBody(rawContent), reasoning }],
-    });
-    const msg = domain.messages[0];
+    const domain = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: 'gemini_markup_test_chat', providerId: 'gemini', title: 'Structured Markup Sanitization Test' }, detail: { completeness: 'unknown', assets: [], messages: [{ id: 'm1', role: 'assistant', content: parseGeminiBody(rawContent), reasoning }] } });
+    const msg = domain.detail.messages[0];
     assert.ok(msg.reasoning?.length, 'authored reasoning must remain visible');
     assert.ok(JSON.stringify(msg.reasoning).includes('分析比特与量子比特'));
 

@@ -6,13 +6,13 @@ import { contentComposer } from './composeContent.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { DocumentAst } from '../ast/ast.js';
 
-export interface DomainCompositionOptions { documentLanguage?: string; sourceVersion?: number }
+export interface DomainCompositionOptions { documentLanguage?: string }
 
 /** Domain facts -> one format-neutral presentation tree. No resource acquisition or raw parsing. */
 export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: Diagnostic[] } {
-    const assets = new Map(conversation.assets.map(asset => [asset.id, asset]));
+    const assets = new Map(conversation.detail.assets.map(asset => [asset.id, asset]));
     let citationNumber = 0;
-    const messages = conversation.messages.map((message, index) => {
+    const messages = conversation.detail.messages.map((message, index) => {
         const id = `msg-${index}`;
         const citations = new Map((message.citations ?? []).map(citation => [citation.id, { ...citation, displayNumber: ++citationNumber }]));
         const source = (ref: string, explicit?: string) => {
@@ -35,15 +35,15 @@ export function composeDomainDocument(conversation: TrustedDomain, options: Doma
             ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map(ref => ({ ...source(ref), ...(citations.get(ref)?.title ? { label: citations.get(ref)!.title! } : {}), number: citations.get(ref)!.displayNumber })) } } : {}),
         };
     });
-    const date = selectDisplayDate(options.sourceVersion, conversation.createdAt);
+    const date = selectDisplayDate(conversation.index.updatedAt, conversation.index.createdAt);
     return { document: {
         schemaVersion: 2,
-        metadata: { id: conversation.id, provider: conversation.providerId,
-            ...(conversation.url ? { url: conversation.url } : {}),
-            ...(toIso(conversation.createdAt) ? { createdAt: toIso(conversation.createdAt)! } : {}),
-            ...(toIso(options.sourceVersion) ? { updatedAt: toIso(options.sourceVersion)! } : {}) },
+        metadata: { id: conversation.index.id, provider: conversation.index.providerId,
+            ...(conversation.index.url ? { url: conversation.index.url } : {}),
+            ...(toIso(conversation.index.createdAt) ? { createdAt: toIso(conversation.index.createdAt)! } : {}),
+            ...(toIso(conversation.index.updatedAt) ? { updatedAt: toIso(conversation.index.updatedAt)! } : {}) },
         ...(options.documentLanguage ? { documentLanguage: options.documentLanguage } : {}),
-        header: { title: (conversation.title || 'Untitled conversation').replace(/[\r\n]+/g, ' ').trim(), providerLabel: conversation.providerId,
+        header: { title: (conversation.index.title || 'Untitled conversation').replace(/[\r\n]+/g, ' ').trim(), providerLabel: conversation.index.providerId,
             ...(date ? { date } : {}), messageCount: messages.length },
         messages,
     }, diagnostics: [] };

@@ -7,7 +7,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Fixture', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets, messages: messages });
+    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { completeness: 'unknown', assets, messages: messages } });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {
@@ -30,7 +30,7 @@ test('quote keeps nested image as a real image node', async () => {
             ],
         },
     ])], [imgAsset('a1')]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const quote = payload.messages[0].blocks[0] as any;
     assert.strictEqual(quote.type, 'quote');
     assert.strictEqual(quote.blocks.length, 2);
@@ -45,7 +45,7 @@ test('thought keeps nested image as a real image node', async () => {
         { type: 'paragraph', children: [{ type: 'text', text: 'thinking' }] },
         { type: 'image', assetId: 'a1', alt: 'pic' },
     ] })], [imgAsset('a1')]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const note = payload.messages[0].blocks[0] as any;
     assert.strictEqual(note.type, 'note');
     assert.strictEqual(note.blocks.length, 2);
@@ -63,7 +63,7 @@ test('quote keeps code and math as structured nodes instead of flat text', async
             ],
         },
     ])]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const quote = payload.messages[0].blocks[0] as any;
     assert.strictEqual(quote.blocks[0].type, 'code');
     assert.strictEqual(quote.blocks[0].text, 'print(1)');
@@ -73,7 +73,7 @@ test('quote keeps code and math as structured nodes instead of flat text', async
 
 test('thought keeps code as a structured node instead of flat text', async () => {
     const b = domainFixture([msg('m1', 'assistant', [], { reasoning: [{ type: 'code', language: 'ts', code: 'const x = 1' }] })]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     const note = payload.messages[0].blocks[0] as any;
     assert.strictEqual(note.blocks[0].type, 'code');
     assert.strictEqual(note.blocks[0].text, 'const x = 1');
@@ -87,7 +87,7 @@ test('strikethrough is transported natively without a warning', async () => {
     const b = domainFixture([msg('m1', 'user', [
         { type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'text', text: 'gone' }] }] },
     ])]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_STRIKETHROUGH_DROPPED'));
     const node = (payload.messages[0].blocks[0] as any).children[0];
     assert.strictEqual(node.type, 'strikethrough');

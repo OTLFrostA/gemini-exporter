@@ -1,5 +1,6 @@
+import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import type { ConversationParseContext } from '../../contracts.js';
-import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
+import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
 import { parseDomContent } from './content.js';
@@ -82,10 +83,12 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
     const resources = closeDomainResources('gemini', messages, groups, { sourceReferences: true });
     const title = (doc.title ?? doc.querySelector('title')?.textContent ?? '').trim().replace(/\s*[-–|]\s*(?:Google\s+)?Gemini$/i, '').trim();
     const authoredTitle = title && !/^(?:Google\s+)?(?:Gemini|Bard)$/i.test(title);
-    const conversation: DomainConversationDetail = { providerId: 'gemini', id, title: authoredTitle ? title : id,
-        titleSource: authoredTitle ? 'dom' : 'default',
-        completeness: 'partial',
-        url: raw.url ?? `https://gemini.google.com/app/${id}`, messages: resources.messages, assets: resources.assets };
+    const conversation = {
+        index: parseIndexMetadata({ providerId: 'gemini', id, title: authoredTitle ? title : '',
+            titleSource: authoredTitle ? 'dom' : 'default', messageCount: resources.messages.length,
+            url: raw.url ?? `https://gemini.google.com/app/${id}` }),
+        detail: { completeness: 'partial' as const, messages: resources.messages, assets: resources.assets },
+    };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics,
         transport: { fallbackUsed, nodeCount: nodes.length, htmlLen: doc.documentElement?.outerHTML?.length ?? 0 } };

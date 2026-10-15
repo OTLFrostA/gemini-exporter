@@ -6,7 +6,7 @@ const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return { providerId: 'gemini', id: 'c1', title: 't', timestamp: null, assets, messages };
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 't' }, detail: { completeness: 'unknown', assets, messages } };
 }
 
 function msg(blocks: any[]) {

@@ -8,17 +8,15 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async (cachedPngBase64: string) => {
-        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_tour_completed: true,
+        await chrome.storage.local.set({ gemini_schema_version: 3, gemini_tour_completed: true,
             gemini_conversations: ([
                 { id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000, cloudAvailability: 'deleted' },
                 { id: 'metadata_only', title: 'Title without body', timestamp: 1, cloudAvailability: 'deleted' }
             ]).map(canonicalIndexFixture), exportedIds: { archive_local: { status: 'ok', exportedAt: 1700000000000, format: 'markdown', title: 'Retained local archive', messageCount: 2 } } });
-        const native = { sourceVersion: 1700000000000, conversation: { providerId: 'gemini', id: 'archive_local', title: 'Retained local archive', completeness: 'unknown',
-            assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }],
-            messages: [
+        const native = { sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'archive_local', title: 'Retained local archive' }, detail: { completeness: 'unknown', assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }], messages: [
                 { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local question' }] }] },
                 { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local answer' }, { type: 'image', assetId: 'img' }] }], attachmentIds: ['img'] }
-            ] }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] };
+            ] } }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] };
         const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountSlot: 'u0', parsed: native,
             resources: [{ assetId: 'img', bytes: cachedPngBase64 }] } });
         if (!saved.ok) throw new Error(saved.error);
@@ -50,7 +48,7 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
     const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Delete local records|删除本地记录/ });
     page.once('dialog', dialog => dialog.dismiss()); await cleanup.click();
     const before = await page.evaluate(async () => chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountSlot: 'u0', conversationId: 'archive_local' } } }));
-    expect(before.value.conversation.messages).toHaveLength(2);
+    expect(before.value.conversation.detail.messages).toHaveLength(2);
     page.once('dialog', dialog => dialog.accept()); await cleanup.click();
     await expect(page.locator('#list .item')).toHaveCount(0);
     const after = await page.evaluate(async () => ({

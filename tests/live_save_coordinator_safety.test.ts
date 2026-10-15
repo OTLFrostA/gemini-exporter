@@ -38,8 +38,8 @@ test('B3 Safety 1: RPC/provider success beats DOM scraper', async () => {
 
     const detail = await LiveSaveCoordinator.resolveConversationDetail('c_rpc_beats_dom');
     assert.ok(detail);
-    assert.strictEqual(detail.conversation.title, 'RPC Authority Title');
-    assert.deepStrictEqual(detail.conversation.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'from RPC' }] }]);
+    assert.strictEqual(detail.conversation.index.title, 'RPC Authority Title');
+    assert.deepStrictEqual(detail.conversation.detail.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'from RPC' }] }]);
     assert.strictEqual(scraperCalled, false, 'DOM scraper must not be called when RPC detail succeeds');
 });
 
@@ -68,8 +68,8 @@ test('B3 Safety 2: RPC empty/failure falls back to DOM scraper', async () => {
 
     const detail = await LiveSaveCoordinator.resolveConversationDetail('c_fallback_test');
     assert.ok(detail);
-    assert.strictEqual(detail.conversation.title, 'DOM Fallback Title');
-    assert.deepStrictEqual(detail.conversation.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'from DOM fallback' }] }]);
+    assert.strictEqual(detail.conversation.index.title, 'DOM Fallback Title');
+    assert.deepStrictEqual(detail.conversation.detail.messages[0].content, [{ type: 'paragraph', children: [{ type: 'text', text: 'from DOM fallback' }] }]);
     assert.strictEqual(scraperCalled, true, 'DOM scraper must be called when RPC throws');
 
     // Also test RPC returning empty messages array
@@ -86,7 +86,7 @@ test('B3 Safety 2: RPC empty/failure falls back to DOM scraper', async () => {
 
     const detail2 = await LiveSaveCoordinator.resolveConversationDetail('c_empty_test');
     assert.ok(detail2);
-    assert.strictEqual(detail2.conversation.title, 'DOM Fallback Title');
+    assert.strictEqual(detail2.conversation.index.title, 'DOM Fallback Title');
     assert.strictEqual(scraperCalled, true, 'DOM scraper must be called when RPC returns 0 messages');
 });
 
@@ -409,7 +409,7 @@ test('B3 Safety 9: successful image save rewrites attachment/image/Markdown path
     assert.ok(writtenFile.startsWith('443322_'));
 
     const expectedLocal = `assets/${writtenFile}`;
-    assert.strictEqual(native.resourceHints[native.conversation.assets[0].id].archivePath, expectedLocal);
+    assert.strictEqual(native.resourceHints[native.conversation.detail.assets[0].id].archivePath, expectedLocal);
     assert.deepStrictEqual(native.conversation, before);
 });
 

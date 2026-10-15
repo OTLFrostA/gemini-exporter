@@ -24,15 +24,19 @@
 
 Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解耦为 **主世界网络嗅探层**、**隔离世界内容脚本层**、**后台服务工作线程 (Service Worker)**、**跨平台通用 Provider 与解析核心**、**领域导出/打包引擎**、**响应式持久化层** 以及 **用户界面展示层**。
 
-语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，旧磁盘格式解释仅属于 `parsers/legacyStorage/`，导入编排属于 `imports/`，离线资源缓存与获取辅助属于 `resources/`，问题记录属于 `diagnostics/`。已移除通用 `compatibility` 目录；存储与用户升级数据格式不变。
+语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，旧磁盘格式解释仅属于 `parsers/legacyStorage/`，导入编排属于 `imports/`，离线资源缓存与获取辅助属于 `resources/`，问题记录属于 `diagnostics/`。已移除通用 `compatibility` 目录；历史磁盘数据通过版本化 parser 升级。
 
 依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有 `legacyStorage` 迁移边界可调用历史 record 解码，运行时和导出直接消费原生 Domain 结果。具体目录见 [Source Directory Guide](../src/README.md)。
 
-旧索引的 `timestamp`、`chatTime`、`titles` 等别名只由 `parsers/legacyStorage/parseIndex.ts` 解释。当前 Gemini 元数据观测使用独立的 `parsers/gemini/parseIndexObservation.ts`，不读取旧字段；`storage/conversationIndexFromParsed.ts` 仅把已解析正文及采集版本投影为 Index，不再复用旧格式解析。
+旧索引的 `timestamp`、`chatTime`、`titles` 等别名只由 `parsers/legacyStorage/parseIndex.ts` 解释。当前 Gemini 元数据观测使用独立的 `parsers/gemini/parseIndexObservation.ts`，不读取旧字段；`storage/conversationIndexFromParsed.ts` 仅选取已解析的 Index 与正文消息数，不再复用旧格式解析。
 
 列表业务数据同样统一为 `DomainConversationIndex`：ChatGPT 列表字段由 `parsers/chatgpt/parseList.ts` 解释，Gemini RPC parser 输出独立的 `pageEvidence`（原始行有效性、官方排序键），DOM 列表与当前页标题由 `parsers/gemini/dom/parseIndex.ts` 解释。Provider 负责获取和分页调度，消费 parser 的明确结果；下游不得重新读取 `_raw` 来推断业务或扫描覆盖。
 
 外部正文统一通过 `StorageService.ingestConversation(slot, parsed, resources, source)` 接受：parser 负责来源解释，入库入口在现有会话锁内保存正文、合并完整 Index，并返回按权威 Index 投影的实际保留正文。RPC 拦截、主动拉取、DOM、Takeout、live-save 和导出采集共用这一入口。已有快照只从 scoped repository 读取，Index 不存在时不使用孤立正文。此锁不表示 Chrome Storage 与 IndexedDB 之间存在跨存储事务。
+
+会话统一使用 `{ index, detail }`：parser、持久化快照、repository 和 composer 共用同一个聚合结构。标题、URL、来源身份及创建/活动时间只属于 `index`；`detail` 只含 `completeness`、`assets` 和 `messages`。列表可以只有 Index，正文缺失与空正文有明确区别。Repository 返回目录中的权威 Index，快照中的 Index 是当次观测，不能覆盖后续改名或云端状态。列表 parser 返回 Index 正是该聚合的目录部分。
+
+`sourceVersion` 是随正文捕获的来源活动版本，持久化为包络中的 `savedAt`；后续 Index 可以更新而保留较早正文及其版本。文档元数据从权威 Index 生成。Domain、存储记录和原生传输包络升级为 v3；启动迁移通过 `parsers/legacyStorage/parseDomainSnapshotV2.ts` 转换旧平铺快照，在同一个 IndexedDB 事务中备份原记录并替换，保留附件字节、revision 和 savedAt。失败回滚并保留旧 schema 版本戳以供重试，读取不执行修复。JSON 原生归档也使用 v3 聚合结构。
 
 导出完成只写交付记录，不再创建会话或更新标题、时间和消息数。HTML、Markdown、Typst/PDF 的正文与文档元数据均由 Document AST 提供；Markdown frontmatter 所需身份与 ISO 日期在 composer 内进入 AST。JSON 保持 Domain 语义存档契约，不改成展示 AST。
 

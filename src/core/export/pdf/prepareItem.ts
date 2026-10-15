@@ -67,7 +67,7 @@ type PdfTakeoutEngine =
     | PdfTakeoutFallbackEngine;
 
 export function hasUsableMessages(value: NativeConversationInput): boolean {
-    return isResourceConversationParseResult(value) && value.conversation.messages.length > 0;
+    return isResourceConversationParseResult(value) && value.conversation.detail.messages.length > 0;
 }
 
 /** Only native details may cross the acquisition boundary. */
@@ -86,7 +86,7 @@ export async function resolveFullChatDetail(args: {
         if (!isObjectRecord(response) || !response.success) return { ok: false, error: isObjectRecord(response) && typeof response.error === 'string' ? response.error : 'Detail fetch failed' };
         const chat = extractChatFromDetailResult(response, args.id);
         if (!chat) return { ok: false, error: 'Detail acquisition did not return native Domain' };
-        args.onLog(`[PDF] ${args.title}: resolved ${chat.conversation.messages.length} messages`, 'info');
+        args.onLog(`[PDF] ${args.title}: resolved ${chat.conversation.detail.messages.length} messages`, 'info');
         return { ok: true, chat, source: 'source' in response && response.source === 'local-cache' ? 'local_snapshot' : 'online' };
     } catch (error) { return { ok: false, error: getErrorMessage(error) }; }
 }
@@ -203,18 +203,18 @@ async function prepareNativePdfItem(
 ): Promise<PreparedPdfItemResult> {
     const nativeSelected = typeof selectedItem === 'object' && selectedItem.conversation ? selectedItem : null;
     const source = nativeSelected?.conversation;
-    const rawId = source?.id ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
-    const id = source && source.providerId !== 'gemini' ? source.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');
+    const rawId = source?.index.id ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
+    const id = source && source.index.providerId !== 'gemini' ? source.index.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');
     const listItem = context.conversations?.find(item => normId(item.id) === id);
     const rawTitle = typeof selectedItem === 'object' && 'title' in selectedItem ? selectedItem.title : undefined;
-    let title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.title) || id;
+    let title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.index.title) || id;
     const signal = context.signal ?? new AbortController().signal;
     const onLog = context.onLog ?? (() => {});
     const currentSlot = context.currentSlot ?? 'u0';
     const diagnostics: RenderDiagnostic[] = [];
     let parsed = nativeSelected;
     let dataSource = context.source ?? 'unspecified';
-    if (!parsed?.conversation.messages.length && context.fetchChatDetail) {
+    if (!parsed?.conversation.detail.messages.length && context.fetchChatDetail) {
         const fetched = await resolveFullChatDetail({ id, title, index: context.index ?? 0, total: context.total ?? 1,
             currentSlot, skip: context.skip ?? false, signal, fetchChatDetail: context.fetchChatDetail, onLog });
         if (fetched.ok) { parsed = fetched.chat; dataSource = fetched.source; }
@@ -227,7 +227,7 @@ async function prepareNativePdfItem(
     if (resolved.isError) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] ${resolved.errMsg}`, diagnostics };
     parsed = resolved.chat;
     dataSource = resolved.source;
-    title = parsed.conversation.title;
+    title = parsed.conversation.index.title;
     const drift = extractChatParseDrift(parsed);
     const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
@@ -235,7 +235,7 @@ async function prepareNativePdfItem(
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);
-        const composed = composeDomainDocument(parsed.conversation, { sourceVersion: parsed.sourceVersion });
+        const composed = composeDomainDocument(parsed.conversation);
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
@@ -247,9 +247,9 @@ async function prepareNativePdfItem(
         ? { pipeline: null, maxRetries: undefined }
         : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
 
-    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.id, title };
+    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.index.id, title };
     const imageIds = collectDocumentResources(document).imageIds;
-    const prepared = await preparePdfResources(parsed.conversation, imageIds, parsed.acquisitionHints, {
+    const prepared = await preparePdfResources(parsed.conversation.detail, imageIds, parsed.acquisitionHints, {
         signal,
         acquire: pipeline ? (assetId, hint) => pipeline.acquireAssetBytes({ ...hint, assetId, localName: parsed.resourceHints[assetId]?.archivePath ?? hint.localName }, pipelineChat, {
             isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}),

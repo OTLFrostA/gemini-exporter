@@ -114,13 +114,13 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
         }),
         // 注入点：抓取完成、主 md 写入前 —— 用户点了取消
         resolveChat: async (chat: any, _requestedItem: any) => {
-            if (chat.conversation.id === 'chat-cancel-2') {
+            if (chat.conversation.index.id === 'chat-cancel-2') {
                 orchestrator.abort();
             }
             return {
                 chat,
-                listTitle: chat.conversation.title,
-                displayTitle: chat.conversation.title,
+                listTitle: chat.conversation.index.title,
+                displayTitle: chat.conversation.index.title,
                 isError: false,
                 source: 'online',
                 errMsg: null,

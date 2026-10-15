@@ -25,18 +25,18 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
             import { validateParserDomain,countSnapshots } from './src/core/domain/runtimeValidation.ts';
             export async function run() {
                 __clearDomainMemory();
-                const source={conversation:validateParserDomain({providerId:'gemini',id:'independent',title:'Original',completeness:'unknown',assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
+                const source={conversation:validateParserDomain({index:{providerId:'gemini',id:'independent',title:'Original',titleSource:'legacy',cloudAvailability:'unknown',hasTakeoutImport:false},detail:{completeness:'unknown',assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
                 await saveDomainConversation('u0',source);
                 const write=countSnapshots();
-                source.conversation.messages[0].content[0].children[0].text='Mutated source';
+                source.conversation.detail.messages[0].content[0].children[0].text='Mutated source';
                 const record=await getStoredDomain(storageIdentity('gemini','u0','independent'));
                 const read=countSnapshots();
                 const parsed=storedParseResult(record);
                 const adaptation=countSnapshots();
-                parsed.conversation.title='Changed';
-                const isolated=record.conversation.title;
+                parsed.conversation.index.title='Changed';
+                const isolated=record.conversation.index.title;
                 await saveDomainConversation('u0',parsed);
-                return {counts:[write,read,adaptation,countSnapshots()],isolated,body:record.conversation.messages[0].content[0].children[0].text};
+                return {counts:[write,read,adaptation,countSnapshots()],isolated,body:record.conversation.detail.messages[0].content[0].children[0].text};
             }` }, plugins: [{ name: 'test-only-storage-counter', setup(builder) {
                 builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents:
                     readFileSync(args.path, 'utf8').replace('export function restoreDomainSnapshot(value: unknown): TrustedDomain {',
@@ -49,9 +49,7 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
 
 test('one record copy isolates trusted graph, acquisition candidates and typed resource bytes', async () => {
     const identity = storageIdentity('gemini', 'u0', 'copy-case');
-    const conversation = validateParserDomain({ providerId: 'gemini', id: 'copy-case', title: 'Original', completeness: 'unknown',
-        messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }],
-        assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }] });
+    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'copy-case', title: 'Original' }, detail: { completeness: 'unknown', messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }], assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }] } });
     const original: import('../src/core/storage/domain/contracts.js').TrustedDomainStorageRecord = { key: domainStorageKey(identity), identity, conversation, origin: 'source' as const,
         storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, revision: 'copy',
         resources: [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]) }], acquisitionHints: { asset: { candidates: ['opaque:original'] } } };
@@ -70,9 +68,9 @@ test('one record copy isolates trusted graph, acquisition candidates and typed r
     let adapted: ReturnType<typeof storedParseResult>;
     try { adapted = storedParseResult(original); } finally { globalThis.structuredClone = clone; }
     assert.equal(calls, 1);
-    adapted.conversation.title = 'Changed';
+    adapted.conversation.index.title = 'Changed';
     adapted.acquisitionHints.asset.candidates![0] = 'changed';
-    assert.equal(original.conversation.title, 'Original');
+    assert.equal(original.conversation.index.title, 'Original');
     assert.equal(original.acquisitionHints.asset.candidates![0], 'opaque:original');
     original.resources[0].bytes[0] = 99;
     assert.ok(copiedBytes);

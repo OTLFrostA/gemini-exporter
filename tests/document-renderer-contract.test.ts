@@ -30,7 +30,7 @@ const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Contract', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] });
+    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Contract', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { completeness: 'unknown', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
 }
 
 const imgAsset = (id: string, name: string) => ({
@@ -45,8 +45,8 @@ const TYPST_OPTS = {};
 
 function renderBoth(blocks: any[], extra: any = {}) {
     const b = domainFixture(blocks, extra);
-    const { html, diagnostics: htmlDiags } = renderDocumentHtml(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: any) => [asset.id, `assets/${asset.id}`])), HTML_OPTS);
-    const { payload, diagnostics: typstDiags } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), TYPST_OPTS);
+    const { html, diagnostics: htmlDiags } = renderDocumentHtml(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}`])), HTML_OPTS);
+    const { payload, diagnostics: typstDiags } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), TYPST_OPTS);
     return { html: html as string, htmlDiags: htmlDiags as any[], payload: payload as any, typstDiags: typstDiags as any[] };
 }
 
@@ -268,7 +268,7 @@ test('inline HTML resource references are collected from the Document AST and us
     assert.deepEqual(result.diagnostics, []);
 });
 test('HTML renders all messages in authoritative source order', () => {
-    const domain = { providerId: 'gemini', id: 'order', title: 'Order', completeness: 'unknown', assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) };
+    const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'order', title: 'Order' }, detail: { completeness: 'unknown', assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) } };
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
     assert.ok(html.indexOf('second') < html.indexOf('first'));
 });
