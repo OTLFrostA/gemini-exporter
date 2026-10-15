@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -111,7 +112,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
                     async getAllConversations(opts) {
                         return getAllConversations({ async getConversationList(_token, _sid, filter) {
                             if (Array.isArray(filter) && filter[0] === 1) {
-                                return setup.pinnedPages?.[pinnedIndex++] ?? { conversations: [], nextPageToken: null };
+                                return setup.pinnedPages?.[pinnedIndex++] ?? listFixture();
                             }
                             assert.ok(index < setup.wirePages!.length, 'must stop at the actual terminal response');
                             return setup.wirePages![index++];
@@ -276,13 +277,13 @@ test('sync provider: empty complete account retains the existing conservative no
 
 test('sync safety: real pagination edge results pass through adapter without reconciling unseen history', async () => {
     const abort = new Error('request aborted'); abort.name = 'AbortError';
-    const malformed: ListParseResult = { conversations: [], nextPageToken: null, failure: 'invalid_response', _debug: { error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
+    const malformed: ListParseResult = { ...listFixture(), failure: 'invalid_response', pageEvidence: { valid: false, ordered: false, keys: [] }, _debug: { error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
     for (const edge of ['negative-budget', 'empty-no-inner', 'partial-no-inner', 'partial-abort'] as const) {
         let calls = 0;
         const actual = await getAllConversations({ async getConversationList() {
             if (edge === 'negative-budget') throw new Error('negative budget must not fetch');
             if (edge === 'empty-no-inner') return malformed;
-            if (calls++ === 0) return { conversations: ([item()]).map(indexFixture), nextPageToken: 'tC_more' };
+            if (calls++ === 0) return listFixture(([item()]).map(indexFixture), 'tC_more');
             if (edge === 'partial-abort') throw abort;
             return malformed;
         } }, { maxPages: edge === 'negative-budget' ? -1 : 4, incremental: true });
@@ -308,8 +309,8 @@ test('sync safety: real pagination edge results pass through adapter without rec
 
 test('sync safety: later pages with newer updates are saved even when the first page crosses the legacy checkpoint', async () => {
     const timed = (id: string, delta: number) => ({ ...item(id), timestamp: NOW + delta, updatedAt: NOW + delta });
-    const first = { conversations: ([timed('head120', 120), timed('head110', 110), timed('old090', 90)]).map(indexFixture), nextPageToken: 'tC_more' };
-    const later = { conversations: ([timed('late105', 105)]).map(indexFixture), nextPageToken: null };
+    const first = listFixture(([timed('head120', 120), timed('head110', 110), timed('old090', 90)]).map(indexFixture), 'tC_more');
+    const later = listFixture(([timed('late105', 105)]).map(indexFixture), null);
     const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, wirePages: [first, later] });
     assert.equal(result?.status, 'complete');
     assert.equal(result?.diagnostics.totalPagesFetched, 3);
@@ -318,11 +319,11 @@ test('sync safety: later pages with newer updates are saved even when the first 
 });
 
 test('sync safety: a limited first scan and retry never claim complete coverage', async () => {
-    const limited: ListParseResult = { conversations: [], nextPageToken: null, failure: 'hit_google_limit',
+    const limited: ListParseResult = { ...listFixture(), failure: 'hit_google_limit', pageEvidence: { valid: false, ordered: false, keys: [] },
         _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
     for (let attempt = 0; attempt < 2; attempt++) {
         const { result, trace, records } = await scan(page(), { wirePages: [
-            { conversations: ([item()]).map(indexFixture), nextPageToken: 'tC_limit' }, limited
+            listFixture(([item()]).map(indexFixture), 'tC_limit'), limited
         ] });
         assert.equal(result?.status, 'partial_limit');
         assert.equal(result?.diagnostics.totalPagesFetched, 3);
@@ -346,8 +347,8 @@ test('sync covers pinned-only chats and persists a later-page rename with an unc
     const pinned = { ...item('pinned_only'), timestamp: NOW - 10000, updatedAt: NOW - 10000 };
     const renamed = { ...item('chat_old'), title: 'Renamed on another device', titles: { rpc: 'Renamed on another device' },
         timestamp: NOW - 1000, updatedAt: NOW - 1000 };
-    const { result, records, trace } = await scan(page(), { pinnedPages: [{ conversations: ([pinned]).map(indexFixture), nextPageToken: null }],
-        wirePages: [{ conversations: ([item()]).map(indexFixture), nextPageToken: 'tC_old' }, { conversations: ([renamed]).map(indexFixture), nextPageToken: null }] });
+    const { result, records, trace } = await scan(page(), { pinnedPages: [listFixture(([pinned]).map(indexFixture), null)],
+        wirePages: [listFixture(([item()]).map(indexFixture), 'tC_old'), listFixture(([renamed]).map(indexFixture), null)] });
     assert.equal(result?.status, 'complete');
     assert.equal(result?.count, 3);
     assert.equal(result?.diagnostics.totalPagesFetched, 3);

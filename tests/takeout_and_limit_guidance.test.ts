@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -100,10 +101,7 @@ test('geminiClient - normal pagination to completion does not flag hitGoogleLimi
         for (let j = 0; j < 50; j++) {
             pageConvs.push({ id: `conv_${pageCount}_${j}`, title: `Title ${pageCount}_${j}` });
         }
-        return {
-            conversations: pageConvs,
-            nextPageToken: pageCount < 11 ? `token_page_${pageCount + 1}` : null
-        };
+        return listFixture(pageConvs.map(indexFixture), pageCount < 11 ? `token_page_${pageCount + 1}` : null);
     };
 
     const res = await client.getAllConversations({
@@ -124,10 +122,7 @@ test('geminiClient - error with 1096 or BardErrorInfo flags hitGoogleLimit', asy
         if (pageCount === 3) {
             throw new Error('rpc error: code = 1096, BardErrorInfo: cursor expired');
         }
-        return {
-            conversations: ([{ id: `conv_${pageCount}`, title: `Chat ${pageCount}` }]).map(indexFixture),
-            nextPageToken: `token_${pageCount + 1}`
-        };
+        return listFixture(([{ id: `conv_${pageCount}`, title: `Chat ${pageCount}` }]).map(indexFixture), `token_${pageCount + 1}`);
     };
 
     const res = await client.getAllConversations({

@@ -1,6 +1,7 @@
 import { ingestConversation } from '../core/storage/storageService.js';
-import { parseGeminiIndexObservation, type GeminiIndexObservationSource, type GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
-import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
+import { parseGeminiIndexObservation, type GeminiIndexObservationSource } from '../core/parsers/gemini/parseIndexObservation.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../core/domain/conversationIndex.js';
+import { parseGeminiDomIndex } from '../core/parsers/gemini/dom/parseIndex.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
 import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
@@ -20,8 +21,7 @@ import {
     resolveTitle,
     compareConversations,
     mergeConversation,
-    deduplicateConversations,
-    normalizeReliableTitleSource
+    deduplicateConversations
 } from '../core/utils/utils.js';
 import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
@@ -82,26 +82,8 @@ export async function refreshInitialBadge(): Promise<void> {
 
 export function extractActiveChatTitle(activeId: string): { title: string; source: string } | null {
     if (!activeId || typeof document === 'undefined') return null;
-    const titleEls = document.querySelectorAll('[data-test-id="conversation-title"], .conversation-title, h1, [class*="conversation-title"]');
-    for (const el of Array.from(titleEls)) {
-        const t = cleanTitle(el.textContent || '');
-        if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
-    }
-    const activeLink = document.querySelector(`a[href*="${activeId}"]`);
-    if (activeLink) {
-        const t = cleanTitle(activeLink.querySelector('.title, [class*="title"]')?.textContent || activeLink.textContent || '');
-        if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
-    }
-    if (document.title) {
-        const t = cleanTitle(document.title);
-        if (isRealTitle(t, activeId)) return { title: t, source: 'dom' };
-    }
-    const firstUserQuery = document.querySelector('user-query .query-text, user-query [data-test-id="query-text"], user-query p, user-query');
-    if (firstUserQuery) {
-        const t = cleanTitle((firstUserQuery.textContent || '').trim().slice(0, 60).replace(/\n+/g, ' '));
-        if (isRealTitle(t, activeId)) return { title: t, source: 'sniff' };
-    }
-    return null;
+    const index = parseGeminiDomIndex(document, activeId);
+    return index.title ? { title: index.title, source: index.titleSource } : null;
 }
 
 const __fetchingDetailMap = new Map<string, number>();
@@ -176,34 +158,12 @@ export async function touchActiveConversation(
     pruneLastTouchedMap(now);
 
     const targetSlot = slot || getAccountSlot();
-    const activeTitleObj = extractActiveChatTitle(nid);
-
-    // SSOT timestamp authority: conversation metadata times are server-authoritative and
-    // are only ever written from source-authored conversation metadata.
-    // A touch must NOT stamp the client clock here: merge is Math.max-monotonic, so a client-ahead clock
-    // would permanently poison the record and no later server timestamp could
-    // repair it. Touch updates tie order only (sidebarIndex);
-    // the next list sync brings the real server timestamp.
-    const item: GeminiIndexObservationInput = {
-        id: nid,
-        url: `https://gemini.google.com/app/${nid}`,
-        sidebarIndex: 0
-    };
-
-    if (activeTitleObj && activeTitleObj.title && isRealTitle(activeTitleObj.title, nid)) {
-        const cleanT = cleanTitle(activeTitleObj.title);
-        const sourceTier = normalizeReliableTitleSource(activeTitleObj.source) || 'dom';
-        item.title = cleanT;
-        item.titleSource = sourceTier;
-    }
-
-    if (typeof document !== 'undefined') {
-        const count = document.querySelectorAll('user-query, model-response').length;
-        if (count > 0) item.messageCount = count;
-    }
+    const item = parseGeminiDomIndex(typeof document === 'undefined' ? null : document, nid);
 
     const source = options?.source || 'stream-complete';
-    const res = await upsertConversations([item], source, options?.forceWrite ?? true, targetSlot);
+    // Touch changes local tie order only; no local clock or UI hint enters Domain.
+    const receipt = await persistConversationBatch([item], source, options?.forceWrite ?? true, targetSlot, now, [nid]);
+    const res = receipt.count;
 
     if (source === 'stream-complete' || source === 'live-turn-complete') {
         scheduleActiveChatDetailFetch(nid, { force: true });
@@ -252,7 +212,7 @@ export async function ingestPageObservation(page: PageObservation<GeminiProvider
     return receipt;
 }
 
-function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now()): Promise<RpcListIngestResult> {
+function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now(), localTouches: readonly string[] = []): Promise<RpcListIngestResult> {
     if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
@@ -262,10 +222,14 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
     const kind: GeminiIndexObservationSource = source === 'network-list' || source === 'batchexecute' ? 'rpc-list'
         : source.includes('detail') ? 'detail' : 'dom';
     const validIncoming: DomainConversationIndex[] = [];
-    const touched = new Set<string>();
+    const touched = new Set(localTouches);
     for (const item of incomingItems) {
         try {
-            const index = parseGeminiIndexObservation(item, kind);
+            const index = item && typeof item === 'object' && 'providerId' in item
+                ? restoreConversationIndex(item) : parseGeminiIndexObservation(item, kind);
+            // Validate canonical identity without reparsing or rewriting the Domain fields.
+            if (index.providerId !== 'gemini' || index.id !== normId(index.id)
+                || index.id === 'unknown' || isReservedRoute(index.id)) throw new TypeError('Invalid canonical Gemini identity');
             validIncoming.push(index);
             if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.id);
         }
@@ -366,18 +330,11 @@ export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
     try {
-        const items: GeminiIndexObservationInput[] = [];
+        const items: DomainConversationIndex[] = [];
         const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
         if (activeId) {
-            const activeTitleObj = extractActiveChatTitle(activeId);
-            if (activeTitleObj && activeTitleObj.title) {
-                items.push({
-                    id: activeId,
-                    title: activeTitleObj.title,
-                    titleSource: activeTitleObj.source,
-                    url: `https://gemini.google.com/app/${activeId}`,
-                });
-            }
+            const index = parseGeminiDomIndex(typeof document === 'undefined' ? null : document, activeId);
+            if (index.title) items.push(index);
         }
 
         const Scraper = getScraper();

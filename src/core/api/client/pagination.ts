@@ -298,7 +298,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                     }
                 }
             }
-            if (res._raw !== undefined && !geminiListObservation(res, { streamId: listKind, requestCursor: token }, null).valid) {
+            if (!res.pageEvidence.valid && (res.conversations.length > 0 || !res.failure)) {
                 diagLog.stopReason = 'Malformed list page; saved data retained, coverage was not advanced';
                 reachedMax = false; stoppedEarly = true; completionReason = 'error'; break;
             }

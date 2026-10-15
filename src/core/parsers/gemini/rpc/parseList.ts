@@ -1,13 +1,21 @@
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
-import { restoreConversationIndex } from '../../../domain/conversationIndex.js';
+import { parseGeminiIndexObservation } from '../parseIndexObservation.js';
 import type { DomainConversationIndex } from '../../../domain/conversationIndex.js';
 export type ConversationListItem = DomainConversationIndex;
+
+/** Source-layout validity and official ordering evidence, independent of request/account context. */
+export interface GeminiListPageEvidence {
+    valid: boolean;
+    ordered: boolean;
+    keys: { id: string; time: number }[];
+}
 
 export interface ListParseResult {
     conversations: ConversationListItem[];
     nextPageToken: string | null;
     /** A source failure is a business result; _debug only explains it. */
     failure?: 'hit_google_limit' | 'invalid_response';
+    pageEvidence: GeminiListPageEvidence;
     /** Decoded wire evidence; not a validated conversation model. */
     _raw?: unknown;
     _debug?: ListParseDiagnostics;
@@ -18,7 +26,7 @@ export interface GeminiParserParseListModule {
     parseList: (text: string) => ListParseResult;
 }
 
-import { GEMINI_JSPB_SCHEMA, robustFirstPayload, cleanTitle, isRealTitle, normId } from "./extractors.js";
+import { GEMINI_JSPB_SCHEMA, robustFirstPayload } from "./extractors.js";
 import { GeminiProtocol } from "../../../protocol/protocol.js";
 import { payloadToMs, extractInnerPayload, extractNextPageToken } from "./payload.js";
 
@@ -45,6 +53,21 @@ function extractListItemTimestamp(item: unknown): number | null {
     return Array.isArray(item) ? payloadToMs(item[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP]) : null;
 }
 
+function listResult(conversations: ConversationListItem[], nextPageToken: string | null, rows: unknown[] | null): ListParseResult {
+    const keys = conversations.map((item, index) => {
+        const row = rows?.[index];
+        const stamp = Array.isArray(row) ? row[GEMINI_JSPB_SCHEMA.LIST_ITEM.TIMESTAMP] : undefined;
+        // Only the exact official seconds/nanoseconds tuple can establish ordering.
+        const time = Array.isArray(stamp) && stamp.length === 2 && Number.isInteger(stamp[0])
+            && Number.isInteger(stamp[1]) && stamp[1] >= 0 && stamp[1] < 1e9 ? payloadToMs(stamp) : null;
+        return { id: item.id, time: time ?? 0 };
+    });
+    const valid = (nextPageToken === null || keys.length > 0) && rows !== null && rows.length === conversations.length
+        && keys.every(key => key.id.length >= 3) && new Set(keys.map(key => key.id)).size === keys.length;
+    return { conversations, nextPageToken, pageEvidence: { valid, keys,
+        ordered: valid && keys.every(key => key.time > 0) && keys.every((key, i) => i === 0 || keys[i - 1].time >= key.time) } };
+}
+
     function parseList(text: string): ListParseResult {
         try {
             let top = robustFirstPayload(text);
@@ -65,8 +88,7 @@ function extractListItemTimestamp(item: unknown): number | null {
                     console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
                 }
                 return {
-                    conversations: [],
-                    nextPageToken: null,
+                    ...listResult([], null, null),
                     failure: bardError ? 'hit_google_limit' : 'invalid_response',
                     _debug: {
                         error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
@@ -79,19 +101,18 @@ function extractListItemTimestamp(item: unknown): number | null {
             }
             if (!Array.isArray(inner)) {
                 return {
-                    conversations: [],
-                    nextPageToken: null,
+                    ...listResult([], null, null),
                     failure: 'invalid_response',
                     _raw: inner
                 };
             }
             const innerSchema = GEMINI_JSPB_SCHEMA.INNER;
-            let list = Array.isArray(inner[innerSchema.LIST_SECONDARY]) ? inner[innerSchema.LIST_SECONDARY] : (Array.isArray(inner[innerSchema.METADATA_ONLY_LIST]) ? inner[innerSchema.METADATA_ONLY_LIST] : []);
+            const rows: unknown[] | null = inner.length === 0 ? [] : Array.isArray(inner[innerSchema.LIST_SECONDARY]) ? inner[innerSchema.LIST_SECONDARY] : (Array.isArray(inner[innerSchema.METADATA_ONLY_LIST]) ? inner[innerSchema.METADATA_ONLY_LIST] : null);
             let convs: ConversationListItem[] = [];
             const schema = getSchema();
             const listItemSchema = schema.LIST_ITEM || FALLBACK_SCHEMA.LIST_ITEM;
 
-            for (let item of list) {
+            for (let item of rows ?? []) {
                 if (!Array.isArray(item)) continue;
                 let id = item[listItemSchema.ID] || item[0] || "",
                     title = item[listItemSchema.TITLE] || item[1] || "",
@@ -102,24 +123,18 @@ function extractListItemTimestamp(item: unknown): number | null {
                 let createArr = item[listItemSchema.CREATE_TIME_ALT];
                 createTs = payloadToMs(createArr);
 
-                const effectiveTime = serverTs;
-
-
-                if (id) {
-                    let cleanId = normId(id);
-                    const cleanT = cleanTitle(title || cleanId);
-                    const isReal = isRealTitle(cleanT, cleanId);
-                    convs.push(restoreConversationIndex({ providerId: 'gemini', id: cleanId, title: isReal ? cleanT : '',
-                        titleSource: isReal ? 'rpc' : 'default',
-                        cloudAvailability: 'available', hasTakeoutImport: false,
-                        ...(createTs !== null ? { createdAt: createTs } : {}), ...(effectiveTime !== null ? { updatedAt: effectiveTime } : {}),
-                        url: `https://gemini.google.com/app/${cleanId}` }));
+                if (typeof id !== 'string' || !id) continue;
+                try {
+                    convs.push(parseGeminiIndexObservation({ id, title, titleSource: 'rpc',
+                        ...(createTs !== null ? { createdAt: createTs } : {}),
+                        ...(serverTs !== null ? { updatedAt: serverTs } : {}) }, 'rpc-list'));
+                } catch (error) {
+                    if (!(error instanceof TypeError)) throw error;
                 }
             }
             const nextToken = extractNextPageToken(inner, innerSchema.NEXT_TOKEN_CANDIDATES);
             return {
-                conversations: convs,
-                nextPageToken: nextToken,
+                ...listResult(convs, nextToken, rows),
                 _raw: inner
             };
         } catch (e: unknown) {

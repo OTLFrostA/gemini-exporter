@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 /** Unverified ordering must never truncate list pagination based on local timestamps. */
 export {};
 const test = require('node:test');
@@ -41,7 +42,7 @@ test('无基线（本地为空）：扫到服务端尽头自然结束', async ()
             const page = pages[Math.min(calls, pages.length - 1)];
             const hasMore = calls < pages.length - 1;
             calls++;
-            return { conversations: page, nextPageToken: hasMore ? `tok${calls}` : null };
+            return listFixture(page, hasMore ? `tok${calls}` : null);
         },
     };
     const savedIds = new Set<string>();

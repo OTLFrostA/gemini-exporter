@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture, rpcFixture } = require('./helpers/nativeFixture.js');
 /**
@@ -493,7 +494,7 @@ test('P1-059: partial list pagination interrupted by an exception is marked stop
         aborted: false,
         getConversationList: async () => {
             calls++;
-            if (calls === 1) return { conversations: ([{ id: 'a' }]).map(indexFixture), nextPageToken: 't1' };
+            if (calls === 1) return listFixture(([{ id: 'a' }]).map(indexFixture), 't1');
             throw new Error('simulated 429 boom');
         },
     };

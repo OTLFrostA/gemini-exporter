@@ -1,4 +1,4 @@
-import type { GeminiListRequestContext } from '../provider/gemini/listObservation.js';
+import type { GeminiListRequestContext } from '../parsers/gemini/rpc/listRequest.js';
 import { CrossWorldEvents, type CrossWorldEventType } from './protocol.js';
 
 export { CrossWorldEvents, type CrossWorldEventType };

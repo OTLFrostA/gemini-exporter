@@ -30,6 +30,8 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 旧索引的 `timestamp`、`chatTime`、`titles` 等别名只由 `parsers/legacyStorage/parseIndex.ts` 解释。当前 Gemini 元数据观测使用独立的 `parsers/gemini/parseIndexObservation.ts`，不读取旧字段；`storage/conversationIndexFromParsed.ts` 仅把已解析正文及采集版本投影为 Index，不再复用旧格式解析。
 
+列表业务数据同样统一为 `DomainConversationIndex`：ChatGPT 列表字段由 `parsers/chatgpt/parseList.ts` 解释，Gemini RPC parser 输出独立的 `pageEvidence`（原始行有效性、官方排序键），DOM 列表与当前页标题由 `parsers/gemini/dom/parseIndex.ts` 解释。Provider 负责获取和分页调度，消费 parser 的明确结果；下游不得重新读取 `_raw` 来推断业务或扫描覆盖。
+
 外部正文统一通过 `StorageService.ingestConversation(slot, parsed, resources, source)` 接受：parser 负责来源解释，入库入口在现有会话锁内保存正文、合并完整 Index，并返回按权威 Index 投影的实际保留正文。RPC 拦截、主动拉取、DOM、Takeout、live-save 和导出采集共用这一入口。已有快照只从 scoped repository 读取，Index 不存在时不使用孤立正文。此锁不表示 Chrome Storage 与 IndexedDB 之间存在跨存储事务。
 
 导出完成只写交付记录，不再创建会话或更新标题、时间和消息数。HTML、Markdown、Typst/PDF 的正文与文档元数据均由 Document AST 提供；Markdown frontmatter 所需身份与 ISO 日期在 composer 内进入 AST。JSON 保持 Domain 语义存档契约，不改成展示 AST。
@@ -206,7 +208,7 @@ graph TD
 | `src/content/contentContext.ts` | Content Script | `contentContext` (单例上下文) | 管理注入状态、开发模式标记、取消令牌与国际化语言环境。 | Content 脚本各模块 | 上下文状态只读/写入 | `CS_Entry` |
 | `src/content/messageRouter.ts` | Content Script | `MessageRouter`, `init` | 隔离区内部消息分发器，处理来自 Options/Popup 的控制指令。 | `content.ts`, Extension Pages | `syncEngine` | `CS_Bridge` |
 | `src/content/pageObserver.ts` | Content Script | `PageObserver`, `init`, `cleanup` | 观察 SPA URL 路径跳转（如切换会话）与侧边栏 DOM 挂载。 | `content.ts` | `syncEngine.touchActiveConversation` | `CS_Entry` |
-| `src/core/provider/aiProvider.ts` | Core: Provider | `AIProvider`, `ProviderConversationItem` | 定义跨异构 AI 模型平台的通用接口契约规范。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. | 所有 Provider 模块 | 上层引擎统一接口 | `PROV_Registry` |
+| `src/core/provider/aiProvider.ts` | Core: Provider | `AIProvider`, `DomainConversationIndex` | 定义跨异构 AI 模型平台的通用接口契约规范。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. | 所有 Provider 模块 | 上层引擎统一接口 | `PROV_Registry` |
 | `src/core/provider/providerRegistry.ts` | Core: Provider | `ProviderRegistryClass`, `ProviderRegistry` (单例) | 全局 Provider 注册表，支持按平台 ID 或当前页面 URL 模式匹配提供商。 | 各 Provider 自动注册 | `liveSaveCoordinator`, `exportOrchestrator` | `PROV_Registry` |
 | `src/core/provider/providerResolver.ts` | Core: Provider | `resolveProvider` | 根据当前激活页面 URL 解析匹配的 `AIProvider` 适配器并自动完成注册绑定。 | `syncEngine`, `liveSaveCoordinator` | `providerRegistry.ts` | `PROV_Registry` |
 | `src/core/provider/gemini/geminiProvider.ts` | Core: Provider | `GeminiProvider` (实现 `AIProvider`) | Gemini 平台适配器，封装 batchexecute RPC 调用与多账号 Slot 映射。Provider interface remains the extension seam. ChatGPT / Claude / Grok adapters will be implemented only when their real production payloads are integrated and verified. | `providerRegistry.ts` | `geminiClient` | `PROV_Gemini` |

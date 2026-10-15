@@ -126,5 +126,9 @@
   "src/core/resources/geminiImageUrl.ts",
   "src/core/parsers/shared/resources/c2paTimestamp.ts",
   "src/core/diagnostics/diagnostic.ts",
-  "src/core/parsers/shared/markdown/mdastToContent.ts"
+  "src/core/parsers/shared/markdown/mdastToContent.ts",
+  "src/core/parsers/chatgpt/parseList.ts",
+  "src/core/parsers/chatgpt/timestamp.ts",
+  "src/core/parsers/gemini/dom/parseIndex.ts",
+  "src/core/parsers/gemini/rpc/listRequest.ts"
 ]

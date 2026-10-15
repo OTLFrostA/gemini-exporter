@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 // tests/maintenance_convergence_batch4.test.ts
 // Tests for Batch 4: Maintenance Convergence
@@ -64,10 +65,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     // 1. Natural exhaustion
     const naturalClient = {
         aborted: false,
-        getConversationList: async () => ({
-            conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
-            nextPageToken: null
-        })
+        getConversationList: async () => listFixture(([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), null)
     };
     const resNatural = await getAllConversations(naturalClient, 10, null, null, { incremental: true });
     assert.strictEqual(resNatural.completionReason, 'natural_exhaustion');
@@ -78,10 +76,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     // 2. Token loop
     const loopClient = {
         aborted: false,
-        getConversationList: async () => ({
-            conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
-            nextPageToken: 'tok_loop'
-        })
+        getConversationList: async () => listFixture(([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), 'tok_loop')
     };
     const resLoop = await getAllConversations(loopClient, 10, null, null, { incremental: true });
     assert.strictEqual(resLoop.completionReason, 'token_loop');
@@ -93,10 +88,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     let p = 0;
     const maxPagesClient = {
         aborted: false,
-        getConversationList: async () => ({
-            conversations: ([{ id: `c_${++p}`, title: `Chat ${p}` }]).map(indexFixture),
-            nextPageToken: `tok_${p}`
-        })
+        getConversationList: async () => listFixture(([{ id: `c_${++p}`, title: `Chat ${p}` }]).map(indexFixture), `tok_${p}`)
     };
     const resMax = await getAllConversations(maxPagesClient, 2, null, null, { incremental: true });
     assert.strictEqual(resMax.completionReason, 'max_pages');
@@ -107,10 +99,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     // 4. Watermark unchanged boundary
     const boundaryClient = {
         aborted: false,
-        getConversationList: async () => ({
-            conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
-            nextPageToken: 'tok_next'
-        })
+        getConversationList: async () => listFixture(([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), 'tok_next')
     };
     const resBoundary = await getAllConversations(boundaryClient, 10, null, null, {
         incremental: true,

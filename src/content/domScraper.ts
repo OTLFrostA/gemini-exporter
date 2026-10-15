@@ -1,8 +1,9 @@
-import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
+import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
+import { parseGeminiDomList } from '../core/parsers/gemini/dom/parseIndex.js';
 import type { DomDetail, DetailFailure } from '../types/detailTransport.js';
 import { parseGeminiDomConversation } from '../core/parsers/gemini/dom/parseConversation.js';
 import { contentContext } from './contentContext.js';
-import { cleanTitle, isRealTitle, getErrorMessage } from '../core/utils/utils.js';
+import { getErrorMessage } from '../core/utils/utils.js';
 import { isReservedRoute, normId } from '../core/utils/pathUtils.js';
 
 export { isReservedRoute };
@@ -76,28 +77,8 @@ export function getScrollContainer(): HTMLElement | null {
     return null;
 }
 
-export function getConversationLinks(): GeminiIndexObservationInput[] {
-    if (typeof document === 'undefined') return [];
-    const items: GeminiIndexObservationInput[] = [];
-    const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/app/"]');
-    for (const a of Array.from(links)) {
-        const href = a.href || a.getAttribute('href') || '';
-        const m = href.match(/\/app\/(c_)?([A-Za-z0-9_-]{8,})/);
-        if (m) {
-            const id = normId(m[2]);
-            if (isReservedRoute(id)) continue;
-            const rawTitle = (a.querySelector('.title, [class*="title"]')?.textContent || a.textContent || '').trim();
-            const title = cleanTitle(rawTitle);
-            const isReal = isRealTitle(title, id);
-            items.push({
-                id,
-                title: isReal ? title : (contentContext.isZh() ? '未命名对话' : 'Untitled Chat'),
-                titleSource: isReal ? 'dom' : 'default',
-                url: `https://gemini.google.com/app/${id}`
-            });
-        }
-    }
-    return items;
+export function getConversationLinks(): DomainConversationIndex[] {
+    return typeof document === 'undefined' ? [] : parseGeminiDomList(document);
 }
 
 export function tryExpandRecents(): void {

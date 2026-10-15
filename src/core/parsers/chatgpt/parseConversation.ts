@@ -37,6 +37,7 @@ import {
     extractChatGPTModelSlug,
     processChatGPTMapping,
 } from './conversationTree.js';
+import { chatGPTTimestamp } from './timestamp.js';
 import { preprocessChatGPTMarkdown } from './markdownCompatibility.js';
 
 /** Image bytes resolved by the provider for one sediment pointer. */
@@ -68,17 +69,6 @@ export interface ChatGPTParseInput {
     conversation: ChatGPTApiConversationWithId;
     /** Pre-resolved downloads keyed by node id; missing entries mean no assets. */
     assetsByNode: Map<string, ChatGPTNodeAssets>;
-}
-
-function toEpochMs(value: number | string | undefined): number | undefined {
-    if (typeof value === 'number') {
-        return value < 1e12 ? Math.round(value * 1000) : Math.round(value);
-    }
-    if (typeof value === 'string' && value) {
-        const ms = Date.parse(value);
-        return Number.isFinite(ms) ? ms : undefined;
-    }
-    return undefined;
 }
 
 function parseBody(text: string, nodeId: string, ctx: MarkdownParseContext): BlockNode[] {
@@ -189,7 +179,7 @@ function messageOfNode(
         role: chatGPTNodeRole(node),
         model,
         content,
-        timestamp: toEpochMs(node.message?.create_time),
+        timestamp: chatGPTTimestamp(node.message?.create_time),
         attachmentIds: attachmentIds.length > 0 ? attachmentIds : undefined,
         ...(() => {
             const reasoning = thinking ? reasoningOfThinking(thinking, node.id, ctx) : [];
@@ -230,7 +220,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
     );
     const hasMissingImage = assets.some((a) => a.kind === 'image' && !a.dataBase64);
     // Source activity versions travel beside Detail; Index owns updatedAt.
-    const sourceVersion = toEpochMs(conversation.update_time);
+    const sourceVersion = chatGPTTimestamp(conversation.update_time);
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversation: validateParserDomain({
@@ -239,7 +229,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
             assets,
             id: conversation.id,
             title: conversation.title || 'ChatGPT Conversation',
-            createdAt: toEpochMs(conversation.create_time),
+            createdAt: chatGPTTimestamp(conversation.create_time),
             url: `https://chatgpt.com/c/${conversation.id}`,
             messages,
         }),

@@ -1,9 +1,10 @@
+import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import type { ApplicationProvider } from "../src/content/providerCompatibility.js";
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AIProvider, ProviderConversationDetail, ProviderConversationItem, ProviderPageResult, ProviderListOptions, ProviderReadiness } from '../src/core/provider/aiProvider.js';
+import type { AIProvider, ProviderConversationDetail, ProviderPageResult, ProviderListOptions, ProviderReadiness } from '../src/core/provider/aiProvider.js';
 import type { GeminiProviderClient, GeminiProviderListOptions, GeminiProviderConversationDetail, GeminiProviderPageResult } from '../src/core/provider/gemini/geminiContracts.js';
 import type { DomainMessage } from '../src/core/domain/conversationDetail.js';
 import credentials from '../src/core/api/client/credentialManager.js';
@@ -17,10 +18,14 @@ type Assert<T extends true> = T;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type StrictFunction<F extends (...args: never[]) => unknown> = (...args: Parameters<F>) => ReturnType<F>;
 type RequiredField<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
+type ListItemContract = Assert<Equal<Awaited<ReturnType<AIProvider['listConversations']>>['items'][number], DomainConversationIndex>>;
+const listItemsAreDomain: ListItemContract = true;
+void listItemsAreDomain;
+
 type TypeContracts = [
-    Assert<RequiredField<ProviderPageResult<ProviderConversationItem>, 'exhaustive'>>,
-    Assert<RequiredField<ProviderPageResult<ProviderConversationItem>, 'completionReason'>>,
-    Assert<string extends keyof ProviderConversationItem ? false : true>,
+    Assert<RequiredField<ProviderPageResult<DomainConversationIndex>, 'exhaustive'>>,
+    Assert<RequiredField<ProviderPageResult<DomainConversationIndex>, 'completionReason'>>,
+    Assert<string extends keyof DomainConversationIndex ? false : true>,
     Assert<'titleSource' extends keyof ProviderConversationDetail ? false : true>,
     Assert<'_raw' extends keyof ProviderConversationDetail ? false : true>,
     Assert<Equal<ProviderConversationDetail['conversation']['messages'][number], DomainMessage>>,
@@ -79,7 +84,7 @@ test('provider contract: all seven upstream reasons and diagnostic identity surv
         const upstream = result(reason);
         const provider: ApplicationProvider = new GeminiProvider(client(upstream));
         const page = await provider.listConversations();
-        const neutral: ProviderPageResult<ProviderConversationItem> = page;
+        const neutral: ProviderPageResult<DomainConversationIndex> = page;
         assert.equal(neutral.exhaustive, upstream.exhaustive);
         assert.equal(neutral.completionReason, reason);
         assert.equal(isPaginationExhaustive(page), upstream.exhaustive);

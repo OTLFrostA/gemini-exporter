@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -202,7 +203,7 @@ test('p1c - getAllConversations: 启动前已取消直接退出，不调用 getC
     let listCalls = 0;
     const mockClient = {
         aborted: true, // 用户在任务实际启动前一刻点了取消
-        getConversationList: async () => { listCalls++; return { conversations: [], nextPageToken: null }; }
+        getConversationList: async () => { listCalls++; return listFixture([], null); }
     };
     const res = await paginationMod.getAllConversations(mockClient as any, { maxPages: 5 });
     assert.strictEqual(res.conversations.length, 0);

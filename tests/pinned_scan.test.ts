@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +10,7 @@ function item(id: string, timestamp = 1700000000000): ConversationListItem {
         updatedAt: timestamp, chatTime: timestamp, timestamp, messageCount: 0, url: '' });
 }
 function page(ids: string[], token: string | null = null): ListParseResult {
-    return { conversations: ids.map(id => item(id)), nextPageToken: token };
+    return listFixture(ids.map(id => item(id)), token);
 }
 
 test('all-history scan follows both independent chains, persists every page, dedupes overlap, and resets cursors', async () => {

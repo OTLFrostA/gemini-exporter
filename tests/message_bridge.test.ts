@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -148,7 +149,7 @@ test('client - getAllConversations respects opts.signal', async () => {
         aborted: false,
         isAborted: () => false,
         getConversationList: async () => {
-            return { conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), nextPageToken: 'tC_2' };
+            return listFixture(([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), 'tC_2');
         }
     };
 

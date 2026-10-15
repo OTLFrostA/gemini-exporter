@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
@@ -13,10 +14,7 @@ test('P2-1: getAllConversations 跑满 maxPages 时 stoppedEarly=true', async ()
     const mockClient = {
         getConversationList: async () => {
             callCount++;
-            return {
-                conversations: ([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture),
-                nextPageToken: `token_${callCount}` // 每次都给新游标，绝不自然到底
-            };
+            return listFixture(([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture), `token_${callCount}`);
         }
     };
     const result = await Pagination.getAllConversations(mockClient, 3);
@@ -29,7 +27,7 @@ test('P2-1: getAllConversations 跑满 maxPages 时 stoppedEarly=true', async ()
 test('P2-1 对照: 自然到底时 stoppedEarly 不为 true', async () => {
     const Pagination = require('../src/core/api/client/pagination.js');
     const mockClient = {
-        getConversationList: async () => ({ conversations: [], nextPageToken: null })
+        getConversationList: async () => listFixture([], null)
     };
     const result = await Pagination.getAllConversations(mockClient, 2000);
     assert.ok(!result.stoppedEarly, '服务端自然到底不应标 stoppedEarly');
