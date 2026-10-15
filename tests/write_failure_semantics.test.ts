@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 // tests/write_failure_semantics.test.ts
 // Phase A (P0-1): writeFileDirect 抛错语义回归测试。

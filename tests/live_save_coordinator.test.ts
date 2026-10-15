@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
@@ -115,6 +117,7 @@ test('liveSaveCoordinator - executeLiveSave delegates via chrome.runtime.sendMes
 
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
+        ...globalThis.chrome,
         runtime: {
             sendMessage: (msg: any, cb: (res: any) => void) => {
                 sentMessage = msg;
@@ -170,6 +173,7 @@ test('liveSaveCoordinator - executeLiveSave cleanly aborts and returns false wit
 
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
+        ...globalThis.chrome,
         runtime: {
             sendMessage: (_msg: any, cb: (res: any) => void) => {
                 if (cb) cb({ ok: false, error: 'no_dir_handle' });
@@ -223,6 +227,7 @@ test('liveSaveCoordinator - executeLiveSave aborts and warns when configured dir
 
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
+        ...globalThis.chrome,
         runtime: {
             sendMessage: (msg: any, cb: (res: any) => void) => {
                 if (msg.action === 'liveSaveViaHandle') {

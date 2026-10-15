@@ -101,7 +101,7 @@ test('pagination and rejected turns yield partial coverage and side-channel diag
 test('metadata-only pages preserve title evidence without claiming a complete conversation', () => {
     const result = native(rpc([null, null, [[ID, 'Metadata title']]]));
     assert.equal(result.conversation.title, 'Metadata title');
-    assert.equal(result.conversation.id, ID);
+    assert.equal(result.conversation.id, ID.replace(/^c_/, ''));
     assert.equal(result.conversation.titleSource, 'rpc');
     assert.equal(decodeGeminiDetail(rpc([null, null, [[ID, 'Metadata title']]])).metadataConversation?.title, 'Metadata title');
     assert.equal(result.conversation.messages.length, 0);
@@ -178,7 +178,7 @@ test('raw format validation rejects wrong providers and malformed envelopes', ()
     assert.throws(() => parseGeminiRpcConversation({} as never, { providerId: 'gemini' }), /raw response text/);
     for (const raw of ['', 'not JSON', rpc(null)]) assert.throws(() => native(raw), /detail parse fail/);
     const empty = parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: rpc([]), targetConvId: ID });
-    assert.equal(empty.conversation.id, ID);
+    assert.equal(empty.conversation.id, ID.replace(/^c_/, ''));
     assert.equal(empty.conversation.messages.length, 0);
 });
 

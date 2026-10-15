@@ -85,6 +85,8 @@ test('normal export fetches fresh cloud content first and falls back to a local 
     let calls = 0;
     try {
         for (const error of [null, 'HTTP 503', 'Malformed direct response envelope']) {
+            __clearDomainMemory();
+            await catalogStorage.setNativeConversations('u0', [local]);
             const { files } = exportMocks();
             __setModuleOverride('TabService', { sendToGeminiTab: async () => {
                 calls++; return error ? { success: false, error } : { success: true, domainEnvelopeVersion: 2, data: fresh };
@@ -287,6 +289,7 @@ test('batch export records the fetched body version rather than a newer Index ve
     const body = historicalFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000000000,
         messages: [{ role: 'user', content: 'Captured older body' }] });
     const index = indexFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000005000 });
+    await catalogStorage.setConversations('u0', [index]);
     let requests = 0;
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
         requests++; return { success: true, domainEnvelopeVersion: 2, data: body };

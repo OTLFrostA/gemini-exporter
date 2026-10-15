@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 // tests/export_cancel_semantics.test.ts
 // B3: 取消语义 —— 取消是用户意图，不记失败、不写 _export_errors.json、无下载回调。

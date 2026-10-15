@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
@@ -102,6 +104,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
         titleSource: 'sniff'
     };
 
+    await require('../src/core/storage/storageService.js').setConversations('u0', [indexFixture(listConv)]);
     const resolved = await BatchWorker.resolveChat(
         historicalFixture(chat),
         { id: 'test_123', title: '如何设计微服务架构' },
@@ -144,6 +147,7 @@ test('engine - SessionRecovery.updateSessionStatus updates chrome.storage.local 
     const origChrome = (global as any).chrome;
     let storedSession: any = { status: 'running', slot: 'u0', current: 1 };
     (global as any).chrome = {
+        ...globalThis.chrome,
         storage: {
             local: {
                 get: async (_keys: any) => ({ gemini_last_export_session: storedSession }),

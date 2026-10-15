@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
@@ -62,7 +64,8 @@ test('count actual Schema passes and Closure calls separately at every trust bou
                 const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.id)));
                 const parsed=await measure('AdaptRecord',()=>storedParseResult(record));
                 await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 2,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 2,results:[parsed]}));});
-                await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
+                await measure('PdfAcceptance',async()=>{const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
+                await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);});
                 return rows;
             }` }, plugins: [{ name: 'test-only-actual-schema-closure-counters', setup(builder) {
                 builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents: readFileSync(args.path, 'utf8').replace(
@@ -74,5 +77,5 @@ test('count actual Schema passes and Closure calls separately at every trust bou
             } }] });
     const api: { run: () => Promise<Record<string, number[]>> } = new Function('module', 'require', bundle.outputFiles[0].text + ';return trustCounts;')(undefined, createRequire(process.cwd() + '/package.json'));
     assert.deepEqual(await api.run(), { DOM: [1,1], TakeoutSyncTwo: [2,2], TakeoutAsyncTwo: [2,2], RPC: [1,1], Dispatcher: [1,1], Merge: [1,1], Legacy: [1,1],
-        WriteSnapshot: [2,1], ReadSnapshot: [2,1], AdaptRecord: [0,0], AuthenticatedTransport: [0,0], PureExport: [0,0] });
+        WriteSnapshot: [2,1], ReadSnapshot: [2,1], AdaptRecord: [0,0], AuthenticatedTransport: [0,0], PdfAcceptance: [2,1], PureExport: [0,0] });
 });

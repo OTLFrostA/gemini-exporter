@@ -28,6 +28,10 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有 `legacyStorage` 迁移边界可调用历史 record 解码，运行时和导出直接消费原生 Domain 结果。具体目录见 [Source Directory Guide](../src/README.md)。
 
+外部正文统一通过 `StorageService.ingestConversation(slot, parsed, resources, source)` 接受：parser 负责来源解释，入库入口在现有会话锁内保存正文、合并完整 Index，并返回按权威 Index 投影的实际保留正文。RPC 拦截、主动拉取、DOM、Takeout、live-save 和导出采集共用这一入口。已有快照只从 scoped repository 读取，Index 不存在时不使用孤立正文。此锁不表示 Chrome Storage 与 IndexedDB 之间存在跨存储事务。
+
+导出完成只写交付记录，不再创建会话或更新标题、时间和消息数。HTML、Markdown、Typst/PDF 的正文与文档元数据均由 Document AST 提供；Markdown frontmatter 所需身份与 ISO 日期在 composer 内进入 AST。JSON 保持 Domain 语义存档契约，不改成展示 AST。
+
 文档导出的内部会话表示只有 Domain 和 Document AST 两层：
 
 ```text

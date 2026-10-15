@@ -1,4 +1,5 @@
-import { indexFromParsed, parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
+import { ingestConversation } from '../core/storage/storageService.js';
+import { parseIndexObservation, type IndexSource, type IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
@@ -125,16 +126,7 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const native = await provider.fetchConversationDetail(activeId);
             const d = native.conversation;
             if (d && d.id) {
-                const nid = normId(d.id);
-                const index = indexFromParsed(native);
-                await upsertConversations([{
-                    id: nid,
-                    title: d.title,
-                    titleSource: d.titleSource,
-                    url: d.url || `https://gemini.google.com/app/${nid}`,
-                    updatedAt: index.updatedAt,
-                    messageCount: d.messages.length
-                }], 'active-detail-sync');
+                await ingestConversation(slot, native);
             }
         } catch (err) {
             if (contentContext.isDevMode()) console.debug('[Gemini Exporter] scheduleActiveChatDetailFetch err', err);

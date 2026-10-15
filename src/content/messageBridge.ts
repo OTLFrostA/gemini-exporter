@@ -1,10 +1,8 @@
-import { indexFromParsed } from '../core/compatibility/index/parseIndex.js';
 import type { IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
-import { extractBlockText } from '../core/domain/content/unknownFallback.js';
-import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
+import { ingestConversation } from '../core/storage/storageService.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import type { GeminiProviderConversationItem } from '../core/provider/gemini/geminiContracts.js';
 import type { RpcListIngestResult } from './syncEngine.js';
@@ -13,7 +11,7 @@ import { parseList } from '../core/parsers/gemini/rpc/parseList.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { LiveSaveObserver } from './liveSaveObserver.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
-import { TITLE_TIER_RANK, resolveDetailTitle, normalizeReliableTitleSource } from '../core/utils/titleUtils.js';
+import { TITLE_TIER_RANK, normalizeReliableTitleSource } from '../core/utils/titleUtils.js';
 import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
@@ -115,38 +113,13 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 }
             }
 
-            if (text.includes(Proto.RPCS.DETAIL) && typeof upsertConversations === 'function') {
+            if (text.includes(Proto.RPCS.DETAIL)) {
                 try {
                     const native = parseGeminiRpcConversation(text, { providerId: 'gemini' });
                     const detailRes = native.conversation;
                     if (detailRes && detailRes.id) {
-                        const nid = normId(detailRes.id);
-                        let title = cleanTitle(detailRes.title);
-                        let sourceTier = detailRes.titleSource || 'legacy';
-                        if (!isRealTitle(title, nid) && Array.isArray(detailRes.messages)) {
-                            const sniffed = resolveDetailTitle(detailRes.messages.map(message => ({ role: message.role, content: message.content.map(block => extractBlockText(block)).join('\n\n') })), nid);
-                            if (sniffed) {
-                                title = sniffed.title;
-                                sourceTier = sniffed.source;
-                            }
-                        }
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        await persistNativeConversation(targetSlot, {
-                            ...native,
-                            conversation: { ...detailRes, id: nid }
-                        });
-
-                        if (isRealTitle(title, nid)) {
-                            await upsertConversations([{
-                                id: nid,
-                                title: title,
-                                titleSource: sourceTier,
-                                url: `https://gemini.google.com/app/${nid}`,
-                                updatedAt: indexFromParsed(native).updatedAt,
-                                messageCount: detailRes.messages.length,
-                                sidebarIndex: 0
-                            }], 'network-detail', false, targetSlot);
-                        }
+                        await ingestConversation(targetSlot, native);
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[MessageBridge] parseDetail err', e);

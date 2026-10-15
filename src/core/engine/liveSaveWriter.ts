@@ -63,8 +63,7 @@ export async function formatLiveSaveMarkdown(
     const buildFileName = deps.buildFileName || buildExportFileName;
     const formatter = deps.formatter ?? ChatFormatter;
     const fileName = buildFileName(input.safeTitle, input.nid, 'md');
-    const shaped = { ...input.chat, conversation: { ...input.chat.conversation, title: input.safeTitle, id: input.nid } };
-    const { content: markdown } = await formatter.formatMarkdownDocument(shaped, { resourceResults: input.resourceResults });
+    const { content: markdown } = await formatter.formatMarkdownDocument(input.chat, { resourceResults: input.resourceResults });
     return { fileName, markdown };
 }
 

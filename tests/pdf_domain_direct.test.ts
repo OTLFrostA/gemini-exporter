@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
@@ -30,7 +32,7 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
     assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
     const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
     assert.ok(prepared.ok);
-    assert.deepEqual(prepared.document, composeDomainDocument(domain, { sourceVersion: parsed.sourceVersion }).document);
+    assert.deepEqual(prepared.document, composeDomainDocument({ ...domain, url: `https://gemini.google.com/app/${domain.id}` }, { sourceVersion: parsed.sourceVersion }).document);
     assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
     assert.ok(!('bundle' in prepared) && !('byteStore' in prepared));
     assert.deepEqual(parsed.conversation, domain);

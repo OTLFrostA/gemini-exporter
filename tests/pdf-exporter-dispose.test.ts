@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
@@ -40,7 +42,7 @@ function fakeExtensionPageContext() {
     const prevDocument = g.document;
     const prevChrome = g.chrome;
     g.document = {};
-    g.chrome = { runtime: { getURL: (p: string) => `chrome-extension://fake/${p}` } };
+    g.chrome = { ...prevChrome, runtime: { getURL: (p: string) => `chrome-extension://fake/${p}` } };
     return () => {
         if (prevDocument === undefined) delete g.document;
         else g.document = prevDocument;

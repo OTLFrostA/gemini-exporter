@@ -3,7 +3,6 @@ import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
-import { planTakeoutMerge } from '../../core/utils/mergeUtils.js';
 import { t } from '../uiCommon.js';
 import { getErrorMessage } from '../../core/utils/messaging.js';
 
@@ -32,6 +31,9 @@ export async function handleTakeoutImport(
     try {
         const Store = getStore();
         const slot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';
+        const Storage = getStorage();
+        const previous = await Storage.getConversations(slot);
+        const previousIds = new Set(previous.map(row => JSON.stringify([row.providerId, row.id])));
         const res = await Takeout.parseTakeoutZip(file, (pct: number, txt: string) => {
             if (onProgress) onProgress(pct, txt);
             if (onLog) onLog(txt, 'info');
@@ -42,22 +44,9 @@ export async function handleTakeoutImport(
         }
         const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
-        const planMerge = (existing: import('../../core/domain/conversationIndex.js').DomainConversationIndex[]) => planTakeoutMerge(existing, incoming);
-
-        const Storage = getStorage();
-        const currentSlot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';
-        let addedCount = 0;
-        if (Storage && typeof Storage.transactConversations === 'function') {
-            const tx = await Storage.transactConversations(currentSlot, (existing: any[]) => {
-                const plan = planMerge(existing);
-                if (!plan) return null;
-                addedCount = plan.addedCount;
-                return { list: plan.processed, changed: plan.changed };
-            });
-            if (tx?.written && Store && typeof Store.setConversations === 'function') {
-                Store.setConversations(tx.list);
-            }
-        }
+        const addedCount = incoming.filter(row => !previousIds.has(JSON.stringify([row.providerId, row.id]))).length;
+        const accepted = await Storage.getConversations(slot);
+        if (Store?.getCurrentSlot() === slot) Store.setConversations(accepted);
 
         if (Storage) {
             if (Storage.setTakeoutPromptCompleted) await Storage.setTakeoutPromptCompleted(true);

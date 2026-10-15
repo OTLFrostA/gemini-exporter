@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +35,7 @@ async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail |
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
     let removed = '';
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: {
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
         onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
     } } });
     try {
@@ -56,9 +58,9 @@ test('messageRouter: provider success preserves all companion and multimodal evi
     const payload = detail(); set(async () => payload);
     const { result, removed } = await route(async () => { throw new Error('DOM must not run'); });
     assert.ok(result.success && result.source === 'batchexecute');
-    assert.strictEqual(result.data, payload);
-    assert.strictEqual(('conversation' in result.data && result.data.conversation.messages), payload.conversation.messages);
-    assert.deepEqual(result.data, payload); assert.equal(removed, '');
+    assert.deepEqual(('conversation' in result.data && result.data.conversation.messages), payload.conversation.messages);
+    assert.deepEqual('transport' in result.data && result.data.transport, payload.transport);
+    assert.equal(removed, '');
 }));
 
 test('messageRouter: empty RPC retains raw previews and DOM debug without pruning', async () => withProvider(async set => {
@@ -74,7 +76,7 @@ test('messageRouter: empty RPC retains raw previews and DOM debug without prunin
 test('messageRouter: provider failure permits valid DOM fallback; 404 only marks confirmed cloud deletion', async () => withProvider(async set => {
     set(async () => { throw new Error('temporary failure'); });
     const success = await route(dom);
-    assert.ok(success.result.success && success.result.source === 'dom'); assert.strictEqual(success.result.data, dom);
+    assert.ok(success.result.success && success.result.source === 'dom'); assert.deepEqual('conversation' in success.result.data && success.result.data.conversation.messages, dom.conversation.messages);
     assert.equal(success.removed, '');
     const deleted = await route({ id: 'detail123', isDeleted: true, error: 'HTTP 404', _debug: { status: 404, isNotFound: true } });
     assert.ok(deleted.result.success && deleted.result.source === 'dom' && '_empty' in deleted.result.data);
@@ -101,7 +103,7 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
         initLive(injected ? { clientClass: Client } : {});
         const before = structuredClone(payload.conversation.messages);
         const resolved = await resolveConversationDetail('c_detail123');
-        assert.strictEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
+        assert.notEqual(resolved, payload); assert.deepEqual(resolved?.conversation.messages, before);
         assert.equal(Object.hasOwn(resolved!.conversation, 'chatTime'), false);
         assert.equal(resolved?.sourceVersion, undefined); assert.equal(resolved?.conversation.createdAt, undefined);
         assert.equal(resolved?.conversation.titleSource, 'rpc'); assert.equal(Object.hasOwn(resolved!.conversation, 'titles'), false);
@@ -109,7 +111,7 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
     }
     const existing = detail(); existing.sourceVersion = 1500000000000;
     set(async () => existing); initLive();
-    assert.strictEqual(await resolveConversationDetail('detail123'), existing);
+    assert.equal((await resolveConversationDetail('detail123'))?.sourceVersion, existing.sourceVersion);
     assert.equal(existing.sourceVersion, 1500000000000);
 }));
 
@@ -119,7 +121,7 @@ test('liveSave: empty/failed provider and failed injected client still permit DO
         set(async () => { if (mode === 'empty') return empty; throw new Error('failure'); });
         class Client { async getConversationDetail(): Promise<GeminiProviderConversationDetail> { throw new Error('injected failure'); } }
         initLive({ scraper: { ...DomScraper, parseDoc: () => dom }, ...(mode === 'injected' ? { clientClass: Client } : {}) });
-        assert.strictEqual(await resolveConversationDetail('detail123'), dom);
+        assert.deepEqual((await resolveConversationDetail('detail123'))?.conversation.messages, dom.conversation.messages);
     }
 }));
 

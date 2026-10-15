@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
@@ -67,7 +69,7 @@ function createMemoryDirectory() {
     return { handle: dir(''), files };
 }
 
-test('Storage finalization promotes generic title without inventing provenance', async () => {
+test('Storage finalization preserves catalog metadata and records delivery', async () => {
     const { mockStorage, chrome } = createMockChromeStorage({
         gemini_conversations: ([
             { id: 'c_batch_1', title: '未命名对话', titleSource: 'default', messageCount: 1, updatedAt: 1000 }
@@ -110,11 +112,11 @@ test('Storage finalization promotes generic title without inventing provenance',
         // Verify gemini_conversations promotion: promoted to real title, source is 'legacy' (not fake api-detail/export)
         const convs = await StorageService.getConversations('u0');
         assert.strictEqual(convs.length, 1);
-        assert.strictEqual(convs[0].title, '量子纠缠推演报告');
-        assert.strictEqual(convs[0].titleSource, 'legacy');
+        assert.strictEqual(convs[0].title, '');
+        assert.strictEqual(convs[0].titleSource, 'default');
         assert.notStrictEqual(convs[0].titleSource, 'api-detail', 'Must not synthesize fake api-detail provenance');
         assert.notStrictEqual(convs[0].titleSource, 'export', 'Must not synthesize unindexed export tier');
-        assert.strictEqual(convs[0].messageCount, 5);
+        assert.strictEqual(convs[0].messageCount, 1);
     } finally {
         (global as any).chrome = origChrome;
     }
@@ -203,7 +205,7 @@ test('Unknown candidate does NOT overwrite API-detail or Takeout existing real t
     }
 });
 
-test('completeConversationExport promotes a generic title with legacy provenance', async () => {
+test('completeConversationExport cannot publish title candidates to the catalog', async () => {
     const { mockStorage, chrome } = createMockChromeStorage({
         gemini_conversations: ([
             { id: 'c_live_chat', title: '未命名对话', titleSource: 'default', messageCount: 1 }
@@ -234,77 +236,24 @@ test('completeConversationExport promotes a generic title with legacy provenance
         );
 
         const convs = await StorageService.getConversations('u0');
-        assert.strictEqual(convs[0].title, '流式量子分析报告', '未命名对话应成功晋级为流式提取的真实标题');
-        assert.strictEqual(convs[0].titleSource, 'legacy', '无可靠来源时应归为 legacy，不得伪造 api-detail');
+        assert.strictEqual(convs[0].title, '');
+        assert.strictEqual(convs[0].titleSource, 'default');
         assert.notStrictEqual(convs[0].titleSource, 'api-detail');
     } finally {
         (global as any).chrome = origChrome;
     }
 });
 
-test('Known provenance continues source-tier arbitration (rpc > takeout, titles map merged)', async () => {
-    const { mockStorage, chrome } = createMockChromeStorage({
-        gemini_conversations: ([
-            {
-                id: 'c_tier_test',
-                title: 'Takeout旧标题',
-                titleSource: 'takeout',
-                titles: { takeout: 'Takeout旧标题' }
-            }
-        ]).map(indexFixture)
-    });
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = chrome;
-
-    try {
-        // Upgrade with RPC source
-        await StorageService.finalizeConversationExport(
-            'u0',
-            'c_tier_test',
-            {
-                title: 'RPC线上权威新标题',
-                format: 'markdown',
-                status: 'ok'
-            },
-            {
-                conversationUpdate: {
-                    title: 'RPC线上权威新标题',
-                    titleSource: 'rpc',
-                    titles: { rpc: 'RPC线上权威新标题' }
-                }
-            }
-        );
-
-        let convs = await StorageService.getConversations('u0');
-        assert.strictEqual(convs[0].title, 'RPC线上权威新标题', 'RPC 必须晋级覆盖 Takeout');
-        assert.strictEqual(convs[0].titleSource, 'rpc');
-        assert.equal(convs[0].hasTakeoutImport, true);
-        assert.equal('titles' in convs[0], false);
-
-        // Subsequent weaker takeout update must NOT downgrade RPC
-        await StorageService.finalizeConversationExport(
-            'u0',
-            'c_tier_test',
-            {
-                title: '另一个Takeout更旧标题',
-                format: 'markdown',
-                status: 'ok'
-            },
-            {
-                conversationUpdate: {
-                    title: '另一个Takeout更旧标题',
-                    titleSource: 'takeout',
-                    titles: { takeout: '另一个Takeout更旧标题' }
-                }
-            }
-        );
-
-        convs = await StorageService.getConversations('u0');
-        assert.strictEqual(convs[0].title, 'RPC线上权威新标题', '弱势 Takeout 绝不能降级已有的 RPC');
-        assert.strictEqual(convs[0].titleSource, 'rpc');
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+test('ingestion arbitrates title authority before completion', async () => {
+    const native = (title: string, titleSource: string) => historicalFixture({ id: 'tier-test', title, titleSource,
+        messages: [{ role: 'user', content: 'Question' }] });
+    await StorageService.ingestConversation('u0', native('Imported', 'takeout'), [], 'takeout');
+    await StorageService.ingestConversation('u0', native('Online', 'rpc'));
+    await StorageService.ingestConversation('u0', native('Old import', 'takeout'), [], 'takeout');
+    const [index] = await StorageService.getConversations('u0');
+    assert.strictEqual(index.title, 'Online');
+    assert.strictEqual(index.titleSource, 'rpc');
+    assert.strictEqual(index.hasTakeoutImport, true);
 });
 
 test('Callback semantics: invoked after persistence, error does not abort, not invoked on failure', async () => {
@@ -485,39 +434,10 @@ test('completeConversationExport requires an adapter with a persistence method',
     }, /storageAdapter must implement finalizeConversationExport or saveExportRecord/);
 });
 
-test('fresh conversation registration sanitizes invalid title provenance in canonical index', async () => {
-    const { mockStorage, chrome } = createMockChromeStorage({
-        gemini_conversations: []
-    });
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = chrome;
-
-    try {
-        await StorageService.finalizeConversationExport(
-            'u0',
-            'fresh_dirty',
-            { title: 'Real', status: 'ok', exportedAt: new Date().toISOString() },
-            {
-                conversationUpdate: {
-                    title: 'Real',
-                    titleSource: 'random-source',
-                    titles: {
-                        'random-source': 'Dirty',
-                        rpc: 'RPC'
-                    }
-                }
-            }
-        );
-
-        const saved = mockStorage.gemini_conversations.find((c: any) => normId(c.id) === 'fresh_dirty');
-        assert.ok(saved, 'fresh conversation must be registered');
-        assert.equal('titles' in saved, false);
-        assert.equal(saved.titleSource, 'rpc');
-        assert.strictEqual(saved.title, 'RPC', 'canonical title must arbitrate to rpc');
-        assert.strictEqual(saved.titleSource, 'rpc', 'canonical titleSource must arbitrate to rpc');
-    } finally {
-        (global as any).chrome = origChrome;
-    }
+test('completing an uncatalogued export does not establish conversation existence', async () => {
+    await StorageService.finalizeConversationExport('u0', 'fresh', { title: 'Delivery title', status: 'ok' });
+    assert.deepStrictEqual(await StorageService.getConversations('u0'), []);
+    assert.strictEqual((await StorageService.getExportedIds('u0')).fresh.title, 'Delivery title');
 });
 
 test('BatchWorker keeps dirty legacy title slots outside canonical index', async () => {

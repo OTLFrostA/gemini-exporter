@@ -1,7 +1,6 @@
-import { indexFromParsed } from '../core/compatibility/index/parseIndex.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
+import { ingestConversation } from '../core/storage/storageService.js';
 import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
 import type { ContentConversationDetail, DomDetailDebug, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
@@ -151,22 +150,8 @@ export function init({
                 return true;
             }
             void (async () => {
-                async function persistDetailIndex(chatObj: ContentConversationDetail): Promise<void> {
-                    if (!chatObj) return;
-                    await persistNativeConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj);
-                    const nid = chatObj.conversation.id;
-                    const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
-                    try {
-                        // Native acquisition has already resolved title uncertainty.
-                        // Apply its metadata under the conversation lock.
-                        if (Storage && typeof Storage.updateConversation === 'function') {
-                            const index = indexFromParsed(chatObj);
-                            await Storage.updateConversation(slot, nid, { title: index.title, titleSource: index.titleSource,
-                                updatedAt: index.updatedAt, messageCount: index.messageCount });
-                        }
-                    } catch (err) {
-                        console.warn('[Gemini Exporter] persistDetailIndex error', err);
-                    }
+                async function acceptDetail(chatObj: ContentConversationDetail): Promise<ContentConversationDetail> {
+                    return { ...chatObj, ...await ingestConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj) };
                 }
 
                 let batchexecuteEmptyDebug: ProviderEmptyDebug | null = null;
@@ -175,8 +160,8 @@ export function init({
                     if (provider) {
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
                         if (detail && isResourceConversationParseResult(detail) && detail.conversation.messages.length > 0) {
-                            await persistDetailIndex(detail);
-                            respondDetail({ success: true, data: detail, source: 'batchexecute' });
+                            const accepted = await acceptDetail(detail);
+                            respondDetail({ success: true, data: accepted, source: 'batchexecute' });
                             return;
                         } else if (detail) {
                             const rawKeys = detail.transport.decodedPayload ? Object.keys(detail.transport.decodedPayload) : [];
@@ -218,8 +203,8 @@ export function init({
                     if (Scraper) {
                         const chat = await Scraper.contentFetchChatDetail(cid);
                         if (chat && isResourceConversationParseResult(chat) && chat.conversation.messages.length > 0) {
-                            await persistDetailIndex(chat);
-                            respondDetail({ success: true, data: chat, source: 'dom' });
+                            const accepted = await acceptDetail(chat);
+                            respondDetail({ success: true, data: accepted, source: 'dom' });
                             return;
                         } else {
                             const failure = chat && 'error' in chat ? chat : { id: cid, error: 'DOM returned empty content' };

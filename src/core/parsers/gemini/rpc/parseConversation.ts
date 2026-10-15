@@ -1,3 +1,4 @@
+import { normId } from '../../../utils/pathUtils.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
@@ -70,7 +71,7 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     const conversation: DomainConversationDetail = {
         providerId: 'gemini',
         completeness: hasMore || rejected || versionMismatch ? 'partial' : 'unknown',
-        id: metadata?.id ?? evidence.id, title: metadata?.title ?? evidence.title,
+        id: normId(metadata?.id ?? evidence.id), title: metadata?.title ?? evidence.title,
         titleSource: metadata ? 'rpc' : evidence.titleSource,
         url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
         assets: resources.assets, messages: resources.messages,

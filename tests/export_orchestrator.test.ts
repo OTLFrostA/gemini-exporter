@@ -805,6 +805,7 @@ test('BatchWorker - accepts typed native results; storage rejects a mutated grap
 
 test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
     for (const mode of ['envelope', 'missing', 'falsy-first']) {
+        require('../src/core/storage/domain/domainStore.js').__clearDomainMemory();
         const useEnvelopeChat = mode === 'envelope';
         setupMockJSZip();
         setupMockStorage();

@@ -78,8 +78,6 @@ interface SessionDiagnosticsPayload {
 
 export interface FinalizeChatRecordEnvelope {
     exportRecord: StoredExportRecord;
-    conversationUpdate?: FinalizeExportOptions['conversationUpdate'];
-    skipConversationUpdate?: boolean;
     isTruncated?: boolean;
     truncateReason?: string;
     targetId?: string;
@@ -298,8 +296,6 @@ async function finalizeChatExport(targetId: string, context: FinalizeChatExportC
     if (!rawEntry) return false;
 
     const rec: StoredExportRecord = isFinalizeEnvelope(rawEntry) ? rawEntry.exportRecord : rawEntry;
-    const conversationUpdate = isFinalizeEnvelope(rawEntry) ? rawEntry.conversationUpdate : undefined;
-    const skipConversationUpdate = isFinalizeEnvelope(rawEntry) ? rawEntry.skipConversationUpdate : undefined;
 
     if (chatFailedAssetsSet && chatFailedAssetsSet.has(targetNid)) {
         applyAssetFailureToExportRecord(rec);
@@ -322,8 +318,6 @@ async function finalizeChatExport(targetId: string, context: FinalizeChatExportC
     try {
         if (typeof storageAdapter.finalizeConversationExport === 'function') {
             await storageAdapter.finalizeConversationExport(slot, targetId, rec, {
-                conversationUpdate,
-                skipConversationUpdate,
                 onItemExported
             });
         } else {

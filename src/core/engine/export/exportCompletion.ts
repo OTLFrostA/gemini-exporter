@@ -1,5 +1,3 @@
-import { parseIndexObservation } from '../../compatibility/index/parseIndex.js';
-import type { ConversationIndexPatch } from '../../domain/conversationIndex.js';
 import type { ChatParseDrift } from './parseDrift.js';
 import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
 import type { TitleSources } from '../../../types/conversation.js';
@@ -9,8 +7,6 @@ import {
     isRealTitle,
     toTimestampMs,
     resolveTitle,
-    TITLE_SOURCE_PRIORITY,
-    type TitleSource,
     normalizeReliableTitleSource,
     resolveReliableTitleSource
 } from '../../utils/titleUtils.js';
@@ -77,8 +73,6 @@ export interface BuildExportCompletionInput {
     /** Integrity evidence facts */
     evidence?: ChatParseDrift;
     usedLocalSnapshot?: boolean;
-    /** Saved projections cannot publish new catalog facts, including retained deleted archives. */
-    metadataSource?: 'acquisition' | 'saved';
 }
 
 export type StandardExportRecord = {
@@ -93,17 +87,11 @@ export type StandardExportRecord = {
     truncateReason?: string;
 }
 
-export type StandardConversationUpdate = ConversationIndexPatch;
-
 export interface ExportCompletionResult {
-    /** Exporting a saved projection provides no fresh catalog metadata. */
-    skipConversationUpdate?: true;
     /** Canonical normalized conversation ID without c_ prefix */
     targetId: string;
     /** Standardized ExportRecord to store in exportedIds SSoT */
     exportRecord: StandardExportRecord;
-    /** Standardized update payload for gemini_conversations write-back */
-    conversationUpdate: StandardConversationUpdate;
 }
 
 /**
@@ -189,7 +177,7 @@ export function applyAssetFailureToExportRecord(record: { status?: string; hasFa
 
 /**
  * Unified factory that transforms raw export completion facts into standardized
- * ExportRecord and ConversationUpdate metadata, eliminating semantic drift between
+ * delivery records, eliminating semantic drift between
  * live-save and batch exports.
  */
 export function buildExportCompletion(input: BuildExportCompletionInput): ExportCompletionResult {
@@ -208,40 +196,6 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
             candidateTitle = resolvedFromChat.title;
         } else {
             candidateTitle = candidateTitle || chatTitle || resolvedFromChat.title || '未命名对话';
-        }
-    }
-
-    // Merge titles map: strictly gate canonical provenance domain
-    const mergedTitles: Record<string, string> = {};
-    const addCanonicalTitles = (srcObj: unknown) => {
-        if (srcObj && typeof srcObj === 'object') {
-            for (const [k, v] of Object.entries(srcObj)) {
-                const reliableK = normalizeReliableTitleSource(k);
-                if (reliableK && typeof v === 'string' && v) {
-                    mergedTitles[reliableK] = v;
-                } else if (k === 'legacy' && typeof v === 'string' && v) {
-                    mergedTitles.legacy = v;
-                }
-            }
-        }
-    };
-    addCanonicalTitles(chat.titles);
-    addCanonicalTitles(input.titles);
-
-    // Resolve provenance: only adopt if reliable (in TITLE_SOURCE_PRIORITY and not default/legacy/export)
-    let candidateProvenance: TitleSource | undefined = resolveReliableTitleSource(
-        input.titleProvenance,
-        chat.titleSource
-    );
-
-    // If still unresolved, check if candidateTitle matches a reliable tier in mergedTitles
-    if (!candidateProvenance && mergedTitles && typeof mergedTitles === 'object') {
-        for (const source of TITLE_SOURCE_PRIORITY) {
-            const reliableSource = normalizeReliableTitleSource(source);
-            if (reliableSource && mergedTitles[reliableSource] && cleanTitle(mergedTitles[reliableSource]) === candidateTitle) {
-                candidateProvenance = reliableSource;
-                break;
-            }
         }
     }
 
@@ -293,19 +247,10 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         ...(isTruncated ? { isTruncated: true, truncateReason: input.truncateReason || chat.truncateReason || 'truncated' } : {})
     };
 
-    const index = parseIndexObservation({ id: targetId, title: candidateTitle, titleSource: candidateProvenance,
-        titles: mergedTitles, messageCount }, 'export');
-    const sourceUpdatedAt = chatTime ?? null;
-    const conversationUpdate: StandardConversationUpdate = {
-        title: index.title, titleSource: index.titleSource, messageCount: index.messageCount,
-        ...(sourceUpdatedAt !== null ? { updatedAt: sourceUpdatedAt } : {}),
-    };
 
     return {
         targetId,
         exportRecord,
-        conversationUpdate,
-        ...(input.metadataSource === 'saved' || input.usedLocalSnapshot ? { skipConversationUpdate: true as const } : {}),
     };
 }
 
@@ -318,7 +263,6 @@ export async function completeConversationExport(
     input: BuildExportCompletionInput,
     options?: {
         onItemExported?: FinalizeExportOptions<StandardExportRecord>['onItemExported'];
-        skipConversationUpdate?: boolean;
     }
 ): Promise<ExportCompletionResult> {
     const completion = buildExportCompletion(input);
@@ -329,8 +273,6 @@ export async function completeConversationExport(
             completion.targetId,
             completion.exportRecord,
             {
-                conversationUpdate: completion.conversationUpdate,
-                skipConversationUpdate: completion.skipConversationUpdate || options?.skipConversationUpdate,
                 onItemExported: options?.onItemExported
             }
         );

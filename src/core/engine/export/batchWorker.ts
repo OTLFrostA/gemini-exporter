@@ -1,5 +1,3 @@
-import { indexFromParsed } from '../../compatibility/index/parseIndex.js';
-import { mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { StorageService } from '../../storage/storageService.js';
 import { selectConversationBody, withConversationMetadata } from '../../domain/runtimeValidation.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
@@ -25,8 +23,8 @@ export type WorkerChatResolveInput = NativeConversationInput;
 export type WorkerMessageAttachment = AssetPipelineItem;
 export type ResolveChatResult = {
     isError: false; chat: ResourceConversationParseResult; source: ResolvedConversationSource;
-    isConfirmedDeleted: false; errMsg: null; convsNeedSave: boolean;
-} | { isError: true; displayTitle: string; isConfirmedDeleted: boolean; errMsg: string; convsNeedSave: false };
+    isConfirmedDeleted: false; errMsg: null;
+} | { isError: true; displayTitle: string; isConfirmedDeleted: boolean; errMsg: string };
 interface ResolveChatOptions { messageSender?: MessageSenderFunction | null; source?: ResolvedConversationSource }
 interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
@@ -208,27 +206,18 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         if (deleted) {
             onLog(`Cloud conversation deleted: ${requested.title || id}. Local archive retained; no conversation body is available.`, 'warn');
         }
-        return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error, convsNeedSave: false };
+        return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error };
     }
-    const domain = result.conversation;
     const cached = dataSource === 'local_snapshot';
-    const repository = cached ? StorageService.conversationRepository({ providerId: domain.providerId, accountSlot: slot }) : null;
-    const canonical = repository ? await repository.getConversationIndex(id) : null;
-    if (cached && !canonical) return { isError: true, displayTitle: requested.title || id,
-        isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued', convsNeedSave: false };
-    const observation = indexFromParsed(result, dataSource === 'takeout' ? 'takeout' : dataSource === 'local_snapshot' ? 'snapshot' : 'detail');
-    // Saved metadata is a projection of an earlier observation, never new evidence.
-    // A deletion confirmed by this request remains restrictive even if its marker
-    // failed to persist. An older saved Index cannot erase that live evidence.
-    const merged = canonical ? confirmedDeleted ? { ...canonical, cloudAvailability: 'deleted' as const } : canonical
-        : mergeConversationIndex(list ?? undefined, observation);
-    const changed = !!list && JSON.stringify(list) !== JSON.stringify(merged);
-    if (changed && list) {
-        Object.assign(list, merged);
-        if (!cached) onTitleUpdated(id, merged.title, merged.titleSource);
-    }
-    return { isError: false, chat: { ...result, conversation: withConversationMetadata(selectConversationBody(domain), merged) }, source: dataSource,
-        isConfirmedDeleted: false, errMsg: null, convsNeedSave: !cached && changed };
+    const accepted = cached ? result : await StorageService.ingestConversation(slot, result, [], dataSource === 'takeout' ? 'takeout' : 'detail');
+    const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.providerId, accountSlot: slot }).getConversationIndex(accepted.conversation.id);
+    if (!canonical) return { isError: true, displayTitle: requested.title || id,
+        isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
+    if (confirmedDeleted) canonical.cloudAvailability = 'deleted';
+    if (list) Object.assign(list, canonical);
+    if (!cached) onTitleUpdated(id, canonical.title, canonical.titleSource);
+    return { isError: false, chat: { ...accepted, conversation: withConversationMetadata(selectConversationBody(accepted.conversation), canonical) }, source: dataSource,
+        isConfirmedDeleted: false, errMsg: null };
 }
 export const isWorkerChat = isResourceConversationParseResult;
 export function formatDebugInfo(debug: unknown): string {

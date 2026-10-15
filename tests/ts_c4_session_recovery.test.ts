@@ -595,7 +595,7 @@ test('C4-11: bare and wrapped records retain identity and metadata in both maps 
                     assert.strictEqual(slot, 'u0');
                     assert.strictEqual(id, 'c_abc');
                     assert.strictEqual(received, record);
-                    assert.strictEqual(options?.conversationUpdate, wrapped ? update : undefined);
+                    assert.equal('conversationUpdate' in (options ?? {}), false);
                     options?.onItemExported?.('c_abc', received);
                     return { ok: true, record: received };
                 }

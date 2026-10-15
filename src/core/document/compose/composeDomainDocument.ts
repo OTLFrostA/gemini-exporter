@@ -1,3 +1,4 @@
+import { toIso } from '../../domain/time.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import { collectReferencedAssetIds } from '../../domain/content/collectAssetReferences.js';
 import { selectDisplayDate } from './displayDate.js';
@@ -37,6 +38,10 @@ export function composeDomainDocument(conversation: TrustedDomain, options: Doma
     const date = selectDisplayDate(options.sourceVersion, conversation.createdAt);
     return { document: {
         schemaVersion: 2,
+        metadata: { id: conversation.id, provider: conversation.providerId,
+            ...(conversation.url ? { url: conversation.url } : {}),
+            ...(toIso(conversation.createdAt) ? { createdAt: toIso(conversation.createdAt)! } : {}),
+            ...(toIso(options.sourceVersion) ? { updatedAt: toIso(options.sourceVersion)! } : {}) },
         ...(options.documentLanguage ? { documentLanguage: options.documentLanguage } : {}),
         header: { title: (conversation.title || 'Untitled conversation').replace(/[\r\n]+/g, ' ').trim(), providerLabel: conversation.providerId,
             ...(date ? { date } : {}), messageCount: messages.length },

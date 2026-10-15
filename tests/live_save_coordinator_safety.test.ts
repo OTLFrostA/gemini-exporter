@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
@@ -163,6 +165,7 @@ test('B3 Safety 5: live-save IPC success delegates and triggers feedback', async
 
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
+        ...globalThis.chrome,
         runtime: {
             sendMessage: (msg: any, cb: (res: any) => void) => {
                 sentMessage = msg;
@@ -207,6 +210,7 @@ test('B3 Safety 6: partial asset result is treated as saved + warning', async ()
 
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
+        ...globalThis.chrome,
         runtime: {
             sendMessage: (_msg: any, cb: (res: any) => void) => {
                 if (cb) {
@@ -260,6 +264,7 @@ test('B3 Safety 7: permission/directory errors map exactly as expected', async (
         let warningCalledWith: string | null = null;
         const origChrome = (global as any).chrome;
         (global as any).chrome = {
+        ...globalThis.chrome,
             runtime: {
                 sendMessage: (_msg: any, cb: (res: any) => void) => {
                     if (cb) cb({ ok: false, error: testCase.err });

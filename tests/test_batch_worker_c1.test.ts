@@ -218,7 +218,7 @@ test('native resolver retains unknown source blocks and arbitrates titles withou
     const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
     const resolved = await resolveChat(native, { id: 'native-title' }, list);
     assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.title, 'RPC title');
-    assert.equal(resolved.chat.conversation.messages, native.conversation.messages);
+    assert.deepEqual(resolved.chat.conversation.messages, native.conversation.messages);
     assert.equal(resolved.chat.conversation.messages[0].role, 'unknown');
     const deleted = await resolveChat({ id: 'deleted-native', error: 'Conversation not found', isDeleted: true }, { id: 'deleted-native' });
     assert.equal(deleted.isConfirmedDeleted, true); assert.equal(deleted.chat, undefined);

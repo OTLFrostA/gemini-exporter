@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
@@ -108,7 +110,7 @@ const htmlEntry = (html: string) => ({ _data: { uncompressedSize: html.length },
 const bytesEntry = (byte: number) => ({ _data: { uncompressedSize: 1 }, async: async () => new Uint8Array([byte]) });
 
 test('production Takeout binds extension variations once and carries native Domain to PDF acquisition', async () => {
-    const slot = 'native-bindings';
+    const slot = 'u0';
     const html = activity('<a href="image-hash.png">image</a> <a href="IMG-hash.jpeg">photo</a> <a href="script-hash.py">script</a>');
     try {
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html), 'Takeout/Gemini Apps/image-hash': bytesEntry(1), 'Takeout/Gemini Apps/IMG-hash.jpg': bytesEntry(2), 'Takeout/Gemini Apps/script-hash': bytesEntry(3) }), null, slot);
@@ -131,7 +133,7 @@ test('production Takeout binds extension variations once and carries native Doma
 });
 
 test('non-archive Takeout images do not become missing ZIP resource failures', async () => {
-    const slot = 'native-inline';
+    const slot = 'u0';
     try {
         const html = activity('').replace('<p>Answer</p>', '<p>![cdn](//cdn.example.com/image.png) ![remote](https://example.test/remote.png) ![http](http://example.test/plain.png) ![inline](data:image/png;base64,AQID)</p>');
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html) }), null, slot);
@@ -143,7 +145,7 @@ test('non-archive Takeout images do not become missing ZIP resource failures', a
 });
 
 test('ambiguous Takeout resources cannot be recovered later by permissive legacy guessing', async () => {
-    const slot = 'native-ambiguity';
+    const slot = 'u0';
     try {
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity('<a href="photo.png">image</a>')), 'one/photo.png': bytesEntry(1), 'two/photo.png': bytesEntry(2) }), null, slot);
         assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
@@ -158,7 +160,7 @@ test('ambiguous Takeout resources cannot be recovered later by permissive legacy
 
 test('missing ZIP references and unsupported URI schemes report failures through import and storage restore', async () => {
     for (const uri of ['missing.png', 'blob:missing.png', 'file:missing.png', 'custom:missing.png']) {
-        const slot = `native-missing-${uri}`;
+        const slot = 'u0';
         try {
             const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity(`<a href="${uri}">image</a>`)) }), null, slot);
             assert.equal(parsed.status, 'partial', uri);
