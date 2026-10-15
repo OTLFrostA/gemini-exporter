@@ -139,10 +139,10 @@ test('T4: Genuine Typst WASM compilation gate for MiTeX-converted formulas', asy
         display: true,
     }));
 
-    const domain = { providerId: 'gemini', id: 'mitex-compile-test', title: 'MiTeX WASM Compilation Test', timestamp: null, createdAt: '2026-09-28T00:00:00Z', updatedAt: '2026-09-28T00:00:00Z', assets: [], messages: [
+    const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'mitex-compile-test', title: 'MiTeX WASM Compilation Test', createdAt: '2026-09-28T00:00:00Z', updatedAt: '2026-09-28T00:00:00Z' }, detail: { completeness: 'unknown', assets: [], messages: [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Math test' }] }] },
         { id: 'm2', role: 'assistant', content: blocks },
-    ] };
+    ] } };
 
     const { payload } = renderTypstFixture(composeDomainDocument(domain).document, {}, {
         convertMath: (source: string, display: boolean) => {

@@ -4,7 +4,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { DocumentAst, DisplayInline, DisplayBlock } from '../src/core/document/ast/ast.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { fileBadge } from '../src/core/renderers/shared/backendPresentation.js';
@@ -15,11 +15,11 @@ import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js'
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 
-function domain(): DomainConversationDetail {
-    return { providerId: 'custom', id: 'freeze', title: 'Boundary', completeness: 'unknown', assets: [], messages: [
+function domain(): DomainConversationWithDetail {
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'freeze', title: 'Boundary' }, detail: { completeness: 'unknown', assets: [], messages: [
         { id: 'same unsafe / " identity', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Question '.repeat(40) }] }] },
         { id: 'answer', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }] },
-    ] };
+    ] } };
 }
 function freeze(value: unknown): void {
     if (!value || typeof value !== 'object') return;
@@ -55,21 +55,21 @@ test('file badges use only supplied media type or kind, including misleading lab
 
 test('display date selects the first valid fact and normalizes to UTC at composition', () => {
     const input = domain();
-    input.createdAt = Date.parse('2026-10-04T00:00:00Z');
+    input.index.createdAt = Date.parse('2026-10-04T00:00:00Z');
     let sourceVersion: number | undefined = Date.parse('2026-10-06T23:30:00-07:00');
     for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
-        const document: DocumentAst = composeDomainDocument(validateParserDomain(input), { sourceVersion }).document;
+        const document: DocumentAst = composeDomainDocument(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } })).document;
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
         if (field === 'updatedAt') sourceVersion = undefined;
-        else input.createdAt = undefined;
+        else input.index.createdAt = undefined;
     }
     assert.equal(composeDomainDocument(validateParserDomain(input)).document.header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, { sourceVersion: historicalFixture(source, { providerId: 'gemini' }).sourceVersion }).document.header.date, '2026-10-07');
+    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document.header.date, '2026-10-07');
     source.updatedAt = 'invalid';
-    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, { sourceVersion: historicalFixture(source, { providerId: 'gemini' }).sourceVersion }).document;
+    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation).document;
     assert.equal(document.header.date, '2026-10-04');
     assert.equal(document.messages[0].modelLabel, 'provider only');
     assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
@@ -94,9 +94,9 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     const inline = (id: string) => ({ type: 'image' as const, assetId: id, alt: id });
     const rendered = ['main', 'inline', 'heading', 'header', 'cell', 'nested'];
     const rich = ['image-caption', 'table-caption', 'description', 'source-heading', 'details'];
-    input.assets = [...rendered, ...rich].map(id => ({ id, kind: 'image', sourceUri: `https://example.test/${id}` }));
-    input.assets.push({ id: 'file', kind: 'file' });
-    input.messages[1].content = [
+    input.detail.assets = [...rendered, ...rich].map(id => ({ id, kind: 'image', sourceUri: `https://example.test/${id}` }));
+    input.detail.assets.push({ id: 'file', kind: 'file' });
+    input.detail.messages[1].content = [
         { type: 'image', assetId: 'main', caption: [inline('image-caption')] },
         { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'link', href: '/', children: [inline('inline')] }] }] },
         { type: 'heading', level: 2, children: [inline('heading')] },
@@ -115,7 +115,7 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     assert.deepEqual([...imageIds].sort(), [...rendered, ...rich].sort());
     assert.equal(collectDocumentResources(document).imageIds.size, rendered.length + rich.length);
     const acquired: string[] = [];
-    const prepared = await preparePdfResources(input, imageIds, {}, { acquire: async id => {
+    const prepared = await preparePdfResources((input).detail, imageIds, {}, { acquire: async id => {
         acquired.push(id);
         return { ok: true as const, resourceId: id, value: { bytes: new Uint8Array([1]), mediaType: 'image/png' } };
     } });

@@ -51,10 +51,10 @@ test('v1 disk migration joins metadata/body, survives restart and exports native
         const markdown = await api.formatMarkdownDocument(view);
         return { version: (await chrome.storage.local.get(['gemini_schema_version'])).gemini_schema_version, conversation: view.conversation, markdown: markdown.content };
     });
-    expect(restored.version).toBe(2);
-    expect(restored.conversation.messages).toHaveLength(2);
-    expect(restored.conversation.messages[1].model).toBe('Remembered model');
-    expect(restored.conversation.messages[1].reasoning).toBeTruthy();
+    expect(restored.version).toBe(3);
+    expect(restored.conversation.detail.messages).toHaveLength(2);
+    expect(restored.conversation.detail.messages[1].model).toBe('Remembered model');
+    expect(restored.conversation.detail.messages[1].reasoning).toBeTruthy();
     expect(restored.markdown).toContain('Remembered answer');
     expect(restored.markdown).toContain('Remembered model');
 });
@@ -87,15 +87,15 @@ test('durable attachment bytes remain outside Domain and are acquired offline af
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        await chrome.storage.local.set({ gemini_schema_version: 2 });
-        await api.saveDomainConversation('u0', { conversation: { providerId: 'gemini', id: 'offline', title: 'Offline', completeness: 'unknown', assets: [{ id: 'image', kind: 'image', sourceUri: 'Takeout/source.png' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }] }] }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'image', sourcePath: 'Takeout/source.png', bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]) }]);
+        await chrome.storage.local.set({ gemini_schema_version: 3 });
+        await api.saveDomainConversation('u0', { conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'offline', title: 'Offline' }, detail: { completeness: 'unknown', assets: [{ id: 'image', kind: 'image', sourceUri: 'Takeout/source.png' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }] }] } }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'image', sourcePath: 'Takeout/source.png', bytes: new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]) }]);
     });
     await page.reload(); await install(page);
     const restored = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         const view = await api.getDomainConversationResult('u0', 'offline');
         const pipeline = new api.AssetPipeline({ currentSlot: 'u0', fetchAsset: async () => { throw new Error('Network must not be needed'); } });
-        const bytes = await pipeline.acquireAssetBytes({ assetId: view.conversation.assets[0].id, url: view.conversation.assets[0].sourceUri }, { id: 'offline', title: 'Offline' });
+        const bytes = await pipeline.acquireAssetBytes({ assetId: view.conversation.detail.assets[0].id, url: view.conversation.detail.assets[0].sourceUri }, { id: 'offline', title: 'Offline' });
         return { bytes: [...bytes.value.bytes], conversation: view.conversation };
     });
     expect(restored.bytes).toEqual([137, 80, 78, 71, 13, 10, 26, 10, 1]);
@@ -106,7 +106,7 @@ test('online byte cache survives restart, deletion erases bytes and a late migra
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        const parsed = { conversation: { providerId: 'gemini', id: 'cached', title: 'Cached', completeness: 'unknown', assets: [{ id: 'asset', kind: 'image', sourceUri: 'https://example.test/image' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'asset' }] }] }, acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
+        const parsed = { conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'cached', title: 'Cached' }, detail: { completeness: 'unknown', assets: [{ id: 'asset', kind: 'image', sourceUri: 'https://example.test/image' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'asset' }] }] } }, acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
         await api.saveDomainConversation('u0', parsed);
         await api.cacheDomainResource(api.storageIdentity('gemini', 'u0', 'cached'), 'asset', 'https://example.test/image', new Uint8Array([1, 2, 3]));
     });
@@ -132,20 +132,18 @@ for (const method of ['remove', 'reconcile'] as const) {
             const failed = await page.evaluate(async ({ method, failure }) => {
                 const api = Reflect.get(globalThis, 'storageProbe');
                 const parsed = {
-                    conversation: { providerId: 'gemini', id: 'retry-delete', title: 'Delete', completeness: 'unknown',
-                        assets: [{ id: 'archive', kind: 'image', sourceUri: 'Takeout/source.png' },
-                            { id: 'online', kind: 'image', sourceUri: 'https://example.test/online.png' }],
-                        messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'archive' }, { type: 'image', assetId: 'online' }] }] },
+                    conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'retry-delete', title: 'Delete' }, detail: { completeness: 'unknown', assets: [{ id: 'archive', kind: 'image', sourceUri: 'Takeout/source.png' },
+                            { id: 'online', kind: 'image', sourceUri: 'https://example.test/online.png' }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'archive' }, { type: 'image', assetId: 'online' }] }] } },
                     acquisitionHints: {}, resourceHints: {}, diagnostics: []
                 };
-                await chrome.storage.local.set({ gemini_schema_version: 2,
+                await chrome.storage.local.set({ gemini_schema_version: 3,
                     gemini_conversations: [{ id: 'retry-delete', title: 'Delete' }].map(api.indexFixture),
                     gemini_conversations_u1: [{ id: 'retry-delete', title: 'Other account' }].map(api.indexFixture),
                     exportedIds: { 'retry-delete': { timestamp: 1 }, 'c_retry-delete': { timestamp: 1 }, keep: { timestamp: 1 } },
                     gemini_exported_u1: { 'retry-delete': { timestamp: 2 } }
                 });
                 await api.saveDomainConversation('u0', parsed, [{ assetId: 'archive', bytes: new Uint8Array([1, 2, 3]) }]);
-                parsed.conversation.title = 'New revision';
+                parsed.conversation.index.title = 'New revision';
                 await api.saveDomainConversation('u0', parsed);
                 await api.saveDomainConversation('u1', parsed, [{ assetId: 'archive', bytes: new Uint8Array([4, 5]) }]);
                 for (const slot of ['u0', 'u1']) await api.cacheDomainResource(api.storageIdentity('gemini', slot, 'retry-delete'), 'online', 'https://example.test/online.png', new Uint8Array([6, 7]));
@@ -238,8 +236,8 @@ test('current storage rejects intermediate versions and obsolete fields without 
     const result = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         const identity = api.storageIdentity('gemini', 'u0', 'strict');
-        const conversation = { providerId: 'gemini', id: 'strict', title: 'Current', completeness: 'unknown', assets: [], messages: [] };
-        const record = { key: api.domainStorageKey(identity), storageVersion: 2, domainVersion: 2, identity,
+        const conversation = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'strict', title: 'Current' }, detail: { completeness: 'unknown', assets: [], messages: [] } };
+        const record = { key: api.domainStorageKey(identity), storageVersion: 3, domainVersion: 3, identity,
             origin: 'source', revision: 'original', resources: [], acquisitionHints: {}, conversation };
         const db = await api.openDomainDB();
         const put = (value: unknown) => new Promise<void>((resolve, reject) => {
@@ -252,8 +250,8 @@ test('current storage rejects intermediate versions and obsolete fields without 
         });
         try {
             const failures = [];
-            for (const invalid of [{ ...record, domainVersion: 1 }, { ...record, domainVersion: 3 }, { ...record, savedAt: 1 },
-                { ...record, conversation: { ...conversation, timestamp: 123 } }]) {
+            for (const invalid of [{ ...record, domainVersion: 1 }, { ...record, domainVersion: 4 }, { ...record, savedAt: 1 },
+                { ...record, conversation: { ...conversation, detail: { ...conversation.detail, timestamp: 123 } } }]) {
                 await put(invalid);
                 let error = '';
                 try { await api.getStoredDomain(identity); } catch (failure) { error = String(failure); }
@@ -261,7 +259,7 @@ test('current storage rejects intermediate versions and obsolete fields without 
             }
             await put(record);
             let rejectedWrite = '';
-            try { await api.saveDomainRequest('u0', { conversation: { ...conversation, timestamp: 123 }, acquisitionHints: {} }); }
+            try { await api.saveDomainRequest('u0', { conversation: { ...conversation, detail: { ...conversation.detail, timestamp: 123 } }, acquisitionHints: {} }); }
             catch (error) { rejectedWrite = String(error); }
             return { failures, rejectedWrite, unchanged: JSON.stringify(await get()) === JSON.stringify(record),
                 current: await api.getStoredDomain(identity) };
@@ -274,31 +272,27 @@ test('current storage rejects intermediate versions and obsolete fields without 
     expect(result.failures[3].error).toContain('timestamp');
     expect(result.rejectedWrite).toContain('timestamp');
     expect(result.unchanged).toBe(true);
-    expect(result.current.domainVersion).toBe(2);
+    expect(result.current.domainVersion).toBe(3);
 });
 
 test('restart retains report caution and detects missing image bytes without saved failure state', async ({ page }) => {
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        await api.saveDomainRequest('u0', { conversation: {
-            providerId: 'gemini', id: 'report-caution', title: 'Deep Research', titleSource: 'rpc', completeness: 'unknown',
-            assets: [{ id: 'report', kind: 'file', document: { id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true } },
-                { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } }],
-            messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'], generation: { mediaKind: 'image', outputCount: 1 } }],
-        }, acquisitionHints: {} });
+        await api.saveDomainRequest('u0', { conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, providerId: 'gemini', id: 'report-caution', title: 'Deep Research', titleSource: 'rpc' }, detail: { completeness: 'unknown', assets: [{ id: 'report', kind: 'file', document: { id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true } },
+                { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } }], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'], generation: { mediaKind: 'image', outputCount: 1 } }] } }, acquisitionHints: {} });
     });
     await page.reload(); await install(page);
     const result = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         const parsed = await api.getDomainConversationResult('u0', 'report-caution');
-        const prepared = await api.preparePdfResources(parsed.conversation, new Set(['image']), parsed.acquisitionHints);
+        const prepared = await api.preparePdfResources(parsed.conversation.detail, new Set(['image']), parsed.acquisitionHints);
         return { conversation: parsed.conversation, drift: api.extractChatParseDrift(parsed), diagnostics: prepared.diagnostics,
             bytesMissing: !prepared.resources.get('image').ok, failure: prepared.resources.get('image').reason };
     });
-    expect(result.conversation.assets[0].document).toEqual({ id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true });
-    expect(result.conversation.assets[1]).not.toHaveProperty('failureReason');
-    expect(result.conversation.messages[0].generation).toEqual({ mediaKind: 'image', outputCount: 1 });
+    expect(result.conversation.detail.assets[0].document).toEqual({ id: 'source-report', contentMarkdown: '# Report\n\nRetained research body', hasFabricatedText: true });
+    expect(result.conversation.detail.assets[1]).not.toHaveProperty('failureReason');
+    expect(result.conversation.detail.messages[0].generation).toEqual({ mediaKind: 'image', outputCount: 1 });
     expect(result.drift.hasHeuristicDocs).toBe(true);
     expect(result.bytesMissing).toBe(true);
     expect(result.failure).toBeTruthy();
@@ -306,7 +300,7 @@ test('restart retains report caution and detects missing image bytes without sav
 });
 
 
-test('v1 to final v2 migration backs up raw disk values, separates body and rejects read-time repair after restart', async ({ page }) => {
+test('v1 to final v3 migration backs up raw disk values, separates body and rejects read-time repair after restart', async ({ page }) => {
     await install(page);
     const raw = [{ id: 'c_index-migration', title: 'Offline title', titleSource: 'takeout', timestamp: '1700000000',
         titles: { takeout: 'Offline title' }, lastSeen: 9999999999999,
@@ -348,7 +342,7 @@ test('v1 to final v2 migration backs up raw disk values, separates body and reje
     expect(restored.indexes[0]).toMatchObject({ providerId: 'gemini', id: 'index-migration', title: 'Offline title',
         titleSource: 'takeout', hasTakeoutImport: true, updatedAt: 1700000000000, messageCount: 1 });
     for (const key of ['messages', 'titles', 'timestamp', 'lastSeen']) expect(restored.indexes[0]).not.toHaveProperty(key);
-    expect(restored.body.messages[0].content).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'Physical original body' }] }]);
+    expect(restored.body.detail.messages[0].content).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'Physical original body' }] }]);
     expect(restored.before.gemini_conversations_u0).toBeUndefined();
     expect((restored.before.gemini_index_migration_v2 as { issues: unknown[] }).issues).toHaveLength(1);
     expect(restored.after).toEqual(restored.before);
@@ -361,14 +355,13 @@ test('partial native imports retain indexes and aligned source versions through 
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        await chrome.storage.local.set({ gemini_schema_version: 2 });
+        await chrome.storage.local.set({ gemini_schema_version: 3 });
         await api.StorageService.setConversations('u0', [
             api.indexFixture({ id: 'retained', title: 'Untouched index', updatedAt: 50 }),
             api.indexFixture({ id: 'chat', title: 'RPC metadata', titleSource: 'rpc', updatedAt: 100, cloudAvailability: 'deleted' })
         ]);
-        const parsed = { sourceVersion: 999999, conversation: { providerId: 'gemini', id: 'chat', title: 'Weaker body title', titleSource: 'sniff',
-            completeness: 'complete', assets: [], messages: [{ role: 'user', timestamp: 200,
-                content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body retained on disk' }] }] }] },
+        const parsed = { sourceVersion: 999999, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, providerId: 'gemini', id: 'chat', title: 'Weaker body title', titleSource: 'sniff', updatedAt: 999999 }, detail: { completeness: 'complete', assets: [], messages: [{ role: 'user', timestamp: 200,
+                content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body retained on disk' }] }] }] } },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
         await api.StorageService.setNativeConversations('u0', [parsed]);
         await api.StorageService.setNativeConversations('u0', []);
@@ -390,13 +383,12 @@ test('saved source version survives reload and stays behind a newer Index until 
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        await chrome.storage.local.set({ gemini_schema_version: 2 });
-        const parsed = { sourceVersion: 1700000000000, conversation: { providerId: 'gemini', id: 'versioned', title: 'Versioned body', completeness: 'unknown',
-            assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Old body' }] }] }] },
+        await chrome.storage.local.set({ gemini_schema_version: 3 });
+        const parsed = { sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'versioned', title: 'Versioned body' }, detail: { completeness: 'unknown', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Old body' }] }] }] } },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
         await api.saveDomainConversation('u0', parsed);
         await api.StorageService.setConversations('u0', [api.indexFixture({ id: 'versioned', title: 'Versioned body', updatedAt: 1700000005000 })]);
-        await api.saveDomainConversation('u0', { ...parsed, sourceVersion: 1700000010000, conversation: { ...parsed.conversation, completeness: 'partial' } });
+        await api.saveDomainConversation('u0', { ...parsed, sourceVersion: 1700000010000, conversation: { index: { ...parsed.conversation.index }, detail: { ...parsed.conversation.detail, completeness: 'partial' } } });
     });
     await page.reload(); await install(page);
     const old = await page.evaluate(async () => {
@@ -425,10 +417,8 @@ test('scoped aggregate survives reload with one metadata authority and the actua
     await install(page);
     await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
-        await chrome.storage.local.set({ gemini_schema_version: 2 });
-        const parsed = { sourceVersion: 100, conversation: { providerId: 'gemini', id: 'gateway', title: 'Old title', titleSource: 'rpc',
-            completeness: 'unknown', createdAt: 90, url: 'https://gemini.google.com/app/gateway',
-            assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Saved body' }] }] }] },
+        await chrome.storage.local.set({ gemini_schema_version: 3 });
+        const parsed = { sourceVersion: 100, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, providerId: 'gemini', id: 'gateway', title: 'Old title', titleSource: 'rpc', createdAt: 90, url: 'https://gemini.google.com/app/gateway' }, detail: { completeness: 'unknown', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Saved body' }] }] }] } },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
         await api.StorageService.setNativeConversations('u0', [parsed]);
         await api.StorageService.updateConversation('u0', 'gateway', { title: 'Renamed', titleSource: 'rpc', createdAt: 50,
@@ -452,10 +442,132 @@ test('scoped aggregate survives reload with one metadata authority and the actua
     expect(read.aggregate.detail.messages[0].content[0].children[0].text).toBe('Saved body');
     expect(read.aggregate.capture.savedAt).toBe(100);
     expect(read.aggregate.index).toMatchObject({ title: 'Renamed', createdAt: 50, url: 'https://gemini.google.com/u/0/app/gateway' });
-    expect(read.before.conversation.title).toBe('Old title');
+    expect(read.before.conversation.index.title).toBe('Old title');
     expect(read.after).toEqual(read.before);
     expect(read.chromeAfter).toEqual(read.chromeBefore);
     expect(read.other.index.title).toBe('Other account');
     expect(read.other).not.toHaveProperty('detail');
     expect(read.absent).toBeNull();
+});
+
+test('v2 flat snapshots upgrade atomically and retain catalog authority, body versions and acquired bytes after restart', async ({ page }) => {
+    await install(page);
+    const seeded = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const identity = api.storageIdentity('gemini', 'u0', 'snapshot-upgrade');
+        const record = { key: api.domainStorageKey(identity), storageVersion: 2, domainVersion: 2, identity,
+            origin: 'source', revision: 'original-revision', savedAt: 100,
+            conversation: { providerId: 'gemini', id: 'snapshot-upgrade', title: 'Older snapshot title', titleSource: 'rpc', createdAt: 5,
+                url: 'https://gemini.google.com/app/snapshot-upgrade', completeness: 'complete',
+                assets: [{ id: 'image', kind: 'image', sourceUri: 'opaque:original' }],
+                messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['image'] }] },
+            acquisitionHints: { image: { url: 'https://example.test/original' } }, resources: [],
+            resourceDigests: { image: { sourceUri: 'opaque:original', sourcePath: 'original.png' } } };
+        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations: [api.indexFixture({
+            id: 'snapshot-upgrade', title: 'Current catalog rename', titleSource: 'rpc', updatedAt: 200,
+            cloudAvailability: 'deleted', hasTakeoutImport: true })] });
+        const db = await api.openDomainDB();
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction(['conversations', 'resource_bytes'], 'readwrite');
+                tx.objectStore('conversations').put(record);
+                tx.objectStore('resource_bytes').put({ key: JSON.stringify([record.key, 'image', 'opaque:original']),
+                    conversationKey: record.key, assetId: 'image', sourceUri: 'opaque:original', bytes: new Uint8Array([3, 4, 5]) });
+                tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
+            });
+        } finally { db.close(); }
+        return record;
+    });
+    await page.reload(); await install(page);
+    const result = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const migrated = await api.migrate();
+        const identity = api.storageIdentity('gemini', 'u0', 'snapshot-upgrade');
+        const record = await api.getStoredDomain(identity);
+        const aggregate = await api.StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation('snapshot-upgrade');
+        const bytes = [...await api.getDomainResource(identity, 'image')];
+        const db = await api.openDomainDB();
+        let backup: unknown;
+        try {
+            backup = await new Promise((resolve, reject) => {
+                const tx = db.transaction('legacy_imports', 'readonly'), req = tx.objectStore('legacy_imports').get(`domain-v2:${record.key}`);
+                tx.oncomplete = () => resolve(req.result?.value); tx.onerror = () => reject(tx.error);
+            });
+        } finally { db.close(); }
+        return { migrated, record, aggregate, bytes, backup, again: await api.migrate(),
+            stamp: (await chrome.storage.local.get('gemini_schema_version')).gemini_schema_version };
+    });
+    expect(result.migrated).toEqual({ ok: true, frozen: false });
+    expect(result.again).toEqual(result.migrated);
+    expect(result.stamp).toBe(3);
+    expect(result.record.revision).toBe('original-revision');
+    expect(result.record.savedAt).toBe(100);
+    expect(result.backup).toEqual(seeded);
+    expect(result.bytes).toEqual([3, 4, 5]);
+    expect(Object.keys(result.record.conversation).sort()).toEqual(['detail', 'index']);
+    expect(Object.keys(result.aggregate.detail).sort()).toEqual(['assets', 'completeness', 'messages']);
+    expect(result.aggregate.index.title).toBe('Current catalog rename');
+    expect(result.aggregate.index.updatedAt).toBe(200);
+    expect(result.aggregate.index.cloudAvailability).toBe('deleted');
+    expect(result.aggregate.index.hasTakeoutImport).toBe(true);
+    expect(result.aggregate.capture.savedAt).toBe(100);
+    expect(result.record.acquisitionHints).toEqual(seeded.acquisitionHints);
+    expect(result.record.resourceDigests).toEqual(seeded.resourceDigests);
+});
+
+test('invalid v2 snapshot rolls back prior replacements and backups, then upgrades on retry', async ({ page }) => {
+    await install(page);
+    const failed = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const rows = ['a-valid', 'z-invalid'].map(id => {
+            const identity = api.storageIdentity('gemini', 'u0', id);
+            return { key: api.domainStorageKey(identity), storageVersion: 2, domainVersion: 2, identity,
+                origin: 'source', revision: id, savedAt: 100, acquisitionHints: {}, resources: [],
+                conversation: { providerId: 'gemini', id, title: 'Original title', completeness: 'complete', assets: [],
+                    messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: id }] }] }] } };
+        });
+        Reflect.set(rows[1].conversation, 'unexpectedMetadata', true);
+        await chrome.storage.local.set({ gemini_schema_version: 2 });
+        const db = await api.openDomainDB();
+        try {
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction('conversations', 'readwrite');
+                rows.forEach(row => tx.objectStore('conversations').put(row));
+                tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
+            });
+        } finally { db.close(); }
+        return { result: await api.migrate(), rows };
+    });
+    expect(failed.result.ok).toBe(false);
+    await page.reload(); await install(page);
+    const retried = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const db = await api.openDomainDB();
+        let records: unknown[], backups: unknown[];
+        try {
+            [records, backups] = await new Promise<[unknown[], unknown[]]>((resolve, reject) => {
+                const tx = db.transaction(['conversations', 'legacy_imports'], 'readonly');
+                const rows = tx.objectStore('conversations').getAll(), originals = tx.objectStore('legacy_imports').getAll();
+                tx.oncomplete = () => resolve([rows.result, originals.result]); tx.onerror = () => reject(tx.error);
+            });
+            await new Promise<void>((resolve, reject) => {
+                const tx = db.transaction('conversations', 'readwrite');
+                const store = tx.objectStore('conversations');
+                const req = store.get(api.domainStorageKey(api.storageIdentity('gemini', 'u0', 'z-invalid')));
+                req.onsuccess = () => { const row = req.result; delete row.conversation.unexpectedMetadata; store.put(row); };
+                tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
+            });
+        } finally { db.close(); }
+        const stampBefore = (await chrome.storage.local.get('gemini_schema_version')).gemini_schema_version;
+        const result = await api.migrate();
+        return { records, backups, stampBefore, result,
+            stampAfter: (await chrome.storage.local.get('gemini_schema_version')).gemini_schema_version,
+            upgraded: await Promise.all(['a-valid', 'z-invalid'].map(id => api.getStoredDomain(api.storageIdentity('gemini', 'u0', id)))) };
+    });
+    expect(retried.records).toEqual(failed.rows);
+    expect(retried.backups).toEqual([]);
+    expect(retried.stampBefore).toBe(2);
+    expect(retried.result).toEqual({ ok: true, frozen: false });
+    expect(retried.stampAfter).toBe(3);
+    expect(retried.upgraded.map(row => row.conversation.detail.messages[0].content[0].children[0].text)).toEqual(['a-valid', 'z-invalid']);
 });

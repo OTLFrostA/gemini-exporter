@@ -95,12 +95,12 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
     const requested: ResourceIdentity = { conversationId: nid, assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
     const native = store.convCache[nid];
     if (native) {
-        const candidates = native.conversation.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.id)), sourceUris:
+        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.index.id)), sourceUris:
             [asset.sourceUri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
                 native.resourceHints[asset.id]?.archivePath].filter((uri): uri is string => !!uri) }));
         const match = findResourceMatch(nid, requested, candidates);
         if (match === null) return null;
-        const path = native.resourceHints[native.conversation.assets[match].id]?.archivePath;
+        const path = native.resourceHints[native.conversation.detail.assets[match].id]?.archivePath;
         try { return await readTakeoutBytes(path ? store.globalMedia[path] : undefined); } catch { return null; }
     }
     const media = store.mediaMap[nid] || [];

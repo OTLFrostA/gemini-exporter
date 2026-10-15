@@ -52,7 +52,7 @@ test('Domain adapter preserves a normal RPC conversation and message order', asy
     };
     await assertExportEquivalent(conversation);
     const domain = historicalFixtureDomain(conversation);
-    assert.deepEqual(domain.messages.map((m: { id?: string }) => m.id), ['u1', 'a1']);
+    assert.deepEqual(domain.detail.messages.map((m: { id?: string }) => m.id), ['u1', 'a1']);
     assert.equal('turns' in domain, false);
 });
 
@@ -67,8 +67,8 @@ test('Domain adapter omits missing and null message timestamps while preserving 
     };
     const domain = historicalFixtureDomain(conversation);
     assert.equal(Object.hasOwn(domain, 'timestamp'), false);
-    assert.equal('timestamp' in domain.messages[0], false);
-    assert.equal('timestamp' in domain.messages[1], false);
+    assert.equal('timestamp' in domain.detail.messages[0], false);
+    assert.equal('timestamp' in domain.detail.messages[1], false);
     await assertExportEquivalent(conversation);
 });
 
@@ -119,7 +119,7 @@ test('Domain adapter preserves Takeout-style turns-only conversations', async ()
         turns: [{ timestamp: null, userContent: 'Question', modelContent: 'Answer', thoughts: ['Thought'], attachments: [{ type: 'file', fileName: 'input.pdf' }] }],
     };
     const domain = historicalFixtureDomain(conversation);
-    assertDomainMessages(domain.messages, [
+    assertDomainMessages(domain.detail.messages, [
         { role: 'user', content: 'Question' },
         {
             role: 'assistant', content: 'Answer', reasoning: 'Thought',
@@ -139,7 +139,7 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
         ] }],
     };
     const domain = historicalFixtureDomain(conversation);
-    assertDomainMessages(domain.messages.map((message: { id?: string; role: string; content: unknown[]; timestamp?: number }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
+    assertDomainMessages(domain.detail.messages.map((message: { id?: string; role: string; content: unknown[]; timestamp?: number }) => ({ id: message.id, role: message.role, content: message.content, timestamp: message.timestamp })), [
         { id: 'turn-user', role: 'user', content: 'First', timestamp: 100 },
         { id: 'turn-model', role: 'assistant', content: 'Second', timestamp: undefined },
     ]);
@@ -150,7 +150,7 @@ test('Domain adapter flattens legacy turn.messages in order', async () => {
 test('Domain output always has an empty messages array when legacy body is absent', async () => {
     const conversation = { ...base };
     const domain = historicalFixtureDomain(conversation);
-    assertDomainMessages(domain.messages, []);
+    assertDomainMessages(domain.detail.messages, []);
     assert.equal('turns' in domain, false);
     await assertExportEquivalent(conversation);
 });
@@ -162,7 +162,7 @@ test('Domain adapter preserves OpenAI-style assistant role and message data', as
         messages: [{ id: 'openai-1', role: 'assistant', content: 'Hello', timestamp: null, citations: [{ url: 'https://example.test' }] }],
     };
     await assertExportEquivalent(conversation);
-    assert.equal(historicalFixtureDomain(conversation).messages?.[0].role, 'assistant');
+    assert.equal(historicalFixtureDomain(conversation).detail.messages?.[0].role, 'assistant');
 });
 
 for (const body of ['messages', 'turns'] as const) {
@@ -179,11 +179,11 @@ for (const body of ['messages', 'turns'] as const) {
         };
         const original = structuredClone(conversation);
         const domain = historicalFixtureDomain(conversation);
-        assertDomainMessages(domain.messages, [
+        assertDomainMessages(domain.detail.messages, [
             { id: 'system-1', role: 'system', content: 'Instruction' },
             messages[1], { ...messages[2], role: 'assistant' }, messages[3],
         ]);
-        assert.deepEqual(domain.messages.map((message: { role: string }) => message.role), [
+        assert.deepEqual(domain.detail.messages.map((message: { role: string }) => message.role), [
             'system', 'user', 'assistant', 'assistant',
         ]);
         assert.deepEqual(conversation, original);
@@ -204,15 +204,15 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = historicalFixtureDomain(conversation);
-        assertDomainMessages(domain.messages, [
+        assertDomainMessages(domain.detail.messages, [
             messages[0],
             { role: 'assistant', content: '' },
             messages[2],
             { role: 'assistant', content: 'Explicit undefined' },
             messages[4], messages[5],
         ]);
-        for (const message of domain.messages.slice(1)) assert.equal('id' in message, false);
-        for (const message of domain.messages.slice(1, 4)) assert.equal('timestamp' in message, false);
+        for (const message of domain.detail.messages.slice(1)) assert.equal('id' in message, false);
+        for (const message of domain.detail.messages.slice(1, 4)) assert.equal('timestamp' in message, false);
         assert.deepEqual(conversation, original);
         await assertExportEquivalent(conversation);
     });
@@ -224,7 +224,7 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = historicalFixtureDomain(conversation);
-        assertDomainMessages(domain.messages, messages.map(() => ({ role: 'user', content: 'Unchanged' })));
+        assertDomainMessages(domain.detail.messages, messages.map(() => ({ role: 'user', content: 'Unchanged' })));
         assert.deepEqual(conversation, original);
     });
 
@@ -246,11 +246,11 @@ test('Domain adapter applies core timestamp invariants to synthesized turns with
         const original = structuredClone(conversation);
         const domain = historicalFixtureDomain(conversation);
         const expectedTimestamp = typeof timestamp === 'number' && Number.isFinite(timestamp) ? { timestamp } : {};
-        assertDomainMessages(domain.messages, [
+        assertDomainMessages(domain.detail.messages, [
             { role: 'user', content: '  Question  ', ...expectedTimestamp },
             { role: 'assistant', content: 'Answer\n正文', ...expectedTimestamp },
         ]);
-        for (const message of domain.messages) assert.equal('id' in message, false);
+        for (const message of domain.detail.messages) assert.equal('id' in message, false);
         assert.deepEqual(conversation, original);
         if (timestamp === null || timestamp === undefined || typeof timestamp === 'number' && Number.isFinite(timestamp)) {
             await assertExportEquivalent(conversation);
@@ -260,7 +260,7 @@ test('Domain adapter applies core timestamp invariants to synthesized turns with
 
 test('legacy record migration preserves attachment-only empty turn content', async () => {
     const conversation = { ...base, turns: [{ attachments: [{ type: 'file', fileName: 'input.pdf' }], timestamp: null }] };
-    assertDomainMessages(historicalFixtureDomain(conversation).messages, [
+    assertDomainMessages(historicalFixtureDomain(conversation).detail.messages, [
         { role: 'assistant', content: '', attachments: [{ type: 'file', fileName: 'input.pdf' }] },
     ]);
     await assertExportEquivalent(conversation);
@@ -291,9 +291,9 @@ for (const body of ['messages', 'turns'] as const) {
             reasoning: message.thoughts,
             citations: [{ ...message.citations[0], id: 'citation-0' }, { id: 'grounding-1' }],
         };
-        assertDomainMessages(domain.messages, [expected]);
+        assertDomainMessages(domain.detail.messages, [expected]);
         for (const field of ['attachmentCount', 'messageCount', 'futureLegacyField', 'generation', 'thoughts', 'thinking', 'sources', 'structuredContent', 'contentAst', 'images', 'documents', 'groundingCitationMarkers']) {
-            assert.equal(field in domain.messages[0], false);
+            assert.equal(field in domain.detail.messages[0], false);
         }
         assert.deepEqual(conversation, original);
         await assertExportEquivalent(conversation);
@@ -305,9 +305,9 @@ for (const body of ['messages', 'turns'] as const) {
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
         const original = structuredClone(conversation);
         const domain = historicalFixtureDomain(conversation);
-        for (const message of domain.messages.slice(0, 3)) assert.equal('id' in message, false);
-        assert.equal(domain.messages[3].id, ' stable-id ');
-        assert.equal(domain.messages[4].id, 'stable-id');
+        for (const message of domain.detail.messages.slice(0, 3)) assert.equal('id' in message, false);
+        assert.equal(domain.detail.messages[3].id, ' stable-id ');
+        assert.equal(domain.detail.messages[4].id, 'stable-id');
         assert.deepEqual(conversation, original);
     });
 }
@@ -324,9 +324,9 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = historicalFixtureDomain(conversation);
-            assertDomainMessages(domain.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer' }]);
-            assert.equal('turnId' in domain.messages[0], false);
-            assert.equal('providerRequestId' in domain.messages[0], false);
+            assertDomainMessages(domain.detail.messages, [{ id: 'message-1', role: 'assistant', content: 'Answer' }]);
+            assert.equal('turnId' in domain.detail.messages[0], false);
+            assert.equal('providerRequestId' in domain.detail.messages[0], false);
             assert.deepEqual(conversation, original);
             await assertExportEquivalent(conversation);
         }
@@ -338,13 +338,13 @@ for (const body of ['messages', 'turns'] as const) {
             const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
             const original = structuredClone(conversation);
             const domain = historicalFixtureDomain(conversation);
-            assertDomainMessages(domain.messages, [{ role: 'assistant', content: 'Answer' }]);
-            assert.equal('provenance' in domain.messages[0], false);
+            assertDomainMessages(domain.detail.messages, [{ role: 'assistant', content: 'Answer' }]);
+            assert.equal('provenance' in domain.detail.messages[0], false);
             assert.deepEqual(conversation, original);
         }
         const messages = [{ role: 'user', content: 'No request ID' }];
         const conversation = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
-        assert.equal('provenance' in historicalFixtureDomain(conversation).messages[0], false);
+        assert.equal('provenance' in historicalFixtureDomain(conversation).detail.messages[0], false);
     });
 }
 
@@ -354,7 +354,7 @@ test('Domain adapter does not synthesize message provenance from raw turns or ge
     const conversation = { ...base, turns: [{ id: 'raw-turn', providerRequestId: 'r_RAW', userContent: 'Question', modelContent: 'Answer', attachments: [attachment] }] };
     const original = structuredClone(conversation);
     const domain = historicalFixtureDomain(conversation);
-    assertDomainMessages(domain.messages, [
+    assertDomainMessages(domain.detail.messages, [
         { role: 'user', content: 'Question' },
         { role: 'assistant', content: 'Answer', attachments: [attachment] },
     ]);
@@ -384,9 +384,9 @@ for (const role of ['model', 'assistant']) {
                 const legacy = { ...base, ...(body === 'messages' ? { messages } : { turns: [{ messages }] }) };
                 const original = structuredClone(legacy);
                 const domain = historicalFixtureDomain(legacy);
-                assert.deepEqual(domain.messages[0].reasoning, expected === undefined ? undefined : expected.split(/\n\n+/).flatMap(plainContent));
-                assert.equal('reasoning' in domain.messages[0], expected !== undefined);
-                for (const alias of ['thoughts', 'thinking', 'sources']) assert.equal(alias in domain.messages[0], false);
+                assert.deepEqual(domain.detail.messages[0].reasoning, expected === undefined ? undefined : expected.split(/\n\n+/).flatMap(plainContent));
+                assert.equal('reasoning' in domain.detail.messages[0], expected !== undefined);
+                for (const alias of ['thoughts', 'thinking', 'sources']) assert.equal(alias in domain.detail.messages[0], false);
                 assert.deepEqual(legacy, original);
                 const before = await composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation);
                 const after = await composeFixture(domain);
@@ -418,11 +418,11 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
             const legacy = { ...base, ...(body === 'messages' ? { messages } : body === 'turns' ? { turns: [{ messages }] } : { turns: [{ modelContent: 'Answer [1]', ...fields }] }) };
             const original = structuredClone(legacy);
             const domain = historicalFixtureDomain(legacy);
-            assert.deepEqual(domain.messages[0].citations, expected?.map((citation, index) => ({ ...citation, id: `citation-${index}` })));
-            assert.equal('sources' in domain.messages[0], false);
+            assert.deepEqual(domain.detail.messages[0].citations, expected?.map((citation, index) => ({ ...citation, id: `citation-${index}` })));
+            assert.equal('sources' in domain.detail.messages[0], false);
             assert.deepEqual(legacy, original);
             if (expected) {
-                assert.notEqual(domain.messages[0].citations, expected);
+                assert.notEqual(domain.detail.messages[0].citations, expected);
                 const canonical = await composeFixture(domain);
                 assert.deepEqual(canonical.document.messages[0].sources.items.map((source: { href: string; label: string }, index: number) => ({ url: source.href, ...('title' in expected[index] ? { title: source.label } : {}) })), expected);
             }
@@ -431,14 +431,14 @@ for (const body of ['messages', 'turns', 'raw-turn'] as const) {
 }
 
 test('source validation rejects reasoning/citation aliases before document composition', async () => {
-    const clean = { id: base.id, title: base.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] };
-    const leaked = { ...clean, messages: [{ ...clean.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] };
+    const clean = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: base.id, title: base.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer [1]'), reasoning: plainContent('Domain reasoning'), citations: [{ id: 'citation-0', url: 'https://example.com', title: 'Domain citation' }] }] } };
+    const leaked = { index: { ...clean.index }, detail: { ...clean.detail, messages: [{ ...clean.detail.messages[0], thoughts: 'Wrong thoughts', thinking: 'Wrong thinking', sources: ['https://wrong.example.com'] }] } };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
     const document = (await composeFixture(clean)).document;
     assert.equal(document.messages[0].blocks[0].type, 'disclosure');
     assert.equal(document.messages[0].sources.items[0].href, 'https://example.com');
-    const absent = { id: base.id, title: base.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] };
-    const aliasesOnly = { ...absent, messages: [{ ...absent.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] };
+    const absent = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: base.id, title: base.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [{ role: 'assistant', content: plainContent('Answer') }] } };
+    const aliasesOnly = { index: { ...absent.index }, detail: { ...absent.detail, messages: [{ ...absent.detail.messages[0], thoughts: 'Legacy', thinking: 'Legacy', sources: ['https://wrong.example.com'] }] } };
     await assert.rejects(composeFixture(aliasesOnly), /Invalid persisted Domain contract: messages/);
     assert.equal((await composeFixture(absent)).document.messages[0].blocks.some((block: { type: string }) => block.type === 'disclosure'), false);
 });

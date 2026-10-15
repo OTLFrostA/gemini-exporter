@@ -24,7 +24,7 @@ test.beforeAll(async () => {
 async function install(page: import('@playwright/test').Page, extensionId: string) {
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(bundle);
-    await page.evaluate(async () => { await chrome.storage.local.set({ gemini_schema_version: 2, gemini_tour_completed: true }); });
+    await page.evaluate(async () => { await chrome.storage.local.set({ gemini_schema_version: 3, gemini_tour_completed: true }); });
 }
 
 for (const order of ['online-first', 'takeout-first'] as const) {
@@ -88,8 +88,9 @@ for (const order of ['online-first', 'takeout-first'] as const) {
             return { conversation: parsed.conversation, downloads, files, receipts, delivered,
                 mounts: mounted.output.mounts.map((mount: { bytes: Uint8Array }) => [...mount.bytes]), disk };
         });
-        expect(exported.conversation).toEqual(before.conversation);
-        expect(exported.conversation.messages).toHaveLength(20);
+        expect(exported.conversation.detail).toEqual(before.conversation.detail);
+        expect(exported.conversation.index).toMatchObject({ ...before.conversation.index, hasTakeoutImport: true, updatedAt: 1788350400000 });
+        expect(exported.conversation.detail.messages).toHaveLength(20);
         expect(exported.downloads).toBe(0);
         expect(exported.disk.conversations).toHaveLength(1);
         expect(exported.delivered.succeeded).toBe(1);
@@ -108,7 +109,7 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         expect(hash(readFileSync(path.join(output, assetPath)))).toBe(hash(Uint8Array.from(before.image)));
         expect(readFileSync(path.join(output, 'conversation.pdf')).subarray(0, 5).toString()).toBe('%PDF-');
         writeFileSync(path.join(output, 'audit.json'), JSON.stringify({ imageSha256: hash(Uint8Array.from(before.image)),
-            imagePath: assetPath, downloads: exported.downloads, messages: exported.conversation.messages.length }, null, 2));
+            imagePath: assetPath, downloads: exported.downloads, messages: exported.conversation.detail.messages.length }, null, 2));
     });
 }
 
@@ -118,7 +119,7 @@ for (const broker of [false, true]) {
         const original = await page.evaluate(async () => {
             const api = Reflect.get(globalThis, 'mediaProbe'); const { offline, resources } = api.mediaSources();
             await api.saveDomainConversation('u0', offline, resources);
-            return { conversation: offline.conversation, bytes: [...resources.find((r: { assetId: string }) => r.assetId === offline.conversation.assets[0].id).bytes] };
+            return { conversation: offline.conversation, bytes: [...resources.find((r: { assetId: string }) => r.assetId === offline.conversation.detail.assets[0].id).bytes] };
         });
         const worker = context.serviceWorkers()[0];
         const intercept = () => {
@@ -157,11 +158,11 @@ for (const broker of [false, true]) {
                 }
                 tx.oncomplete = () => resolve(count); tx.onabort = tx.onerror = () => reject(tx.error);
             }); db.close();
-            return { counts, body: view.conversation, bytes: await api.getDomainResource(identity, view.conversation.assets[0].id) };
+            return { counts, body: view.conversation, bytes: await api.getDomainResource(identity, view.conversation.detail.assets[0].id) };
         });
         expect(restored.counts).toEqual({ conversations: 1, resource_bytes: 2 });
         expect(restored.body).toEqual(original.conversation);
-        expect(restored.body.messages).toHaveLength(12);
+        expect(restored.body.detail.messages).toHaveLength(12);
         expect(restored.bytes).toEqual(Uint8Array.from(original.bytes));
     });
 }
@@ -174,15 +175,15 @@ test('real extension IDB rejects ambiguity and stale cache writes, isolates acco
         const ambiguous = api.mediaSources({ duplicate: true });
         await api.saveDomainConversation('u0', ambiguous.offline, ambiguous.resources);
         const identity = api.storageIdentity('gemini', 'u0', api.mediaChatId);
-        const unknown = await api.getDomainResource(identity, online.conversation.assets[0].id);
+        const unknown = await api.getDomainResource(identity, online.conversation.detail.assets[0].id);
         await api.saveDomainConversation('u1', online);
         await api.saveDomainConversation('u0', offline, resources);
-        const other = await api.getDomainResource(api.storageIdentity('gemini', 'u1', api.mediaChatId), online.conversation.assets[0].id);
-        await api.cacheDomainResource(identity, online.conversation.assets[0].id, 'https://invalid.test/stale', new Uint8Array([9]));
-        const correct = await api.getDomainResource(identity, online.conversation.assets[0].id);
+        const other = await api.getDomainResource(api.storageIdentity('gemini', 'u1', api.mediaChatId), online.conversation.detail.assets[0].id);
+        await api.cacheDomainResource(identity, online.conversation.detail.assets[0].id, 'https://invalid.test/stale', new Uint8Array([9]));
+        const correct = await api.getDomainResource(identity, online.conversation.detail.assets[0].id);
         await api.removeStoredDomain(identity);
         await api.saveDomainConversation('u0', online);
-        return { unknown, other, correct: [...correct], after: await api.getDomainResource(identity, online.conversation.assets[0].id) };
+        return { unknown, other, correct: [...correct], after: await api.getDomainResource(identity, online.conversation.detail.assets[0].id) };
     });
     expect(result.unknown).toBeNull(); expect(result.other).toBeNull(); expect(result.after).toBeNull();
     expect(result.correct).toHaveLength(68);
@@ -214,7 +215,7 @@ test('resource persistence: 40 continuous saves and repeated imports retain only
         try {
             for (let i = 1; i <= 40; i++) {
                 const parsed = api.storedParseResult(initial);
-                parsed.conversation.title = `Continuous save ${i}`;
+                parsed.conversation.index.title = `Continuous save ${i}`;
                 parsed.sourceVersion = Number(offline.sourceVersion || 0) + i;
                 final = await api.saveDomainConversation('u0', parsed);
             }
@@ -240,7 +241,7 @@ test('resource persistence: 40 continuous saves and repeated imports retain only
     const retained = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'mediaProbe');
         const { offline, resources } = api.mediaSources();
-        const restored = await api.getDomainResource(api.storageIdentity('gemini', 'u0', offline.conversation.id), resources[0].assetId);
+        const restored = await api.getDomainResource(api.storageIdentity('gemini', 'u0', offline.conversation.index.id), resources[0].assetId);
         const db = await api.openDomainDB();
         const names = [...db.objectStoreNames];
         const count = await new Promise<number>((resolve, reject) => {
@@ -274,7 +275,7 @@ test('legacy inline cache migrates once without rewriting identical bytes; subse
             const upgraded = await api.saveDomainConversation('u0', api.storedParseResult(original));
             const first = { reads, writes, inline: upgraded.resources.length }; reads = writes = 0;
             for (let i = 0; i < 10; i++) {
-                const parsed = api.storedParseResult(upgraded); parsed.conversation.title = `Legacy follow-up ${i}`;
+                const parsed = api.storedParseResult(upgraded); parsed.conversation.index.title = `Legacy follow-up ${i}`;
                 await api.saveDomainConversation('u0', parsed);
             }
             return { first, subsequent: { reads, writes } };

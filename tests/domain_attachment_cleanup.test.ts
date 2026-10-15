@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
 import { structuredBodyAttachments } from '../src/core/parsers/legacyStorage/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
@@ -16,10 +16,10 @@ const metadata = { id: 'resources', title: 'Resources', timestamp: null };
 const generation = { chatId: metadata.id, providerRequestId: 'abcdef0123456789', time: 1700000000123,
     prompt: 'Draw a lake', generationOrdinal: 2, imageCount: 1, imageOrdinal: 0, turnId: 'turn-2' };
 
-async function assertRoundTrip(input: Conversation): Promise<DomainConversationDetail> {
+async function assertRoundTrip(input: Conversation): Promise<DomainConversationWithDetail> {
     const original = structuredClone(input);
     const { conversation: domain, resourceHints } = historicalFixture(input);
-    const serialized: DomainConversationDetail = JSON.parse(JSON.stringify(domain));
+    const serialized: DomainConversationWithDetail = JSON.parse(JSON.stringify(domain));
     const [raw, semantic, restored] = await Promise.all([
         composeFixture(historicalFixture(input, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints), composeFixture(serialized, resourceHints),
     ]);
@@ -27,7 +27,7 @@ async function assertRoundTrip(input: Conversation): Promise<DomainConversationD
     assert.deepEqual(restored.document, semantic.document);
     assert.deepEqual(restored.diagnostics, semantic.diagnostics);
     assert.deepEqual(input, original);
-    for (const message of domain.messages) {
+    for (const message of domain.detail.messages) {
         assert.equal('images' in message, false);
         assert.equal('documents' in message, false);
     }
@@ -148,7 +148,7 @@ test('body references to discarded provider aliases bind to the one semantic res
         images: [{ type: 'image', localName: 'assets/offline.png', generation, isGenerated: true }],
     }] });
     assert.equal(messageAssets(domain, 0)?.length, 1);
-    const paragraph = domain.messages[0].content[0];
+    const paragraph = domain.detail.messages[0].content[0];
     assert.ok(paragraph.type === 'paragraph' && paragraph.children[0].type === 'image');
     assert.equal(paragraph.children[0].assetId, messageAssets(domain)[0].id);
     assert.equal(collectDocumentResources((await composeFixture(domain)).document).referencedIds.size, 1);
@@ -206,12 +206,12 @@ test('binary views survive Domain JSON round trips without changing input bytes'
 
 test('shared source gate rejects runtime legacy aliases; Composer uses explicit Domain resources', async () => {
     const resource = { id: 'report', kind: 'file' as const, name: 'report.md', document: { contentMarkdown: '# Report' } };
-    const domain: DomainConversationDetail = { id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] };
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [resource], messages: [{ role: 'assistant', content: [], attachmentIds: [resource.id] }] } };
     const expected = await composeFixture(domain);
-    const leaked = { ...domain, messages: [{ ...domain.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] };
+    const leaked = { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ ...domain.detail.messages[0], images: [{ type: 'image', url: 'wrong.png' }], documents: [{ ...resource }] }] } };
     await assert.rejects(composeFixture(leaked), /Invalid persisted Domain contract: messages/);
     assert.equal(collectDocumentResources(expected.document).referencedIds.size, 1);
-    const explicit = { ...domain, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.messages[0], attachmentIds: [resource.id, 'second-report'] }] };
+    const explicit = { index: { ...domain.index }, detail: { ...domain.detail, assets: [resource, { ...resource, id: 'second-report' }], messages: [{ ...domain.detail.messages[0], attachmentIds: [resource.id, 'second-report'] }] } };
     assert.equal(collectDocumentResources((await composeFixture(explicit)).document).referencedIds.size, 2,
         'Composer must not reconcile alias evidence or infer resource identity');
 });

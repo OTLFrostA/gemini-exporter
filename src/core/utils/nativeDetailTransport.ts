@@ -1,6 +1,6 @@
 import type { ResourceConversationParseResult, ConversationAcquisitionFailure, NativeConversationInput } from '../parsers/parsingResult.js';
 
-export const NATIVE_DETAIL_ENVELOPE_VERSION = 2;
+export const NATIVE_DETAIL_ENVELOPE_VERSION = 3;
 export interface NativeDetailReply {
     success: boolean; data?: NativeConversationInput; chat?: ResourceConversationParseResult;
     rawResponse?: unknown; error?: string; source?: string; retryAfterMs?: number; _debug?: unknown; _raw?: unknown;
@@ -27,8 +27,9 @@ function nativeResult(value: unknown): ResourceConversationParseResult {
         || !object(value.resourceHints) || !object(value.acquisitionHints)) throw new TypeError('Malformed native conversation result');
     if (value.sourceVersion !== undefined && (typeof value.sourceVersion !== 'number' || !Number.isFinite(value.sourceVersion))) throw new TypeError('Invalid source conversation version');
     const graph = value.conversation;
-    if (typeof graph.providerId !== 'string' || typeof graph.id !== 'string' || typeof graph.title !== 'string'
-        || !Array.isArray(graph.messages) || !Array.isArray(graph.assets)) throw new TypeError('Malformed native conversation envelope');
+    if (!object(graph.index) || !object(graph.detail)
+        || typeof graph.index.providerId !== 'string' || typeof graph.index.id !== 'string' || typeof graph.index.title !== 'string'
+        || !Array.isArray(graph.detail.messages) || !Array.isArray(graph.detail.assets)) throw new TypeError('Malformed native conversation envelope');
     return opaque as ResourceConversationParseResult;
 }
 function item(value: unknown): NativeConversationInput {

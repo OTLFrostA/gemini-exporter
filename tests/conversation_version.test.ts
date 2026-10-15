@@ -37,7 +37,7 @@ test('six anonymized live pairs preserve identical List/Detail versions and late
 test('matching metadata owns the update version, while message dates remain message facts', () => {
     const parsed = detail([1700000000, 0], [1700000005, 123000000]);
     assert.equal(parsed.sourceVersion, 1700000005123);
-    assert.equal(parsed.conversation.messages[0].timestamp, 1700000000000);
+    assert.equal(parsed.conversation.detail.messages[0].timestamp, 1700000000000);
     assert.equal(detail([1700000000, 0]).sourceVersion, undefined);
     const unrelated = wire([['hNvQHb', [[[['c_actual_chat', 'r_req'], [1700000000, 0], [['Q']], [[['rc_a', [['A']]]]]]]]],
         ['MaZiqc', [null, null, [['c_other_chat', 'Unrelated', null, null, null, [1700000005, 0]]]]]]);
@@ -57,7 +57,8 @@ test('savedAt is the committed source version and cannot advance for rejected or
     assert.equal(newer.savedAt, 1700000005000);
     const rejected = await saveDomainConversation('u0', detail([1700000010, 0], [1700000010, 0], true));
     assert.equal(rejected.savedAt, newer.savedAt);
-    assert.deepEqual(rejected.conversation, newer.conversation);
+    assert.deepEqual(rejected.conversation.detail, newer.conversation.detail);
+    assert.equal(rejected.conversation.index.updatedAt, 1700000010000);
     const older = await saveDomainConversation('u0', detail([1700000000, 0], [1700000000, 0]));
     assert.equal(older.savedAt, newer.savedAt);
 });
@@ -67,7 +68,7 @@ test('partial, unknown, metadata-only, conflicting and migrated bodies carry no 
     const unknown = await saveDomainConversation('u0', detail([1700000000, 0], undefined, false, 'unknown_chat'));
     assert.equal(unknown.savedAt, undefined);
     const conflicting = await saveDomainConversation('u0', detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
-    assert.equal(conflicting.conversation.completeness, 'partial');
+    assert.equal(conflicting.conversation.detail.completeness, 'partial');
     assert.equal(conflicting.savedAt, undefined);
     const metadata = parseGeminiRpcConversation(wire([['MaZiqc', [null, null, [['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]]]]]]), { providerId: 'gemini', targetConvId: 'metadata_chat' });
     assert.equal((await saveDomainConversation('u0', metadata)).savedAt, undefined);
@@ -80,7 +81,7 @@ test('a version change during pagination invalidates the saved version until a c
     const first = detail([1700000005, 0], [1700000005, 0], true);
     const changed = detail([1700000000, 0], [1700000010, 0]);
     const mixed = mergeConversationPages([first, changed]);
-    assert.equal(mixed.conversation.completeness, 'partial');
+    assert.equal(mixed.conversation.detail.completeness, 'partial');
     assert.ok(mixed.diagnostics.some(d => d.code === 'CONVERSATION_VERSION_CHANGED'));
     assert.equal((await saveDomainConversation('u0', mixed)).savedAt, undefined);
     const consistent = mergeConversationPages([first, detail([1700000000, 0], [1700000005, 0])]);
@@ -118,7 +119,7 @@ test('diagnostic deletion or spoofed diagnostic codes cannot change merged compl
             { severity: 'error' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'diagnostic only' }];
         const records = [[], warnings].map(diagnostics => {
             const merged = mergeConversationPages([{ ...input, diagnostics }]);
-            assert.equal(merged.conversation.completeness, expected);
+            assert.equal(merged.conversation.detail.completeness, expected);
             return buildExportCompletion({ conversation: merged.conversation, evidence: extractChatParseDrift(merged), exportedAt: 1900000000000 }).exportRecord;
         });
         assert.deepEqual(records[0], records[1]);

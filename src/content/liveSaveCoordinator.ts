@@ -152,7 +152,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
     if (InjectedClass) {
         try {
             const detail = await new InjectedClass().getConversationDetail(nid);
-            if (detail && Array.isArray(detail.conversation.messages) && detail.conversation.messages.length > 0) {
+            if (detail && Array.isArray(detail.conversation.detail.messages) && detail.conversation.detail.messages.length > 0) {
                 return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
             }
         } catch (e) {
@@ -161,7 +161,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
     } else if (isApplicationProvider(provider)) {
         try {
             const detail = await provider.fetchConversationDetail(nid);
-            if (detail && Array.isArray(detail.conversation.messages) && detail.conversation.messages.length > 0) {
+            if (detail && Array.isArray(detail.conversation.detail.messages) && detail.conversation.detail.messages.length > 0) {
                 return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
             }
         } catch (e) {
@@ -174,7 +174,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         const doc = typeof document !== 'undefined' ? document : null;
         try {
             const docResult = Scraper.parseDoc(doc, nid);
-            if (docResult && Array.isArray(docResult.conversation.messages) && docResult.conversation.messages.length > 0) {
+            if (docResult && Array.isArray(docResult.conversation.detail.messages) && docResult.conversation.detail.messages.length > 0) {
                 return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
             }
         } catch {
@@ -260,7 +260,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             // In mockMode (e.g. headless/test environments without native filesystem handles), simulate live save feedback
             if (options.mockMode) {
                 const chat = await resolveConversationDetail(nid);
-                const rawTitle = chat?.conversation.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
+                const rawTitle = chat?.conversation.index.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
                 const Utils = getUtils();
                 const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
                 const badge = getBadge();
@@ -278,13 +278,13 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             }
 
             const chat = await resolveConversationDetail(nid);
-            if (!chat || !Array.isArray(chat.conversation.messages) || chat.conversation.messages.length === 0) {
+            if (!chat || !Array.isArray(chat.conversation.detail.messages) || chat.conversation.detail.messages.length === 0) {
                 if (isDev()) console.warn('[LiveSaveCoordinator] No messages extracted for', nid);
                 return false;
             }
 
             const Utils = getUtils();
-            const rawTitle = chat.conversation.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
+            const rawTitle = chat.conversation.index.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
             const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
             let failedAssets: Array<{ file: string; error: string }> = [];
 
@@ -345,7 +345,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         }
                         const conversationChat: ResourceConversationParseResult = {
                             ...chat,
-                            conversation: { ...chat.conversation, id: nid, title: chat.conversation.title || safeTitle }
+                            conversation: { ...chat.conversation, index: { ...chat.conversation.index, id: nid } }
                         };
                         const resp = await new Promise<LiveSaveResult | null>((resolve) => {
                             const message: LiveSaveViaHandleMessage = {
@@ -415,7 +415,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                             exportedAt: now,
                             failedAssets,
                             titleCandidate: safeTitle,
-                            titleProvenance: chat?.conversation.titleSource
+                            titleProvenance: chat?.conversation.index.titleSource
                         }
                     );
                 } catch (err) {
@@ -507,7 +507,7 @@ export async function processAndSaveImages(
     failures: Array<{ file: string; error: string }> = [],
     resourceResults: ResourceResult<ResourceDelivery>[] = []
 ): Promise<CollectedLiveSaveAsset[]> {
-    if (!chat || !Array.isArray(chat.conversation.messages) || chat.conversation.messages.length === 0) return [];
+    if (!chat || !Array.isArray(chat.conversation.detail.messages) || chat.conversation.detail.messages.length === 0) return [];
 
     const Utils = getUtils();
     const cid6 = Utils?.shortId ? Utils.shortId(nid) : shortId(nid);
@@ -562,13 +562,13 @@ export async function processAndSaveImages(
     };
 
     // Domain asset identity owns resources; two assets sharing a URL remain distinct.
-    for (const asset of chat.conversation.assets) {
+    for (const asset of chat.conversation.detail.assets) {
         if (asset.kind !== 'image') continue;
         const source = chat.acquisitionHints[asset.id];
         const url = source?.resolvedUrl || source?.url || source?.sourceUrl || asset.sourceUri || '';
         const inlineData = asset.dataBase64 ? `data:${asset.mediaType || 'image/png'};base64,${asset.dataBase64}`
             : url.startsWith('data:') ? url : undefined;
-        const turn = chat.conversation.messages.findIndex(message => {
+        const turn = chat.conversation.detail.messages.findIndex(message => {
             if (message.attachmentIds?.includes(asset.id)) return true;
             const contains = (value: unknown): boolean => {
                 if (!value || typeof value !== 'object') return false;

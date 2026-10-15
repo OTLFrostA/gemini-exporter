@@ -7,24 +7,23 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { saveDomainConversation, getStoredDomain, storageIdentity, getDomainResource, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
     for (const status of ['complete', 'partial', 'unknown'] as const) {
-        const builder: DomainConversationDetail = { providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph', completeness: status, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }],
-            messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
-                content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) };
+        const builder: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future-provider', id: `large-${status}`, title: 'Independent large graph' }, detail: { completeness: status, assets: [{ id: 'bytes', kind: 'file', sourceUri: 'opaque:original' }], messages: Array.from({ length: 1000 }, (_, index) => ({ id: `message-${index}`, role: 'unknown',
+                content: [{ type: 'unknown', sourceType: 'future-block', text: `Preserved ${index}` }], attachmentIds: ['bytes'] })) } };
         const trusted = validateParserDomain(builder);
-        assert.equal(restoreDomainSnapshot(trusted).messages.length, 1000);
+        assert.equal(restoreDomainSnapshot(trusted).detail.messages.length, 1000);
         __clearDomainMemory();
         const bytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
         await saveDomainConversation('opaque-account', { conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
         bytes[0] = 99;
-        const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.id));
+        const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.index.id));
         assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
-        assert.equal(read.conversation.completeness, status);
-        assert.equal(read.conversation.messages[999].content[0].type, 'unknown');
+        assert.equal(read.conversation.detail.completeness, status);
+        assert.equal(read.conversation.detail.messages[999].content[0].type, 'unknown');
         assert.equal(Object.getOwnPropertySymbols(read.conversation).length, 0);
     }
     __clearDomainMemory();
@@ -61,9 +60,9 @@ test('count actual Schema passes and Closure calls separately at every trust bou
                 await measure('Legacy',()=>parseLegacyStorageConversation({metadata:{id:'legacy',messageCount:2}},{providerId:'gemini'}));
                 if(takeout.length!==2)throw Error('Independent two-conversation fixture was not parsed');
                 await measure('WriteSnapshot',()=>saveDomainConversation('u0',takeout[0]));
-                const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.id)));
+                const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.index.id)));
                 const parsed=await measure('AdaptRecord',()=>storedParseResult(record));
-                await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 2,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 2,results:[parsed]}));});
+                await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 3,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 3,results:[parsed]}));});
                 await measure('PdfAcceptance',async()=>{const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
                 await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);});
                 return rows;

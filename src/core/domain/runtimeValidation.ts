@@ -1,6 +1,7 @@
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
-import { TITLE_AUTHORITY_RANK } from './titleAuthority.js';
+import type { DomainConversationWithDetail } from './conversation.js';
+import { restoreConversationIndex } from './conversationIndex.js';
 import type { DomainConversationIndex } from './conversationIndex.js';
 
 type Check = (value: unknown) => boolean;
@@ -60,30 +61,19 @@ function block(v: unknown): boolean {
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), createdAt: optional(number), url: optional(text), titleSource: optional(enumeration(...Object.keys(TITLE_AUTHORITY_RANK))) };
+const domainFields: Record<string, Check> = { assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown') };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */
 declare const trustedDomain: unique symbol;
-export type TrustedDomain = DomainConversationDetail & { readonly [trustedDomain]: true };
-export type TrustedDomainBody = Pick<TrustedDomain, typeof trustedDomain | 'completeness' | 'messages' | 'assets'>;
+export type TrustedDomainBody = DomainConversationDetail & { readonly [trustedDomain]: true };
+export interface TrustedDomain extends DomainConversationWithDetail { detail: TrustedDomainBody }
 
-/** Preserve established graph trust when separating a stored snapshot's body.
- * Metadata is deliberately not copied; this does not validate arbitrary input. */
-export function selectConversationBody(conversation: TrustedDomain): TrustedDomainBody {
-    const { providerId: _provider, id: _id, title: _title, titleSource: _source, createdAt: _created, url: _url, ...body } = conversation;
-    return body;
-}
+/** Body trust survives metadata changes; no flat snapshot is constructed. */
+export function selectConversationBody(conversation: TrustedDomain): TrustedDomainBody { return conversation.detail; }
 
-/** Metadata-only projection over an already trusted body. No repeated AST validation. */
-export function withConversationMetadata(body: TrustedDomainBody, index: DomainConversationIndex): TrustedDomain {
-    const projected: TrustedDomain = { ...body, providerId: index.providerId, id: index.id,
-        title: index.title, titleSource: index.titleSource, createdAt: index.createdAt, url: index.url };
-    // Full trusted snapshots are structurally assignable to body. Absent Index
-    // fields must still erase their stale optional metadata in that case.
-    if (index.createdAt === undefined) delete projected.createdAt;
-    if (index.url === undefined) delete projected.url;
-    return projected;
+export function withConversationMetadata(detail: TrustedDomainBody, index: DomainConversationIndex): TrustedDomain {
+    return { index, detail };
 }
 
 function serializeDomain(value: unknown): string | undefined {
@@ -102,21 +92,26 @@ function assertSchema(value: unknown): asserts value is DomainConversationDetail
     }
 }
 
+function assertConversation(value: unknown): asserts value is DomainConversationWithDetail {
+    if (!object(value) || Object.keys(value).some(key => key !== 'index' && key !== 'detail')) throw new TypeError('Invalid Domain conversation');
+    restoreConversationIndex(value.index);
+    assertSchema(value.detail);
+}
+
 /** Parser finalization validates the graph without cloning or changing its content. */
-export function validateParserDomain(value: DomainConversationDetail): TrustedDomain {
+export function validateParserDomain(value: DomainConversationWithDetail): TrustedDomain {
     serializeDomain(value);
-    assertSchema(value);
-    assertDomainClosure(value);
+    assertConversation(value);
+    assertDomainClosure(value.detail);
     return value as TrustedDomain;
 }
 
-/** Restore a detached snapshot of the current Domain contract. */
+/** Restore a detached current aggregate, without interpreting historical schemas. */
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     const json = serializeDomain(value);
     const clone: unknown = json === undefined ? undefined : JSON.parse(json);
-    assertSchema(value);
-    assertSchema(clone);
-    if (!clone.id.trim()) throw new TypeError('Empty stored conversation identity');
-    assertDomainClosure(clone);
+    assertConversation(value);
+    assertConversation(clone);
+    assertDomainClosure(clone.detail);
     return clone as TrustedDomain;
 }

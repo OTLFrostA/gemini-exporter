@@ -3,7 +3,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseResult } from '../src/core/parsers/gemini/takeout/parseConversation.js';
 import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw } from '../src/core/parsers/gemini/takeout/parseZip.js';
 import type { ConversationParser, ConversationParseResult } from '../src/core/parsers/contracts.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { parseConversationRecord } from '../src/core/parsers/legacyStorage/parseRecord.js';
 import { parseGeminiRpcConversation, type GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
@@ -11,8 +11,7 @@ import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/
 
 // Raw decoders need no legacy Conversation, export hints, storage schema or Gemini input type.
 const syncRawParser: ConversationParser<{ text: string }> = (raw, context) => ({
-    conversation: validateParserDomain({ providerId: context.providerId, id: '', title: '', completeness: 'unknown', assets: [],
-        messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] }),
+    conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: context.providerId, id: '', title: '' }, detail: { completeness: 'unknown', assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: raw.text }] }] }] } }),
     diagnostics: [],
 });
 const asyncRawParser: ConversationParser<{ text: string }> = async (raw, context) => syncRawParser(raw, context);
@@ -33,25 +32,13 @@ parseConversation({ format: 'gemini-rpc', data: '[]' });
 parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data: {} });
 // Build every negative type case from a valid Domain baseline, so @ts-expect-error
 // cannot be satisfied by an unrelated missing required field or stale timestamp alias.
-const validDomain: DomainConversationDetail = {
-    providerId: 'provider', id: 'typed', title: 'Typed conversation',
-    completeness: 'unknown', assets: [], messages: [],
-};
-const diagnosticsInDomain: DomainConversationDetail = {
-    ...validDomain,
-    // @ts-expect-error Problems remain outside the semantic conversation.
-    diagnostics: [],
-};
-const cursorInDomain: DomainConversationDetail = {
-    ...validDomain,
-    // @ts-expect-error Cursors are acquisition context, not permanent conversation facts.
-    nextPageToken: 'cursor',
-};
-const invalidCoverage: DomainConversationDetail = {
-    ...validDomain,
-    // @ts-expect-error Completeness has a closed vocabulary independent of any provider status.
-    completeness: { status: 'finished' },
-};
+const validDomain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'provider', id: 'typed', title: 'Typed conversation' }, detail: { completeness: 'unknown', assets: [], messages: [] } };
+// @ts-expect-error Invalid semantic envelope field.
+const diagnosticsInDomain: DomainConversationWithDetail = { index: { ...validDomain.index }, detail: { ...validDomain.detail }, diagnostics: [] };
+// @ts-expect-error Invalid semantic envelope field.
+const cursorInDomain: DomainConversationWithDetail = { index: { ...validDomain.index }, detail: { ...validDomain.detail }, nextPageToken: 'cursor' };
+// @ts-expect-error Invalid semantic envelope field.
+const invalidCoverage: DomainConversationWithDetail = { index: { ...validDomain.index }, detail: { ...validDomain.detail, completeness: { status: 'finished' } } };
 void validDomain;
 void diagnosticsInDomain;
 void cursorInDomain;

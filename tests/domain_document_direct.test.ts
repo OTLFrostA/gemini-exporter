@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { closeLegacyCitations } from '../src/core/parsers/shared/resources/domainCitationAdapter.js';
 import { historicalFixtureDomain, historicalFixture } from './helpers/nativeFixture.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
@@ -35,13 +35,13 @@ test('raw -> Domain resolves citations and one resource registry without mutatin
     const snapshot = structuredClone(raw);
     const domain = historicalFixtureDomain(freeze(structuredClone(raw)));
     assert.deepEqual(raw, snapshot);
-    assert.equal(domain.title, 'Authoritative title');
-    assert.equal(domain.assets.length, 2);
-    assert.equal(Reflect.get(domain.assets[0], 'generated'), undefined);
-    assert.equal(domain.assets[0].generation?.generationOrdinal, 1);
-    assert.deepEqual(domain.assets[1].document?.contentMarkdown, '# Report\n\nIntroduction');
-    assert.equal('groundingCitationMarkers' in domain.messages[1], false);
-    assert.deepEqual(domain.messages[1].citations, [
+    assert.equal(domain.index.title, 'Authoritative title');
+    assert.equal(domain.detail.assets.length, 2);
+    assert.equal(Reflect.get(domain.detail.assets[0], 'generated'), undefined);
+    assert.equal(domain.detail.assets[0].generation?.generationOrdinal, 1);
+    assert.deepEqual(domain.detail.assets[1].document?.contentMarkdown, '# Report\n\nIntroduction');
+    assert.equal('groundingCitationMarkers' in domain.detail.messages[1], false);
+    assert.deepEqual(domain.detail.messages[1].citations, [
         { id: 'citation-0', title: 'Source', url: 'https://example.test/source' }, { id: 'grounding-2' },
     ]);
     const ast = composeDomainDocument(domain).document;
@@ -70,27 +70,26 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
 });
 
 test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
-    const domain: DomainConversationDetail = { providerId: 'custom', id: 'literal', title: 'Literal', completeness: 'unknown', assets: [], messages: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'literal', title: 'Literal' }, detail: { completeness: 'unknown', assets: [], messages: [
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
-    ] };
+    ] } };
     const ast = composeDomainDocument(validateParserDomain(domain), { documentLanguage: 'zh' }).document;
     assert.equal(ast.header.providerLabel, 'custom');
     assert.equal(ast.documentLanguage, 'zh');
-    assert.deepEqual(ast.messages[0].blocks, domain.messages[0].content);
+    assert.deepEqual(ast.messages[0].blocks, domain.detail.messages[0].content);
 });
 
 test('reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
-    const domain: DomainConversationDetail = { providerId: 'custom', id: 'placement', title: '', completeness: 'unknown',
-        assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'placement', title: '' }, detail: { completeness: 'unknown', assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
-        ] };
+        ] } };
     const ast = composeDomainDocument(validateParserDomain(domain)).document;
     assert.equal(ast.messages[0].blocks.length, 1);
     assert.equal(ast.messages[1].blocks.length, 1);
     const broken = structuredClone(domain);
-    broken.messages[0].content = [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'unknown' }] }];
+    broken.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'unknown' }] }];
     assert.throws(() => composeDomainDocument(validateParserDomain(broken)), /Unregistered Domain citation/);
 });
 
@@ -125,13 +124,13 @@ test('provider citation binding covers rich captions/descriptions and ignores co
 });
 
 test('prepared paths retain archive namespaces, hash inline bytes and omit failed/remote resources', async () => {
-    const domain: DomainConversationDetail = { providerId: 'custom', id: 'resources', title: '', completeness: 'unknown', messages: [], assets: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'resources', title: '' }, detail: { completeness: 'unknown', messages: [], assets: [
         { id: 'path', kind: 'file',  },
         { id: 'bytes', kind: 'image', mediaType: 'image/png', dataBase64: 'AQID' },
         { id: 'uri', kind: 'image', sourceUri: 'data:image/png;base64,AQID' },
         { id: 'failed', kind: 'file' },
         { id: 'remote', kind: 'image', sourceUri: 'https://example.test/image.png' },
-    ] };
+    ] } };
     const prepared = await prepareDomainResources(await fixtureResourceResults(freeze(domain), { path: { archivePath: 'files/report.pdf' }, failed: { unresolvedReference: 'files/missing.pdf' } }));
     assert.equal(prepared.path, 'files/report.pdf');
     assert.match(prepared.bytes, /^assets\/sha256\/\w{2}\/\w{2}\/\w{64}\.png$/);
@@ -142,10 +141,10 @@ test('prepared paths retain archive namespaces, hash inline bytes and omit faile
 
 
 test('citation numbering is conversation-wide in body, reasoning and Sources, including references without URLs', async () => {
-    const domain = validateParserDomain({ providerId: 'custom', id: 'citations', title: 'Citations', completeness: 'complete', assets: [], messages: [
+    const domain = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'citations', title: 'Citations' }, detail: { completeness: 'complete', assets: [], messages: [
         { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', url: 'https://example.test/one', title: 'First source' }] },
         { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', title: 'Offline source' }] },
-    ] });
+    ] } });
     const document = composeDomainDocument(domain).document;
     const first = document.messages[0].blocks[0];
     assert.ok(first.type === 'paragraph');

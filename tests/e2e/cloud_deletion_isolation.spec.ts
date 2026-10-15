@@ -27,9 +27,9 @@ test.beforeAll(async () => {
                 { url: 'https://lh3.googleusercontent.com/deletion-takeout.png', fileName: 'takeout.png' },
                 { url: 'https://lh3.googleusercontent.com/deletion-missing.png', fileName: 'missing.png' }
             ] }] });
-            const [cached, takeout] = source.conversation.assets;
+            const [cached, takeout] = source.conversation.detail.assets;
             await domain.saveDomainConversation('u0', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
-            const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' })];
+            const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' })];
             await StorageService.setConversations('u0', list);
             let writeFailures = 0, remoteCalls = 0, domCalls = 0;
             const order = [], warnings = [], logs = [], replies = [];

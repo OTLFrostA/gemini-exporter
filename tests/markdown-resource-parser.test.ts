@@ -22,16 +22,14 @@ test('syntax helper emits external references for the archive resolver to classi
 
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('serialized literal dollars round-trip as text while links and math retain their nodes', () => {
-    const domain: DomainConversationDetail = {
-        providerId: 'gemini', id: 'currency', title: 'Currency', completeness: 'unknown', assets: [],
-            messages: [{ id: 'message', role: 'assistant', content: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'currency', title: 'Currency' }, detail: { completeness: 'unknown', assets: [], messages: [{ id: 'message', role: 'assistant', content: [
                 { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },
                     { type: 'link', href: 'files/foo.pdf', children: [{ type: 'text', text: 'receipt' }] },
@@ -41,8 +39,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
                 { type: 'math', source: String.raw`\left[W(k)\right](\mathbf{t})` },
                 { type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
                 { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
-            ] }],
-    };
+            ] }] } };
     const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));

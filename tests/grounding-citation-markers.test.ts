@@ -62,7 +62,7 @@ test('metadata-confirmed [cite: 1] transforms to citationRef with label [1]', as
     const { domain, document, resources, diagnostics } = await parseFixture(rawConv);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     assert.strictEqual(para.type, 'paragraph');
 
@@ -73,7 +73,7 @@ test('metadata-confirmed [cite: 1] transforms to citationRef with label [1]', as
     // Citation entity is registered and referenced
     const citId = citeRefs[0].citationId;
     assert.ok(msg.citations?.some((citation: any) => citation.id === citId));
-    const citEntity = domain.messages[0].citations.find((c: any) => c.id === citId);
+    const citEntity = domain.detail.messages[0].citations.find((c: any) => c.id === citId);
     assert.ok(citEntity);
     assert.equal(citEntity.url, undefined);
     assert.equal(citEntity.id, citId);
@@ -95,7 +95,7 @@ test('space variant [cite:2] declared in metadata transforms to citationRef [2]'
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
@@ -118,7 +118,7 @@ test('repeated citation marker in the same sentence both convert cleanly', async
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
@@ -143,7 +143,7 @@ test('ordinary user handwritten [cite: 1] is preserved as plain text', async () 
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
@@ -168,7 +168,7 @@ test('model text with unconfirmed [cite: 1] (no matching metadata) is preserved 
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
@@ -194,7 +194,7 @@ test('only metadata-confirmed marker converts; non-matching marker in same messa
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
@@ -220,7 +220,7 @@ test('marker inside code block and inline code is preserved untouched', async ()
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
 
     // Para 1: inline code
     const p1 = msg.content[0];
@@ -259,15 +259,15 @@ test('existing [1] web citations do not regress', async () => {
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
     assert.strictEqual(citeRefs[0].label, '[1]');
     assert.strictEqual(citeRefs[1].label, '[2]');
 
-    const cit1 = domain.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
-    const cit2 = domain.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
+    const cit1 = domain.detail.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
+    const cit2 = domain.detail.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
     assert.strictEqual(cit1?.url, 'https://example.com/study1');
     assert.strictEqual(cit2?.url, 'https://example.com/study2');
 });
@@ -289,18 +289,18 @@ test('orthogonal coexistence: both web [1] and grounding [cite: 1] in same messa
     };
 
     const { domain, document, resources } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
 
     // [1] maps to web citation
-    const webCit = domain.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
+    const webCit = domain.detail.messages[0].citations.find((c: any) => c.id === citeRefs[0].citationId);
     assert.strictEqual(webCit?.url, 'https://example.com/web');
     assert.ok(webCit);
 
     // [cite: 1] maps to grounding citation with label [1]
-    const groundCit = domain.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
+    const groundCit = domain.detail.messages[0].citations.find((c: any) => c.id === citeRefs[1].citationId);
     assert.strictEqual(groundCit?.url, undefined);
     assert.ok(groundCit);
     assert.notEqual(groundCit.id, webCit.id);
@@ -410,7 +410,7 @@ test('end-to-end: wire batchexecute response -> decodeGeminiDetail -> Domain -> 
     const { domain, document, resources, diagnostics } = await parseFixture(convData);
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
-    const canMsg = domain.messages.find((m: any) => m.role === 'assistant');
+    const canMsg = domain.detail.messages.find((m: any) => m.role === 'assistant');
     assert.ok(canMsg);
 
     // Verify citationRef inlines exist and label is [1]
@@ -472,7 +472,7 @@ test('metadata-confirmed [cite:1,2] transforms to two citationRefs in order', as
     };
 
     const { domain } = await parseFixture(rawConv);
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const para = msg.content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
@@ -502,7 +502,7 @@ test('combined marker with spaces [cite: 1, 2] transforms to two citationRefs', 
     };
 
     const { domain } = await parseFixture(rawConv);
-    const para = domain.messages[0].content[0];
+    const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 2);
     assert.strictEqual(citeRefs[0].label, '[1]');
@@ -525,7 +525,7 @@ test('duplicate number inside one combined marker [cite:1,1] collapses to one ci
     };
 
     const { domain } = await parseFixture(rawConv);
-    const para = domain.messages[0].content[0];
+    const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
     assert.strictEqual(citeRefs[0].label, '[1]');
@@ -546,7 +546,7 @@ test('unconfirmed [cite:1,2] (no metadata) is preserved as plain text', async ()
     };
 
     const { domain } = await parseFixture(rawConv);
-    const para = domain.messages[0].content[0];
+    const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 0);
     const fullText = para.children.map((c: any) => c.text || '').join('');
@@ -569,7 +569,7 @@ test('only single marker confirmed: combined marker in same message remains text
     };
 
     const { domain } = await parseFixture(rawConv);
-    const para = domain.messages[0].content[0];
+    const para = domain.detail.messages[0].content[0];
     const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(citeRefs.length, 1);
     assert.strictEqual(citeRefs[0].label, '[1]');
@@ -593,7 +593,7 @@ test('combined marker inside inline code is preserved while confirmed prose comb
     };
 
     const { domain } = await parseFixture(rawConv);
-    const para = domain.messages[0].content[0];
+    const para = domain.detail.messages[0].content[0];
     const inlineCode = para.children.find((c: any) => c.type === 'inlineCode');
     assert.ok(inlineCode);
     assert.strictEqual(inlineCode.code, '[cite:1,2]');

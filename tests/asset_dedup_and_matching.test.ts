@@ -40,10 +40,10 @@ test('asset_dedup - ZIP import preserves exact image bytes and per-turn Domain o
             'only three referenced resources are delivered');
         const native = TakeoutEngine.getTakeoutOfflineChat(id, slot);
         assert.ok(native, 'real ZIP import must produce a native Domain conversation');
-        assert.strictEqual(native.conversation.assets.length, 3,
+        assert.strictEqual(native.conversation.detail.assets.length, 3,
             'an unreferenced ZIP file must not become a Domain asset');
 
-        const userMessages = native.conversation.messages.filter((message: any) => message.role === 'user');
+        const userMessages = native.conversation.detail.messages.filter((message: any) => message.role === 'user');
         assert.strictEqual(userMessages.length, images.length);
         const owned = new Set<string>();
         for (let i = 0; i < images.length; i++) {

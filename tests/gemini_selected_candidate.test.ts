@@ -19,12 +19,12 @@ const candidates = [
     ['rc_alternative', [['## System Boundaries and Assumptions\n\nUnselected balance.']]],
 ];
 const parse = (wire: string) => parseGeminiRpcConversation(wire, { providerId: 'gemini' });
-const answerText = (wire: string) => parse(wire).conversation.messages[1].content.map(block => extractBlockText(block)).join('\n');
+const answerText = (wire: string) => parse(wire).conversation.detail.messages[1].content.map(block => extractBlockText(block)).join('\n');
 
 test('selected wire answer exports one Assistant section and retains raw alternative evidence', () => {
     const wire = rpc(candidates, 'rc_displayed');
     const result = parse(wire);
-    assert.deepEqual(result.conversation.messages.map(m => [m.role, m.id]), [['user', 'r_request'], ['assistant', 'rc_displayed']]);
+    assert.deepEqual(result.conversation.detail.messages.map(m => [m.role, m.id]), [['user', 'r_request'], ['assistant', 'rc_displayed']]);
     assert.match(answerText(wire), /Displayed balance/);
     assert.doesNotMatch(answerText(wire), /Unselected balance/);
     const markdown = renderDocumentMarkdown(composeDomainDocument(result.conversation).document, {});
@@ -37,7 +37,7 @@ test('selected wire answer exports one Assistant section and retains raw alterna
 
 test('selection is by candidate identity even when the displayed answer is not first', () => {
     const wire = rpc(candidates, 'rc_alternative');
-    assert.equal(parse(wire).conversation.messages[1].id, 'rc_alternative');
+    assert.equal(parse(wire).conversation.detail.messages[1].id, 'rc_alternative');
     assert.match(answerText(wire), /Unselected balance/);
     assert.doesNotMatch(answerText(wire), /Displayed balance/);
 });
@@ -65,7 +65,7 @@ test('unselected images do not leak into the selected answer or consume its reso
 
     // Resource ownership must survive the native Domain boundary, not just decoding.
     const domain = parse(wire).conversation;
-    assert.ok(domain.assets.some(asset => asset.sourceUri === selectedImage));
-    assert.ok(!domain.assets.some(asset => asset.sourceUri === unselectedImage));
-    assert.equal(domain.messages.filter(message => message.role === 'assistant').length, 1);
+    assert.ok(domain.detail.assets.some(asset => asset.sourceUri === selectedImage));
+    assert.ok(!domain.detail.assets.some(asset => asset.sourceUri === unselectedImage));
+    assert.equal(domain.detail.messages.filter(message => message.role === 'assistant').length, 1);
 });

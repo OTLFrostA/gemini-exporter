@@ -44,12 +44,12 @@ export async function contentFetchChatDetail(id: string): Promise<DomDetail | De
     }
     const doc = new DOMParser().parseFromString(html, 'text/html');
     let parsed = parseDoc(doc, id, url);
-    if (!parsed.conversation.messages.length) {
+    if (!parsed.conversation.detail.messages.length) {
         try {
             const cleanId = normId(id);
             if (typeof location !== 'undefined' && (location.pathname.includes(cleanId) || location.href.includes(cleanId))) {
                 const liveFallback = parseDoc(document, id, location.href);
-                if (liveFallback.conversation.messages.length) {
+                if (liveFallback.conversation.detail.messages.length) {
                     console.log('[Gemini Exporter][DOM] live fallback success after fetch empty', id);
                     return liveFallback;
                 }

@@ -21,7 +21,7 @@ test('Gemini chooses provider structure before Domain and does not reinterpret s
         role: 'model', content: 'raw **fallback**',
         structuredContent: { children: [{ nodeType: 18, text: '**literal structure**' }] },
     }] });
-    assert.deepEqual(domain.messages[0].content, paragraph('**literal structure**'));
+    assert.deepEqual(domain.detail.messages[0].content, paragraph('**literal structure**'));
 });
 
 for (const structured of [
@@ -95,8 +95,8 @@ test('Domain body is structured-only, including empty bodies, without raw provid
         { role: 'assistant', content: '', structuredContent: { children: [] } },
         { role: 'user', content: 'Question' },
     ] });
-    assert.deepEqual(domain.messages.map(message => message.content), [[], paragraph('Question')]);
-    for (const message of domain.messages) {
+    assert.deepEqual(domain.detail.messages.map(message => message.content), [[], paragraph('Question')]);
+    for (const message of domain.detail.messages) {
         assert.equal('structuredContent' in message, false);
         assert.equal('contentAst' in message, false);
     }
@@ -106,14 +106,14 @@ test('existing OpenAI imports parse generic Markdown and Takeout imports interpr
     const openai = historicalFixtureDomain({ ...metadata, source: 'openai-import', messages: [{
         role: 'assistant', content: '# Imported\n\n**answer**',
     }] });
-    assert.deepEqual(openai.messages[0].content, [
+    assert.deepEqual(openai.detail.messages[0].content, [
         { type: 'heading', level: 1, children: [{ type: 'text', text: 'Imported' }] },
         { type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
     ]);
     const takeout = historicalFixtureDomain({ ...metadata, source: 'takeout', turns: [{
         modelContent: '<h2>Imported</h2><p>中文 <strong>answer</strong></p>',
     }] });
-    assert.deepEqual(takeout.messages[0].content, [
+    assert.deepEqual(takeout.detail.messages[0].content, [
         { type: 'heading', level: 2, children: [{ type: 'text', text: 'Imported' }] },
         { type: 'paragraph', children: [{ type: 'text', text: '中文 ' }, { type: 'strong', children: [{ type: 'text', text: 'answer' }] }] },
     ]);
@@ -123,11 +123,11 @@ test('source gate rejects leaked provider syntax while trusted AST retains liter
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
         reasoning: paragraph('Reasoning'), citations: [{ id: 'citation-0', url: 'https://example.test/source' }],
     };
-    const expected = await composeFixture({ id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [message] });
+    const expected = await composeFixture({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [message] } });
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
         thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
     };
-    await assert.rejects(composeFixture({ id: metadata.id, title: metadata.title, completeness: 'unknown', providerId: 'gemini', assets: [], messages: [leaked] }), /Invalid persisted Domain contract: messages/);
+    await assert.rejects(composeFixture({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [leaked] } }), /Invalid persisted Domain contract: messages/);
     const body = expected.document.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });
@@ -144,12 +144,12 @@ for (const document of [
         }] };
         const original = structuredClone(legacy);
         const { conversation: domain, resourceHints } = historicalFixture(legacy);
-        assert.equal('structuredContent' in domain.messages[0], false);
+        assert.equal('structuredContent' in domain.detail.messages[0], false);
         assert.deepEqual(messageAssets(domain, 0)?.[0].document?.contentMarkdown, document.contentMarkdown ? `${document.contentMarkdown}\n\nsection` : 'section');
         const [raw, semantic] = await Promise.all([composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
         assert.deepEqual(semantic.document, raw.document);
         assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints)).document, raw.document);
-        assert.deepEqual(domain.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
+        assert.deepEqual(domain.detail.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
         assert.deepEqual(legacy, original);
     });
 }

@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
 
-const metadata = { id: 'semantic', title: 'Semantic input', completeness: 'unknown' as const, providerId: 'other', assets: [] };
+const metadata = { index: { id: 'semantic', title: 'Semantic input', titleSource: 'legacy' as const, cloudAvailability: 'unknown' as const, hasTakeoutImport: false, providerId: 'other' }, detail: { completeness: 'unknown' as const, assets: [] } };
 
 test('Document composition contains no body parsing or provider-format decisions', () => {
     for (const file of ['composeDomainDocument.ts', 'composeContent.ts']) {
@@ -20,31 +20,31 @@ test('Document composition contains no body parsing or provider-format decisions
 });
 
 test('Domain semantic nodes are composed without reparsing and raw Markdown-looking text remains literal', async () => {
-    const domain: DomainConversationDetail = { ...metadata, messages: [{
+    const domain: DomainConversationWithDetail = { index: { ...metadata.index }, detail: { ...metadata.detail, messages: [{
         id: 'message', role: 'assistant', content: [
             { type: 'paragraph', children: [{ type: 'text', text: '**literal** $x$ ![not an image](file.png)' }] },
             { type: 'unknown', sourceType: 'semantic-extension', text: 'visible unknown' },
         ],
-    }] };
+    }] } };
     const original = structuredClone(domain);
     const { document } = composeDomainDocument(validateParserDomain(domain));
-    assert.deepEqual(document.messages[0].blocks[0], domain.messages[0].content[0]);
+    assert.deepEqual(document.messages[0].blocks[0], domain.detail.messages[0].content[0]);
     assert.deepEqual(document.messages[0].blocks[1], { type: 'unsupported', sourceType: 'semantic-extension', text: 'visible unknown' });
     assert.equal(collectDocumentResources(document).referencedIds.size, 0);
     assert.deepEqual(domain, original);
 });
 
 test('separate reasoning presentation does not reinterpret the Domain body', async () => {
-    const domain: DomainConversationDetail = { ...metadata, messages: [{
+    const domain: DomainConversationWithDetail = { index: { ...metadata.index }, detail: { ...metadata.detail, messages: [{
         role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal body**' }] }],
         reasoning: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: 'formatted reasoning' }] }] }],
-    }] };
+    }] } };
     const result = composeDomainDocument(validateParserDomain(domain));
     const [reasoning, body] = result.document.messages[0].blocks;
     assert.ok(reasoning.type === 'disclosure' && reasoning.blocks[0].type === 'paragraph');
     assert.equal(reasoning.blocks[0].children[0].type, 'strong');
-    assert.deepEqual(body, domain.messages[0].content[0]);
-    assert.deepEqual(reasoning.blocks, domain.messages[0].reasoning);
+    assert.deepEqual(body, domain.detail.messages[0].content[0]);
+    assert.deepEqual(reasoning.blocks, domain.detail.messages[0].reasoning);
 });
 
 test('provider parsing diagnoses malformed entries at their source position without mutating input', async () => {
@@ -54,9 +54,9 @@ test('provider parsing diagnoses malformed entries at their source position with
     ] };
     const original = structuredClone(raw);
     const result = historicalFixture(raw, { providerId: 'gemini' });
-    assert.equal(result.conversation.messages.length, 1);
+    assert.equal(result.conversation.detail.messages.length, 1);
     assert.deepEqual(raw, original);
     assert.equal(result.diagnostics.find(d => d.code === 'BAD_MESSAGE_SHAPE')?.path, 'messages[0]');
-    assert.equal(result.conversation.messages[0].content[0].type, 'unknown');
+    assert.equal(result.conversation.detail.messages[0].content[0].type, 'unknown');
     assert.equal(result.diagnostics.filter(d => d.code === 'BAD_MESSAGE_SHAPE').length, 1);
 });

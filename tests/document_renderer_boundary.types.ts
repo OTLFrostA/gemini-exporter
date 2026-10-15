@@ -1,5 +1,5 @@
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
@@ -7,7 +7,7 @@ import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMar
 import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import type { PdfCompileContext, TypstRenderPayload } from '../src/core/export/pdf/pdfCompiler.js';
 
-function rendererBoundary(semantic: DomainConversationDetail): void {
+function rendererBoundary(semantic: DomainConversationWithDetail): void {
     // @ts-expect-error A semantic conversation cannot be sent to the rendering backend.
     renderDocumentHtml(semantic, {});
     // @ts-expect-error Markdown also requires the presentation tree.
@@ -49,7 +49,7 @@ void neutralContract;
 
 
 import type { ResourceStageInput, PayloadStageInput, CompileStageInput } from '../src/core/export/pdf/pipeline/types.js';
-function pdfPipelineBoundary(domain: DomainConversationDetail): void {
+function pdfPipelineBoundary(domain: DomainConversationWithDetail): void {
     // @ts-expect-error PDF resources must receive an already composed Document AST.
     const resources: ResourceStageInput = { document: domain, resources: new Map() };
     // @ts-expect-error PDF payload generation cannot reinterpret Domain content.

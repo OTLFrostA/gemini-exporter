@@ -1,4 +1,4 @@
-import type { DomainAsset, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
+import type { DomainAsset, DomainMessage } from '../../../domain/conversationDetail.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
@@ -17,9 +17,9 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const acquisitionHints: Record<string, ResourceConversationParseResult['acquisitionHints'][string]> = {};
     for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
         const page = pages[pageIndex];
-        if (page.conversation.id !== first.id || page.conversation.providerId !== first.providerId) throw new TypeError('Cannot merge pages from different conversations');
+        if (page.conversation.index.id !== first.index.id || page.conversation.index.providerId !== first.index.providerId) throw new TypeError('Cannot merge pages from different conversations');
         const aliases = new Map<string, string>();
-        for (const asset of page.conversation.assets) {
+        for (const asset of page.conversation.detail.assets) {
             let id = asset.id;
             const previous = assets.get(id);
             const sharedSource = previous?.sourceUri && previous.sourceUri === asset.sourceUri && previous.kind === asset.kind;
@@ -32,7 +32,7 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
             if (page.resourceHints[asset.id]) resourceHints[id] = { ...page.resourceHints[asset.id], ...resourceHints[id] };
             if (page.acquisitionHints[asset.id]) acquisitionHints[id] = { ...page.acquisitionHints[asset.id], ...acquisitionHints[id] };
         }
-        const fresh = page.conversation.messages.filter(message => {
+        const fresh = page.conversation.detail.messages.filter(message => {
             if (!message.id) return true;
             if (seenMessages.has(message.id)) return false;
             seenMessages.add(message.id); return true;
@@ -44,10 +44,10 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     }
     const rejected = pages.some(page => (page.transport?.turnsRejected ?? 0) > 0);
     const versionMismatch = pages.some(page => page.sourceVersion !== undefined
-        && page.conversation.messages.some(message => message.timestamp !== undefined && message.timestamp > page.sourceVersion!));
+        && page.conversation.detail.messages.some(message => message.timestamp !== undefined && message.timestamp > page.sourceVersion!));
     const versionChanged = pages.some(page => page.sourceVersion !== pages[0].sourceVersion);
-    const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()],
-        completeness: truncatedReason || rejected || versionMismatch || versionChanged ? 'partial' : 'unknown' };
+    const conversation = { index: { ...first.index, messageCount: messages.length }, detail: { messages, assets: [...assets.values()],
+        completeness: truncatedReason || rejected || versionMismatch || versionChanged ? 'partial' as const : 'unknown' as const } };
     return { ...(pages[0].sourceVersion !== undefined ? { sourceVersion: pages[0].sourceVersion } : {}), conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
         ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };

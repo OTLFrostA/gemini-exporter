@@ -12,8 +12,8 @@ const parse = (data: ConversationRecordInput) => historicalFixture(data, { provi
 test('unified parsing requires explicit provider identity and implemented format', () => {
     const data = { source: 'openai-import', messages: [{ role: 'model', model: 'Model A', content: '**Answer**' }] };
     const result = historicalFixture(data, { providerId: 'custom' });
-    assert.equal(result.conversation.providerId, 'custom');
-    assert.equal(result.conversation.messages[0].model, 'Model A');
+    assert.equal(result.conversation.index.providerId, 'custom');
+    assert.equal(result.conversation.detail.messages[0].model, 'Model A');
     for (const providerId of ['', '  ']) {
         assert.throws(() => historicalFixture(data, { providerId: providerId as never }), /providerId/);
     }
@@ -37,9 +37,9 @@ test('source provenance and explicit completeness survive JSON without leaking t
     const original = structuredClone(data);
     const { conversation } = parse(data);
     assert.equal(Reflect.get(conversation, 'provenance'), undefined);
-    assert.equal(conversation.completeness, 'complete');
+    assert.equal(conversation.detail.completeness, 'complete');
     assert.deepEqual(JSON.parse(JSON.stringify(conversation)), conversation);
-    assertDomainClosure(conversation);
+    assertDomainClosure((conversation).detail);
     assert.equal('nextPageToken' in conversation, false);
     assert.equal('source' in conversation, false);
     const document = composeDomainDocument(conversation).document;
@@ -54,7 +54,7 @@ test('positive truncation or paging evidence takes precedence over a complete cl
         const data = { completeness: { status: 'complete' as const }, truncateReason: 'Source limit', ...evidence };
         const original = structuredClone(data);
         const { conversation } = parse(data);
-        assert.equal(conversation.completeness, 'partial');
+        assert.equal(conversation.detail.completeness, 'partial');
         assert.ok(!JSON.stringify(conversation).includes('opaque-cursor'));
         assert.deepEqual(data, original);
     }
@@ -62,22 +62,22 @@ test('positive truncation or paging evidence takes precedence over a complete cl
 
 test('absence of truncation is not evidence of complete coverage', () => {
     for (const data of [{}, { truncated: false, isTruncated: false, nextPageToken: null }, { nextPageToken: '  ', truncateReason: 'Unconfirmed' }]) {
-        assert.equal(parse(data).conversation.completeness, 'unknown');
+        assert.equal(parse(data).conversation.detail.completeness, 'unknown');
     }
-    assert.deepEqual(parse({ completeness: { status: 'unknown' } }).conversation.completeness, 'unknown');
-    assert.deepEqual(parse({ nextPageToken: 'cursor', completeness: { status: 'partial', reason: 'Selected range' } }).conversation.completeness,
+    assert.deepEqual(parse({ completeness: { status: 'unknown' } }).conversation.detail.completeness, 'unknown');
+    assert.deepEqual(parse({ nextPageToken: 'cursor', completeness: { status: 'partial', reason: 'Selected range' } }).conversation.detail.completeness,
         'partial');
-    assert.deepEqual(parse({ completeness: { status: 'partial', reason: 'Only a selected range' } }).conversation.completeness,
+    assert.deepEqual(parse({ completeness: { status: 'partial', reason: 'Only a selected range' } }).conversation.detail.completeness,
         'partial');
 });
 
 test('Domain completeness is validated and copied independently from input evidence', () => {
     const data = { completeness: { status: 'partial' as const, reason: 'Missing older messages' } };
     const { conversation } = parse(data);
-    conversation.completeness = 'complete';
+    conversation.detail.completeness = 'complete';
     assert.equal(data.completeness.reason, 'Missing older messages');
     assert.throws(() => parse({ completeness: { status: 'finished' as never } }), /completeness/);
-    assert.equal(parse({ completeness: { status: 'partial', reason: 42 as never } }).conversation.completeness, 'partial');
+    assert.equal(parse({ completeness: { status: 'partial', reason: 42 as never } }).conversation.detail.completeness, 'partial');
 });
 
 test('conversation timestamps cannot lose meaning during JSON serialization', () => {
@@ -100,10 +100,10 @@ test('shared parse result keeps diagnostics and preparation evidence outside a c
     const result = parse(data);
     const semanticResult: ConversationParseResult = result;
     assert.ok(semanticResult.diagnostics.some(d => d.code === 'UNKNOWN_ROLE'));
-    assert.equal(result.conversation.assets.length, 1);
-    assert.ok(Object.keys(result.resourceHints).includes(result.conversation.assets[0].id));
+    assert.equal(result.conversation.detail.assets.length, 1);
+    assert.ok(Object.keys(result.resourceHints).includes(result.conversation.detail.assets[0].id));
     const json = JSON.stringify(result.conversation);
     for (const field of ['diagnostics', 'resourceHints', 'acquisitionHints', 'localName']) assert.ok(!json.includes(`"${field}":`));
-    assertDomainClosure(JSON.parse(json));
+    assertDomainClosure((JSON.parse(json)).detail);
     assert.deepEqual(data, original);
 });

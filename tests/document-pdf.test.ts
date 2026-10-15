@@ -2,7 +2,7 @@ import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentTypst, defaultPdfLayout } from '../src/core/renderers/typst/renderTypst.js';
@@ -10,7 +10,7 @@ import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompi
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 
-function fixture(): DomainConversationDetail {
+function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-pdf.json', 'utf8'));
 }
 
@@ -37,7 +37,7 @@ test('PDF backend derives policies and metadata from immutable JSON display data
 });
 
 test('real PDF engine changes page policy without recomposing the document', async () => {
-    const input = fixture(); input.messages = [{ id: 'a', role: 'assistant', content: Array.from({ length: 25 }, (_, index) => ({ type: 'paragraph', children: [{ type: 'text', text: `Passage ${index}. ` + 'Page layout remains an engine responsibility. '.repeat(8) }] })) }];
+    const input = fixture(); input.detail.messages = [{ id: 'a', role: 'assistant', content: Array.from({ length: 25 }, (_, index) => ({ type: 'paragraph', children: [{ type: 'text', text: `Passage ${index}. ` + 'Page layout remains an engine responsibility. '.repeat(8) }] })) }];
     const { document } = composeDomainDocument(validateParserDomain(input)); const originalJson = JSON.stringify(document);
     const layout = defaultPdfLayout(); layout.page.heightMm = 150;
     const compiler = new TypstSandboxCompiler({ host: new RealWasmSandboxHost(repoRoot()) });
@@ -58,11 +58,11 @@ test('PDF backend/compiler have no source-model imports; backend may infer layou
 });
 
 test('PDF missing placements preserve authored numeric captions and descriptions', () => {
-    const input = fixture(); input.messages[1].content = [
+    const input = fixture(); input.detail.messages[1].content = [
         { type: 'image', assetId: 'image', caption: [{ type: 'strong', children: [{ type: 'text', text: '123' }] }] },
         { type: 'file', assetId: 'missing', label: 'Missing.pdf', description: [{ type: 'strong', children: [{ type: 'text', text: 'Authored description' }] }] },
     ];
-    input.assets.push({ id: 'missing', kind: 'file' });
+    input.detail.assets.push({ id: 'missing', kind: 'file' });
     const { document } = composeDomainDocument(validateParserDomain(input));
     const payload = renderDocumentTypst(document, {});
     const image = payload.messages[1].blocks[0], file = payload.messages[1].blocks[1];

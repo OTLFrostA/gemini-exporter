@@ -8,7 +8,13 @@ const { composeDomainDocument } = require('../src/core/document/compose/composeD
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
-function domainFixture(messages: any[], extra: any = {}) { return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 't', completeness: 'unknown', createdAt: Date.parse('2026-09-20T10:00:00Z'), assets: [], messages, ...extra }); }
+function domainFixture(messages: any[], extra: any = {}) {
+    const createdAt = require('../src/core/domain/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
+    const updatedAt = require('../src/core/domain/time.js').normalizeTimestamp(extra.updatedAt);
+    return restoreDomainSnapshot({ index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
+        ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
+        detail: { completeness: 'unknown', assets: extra.assets ?? [], messages } });
+}
 
 function msg(blocks: any[]) {
     return { id: 'm1', role: 'assistant', content: blocks };
@@ -54,7 +60,7 @@ test('typst defaults to en when locale omitted', () => {
 
 test('typst zh date unknown is localized', () => {
     const b = domainFixture([msg([])]);
-    delete b.createdAt;
+    delete b.index.createdAt;
     const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, { ...opts, locale: 'zh' });
     assert.ok(payload.metadata.includes('日期未知'));
 });

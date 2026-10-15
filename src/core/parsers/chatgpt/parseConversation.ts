@@ -1,3 +1,4 @@
+import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 /**
  * ChatGPT conversation parser: assembled mapping evidence -> branded Domain.
  * Acquisition (session/list/detail/downloads) stays in the provider; only this
@@ -224,14 +225,11 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversation: validateParserDomain({
-            providerId: 'chatgpt',
-            completeness: hasMissingImage ? 'partial' : 'complete',
-            assets,
-            id: conversation.id,
-            title: conversation.title || 'ChatGPT Conversation',
-            createdAt: chatGPTTimestamp(conversation.create_time),
-            url: `https://chatgpt.com/c/${conversation.id}`,
-            messages,
+            index: parseIndexMetadata({ providerId: 'chatgpt', id: conversation.id,
+                title: conversation.title?.trim() || '', titleSource: 'provider',
+                createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
+                messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
+            detail: { completeness: hasMissingImage ? 'partial' : 'complete', assets, messages },
         }),
         diagnostics: contentDiagnostics,
         resourceHints: {},

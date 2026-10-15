@@ -1,5 +1,6 @@
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
-import type { DomainAsset, DomainConversationDetail, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
+import type { DomainAsset, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { historicalFixtureDomain } from './helpers/nativeFixture.js';
 
 const legacyConversation: Conversation = {
@@ -9,11 +10,11 @@ const legacyConversation: Conversation = {
     messages: [{ role: 'assistant', content: 'Typed message', timestamp: null }],
 };
 
-const domainConversation: DomainConversationDetail = historicalFixtureDomain(legacyConversation);
+const domainConversation: DomainConversationWithDetail = historicalFixtureDomain(legacyConversation);
 
 // These assignments make both adapter boundaries part of strict TypeScript checking.
 const acceptedLegacyInput: Conversation = legacyConversation;
-const typedDomainResult: DomainConversationDetail = domainConversation;
+const typedDomainResult: DomainConversationWithDetail = domainConversation;
 void acceptedLegacyInput;
 void typedDomainResult;
 
@@ -99,9 +100,9 @@ const rejectedExportPath: DomainAsset = { id: 'asset', kind: 'image', subDir: 'i
 // @ts-expect-error Export availability/layout fields are not Domain metadata.
 const rejectedExportStatus: DomainAsset = { id: 'asset', kind: 'file', status: 'available' };
 // @ts-expect-error Domain conversation requires explicit provider identity.
-const rejectedMissingProvider: DomainConversationDetail = { id: 'chat', title: '', timestamp: null, assets: [], messages: [] };
+const rejectedMissingProvider: DomainConversationWithDetail = { id: 'chat', title: '', timestamp: null, assets: [], messages: [] };
 // @ts-expect-error Domain conversation requires its resource registry, including when empty.
-const rejectedMissingAssets: DomainConversationDetail = { id: 'chat', title: '', timestamp: null, providerId: 'provider', messages: [] };
+const rejectedMissingAssets: DomainConversationWithDetail = { id: 'chat', title: '', timestamp: null, providerId: 'provider', messages: [] };
 void rejectedMessageAttachments;
 void rejectedRawReasoning;
 void rejectedExportPath;
@@ -135,13 +136,13 @@ const failedAsset: DomainAsset = { id: 'image', kind: 'image', failureReason: 'H
 // @ts-expect-error Citation numbering belongs to Document composition.
 const numberedCitation: import('../src/core/domain/conversationDetail.js').DomainCitation = { id: 'cite', number: 1 };
 // @ts-expect-error Unknown title sources must be normalized before Domain.
-const unknownTitleSource: DomainConversationDetail = { ...domainConversation, titleSource: 'unknown-source' };
+const unknownTitleSource: DomainConversationWithDetail = { index: { ...domainConversation.index, titleSource: 'unknown-source' }, detail: { ...domainConversation.detail } };
 void failedAsset; void numberedCitation; void unknownTitleSource;
 
 // @ts-expect-error Conversation activity belongs solely to Index.
-const duplicateActivity: DomainConversationDetail = { ...domainConversation, updatedAt: 1700000000000 };
+const duplicateActivity: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { ...domainConversation.detail, updatedAt: 1700000000000 } };
 // @ts-expect-error The saved body version belongs to its storage envelope.
-const embeddedSavedVersion: DomainConversationDetail = { ...domainConversation, savedAt: 1700000000000 };
+const embeddedSavedVersion: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { ...domainConversation.detail }, savedAt: 1700000000000 };
 // @ts-expect-error Acquisition context cannot become a persisted Detail field.
-const embeddedCaptureVersion: DomainConversationDetail = { ...domainConversation, sourceVersion: 1700000000000 };
+const embeddedCaptureVersion: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { ...domainConversation.detail }, sourceVersion: 1700000000000 };
 void [duplicateActivity, embeddedSavedVersion, embeddedCaptureVersion];

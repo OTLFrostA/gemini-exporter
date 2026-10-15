@@ -51,8 +51,8 @@ export function createConversationRepository(scope: ConversationScope, ports: Re
         const stored = await ports.readBody(identity);
         if (!stored) return { index };
         if (stored.key !== domainStorageKey(identity) || domainStorageKey(stored.identity) !== stored.key
-            || stored.conversation.providerId !== identity.providerId
-            || storageIdentity(identity.providerId, identity.accountSlot, stored.conversation.id).conversationId !== identity.conversationId) {
+            || stored.conversation.index.providerId !== identity.providerId
+            || storageIdentity(identity.providerId, identity.accountSlot, stored.conversation.index.id).conversationId !== identity.conversationId) {
             throw new TypeError('Conversation body identity mismatch');
         }
         return structuredClone({ index, detail: selectConversationBody(stored.conversation),

@@ -30,7 +30,7 @@ test('shared acquisition prefers online and uses cache only after unusable Takeo
     await catalogStorage.setNativeConversations('u0', [historicalFixture({ id: 'fallback', messages: [message('cache')] })]);
     try {
         const recovered = await resolveConversationData({ messages: [] }, 'fallback', null, takeout);
-        assert.match(JSON.stringify(recovered.result.conversation.messages), /cache/);
+        assert.match(JSON.stringify(recovered.result.conversation.detail.messages), /cache/);
         const pdf = await preparePdfItem({ id: 'fallback' }, {
             includeAssets: false, takeoutEngine: takeout,
             fetchChatDetail: async () => ({ success: false, error: 'offline' }),
@@ -83,8 +83,8 @@ test('extractChatFromDetailResult and preparePdfItem: results[0] wins over chat'
         'norm-id',
         fallback,
     );
-    assert.equal(extracted.conversation.id, 'r1');
-    assert.match(JSON.stringify(extracted.conversation.messages), /winner from results/);
+    assert.equal(extracted.conversation.index.id, 'r1');
+    assert.match(JSON.stringify(extracted.conversation.detail.messages), /winner from results/);
 
     const result = await preparePdfItem({ id: 'precedence' }, {
         includeAssets: false,

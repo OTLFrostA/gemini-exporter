@@ -19,7 +19,7 @@ test('renaming export paths changes prepared bindings but not Domain facts or id
     const first = historicalFixture(input), second = historicalFixture(renamed);
     assert.deepEqual(first.conversation, second.conversation);
     assert.deepEqual(input, before);
-    const asset = first.conversation.assets[0];
+    const asset = first.conversation.detail.assets[0];
     assert.deepEqual(asset.sourceUri, 'https://example.test/photo');
     assert.equal(asset.name, 'Authored photo');
     assert.equal((await prepareDomainResources(await fixtureResourceResults(first.conversation, first.resourceHints)))[asset.id], 'assets/old/photo.png');
@@ -34,8 +34,8 @@ test('same export destination cannot collapse resources from different sources',
         { type: 'image', url: 'https://example.test/one', localName: 'assets/same.png' },
         { type: 'image', url: 'https://example.test/two', localName: 'assets/same.png' },
     ] }] });
-    assert.equal(conversation.assets.length, 2);
-    assert.notEqual(conversation.assets[0].id, conversation.assets[1].id);
+    assert.equal(conversation.detail.assets.length, 2);
+    assert.notEqual(conversation.detail.assets[0].id, conversation.detail.assets[1].id);
 });
 
 test('one source remains one resource across renamed legacy destinations', () => {
@@ -43,9 +43,9 @@ test('one source remains one resource across renamed legacy destinations', () =>
         { role: 'user', content: '![one](one.png)', attachments: [{ type: 'image', url: 'https://example.test/shared', localName: 'one.png' }] },
         { role: 'model', content: '![two](two.png)', images: [{ type: 'image', url: 'https://example.test/shared', localName: 'two.png' }] },
     ] });
-    assert.equal(conversation.assets.length, 1);
-    assert.deepEqual(conversation.messages[0].attachmentIds, conversation.messages[1].attachmentIds);
-    assert.ok(conversation.messages.every(message => JSON.stringify(message.content).includes(conversation.assets[0].id)));
+    assert.equal(conversation.detail.assets.length, 1);
+    assert.deepEqual(conversation.detail.messages[0].attachmentIds, conversation.detail.messages[1].attachmentIds);
+    assert.ok(conversation.detail.messages.every(message => JSON.stringify(message.content).includes(conversation.detail.assets[0].id)));
 });
 
 test('destination-only resources retain distinct occurrence identities without path/name/kind leakage', () => {
@@ -56,8 +56,8 @@ test('destination-only resources retain distinct occurrence identities without p
     renamed.messages![0].attachments!.forEach(item => { item.localName = 'new/image.png'; });
     const first = historicalFixture(input).conversation;
     assert.deepEqual(first, historicalFixture(renamed).conversation);
-    assert.equal(first.assets.length, 2);
-    assert.ok(first.assets.every(asset => asset.kind === 'file' && !asset.sourceUri && !asset.name));
+    assert.equal(first.detail.assets.length, 2);
+    assert.ok(first.detail.assets.every(asset => asset.kind === 'file' && !asset.sourceUri && !asset.name));
 });
 
 test('ambiguous export aliases remain unresolved instead of becoming acquisition sources', () => {
@@ -67,6 +67,6 @@ test('ambiguous export aliases remain unresolved instead of becoming acquisition
             { type: 'image', url: 'https://example.test/two', localName: 'same.png' },
         ],
     }] });
-    assert.equal(conversation.assets.length, 3);
-    assert.equal(conversation.assets[2].sourceUri, undefined);
+    assert.equal(conversation.detail.assets.length, 3);
+    assert.equal(conversation.detail.assets[2].sourceUri, undefined);
 });

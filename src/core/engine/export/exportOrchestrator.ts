@@ -824,8 +824,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
-                        const listTitle = chat.title;
-                        const chatId = chat.id;
+                        const listTitle = chat.index.title;
+                        const chatId = chat.index.id;
 
                         // Resource writes finish before rendering, so a failed write can never leave a dangling binding.
                         const queuedAssetsForThisChat = includeAssets ? planned.assets.length + planned.failures.length : 0;
@@ -847,7 +847,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                     } else if (!assetPipeline) {
                                         outcome = missingResource(asset.assetId, 'Resource acquisition is unavailable');
                                     } else {
-                                        outcome = await assetPipeline.processAsset(asset.item, chat, { isImage: asset.isImage, listTitle, signal: abortSignal,
+                                        outcome = await assetPipeline.processAsset(asset.item, chat.index, { isImage: asset.isImage, listTitle, signal: abortSignal,
                                             localOnly: listC?.cloudAvailability === 'deleted' || requestedItem.cloudAvailability === 'deleted' });
                                         if (outcome.ok) outcome = { ...outcome, value: { path: normalizeArchivePath(outcome.value.path) } };
                                     }
@@ -866,7 +866,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             if (result.ok) { downloadedAssets++; continue; }
                             chatFailedAssetsSet.add(nid);
                             const asset = planned.assets.find(item => item.assetId === result.resourceId);
-                            const source = chat.assets.find(item => item.id === result.resourceId);
+                            const source = chat.detail.assets.find(item => item.id === result.resourceId);
                             failedAttachments.push({ chatId, chatTitle: listTitle,
                                 file: asset?.item.localName || source?.name || result.resourceId,
                                 error: result.reason, sourceUrl: source?.sourceUri });
@@ -914,10 +914,10 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             exportedAt: new Date().toISOString(),
                             titleCandidate: listTitle,
                             titleProvenance: resolveReliableTitleSource(
-                                typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
+                                typeof chat.index.titleSource === 'string' ? chat.index.titleSource : undefined,
                                 listC?.titleSource
                             ),
-                            messageCount: chat.messages.length,
+                            messageCount: chat.detail.messages.length,
                             chatTime: authoritativeChatTime,
                             failedAssets: resourceResults.filter(r => !r.ok).length,
                             evidence: chatDrift,
@@ -972,7 +972,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 ? 'Aborted due to permission revocation'
                                 : getErrorMessage(mainWriteError);
                             failedChats.push({
-                                id: chat.id || nid,
+                                id: chat.index.id || nid,
                                 title: listTitle,
                                 error: failReason
                             });
@@ -984,11 +984,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         metaResults.push({
                             id: chatId,
                             title: listTitle,
-                            url: chat.url || `https://gemini.google.com/app/${chatId}`,
-                            createdAt: toIso(chat.createdAt),
-                            updatedAt: toIso(exportResult.sourceVersion),
+                            url: chat.index.url || `https://gemini.google.com/app/${chatId}`,
+                            createdAt: toIso(chat.index.createdAt),
+                            updatedAt: toIso(chat.index.updatedAt),
                             messageCount: completion.exportRecord.messageCount,
-                            attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
+                            attachmentCount: queuedAssetsForThisChat || (chat.detail.assets.length),
                             exportFile: fileName,
                             status: metaStatus,
                             ...(driftNotable ? {

@@ -17,8 +17,8 @@ test('HTML export returns the delivery contract and uses prepared offline destin
     assert.ok(result.content.startsWith('<!DOCTYPE html>'));
     assert.ok(result.content.includes('assets/x.png'));
     const { domain, document, resources } = await parseFixture(raw);
-    assert.deepEqual([...collectDocumentResources(document).referencedIds], [domain.assets[0].id]);
-    assert.equal(resources[domain.assets[0].id], 'assets/x.png');
+    assert.deepEqual([...collectDocumentResources(document).referencedIds], [domain.detail.assets[0].id]);
+    assert.equal(resources[domain.detail.assets[0].id], 'assets/x.png');
     assert.ok(!JSON.stringify(domain).includes('assets/x.png'));
 });
 test('unprepared resources remain visible and carry an explicit backend diagnostic', async () => {

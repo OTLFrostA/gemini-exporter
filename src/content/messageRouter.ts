@@ -159,7 +159,7 @@ export function init({
                     const provider = resolveProvider() as ApplicationProvider | undefined;
                     if (provider) {
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
-                        if (detail && isResourceConversationParseResult(detail) && detail.conversation.messages.length > 0) {
+                        if (detail && isResourceConversationParseResult(detail) && detail.conversation.detail.messages.length > 0) {
                             const accepted = await acceptDetail(detail);
                             respondDetail({ success: true, data: accepted, source: 'batchexecute' });
                             return;
@@ -167,7 +167,7 @@ export function init({
                             const rawKeys = detail.transport.decodedPayload ? Object.keys(detail.transport.decodedPayload) : [];
                             const rawPreview = detail.transport.decodedPayload ? JSON.stringify(detail.transport.decodedPayload).slice(0, 4000) : '';
                             const topPreview = detail.transport.decodedPayload ? JSON.stringify(detail).slice(0, 1000) : '';
-                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.title };
+                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.detail.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.index.title };
                             if (contentContext.isDevMode()) {
                                 console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
                             }
@@ -202,7 +202,7 @@ export function init({
                 try {
                     if (Scraper) {
                         const chat = await Scraper.contentFetchChatDetail(cid);
-                        if (chat && isResourceConversationParseResult(chat) && chat.conversation.messages.length > 0) {
+                        if (chat && isResourceConversationParseResult(chat) && chat.conversation.detail.messages.length > 0) {
                             const accepted = await acceptDetail(chat);
                             respondDetail({ success: true, data: accepted, source: 'dom' });
                             return;

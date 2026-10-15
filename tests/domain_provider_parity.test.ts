@@ -77,6 +77,6 @@ test('Domain composition preserves provider parsing after flattening turns-only 
     };
     const domain = historicalFixtureDomain(conversation);
     assert.equal('turns' in domain, false);
-    assert.deepEqual(domain.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
+    assert.deepEqual(domain.detail.messages.map((message) => message.role), ['user', 'assistant', 'user', 'assistant']);
     await assertDomainParity(conversation);
 });

@@ -1,5 +1,4 @@
 import type { BlockNode } from './content/blocks.js';
-import type { TitleSource } from './titleAuthority.js';
 
 /** Provider-neutral description of a complete conversation detail. */
 export type DomainMessageRole =
@@ -71,18 +70,10 @@ export interface DomainMessage {
     citations?: DomainCitation[];
 }
 
-/** Parser/storage snapshot contract. Application reads use DomainConversation:
- * its index owns metadata and its detail exposes only body facts. */
+/** Body facts only. All conversation metadata belongs to DomainConversationIndex. */
 export interface DomainConversationDetail {
-    providerId: string;
     completeness: 'complete' | 'partial' | 'unknown';
     /** One record per semantic resource; body/reasoning assetId values refer to these IDs. */
     assets: DomainAsset[];
-    id: string;
-    title: string;
-    /** Unix epoch milliseconds; omit when unknown. */
-    createdAt?: number;
-    url?: string;
     messages: DomainMessage[];
-    titleSource?: TitleSource;
 }

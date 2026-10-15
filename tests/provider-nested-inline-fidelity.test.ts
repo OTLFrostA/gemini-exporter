@@ -27,7 +27,7 @@ async function normAndRender(content: string, options: any = {}) {
     };
     const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini', ...options });
     const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     return { domain, msg, html, diagnostics };
 }
 

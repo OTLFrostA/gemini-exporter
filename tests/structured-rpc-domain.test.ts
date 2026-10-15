@@ -82,7 +82,7 @@ test('Structured path is actively used and bypasses Markdown parser', async () =
     const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
     assert.strictEqual(diagnostics.filter((d: any) => d.severity === 'error').length, 0);
 
-    const modelMsg = domain.messages.find((m: any) => m.id === 'm2');
+    const modelMsg = domain.detail.messages.find((m: any) => m.id === 'm2');
     assert.ok(modelMsg, 'Model message present');
 
     // Should have 2 blocks: paragraph and math (NOT the raw markdown text)
@@ -141,7 +141,7 @@ test('#705 Divergence Case: Display Math directly to Canonical math block', asyn
     };
 
     const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 3);
     assert.strictEqual(msg.content[0].type, 'paragraph');
     assert.ok(msg.content[0]?.type === 'paragraph');
@@ -176,7 +176,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     };
 
     const { conversation: domainAlpha } = await historicalFixture(convAlpha as any, { providerId: 'gemini' });
-    const msgAlpha = domainAlpha.messages[0];
+    const msgAlpha = domainAlpha.detail.messages[0];
     const tableBlockAlpha = msgAlpha.content.find((b: any) => b.type === 'table');
     assert.ok(tableBlockAlpha?.type === 'table');
     assert.ok(tableBlockAlpha, 'Table block exists for Case C-alpha');
@@ -213,7 +213,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     };
 
     const { conversation: domainPsi } = await historicalFixture(convPsi as any, { providerId: 'gemini' });
-    const msgPsi = domainPsi.messages[0];
+    const msgPsi = domainPsi.detail.messages[0];
     const tableBlockPsi = msgPsi.content.find((b: any) => b.type === 'table');
     assert.ok(tableBlockPsi?.type === 'table');
     assert.ok(tableBlockPsi, 'Table block exists for Case C-psi');
@@ -244,7 +244,7 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
         messages: [{ id: 'm1', role: 'model', content: 'raw', structuredContent: aStack }],
     };
     const resA = await historicalFixture(convA as any, { providerId: 'gemini' });
-    assert.doesNotThrow(() => assertDomainClosure(resA.conversation));
+    assert.doesNotThrow(() => assertDomainClosure((resA.conversation).detail));
 
     // Case B: 49 root nodes
     assert.strictEqual(bStack.children.length, 49);
@@ -254,7 +254,7 @@ test('Real Tier 2 probe data: full documents validate cleanly against Domain clo
         messages: [{ id: 'm1', role: 'model', content: 'raw', structuredContent: bStack }],
     };
     const resB = await historicalFixture(convB as any, { providerId: 'gemini' });
-    assert.doesNotThrow(() => assertDomainClosure(resB.conversation));
+    assert.doesNotThrow(() => assertDomainClosure((resB.conversation).detail));
 });
 
 test('Real wire decode: sanitized hNvQHb field 12 fixtures match runtime probe fixtures', () => {
@@ -337,7 +337,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 
     const resList = await historicalFixture(listConv as any, { providerId: 'gemini' });
     assert.strictEqual(
-        resList.conversation.messages[0].content[0].children[0].text,
+        resList.conversation.detail.messages[0].content[0].children[0].text,
         'Raw list markdown fallback',
         'List with unknown child must fail closed to markdown without silent item dropping'
     );
@@ -372,7 +372,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 
     const resTable = await historicalFixture(tableConv as any, { providerId: 'gemini' });
     assert.strictEqual(
-        resTable.conversation.messages[0].content[0].children[0].text,
+        resTable.conversation.detail.messages[0].content[0].children[0].text,
         'Raw table markdown fallback',
         'Table with unknown cell child must fail closed to markdown'
     );
@@ -403,7 +403,7 @@ test('Nested unknown node in list/table/blockquote fails closed to Markdown pars
 
     const resBq = await historicalFixture(bqConv as any, { providerId: 'gemini' });
     assert.strictEqual(
-        resBq.conversation.messages[0].content[0].children[0].text,
+        resBq.conversation.detail.messages[0].content[0].children[0].text,
         'Raw bq markdown fallback',
         'Blockquote with unknown child must fail closed to markdown'
     );
@@ -440,7 +440,7 @@ test('Unknown annotation shape/type fails closed and is never coerced to bold', 
     };
 
     const res = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = res.conversation.messages[0];
+    const msg = res.conversation.detail.messages[0];
     assert.strictEqual(
         msg.content[0].children[0].text,
         'Raw markdown fallback for unknown annotation',
@@ -509,8 +509,8 @@ test('Multi-candidate turn attaches structuredContent only to proven candidate 0
     };
 
     const res = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg0 = res.conversation.messages[0];
-    const msg1 = res.conversation.messages[1];
+    const msg0 = res.conversation.detail.messages[0];
+    const msg1 = res.conversation.detail.messages[1];
 
     // msg0 used structured content (contains table block)
     const tableBlock0 = msg0.content.find((b: any) => b.type === 'table');
@@ -580,7 +580,7 @@ test('Fallback: missing structuredContent falls back to existing Markdown parser
     };
 
     const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 2);
     assert.strictEqual(msg.content[0].type, 'heading');
     assert.ok(msg.content[0]?.type === 'heading');
@@ -612,7 +612,7 @@ test('Fallback: unknown nodeType triggers complete fallback to Markdown parser',
     };
 
     const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].type, 'paragraph');
     assert.ok(msg.content[0]?.type === 'paragraph');
@@ -645,7 +645,7 @@ test('Fallback: crossing overlap annotations trigger fallback to Markdown parser
     };
 
     const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].children[0].text, 'Fallback text on crossing overlap.');
 });
@@ -667,7 +667,7 @@ test('Fallback: empty structured document with non-empty raw markdown triggers f
     };
 
     const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     assert.strictEqual(msg.content.length, 1);
     assert.strictEqual(msg.content[0].children[0].text, 'Non-empty raw markdown should not be lost if structured is empty.');
 });
@@ -747,21 +747,21 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     const errorDiags = diagnostics.filter((d: any) => d.severity === 'error');
     assert.strictEqual(errorDiags.length, 0, 'No error diagnostics during normalization');
 
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const imageBlocks = composeDomainDocument(domain).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imageBlocks.length, 1, 'Exactly 1 image block placed in Domain message');
     assert.strictEqual(imageBlocks[0].alt, '贝尔测试实验示意图.png');
 
     // Exactly 1 asset in bundle (no duplicate)
-    assert.strictEqual(domain.assets.length, 1, 'Exactly 1 asset in bundle');
-    const asset = domain.assets[0];
+    assert.strictEqual(domain.detail.assets.length, 1, 'Exactly 1 asset in bundle');
+    const asset = domain.detail.assets[0];
     assert.strictEqual(asset.kind, 'image');
     assert.strictEqual(asset.name, '贝尔测试实验示意图.png');
     assert.equal(Object.hasOwn(asset, 'dimensions'), false);
     assert.strictEqual(asset.id, imageBlocks[0].resourceId, 'Block assetId links to bundle asset ID');
 
     // Validate the canonical bundle
-    assert.doesNotThrow(() => assertDomainClosure(domain));
+    assert.doesNotThrow(() => assertDomainClosure((domain).detail));
 });
 
 test('PR #705 candidate wire fixture: candidate response parser preserves search image in both structured and fallback modes', async () => {
@@ -791,10 +791,10 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
     };
 
     const resStructured = await historicalFixture(convStructured as any, { providerId: 'gemini' });
-    const msgStructured = resStructured.conversation.messages[0];
+    const msgStructured = resStructured.conversation.detail.messages[0];
     const imgBlocksStructured = composeDomainDocument(resStructured.conversation).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
-    assert.strictEqual(resStructured.conversation.assets.length, 1, 'Structured path has exactly 1 asset');
+    assert.strictEqual(resStructured.conversation.detail.assets.length, 1, 'Structured path has exactly 1 asset');
 
     // 3. Fallback markdown path normalization (without structuredContent)
     const convFallback = {
@@ -811,10 +811,10 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
     };
 
     const resFallback = await historicalFixture(convFallback as any, { providerId: 'gemini' });
-    const msgFallback = resFallback.conversation.messages[0];
+    const msgFallback = resFallback.conversation.detail.messages[0];
     const imgBlocksFallback = composeDomainDocument(resFallback.conversation).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocksFallback.length, 1, 'Fallback path has exactly 1 image block');
-    assert.strictEqual(resFallback.conversation.assets.length, 1, 'Fallback path has exactly 1 asset');
+    assert.strictEqual(resFallback.conversation.detail.assets.length, 1, 'Fallback path has exactly 1 asset');
 });
 
 test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to be skipped without creating unknown blocks or assets', async () => {
@@ -839,10 +839,10 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
     };
 
     const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const msg = domain.messages[0];
+    const msg = domain.detail.messages[0];
     const imageBlocks = composeDomainDocument(domain).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
-    assert.strictEqual(domain.assets.length, 0, 'UI chips create 0 assets');
+    assert.strictEqual(domain.detail.assets.length, 0, 'UI chips create 0 assets');
 
     // Only text paragraph and table blocks present
     assert.strictEqual(msg.content.length, 2);

@@ -7,10 +7,10 @@ const data = `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[tu
 
 test('timestamp_honesty - RPC Domain messages omit timestamps when source dates are absent', () => {
     const { conversation } = parseConversation({ format: 'gemini-rpc', providerId: 'gemini', data });
-    assert.equal(conversation.messages.length, 2);
+    assert.equal(conversation.detail.messages.length, 2);
     assert.equal(Object.hasOwn(conversation, 'updatedAt'), false, 'unknown updatedAt must be omitted');
     assert.equal(Object.hasOwn(conversation, 'createdAt'), false, 'unknown createdAt must be omitted');
-    for (const message of conversation.messages) {
+    for (const message of conversation.detail.messages) {
         assert.equal(Object.hasOwn(message, 'timestamp'), false, 'unknown message timestamp must be omitted');
     }
 });
@@ -19,10 +19,10 @@ test('timestamp_honesty - Takeout Domain messages omit dates instead of fabricat
     const htmlText = `<div class="outer-cell"><a href="https://gemini.google.com/app/no_timestamp">Chat</a>
         <div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br><p>Answer</p></div></div>`;
     const { conversation } = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data: { htmlText } });
-    assert.equal(conversation.messages.length, 2);
+    assert.equal(conversation.detail.messages.length, 2);
     assert.equal(Object.hasOwn(conversation, 'updatedAt'), false, 'unknown updatedAt must be omitted');
     assert.equal(Object.hasOwn(conversation, 'createdAt'), false, 'unknown createdAt must be omitted');
-    for (const message of conversation.messages) {
+    for (const message of conversation.detail.messages) {
         assert.equal(Object.hasOwn(message, 'timestamp'), false, 'unknown message timestamp must be omitted');
     }
 });

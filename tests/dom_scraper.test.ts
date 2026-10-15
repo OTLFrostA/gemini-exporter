@@ -145,28 +145,28 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
 
     const parsed = DomScraper.parseDoc(mockDoc, 'chat_001');
 
-    assert.strictEqual(parsed.conversation.id, 'chat_001');
-    assert.strictEqual(parsed.conversation.titleSource, 'dom');
-    assert.ok(parsed.conversation.title.includes('量子力学与量子纠缠探讨'), `Title should be cleaned: ${parsed.conversation.title}`);
-    assert.strictEqual(parsed.conversation.messages.length, 2);
+    assert.strictEqual(parsed.conversation.index.id, 'chat_001');
+    assert.strictEqual(parsed.conversation.index.titleSource, 'dom');
+    assert.ok(parsed.conversation.index.title.includes('量子力学与量子纠缠探讨'), `Title should be cleaned: ${parsed.conversation.index.title}`);
+    assert.strictEqual(parsed.conversation.detail.messages.length, 2);
     // DOM coverage must remain retryable even with successful writes and no failed assets,
     // including after JSON restoration has discarded transient transport/diagnostics.
     const restored = { conversation: restoreDomainSnapshot(parsed.conversation), diagnostics: [], acquisitionHints: {}, resourceHints: {} };
-    assert.strictEqual(restored.conversation.completeness, 'partial');
+    assert.strictEqual(restored.conversation.detail.completeness, 'partial');
     const completion = buildExportCompletion({ conversation: restored.conversation, evidence: extractChatParseDrift(restored), failedAssets: 0 });
     assert.strictEqual(completion.exportRecord.status, 'partial');
     assert.strictEqual(completion.exportRecord.hasFailedAssets, false);
     assert.strictEqual(resolveConversationExportState({ id: 'chat_001' }, completion.exportRecord).needsIncrementalExport, true);
 
-    assert.strictEqual(parsed.conversation.messages[0].role, 'user');
-    assert.strictEqual(parsed.conversation.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '请分析这张图片');
-    assert.strictEqual(parsed.conversation.assets.length, 1);
-    assert.strictEqual(parsed.conversation.assets[0].sourceUri, 'https://cdn.google.com/test_user.png');
+    assert.strictEqual(parsed.conversation.detail.messages[0].role, 'user');
+    assert.strictEqual(parsed.conversation.detail.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '请分析这张图片');
+    assert.strictEqual(parsed.conversation.detail.assets.length, 1);
+    assert.strictEqual(parsed.conversation.detail.assets[0].sourceUri, 'https://cdn.google.com/test_user.png');
 
-    assert.strictEqual(parsed.conversation.messages[1].role, 'assistant');
-    assert.ok(parsed.conversation.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n').includes('这是第一段解析'));
-    assert.ok(parsed.conversation.messages[1].content.some((block: { type: string; code?: string }) => block.type === 'code' && block.code === 'console.log("ok");'));
-    assert.ok(parsed.conversation.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n').includes('要点 A'));
+    assert.strictEqual(parsed.conversation.detail.messages[1].role, 'assistant');
+    assert.ok(parsed.conversation.detail.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n').includes('这是第一段解析'));
+    assert.ok(parsed.conversation.detail.messages[1].content.some((block: { type: string; code?: string }) => block.type === 'code' && block.code === 'console.log("ok");'));
+    assert.ok(parsed.conversation.detail.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n').includes('要点 A'));
 });
 
 test('dom_scraper - parseDoc fallbacks when standard tags are absent', () => {
@@ -186,12 +186,13 @@ test('dom_scraper - parseDoc fallbacks when standard tags are absent', () => {
     };
 
     const parsed = DomScraper.parseDoc(mockDoc, 'c_fallback_test');
-    assert.strictEqual(parsed.conversation.messages.length, 2);
-    assert.strictEqual(parsed.conversation.messages[0].role, 'user');
-    assert.strictEqual(parsed.conversation.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '用户提问内容');
-    assert.strictEqual(parsed.conversation.messages[1].role, 'assistant');
-    assert.strictEqual(parsed.conversation.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '模型回复内容');
-    assert.strictEqual(parsed.conversation.title, 'c_fallback_test');
+    assert.strictEqual(parsed.conversation.detail.messages.length, 2);
+    assert.strictEqual(parsed.conversation.detail.messages[0].role, 'user');
+    assert.strictEqual(parsed.conversation.detail.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '用户提问内容');
+    assert.strictEqual(parsed.conversation.detail.messages[1].role, 'assistant');
+    assert.strictEqual(parsed.conversation.detail.messages[1].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '模型回复内容');
+    assert.strictEqual(parsed.conversation.index.title, '');
+    assert.strictEqual(parsed.conversation.index.titleSource, 'default');
 });
 
 test('dom_scraper - getScrollContainer locates history scroller element', () => {

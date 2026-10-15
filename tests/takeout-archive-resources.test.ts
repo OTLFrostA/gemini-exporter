@@ -88,18 +88,18 @@ test('extensionless image resolution retains generation facts and a separate acq
     const path = `${directory}/image-0123456789abcdef`;
     const entry = { _data: { uncompressedSize: 3 }, async: async () => new Uint8Array([0xff, 0xd8, 0xff]) };
     const result = parseGeminiTakeoutConversation({ htmlText: activity('<p><img src="image-0123456789abcdef.png"></p>'), activityPath, archiveFiles: { [path]: entry } }, { providerId: 'gemini' });
-    const asset = result.conversation.assets[0];
-    assert.equal(result.conversation.assets.length, 1);
+    const asset = result.conversation.detail.assets[0];
+    assert.equal(result.conversation.detail.assets.length, 1);
     assert.equal(asset.kind, 'image');
     assert.equal(asset.name, 'image-0123456789abcdef');
     assert.equal(asset.sourceUri, path);
     assert.equal(Reflect.get(asset ?? {}, 'generated'), undefined);
     assert.equal(asset.generation?.imageOrdinal, 0);
     assert.deepEqual(result.archiveResources[asset.id], { path, entry });
-    assert.deepEqual(result.conversation.messages[1].attachmentIds, [asset.id]);
+    assert.deepEqual(result.conversation.detail.messages[1].attachmentIds, [asset.id]);
     assert.ok(result.diagnostics.some(d => d.code === 'TAKEOUT_RESOURCE_NAME_FALLBACK'));
     assert.ok(!result.diagnostics.some(d => /MISSING|AMBIGUOUS|UNRESOLVED/.test(d.code)));
-    assertDomainClosure(JSON.parse(JSON.stringify(result.conversation)));
+    assertDomainClosure((JSON.parse(JSON.stringify(result.conversation))).detail);
 });
 
 test('ZIP selected and batch parsing retain the Gemini Apps activity directory in multi-product archives', async () => {
@@ -113,7 +113,7 @@ test('ZIP selected and batch parsing retain the Gemini Apps activity directory i
     const context = { providerId: 'gemini' as const, readArchive: (bytes: Uint8Array | ArrayBuffer | Blob) => JSZip.loadAsync(bytes) };
     const selected = await parseGeminiTakeoutZip(bytes, context);
     const batch = await parseGeminiTakeoutZipArchive(bytes, context);
-    const asset = selected.conversation.assets[0];
+    const asset = selected.conversation.detail.assets[0];
     assert.equal(selected.archiveResources[asset.id].path, `${directory}/photo.png`);
     assert.equal(await selected.archiveResources[asset.id].entry.async!('text'), 'Gemini image bytes');
     assert.deepEqual(batch[0].conversation, selected.conversation);

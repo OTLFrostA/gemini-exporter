@@ -262,7 +262,7 @@ const pagination = GeminiClientPagination;
                 const native = parseGeminiRpcConversation(text, { providerId: 'gemini', targetConvId: conversationId });
                 const parsed = native;
                 if (isDev) {
-                    console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.conversation.messages.length}`);
+                    console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.conversation.detail.messages.length}`);
                 }
                 return parsed;
             } catch (err: unknown) {

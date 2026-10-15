@@ -2,13 +2,13 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { preparePdfItem, pdfDomainSelection } from '../src/core/export/pdf/prepareItem.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 
-function rawIsNotExportable(raw: DomainConversationDetail): void {
+function rawIsNotExportable(raw: DomainConversationWithDetail): void {
     // @ts-expect-error Builders must establish trust at their source.
     formatHtmlDocument(raw);
     // @ts-expect-error The PDF adapter accepts only an established trusted graph.
@@ -20,12 +20,11 @@ function rawIsNotExportable(raw: DomainConversationDetail): void {
 void rawIsNotExportable;
 
 test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves messages', async () => {
-    const raw: DomainConversationDetail = { providerId: 'independent', id: 'pdf-source', title: 'Title', completeness: 'unknown',
-        messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] };
+    const raw: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'pdf-source', title: 'Title' }, detail: { completeness: 'unknown', messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] } };
     // @ts-expect-error Raw Domain is neither request metadata nor a trusted result.
     const rejected = await preparePdfItem(raw, { includeAssets: false });
     assert.equal(rejected.ok, false);
-    if (!rejected.ok) assert.match(rejected.error, /PDF_NO_MESSAGES/);
+    if (!rejected.ok) assert.match(rejected.error, /Invalid conversation ID/);
     const selected = pdfDomainSelection(validateParserDomain(raw));
     const prepared = await preparePdfItem(selected, { includeAssets: false });
     assert.equal(prepared.ok, true);
@@ -33,17 +32,13 @@ test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves
 });
 
 test('one trusted graph preserves independent content across HTML, Markdown, JSON and PDF preparation', async () => {
-    const conversation = validateParserDomain({
-        providerId: 'independent', id: 'exports', title: '<Independent>', assets: [],
-        completeness: 'partial',
-        messages: [
+    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'exports', title: '<Independent>' }, detail: { assets: [], completeness: 'partial', messages: [
             { id: 'q', role: 'user', content: [{ type: 'paragraph',
                 children: [{ type: 'text', text: 'Question <safe>' }] }] },
             { id: 'a', role: 'assistant', reasoning: [{ type: 'paragraph',
                 children: [{ type: 'text', text: 'Reasoning evidence' }] }],
                 content: [{ type: 'code', language: 'ts', code: 'const value = 2;' }] },
-        ],
-    });
+        ] } });
     const parsed = { conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
     const document = composeDomainDocument(conversation).document;
     const html = (await formatHtmlDocument(parsed)).content;
@@ -56,9 +51,9 @@ test('one trusted graph preserves independent content across HTML, Markdown, JSO
     assert.match(html, /Reasoning evidence/);
     assert.match(markdown, /const value = 2;/);
     assert.match(markdown, /Reasoning evidence/);
-    assert.equal(native.conversation.completeness, 'partial');
-    assert.deepEqual(native.conversation.messages.map((message: { role: string }) => message.role), ['user', 'assistant']);
-    assert.match(JSON.stringify(native.conversation.messages[1].content), /const value = 2;/);
+    assert.equal(native.conversation.detail.completeness, 'partial');
+    assert.deepEqual(native.conversation.detail.messages.map((message: { role: string }) => message.role), ['user', 'assistant']);
+    assert.match(JSON.stringify(native.conversation.detail.messages[1].content), /const value = 2;/);
     assert.equal(pdf.ok, true);
     if (pdf.ok) assert.equal(pdf.document.messages.length, 2);
 });

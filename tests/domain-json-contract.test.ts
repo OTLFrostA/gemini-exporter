@@ -18,7 +18,7 @@ test('each Domain fixture is closed and JSON round-trip preserves every backend 
     for (const file of files) {
         const fixture: unknown = JSON.parse(readFileSync(join(dir, file), 'utf8'));
         const domain = restoreDomainSnapshot(fixture);
-        assertDomainClosure(domain);
+        assertDomainClosure((domain).detail);
         const before = JSON.stringify(domain);
         const document = composeDomainDocument(domain).document;
         const roundTrip = composeDomainDocument(restoreDomainSnapshot(JSON.parse(before))).document;
@@ -34,7 +34,7 @@ test('provider-only state and malformed title data cannot become document contex
     const raw = { id: 'state', title: { text: 'not a title' }, theme: 'dark', messages: [{ role: 'model', content: 'Authored content', initiallyCollapsed: false }] };
     const original = structuredClone(raw);
     const { conversation } = historicalFixture(raw as never, { providerId: 'gemini' });
-    assert.equal(typeof conversation.title, 'string');
+    assert.equal(typeof conversation.index.title, 'string');
     const document = composeDomainDocument(conversation).document;
     assert.ok(!JSON.stringify(document).includes('initiallyCollapsed'));
     assert.ok(!JSON.stringify(document).includes('not a title'));

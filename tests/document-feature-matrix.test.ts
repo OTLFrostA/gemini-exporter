@@ -8,7 +8,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return restoreDomainSnapshot({ providerId: 'gemini', id: 'c1', title: 'Matrix', completeness: 'unknown', createdAt: Date.parse('2026-09-26T10:00:00Z'), assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] });
+    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Matrix', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { completeness: 'unknown', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
 }
 
 const txt = (text: string) => ({ type: 'text', text });
@@ -20,13 +20,13 @@ const imgAsset = (id: string) => ({ id, kind: 'image', name: `${id}.png`, mediaT
 
 function typstOf(blocks: any[], extra: any = {}) {
     const domain = domainFixture(blocks, extra);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), opts);
     return { node: payload.messages[0].blocks[0] as any, diagnostics: diagnostics as any[] };
 }
 
 function htmlOf(blocks: any[], extra: any = {}, options: any = {}) {
     const domain = domainFixture(blocks, extra);
-    return renderDocumentHtml(composeDomainDocument(domain).document, Object.fromEntries(domain.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), options).html as string;
+    return renderDocumentHtml(composeDomainDocument(domain).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), options).html as string;
 }
 const imgUrl = {};
 
@@ -144,7 +144,7 @@ test('matrix: message citations reach HTML and Typst transport', () => {
         citations: [{ id: 'c1', url: 'https://example.com', title: 'Example Source' }],
     };
     assert.ok(htmlOf([], extra).includes('Example Source'), 'html shows citation');
-    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([], extra)).document, Object.fromEntries(domainFixture([], extra).assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([], extra)).document, Object.fromEntries(domainFixture([], extra).detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
     assert.ok(node.children[0].text.includes('Example Source'), 'typst note shows citation');
@@ -164,7 +164,7 @@ const citeRef = (citationId: string, label?: string) => ({
 });
 
 function typstRefLabel(blocks: any[], extra: any) {
-    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture(blocks, extra)).document, Object.fromEntries(domainFixture(blocks, extra).assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
+    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture(blocks, extra)).document, Object.fromEntries(domainFixture(blocks, extra).detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
     const para: any = payload.messages[0].blocks[0];
     const link = para.children[0];
     return (link.children ? link.children[0].text : link.text) as string;
@@ -193,7 +193,7 @@ test('matrix: message citation chips follow the unified label rule', () => {
     const html = htmlOf([], extra);
     assert.ok(html.includes('PubOne'), 'html chip uses publisher');
     assert.ok(html.includes('[2]'), 'html chip falls back to [n]');
-    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([], extra)).document, Object.fromEntries(domainFixture([], extra).assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
+    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([], extra)).document, Object.fromEntries(domainFixture([], extra).detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
     const text = JSON.stringify(payload.messages[0].blocks[0]);
     assert.ok(text.includes('PubOne'), 'typst group uses publisher');
     assert.ok(text.includes('[2]'), 'typst group falls back to [n]');

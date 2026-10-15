@@ -225,9 +225,9 @@ test('detail: typed aggregation preserves reverse page order, dedupe, diagnostic
     const first = detailPage(['new'], 'tC_more'); first.transport = { ...first.transport, turnsRejected: 1, schemaDrift: ['drift one'], decodedPayload: { evidence: 'not validated' } };
     const second = detailPage(['old', 'new']); second.transport = { ...second.transport, turnsRejected: 2, schemaDrift: ['drift one', 'drift two'] };
     const result: PaginatedDetailResult = await getConversationDetail(detailClient([first, second]), 'c_test');
-    assert.equal(result.conversation.id, 'test');
-    assert.deepEqual(result.conversation.messages.map(m => m.id), ['old', 'new']);
-    assert.equal(result.conversation.messages.length, 2);
+    assert.equal(result.conversation.index.id, 'test');
+    assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['old', 'new']);
+    assert.equal(result.conversation.detail.messages.length, 2);
     assert.equal(result.transport.turnsRejected, 3);
     assert.deepEqual(result.transport.schemaDrift, ['drift one', 'drift two']);
     assert.strictEqual(result.transport.decodedPayload, first.transport.decodedPayload);
@@ -240,7 +240,7 @@ test('detail: token loop and 20-page cap retain exact truncation reasons', async
     assert.equal(loop.transport.truncateReason, 'token_loop');
     assert.equal(loop.transport.truncated, true);
     const max = await getConversationDetail(detailClient(Array.from({ length: 20 }, (_, i) => detailPage([`m${i}`], `tC_${i}`))), 'test');
-    assert.equal(max.conversation.messages.length, 20);
+    assert.equal(max.conversation.detail.messages.length, 20);
     assert.equal(max.transport.truncateReason, 'max_turns_page_limit_20');
     assert.equal(max.transport.truncated, true);
 });
@@ -291,9 +291,9 @@ test('list: zero maxPages keeps its default fallback and negative maxPages is an
 
 test('detail: metadata-only retry flags and authoritative primary title remain unchanged', async () => {
     const first = detailPage([]);
-    first.conversation.title = 'Authoritative metadata title';
+    first.conversation.index.title = 'Authoritative metadata title';
     first.transport = { ...first.transport, decodedPayload: [null, null, [['c_test', 'metadata title']]], turnsRejected: 1, schemaDrift: ['initial drift'] };
-    const retry = detailPage(['answer']); retry.conversation.title = 'Prompt fallback'; retry.conversation.titleSource = 'sniff';
+    const retry = detailPage(['answer']); retry.conversation.index.title = 'Prompt fallback'; retry.conversation.index.titleSource = 'sniff';
     retry.transport = { ...retry.transport, turnsRejected: 2, schemaDrift: ['retry drift'] };
     let calls = 0;
     const client: GeminiPaginationDetailClient = { async fetchConversationPage(id, token, sid, opts) {
@@ -309,10 +309,10 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
     } };
     const result = await getConversationDetail(client, 'c_test', 'u2');
     assert.equal(calls, 2);
-    assert.equal(result.conversation.title, 'Authoritative metadata title');
-    assert.equal(result.conversation.titleSource, 'rpc');
+    assert.equal(result.conversation.index.title, 'Authoritative metadata title');
+    assert.equal(result.conversation.index.titleSource, 'rpc');
     assert.equal(Object.hasOwn(result.conversation, 'titles'), false);
-    assert.deepEqual(result.conversation.messages.map(m => m.id), ['answer']);
+    assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['answer']);
     assert.equal(result.transport.turnsRejected, 3);
     assert.deepEqual(result.transport.schemaDrift, ['initial drift', 'retry drift']);
 });

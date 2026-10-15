@@ -24,7 +24,7 @@ function textOf(node: any) {
 
 test('markdown body keeps block order and structure', async () => {
     const { domain, document, resources, diagnostics } = await parseFixture(sample);
-    const user = domain.messages.find((m: any) => m.id === 'm-u1');
+    const user = domain.detail.messages.find((m: any) => m.id === 'm-u1');
     assert.ok(user, 'user message m-u1 present');
     const kinds = user.content.map((b: any) => b.type);
     assert.deepStrictEqual(kinds, [
@@ -73,7 +73,7 @@ test('markdown body keeps block order and structure', async () => {
     assert.ok(img, 'inline image is a first-class image inline node');
     assert.strictEqual(img.alt, 'alt text');
     assert.ok(img.assetId, 'inline image references an asset');
-    const imgAsset = domain.assets.find((a: any) => a.id === img.assetId);
+    const imgAsset = domain.detail.assets.find((a: any) => a.id === img.assetId);
     assert.ok(imgAsset, 'inline image asset is in the Domain asset registry');
     assert.strictEqual(imgAsset.kind, 'image');
     assert.equal(resources[imgAsset.id], undefined);
@@ -85,8 +85,8 @@ test('markdown body keeps block order and structure', async () => {
 
 test('reasoning is parsed before Domain and composed as a disclosure', async () => {
     const { domain, document, resources, sourceVersion } = await parseFixture(sample);
-    const model = domain.messages.find((m: any) => m.id === 'm-a1');
-    const thought = document.messages[domain.messages.indexOf(model)].blocks[0];
+    const model = domain.detail.messages.find((m: any) => m.id === 'm-a1');
+    const thought = document.messages[domain.detail.messages.indexOf(model)].blocks[0];
     assert.strictEqual(thought.type, 'disclosure');
     assert.strictEqual(thought.kind, 'reasoning');
     assert.ok(textOf(thought.blocks[0]).includes('The user wants a plan'), 'thought text preserved');
@@ -96,20 +96,20 @@ test('reasoning is parsed before Domain and composed as a disclosure', async () 
 test('citations have message-local Domain identities referenced by content nodes', async () => {
     const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     // Duplicate URL collapses to one message-local citation.
-    assert.strictEqual(domain.messages.find((m: any) => m.id === 'm-a1').citations.length, 2);
+    assert.strictEqual(domain.detail.messages.find((m: any) => m.id === 'm-a1').citations.length, 2);
     assert.deepStrictEqual(
-        domain.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => c.url).sort(),
+        domain.detail.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => c.url).sort(),
         ['https://example.com/docs-page', 'https://example.com/plan'],
     );
     assert.deepStrictEqual(
-        domain.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => c.title).sort(),
+        domain.detail.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => c.title).sort(),
         ['Docs reference', 'Plan source'],
     );
 
-    const model = domain.messages.find((m: any) => m.id === 'm-a1');
+    const model = domain.detail.messages.find((m: any) => m.id === 'm-a1');
     assert.deepStrictEqual(
         model.citations.map((c: any) => c.id).sort(),
-        domain.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => c.id).sort(),
+        domain.detail.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => c.id).sort(),
     );
     assert.ok(!model.content.some((b: any) => b.type === 'citationGroup'), 'no citationGroup in blocks');
 
@@ -117,7 +117,7 @@ test('citations have message-local Domain identities referenced by content nodes
     const para = model.content[0];
     const refs = para.children.filter((c: any) => c.type === 'citationRef');
     assert.strictEqual(refs.length, 2);
-    const byId: Map<string, any> = new Map(domain.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => [c.id, c.url]));
+    const byId: Map<string, any> = new Map(domain.detail.messages.find((m: any) => m.id === 'm-a1').citations.map((c: any) => [c.id, c.url]));
     assert.strictEqual(byId.get(refs[0].citationId), 'https://example.com/plan');
     assert.strictEqual(byId.get(refs[1].citationId), 'https://example.com/docs-page');
     assert.strictEqual(refs[0].label, '[1]');
@@ -145,8 +145,8 @@ test('attachments deduplicate semantic assets and prepare separate resource bind
     const { domain, document, resources, diagnostics } = await parseFixture(sample);
     // receipt.png appears in both attachments[] and images[] -> one asset.
     // Plus the inline markdown image in m-u1 -> one source-URI asset.
-    assert.strictEqual(domain.assets.length, 4);
-    const byName: Map<string, any> = new Map(domain.assets.map((a: any) => [a.name, a]));
+    assert.strictEqual(domain.detail.assets.length, 4);
+    const byName: Map<string, any> = new Map(domain.detail.assets.map((a: any) => [a.name, a]));
     const receipt = byName.get('receipt.png');
     assert.strictEqual(receipt.kind, 'image');
     assert.equal(resources[receipt.id], 'assets/receipt.png');
@@ -163,20 +163,20 @@ test('attachments deduplicate semantic assets and prepare separate resource bind
 
     // Placement blocks reference the assets; message keeps the association index.
     // The inline markdown image asset joins the association too.
-    const user = domain.messages.find((m: any) => m.id === 'm-u1');
+    const user = domain.detail.messages.find((m: any) => m.id === 'm-u1');
     const inlineImg = byName.get('alt text');
     assert.ok(inlineImg, 'inline image asset present');
     assert.ok(user.attachmentIds.includes(receipt.id));
-    const imgBlock = document.messages[domain.messages.indexOf(user)].blocks.find((b: any) => b.type === 'image');
+    const imgBlock = document.messages[domain.detail.messages.indexOf(user)].blocks.find((b: any) => b.type === 'image');
     assert.equal(imgBlock.resourceId, receipt.id);
-    const model = domain.messages.find((m: any) => m.id === 'm-a1');
-    const fileBlocks = document.messages[domain.messages.indexOf(model)].blocks.filter((b: any) => b.type === 'file');
+    const model = domain.detail.messages.find((m: any) => m.id === 'm-a1');
+    const fileBlocks = document.messages[domain.detail.messages.indexOf(model)].blocks.filter((b: any) => b.type === 'file');
     assert.strictEqual(fileBlocks.length, 2);
 });
 
 test('unknown role and non-string content are preserved, never dropped', async () => {
     const { domain, document, resources, diagnostics } = await parseFixture(sample);
-    const weird = domain.messages.find((m: any) => m.id === 'm-x1');
+    const weird = domain.detail.messages.find((m: any) => m.id === 'm-x1');
     assert.ok(weird, 'message with unknown role is kept');
     assert.strictEqual(weird.role, 'unknown');
     assert.equal(Object.hasOwn(weird, 'provenance'), false);
@@ -197,7 +197,7 @@ test('non-string content becomes bounded, deterministic visible text at normaliz
         { id: 'm2', role: 'assistant', content: { a: { b: { c: { d: { e: 1 } } } } } },
         { id: 'm3', role: 'assistant', content: { s: 'x'.repeat(5000) } },
     ] });
-    const blocks = domain.messages.map((m: any) => m.content[0]);
+    const blocks = domain.detail.messages.map((m: any) => m.content[0]);
     assert.strictEqual(blocks[0].text, '{"a": 2, "z": 1}');
     assert.ok(blocks[1].text.includes('{…}'));
     assert.ok(blocks[2].text.endsWith('…'));
@@ -207,37 +207,37 @@ test('non-string content becomes bounded, deterministic visible text at normaliz
 
 test('title authority: rpc candidate wins over takeout/sniff', async () => {
     const { domain, document, resources, sourceVersion } = await parseFixture(sample);
-    const title = domain.title;
+    const title = domain.index.title;
     assert.strictEqual(title, 'RPC Authoritative Title');
     const low = await parseFixture({ id: 'x', titles: { takeout: 'T' }, messages: [] });
-    assert.strictEqual(low.domain.title, 'T');
+    assert.strictEqual(low.domain.index.title, 'T');
 });
 
 test('conversation identity and authored timestamp facts are preserved', async () => {
     const { domain, document, resources, sourceVersion } = await parseFixture(sample);
-    const conv = domain;
+    const conv = domain.index;
     assert.strictEqual(conv.providerId, 'gemini');
-    assert.strictEqual(conv.id, 'c_f2b_sample_001');
+    assert.strictEqual(conv.id, 'f2b_sample_001');
     assert.strictEqual(conv.createdAt, sample.createdAt);
     assert.strictEqual(sourceVersion, sample.updatedAt);
-    assert.strictEqual('updatedAt' in conv, false);
+    assert.strictEqual(conv.updatedAt, sample.updatedAt);
     assert.strictEqual(conv.url, 'https://gemini.google.com/share/f2b-sample');
 });
 
 test('turns shape flattens to user/assistant messages', async () => {
     const { domain, document, resources } = await parseFixture(turnsSample);
-    assert.strictEqual(domain.messages.length, 4);
+    assert.strictEqual(domain.detail.messages.length, 4);
     assert.deepStrictEqual(
-        domain.messages.map((m: any) => m.role),
+        domain.detail.messages.map((m: any) => m.role),
         ['user', 'assistant', 'user', 'assistant'],
     );
-    const t1Model = domain.messages[1];
+    const t1Model = domain.detail.messages[1];
     assert.ok(textOf(t1Model.reasoning[0]).includes('greeting detected'));
     assert.strictEqual(textOf(t1Model.content[0]), 'I am a test assistant.');
-    const t2Model = domain.messages[3];
+    const t2Model = domain.detail.messages[3];
     const code = t2Model.content.find((b: any) => b.type === 'code');
     assert.strictEqual(code.language, 'js');
-    const gen = domain.assets.find((a: any) => a.name === 'generated.png');
+    const gen = domain.detail.assets.find((a: any) => a.name === 'generated.png');
     assert.ok(gen, 'generated attachment mapped');
     assert.equal(resources[gen.id], undefined);
     assert.ok(gen.sourceUri);
@@ -247,9 +247,9 @@ test('parsed Domain is closed, JSON portable and does not mutate raw fixtures', 
     for (const raw of [sample, turnsSample]) {
         const before = JSON.stringify(raw);
         const { domain, document, diagnostics } = await parseFixture(raw);
-        assertDomainClosure(domain);
+        assertDomainClosure((domain).detail);
         const roundTrip = JSON.parse(JSON.stringify(domain));
-        assertDomainClosure(roundTrip);
+        assertDomainClosure((roundTrip).detail);
         assert.deepEqual(composeDomainDocument(roundTrip, { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }).document, document);
         assert.equal(JSON.stringify(raw), before);
         assert.ok(!diagnostics.some((d: any) => d.severity === 'error'));
@@ -282,15 +282,15 @@ test('ambiguous inline image basename never binds arbitrarily', async () => {
         }],
     };
     const { domain, document, resources, diagnostics } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     const inlineImgs = inlineImagesOf(m1);
     assert.strictEqual(inlineImgs.length, 1, 'one inline image parsed');
     const attachmentIds = new Set(m1.attachmentIds);
     assert.strictEqual(attachmentIds.size, 2, 'both attachments become assets');
     assert.ok(!attachmentIds.has(inlineImgs[0].assetId),
         'inline image must NOT bind to either attachment when the basename is ambiguous');
-    assert.equal(domain.assets.length, 3);
-    assertDomainClosure(domain);
+    assert.equal(domain.detail.assets.length, 3);
+    assertDomainClosure((domain).detail);
 });
 
 test('unique inline image basename still binds to its attachment', async () => {
@@ -308,7 +308,7 @@ test('unique inline image basename still binds to its attachment', async () => {
         }],
     };
     const { domain, document, resources, diagnostics } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     const inlineImgs = inlineImagesOf(m1);
     assert.strictEqual(inlineImgs.length, 1);
     assert.strictEqual(inlineImgs[0].assetId, m1.attachmentIds[0], 'unique basename binds to the attachment asset');
@@ -331,7 +331,7 @@ test('exact full ref wins over an ambiguous basename', async () => {
         }],
     };
     const { domain, document, resources, diagnostics } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
     const inlineImgs = inlineImagesOf(m1);
     assert.strictEqual(inlineImgs.length, 1);
     assert.strictEqual(inlineImgs[0].assetId, m1.attachmentIds[1], 'exact full ref binds deterministically to the right asset');
@@ -385,32 +385,32 @@ const pngAttachment = (localName: string, name: string) => ({
 test('inline markdown image reusing an attachment asset keeps a single visual placement', async () => {
     const input = attachmentConv('see ![pic](assets/shot.png)', [pngAttachment('assets/shot.png', 'shot.png')]);
     const { domain, document, resources } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
-    assert.strictEqual(domain.assets.length, 1);
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(domain.detail.assets.length, 1);
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    assert.strictEqual(blockImagesOf(document.messages[domain.messages.indexOf(m1)]).length, 0);
+    assert.strictEqual(blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]).length, 0);
 });
 
 test('linked inline image reusing an attachment asset keeps a single visual placement', async () => {
     const input = attachmentConv('[![pic](assets/shot.png)](https://example.com/full)', [pngAttachment('assets/shot.png', 'shot.png')]);
     const { domain, document, resources } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
-    assert.strictEqual(domain.assets.length, 1);
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(domain.detail.assets.length, 1);
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    assert.strictEqual(blockImagesOf(document.messages[domain.messages.indexOf(m1)]).length, 0);
+    assert.strictEqual(blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]).length, 0);
 });
 
 test('attachment not referenced inline keeps its trailing image block', async () => {
     const input = attachmentConv('no images here', [pngAttachment('assets/shot.png', 'shot.png')]);
     const { domain, document, resources } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
-    assert.strictEqual(domain.assets.length, 1);
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(domain.detail.assets.length, 1);
     assert.strictEqual(deepInlineImagesOf(m1).length, 0);
-    const blocks = blockImagesOf(document.messages[domain.messages.indexOf(m1)]);
+    const blocks = blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]);
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].resourceId, m1.attachmentIds[0]);
 });
@@ -421,12 +421,12 @@ test('two attachments with only one inlined keep one inline and one trailing blo
         pngAttachment('assets/b.png', 'b.png'),
     ]);
     const { domain, document, resources } = await parseFixture(input);
-    const m1 = domain.messages.find((m: any) => m.id === 'm1');
-    assert.strictEqual(domain.assets.length, 2);
+    const m1 = domain.detail.messages.find((m: any) => m.id === 'm1');
+    assert.strictEqual(domain.detail.assets.length, 2);
     const inlines = deepInlineImagesOf(m1);
     assert.strictEqual(inlines.length, 1);
     assert.strictEqual(inlines[0].assetId, m1.attachmentIds[0]);
-    const blocks = blockImagesOf(document.messages[domain.messages.indexOf(m1)]);
+    const blocks = blockImagesOf(document.messages[domain.detail.messages.indexOf(m1)]);
     assert.strictEqual(blocks.length, 1);
     assert.strictEqual(blocks[0].resourceId, m1.attachmentIds[1]);
 });
@@ -434,21 +434,21 @@ test('two attachments with only one inlined keep one inline and one trailing blo
 
 test('composer preserves duplicate source message IDs for every backend', async () => {
     const { domain, document } = await parseFixture({ id: 'dup', messages: [{ id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' }] });
-    assert.deepEqual(domain.messages.map((message: { id?: string }) => message.id), ['same', 'same']);
+    assert.deepEqual(domain.detail.messages.map((message: { id?: string }) => message.id), ['same', 'same']);
     assert.deepEqual(document.messages.map((message: { id?: string }) => message.id), ['msg-0', 'msg-1']);
 });
 test('title authority and unknown source handling remain ingestion concerns', async () => {
     const { domain } = await parseFixture({ id: 'unknown-source', titles: { rpc: 'Good', 'future-provider-tier': 'Future' }, messages: [] });
-    assert.equal(domain.title, 'Good');
+    assert.equal(domain.index.title, 'Good');
     const unknown = await parseFixture({ id: 'unknown-source-only', title: 'Plain title', titleSource: 'future-provider-tier', messages: [] });
-    assert.equal(unknown.domain.title, 'Plain title');
-    assert.equal(unknown.domain.titleSource, 'default');
-    assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.titleSource), 0);
+    assert.equal(unknown.domain.index.title, 'Plain title');
+    assert.equal(unknown.domain.index.titleSource, 'legacy');
+    assert.equal(require('../src/core/domain/titleAuthority.js').titleAuthorityRank(unknown.domain.index.titleSource), require('../src/core/domain/titleAuthority.js').titleAuthorityRank('legacy'));
 });
 test('raw URL facts remain semantic; export envelope selects url before href', async () => {
     for (const raw of [{ url: 'https://gemini.google.com/app/url', href: 'https://gemini.google.com/app/href' }, { href: 'https://gemini.google.com/app/href' }]) {
         const { domain } = await parseFixture({ id: 'url', messages: [], ...raw });
-        assert.equal(domain.url, raw.url || raw.href);
+        assert.equal(domain.index.url, raw.url || raw.href);
         assert.equal(domain.href, undefined);
         assert.ok((await exportDomainMarkdown(domain)).includes(`url: "${raw.url || raw.href}"`));
     }

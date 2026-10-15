@@ -16,12 +16,12 @@ test('Takeout generated ownership uses explicit response references despite clos
     for (const names of [['first.png', 'second.png', 'unowned.png'], ['unowned.png', 'second.png', 'first.png']]) {
         const data = { htmlText, archiveFiles: Object.fromEntries(names.map(name => [name, { dir: false }])) };
         const { conversation } = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', targetConvId: 'owner_chat_001', data });
-        assertDomainClosure(conversation);
-        const images = conversation.messages[1].attachmentIds!.map(id => conversation.assets.find(a => a.id === id)!);
+        assertDomainClosure((conversation).detail);
+        const images = conversation.detail.messages[1].attachmentIds!.map(id => conversation.detail.assets.find(a => a.id === id)!);
         assert.deepEqual(images.map(a => a.name).sort(), ['first.png', 'second.png']);
         for (const image of images) assert.equal(image.generation?.imageOrdinal, undefined);
         const other = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', targetConvId: 'closer_chat_002', data });
-        assert.equal(other.conversation.assets.length, 0);
+        assert.equal(other.conversation.detail.assets.length, 0);
     }
 });
 
@@ -30,7 +30,7 @@ test('Takeout response dates equal the source activity date without a synthetic 
     const { conversation } = parseConversation({ format: 'gemini-takeout', providerId: 'gemini', data: {
         htmlText: activity('same-date', '2026-09-02T12:00:00Z', '<p>Answer</p>')
     } });
-    assert.deepEqual(conversation.messages.map(m => m.timestamp), [timestamp, timestamp]);
+    assert.deepEqual(conversation.detail.messages.map(m => m.timestamp), [timestamp, timestamp]);
 });
 
 test('Ambiguous ZIP media retains its original bytes without claiming either generation event', async () => {
@@ -51,7 +51,7 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
         zip.file(filename, bytes);
         const parsed = await parseTakeoutZip(await zip.generateAsync({ type: 'uint8array' }), null, slot);
         assert.equal(parsed.mediaMap[chatId]?.length ?? 0, 0);
-        assert.ok(parsed.convCache[chatId].conversation.messages.every(m => !m.attachmentIds?.length));
+        assert.ok(parsed.convCache[chatId].conversation.detail.messages.every(m => !m.attachmentIds?.length));
         const stored = parsed.globalMedia[filename];
         assert.deepEqual(await stored.async!('uint8array'), bytes);
     } finally {

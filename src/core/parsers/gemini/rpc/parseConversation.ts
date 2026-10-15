@@ -1,7 +1,8 @@
+import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../utils/pathUtils.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
-import type { DomainCitation, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
+import type { DomainCitation, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
@@ -68,13 +69,14 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     const updatedAt = evidence.updatedAt;
     const versionMismatch = updatedAt !== null && messages.some(message => message.timestamp !== undefined && message.timestamp > updatedAt);
     const metadata = evidence.metadataConversation;
-    const conversation: DomainConversationDetail = {
-        providerId: 'gemini',
-        completeness: hasMore || rejected || versionMismatch ? 'partial' : 'unknown',
-        id: normId(metadata?.id ?? evidence.id), title: metadata?.title ?? evidence.title,
-        titleSource: metadata ? 'rpc' : evidence.titleSource,
-        url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
-        assets: resources.assets, messages: resources.messages,
+    const conversation = {
+        index: parseIndexMetadata({ providerId: 'gemini',
+            id: normId(metadata?.id ?? evidence.id), title: metadata?.title ?? evidence.title,
+            titleSource: metadata ? 'rpc' : evidence.titleSource,
+            url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
+            ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
+        detail: { completeness: hasMore || rejected || versionMismatch ? 'partial' as const : 'unknown' as const,
+            assets: resources.assets, messages: resources.messages },
     };
     return {
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),

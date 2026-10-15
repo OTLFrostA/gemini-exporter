@@ -74,15 +74,15 @@ export async function assertPersistedBaseline(before, after) {
     assert.equal(records.length, 1, message);
     const record = records[0];
     assert.deepEqual(record.identity, { providerId: 'gemini', accountSlot: fact.slot, conversationId: fact.id }, message);
-    assert.equal(record.storageVersion, 2, message);
-    assert.equal(record.domainVersion, 1, message);
+    assert.equal(record.storageVersion, 3, message);
+    assert.equal(record.domainVersion, 3, message);
     const { parseLegacyStorageConversation, readStorageDomain } = await loadDomainContracts();
     const saved = readStorageDomain(record.conversation);
-    assert.equal(saved.providerId, 'gemini', message);
-    assert.equal(String(saved.id).replace(/^c_/, '').trim(), fact.id, message);
+    assert.equal(saved.index.providerId, 'gemini', message);
+    assert.equal(String(saved.index.id).replace(/^c_/, '').trim(), fact.id, message);
     const expected = parseLegacyStorageConversation(fact.raw, { providerId: 'gemini' }).conversation;
-    assert.equal(canonical(saved.messages), canonical(expected.messages), message);
-    assert.equal(canonical(saved.assets), canonical(expected.assets), message);
+    assert.equal(canonical(saved.detail.messages), canonical(expected.detail.messages), message);
+    assert.equal(canonical(saved.detail.assets), canonical(expected.detail.assets), message);
   }
   const bytes = byteFacts(after).map(canonical);
   for (const fact of byteFacts(before)) assert.ok(bytes.includes(canonical(fact)), 'Persisted resource bytes lost or changed');

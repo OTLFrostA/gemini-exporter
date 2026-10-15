@@ -25,7 +25,7 @@ test('D3: getConversationDetail flags truncated=true when exceeding 20 pages', a
     assert.strictEqual(pageCalls, 20, 'Should stop after 20 pages');
     assert.strictEqual(detail.transport.truncated, true, 'detail must be flagged as truncated');
     assert.strictEqual(detail.transport.truncateReason, 'max_turns_page_limit_20');
-    assert.strictEqual(detail.conversation.completeness, 'partial', 'Truncated detail must not be presented as a complete body');
+    assert.strictEqual(detail.conversation.detail.completeness, 'partial', 'Truncated detail must not be presented as a complete body');
 });
 
 test('D3: getConversationDetail flags truncated=true on detail cursor token loop', async () => {

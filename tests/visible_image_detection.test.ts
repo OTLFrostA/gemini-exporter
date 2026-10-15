@@ -40,7 +40,7 @@ test('candidate search metadata does not become a phantom image in native Domain
 
     // Check the actual native parser -> Domain -> Document -> Markdown path.
     const native = parseGeminiRpcConversation(rawWithMetadata(), { providerId: 'gemini' });
-    assert.deepStrictEqual(native.conversation.assets, [], 'search metadata is not an authored image resource');
+    assert.deepStrictEqual(native.conversation.detail.assets, [], 'search metadata is not an authored image resource');
     const markdown = renderDocumentMarkdown(composeDomainDocument(native.conversation).document, {});
     assert.match(markdown, /Answer without pictures/);
     assert.doesNotMatch(markdown, /assets\/|Reference diagram|licensed-image/);

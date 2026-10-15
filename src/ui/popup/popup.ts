@@ -281,7 +281,7 @@ function initPopupEvents(): void {
                     const chat = res.chat;
 
                     // This action delivers one body file. It has no companion-file writer.
-                    const missing = chat.conversation.assets.filter(() => format === 'html' || format === 'markdown')
+                    const missing = chat.conversation.detail.assets.filter(() => format === 'html' || format === 'markdown')
                         .map(asset => missingResource(asset.id, i18n.t('popupAttachmentsNotDelivered')));
                     const diagnostics = resourceDiagnostics(missing);
                     let formatted;
@@ -292,7 +292,7 @@ function initPopupEvents(): void {
                     } else {
                         formatted = ChatFormatter.formatContent(chat, format, missing);
                     }
-                    const fileName = buildExportFileName(chat.conversation.title || chat.conversation.id, _activeConvId, formatted.ext);
+                    const fileName = buildExportFileName(chat.conversation.index.title || chat.conversation.index.id, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -302,7 +302,7 @@ function initPopupEvents(): void {
                     setTimeout(() => URL.revokeObjectURL(url), 3000);
 
                     ProgressView.complete();
-                    log(i18n.t('popupExported', fileName, chat.conversation.messages.length || 0));
+                    log(i18n.t('popupExported', fileName, chat.conversation.detail.messages.length || 0));
                     if (diagnostics.length) log(i18n.t('popupAttachmentsNotDelivered'));
                 } finally {
                     __releaseExportGuard();

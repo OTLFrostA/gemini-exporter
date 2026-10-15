@@ -4,13 +4,13 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import type { DocumentAst } from '../src/core/document/ast/ast.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { formatHtmlDocument } from '../src/core/engine/chatFormatter.js';
 
-function fixture(): DomainConversationDetail {
+function fixture(): DomainConversationWithDetail {
     return JSON.parse(readFileSync('tests/fixtures/document-domain/document-html.json', 'utf8'));
 }
 
@@ -64,7 +64,7 @@ test('JSON roundtrip and explicit presentation edits work without semantic input
 
 test('table alignment follows logical columns for colSpan and rowSpan', () => {
     const input = fixture();
-    input.messages[0].content = [{ type: 'table', columns: [{ align: 'left' }, { align: 'right' }, { align: 'center' }], rows: [
+    input.detail.messages[0].content = [{ type: 'table', columns: [{ align: 'left' }, { align: 'right' }, { align: 'center' }], rows: [
         { cells: [{ children: [{ type: 'text', text: 'span' }], colSpan: 2, rowSpan: 2 }, { children: [{ type: 'text', text: 'last' }] }] },
         { cells: [{ children: [{ type: 'text', text: 'under' }] }] },
     ] }];
@@ -105,7 +105,7 @@ test('renderer requires prepared bindings and escapes text and URL attributes', 
 });
 
 test('empty state is composed and locale is explicit', () => {
-    const input = fixture(); input.messages = [];
+    const input = fixture(); input.detail.messages = [];
     const { document } = composeDomainDocument(validateParserDomain(input));
     assert.equal(document.emptyNotice, undefined);
     assert.ok(renderDocumentHtml(document, {}, { locale: 'en' }).html.includes('Empty conversation or fetch failed.'));

@@ -166,5 +166,5 @@ test('P0-7: Canonical Markdown must not throw on invalid date values', async () 
     }
     // 带 bug 时: RangeError: Invalid time value（new Date('not-a-date').toISOString()）
     assert.strictEqual(threw, null, `Canonical Markdown threw on invalid date: ${threw && threw.message}`);
-    assert.ok(md.includes('id: "c_p0_7"'), 'output should still contain the conversation id');
+    assert.ok(md.includes('id: "p0_7"'), 'output should still contain the conversation id');
 });
