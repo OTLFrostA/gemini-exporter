@@ -1,97 +1,100 @@
-import { indexFixture } from './helpers/indexFixture.js';
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import test, { beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import { restoreConversationIndex, type DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
+import ConversationsStore from '../src/ui/state/conversationsStore.js';
 
-const ConversationsStore = require('../src/ui/state/conversationsStore.js');
-
-test('conversationsStore - normId', () => {
-    assert.strictEqual(ConversationsStore.normId('c_12345678'), '12345678');
-    assert.strictEqual(ConversationsStore.normId('12345678'), '12345678');
-    assert.strictEqual(ConversationsStore.normId(''), '');
-    assert.strictEqual(ConversationsStore.normId(null), '');
-});
-
-test('conversationsStore - in-memory get and set', () => {
-    const list: any[] = [{ id: '1', title: 'Chat 1' }, { id: '2', title: 'Chat 2' }];
-    ConversationsStore.setConversations((list).map(indexFixture));
-    assert.deepStrictEqual(ConversationsStore.getConversations(), list.map(indexFixture));
-
-    const expMap = { '1': { exportedAt: 1000 } };
-    ConversationsStore.setExportedIds(expMap);
-    assert.deepStrictEqual(ConversationsStore.getExportedIds(), expMap);
-
-    ConversationsStore.setCurrentSlot('u1');
-    assert.strictEqual(ConversationsStore.getCurrentSlot(), 'u1');
-});
-
-test('conversationsStore - getExportedRecord normalization', () => {
-    ConversationsStore.setExportedIds({
-        'c_123': { exportedAt: 5000 },
-        '456': { exportedAt: 6000 }
+function conversation(id: string, title: string, options: {
+    titleSource?: 'rpc' | 'takeout';
+    hasTakeoutImport?: boolean;
+    updatedAt?: number;
+} = {}): DomainConversationIndex {
+    return restoreConversationIndex({
+        providerId: 'gemini', id, title, titleSource: options.titleSource ?? 'rpc',
+        cloudAvailability: 'available', hasTakeoutImport: options.hasTakeoutImport ?? false,
+        ...(options.updatedAt !== undefined ? { updatedAt: options.updatedAt } : {}),
     });
+}
 
-    assert.ok(ConversationsStore.getExportedRecord('123'));
-    assert.strictEqual(ConversationsStore.getExportedRecord('123').exportedAt, 5000);
-    assert.ok(ConversationsStore.getExportedRecord('c_123'));
-
-    assert.ok(ConversationsStore.getExportedRecord('456'));
-    assert.strictEqual(ConversationsStore.getExportedRecord('456').exportedAt, 6000);
-    assert.ok(ConversationsStore.getExportedRecord('c_456'));
-
-    assert.strictEqual(ConversationsStore.getExportedRecord('non_existent'), null);
-    assert.strictEqual(ConversationsStore.getExportedRecord(null), null);
+// The UI store is a module singleton. Keep each test independent of prior cases.
+let before: {
+    conversations: DomainConversationIndex[];
+    exportedIds: ReturnType<typeof ConversationsStore.getExportedIds>;
+    slot: string;
+};
+beforeEach(() => {
+    before = {
+        conversations: ConversationsStore.getConversations(),
+        exportedIds: ConversationsStore.getExportedIds(),
+        slot: ConversationsStore.getCurrentSlot(),
+    };
+});
+afterEach(() => {
+    ConversationsStore.setConversations(before.conversations);
+    ConversationsStore.setExportedIds(before.exportedIds);
+    ConversationsStore.setCurrentSlot(before.slot);
 });
 
-test('conversationsStore - getSignature', () => {
-    const sigEmpty = ConversationsStore.getSignature([]);
-    assert.strictEqual(sigEmpty, 'empty');
-
-    const sigA = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'b', title: 'Title 2' }]);
-    const sigB = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'b', title: 'Title 2' }]);
-    assert.strictEqual(sigA, sigB);
-
-    const sigC = ConversationsStore.getSignature([{ id: 'a', title: 'Title 1' }, { id: 'c', title: 'Title 2' }]);
-    assert.ok(sigA !== sigC);
-
-    const sigD = ConversationsStore.getSignature([{ id: 'a', title: 'Real Title' }, { id: 'b', title: 'Title 2' }]);
-    assert.ok(sigA !== sigD);
+test('conversationsStore normalizes only the known Gemini conversation id prefix', () => {
+    assert.equal(ConversationsStore.normId('c_12345678'), '12345678');
+    assert.equal(ConversationsStore.normId('12345678'), '12345678');
+    assert.equal(ConversationsStore.normId(''), '');
+    assert.equal(ConversationsStore.normId(null), '');
 });
 
-test('conversationsStore - hasTakeoutData detection', () => {
-    ConversationsStore.setConversations(([
-        { id: '1', title: 'Normal Chat 1' },
-        { id: '2', title: 'Normal Chat 2' }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
-
-    ConversationsStore.setConversations(([
-        { id: '1', title: 'Normal Chat 1' },
-        { id: '2', title: 'Takeout Chat 2', source: 'takeout' }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
-
-    ConversationsStore.setConversations(([
-        { id: '3', title: 'Takeout Chat 3', titleSource: 'takeout' }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
-
-    ConversationsStore.setConversations(([
-        { id: '4', title: 'Takeout Chat 4', titles: { takeout: 'Takeout Title' } }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
-});
-
-test('conversationsStore consumes canonical indexes without rewriting them', () => {
-    const list = [indexFixture({ id: 'abc123', title: 'Research', titleSource: 'rpc', updatedAt: 42 })];
+test('conversationsStore retains exact canonical index metadata in memory and tracks slot', () => {
+    const list = [
+        conversation('1', 'Research', { updatedAt: 42 }),
+        conversation('2', 'Second chat', { hasTakeoutImport: true, titleSource: 'takeout' }),
+    ];
     ConversationsStore.setConversations(list);
-    assert.strictEqual(ConversationsStore.getConversations(), list);
-    assert.equal(ConversationsStore.normalizeAndDeduplicate, undefined);
+    ConversationsStore.setCurrentSlot('u1');
+    assert.deepEqual(ConversationsStore.getConversations(), list);
+    assert.equal(ConversationsStore.getConversations()[0].updatedAt, 42);
+    assert.equal(ConversationsStore.getConversations()[1].hasTakeoutImport, true);
+    assert.equal(ConversationsStore.getCurrentSlot(), 'u1');
 });
 
+test('conversationsStore folds exported aliases into one record without losing its values', () => {
+    ConversationsStore.setExportedIds({ c_123: { exportedAt: 5000 }, '456': { exportedAt: 6000 } });
+    const byId = ConversationsStore.getExportedIds();
+    assert.deepEqual(Object.keys(byId).sort(), ['123', '456'],
+        'each conversation must have a single canonical export record');
+    assert.deepEqual(byId['123'], { exportedAt: 5000 });
+    assert.deepEqual(byId['456'], { exportedAt: 6000 });
+    for (const id of ['123', 'c_123']) assert.equal(ConversationsStore.getExportedRecord(id)?.exportedAt, 5000);
+    for (const id of ['456', 'c_456']) assert.equal(ConversationsStore.getExportedRecord(id)?.exportedAt, 6000);
+    assert.equal(ConversationsStore.getExportedRecord('non_existent'), null);
+    assert.equal(ConversationsStore.getExportedRecord(null), null);
+});
 
-test('conversationsStore signature observes activity changes without a title or order change', () => {
-    const original = Array.from({ length: 8 }, (_, i) => indexFixture({ id: `signature-${i}`, title: 'Same title', updatedAt: 10 }));
-    const changed = original.map((row, i) => i === 4 ? { ...row, updatedAt: 20 } : row);
-    assert.notStrictEqual(ConversationsStore.getSignature(original), ConversationsStore.getSignature(changed));
+test('conversationsStore refresh signature detects identity, title and activity changes', () => {
+    const baseline = [
+        conversation('a', 'Title 1', { updatedAt: 10 }),
+        conversation('b', 'Title 2', { updatedAt: 10 }),
+    ];
+    assert.equal(ConversationsStore.getSignature([]), 'empty');
+    assert.equal(ConversationsStore.getSignature(baseline),
+        ConversationsStore.getSignature(structuredClone(baseline)), 'unchanged observations are stable');
+    for (const changed of [
+        [baseline[0], { ...baseline[1], id: 'c' }],
+        [baseline[0], { ...baseline[1], title: 'Updated Title' }],
+        [baseline[0], { ...baseline[1], updatedAt: 20 }],
+    ]) {
+        assert.notEqual(ConversationsStore.getSignature(baseline), ConversationsStore.getSignature(changed),
+            'a visible metadata change must invalidate the signature');
+    }
+    ConversationsStore.setConversations(baseline);
+    assert.equal(ConversationsStore.getSignature(), ConversationsStore.getSignature(baseline));
+});
+
+test('conversationsStore detects import history independently of title provenance', () => {
+    const ordinary = conversation('a', 'Ordinary');
+    const takeoutTitleWithoutHistory = conversation('b', 'Old title', { titleSource: 'takeout' });
+    const importedWithRpcTitle = conversation('c', 'Updated online', { hasTakeoutImport: true });
+    ConversationsStore.setConversations([ordinary, takeoutTitleWithoutHistory]);
+    assert.equal(ConversationsStore.hasTakeoutData(), false, 'a title alone does not establish import history');
+    ConversationsStore.setConversations([ordinary, importedWithRpcTitle]);
+    assert.equal(ConversationsStore.hasTakeoutData(), true, 'an RPC title must not erase Takeout history');
+    ConversationsStore.setConversations([]);
+    assert.equal(ConversationsStore.hasTakeoutData(), false);
 });
