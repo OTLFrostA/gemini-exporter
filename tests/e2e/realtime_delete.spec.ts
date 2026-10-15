@@ -33,6 +33,8 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
     // 验证初始状态：DOM 列表中有 3 条，且目标待删会话清晰可见
     await expect(optionsPage.locator('#list .item')).toHaveCount(3);
     await expect(optionsPage.locator(`#list .item[data-chat-id="${targetId}"]`)).toBeVisible();
+    await expect(optionsPage.locator(`#list .item[data-chat-id="${targetId}"] .cloud-status`)).toHaveCount(0);
+    // A preexisting cloud-status badge would make the post-delete UI assertion vacuous.
     await expect(optionsPage.locator('#list .item[data-chat-id="keep_chat_1111"]')).toBeVisible();
 
     // 2. 打开模拟的 Gemini 标签页，并提供触发真实删除网络 RPC 的交互按钮
@@ -96,6 +98,10 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
 
     expect(storageState.list.find((c: any) => c.id === targetId)?.cloudAvailability).toBe('deleted');
     expect(storageState.list.length).toBe(3);
+    expect(storageState.count).toBe(3, 'deletion must not shrink the persisted conversation count');
+    for (const id of ['keep_chat_1111', 'keep_chat_2222']) {
+      expect(storageState.list.find((c: any) => c.id === id)?.cloudAvailability).not.toBe('deleted');
+    }
     // Host migration completion must not destroy the retained native body.
     await expect.poll(async () => optionsPage.evaluate(async () => {
       const state = await chrome.storage.local.get(['gemini_domain_host_migration_v2:https://gemini.google.com']);
