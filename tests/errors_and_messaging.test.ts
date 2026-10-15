@@ -66,46 +66,44 @@ test('messaging - isMessageAction type guard filters actions correctly', () => {
 test('messaging - sendTypedMessage resolves response or handles chrome runtime errors', async () => {
     const { sendTypedMessage } = require('../src/core/utils/messaging.js');
 
-    // Case 1: chrome runtime missing
-    const origChrome = (global as any).chrome;
-    delete (global as any).chrome;
-    await assert.rejects(
-        async () => {
-            await sendTypedMessage({ action: 'test' });
-        },
-        (err: any) => err.message.includes('Chrome runtime messaging is not available')
-    );
+    const hadChrome = Object.prototype.hasOwnProperty.call(globalThis, 'chrome');
+    const originalDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    try {
+        // Missing runtime must reject rather than silently hang.
+        delete (global as any).chrome;
+        await assert.rejects(sendTypedMessage({ action: 'test' }), /Chrome runtime messaging is not available/);
 
-    // Case 2: successful response
-    (global as any).chrome = {
-        runtime: {
-            sendMessage: (msg: any, cb: (res: any) => void) => {
-                cb({ success: true, echoed: msg.action });
+        // Successful callback returns the actual response payload.
+        (global as any).chrome = {
+            runtime: {
+                sendMessage: (msg: any, cb: (res: any) => void) => cb({ success: true, echoed: msg.action })
             }
-        }
-    };
-    const res = await sendTypedMessage({ action: 'echoTest' });
-    assert.deepStrictEqual(res, { success: true, echoed: 'echoTest' });
+        };
+        assert.deepStrictEqual(await sendTypedMessage({ action: 'echoTest' }), { success: true, echoed: 'echoTest' });
 
-    // Case 3: runtime.lastError
-    (global as any).chrome = {
-        runtime: {
-            lastError: { message: 'Receiving end does not exist' },
-            sendMessage: (_msg: any, cb: (res: any) => void) => {
-                cb(undefined);
+        // Chrome lastError must reject instead of treating undefined as success.
+        (global as any).chrome = {
+            runtime: {
+                lastError: { message: 'Receiving end does not exist' },
+                sendMessage: (_msg: any, cb: (res: any) => void) => cb(undefined)
             }
-        }
-    };
-    await assert.rejects(
-        async () => {
-            await sendTypedMessage({ action: 'failingAction' });
-        },
-        (err: any) => err.message.includes('Receiving end does not exist')
-    );
+        };
+        await assert.rejects(sendTypedMessage({ action: 'failingAction' }), /Receiving end does not exist/);
 
-    // Restore chrome
-    if (origChrome) (global as any).chrome = origChrome;
-    else delete (global as any).chrome;
+        // Synchronous sendMessage failures are converted to rejected promises.
+        (global as any).chrome = {
+            runtime: {
+                sendMessage: () => { throw new Error('Port closed synchronously'); }
+            }
+        };
+        await assert.rejects(sendTypedMessage({ action: 'throwingAction' }), /Port closed synchronously/);
+    } finally {
+        if (hadChrome && originalDescriptor) {
+            Object.defineProperty(globalThis, 'chrome', originalDescriptor);
+        } else {
+            delete (global as any).chrome;
+        }
+    }
 });
 
 test('utils facade - modular sub-utilities re-exported with full compatibility', () => {
