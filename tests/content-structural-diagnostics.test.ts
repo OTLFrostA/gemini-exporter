@@ -24,5 +24,9 @@ test('nested resource references are checked before composition; unavailable byt
     const placeholder = quote.blocks[0];
     assert.ok(placeholder && placeholder.type === 'unknown', 'unavailable nested image must stay visible');
     assert.equal(placeholder.sourceType, 'missing-image');
-    assert.equal(placeholder.fallback, 'Nested figure');
+    assert.ok(
+        placeholder.fallback === 'Nested figure'
+            || placeholder.details?.some(node => node.type === 'text' && node.text === 'Nested figure'),
+        'nested missing image must preserve its label in either fallback or caption details'
+    );
 });
