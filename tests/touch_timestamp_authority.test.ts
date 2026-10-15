@@ -6,9 +6,8 @@ const SyncEngine = require('../src/content/syncEngine.js');
 const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // Timestamp authority:
-// On stream-start, touchActiveConversation preserves server timestamps (does not prematurely advance them).
-// On stream-complete / live-turn-complete, updatedAt/timestamp advance to current interaction time
-// to reflect the new completed turn, enabling real-time bump-to-top and incremental update detection.
+// Local touch observations never author server timestamps. A later provider index observation
+// supplies updatedAt; the touch path must not move scan checkpoints.
 
 function mockStorageContext() {
     let savedList: any[] = [];
@@ -58,7 +57,6 @@ test('touch preserves server timestamp on existing record', async () => {
 
     const rec = ctx.find('srv_chat_1');
     assert.ok(rec, 'record still exists');
-    assert.strictEqual(rec.updatedAt, SERVER_TS, 'server timestamp must not be overwritten by client clock');
     assert.strictEqual(rec.updatedAt, SERVER_TS, 'server updatedAt must not be overwritten by client clock');
     assert.equal('sidebarIndex' in rec, false);
     assert.equal('lastSeen' in rec, false);
