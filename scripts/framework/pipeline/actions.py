@@ -449,6 +449,7 @@ class AwaitStreamSettledAction(AtomicAction):
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         deadline = time.monotonic() + self.timeout
         previous, stable = None, 0
+        last_state, last_error = {}, None
         cfg = self.config
         while time.monotonic() < deadline:
             try:
@@ -465,19 +466,26 @@ class AwaitStreamSettledAction(AtomicAction):
                     const content = body?.innerHTML || '';
                     return {{
                         newReply: models.length > (window.__tier2ReplyCountBeforeSend ?? 0),
+                        modelCount: models.length,
+                        beforeSendCount: window.__tier2ReplyCountBeforeSend ?? 0,
                         busy: !!(stop && stop.offsetWidth > 0) || !!document.querySelector('{cfg.streaming_indicators_selector}'),
                         editorReady: !!editor && !(editor.textContent || '').trim(),
                         hasContent: !!body?.textContent.trim() || !!body?.querySelector('img, video, audio'),
                         content,
-                        error: document.querySelector('{cfg.retry_btn_selector}') ? 'Page shows a retry control'
+                        error: /^(www\\.)?google\\.com$/.test(location.hostname) && location.pathname.startsWith('/sorry')
+                            ? 'Google human verification required; complete verification in the test browser'
+                            : document.querySelector('{cfg.retry_btn_selector}') ? 'Page shows a retry control'
                             : document.querySelector('{cfg.toast_selector}')?.textContent.trim() || null
                     }};
                 }})()
                 """) or {}
-            except (TimeoutError, OSError):
+            except (TimeoutError, OSError) as error:
+                last_error = str(error)
                 previous, stable = None, 0
                 time.sleep(1.0)
                 continue
+            last_state = {key: value for key, value in state.items() if key != 'content'}
+            last_state['contentLength'] = len(state.get('content') or '')
             if state.get('error'):
                 return ActionResult(False, state['error'])
             ready = (state.get('newReply') and not state.get('busy') and state.get('editorReady')
@@ -491,7 +499,11 @@ class AwaitStreamSettledAction(AtomicAction):
             else:
                 previous, stable = None, 0
             time.sleep(1.0)
-        return ActionResult(False, f"Reply did not become idle and stable within {self.timeout}s")
+        diagnostics = {**last_state, "stableSamples": stable}
+        if last_error:
+            diagnostics["lastObservationError"] = last_error
+        return ActionResult(False, f"Reply did not become idle and stable within {self.timeout}s; "
+                            f"last observation: {json.dumps(diagnostics, ensure_ascii=False)}", diagnostics)
 
 
 class HumanCooldownAction(AtomicAction):

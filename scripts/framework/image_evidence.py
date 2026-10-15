@@ -14,19 +14,46 @@ from .archive_resources import resource_references, resolve_archive_reference
 # at the same resolution: at most 3% RMS channel error and 1% aspect-ratio error.
 PIXEL_ERROR_LIMIT = 0.03
 _NORMALIZE_IMAGE = """image => {
-    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 64;
+    const width = image.naturalWidth || image.width, height = image.naturalHeight || image.height;
+    const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height;
     const context = canvas.getContext('2d');
-    context.imageSmoothingQuality = 'high';
-    context.fillStyle = 'white'; context.fillRect(0, 0, 64, 64);
-    context.drawImage(image, 0, 0, 64, 64);
-    const rgba = context.getImageData(0, 0, 64, 64).data;
-    const pixels = [...rgba].filter((_, index) => index % 4 !== 3);
-    return {width: image.naturalWidth || image.width, height: image.naturalHeight || image.height, pixels};
+    context.fillStyle = 'white'; context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0);
+    const rgba = context.getImageData(0, 0, width, height).data;
+    // Integrate each output cell's exact pixel coverage. Browser drawImage
+    // downscaling uses different kernels for preview/original scale factors,
+    // which creates false differences at text and diagram edges.
+    const pixels = [];
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+        const left = x * width / 64, right = (x + 1) * width / 64;
+        const top = y * height / 64, bottom = (y + 1) * height / 64;
+        const sum = [0, 0, 0];
+        for (let sy = Math.floor(top); sy < Math.ceil(bottom); sy++) {
+            const vertical = Math.min(sy + 1, bottom) - Math.max(sy, top);
+            for (let sx = Math.floor(left); sx < Math.ceil(right); sx++) {
+                const weight = vertical * (Math.min(sx + 1, right) - Math.max(sx, left));
+                const at = (sy * width + sx) * 4;
+                for (let channel = 0; channel < 3; channel++) sum[channel] += rgba[at + channel] * weight;
+            }
+        }
+        const area = (right - left) * (bottom - top);
+        pixels.push(...sum.map(value => value / area));
+    }
+    return {width, height, pixels};
 }"""
 _IMAGE_PIXELS = """async data => {
     const image = await createImageBitmap(await (await fetch(data)).blob());
     return (""" + _NORMALIZE_IMAGE + """)(image);
 }"""
+
+_WEBPAGE_IMAGES = """(() => ({
+    chatId: location.pathname.split('/app/')[1]?.split('/')[0],
+    images: [...document.querySelectorAll('model-response')].flatMap((reply, turn) =>
+        [...reply.querySelectorAll('model-response-content img')]
+            .filter(img => !img.closest('thought-container, thought-box, [data-math], .katex, .katex-display, [aria-hidden="true"]'))
+            .map(img => { img.scrollIntoView(); return {turn, src: img.currentSrc || img.src,
+                loaded: img.complete && img.naturalWidth > 0}; }))
+}))()"""
 
 
 def image_pixels(cdp, data, mime):
@@ -46,14 +73,7 @@ def capture_webpage_images(cdp, chat_id, timeout=30):
     cdp.call('Page.enable')
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        state = cdp.eval("""(() => ({
-            chatId: location.pathname.split('/app/')[1]?.split('/')[0],
-            images: [...document.querySelectorAll('model-response')].flatMap((reply, turn) =>
-                [...reply.querySelectorAll('model-response-content img')]
-                    .filter(img => !img.closest('thought-container, thought-box'))
-                    .map(img => { img.scrollIntoView(); return {turn, src: img.currentSrc || img.src,
-                        loaded: img.complete && img.naturalWidth > 0}; }))
-        }))()""") or {}
+        state = cdp.eval(_WEBPAGE_IMAGES) or {}
         images = state.get('images', [])
         if state.get('chatId') == chat_id.removeprefix('c_') and images and all(image.get('loaded') and image.get('src') for image in images):
             break

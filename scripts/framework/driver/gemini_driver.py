@@ -142,6 +142,9 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         while time.time() - wait_btn_start < 15.0:
             btn_info = cdp.eval(f"""
             (() => {{
+                if (/^(www\\.)?google\\.com$/.test(location.hostname) && location.pathname.startsWith('/sorry')) {{
+                    return {{ blocked: true }};
+                }}
                 const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
                 if (!btn) return null;
                 const text = (btn.textContent || '').trim();
@@ -152,10 +155,13 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 return null;
             }})()
             """)
+            if btn_info and btn_info.get('blocked'):
+                raise RuntimeError('Google 人机验证拦截：请在测试 Chrome 完成验证后重新运行；未继续发帖')
             if btn_info:
                 break
             time.sleep(0.5)
 
+        saw_menu = False
         for pass_idx in range(5):
             status = cdp.eval(f"""
             (() => {{
@@ -176,7 +182,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             (() => {{
                 const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
                 if (btn && !btn.disabled) {{
-                    btn.click();
+                    if (btn.getAttribute('aria-expanded') !== 'true') btn.click();
                     return true;
                 }}
                 return false;
@@ -188,22 +194,29 @@ class GeminiPlatformDriver(ChatPlatformDriver):
 
             time.sleep(0.5)
 
-            menu_info = cdp.eval(f"""
-            (() => {{
-                const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
-                if (!menu) return null;
-                const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
-                return items.map(el => ({{
-                    text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
-                    isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
-                }}));
-            }})()
-            """)
+            menu_info = None
+            menu_deadline = time.monotonic() + 5.0
+            while time.monotonic() < menu_deadline:
+                menu_info = cdp.eval(f"""
+                (() => {{
+                    const menu = document.querySelector('{GeminiSelectors.MODE_MENU}');
+                    if (!menu) return null;
+                    const items = Array.from(menu.querySelectorAll('{GeminiSelectors.MODE_MENU_ITEM}'));
+                    return items.map(el => ({{
+                        text: (el.textContent || '').trim().replace(/\\s+/g, ' '),
+                        isSelected: el.classList.contains('selected') || el.getAttribute('aria-checked') === 'true'
+                    }}));
+                }})()
+                """)
+                if menu_info:
+                    break
+                time.sleep(0.25)
 
             if not menu_info:
                 cdp.call("Input.dispatchKeyEvent", {"type": "rawKeyDown", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
                 cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
-                raise RuntimeError("❌【测试安全门禁拦截】无法打开 Gemini 模型切换菜单，测试已主动终止！")
+                continue
+            saw_menu = True
 
             if "3.8" in target_model.lower() and "flash" in target_model.lower():
                 has_target_model_opt = any(
@@ -303,6 +316,8 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             cdp.call("Input.dispatchKeyEvent", {"type": "keyUp", "windowsVirtualKeyCode": 27, "key": "Escape", "code": "Escape"})
             time.sleep(0.4)
 
+        if not saw_menu:
+            raise RuntimeError("❌【测试安全门禁拦截】模型菜单在有界重试内未挂载，未继续发帖")
         final_status = cdp.eval(f"""
         (() => {{
             const btn = document.querySelector('{GeminiSelectors.MODE_MENU_BTN}');
