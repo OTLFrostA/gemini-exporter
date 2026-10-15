@@ -50,9 +50,6 @@ test('Test Provenance Manifest: Strict P0 Admission Gate (evidence + cryptograph
             'with no externally verified P0 samples, the manifest must not claim P0 coverage');
     }
     for (const suite of declaredP0) {
-        const tests = suite.tests || [];
-        const isP0 = suite.classification === 'P0' || tests.some((t: any) => t.classification === 'P0');
-        if (isP0) {
             assert.ok(
                 typeof suite.evidence === 'string' && suite.evidence.length > 0,
                 `P0 suite '${suite.file}' MUST specify an evidence file path.`
@@ -79,7 +76,6 @@ test('Test Provenance Manifest: Strict P0 Admission Gate (evidence + cryptograph
                 suite.originalHash,
                 `Cryptographic SHA-256 mismatch for P0 evidence in '${suite.file}'`
             );
-        }
     }
 });
 
