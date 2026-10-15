@@ -67,7 +67,7 @@ function createMemoryDirectory() {
     return { handle: dir(''), files };
 }
 
-test('Batch production-shape: promotes generic title to real export title without fake provenance', async () => {
+test('Storage finalization promotes generic title without inventing provenance', async () => {
     const { mockStorage, chrome } = createMockChromeStorage({
         gemini_conversations: ([
             { id: 'c_batch_1', title: '未命名对话', titleSource: 'default', messageCount: 1, updatedAt: 1000 }
@@ -203,7 +203,7 @@ test('Unknown candidate does NOT overwrite API-detail or Takeout existing real t
     }
 });
 
-test('Live titleSource = default: promotes generic title without synthesizing fake api-detail', async () => {
+test('completeConversationExport promotes a generic title with legacy provenance', async () => {
     const { mockStorage, chrome } = createMockChromeStorage({
         gemini_conversations: ([
             { id: 'c_live_chat', title: '未命名对话', titleSource: 'default', messageCount: 1 }
@@ -392,7 +392,8 @@ test('actual Batch and background Live Save produce the same completion record f
             assert.strictEqual(batch.landedChats, 1, 'Batch must actually deliver ' + completeness);
             assert.ok([...batchDir.files.keys()].some(file => file.endsWith('.md')), 'Batch file must be closed');
             const batchRecord = (await StorageService.getExportedIds('u1'))[normId(id)];
-            assert.ok(batchRecord, 'Batch record must be persisted');
+            assert.ok(batchRecord && typeof batchRecord === 'object' && !Array.isArray(batchRecord),
+                'Batch record must be a persisted object');
 
             const liveDir = createMemoryDirectory();
             setMemoryDirHandle(liveDir.handle);
@@ -402,13 +403,14 @@ test('actual Batch and background Live Save produce the same completion record f
             assert.strictEqual(live.ok, true, 'Live Save must actually deliver ' + completeness);
             assert.ok([...liveDir.files.keys()].some(file => file.endsWith('.md')), 'Live file must be closed');
             const liveRecord = (await StorageService.getExportedIds('u2'))[normId(id)];
-            assert.ok(liveRecord, 'Live record must be persisted');
+            assert.ok(liveRecord && typeof liveRecord === 'object' && !Array.isArray(liveRecord),
+                'Live record must be a persisted object');
 
             // Export time is local wall-clock metadata, not a source-version fact.
             const { exportedAt: batchExportedAt, ...batchFacts } = batchRecord;
             const { exportedAt: liveExportedAt, ...liveFacts } = liveRecord;
-            assert.ok(Number.isFinite(Date.parse(batchExportedAt)));
-            assert.ok(Number.isFinite(Date.parse(liveExportedAt)));
+            assert.ok(typeof batchExportedAt === 'string' && Number.isFinite(Date.parse(batchExportedAt)));
+            assert.ok(typeof liveExportedAt === 'string' && Number.isFinite(Date.parse(liveExportedAt)));
             assert.deepStrictEqual(batchFacts, liveFacts, 'real entrypoints must agree on durable completion facts');
             assert.strictEqual(batchFacts.status, completeness === 'partial' ? 'partial' : 'ok');
             for (const slot of ['u1', 'u2']) {
@@ -460,7 +462,9 @@ test('real Batch export respects title provenance from the conversation index wi
             assert.strictEqual(stored.title, title);
             assert.strictEqual(stored.titleSource, listSource === 'default' ? 'legacy' : listSource,
                 'Batch must use the real available provenance, never a guessed api-detail/rpc source');
-            assert.strictEqual((await StorageService.getExportedIds('u0'))[normId(id)]?.title, title);
+            const record = (await StorageService.getExportedIds('u0'))[normId(id)];
+            assert.ok(record && typeof record === 'object' && !Array.isArray(record));
+            assert.strictEqual(record.title, title);
         }
     } finally {
         (global as any).chrome = previousChrome;
