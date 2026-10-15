@@ -84,5 +84,10 @@ test('native norm formulas serialize as valid six-column GFM without becoming ab
     const norm = table.children[0].children[2].children.find(node => node.type === 'inlineMath');
     assert.equal(norm?.type === 'inlineMath' && norm.value, String.raw`\Vert{}\cdot\Vert{}_{\infty}`);
     assert.ok(!output.includes(String.raw`\\|`));
-    assert.ok(output.includes('120.0') && output.includes('7.5'));
+    const cellText = (node: { value?: string; children?: unknown[] }): string =>
+        node.value ?? (node.children ?? []).map(child => cellText(child as typeof node)).join('');
+    assert.equal(cellText(table.children[1].children[0]), '120.0',
+        'the first numeric value must remain in its original table row and column');
+    assert.equal(cellText(table.children[5].children[0]), '7.5',
+        'the last numeric value must remain in its original table row and column');
 });
