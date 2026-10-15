@@ -233,3 +233,27 @@ test('initial partial capture publishes activity to Index without claiming a sav
         assert.equal(stored?.index.updatedAt, 100);
     } finally { env.restore(); }
 });
+
+test('Takeout export cache reads current Domain and cannot republish old metadata or resurrect a missing Index', async () => {
+    const env = indexStorage();
+    try {
+        const cached = await storage.ingestConversation('u0', parsed(), [], 'takeout');
+        const fresh = parsed(); fresh.sourceVersion = 200; fresh.conversation.title = 'New title';
+        fresh.conversation.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'New body' }] }];
+        await storage.ingestConversation('u0', fresh);
+        const writes = env.writes();
+        const takeout = { getTakeoutOfflineChat: () => cached };
+        const resolved = await resolveChat({ error: 'offline' }, { id: 'chat' }, null, takeout);
+        assert.equal(resolved.isError, false);
+        if (!resolved.isError) {
+            assert.equal(resolved.chat.conversation.title, 'New title');
+            assert.match(JSON.stringify(resolved.chat.conversation.messages), /New body/);
+            assert.equal(resolved.chat.sourceVersion, 200);
+        }
+        assert.equal(env.writes(), writes);
+        await storage.setConversations('u0', []);
+        const absent = await resolveChat({ error: 'offline' }, { id: 'chat' }, null, takeout);
+        assert.equal(absent.isError, true);
+        assert.deepEqual(await storage.getConversations('u0'), []);
+    } finally { env.restore(); }
+});

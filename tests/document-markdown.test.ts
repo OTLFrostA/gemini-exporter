@@ -67,10 +67,16 @@ test('Markdown backend cannot import semantic models, registries or clocks', () 
     assert.match(code, /function projectedTable/);
 });
 
-test('Markdown front matter preserves string scalars and rejects invalid keys', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()));
-    const frontMatter = [{ key: 'tags', value: ['true', 'null', 'yes', 'example-export'] }];
-    assert.ok(renderDocumentMarkdown(document, {}, { frontMatter }).includes('tags:\n  - "true"\n  - "null"\n  - "yes"\n  - example-export'));
-    const invalid = [{ key: 'bad\nkey', value: 'value' }];
-    assert.throws(() => renderDocumentMarkdown(document, {}, { frontMatter: invalid }), /Invalid front matter key/);
+test('Markdown front matter reads identity and source dates only from Document AST', () => {
+    const { document } = composeDomainDocument(validateParserDomain(fixture()), { sourceVersion: 1000 });
+    document.header.title = 'true';
+    document.metadata!.id = 'null';
+    document.metadata!.url = 'https://example.test/accepted';
+    const markdown = renderDocumentMarkdown(document, {}, { includeFrontMatter: true, exportedAt: time });
+    assert.ok(markdown.includes('title: "true"'));
+    assert.ok(markdown.includes('id: "null"'));
+    assert.ok(markdown.includes('url: "https://example.test/accepted"'));
+    assert.ok(markdown.includes('updated: "1970-01-01T00:00:01.000Z"'));
+    assert.ok(markdown.includes(`exported: "${time}"`));
+    assert.throws(() => renderDocumentMarkdown({ ...document, metadata: undefined }, {}, { includeFrontMatter: true }), /metadata is required/);
 });

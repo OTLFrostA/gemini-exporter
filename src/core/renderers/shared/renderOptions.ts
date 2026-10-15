@@ -12,7 +12,8 @@ export interface HtmlRenderOptions extends RenderOptions {
     foldLongPrompts?: boolean;
 }
 export interface MarkdownRenderOptions extends RenderOptions {
-    frontMatter?: Array<{ key: string; value: string | string[] }>;
+    includeFrontMatter?: boolean;
+    exportedAt?: string;
 }
 export interface PdfRenderOptions extends RenderOptions {
     convertMath?: (source: string, display: boolean) => string | undefined;

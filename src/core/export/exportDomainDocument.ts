@@ -22,12 +22,7 @@ export async function exportDomainHtml(conversation: TrustedDomain, options: Dom
 export async function exportDomainMarkdown(conversation: TrustedDomain, options: DomainMarkdownExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
     const resources = prepareDomainResources(options.resourceResults);
-    const { id, provider, url, createdAt, updatedAt } = document.metadata!;
     return renderDocumentMarkdown(document, resources, { locale: options.locale ?? options.lang,
-        thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, frontMatter: options.frontMatter ?? [
-            { key: 'title', value: document.header.title }, { key: 'id', value: id }, { key: 'provider', value: provider },
-            ...(url ? [{ key: 'url', value: url }] : []),
-            ...(createdAt ? [{ key: 'date', value: createdAt }] : []), ...(updatedAt ? [{ key: 'updated', value: updatedAt }] : []),
-            { key: 'exported', value: options.exportedAt ?? new Date().toISOString() }, { key: 'tags', value: [`${provider}-export`] },
-        ] });
+        thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, includeFrontMatter: options.includeFrontMatter ?? true,
+        exportedAt: options.exportedAt ?? new Date().toISOString() });
 }

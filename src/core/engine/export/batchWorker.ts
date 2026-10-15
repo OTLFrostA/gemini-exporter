@@ -208,15 +208,19 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         }
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error };
     }
-    const cached = dataSource === 'local_snapshot';
-    const accepted = cached ? result : await StorageService.ingestConversation(slot, result, [], dataSource === 'takeout' ? 'takeout' : 'detail');
+    const cached = dataSource === 'local_snapshot' || dataSource === 'takeout';
+    const accepted = dataSource === 'takeout' ? await readSavedConversation(slot, id)
+        : cached ? result : await StorageService.ingestConversation(slot, result);
+    if (!accepted) return { isError: true, displayTitle: requested.title || id,
+        isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
     const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.providerId, accountSlot: slot }).getConversationIndex(accepted.conversation.id);
     if (!canonical) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
     if (confirmedDeleted) canonical.cloudAvailability = 'deleted';
     if (list) Object.assign(list, canonical);
     if (!cached) onTitleUpdated(id, canonical.title, canonical.titleSource);
-    return { isError: false, chat: { ...accepted, conversation: withConversationMetadata(selectConversationBody(accepted.conversation), canonical) }, source: dataSource,
+    return { isError: false, chat: { ...result, ...accepted, sourceVersion: accepted.sourceVersion, diagnostics: result.diagnostics, resourceHints: result.resourceHints,
+        acquisitionHints: { ...accepted.acquisitionHints, ...result.acquisitionHints }, conversation: withConversationMetadata(selectConversationBody(accepted.conversation), canonical) }, source: dataSource,
         isConfirmedDeleted: false, errMsg: null };
 }
 export const isWorkerChat = isResourceConversationParseResult;

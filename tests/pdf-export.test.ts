@@ -648,7 +648,7 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                 });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (['snapshot', 'deleted', 'cache-response'].includes(scenario)) await catalogStorage.setNativeConversations('u0', [parsed]);
+            if (['takeout', 'snapshot', 'deleted', 'cache-response'].includes(scenario)) await catalogStorage.setNativeConversations('u0', [parsed]);
             if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
             const records: Array<{ status: string }> = [];
             try {
