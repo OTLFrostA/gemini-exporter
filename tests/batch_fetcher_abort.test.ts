@@ -5,6 +5,20 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 const test = require('node:test');
 const assert = require('node:assert');
 
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<never>((_resolve, reject) => {
+                timer = setTimeout(() => reject(new Error(message)), ms);
+            })
+        ]);
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
 test('batchFetcher - slot abort wins the race while sendToGeminiTab is in-flight', async () => {
     const origChrome = (global as any).chrome;
     (global as any).chrome = {
@@ -35,8 +49,11 @@ test('batchFetcher - slot abort wins the race while sendToGeminiTab is in-flight
     // tab 存在；send 永不 resolve（模拟在途请求）
     TabService.getGeminiTab = async () => ({ id: 123 });
     let sendCalls = 0;
+    let signalStarted!: () => void;
+    const sendStarted = new Promise<void>(resolve => { signalStarted = resolve; });
     TabService.sendToGeminiTab = (..._args: any[]) => {
         sendCalls++;
+        signalStarted();
         return new Promise(() => {});
     };
 
@@ -52,14 +69,11 @@ test('batchFetcher - slot abort wins the race while sendToGeminiTab is in-flight
             1,
             slot
         );
-        // 让 sendToGeminiTabCancellable 进入 race
-        await new Promise(r => setTimeout(r, 60));
-        // 触发取消
+        // Wait for the actual tab request instead of guessing with a 60ms sleep.
+        await withTimeout(sendStarted, 3000, 'tab request never became in-flight');
         await setSlotAborted(slot, true);
-        // race 必须即时生效 —— 远小于旧 50ms 轮询的累积延迟，更绝不拖到 24h
-        const timeout = new Promise((_resolve, rej) =>
-            setTimeout(() => rej(new Error('race did not settle promptly after abort')), 3000));
-        await Promise.race([done, timeout]);
+        // The abort must settle the in-flight request, without leaving a test timer alive.
+        await withTimeout(done, 3000, 'race did not settle promptly after abort');
 
         assert.ok(response, 'portSendResponse must be called');
         assert.strictEqual(response.aborted, true, 'response must carry aborted:true');
