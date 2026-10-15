@@ -68,7 +68,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
                 cb({ success: true });
             }
         };
-        MessageRouter.init({ assets });
+        MessageRouter.init({ assets: assets as any });
         assert.equal(handlers.size, 1);
         const listener = [...handlers][0];
 
