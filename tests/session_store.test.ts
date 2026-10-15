@@ -4,6 +4,16 @@ const assert = require('node:assert');
 
 const { SessionStore, EXPORT_SESSION_KEY } = require('../src/core/storage/sessionStore.js');
 
+// Each case injects Chrome storage; restore the caller's exact global even on failure.
+let chromeDescriptor: PropertyDescriptor | undefined;
+test.beforeEach(() => {
+    chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+});
+test.afterEach(() => {
+    if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
+    else delete (globalThis as any).chrome;
+});
+
 test('sessionStore - getSession returns null when empty', async () => {
     const memoryStorage: Record<string, any> = {};
     (globalThis as any).chrome = {
@@ -179,4 +189,5 @@ test('sessionStore serializes set, update, and clear against each other', async 
     releaseRemove();
     await Promise.all([clear, afterClear]);
     assert.strictEqual(memoryStorage[EXPORT_SESSION_KEY].current, 3);
+    assert.strictEqual(memoryStorage[EXPORT_SESSION_KEY].status, 'running', 'the post-clear session must retain the new status');
 });
