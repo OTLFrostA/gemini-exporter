@@ -9,7 +9,7 @@ import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiCon
 import type { DetailParseResult } from '../src/core/api/client/detailTypes.js';
 
 // Native results pass through intact rather than enumerating or projecting message fields.
-const detailFields = ['conversation', 'diagnostics', 'resourceHints', 'acquisitionHints', 'transport'] as const satisfies readonly (keyof PaginatedDetailResult)[];
+const detailFields = ['conversation', 'sourceVersion', 'diagnostics', 'resourceHints', 'acquisitionHints', 'transport'] as const satisfies readonly (keyof PaginatedDetailResult)[];
 const listFields = ['conversations', 'total', 'stoppedEarly', 'exhaustive', 'completionReason', 'diagnostics', 'hitGoogleLimit'] as const satisfies readonly (keyof PaginationResult)[];
 type Assert<T extends true> = T;
 const completeDetailCoverage: Assert<Exclude<keyof PaginatedDetailResult, typeof detailFields[number]> extends never ? true : false> = true;

@@ -8,7 +8,7 @@ new raw source → native parser → TrustedDomain → v2 repository
 v2 repository → shared snapshot restoration → TrustedDomain → Document AST → renderer
 ```
 
-`gemini_schema_version = 2` marks the application migration. The repository lives
+`gemini_schema_version = 2` marks completion of both the body and canonical index migrations. Released users upgrade directly from v1; v2 has not yet shipped. The repository lives
 under the extension origin in `gemini_exporter_domain` (IndexedDB version 2).
 Content scripts use the background message broker; they do not create a second
 Domain repository under the Gemini web origin. Old web-origin detail databases
@@ -29,7 +29,7 @@ The `conversations` object store holds the selected `DomainStorageRecord`:
 
 - A closed `DomainConversationDetail`, preserving structured body/reasoning,
   roles, model names, dates, source facts, citations and resource relationships.
-- Storage identity, versions, source/migration origin, revision and save time.
+- Storage identity, versions, source/migration origin, opaque revision and optional saved source version (`savedAt`).
 - Separate resource bindings: asset ID, original archive path when known, and
   actual attachment bytes. Acquired bytes never become Domain or AST fields.
 - Restricted acquisition context containing original URLs and candidates.
@@ -41,8 +41,7 @@ numbers. Domain contract version is now **2**, independently of IndexedDB/storag
 version 2. Both reads and writes accept only the final schema. Unsupported
 versions and obsolete fields fail closed without rewriting originals. Released
 users migrate directly from Storage v1 through the legacy-storage Parser; the
-unshipped intermediate Domain schema has no compatibility layer. Storage remains
-v2, with no v3 migration.
+unshipped intermediate Domain schema has no compatibility layer. Canonical indexes are part of the same unreleased v2 upgrade; there is no v2-to-v3 migration.
 
 Restored report assets retain `document.hasFabricatedText` so export status can remain partial even after transient parser diagnostics are gone. Resource acquisition failures are recomputed during export through the existing ResourceResult/PreparedResources path; no Domain `failureReason` or replacement persistent error field is stored.
 
@@ -89,9 +88,57 @@ own marker and report, stamped only after its transfer completes.
 
 ## Application compatibility
 
-Conversation list metadata, export status, account mappings, credentials,
-preferences and directory handles retain their existing independent APIs. The
-chrome conversation list remains the UI index. It is not the semantic body store.
+`DomainConversationIndex` is the exact metadata contract stored in the existing
+`gemini_conversations[_uN]` chrome keys. Body/attachments remain physically separate
+in the v2 Domain repository. List/sidebar/import observations normalize above Domain;
+consumers read one title with explicit authority, source-authored `createdAt`/`updatedAt`
+in epoch milliseconds, explicit cloud availability and the independent `hasTakeoutImport` fact.
+Unknown titles are empty strings (`default` authority); UI supplies a localized label.
+Missing authored time/count is absent. `messageCount` is the largest observed number
+of individual messages; ambiguous RPC turn counts and old declared counts are omitted.
+Body snapshots can establish an observed count during migration. A title upgrade
+cannot erase Takeout history. Merge preserves strongest title authority, earliest
+creation, latest source activity and largest observed count. `indexActivityTime` uses
+only `updatedAt` for ordering and freshness; creation and message dates are not update versions.
+Native Detail metadata can advance Index activity without establishing cloud availability.
+Export `chatTime` is the source version of the body actually exported; a newer Index
+or local `exportedAt` clock cannot advance that baseline.
+
+Gemini RPC acquisition resolves a transient `sourceVersion` from the matching conversation's List metadata
+returned in the same batch. It does not derive a conversation version from message maxima.
+Detail has no `updatedAt`. `DomainStorageRecord.savedAt` records the captured source version on
+the same scale as Index `updatedAt`, only for a nonpartial, versioned body. Partial, metadata-only and unversioned captures omit it.
+A rejected incoming body cannot advance the selected body's saved version. A version
+change or missing version across pages marks the assembled body partial. Identical
+captures keep their version and opaque revision unchanged. v1 cached bodies have no
+proven source version: migration preserves their content but omits `savedAt`.
+Takeout activity dates remain partial offline evidence and cannot establish a saved cloud version.
+See [the live timestamp audit](audits/conversation-time-semantics.md) for wire evidence.
+
+Confirmed cloud deletion survives unknown, unlisted and cached/body observations.
+A successful authoritative RPC list observation may restore `available`. Same-context
+requests begun before deletion remain fenced; the in-memory fence clears only after
+the recovered index commits. Availability is not inferred from receiving a detail body.
+
+Index storage strictly restores detached exact-schema records and rejects malformed
+containers/rows, duplicate provider+ID pairs and extra fields. Reads never repair or
+write. The list setter stores indexes only; `setNativeConversations` explicitly saves
+native detail before merging its index under the same conversation lock. Partial and
+concurrent native imports retain unrelated indexes; an empty native import is a no-op.
+Index updates cannot write/truncate a body. Export
+records, settings, account mappings and credentials retain independent APIs.
+
+The index step of the startup v1-to-v2 migration runs under the cross-tab conversation lock, backs up every
+original container to `legacy_imports` before conversion, merges the u0 alias and
+records rejected rows/containers in `gemini_index_migration_v2`. Body migration uses
+the existing native store. The v2 schema stamp is written only after both body and
+index migration complete. Durable failures withhold the schema stamp and preserve
+aliases for retry; invalid source data stays recoverable in backups. Once converted,
+`titles`, `timestamp`, `chatTime`, `lastSeen`, `source`, `isTakeoutOnly`, body and parse
+transport state never enter the new index.
+
+The next step will expose index plus optional detail through one aggregate gateway;
+this migration establishes canonical metadata and storage separation first.
 Fresh native captures from network interception, detail fetching, DOM fallback,
 live saving and Takeout import write Domain directly to the new repository.
 Takeout import also stores source-bound file bytes before reporting success.
@@ -129,3 +176,5 @@ content-script capture remains readable from the extension after its tab closes.
 Full Tier 1 and live Tier 2 remain the release gates for integration changes.
 
 Final integration acceptance: [storage v2 Tier 2 record](audits/domain-storage-v2-tier2.md).
+
+JSON archives carry this same optional `savedAt` outside the Detail object. Migration backup clocks use `backedUpAt`; legacy v1 save clocks are quarantined as migration input and never establish a source version.

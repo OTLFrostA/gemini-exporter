@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
@@ -13,7 +14,7 @@ test('P2-1: getAllConversations 跑满 maxPages 时 stoppedEarly=true', async ()
         getConversationList: async () => {
             callCount++;
             return {
-                conversations: [{ id: `c_${callCount}`, title: `Chat ${callCount}` }],
+                conversations: ([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture),
                 nextPageToken: `token_${callCount}` // 每次都给新游标，绝不自然到底
             };
         }

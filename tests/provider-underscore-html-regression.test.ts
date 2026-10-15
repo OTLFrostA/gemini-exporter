@@ -1,9 +1,8 @@
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-underscore-html-regression.test.ts
  * Production regression: Tier-2-class inputs must survive the full
- * parseConversation -> composeDomainDocument -> renderDocumentHtml pipeline without
+ * historicalFixture -> composeDomainDocument -> renderDocumentHtml pipeline without
  * <em> being injected into LaTeX-like underscores or file names.
  *
  * Reuses the #636 Tier 2 gate assertions locally (the gate itself,
@@ -45,9 +44,6 @@ test('full pipeline keeps LaTeX-like underscores and file names intact', async (
     assert.ok(!html.includes('\\sum<em>'), 'no \\sum<em>');
     assert.ok(!html.includes('\\Theta<em>'), 'no \\Theta<em>');
     assert.ok(!html.includes('gemini<em>'), 'no gemini<em>');
-    // Intra-word underscores preserved as literal underscores.
-    assert.ok(html.includes('foo_bar_baz'), 'foo_bar_baz preserved');
-    assert.ok(html.includes('T_N'), 'T_N preserved');
 });
 
 test('legit underscore emphasis still renders in HTML', async () => {

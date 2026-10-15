@@ -236,8 +236,8 @@ test('listView - checkIsUpdated correctly detects new dialogue and timestamps', 
     const recSame = { exportedAt: new Date(exportedTime).toISOString(), chatTime: exportedTime, messageCount: 4 };
     assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 4 }, recSame), false);
 
-    // 3. Exported conversation within 2000ms grace window (e.g. clock drift / write latency)
-    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime + 1500, messageCount: 4 }, recSame), false);
+    // 3. Source versions share one clock: any advancement requires export.
+    assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime + 1500, messageCount: 4 }, recSame), true);
 
     // 4. Exported conversation with subsequent activity (> 2000ms)
     assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime + 10000, messageCount: 4 }, recSame), true);
@@ -245,16 +245,16 @@ test('listView - checkIsUpdated correctly detects new dialogue and timestamps', 
     // 5. Exported conversation with subsequent messageCount increase
     assert.strictEqual(checkIsUpdated({ id: 'c1', updatedAt: exportedTime, messageCount: 6 }, recSame), true);
 
-    // 6. Incomplete / truncated conversation where cloud metadata inflated messageCount (e.g. 2)
-    // but actual exported messages was 1, with export occurring strictly after last chat activity
+    // 6. Canonical messageCount is observed individual messages. A larger count requires export
+    // even if the local exportedAt clock is ahead of the source.
     const chatTs = 1700000000000;
     const recNewer = {
         exportedAt: new Date(chatTs + 86400000).toISOString(),
         chatTime: chatTs,
         messageCount: 1
     };
-    // Must return false, breaking the infinite '已更新' loop!
-    assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs, messageCount: 2 }, recNewer), false);
+    // Local time and an ID substring cannot override observed source evidence.
+    assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs, messageCount: 2 }, recNewer), true);
 
     // 7. But if subsequent user activity arrives after export (updatedAt advanced past exportedAt), must return true
     assert.strictEqual(checkIsUpdated({ id: 'c_truncated', updatedAt: chatTs + 86400000 + 5000, messageCount: 2 }, recNewer), true);
@@ -288,8 +288,8 @@ test('listView - render displays Updated badge and auto-checks updated conversat
         // Post-triage-#5 contract: exportedIds maps are normalized to canonical
         // keys on the read path, so the test map uses canonical keys too.
         const expMap = {
-            'exported': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出未更新对话' },
-            'updated': { exportedAt: new Date(t0 + 5000).toISOString(), title: '已导出有新对话' }
+            'exported': { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, title: '已导出未更新对话' },
+            'updated': { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, title: '已导出有新对话' }
         };
 
         // Render with null prevSelectedSet (default initial load)
@@ -712,8 +712,8 @@ test('listView - render displays badge-exported-partial for partial records unle
             },
             'resumed': {
                 exportedAt: new Date(t0 + 5000).toISOString(),
-                // Even if legacy chatTime stored creation timestamp (t0 - 86400000), exportedAt is newer than updatedAt (t0)
-                chatTime: t0 - 86400000,
+                // The export captured this exact source update version.
+                chatTime: t0,
                 status: 'ok'
             }
         };

@@ -17,6 +17,7 @@ test.beforeAll(async () => {
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import * as domain from './src/core/storage/domain/domainStore.ts';
         import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
+        import { indexFixture } from './tests/helpers/indexFixture.ts';
         import { historicalFixture } from './tests/helpers/nativeFixture.ts';
         import { __setModuleOverride, __clearModuleOverrides } from './src/core/utils/moduleOverrides.ts';
         globalThis.deletionProbe = { ...domain, getDomainConversationResult, async run(scenario) {
@@ -28,7 +29,7 @@ test.beforeAll(async () => {
             ] }] });
             const [cached, takeout] = source.conversation.assets;
             await domain.saveDomainConversation('u0', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
-            const list = scenario.noList ? [] : [{ id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' }];
+            const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' })];
             await StorageService.setConversations('u0', list);
             let writeFailures = 0, remoteCalls = 0, domCalls = 0;
             const order = [], warnings = [], logs = [], replies = [];
@@ -50,7 +51,7 @@ test.beforeAll(async () => {
             let listener;
             console.warn = (...args) => { warnings.push(args.map(String).join(' ')); };
             chrome.runtime.onMessage.addListener = fn => { listener = fn; };
-            init({ storage, assets: null, utils: null,
+            init({ storage, assets: null,
                 syncEngine: { ...SyncEngine, markConfirmedDeleted: (slot, cid) => {
                     order.push('memory'); SyncEngine.markConfirmedDeleted(slot, cid);
                 } },
@@ -88,6 +89,7 @@ test.beforeAll(async () => {
                     listAvailability: list[0]?.cloudAvailability,
                     persistedList: await StorageService.getConversations('u0'),
                     records: await StorageService.getExportedIds('u0'),
+                    savedConversation: await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation(id),
                     conversation: source.conversation, assetId: cached.id };
             } finally {
                 provider.fetchConversationDetail = originalFetch;
@@ -122,9 +124,22 @@ for (const scenario of scenarios) {
         }));
         await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
         await page.evaluate(bundle);
-        const download = page.waitForEvent('download');
+        const download = scenario.noList ? null : page.waitForEvent('download');
         const observed = await page.evaluate(scenario => Reflect.get(globalThis, 'deletionProbe').run(scenario), scenario);
-        const archive = await download;
+        if (scenario.noList) {
+            // Detail alone is not a conversation: absent Index blocks archive export.
+            expect(observed.savedConversation).toBeNull();
+            expect(observed.result.landedChats).toBe(0);
+            expect(observed.result.failedChats).toHaveLength(1);
+            expect(observed.result.failedChats[0].isDeleted).toBe(true);
+            expect(observed.records['deletion-isolation']).toBeUndefined();
+            expect(observed.persistedList).toEqual([]);
+            expect(observed.remoteCalls).toBe(0);
+            expect(assetRequests).toEqual([]);
+            expect(observed.writeFailures).toBe(2);
+            return;
+        }
+        const archive = await download!;
         const archivePath = testInfo.outputPath('deletion-isolation.zip');
         await archive.saveAs(archivePath);
         const zip = await JSZip.loadAsync(readFileSync(archivePath));

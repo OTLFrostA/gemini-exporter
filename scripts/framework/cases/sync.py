@@ -16,7 +16,7 @@ def read_sync_state(cdp):
         const expKey = slot === 'u0' ? 'exportedIds' : 'gemini_exported_' + slot;
         const data = await chrome.storage.local.get([coverageKey, convKey, expKey]);
         return { slot, coverage: data[coverageKey] || null,
-            rows: (data[convKey] || []).map(c => ({ id: c.id.replace(/^c_/, ''), timestamp: c.timestamp,
+            rows: (data[convKey] || []).map(c => ({ id: c.id,
                 updatedAt: c.updatedAt, titleSource: c.titleSource, cloudAvailability: c.cloudAvailability })),
             exportIds: Object.keys(data[expKey] || {}).sort() };
     })()""", await_promise=True) or {}

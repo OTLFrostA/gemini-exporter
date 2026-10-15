@@ -1,11 +1,12 @@
-import type { Conversation, TitleSource } from '../../types/index.js';
+import { compareConversationIndexes, indexActivityTime } from '../domain/conversationIndex.js';
+import type { DomainConversationIndex, TitleSource } from '../../types/index.js';
 export type { TitleSource };
 import type { ExportRecord } from '../../types/ui.js';
 import { normId } from './pathUtils.js';
 import { TITLE_AUTHORITY_RANK, resolveTitle as resolveAuthorityTitle } from '../domain/titleAuthority.js';
 
 /** Only the fields title arbitration reads or mutates. */
-export type TitleResolutionInput = Partial<Pick<Conversation, 'id' | 'title' | 'titleSource' | 'titles'>>;
+export interface TitleResolutionInput { id?: string | number; title?: string; titleSource?: string; titles?: import('../../types/conversation.js').TitleSources; }
 
 /** Export freshness also recognizes historical truncation flags. */
 export type ExportActivityRecord = Partial<Pick<ExportRecord,
@@ -53,14 +54,8 @@ export function resolveReliableTitleSource(...sources: (string | null | undefine
 }
 
 
-export function isTakeoutConversation(c?: Partial<Conversation> | null): boolean {
-    if (!c) return false;
-    return (
-        c.source === 'takeout' ||
-        c.titleSource === 'takeout' ||
-        c.isTakeoutOnly ||
-        !!(c.titles && c.titles.takeout)
-    );
+export function isTakeoutConversation(c?: Partial<DomainConversationIndex> | null): boolean {
+    return c?.hasTakeoutImport === true;
 }
 
 export function cleanZeroWidth(t: unknown): string {
@@ -183,134 +178,6 @@ export function resolveTitle(chat?: TitleResolutionInput | null): TitleResolutio
     return winner ? { title: winner.value, source: TITLE_SOURCE_PRIORITY.find(source => source === winner.source) ?? 'legacy' } : { title: '未命名对话', source: 'default' };
 }
 
-export function setTitleBySource(chat: TitleResolutionInput | null | undefined, source?: string, rawTitle?: string): TitleResolution {
-    if (!chat) return { title: '未命名对话', source: 'default' };
-    const reliableSource = normalizeReliableTitleSource(source);
-    if (!reliableSource) {
-        // Unknown or unreliable source: strictly non-influential.
-        // It must NOT write into chat.titles nor mutate chat.title / chat.titleSource.
-        return resolveTitle(chat);
-    }
-    chat.titles = (chat.titles && typeof chat.titles === 'object') ? chat.titles : {};
-    const cleaned = cleanTitle(rawTitle);
-    if (cleaned && isRealTitle(cleaned, chat.id)) {
-        chat.titles[reliableSource] = cleaned;
-    } else if (reliableSource === 'takeout' && cleaned) {
-        chat.titles.takeout = cleaned;
-    }
-    const resolved = resolveTitle(chat);
-    chat.title = resolved.title;
-    chat.titleSource = resolved.source;
-    return resolved;
-}
-
-/**
- * Invariant assertion helper:
- * Verifies that a conversation's titleSource and titles dictionary keys strictly belong
- * to the canonical provenance domain (reliable sources ∪ { 'legacy', 'default' }).
- * 'default' is only permitted as a placeholder titleSource, never as a titles key.
- * 'export' or any unrecognized strings are strictly forbidden.
- */
-export function assertCanonicalTitleProvenance(chat: { titleSource?: unknown; titles?: unknown } | null | undefined): void {
-    const validSources = new Set(['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default']);
-    const validTitleKeys = new Set(['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy']);
-
-    if (chat && chat.titleSource !== undefined) {
-        if (typeof chat.titleSource !== 'string' || !validSources.has(chat.titleSource)) {
-            throw new Error(`titleSource '${chat.titleSource}' is not in canonical domain (${Array.from(validSources).join(', ')})`);
-        }
-    }
-
-    if (chat && chat.titles && typeof chat.titles === 'object') {
-        for (const k of Object.keys(chat.titles)) {
-            if (!validTitleKeys.has(k)) {
-                throw new Error(`titles key '${k}' is not in canonical titles domain (${Array.from(validTitleKeys).join(', ')})`);
-            }
-            if (k === 'export') {
-                throw new Error("titles key must not be 'export'");
-            }
-            if (k === 'default') {
-                throw new Error("titles key must not be 'default'");
-            }
-        }
-    }
-}
-
-/**
- * Adopt titles from incoming conversation per source-tier slot and re-arbitrate
- * so that higher-authority stored titles are never downgraded by weaker sources.
- *
- * Rules:
- * 1. Source-tier arbitration: When incoming carries a reliable source (rpc, api-detail, dom, takeout, etc.),
- *    it routes through setTitleBySource and canonical resolveTitle arbitration.
- * 2. Unprovenanced / weak-source export candidate promotion:
- *    When export/finalize provides a candidate title where isRealTitle(candidate) is true,
- *    and existing currently resolves only to a generic placeholder (or default),
- *    the candidate is promoted to existing as a valid title (source: legacy).
- *    If existing already has any real title (rpc, api-detail, dom, takeout, etc.),
- *    an unprovenanced candidate can NEVER overwrite or downgrade it.
- * 3. Unknown provenance must be completely non-influential:
- *    Sources that fail normalizeReliableTitleSource() cannot be saved into titles,
- *    and their values cannot be scanned or used to promote titles.
- */
-export function applyExportTitleWriteback<T extends TitleResolutionInput | null | undefined>(existing: T, incoming: TitleResolutionInput | null | undefined): T {
-    if (!existing || !incoming) return existing;
-
-    // 1. Seed the stored record's own resolved title into its tier slot first
-    // so legacy-shaped records whose title lives only in title/titleSource are protected by arbitration.
-    if (existing.titleSource && existing.title &&
-        (!existing.titles || typeof existing.titles !== 'object' || !existing.titles[existing.titleSource])) {
-        const cleanedSeed = cleanTitle(existing.title);
-        if (cleanedSeed && (isRealTitle(cleanedSeed, existing.id) || existing.titleSource === 'takeout')) {
-            const reliableExistingSource = normalizeReliableTitleSource(existing.titleSource);
-            if (reliableExistingSource) {
-                setTitleBySource(existing, reliableExistingSource, existing.title);
-            }
-        }
-    }
-
-    // 2. Adopt explicit source tiers if provided by incoming
-    if (incoming.titles && typeof incoming.titles === 'object') {
-        for (const [slot, slotTitle] of Object.entries(incoming.titles)) {
-            const reliableSlot = normalizeReliableTitleSource(slot);
-            if (reliableSlot && typeof slotTitle === 'string' && slotTitle) {
-                setTitleBySource(existing, reliableSlot, slotTitle);
-            }
-        }
-    }
-
-    // 3. Adopt incoming title with reliable provenance
-    const incomingSource = incoming.titleSource;
-    const reliableIncomingSource = normalizeReliableTitleSource(incomingSource);
-
-    if (incoming.title && reliableIncomingSource) {
-        setTitleBySource(existing, reliableIncomingSource, incoming.title);
-    }
-
-    // 4. Candidate promotion rule for unprovenanced or weak-source export titles:
-    // Candidate promotion MUST ONLY come from explicit incoming.title.
-    // Unknown titles slots have zero influence and cannot promote titles.
-    const currentResolved = resolveTitle(existing);
-    const existingHasRealTitle = isRealTitle(currentResolved.title, existing.id) ||
-        (currentResolved.source === 'takeout' && !isBrandPlaceholderTitle(currentResolved.title));
-
-    if (!existingHasRealTitle) {
-        const cleanedIncoming = cleanTitle(incoming.title);
-        if (isRealTitle(cleanedIncoming, existing.id)) {
-            existing.titles = (existing.titles && typeof existing.titles === 'object') ? existing.titles : {};
-            existing.title = cleanedIncoming;
-            existing.titleSource = reliableIncomingSource || 'legacy';
-            if (existing.titleSource === 'legacy') {
-                existing.titles.legacy = cleanedIncoming;
-            } else {
-                existing.titles[existing.titleSource] = cleanedIncoming;
-            }
-        }
-    }
-
-    return existing;
-}
-
 export function toTimestampMs(raw: unknown): number | null {
     if (raw === null || raw === undefined) return null;
     if (typeof raw === 'number') {
@@ -335,43 +202,12 @@ export function toTimestampMs(raw: unknown): number | null {
     return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-// Server-authoritative only (updatedAt > timestamp > chatTime > createdAt).
-// lastSeen is client-observed and intentionally excluded so missing timestamps return 0 rather than a guess.
-export function getEffectiveTimestamp(chat?: Partial<Conversation> | Partial<Pick<Conversation, 'updatedAt' | 'timestamp' | 'chatTime' | 'createdAt'>> | null): number {
-    if (!chat || typeof chat !== 'object') return 0;
-    const candidates = [chat.updatedAt, chat.timestamp, chat.chatTime, chat.createdAt];
-    for (const raw of candidates) {
-        const ms = toTimestampMs(raw);
-        if (ms !== null) {
-            return ms;
-        }
-    }
-    return 0;
+/** Canonical index facts only; historical conversion belongs to acquisition/migration. */
+export function getEffectiveTimestamp(chat?: Partial<DomainConversationIndex> | null): number {
+    return chat ? indexActivityTime(chat) ?? 0 : 0;
 }
-
-type SortableConversation = Partial<Conversation>;
-export function compareConversations(a?: SortableConversation | null, b?: SortableConversation | null): number {
-    if (!a && !b) return 0;
-    if (!a) return 1;
-    if (!b) return -1;
-
-    const tsA = getEffectiveTimestamp(a);
-    const tsB = getEffectiveTimestamp(b);
-    if (tsA !== tsB) return tsB - tsA;
-
-    const idxA = typeof a.sidebarIndex === 'number' ? a.sidebarIndex : 999999;
-    const idxB = typeof b.sidebarIndex === 'number' ? b.sidebarIndex : 999999;
-    if (idxA !== idxB) return idxA - idxB;
-
-    let lsA = 0;
-    if (a.lastSeen) {
-        lsA = toTimestampMs(a.lastSeen) ?? 0;
-    }
-    let lsB = 0;
-    if (b.lastSeen) {
-        lsB = toTimestampMs(b.lastSeen) ?? 0;
-    }
-    return lsB - lsA;
+export function compareConversations(a: DomainConversationIndex, b: DomainConversationIndex): number {
+    return compareConversationIndexes(a, b);
 }
 
 export type ConversationExportStateKind =
@@ -412,7 +248,7 @@ export interface ConversationExportState {
 
 export interface ResolveConversationExportStateOptions {
     isFailedInSession?: boolean;
-    customHasNewerActivity?: (c: Partial<Conversation> | null | undefined, rec: ExportActivityRecord | null | undefined) => boolean;
+    customHasNewerActivity?: (c: Partial<DomainConversationIndex> | null | undefined, rec: ExportActivityRecord | null | undefined) => boolean;
 }
 
 const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], ConversationBadgeDescriptor> = {
@@ -472,57 +308,17 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
     }
 };
 
-function computeHasNewerActivity(c: Partial<Conversation> | null | undefined, rec: ExportActivityRecord | null | undefined): boolean {
+function computeHasNewerActivity(c: Partial<DomainConversationIndex> | null | undefined, rec: ExportActivityRecord | null | undefined): boolean {
     if (!c || !rec) return false;
-    try {
-        const cTs = getEffectiveTimestamp(c);
-        const rTs = toTimestampMs(rec.exportedAt) ?? 0;
-        const rChatTime = toTimestampMs(rec.chatTime) ?? 0;
-        const curMsgCount = c.messageCount || (Array.isArray(c.messages) ? c.messages.length : 0);
-        const recMsgCount = rec.messageCount || 0;
-
-        // 1. Authoritative same-clock check:
-        // If export record captured the exported conversation's server chatTime:
-        // When conversation server timestamp has NOT advanced past exported turn timestamp,
-        // it cannot be updated by timestamp (immune to local clock skew).
-        if (rChatTime > 0 && cTs > 0 && cTs <= rChatTime) {
-            if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
-                if (rTs > 0 && rTs >= cTs + 2000 && (rec.isTruncated || rec.truncated || c.id?.includes('truncated'))) {
-                    return false;
-                }
-                return true;
-            }
-            return false;
-        }
-
-        // 2. Export freshness lock: if the export finished strictly AFTER the conversation's last activity,
-        // the conversation content cannot be newer than the export.
-        // Suppress messageCount / legacy chatTime discrepancies when exportedAt is strictly newer than cTs.
-        if (rTs > 0 && cTs > 0 && rTs >= cTs + 2000) {
-            return false;
-        }
-
-        // 3. Timestamp check:
-        // If rChatTime is present, check if cTs advanced past rChatTime
-        if (cTs > 0 && rChatTime > 0 && cTs > rChatTime + 2000) {
-            return true;
-        }
-
-        // Legacy fallback when rChatTime is not present: check if cTs advanced past exportedAt
-        if (!rChatTime && cTs > 0 && rTs > 0 && cTs > rTs + 2000) {
-            return true;
-        }
-
-        // 4. Message count check:
-        if (curMsgCount > 0 && recMsgCount > 0 && curMsgCount > recMsgCount) {
-            return true;
-        }
-    } catch {}
-    return false;
+    const cTs = c.updatedAt;
+    const savedVersion = toTimestampMs(rec.chatTime);
+    // Local exportedAt only describes a disk write. It can never suppress a source update.
+    if (cTs !== undefined && savedVersion !== null && cTs > savedVersion) return true;
+    return (rec.messageCount ?? 0) > 0 && (c.messageCount ?? 0) > (rec.messageCount ?? 0);
 }
 
 export function resolveConversationExportState(
-    c: Partial<Conversation> | null | undefined,
+    c: Partial<DomainConversationIndex> | null | undefined,
     rec?: ExportActivityRecord | null,
     options?: ResolveConversationExportStateOptions
 ): ConversationExportState {
@@ -563,9 +359,10 @@ export function resolveConversationExportState(
         badgeKind = 'exported_ok';
     }
 
-    const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity;
+    const versionUnknown = hasRecord && (c?.updatedAt === undefined || toTimestampMs(rec?.chatTime) === null);
+    const needsIncrementalExport = !hasRecord || isPartial || isRecordFailed || hasNewerActivity || versionUnknown;
     const shouldAutoSelect = !isPendingAssets && (
-        !hasRecord || isRecordFailed || recStatus === 'empty' || hasNewerActivity || (isFailedInSession && !isPartial)
+        !hasRecord || isRecordFailed || recStatus === 'empty' || hasNewerActivity || versionUnknown || (isFailedInSession && !isPartial)
     );
 
     return {
@@ -580,7 +377,7 @@ export function resolveConversationExportState(
     };
 }
 
-export function checkIsUpdated(c: Partial<Conversation> | null | undefined, rec?: ExportActivityRecord | null): boolean {
+export function checkIsUpdated(c: Partial<DomainConversationIndex> | null | undefined, rec?: ExportActivityRecord | null): boolean {
     if (!c || !rec) return false;
     // Partial export records are never considered up-to-date so failed attachments can be retried on subsequent syncs
     const st = resolveConversationExportState(c, rec);
@@ -609,9 +406,6 @@ export default {
     isBrandPlaceholderTitle,
     resolveTitle,
     resolveDetailTitle,
-    setTitleBySource,
-    applyExportTitleWriteback,
-    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,

@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -40,11 +41,11 @@ function setupMockChromeStorage() {
 test('StorageService.updateConversation - atomic targeted update', async () => {
     const env = setupMockChromeStorage();
     try {
-        await StorageService.setConversations('u0', [
+        await StorageService.setConversations('u0', ([
             { id: 'chat_1', title: 'Old Title 1', messageCount: 2 },
             { id: 'chat_2', title: 'Title 2', messageCount: 5 },
             { id: 'chat_3', title: 'Title 3', messageCount: 1 }
-        ]);
+        ]).map(indexFixture));
 
         // 1. Update with partial object
         const updated = await StorageService.updateConversation('u0', 'chat_1', {
@@ -63,13 +64,13 @@ test('StorageService.updateConversation - atomic targeted update', async () => {
         // 2. Update with mutator function
         const updated2 = await StorageService.updateConversation('u0', 'chat_2', (conv: any) => {
             conv.title = 'Updated Title 2';
-            conv.titles = { rpc: 'Updated Title 2' };
+            conv.titleSource = 'rpc';
         });
         assert.strictEqual(updated2, true);
 
         const listAfter2 = await StorageService.getConversations('u0');
         assert.strictEqual(listAfter2[1].title, 'Updated Title 2');
-        assert.deepStrictEqual(listAfter2[1].titles, { rpc: 'Updated Title 2' });
+        assert.strictEqual(listAfter2[1].titleSource, 'rpc');
 
         // 3. Non-existent conversation
         const updated3 = await StorageService.updateConversation('u0', 'chat_nonexistent', { title: 'X' });
@@ -99,10 +100,10 @@ test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
         source: 'network-list'
     };
 
-    const res1 = mergeConversation(existing, olderIncoming);
+    const res1 = mergeConversation(indexFixture(existing), indexFixture(olderIncoming));
     // updatedAt and timestamp must NOT regress to 1700000050000
     assert.strictEqual(res1.merged.updatedAt, 1700000050000, 'updatedAt must not regress');
-    assert.strictEqual(res1.merged.timestamp, 1700000050000, 'timestamp must not regress');
+    assert.strictEqual(res1.merged.timestamp, undefined, 'timestamp must not regress');
     // createdAt must remain earliest known
     assert.strictEqual(res1.merged.createdAt, 1700000000000, 'createdAt must remain earliest');
 
@@ -117,9 +118,9 @@ test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
         source: 'network-list'
     };
 
-    const res2 = mergeConversation(existing, newerIncoming);
+    const res2 = mergeConversation(indexFixture(existing), indexFixture(newerIncoming));
     assert.strictEqual(res2.merged.updatedAt, 1700000090000, 'updatedAt must advance to newer timestamp');
-    assert.strictEqual(res2.merged.timestamp, 1700000090000, 'timestamp must advance to newer timestamp');
+    assert.strictEqual(res2.merged.timestamp, undefined, 'timestamp must advance to newer timestamp');
     assert.strictEqual(res2.merged.createdAt, 1699999990000, 'createdAt must advance to earlier timestamp');
 });
 
@@ -127,11 +128,11 @@ test('CON-HF7: Export avoids stale snapshot overwrite & respects concurrent dele
     const env = setupMockChromeStorage();
     try {
         // Initial conversations in storage before export begins
-        await StorageService.setConversations('u0', [
+        await StorageService.setConversations('u0', ([
             { id: 'chat_export_1', title: 'Export Chat 1', messageCount: 1 },
             { id: 'chat_export_2', title: 'Export Chat 2 (to be deleted)', messageCount: 1 },
             { id: 'chat_export_3', title: 'Export Chat 3', messageCount: 1 }
-        ]);
+        ]).map(indexFixture));
 
         // Export starts: it takes a snapshot of IDs to export
         const snapshotConversations = await StorageService.getConversations('u0');
@@ -143,10 +144,10 @@ test('CON-HF7: Export avoids stale snapshot overwrite & respects concurrent dele
 
         // 2. A new conversation chat_new arrives concurrently (e.g. user chats in another tab)
         const currentList = await StorageService.getConversations('u0');
-        await StorageService.setConversations('u0', [
+        await StorageService.setConversations('u0', ([
             ...currentList,
             { id: 'chat_new', title: 'Concurrent New Chat', messageCount: 3 }
-        ]);
+        ]).map(indexFixture));
 
         // 3. Export worker finishes chat_export_1 and updates its metadata atomically
         await StorageService.updateConversation('u0', 'chat_export_1', {

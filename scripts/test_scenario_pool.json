@@ -1,203 +1,8 @@
 [
   {
-    "id": "graphics_homogeneous_clipping_perspective",
-    "domain": "computer_graphics_homogeneous_clipping",
-    "title": "齐次裁剪与透视插值：从投影矩阵到光栅化",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "投影约定、齐次裁剪、属性透视校正、数值稳健性和可重复验证",
-    "turns": [
-      "从右手坐标系推导透视投影矩阵，明确相机朝向、近远裁剪面、齐次坐标和 NDC 深度范围。用 LaTeX 展示变换顺序，解释为什么透视除法不能提前到齐次裁剪之前。",
-      "推导三角形与齐次裁剪平面的交点参数，说明顶点位于相机后方或 w 接近零时的处理。写出完整的 Sutherland–Hodgman 齐次裁剪伪代码，并分析退化边与浮点容差。",
-      "用 Python 实现齐次裁剪和三角扇重建，提供跨越近裁剪面、跨越视锥侧面、完全可见与完全不可见的固定输入，并用断言验证裁剪后顶点满足所有平面约束。",
-      "从屏幕重心坐标推导纹理坐标的透视正确插值公式，给出可运行代码对比线性屏幕插值与透视插值，解释深度插值、倒数 w 和属性插值的不同约定。",
-      "用 Markdown 表格比较不同投影深度约定、普通与反向深度的数值精度特征，设计验证裁剪接缝、共享边一致性和远近深度精度的测试方案，指出具体实现中应统一的坐标与符号规则。"
-    ]
-  },
-  {
-    "id": "telecom_ofdm_cyclic_prefix_channel_equalization",
-    "title": "OFDM：循环前缀、频域均衡与误差预算",
-    "domain": "telecom_ofdm_channel_equalization",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "用 LaTeX 从离散线性卷积推导 OFDM 循环前缀足够长时的循环卷积模型，说明 DFT 对角化和子载波频域均衡。设置一个虚构的三抽头信道，明确每个变量的单位和索引约定。",
-      "推导零迫与 MMSE 单抽头均衡器，比较深衰落处的噪声放大，代入前面的三抽头信道计算几个指定子载波上的系数。所有数字仅作教学例子。",
-      "写完整 Python/NumPy 仿真，固定随机种子完成 QPSK、IFFT、循环前缀、信道、噪声和均衡，输出比特错误率及 EVM。禁止省略核心函数，加入无噪声恢复、功率归一化和前缀长度三类断言。",
-      "用 Markdown 表格比较前缀不足、载波频偏、采样偏差和信道估计偏差的误差特征，给出可区分这些错误的数值检查，并用 LaTeX 推导一个简化频偏引起的子载波泄漏例子。",
-      "写一份较长的工程教学报告，汇总链路预算、前缀开销、导频密度与统计置信区间，解释仿真如何支持或不能支持实际系统结论。提供逐项复现实验步骤和失败诊断清单。"
-    ]
-  },
-  {
-    "id": "finite_fields_reed_solomon_erasure_recovery",
-    "title": "有限域编码：Reed–Solomon 擦除恢复",
-    "domain": "algebra_finite_fields_reed_solomon",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "用 LaTeX 从有限域多项式求值定义一个教学用 Reed–Solomon 码，明确 GF(17) 上的消息系数、求值点、码长、维数和最小距离。用一组假想消息逐项算出编码结果。",
-      "从拉格朗日插值推导擦除恢复，说明可恢复的擦除数量与码维数的关系，手算两个不同的擦除位置集合，并检查恢复出的系数与原消息一致。",
-      "写只用 Python 标准库的完整编码与擦除恢复程序，实现模逆、插值和输入校验。给出固定随机种子的随机消息测试、最大可恢复擦除测试及不足观测时必须失败的测试。",
-      "用 Markdown 表格比较求值编码、系统编码、复制和 XOR 奇偶校验，列出冗余、擦除能力、运算成本及假设。用前面的参数计算存储开销，解释擦除与未知错误的区别。",
-      "写一份较长的工程教学报告，讨论校验和定位擦除、分片元数据、符号序和截断输入的风险，提出可重复的恢复验证流程。保留完整公式与代码引用，避免宣称该简化实现已经适合生产部署。"
-    ]
-  },
-  {
-    "id": "fair_division_additive_ef1_round_robin",
-    "domain": "fair_division_discrete_allocation",
-    "title": "Discrete fair division: EF1 and round-robin verification",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Additive indivisible-item allocation with quantified definitions, executable algorithms and counterexample audits.",
-    "turns": [
-      "Construct three fictional participants and six indivisible laboratory props with nonnegative additive valuations. Define EF, EF1 and EFX using explicit LaTeX quantifiers and inequalities, including empty bundles and zero-value items.",
-      "Prove the EF1 guarantee of fixed-order round-robin selection by pairing inequalities across picks. Use a concrete valuation matrix to investigate whether the allocation is Pareto optimal.",
-      "Write complete runnable standard-library Python for round-robin allocation, EF1 checks and exhaustive Pareto-improvement search for small instances. Fix the random seed and assert behavior for zero values, ties and fewer items than participants.",
-      "Use a Markdown table to compare EF, EF1, EFX, proportionality and Pareto optimality across definitions, compatibility, verification cost and guarantees of round-robin. Distinguish proofs from observations on the example.",
-      "Write a long algorithm audit with complexity derivations, counterexample tables, pseudocode and property-based test designs. Explain how participant order, tie-breaking, random seeds and nonadditive preferences affect conclusions."
-    ]
-  },
-  {
-    "id": "formal_methods_ltl_finite_state_automata",
-    "domain": "formal_methods_temporal_logic",
-    "title": "Temporal logic: transition systems and counterexample traces",
-    "description": "Small fictional protocol model, quantified temporal semantics, executable state exploration and trace validation.",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a small fictional request-acknowledgement protocol as a finite labeled transition system. State safety and liveness properties in LaTeX using explicit temporal-logic semantics, including deadlocks and infinite traces.",
-      "Derive how reachability checks differ from eventual acknowledgement under fairness assumptions. Give concrete good and bad traces, distinguishing assumptions from guarantees.",
-      "Write complete runnable standard-library Python to explore reachable states, detect safety violations and report a counterexample trace. Add strongly connected component analysis for liveness under explicitly documented fairness conditions.",
-      "Use a Markdown table to compare invariants, reachability, response properties and fairness assumptions across finite tests, graph exploration and temporal model checking.",
-      "Write a long verification audit with equations, state tables and pseudocode. Explain state explosion, abstraction, environment assumptions and how to replay and minimize a counterexample without claiming exhaustive verification from random tests."
-    ]
-  },
-  {
-    "id": "graph_algorithms_offline_dynamic_connectivity",
-    "domain": "graph_algorithms_dynamic_connectivity",
-    "title": "Offline dynamic connectivity: rollback union-find",
-    "description": "Time-indexed undirected graphs, interval trees and exact rollback-state verification.",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define offline dynamic connectivity for an undirected multigraph with add, remove and query events. Formalize edge-active intervals in LaTeX, including duplicate edges, self-loops and disconnected vertices.",
-      "Derive a segment-tree-over-time algorithm using rollback union-find. Explain why path compression changes rollback invariants and justify the running time with explicit assumptions.",
-      "Write complete runnable standard-library Python implementing the algorithm. Add a slow BFS oracle and fixed-seed randomized checks for duplicate insertions, removals, self-loops and queries before any edges exist.",
-      "Use a Markdown table to compare BFS per query, union-find for insertions only, rollback union-find offline and fully dynamic online methods across semantics, time costs and implementation constraints.",
-      "Write a long algorithm audit with complexity equations, state tables, pseudocode and minimized counterexample traces. Show how to validate rollback snapshots and distinguish testing evidence from a correctness proof."
-    ]
-  },
-  {
-    "id": "optimization_min_cost_flow_dual_potentials",
-    "domain": "optimization_network_flow_dual_potentials",
-    "title": "Minimum cost flow: residual networks and dual potentials",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate a capacitated minimum cost flow problem using inline and display LaTeX. Define supplies, conservation, capacities and costs, and derive the role of node potentials and reduced costs.",
-      "Work through a small numerical residual-network example with reverse arcs. Show an augmenting path, its bottleneck, the updated flow and a check of conservation and objective cost.",
-      "Write complete runnable Python using only the standard library for successive shortest augmenting paths with potentials. Include a deterministic example, explicit assertions for capacity and conservation, and blank lines between functions.",
-      "Create a Markdown comparison table for cycle canceling, successive shortest paths and network simplex, including assumptions, complexity and negative-cost handling. Include an English-Chinese glossary.",
-      "Explain how to verify optimality using reduced costs and complementary slackness. Provide an infeasible example, a reproducible test plan and precise limits of the algorithm when lower bounds or negative cycles are present."
-    ]
-  },
-  {
-    "id": "number_theory_extended_gcd_lattice_basis",
-    "domain": "number_theory_diophantine_lattice",
-    "title": "Integer algorithms: extended gcd and Diophantine solution lattices",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive extended Euclidean algorithm invariants and the Bezout identity in LaTeX. Explain how they solve two variable linear Diophantine equations with a worked numerical example.",
-      "For 84x+30y=18, derive all integer solutions and count those within specified finite bounds. Compare truncation toward zero versus floor division for negative boundary calculations.",
-      "Provide complete standard library Python for sign safe extended gcd, parametric solutions and bounded solution counting. Include zero coefficients, negative coefficients and unsatisfiable cases with executable tests.",
-      "Create a Markdown comparison table for extended gcd, enumeration, integer programming and lattice basis methods with input ranges, complexity and correctness assumptions. Add a bilingual glossary.",
-      "Design fixed seed differential tests against exhaustive small integer enumeration. Write a detailed report with LaTeX complexity analysis, failure case tables and full reproducible code, distinguishing proof from empirical verification."
-    ]
-  },
-  {
-    "id": "distributed_weighted_rendezvous_hashing",
-    "domain": "distributed_systems_weighted_rendezvous_hashing",
-    "title": "Weighted rendezvous hashing and shard movement",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms",
-      "statistics"
-    ],
-    "turns": [
-      "Derive weighted rendezvous hashing from exponential races in LaTeX. State independence and hashing assumptions, and explain shard assignment probabilities.",
-      "Give a worked numerical example of three weighted servers. Show how adding or removing a server changes assignments while preserving unaffected rankings.",
-      "Provide complete runnable standard library Python using deterministic cryptographic hashes and explicit uniform conversion. Test weight ratios, zero weights and membership changes with a fixed seed key corpus.",
-      "Create a Markdown comparison table for modulo hashing, hash rings, jump hashing and weighted rendezvous by balance, movement, weight support and operational cost. Add a bilingual glossary.",
-      "Write a detailed experimental report measuring load deviation and reassignment fractions for heterogeneous weights. Include formulas, reproducible code and result tables. Discuss correlated keys, finite samples and implementation stability."
-    ]
-  },
-  {
-    "id": "database_multiversion_snapshot_write_skew",
-    "domain": "databases_mvcc_isolation",
-    "title": "Database isolation: write skew, serialization graphs and MVCC snapshots",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Explain snapshot isolation using a fictional seat-reservation database. Define versions, transaction read and write sets, and a consistency invariant with LaTeX; include a concrete two-transaction example.",
-      "Construct a write-skew schedule, derive its serialization graph and distinguish conflict serializability from snapshot consistency. Show the schedule as a Markdown table.",
-      "Write complete runnable Python implementing a tiny deterministic MVCC simulator with begin, read, write and commit. Include tests for lost updates, write skew and non-conflicting transactions.",
-      "Compare snapshot isolation, strict two-phase locking and serializable snapshot isolation in a Markdown table. Explain blocking, aborted work and anomaly detection with an English and Chinese glossary.",
-      "Design an exhaustive schedule enumeration for three transactions and four keys. Give detailed pseudo-code, graph-cycle equations, runnable tests and a reproducible results table; justify every anomaly classification."
-    ]
-  },
-  {
-    "id": "cartography_cube_map_projection_seams",
-    "domain": "cartography_spherical_cube_mapping",
-    "title": "Spherical cartography: cube-map face coordinates and seam continuity",
+    "id": "mesh_topology_euler_characteristic_handles",
+    "title": "Polyhedral topology: vertices, edges, faces and handles",
+    "domain": "topology_polygon_meshes",
     "features": [
       "imagen",
       "multimodal",
@@ -208,17 +13,17 @@
       "algorithms"
     ],
     "turns": [
-      "Generate an actual image using Imagen: an original annotated educational illustration of a globe surrounded by its six cube-map faces, indicating shared edges and axes. Then define the coordinate frames and explain the mapping assumptions in prose.",
-      "Derive forward direction-to-face and inverse face-to-direction maps in LaTeX. State the exact tie-breaking rule on edges and corners, and prove reconstruction up to normalization.",
-      "Provide complete runnable Python with only the standard library to map vectors to cube faces and back, with randomized round-trip tests and explicit edge/corner cases.",
-      "Compare cube-map, equirectangular and octahedral parameterizations in a Markdown table covering area distortion, seam rules, storage and interpolation. Add an English and Chinese glossary.",
-      "Write a detailed numerical audit of seam continuity and finite precision. Include error norms, test vectors, threshold tables and reproducible code without suggesting rendering agreement proves geometric correctness."
+      "Generate an original educational cutaway illustration comparing a closed cube-like polyhedral surface and a closed torus-like polygon mesh. Distinguish vertices, edges and faces with a legend; keep the illustration explicitly conceptual rather than a certified mesh.",
+      "Define a finite oriented polygon mesh and derive Euler characteristic for connected closed orientable surfaces in LaTeX. Explain boundary components, disconnected components and why geometry alone does not determine genus.",
+      "Write complete runnable standard-library Python for validating edge incidence and orientation in explicit cube and triangulated torus meshes. Compute V, E, F, connected components and Euler characteristic, with assertions for duplicated faces, boundary edges and non-manifold edges.",
+      "Use a Markdown table to compare the mesh invariants for a tetrahedron, cube, torus, open disk and a disconnected union. State the hypotheses under which genus can be recovered and include examples that violate them.",
+      "Write a long reproducibility report connecting the illustration with the mesh data structures. Discuss welding tolerances, degenerate triangles, self-intersections, orientation, manifold tests and the distinction between a rendered surface and combinatorial proof."
     ]
   },
   {
-    "id": "algebra_smith_normal_form_integer_modules",
-    "domain": "algebra_integer_module_normal_forms",
-    "title": "Integer modules: Smith normal form, invariant factors and Diophantine feasibility",
+    "id": "optimization_assignment_hungarian_duality",
+    "title": "Assignment optimization: Hungarian potentials and certificates",
+    "domain": "optimization_bipartite_assignment",
     "features": [
       "math",
       "latex",
@@ -227,81 +32,37 @@
       "algorithms"
     ],
     "turns": [
-      "Explain Smith normal form for a small integer matrix and define unimodular row/column transformations, invariant factors and divisibility conditions using LaTeX.",
-      "Derive a constructive elementary-operation algorithm for two-by-two and three-by-three integer matrices. Track transformation matrices explicitly and discuss why naive remainder reduction can break divisibility.",
-      "Provide complete runnable Python implementing exact-integer reduction with independently verified U*A*V=D tests, unimodular determinant checks and randomly generated small cases.",
-      "Compare Smith and Hermite normal forms in a Markdown table covering uniqueness conventions, preserved modules and computational costs. Give an English and Chinese glossary.",
-      "Design a reproducible Diophantine-system feasibility audit using invariant factors. Include exact examples, counterexamples, solution parameterizations, rank-deficient cases and a thorough validation table."
+      "Construct a fictional five-worker five-task integer cost matrix. Formulate the minimum-cost assignment linear program and its dual in LaTeX, including all equality and sign conventions.",
+      "Derive reduced costs and complementary slackness. Work through potential updates and alternating augmenting paths on the example, explaining how feasibility is preserved.",
+      "Write complete runnable standard-library Python implementing the Hungarian method with an explicit deterministic tie policy. Compare with exhaustive permutations for small cases and assert negative costs, repeated optima, rectangular input policy and invalid inputs.",
+      "Use a Markdown table to report the selected assignment, primal cost, dual objective and reduced-cost residuals. Compare optimality certificates with greedy heuristics using a concrete counterexample.",
+      "Write a long algorithm verification report covering time complexity, numerical considerations, degeneracies, forbidden assignments and how to distinguish implementation tests from a proof of optimality."
     ]
   },
   {
-    "id": "metallurgy_binary_eutectic_lever_rule",
-    "domain": "metallurgy_binary_phase_diagram",
-    "title": "Binary alloys: phase diagrams and lever-rule reasoning",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Synthetic phase-diagram illustration, mass balance, reproducible phase fractions, tables and solidification report.",
-    "turns": [
-      "Generate an original educational illustration of a fictional binary eutectic alloy phase diagram with clearly separated liquid, alpha, beta and two-phase regions. Explain the schematic axes and labels in English and Chinese, and explicitly identify all numerical values as hypothetical.",
-      "Use LaTeX to derive the lever rule from total mass and solute conservation. Work through one hypothetical tie-line example, state the concentration basis and verify both phase fractions sum to one.",
-      "Write complete runnable Python using only the standard library to compute phase fractions for hypothetical tie lines. Validate physical bounds and reject inconsistent endpoints; include deterministic assertions and a bisection routine for a fictional temperature-dependent boundary.",
-      "Create a Markdown table comparing equilibrium cooling, finite-rate solidification and diffusion-limited segregation. Separate model assumptions from measured facts and include bilingual terminology and dimensional checks.",
-      "Write a detailed methods report about numerical conditioning near a phase boundary, uncertainty propagation and why a schematic diagram cannot predict a real alloy. Include algorithm pseudocode, reproducible synthetic parameter tables and LaTeX error estimates."
-    ]
-  },
-  {
-    "id": "compiler_ssa_dominance_frontier_phi",
-    "domain": "compilers_static_single_assignment",
-    "title": "Compiler analysis: dominance frontiers and SSA construction",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Control-flow graphs, fixed-point dominance, Python SSA construction, comparative tables and invariant analysis.",
-    "turns": [
-      "Define dominators and immediate dominators on a synthetic control-flow graph using LaTeX set equations. Include a branch merge and loop, explicitly identify reachable nodes, and distinguish dominance from postdominance.",
-      "Derive an iterative fixed-point dominator algorithm and dominance-frontier construction. Hand-calculate a small graph with a back edge, state the initialization and termination invariant, and explain treatment of unreachable blocks.",
-      "Write complete runnable Python standard-library code for dominators, dominance frontiers and iterated phi placement. Include deterministic graph examples, assertions for entry and unreachable nodes, and a variable defined on two branches.",
-      "Use a Markdown table to compare naive fixed-point dominance, tree-based dominance and pruned versus unpruned SSA. Describe time and space bounds with clear assumptions, and include English and Chinese terminology.",
-      "Write a detailed compiler methods report about renaming stacks, loop phi nodes and preserving semantics during SSA destruction. Include counterexample graphs, pseudocode, reproducible tests and a LaTeX invariant, separating proved properties from implementation heuristics."
-    ]
-  },
-  {
-    "id": "optics_brewster_jones_polarization",
-    "domain": "optics_polarization_interface_geometry",
-    "title": "Polarization optics: Brewster angle and Jones matrices",
+    "id": "hydrology_reservoir_finite_volume_conservation",
+    "title": "Reservoir networks: water balance and conservative timesteps",
+    "domain": "hydrology_conservative_simulation",
     "features": [
       "imagen",
       "multimodal",
       "math",
       "latex",
       "code",
-      "tables",
-      "algorithms"
+      "tables"
     ],
-    "description": "Original polarization illustration, dielectric-interface equations, runnable matrix calculations, comparison tables and an uncertainty report.",
     "turns": [
-      "Generate an original educational image showing a hypothetical laser beam incident on a dielectric interface near the Brewster angle, with incident, reflected and transmitted rays and clearly distinguished s and p polarization directions. Explain the schematic in English and Chinese; label all numerical parameters as synthetic.",
-      "Use LaTeX to derive the Brewster-angle condition and define the Jones vectors and coordinate conventions for a lossless isotropic interface. Work one hypothetical refractive-index example and check the angular and unit conventions.",
-      "Write complete runnable Python with NumPy to compute normalized Jones-vector transformations and a synthetic intensity sweep. Include deterministic assertions for limiting angles, polarization normalization and valid refractive indices, and explicitly distinguish amplitude from power coefficients.",
-      "Create a Markdown table comparing Jones and Mueller descriptions, assumptions about coherence and polarization, input dimensions and failure cases. Add bilingual terminology and clearly label any illustrative numerical results.",
-      "Write a detailed laboratory-methods report using only hypothetical data. Analyze angular calibration, near-zero reflected p intensity and numerical sensitivity; provide pseudocode, LaTeX uncertainty estimates and a reproducible parameter table, and explain which effects the idealized model excludes."
+      "Generate an actual original image using Imagen: an educational cutaway of two fictional connected reservoirs with rainfall, evaporation, an inter-reservoir channel and a controlled outlet. Use arrows and a compact legend; make clear that this is a conceptual water-balance diagram, not a real engineering design.",
+      "Define a two-reservoir water-balance model with explicit units and hypothetical parameters. Derive a finite-volume update in LaTeX, distinguish external fluxes from internal transfers, and prove the discrete total-volume conservation identity.",
+      "Write complete runnable standard-library Python to simulate the model with piecewise constant inflows. Enforce nonnegative storage and capacity limits using explicitly accounted spill fluxes. Include assertions for dry tanks, zero rainfall, full capacity, unequal timesteps and whole-network mass residuals.",
+      "Use a Markdown table to compare coarse and fine timesteps, reporting initial storage, external inflow, evaporation, controlled outflow, spill, final storage and the conservation residual. Explain which errors reduce with timestep refinement and which indicate broken bookkeeping.",
+      "Write a detailed reproducibility report linking the illustration to the equations and executable model. Discuss positivity, flux limiting, discontinuous forcing, unit conversion, uncertainty and the limitations of this fictional educational simulation."
     ]
   },
   {
-    "id": "control_discrete_observability_gramian",
-    "domain": "control_theory_observability_reconstruction",
-    "title": "Discrete control systems: observability and state reconstruction",
+    "id": "numerical_analysis_barycentric_interpolation",
+    "title": "Polynomial interpolation: barycentric weights and conditioning",
+    "domain": "numerical_analysis_interpolation",
     "features": [
       "math",
       "latex",
@@ -309,82 +70,41 @@
       "tables",
       "algorithms"
     ],
-    "description": "Linear-system observability, Gramian derivations, executable reconstruction code, comparative tables and numerical-conditioning analysis.",
     "turns": [
-      "Define finite-horizon observability for a synthetic discrete-time linear system using LaTeX. Construct a small two-state example and derive its stacked output equations, distinguishing observability from controllability and stability.",
-      "Derive the finite-horizon observability Gramian and prove the rank criterion for exact state reconstruction in the noiseless model. Hand-calculate an observable and an unobservable example, stating the horizon and assumptions explicitly.",
-      "Write complete runnable Python with NumPy for simulation and least-squares initial-state reconstruction. Use fixed random seeds for synthetic observation noise, check dimensions and matrix rank, and include deterministic exact-recovery and deliberately unobservable test cases.",
-      "Use a Markdown table to compare direct inversion, QR and singular-value decomposition for reconstruction. Include time and memory bounds with assumptions, threshold selection, English/Chinese terminology and an example sensitivity comparison.",
-      "Write a detailed technical report about near-unobservability, sensor placement and horizon length. Include reproducible synthetic parameter tables, algorithm pseudocode, a LaTeX error bound and explicit distinctions between structural observability, numerical conditioning and unsupported performance claims."
+      "Define polynomial interpolation at distinct real nodes and derive the Lagrange basis in LaTeX. Use a small rational-node example with an explicitly stated polynomial so exact answers can be checked.",
+      "Derive the first and second barycentric interpolation formulas and explain the cancellation leading to the second formula. State the assumptions and the special behavior exactly at an interpolation node.",
+      "Write complete runnable standard-library Python using fractions.Fraction for exact weights and interpolation. Assert exact recovery of a known polynomial at both nodes and new rational points, reject repeated nodes and mismatched lengths, and define the one-node case.",
+      "Implement floating-point barycentric evaluation with explicit handling of exact node hits. Compare its results with the exact rational reference and explain why arbitrary near-node tolerances may silently change the interpolant.",
+      "Use a Markdown table to compare equispaced nodes and Chebyshev nodes for a clearly defined Runge-function example. Include node count, maximum sampled error and the exact evaluation grid; distinguish sampled errors from proven suprema.",
+      "Explain the Lebesgue function and derive an interpolation-error bound. Distinguish approximation error, conditioning with respect to data, and numerical stability of an evaluation algorithm.",
+      "Add deterministic verification cases for constant and linear data, input permutation, large common weight scaling and query values at or near nodes. Discuss overflow, underflow and why an implementation should avoid explicitly expanding polynomial coefficients.",
+      "Write a long synthesis report connecting the exact derivation, executable checks and floating-point experiments. Include a bilingual Chinese-English terminology table and explain when piecewise interpolation is preferable to one high-degree polynomial."
     ]
   },
   {
-    "id": "textile_periodic_weave_interlacement",
-    "title": "Periodic textile weaves: interlacement, floats and repeat geometry",
-    "domain": "textile_periodic_weave_geometry",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Synthetic warp/weft repeat diagrams, modular indexing, reproducible float analysis and structural comparison.",
-    "turns": [
-      "Generate an educational image of an invented 8 by 8 warp/weft weave repeat: distinguish blue warp and orange weft, show a top view and a small side view, use a clean white background. Keep the image conceptual rather than asserting measured fabric properties. Explain the meaning of over/under intersections in English.",
-      "Define a binary interlacement matrix W_ij using LaTeX and derive modular constructions for plain weave, a 2/2 twill and a 5-end satin. State coordinate conventions and how the repeat is tiled without phase discontinuities.",
-      "Write standalone Python code to generate these matrices and compute the longest cyclic warp and weft floats. Include deterministic checks for row and column wraparound and explain the time complexity.",
-      "Use a Markdown table to compare the three synthetic patterns by repeat size, interlacement density, float lengths and directional symmetry. Explain which quantities are purely geometric and which physical properties would require measurements.",
-      "Write a complete methodological report connecting the generated illustration to the matrix conventions, identifying possible diagram ambiguities, and proposing reproducible tests for translation invariance, phase choices and cyclic float analysis. Include English and Chinese terminology."
-    ]
-  },
-  {
-    "id": "stoichiometric_network_conservation_nullspace",
-    "title": "Stoichiometric conservation: nullspaces and reaction-network bookkeeping",
-    "domain": "chemistry_stoichiometric_conservation_networks",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "description": "Abstract synthetic reaction networks with exact linear algebra, conservation laws and reproducible numerical diagnostics.",
-    "turns": [
-      "For a purely abstract network A+B -> C and 2C -> D, define the stoichiometric matrix N with species as rows and reactions as columns. Use LaTeX to derive dx/dt=Nv and distinguish left-nullspace conservation laws from right-nullspace reaction cycles. Do not give laboratory procedures.",
-      "Compute the rank and exact left nullspace by hand, state a basis and verify each conservation law directly. Explain why a basis vector can contain signed coefficients while physically interpretable conserved totals may require nonnegative weights.",
-      "Provide standalone Python code using fractions.Fraction for exact row reduction, nullspace extraction and verification. Add deterministic tests for redundant reactions, disconnected species and a zero column, without relying on external packages.",
-      "Use a Markdown table to compare the original abstract network with one having a redundant reverse reaction and one including a bookkeeping sink. Show species count, reaction count, rank, left-nullspace dimension and right-nullspace dimension.",
-      "Write a long mathematical validation report on conservation, nonnegative state constraints, numerical rank tolerances and the difference between stoichiometric feasibility and kinetic behavior. Include reproducible pseudocode, counterexamples and a bilingual glossary."
-    ]
-  },
-  {
-    "id": "acoustics_room_modal_superposition",
-    "title": "Room acoustics: modal superposition and damping",
-    "domain": "acoustics_rectangular_cavity_modes",
+    "id": "botany_phyllotaxis_golden_angle_spiral_sampling",
+    "title": "Phyllotaxis: golden-angle sampling and geometric evidence",
+    "domain": "botany_phyllotaxis_geometry",
     "features": [
       "imagen",
       "multimodal",
       "math",
       "latex",
       "code",
-      "tables",
-      "algorithms"
+      "tables"
     ],
     "turns": [
-      "Generate an original annotated cutaway illustration of a rectangular acoustic test chamber with three microphone positions. Explain the geometry and coordinate system for a fictional experiment.",
-      "Derive the rigid-wall cavity eigenfrequencies and pressure mode shapes using LaTeX. Define every variable and identify degeneracies in a chamber with dimensions 4 m by 3 m by 2.5 m.",
-      "Write complete Python code to enumerate the first 30 nonzero modes, group nearby frequencies and evaluate normalized microphone responses. Include assertions for index bounds and permutation symmetry.",
-      "Use a Markdown table to compare uniform and mode-dependent damping models, measurement placement and the observability of symmetric modes. Explain limitations of each assumption.",
-      "Develop a long reproducible validation report for synthetic impulse responses, including sampling rates, frequency resolution, damping estimates, noisy peak separation and failure diagnostics. Show the uncertainty calculations."
+      "Generate an actual original image using Imagen: an educational botanical plate comparing a sunflower-like seed head and a schematic spiral point pattern. Distinguish a biological observation from a mathematical construction, label radial and angular coordinates, and do not claim that the drawing proves an exact Fibonacci count.",
+      "Define a deterministic planar phyllotaxis model with radius proportional to the square root of the seed index and constant golden-angle increments. Derive the golden angle in LaTeX and explain area density, coordinate conventions and the role of continued-fraction approximations.",
+      "Write complete runnable standard-library Python generating the coordinates and computing exact-index invariants plus numerical nearest-neighbor distances. Include assertions for empty and single-point inputs, duplicate indices, rotation invariance and deterministic output; explain which quantities require floating-point tolerances.",
+      "Use a Markdown table to compare golden-angle sampling, a rational angular increment and seeded random angular increments on the same radial law. Report clearly defined nearest-neighbor statistics, boundary handling and sample size, distinguishing measured statistics from mathematical guarantees.",
+      "Write a detailed reproducibility report linking the botanical illustration, geometric model, code and experiments. Discuss parastichy counting, finite-size effects, biological variability, measurement uncertainty and why visual resemblance alone cannot establish a growth mechanism. Include a Chinese-English terminology table."
     ]
   },
   {
-    "id": "combinatorics_matrix_tree_spanning_trees",
-    "title": "Spanning trees: Laplacian cofactors and exact counts",
-    "domain": "combinatorics_matrix_tree_theorem",
+    "id": "distributed_systems_vector_clocks_causal_delivery",
+    "title": "Causal delivery: vector clocks and independently checked traces",
+    "domain": "distributed_systems_logical_clocks",
     "features": [
       "math",
       "latex",
@@ -393,11 +113,282 @@
       "algorithms"
     ],
     "turns": [
-      "Derive the matrix-tree theorem for an undirected weighted graph using LaTeX and a small four-vertex example. Distinguish the Laplacian, reduced Laplacian and tree edge products.",
-      "Calculate the exact tree count for that graph by two independent methods: a reduced determinant and explicit tree enumeration. Show every intermediate integer and connectivity check.",
-      "Write complete Python code using exact rational or integer arithmetic for the determinant and a brute-force oracle on small graphs. Include disconnected, parallel-edge and single-vertex cases.",
-      "Compare cofactor evaluation, deletion-contraction and enumeration in a Markdown table. Derive how changing one edge weight affects the weighted sum and state assumptions for effective resistance.",
-      "Write a long verification report with fixed graph fixtures, random small-graph cross-checks, complexity analysis, numerical failure modes and a reproducible exact-arithmetic audit checklist."
+      "Construct a fictional three-process message trace with local events, sends and receives. Define Lamport's happens-before relation and vector-clock comparison in LaTeX, stating the delivery and process assumptions.",
+      "Derive the vector-clock update rules and compute every event's timestamp for the trace. Include at least one concurrent pair and one causal pair, explaining why a scalar logical clock cannot fully distinguish them.",
+      "Write complete runnable standard-library Python simulating vector clocks and a causal-delivery buffer under a deterministic out-of-order network schedule. Validate message identity, sender sequence numbers and dependency satisfaction, with assertions for duplicates, delayed prerequisites and malformed vectors.",
+      "Build a separate graph-reachability oracle for the finite event trace and compare its causal relation with componentwise vector-clock comparisons. Use a Markdown table to show representative event pairs, graph reachability, timestamps and concurrency classification.",
+      "Write a long verification report distinguishing causality, real time, total ordering and delivery order. Discuss dynamic membership, failed processes, storage cost, garbage collection assumptions and reproducible counterexamples to incorrect clock-comparison rules."
+    ]
+  },
+  {
+    "id": "optics_fermat_refraction_stationary_path",
+    "title": "Fermat paths: refraction geometry and stationary travel time",
+    "domain": "geometrical_optics_variational_paths",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational image of a light ray crossing a straight boundary between two transparent media. Show the normal, incident and refracted angles and two fixed endpoints. Use an idealized schematic and distinguish ray geometry from a wavefront illustration.",
+      "Derive Snell's law from stationary travel time for two positive refractive indices and fixed endpoints on opposite sides of a planar interface. Use LaTeX, state the angle convention and explain the limits of the geometric-optics model.",
+      "Write complete runnable standard-library Python finding the crossing point by a bracketed scalar solve. Include endpoint validation, equal-index straight-line checks, mirrored-geometry symmetry and a separate finite-difference derivative check with explicit tolerances.",
+      "Use a Markdown table comparing several fictional index pairs and endpoint geometries. Report crossing point, angles, travel time and the Snell residual with consistent units. Explain why this opposite-side transmission problem does not exhibit total internal reflection.",
+      "Write a detailed verification report connecting the illustration, variational derivation and numerical checks. Discuss uniqueness for this geometry, discretization error, phase versus group index, dispersion, interface assumptions and what would change for multiple layers. Include a Chinese-English terminology table."
+    ]
+  },
+  {
+    "id": "information_theory_exact_arithmetic_coding",
+    "title": "Arithmetic coding: exact intervals and reproducible decoding",
+    "domain": "information_theory_lossless_coding",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define arithmetic coding for a finite alphabet with fixed positive integer frequencies. Derive the nested half-open interval update in LaTeX and encode a short example using exact rational arithmetic, specifying termination and message-length information.",
+      "Derive a deterministic algorithm selecting a finite binary fraction strictly inside the final interval. Explain interval endpoint conventions, prefix ambiguity and why a complete decoder needs a length or end marker.",
+      "Write complete runnable standard-library Python using fractions.Fraction for exact encoding and decoding with a supplied message length. Validate symbol tables and add executable tests for empty messages, repeated symbols, unknown symbols and invalid code points.",
+      "Build fixed-seed differential tests over short strings and small frequency tables. Use a Markdown table reporting final interval width, chosen binary length, empirical symbol frequencies and ideal information length, distinguishing code overhead from entropy.",
+      "Write a long reproducibility report including proofs of interval nesting and round-trip decoding, complete code and counterexamples for incorrect upper-bound handling. Discuss finite-precision range coding, renormalization, model synchronization and practical memory limits without implying that rational arithmetic is a production compression format."
+    ]
+  },
+  {
+    "id": "materials_binary_phase_diagram_lever_rule",
+    "title": "Binary phase equilibria: tie lines and lever-rule verification",
+    "domain": "materials_science_binary_phase_equilibria",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables"
+    ],
+    "turns": [
+      "Generate an original educational image of a fictional isomorphous binary alloy phase diagram. Include temperature and composition axes, liquidus and solidus curves, a two-phase region and one horizontal tie line. Mark all values as synthetic and do not claim that the diagram represents a real alloy.",
+      "Define a simple synthetic liquidus and solidus model with explicit units and monotonicity assumptions. Derive the lever rule from component mass conservation in LaTeX, explaining the difference between mass and mole fractions.",
+      "Write complete runnable standard-library Python computing phase fractions for an admissible tie line. Validate phase endpoint ordering and bulk composition, and add assertions for pure phase boundaries, conservation residuals and rejected extrapolation.",
+      "Use a Markdown table comparing several synthetic temperatures and bulk compositions. Report tie-line endpoints, phase fractions and conservation residuals. Explain why the phase compositions vary with temperature while the bulk composition remains fixed.",
+      "Write a detailed reproducibility report connecting the illustrative diagram and the numerical model. Discuss equilibrium assumptions, diffusion kinetics, metastability, sampling errors, inconsistent thermodynamic data and why an educational image does not substitute for measured phase boundaries. Include a Chinese-English glossary."
+    ]
+  },
+  {
+    "id": "automata_epsilon_nfa_subset_construction",
+    "title": "Finite automata: epsilon closure and independently verified determinization",
+    "domain": "formal_languages_automata_determinization",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a small epsilon-NFA over a two-symbol alphabet with both epsilon cycles and nondeterministic transitions. Define its accepted language and epsilon-closure semantics in LaTeX, including empty-input acceptance.",
+      "Derive subset construction step by step and show all reachable DFA states for the example. Specify the dead state, accepting-state rule and deterministic state naming, with a Markdown transition table.",
+      "Write complete runnable standard-library Python implementing epsilon closure, NFA simulation and reachable-subset DFA construction. Validate state references and alphabet labels; include executable tests for epsilon cycles, empty input, missing transitions and unreachable states.",
+      "Implement a separate bounded exhaustive language-equivalence oracle and compare the NFA and DFA on every word up to a chosen length. Report state counts, accepted word counts and counterexample traces in Markdown tables, distinguishing bounded tests from a general proof.",
+      "Write a long verification report proving the reachable-subset invariant by induction. Analyze worst-case state explosion, memoization choices and reproducibility, then explain how a product-automaton search can establish equivalence beyond bounded enumeration. Include complete deterministic code and limitations."
+    ]
+  },
+  {
+    "id": "signal_processing_fir_window_frequency_audit",
+    "domain": "signal_processing_discrete_fir_filter",
+    "title": "FIR filters: convolution, windowed design and frequency-response verification",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define discrete convolution and the frequency response of a finite impulse response filter using LaTeX. Work through a short real-valued signal and explicitly distinguish linear and circular convolution.",
+      "Derive a windowed-sinc low-pass FIR design with an odd number of coefficients. Explain symmetry, group delay, cutoff conventions and the removable singularity at the center tap; state every normalization assumption.",
+      "Write complete runnable Python using only the standard library to compute the coefficients, direct convolution and a discrete frequency-response grid. Include impulse, constant-input, symmetry and DC-gain assertions with numerical tolerances.",
+      "Compare rectangular, Hann, Hamming and Blackman windows in a Markdown table with measured or qualified tradeoffs rather than invented exact constants. Include an English and Chinese glossary and explain transition-width versus attenuation choices.",
+      "Produce a reproducible validation report on a two-tone signal with a deterministic seed. Include equations, code, an ASCII response diagram and a Markdown table of passband and stopband errors; separate finite-grid measurements from guaranteed bounds."
+    ]
+  },
+  {
+    "id": "numerical_qr_householder_least_squares_audit",
+    "domain": "numerical_linear_algebra_qr_least_squares",
+    "title": "Least squares: Householder QR, conditioning and residual certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an overdetermined real least-squares problem using LaTeX and derive its projection and residual orthogonality conditions. Use a small exactly specified full-rank example with rational entries.",
+      "Derive a numerically stable Householder reflector with an explicit sign convention and explain the zero-vector case. Work through one elimination step and track both the matrix and right-hand side.",
+      "Provide complete runnable Python standard-library code for thin QR and least-squares solution, avoiding explicit normal-equation inversion. Add tests for reconstruction, orthogonality and residual orthogonality.",
+      "Construct a nearly dependent two-column example and explain conditioning versus backward stability. Derive why normal equations can square the condition number without claiming that QR removes intrinsic ill-conditioning.",
+      "Compare classical Gram-Schmidt, modified Gram-Schmidt, Householder QR and normal equations in a Markdown table covering computational cost, storage and failure modes. Include English and Chinese terminology.",
+      "Extend the audit to detect rank deficiency conservatively. Explain what unpivoted QR can and cannot certify, give reproducible examples, and distinguish a numerical threshold from an exact rank proof.",
+      "Design deterministic tests for zero columns, repeated columns, extreme scales and perturbed observations. Give runnable code and a results table computed from those test definitions, marking any unexecuted outputs explicitly.",
+      "Write a methods report with all assumptions, stopping tolerances, dimensional conventions and reproducibility instructions. Include a compact pseudocode algorithm, a LaTeX error certificate and a table separating mathematical guarantees from empirical diagnostics."
+    ]
+  },
+  {
+    "id": "acoustics_waveguide_helmholtz_cutoff_modes",
+    "domain": "acoustics_duct_waveguide_modes",
+    "title": "Acoustic waveguides: Helmholtz modes, cutoff frequencies and impedance termination",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate the two-dimensional time-harmonic Helmholtz equation for a rigid-walled rectangular acoustic duct using LaTeX. Derive the transverse eigenfunctions, axial propagation constants and cutoff frequencies for the lowest modes.",
+      "Distinguish propagating and evanescent modes above and below cutoff. Derive the complex acoustic impedance and time-averaged axial power flow for a single mode with explicit physical units.",
+      "Write complete runnable Python using only the standard library to compute modal cutoffs, axial wavenumbers and pressure profiles across a discrete grid, including assertions for orthogonality and evanescent decay.",
+      "Compare plane-wave propagation, higher-order propagating modes and evanescent cutoff modes in a Markdown table covering phase velocity, group velocity, attenuation and energy transport. Include an English and Chinese glossary.",
+      "Design a reproducible multi-mode reflection and transmission audit for a duct termination with finite wall admittance. Provide equations, runnable verification tests and a Markdown summary table separating exact modal identities from truncation error."
+    ]
+  },
+  {
+    "id": "cryptography_shamir_secret_sharing_finite_fields",
+    "domain": "cryptography_threshold_secret_sharing",
+    "title": "Threshold cryptography: Shamir secret sharing, Lagrange interpolation and cheater detection",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a (k, n) threshold secret-sharing scheme over a prime finite field GF(p) using LaTeX. State the correctness and information-theoretic privacy conditions for k-1 shares with a concrete small prime example.",
+      "Derive Lagrange basis polynomials in modular arithmetic and show how evaluation at zero reconstructs the secret without recovering all polynomial coefficients. Explain why arithmetic over the reals fails to provide perfect secrecy.",
+      "Provide complete runnable Python standard-library code for finite-field inversion, share generation and threshold reconstruction, with deterministic tests for valid subsets, insufficient shares and distinct evaluation points.",
+      "Compare additive secret sharing, Shamir polynomial sharing and verifiable secret sharing in a Markdown table across communication overhead, threshold flexibility, algebraic assumptions and fault tolerance. Include English and Chinese terminology.",
+      "Construct a reproducible audit for corrupted share detection using redundant evaluations and syndrome checks. Include LaTeX proof sketches, runnable test cases and a results table distinguishing detectable tampering from forged shares."
+    ]
+  },
+  {
+    "id": "thermodynamics_chemical_equilibrium_gibbs_stoichiometry",
+    "domain": "chemical_thermodynamics_reaction_equilibria",
+    "title": "Reaction thermodynamics: Gibbs free energy minimization, extent of reaction and equilibrium constants",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate the reaction extent and stoichiometric conservation laws for a closed ideal-gas mixture using LaTeX. Derive the chemical affinity and the Gibbs free energy minimization condition at constant temperature and pressure.",
+      "Derive the relationship between the standard Gibbs free energy change, the dimensionless equilibrium constant and reaction quotient. Work through a concrete reversible gas-phase dissociation example as a function of total pressure.",
+      "Write complete runnable Python using only the standard library to solve for the equilibrium reaction extent via bisection and Newton steps, including assertions for elemental mass balance, positivity of mole fractions and vanishing chemical affinity.",
+      "Compare stoichiometric extent-of-reaction solvers, Lagrange-multiplier elemental-potential minimization and linearized van 't Hoff approximations in a Markdown table covering numerical conditioning, constraints and applicability. Include an English and Chinese glossary.",
+      "Design a reproducible sensitivity audit for coupled reactions under temperature and inert-diluent perturbations. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact thermodynamic identities from ideal-gas assumptions."
+    ]
+  },
+  {
+    "id": "coding_theory_hamming_syndrome_decoding_cosets",
+    "domain": "coding_theory_linear_block_codes",
+    "title": "Linear block codes: parity-check matrices, syndrome decoding and standard-array coset leaders",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a binary [n, k, d] linear block code over GF(2) using generator and parity-check matrices in LaTeX. Prove the orthogonality relation between codewords and parity checks using a concrete [7, 4, 3] Hamming code example.",
+      "Derive syndrome decoding and standard-array coset decomposition. Show why single-bit errors map bijectively to nonzero syndromes in a [7, 4, 3] Hamming code and analyze what happens when a weight-two error occurs.",
+      "Provide complete runnable Python standard-library code for GF(2) encoding, syndrome calculation, single-error correction and extended SECDED parity checking, with exhaustive tests over all 1-bit and 2-bit error patterns.",
+      "Compare repetition codes, [7, 4, 3] Hamming codes, extended [8, 4, 4] SECDED codes and CRC error-detection codes in a Markdown table across code rate, minimum distance, correction capability and syndrome complexity. Include English and Chinese terminology.",
+      "Construct a reproducible channel-error audit comparing uncoded transmission, Hamming correction and SECDED detection+retransmission across bit-flip probabilities. Include LaTeX frame-error equations, runnable tests and a Markdown results table."
+    ]
+  },
+  {
+    "id": "fluid_mechanics_pipe_network_hardy_cross_conservation",
+    "domain": "fluid_mechanics_hydraulic_pipe_networks",
+    "title": "Hydraulic pipe networks: nodal mass balance, Darcy-Weisbach head loss and Hardy-Cross loop corrections",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate steady incompressible flow in a looped pipe network using LaTeX. State the nodal continuity equations, loop head-loss compatibility conditions and the Darcy-Weisbach resistance law for a concrete two-loop network.",
+      "Derive the Newton-Raphson Hardy-Cross loop-flow correction formula and explain why the signed quadratic resistance derivative remains strictly positive for non-zero flows.",
+      "Write complete runnable Python using only the standard library to solve a two-loop hydraulic network via Hardy-Cross iterations, with assertions for nodal conservation, loop head-loss closure and monotonic residual reduction.",
+      "Compare Hardy-Cross loop methods, nodal-head Newton solvers and linear-theory methods in a Markdown table covering Jacobian structure, initial-guess requirements and convergence rate. Include an English and Chinese glossary.",
+      "Design a reproducible hydraulic verification report under demand perturbations and valve throttling. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact conservation invariants from empirical friction correlations."
+    ]
+  },
+  {
+    "id": "celestial_mechanics_kepler_anomaly_symplectic_integrators",
+    "domain": "celestial_mechanics_orbital_dynamics",
+    "title": "Orbital mechanics: Kepler equation, eccentric anomaly and symplectic Störmer-Verlet integration",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive Kepler's equation relating mean anomaly, eccentric anomaly and true anomaly for an elliptical orbit using LaTeX. Prove uniqueness of the root for eccentricity in [0, 1) and work through a concrete bound-orbit example.",
+      "Compare fixed-point iteration and Newton-Raphson root finding for Kepler's equation, and derive the second-order symplectic Störmer-Verlet (leapfrog) scheme for the planar two-body Hamiltonian.",
+      "Provide complete runnable Python standard-library code for solving Kepler's equation and integrating a planar elliptical orbit with both explicit Euler and symplectic leapfrog, asserting bounded energy and exact angular-momentum conservation for leapfrog.",
+      "Compare analytical Kepler propagation, symplectic leapfrog, classical fourth-order Runge-Kutta and explicit Euler in a Markdown table across phase-space volume preservation, secular energy drift and per-step cost. Include English and Chinese terminology.",
+      "Construct a reproducible multi-orbit numerical audit across eccentricities. Include LaTeX invariant equations, runnable tests and a Markdown results table comparing energy and angular-momentum errors over ten orbital periods."
+    ]
+  },
+  {
+    "id": "heat_transfer_transient_slab_fourier_biot",
+    "domain": "heat_transfer_transient_conduction",
+    "title": "Transient heat conduction: Biot number, Fourier series eigenmodes and Crank-Nicolson stability",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate one-dimensional transient heat conduction in a plane wall with convective boundary conditions using LaTeX. Nondimensionalize the PDE and boundary conditions to define the Fourier and Biot numbers.",
+      "Derive the separation-of-variables eigenfunction expansion and the transcendental eigenvalue equation tan(lambda_n) = Bi / lambda_n. Explain the lumped-capacitance limit as Bi approaches zero.",
+      "Write complete runnable Python using only the standard library to solve for the first five eigenvalues by bisection and compare the analytical series against a Crank-Nicolson finite-difference solver, asserting energy balance and symmetry.",
+      "Compare lumped capacitance, one-term Fourier approximation, explicit FTCS and Crank-Nicolson schemes in a Markdown table across Biot-number validity, time-step stability and truncation order. Include an English and Chinese glossary.",
+      "Design a reproducible thermal verification report across Biot regimes. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating analytical bounds from grid discretization error."
+    ]
+  },
+  {
+    "id": "graph_spectral_fiedler_cheeger_conductance",
+    "domain": "spectral_graph_theory_conductance",
+    "title": "Spectral graph theory: algebraic connectivity, Fiedler vectors and Cheeger conductance bounds",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define the combinatorial and normalized graph Laplacians for an undirected weighted graph using LaTeX. Prove positive semidefiniteness via the quadratic form and interpret the multiplicity of the zero eigenvalue.",
+      "State the Rayleigh-Ritz characterization of the Fiedler eigenvalue (algebraic connectivity) and the Cheeger inequality relating cut conductance to the second smallest Laplacian eigenvalue.",
+      "Provide complete runnable Python standard-library code to construct graph Laplacians, compute the Fiedler vector via deflated power/inverse iteration on small graphs and evaluate sweep-cut conductance with exact assertions on path and barbell graphs.",
+      "Compare exhaustive min-cut enumeration, spectral sweep cuts, Kernighan-Lin refinement and max-flow min-cut in a Markdown table covering approximation guarantees, computational complexity and balanced-cut behavior. Include English and Chinese terminology.",
+      "Construct a reproducible graph-partitioning audit on synthetic bottleneck graphs. Include LaTeX proof sketches, runnable test cases and a Markdown results table comparing exact conductance against Cheeger lower and upper bounds."
     ]
   }
 ]

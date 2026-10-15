@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,9 +11,9 @@ import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseL
 import type { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
 function item(id: string): ConversationListItem {
-    return { id, title: id, titleSource: 'rpc', titles: { rpc: id },
+    return indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id },
         createdAt: null, updatedAt: null, chatTime: null, timestamp: null,
-        messageCount: 0, url: `https://gemini.google.com/app/${id}` };
+        messageCount: 0, url: `https://gemini.google.com/app/${id}` });
 }
 function page(ids: string[], nextPageToken: string | null = null): ListParseResult {
     return { conversations: ids.map(item), nextPageToken };

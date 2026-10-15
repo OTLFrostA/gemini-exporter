@@ -1,17 +1,16 @@
+import { indexFromParsed } from '../core/compatibility/index/parseIndex.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import { extractBlockText } from '../core/domain/content/unknownFallback.js';
 import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
 import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
 import type { ContentConversationDetail, DomDetailDebug, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
-import type { normalizeReliableTitleSource, TitleResolutionInput } from '../core/utils/titleUtils.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import { SyncEngine } from './syncEngine.js';
 import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
 import { StorageService } from '../core/storage/storageService.js';
-import { GeminiUtils, getErrorMessage, resolveDetailTitle as defaultResolveDetailTitle } from '../core/utils/utils.js';
+import { getErrorMessage } from '../core/utils/utils.js';
 import { normId } from '../core/utils/pathUtils.js';
 import { isRateLimited } from '../core/engine/export/rateLimiter.js';
 import { isConfirmedDeletedError } from '../core/protocol/protocol.js';
@@ -35,33 +34,18 @@ export interface MessageRouterDeps {
     scraper?: typeof DomScraper | null;
     assets?: typeof AssetFetcher | null;
     storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
-    utils?: (Partial<Pick<typeof GeminiUtils, 'cleanTitle' | 'isRealTitle' | 'setTitleBySource' | 'resolveDetailTitle'>> & { normalizeReliableTitleSource?: typeof normalizeReliableTitleSource }) | null;
 }
 
 export function init({
     syncEngine = SyncEngine,
     scraper = DomScraper,
     assets = AssetFetcher,
-    storage = StorageService,
-    utils = GeminiUtils
+    storage = StorageService
 }: MessageRouterDeps = {}): void {
     const Sync = syncEngine;
     const Scraper = scraper;
     const Assets = assets;
     const Storage = storage;
-    const Utils = utils;
-
-    const cleanTitle = (t?: string | null) => (Utils?.cleanTitle ? Utils.cleanTitle(t || '') : (t || '').trim());
-    const isRealTitle = (t?: string | null, id?: string) => (Utils?.isRealTitle ? Utils.isRealTitle(t || '', id) : !!(t && String(t).trim().length > 1));
-    const setTitleBySource = (it: TitleResolutionInput, src: string, val: string) => {
-        if (Utils?.setTitleBySource) return Utils.setTitleBySource(it, src, val);
-        const rel = Utils?.normalizeReliableTitleSource ? Utils.normalizeReliableTitleSource(src) : undefined;
-        if (rel && it) {
-            (it.titles = it.titles || {})[rel] = val;
-        }
-    };
-    const resolveDetailTitle = (msgs: Array<{ role: string; content: string }>, id?: string) => (Utils?.resolveDetailTitle ? Utils.resolveDetailTitle(msgs, id) : defaultResolveDetailTitle(msgs, id));
-
     async function recordCloudDeletion(slot: string, cid: string): Promise<void> {
         // Side effects must never suppress the confirmed deletion returned to exporters.
         try {
@@ -167,43 +151,21 @@ export function init({
                 return true;
             }
             void (async () => {
-                async function persistDetailTitle(chatObj: ContentConversationDetail): Promise<void> {
+                async function persistDetailIndex(chatObj: ContentConversationDetail): Promise<void> {
                     if (!chatObj) return;
                     await persistNativeConversation(detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0'), chatObj);
-                    const chat = { ...chatObj.conversation };
-                    const nid = normId(cid || chat.id);
-                    chat.title = cleanTitle(chat.title);
-                    let detectedSource = chat.titleSource || 'rpc';
-                    if (!isRealTitle(chat.title, nid) && Array.isArray(chat.messages)) {
-                        const sniffed = resolveDetailTitle(chat.messages.map(message => ({ role: message.role, content: message.content.map(block => extractBlockText(block)).join('\n\n') })), nid);
-                        if (sniffed) {
-                            chat.title = sniffed.title;
-                            detectedSource = sniffed.source;
-                        }
-                    }
-                    if (!isRealTitle(chat.title, nid)) return;
+                    const nid = chatObj.conversation.id;
                     const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                     try {
-                        // SSOT: single-item title update runs inside the cross-tab
-                        // conversation lock via updateConversation. The old shape
-                        // (read list outside the lock, mutate, blind setConversations)
-                        // could clobber a concurrent tab's sync (lost update), and
-                        // bypassed nothing here since setTitleBySource already
-                        // arbitrates through the title tiers.
+                        // Native acquisition has already resolved title uncertainty.
+                        // Apply its metadata under the conversation lock.
                         if (Storage && typeof Storage.updateConversation === 'function') {
-                            await Storage.updateConversation(slot, nid, (current) => {
-                                if (!current) return null;
-                                const item: StoredObject = { ...current, titles: { ...readStoredObject(current.titles || {}) } };
-                                const beforeTitle = item.title;
-                                const beforeSource = item.titleSource;
-                                const titleTarget: Record<string, unknown> = item;
-                                setTitleBySource(titleTarget, detectedSource, chat.title);
-                                if (item.title === beforeTitle && item.titleSource === beforeSource) return null;
-                                return { title: item.title, titleSource: item.titleSource, titles: item.titles };
-                            });
+                            const index = indexFromParsed(chatObj);
+                            await Storage.updateConversation(slot, nid, { title: index.title, titleSource: index.titleSource,
+                                updatedAt: index.updatedAt, messageCount: index.messageCount });
                         }
                     } catch (err) {
-                        console.warn('[Gemini Exporter] persistDetailTitle error', err);
+                        console.warn('[Gemini Exporter] persistDetailIndex error', err);
                     }
                 }
 
@@ -213,7 +175,7 @@ export function init({
                     if (provider) {
                         const detail = await provider.fetchConversationDetail(cid, { targetSid: detailMsg.targetSid || null });
                         if (detail && isResourceConversationParseResult(detail) && detail.conversation.messages.length > 0) {
-                            await persistDetailTitle(detail);
+                            await persistDetailIndex(detail);
                             respondDetail({ success: true, data: detail, source: 'batchexecute' });
                             return;
                         } else if (detail) {
@@ -256,7 +218,7 @@ export function init({
                     if (Scraper) {
                         const chat = await Scraper.contentFetchChatDetail(cid);
                         if (chat && isResourceConversationParseResult(chat) && chat.conversation.messages.length > 0) {
-                            await persistDetailTitle(chat);
+                            await persistDetailIndex(chat);
                             respondDetail({ success: true, data: chat, source: 'dom' });
                             return;
                         } else {

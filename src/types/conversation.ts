@@ -128,27 +128,5 @@ export interface Turn {
     structuredContent?: unknown;
 }
 
-export interface Conversation {
-    id: string;
-    title: string;
-    timestamp: number | null;
-    updatedAt?: number | string | null;
-    createdAt?: number | string | null;
-    chatTime?: number | string;
-    lastSeen?: number | string;
-    source?: string;
-    titleSource?: TitleSource | string;
-    titles?: TitleSources;
-    messages?: ChatMessage[];
-    turns?: Turn[];
-    accountSlot?: string;
-    isTakeoutOnly?: boolean;
-    cloudAvailability?: 'deleted' | 'unlisted';
-    hitGoogleLimit?: boolean;
-    url?: string;
-    attachmentCount?: number;
-    messageCount?: number;
-    href?: string;
-    sidebarIndex?: number;
-    hasExplicitPrompt?: boolean;
-}
+export type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
+export type { DomainConversation, DomainConversationBody } from '../core/domain/conversation.js';

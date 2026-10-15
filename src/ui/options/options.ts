@@ -43,7 +43,6 @@ export function renderLog(): void {
 
 export const compareConversations = (a: Parameters<typeof OptionsInit.compareConversations>[0], b: Parameters<typeof OptionsInit.compareConversations>[1]) => (OptionsInit && OptionsInit.compareConversations ? OptionsInit.compareConversations(a, b) : 0);
 
-export const isBad = (t: string | null | undefined, id?: string | null) => (OptionsInit && OptionsInit.isBad ? OptionsInit.isBad(t, id) : false);
 
 // Delegates checkPendingTakeoutPrompt (gemini_pending_takeout_prompt) to OptionsTakeout
 export async function checkPendingTakeoutPrompt(): Promise<void> {
@@ -162,7 +161,6 @@ const OptionsModule = {
     clearLog,
     renderLog,
     compareConversations,
-    isBad,
     checkPendingTakeoutPrompt,
     isTakeoutPromptCompleted,
     ConversationsStore,

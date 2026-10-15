@@ -48,7 +48,7 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
 
     // 2. Title and titles.takeout must both be synced to turn 2's prompt
     assert.strictEqual(conv.title, '什么是量子物理？');
-    assert.strictEqual(conv.titles.takeout, '什么是量子物理？');
+    assert.strictEqual(conv.titleSource, 'takeout');
 
     // 3. getTakeoutOfflineChat should find by exact ID and with c_ prefix
     const offlineChat1 = TakeoutEngine.getTakeoutOfflineChat('CaseSensitive_99');

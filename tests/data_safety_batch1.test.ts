@@ -1,3 +1,6 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -10,7 +13,7 @@ test('D1: Pagination getAllConversations sets stoppedEarly=true and exhaustive=f
         getConversationList: async () => {
             callCount++;
             return {
-                conversations: [{ id: `c_${callCount}`, title: `Chat ${callCount}` }],
+                conversations: ([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture),
                 nextPageToken: 'looping_cursor'
             };
         }
@@ -31,12 +34,12 @@ test('D1: Natural end sets stoppedEarly=false and exhaustive=true', async () => 
             callCount++;
             if (callCount === 1) {
                 return {
-                    conversations: [{ id: 'c_1', title: 'Chat 1' }],
+                    conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
                     nextPageToken: 'next_page'
                 };
             }
             return {
-                conversations: [{ id: 'c_2', title: 'Chat 2' }],
+                conversations: ([{ id: 'c_2', title: 'Chat 2' }]).map(indexFixture),
                 nextPageToken: null // Natural end
             };
         }
@@ -137,7 +140,7 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
     const StorageService = require('../src/core/storage/storageService.js');
 
     const mockStore: Record<string, any> = {
-        gemini_conversations: [{ id: 'chat_1', title: 'Chat 1' }],
+        gemini_conversations: ([{ id: 'chat_1', title: 'Chat 1' }]).map(indexFixture),
         gemini_last_count: 1,
         gemini_scan_checkpoint: 1700000000000,
         exportedIds: { 'chat_1': { status: 'ok', exportedAt: 1700000000000 } }

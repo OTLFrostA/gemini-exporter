@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -232,13 +233,13 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
     const origEngine = __getModuleOverride('TakeoutEngine');
     const origStorage = __getModuleOverride('StorageService');
     __setModuleOverride('ConversationsStore', {
-        getConversations: () => existing,
+        getConversations: () => (existing).map(indexFixture),
         getCurrentSlot: () => 'u0',
         setConversations: (list: any) => { saved = list; },
     });
     __setModuleOverride('StorageService', {
         transactConversations: async (_slot: string, updater: any) => {
-            const plan = updater(existing);
+            const plan = updater(existing.map(indexFixture));
             if (!plan) return { list: existing, changed: 0, written: false };
             saved = plan.list;
             saveCalls++;
@@ -249,11 +250,11 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
     });
     __setModuleOverride('TakeoutEngine', {
         parseTakeoutZip: async () => ({
-            conversations: [
+            conversations: ([
                 { id: 'chat-online-1', title: 'Takeout Prefix Question', titleSource: 'takeout', titles: { takeout: 'Takeout Prefix' }, messageCount: 2, updatedAt: 1000, timestamp: 1000, lastSeen: '2026-09-01T12:00:00.000Z' },
                 { id: 'chat-takeout-old', title: 'Old Takeout', titleSource: 'takeout', titles: { takeout: 'Old Takeout' }, updatedAt: 500, timestamp: 500 },
                 { id: 'chat-takeout-fresh', title: 'Fresh Takeout', titleSource: 'takeout', titles: { takeout: 'Fresh Takeout' }, updatedAt: 3000, timestamp: 3000 },
-            ],
+            ]).map(indexFixture),
             totalMediaCount: 0,
         }),
     });
@@ -270,10 +271,10 @@ test('takeoutController - merges via SSoT dedupe: same-id seeds takeout slot, ne
         assert.ok(sameId, 'same-id conversation must be merged, not dropped');
         assert.strictEqual(sameId.title, 'Online Title');
         assert.strictEqual(sameId.titleSource, 'rpc');
-        assert.strictEqual(sameId.titles && sameId.titles.takeout, 'Takeout Prefix Question');
+        assert.strictEqual(sameId.hasTakeoutImport, true);
         assert.strictEqual(sameId.messageCount, 8, 'stale takeout snapshot must not shrink messageCount');
-        assert.deepStrictEqual(sameId.messages, onlineMessages, 'stale takeout snapshot must not replace messages');
-        assert.strictEqual(sameId.lastSeen, '2026-09-10T12:00:00.000Z', 'stale takeout snapshot must not rewind lastSeen');
+        assert.deepStrictEqual(sameId.messages, undefined, 'stale takeout snapshot must not replace messages');
+        assert.strictEqual(sameId.lastSeen, undefined, 'stale takeout snapshot must not rewind lastSeen');
         assert.deepStrictEqual(
             saved.map((c: any) => c.id),
             ['chat-takeout-fresh', 'chat-online-1', 'chat-takeout-old']
@@ -294,12 +295,12 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
     const origEngine = __getModuleOverride('TakeoutEngine');
     const origStorage = __getModuleOverride('StorageService');
     __setModuleOverride('ConversationsStore', {
-        getConversations: () => existing,
+        getConversations: () => (existing).map(indexFixture),
         getCurrentSlot: () => 'u0',
     });
     __setModuleOverride('StorageService', {
         transactConversations: async (_slot: string, updater: any) => {
-            const plan = updater(existing);
+            const plan = updater(existing.map(indexFixture));
             if (!plan) return { list: existing, changed: 0, written: false };
             saveCalls++;
             return { list: plan.list, changed: plan.changed, written: true };
@@ -309,9 +310,9 @@ test('takeoutController - zero-change re-import does not rewrite the store', asy
     });
     __setModuleOverride('TakeoutEngine', {
         parseTakeoutZip: async () => ({
-            conversations: [
+            conversations: ([
                 { id: 'chat-1', title: 'Same Title', titleSource: 'takeout', titles: { takeout: 'Same Title' }, messageCount: 2, updatedAt: 1000, timestamp: 1000 },
-            ],
+            ]).map(indexFixture),
             totalMediaCount: 0,
         }),
     });

@@ -64,11 +64,11 @@ class FeatureRegistry:
         ))
         self.register(Feature(
             id="feat_imagen_multimodal",
-            domain=FeatureDomain.PAGE_CHAT,
-            name="AI Imagen 生图与附件落地",
-            description="包含生图指令的 Prompt 触发，网页成功渲染高分辨率生成图像",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="图片导出与网页内容一致性",
+            description="核对 golden 会话导出 ZIP 中每轮图片引用、实体附件与网页画面",
             critical=True,
-            prerequisites=["feat_chat_generation"]
+            prerequisites=["feat_zip_export_download"]
         ))
         self.register(Feature(
             id="feat_inpage_export_badge",

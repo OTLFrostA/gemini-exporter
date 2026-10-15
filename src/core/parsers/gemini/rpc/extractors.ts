@@ -149,7 +149,6 @@ export interface GeminiParserExtractorsModule {
     extractConversationId: (inner: unknown, turns?: unknown[]) => string;
     smartSummarizePrompt: (rawText?: string | null) => string;
     extractConversationTitle: (inner: unknown, turns?: unknown[]) => TitleResult;
-    extractMetaTitleFromTop: (top: unknown[], targetConvId?: string) => string | null;
     extractTurnTimestamp: (turnData: unknown) => number | null;
     normId: (id?: string | number | null) => string;
     cleanTitle: (rawTitle?: string | null) => string;
@@ -161,7 +160,7 @@ export interface GeminiParserExtractorsModule {
 import { GeminiUtils, normId, isRealTitle, cleanTitle } from "../../../utils/utils.js";
 import { RESEARCH_PROMPT_PREFIX_RE } from "../../../utils/titleUtils.js";
 import { GeminiProtocol } from "../../../protocol/protocol.js";
-import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithScan } from "./payload.js";
+import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.js";
 
 /**
  * Declarative Schema Specification for Google Gemini JSPB (JavaScript Protocol Buffers)
@@ -590,7 +589,7 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
                         const raw = item[0][0];
                         if (typeof raw === "string") {
                             const trimmed = raw.trim();
-                            if (/^\[cite:\s*\d+\]$/i.test(trimmed)) {
+                            if (/^\[cite:\s*\d+(?:\s*,\s*\d+)*\]$/i.test(trimmed)) {
                                 markers.add(trimmed);
                             }
                         }
@@ -691,43 +690,6 @@ import { payloadToMs, extractInnerPayload, extractCandidateValue, extractWithSca
         return { title: "未命名对话", source: "default" };
     }
 
-    function extractMetaTitleFromTop(top: unknown[], targetConvId?: string): string | null {
-        if (!Array.isArray(top)) return null;
-        const targetNid = normId(targetConvId);
-        const protocol = getProtocol();
-        const wrb = protocol ? protocol.WRB : "wrb.fr";
-        const listRpc = protocol ? protocol.RPCS.LIST : "MaZiqc";
-        const legacyListRpc = protocol ? protocol.RPCS.LEGACY_LIST : "hXcbkd";
-
-        const { inner: metaInner } = extractInnerPayload(top, {
-            wrb,
-            rpcId: [listRpc, legacyListRpc]
-        });
-
-        if (metaInner) {
-            try {
-                const metaArray = Array.isArray(metaInner) ? metaInner : [];
-                const list = Array.isArray(metaArray[1]) ? metaArray[1] :
-                    (Array.isArray(metaArray[2]) ? metaArray[2] :
-                        (Array.isArray(metaArray[0]) ? metaArray[0] : []));
-                for (let entry of list) {
-                    if (Array.isArray(entry)) {
-                        let id = entry[0];
-                        let rawTitle = entry[1];
-                        let nid = normId(id);
-                        if (!targetNid || !nid || nid === targetNid) {
-                            let cleanT = cleanTitle(rawTitle);
-                            if (isRealTitle(cleanT, nid || targetNid)) {
-                                return cleanT;
-                            }
-                        }
-                    }
-                }
-            } catch (e) { if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:extractors.ts]", e); }
-        }
-        return null;
-    }
-
     function extractTurnTimestamp(turnData: unknown): number | null {
         if (!Array.isArray(turnData)) return null;
         const candidateIndices = [
@@ -755,7 +717,6 @@ export {
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
-    extractMetaTitleFromTop,
     extractTurnTimestamp,
     normId,
     cleanTitle,
@@ -780,7 +741,6 @@ export const GeminiParserExtractors: GeminiParserExtractorsModule = {
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
-    extractMetaTitleFromTop,
     extractTurnTimestamp,
     normId,
     cleanTitle,

@@ -18,12 +18,14 @@ export function nativeExportInput(input: ChatExportInput): ResourceConversationP
     return { conversation: input, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
 export async function formatHtmlDocument(input: ChatExportInput, opts: DomainHtmlExportOptions = {}): Promise<FormattedResult> {
-    const conversation = 'conversation' in input ? nativeExportInput(input).conversation : input;
-    return { content: await exportDomainHtml(conversation, opts), ext: 'html', mime: 'text/html' };
+    const parsed = nativeExportInput(input);
+    const conversation = parsed.conversation;
+    return { content: await exportDomainHtml(conversation, { ...opts, sourceVersion: parsed.sourceVersion ?? opts.sourceVersion }), ext: 'html', mime: 'text/html' };
 }
 export async function formatMarkdownDocument(input: ChatExportInput, opts: DomainMarkdownExportOptions = {}): Promise<FormattedResult> {
-    const conversation = 'conversation' in input ? nativeExportInput(input).conversation : input;
-    return { content: await exportDomainMarkdown(conversation, opts), ext: 'md', mime: 'text/markdown' };
+    const parsed = nativeExportInput(input);
+    const conversation = parsed.conversation;
+    return { content: await exportDomainMarkdown(conversation, { ...opts, sourceVersion: parsed.sourceVersion ?? opts.sourceVersion }), ext: 'md', mime: 'text/markdown' };
 }
 export function formatContent(input: ChatExportInput, formatType: string, resources: readonly ResourceResult<ResourceDelivery>[] = []): FormattedResult {
     const result = nativeExportInput(input);

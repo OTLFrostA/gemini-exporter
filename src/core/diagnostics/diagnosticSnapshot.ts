@@ -1,3 +1,5 @@
+import { parseIndexObservation } from '../compatibility/index/parseIndex.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
 import { normId } from '../utils/pathUtils.js';
 import { isTakeoutConversation, resolveConversationExportState } from '../utils/titleUtils.js';
@@ -8,10 +10,8 @@ export interface MaskedConversationMirror {
     maskedTitle: string;
     titleLength: number;
     titleSource?: string;
-    titleTier?: number;
-    timestamp?: number;
+    createdAt?: number;
     updatedAt?: number;
-    lastSeen?: number;
     messageCount?: number;
     isTakeout: boolean;
     exportRecord: {
@@ -58,6 +58,7 @@ export interface DiagnosticSnapshot {
         };
     };
     conversationsStateMirror: MaskedConversationMirror[];
+    indexRecoveryIssues: string[];
     syncDiagnostics: any;
     lastExportSession: any;
     flightRecorder: FlightEvent[];
@@ -80,7 +81,7 @@ export function maskTitle(title?: string | null): { maskedTitle: string; titleLe
     };
 }
 
-export function explainStateDerivation(c: any, rec?: any): string {
+export function explainStateDerivation(c: DomainConversationIndex, rec?: any): string {
     if (!rec) {
         return 'No export record in storage (unexported)';
     }
@@ -93,14 +94,15 @@ export function explainStateDerivation(c: any, rec?: any): string {
     }
     const derived = resolveConversationExportState(c, rec);
     if (derived.hasNewerActivity) {
-        return 'Conversation activity advanced past export record (cTs > rTs + 2000ms grace or message count increased)';
+        return 'Source update version advanced past the saved export version, or observed message count increased';
     }
+    if (derived.needsIncrementalExport) return 'Source version is unknown; refresh is required before incremental skipping';
     return 'Export record is clean and up to date with conversation activity';
 }
 
 export interface BuildSnapshotOptions {
     slot?: string | null;
-    conversations?: any[];
+    conversations?: DomainConversationIndex[];
     exportedIds?: Record<string, any>;
     workbenchLogs?: any[];
 }
@@ -118,7 +120,16 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
 
     // Diagnostic recovery visibility: diagnostics may inspect unmigrated / corrupted raw storage to aid recovery from migration failures.
-    const convs: any[] = options.conversations || rawStorage[convKey] || (slot === 'u0' ? rawStorage.gemini_conversations_u0 : []) || [];
+    const recoveryIssues: string[] = [];
+    const rawIndexes: unknown = options.conversations ?? rawStorage[convKey] ?? (slot === 'u0' ? rawStorage.gemini_conversations_u0 : []) ?? [];
+    const convs: DomainConversationIndex[] = [];
+    if (!Array.isArray(rawIndexes)) recoveryIssues.push('Invalid index container');
+    else for (const [position, row] of rawIndexes.entries()) {
+        try {
+            try { convs.push(restoreConversationIndex(row)); }
+            catch { convs.push(parseIndexObservation(row, 'legacy')); recoveryIssues.push(`Historical index at position ${position}`); }
+        } catch { recoveryIssues.push(`Rejected index at position ${position}`); }
+    }
     const expMap: Record<string, any> = options.exportedIds || rawStorage[expKey] || {};
 
     const slotsMap = rawStorage[STORAGE_KEYS.ACCOUNT_SLOTS] || {};
@@ -135,11 +146,9 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             maskedTitle,
             titleLength,
             titleSource: c?.titleSource,
-            titleTier: c?.titleTier,
-            timestamp: c?.timestamp,
+            createdAt: c.createdAt,
             updatedAt: c?.updatedAt,
-            lastSeen: c?.lastSeen,
-            messageCount: c?.messageCount || (Array.isArray(c?.messages) ? c.messages.length : 0),
+            messageCount: c.messageCount,
             isTakeout: isTakeoutConversation(c),
             exportRecord: rec ? {
                 exportedAt: rec.exportedAt,
@@ -162,7 +171,8 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     });
 
     return {
-        diagnosticVersion: '2.0.0',
+        diagnosticVersion: '3.0.0',
+        indexRecoveryIssues: recoveryIssues,
         generatedAt: new Date().toISOString(),
         environment: {
             extensionVersion: getExtensionVersion(),

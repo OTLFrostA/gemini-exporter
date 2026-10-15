@@ -25,7 +25,7 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: initialConvs,
+        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
         exportedIds: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {
@@ -159,7 +159,7 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
         }))
       ];
       await chrome.storage.local.set({
-        gemini_conversations: convs,
+        gemini_conversations: (convs).map(canonicalIndexFixture),
         exportedIds: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {

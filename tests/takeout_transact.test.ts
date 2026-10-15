@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 // Regression tests: takeoutController's whole-table write must go through
 // StorageService.transactConversations (atomic read-merge-write, #402) instead
@@ -12,7 +13,7 @@ const assert = require('node:assert');
 
 const TakeoutController = require('../src/ui/controllers/takeoutController.js');
 
-const mkConv = (id: string, ts: number) => ({
+const mkConv = (id: string, ts: number) => indexFixture({
     id,
     title: `Title ${id}`,
     titleSource: 'takeout',
@@ -42,7 +43,7 @@ function installMocks(opts: {
 
     __setModuleOverride('ConversationsStore', {
         // Deliberately stale: captured before the other tab's write.
-        getConversations: () => opts.stale,
+        getConversations: () => (opts.stale).map(indexFixture),
         getCurrentSlot: () => 'u0',
         setConversations: (list: any[]) => { memCache = list; },
         saveConversations: async (_slot: string, list: any[]) => {
@@ -89,7 +90,7 @@ test('takeout import via transact: interleaved cross-tab write is not lost', asy
     const A = mkConv('chat-a', 1000);
     const B = mkConv('chat-b', 2000);
     const C = mkConv('chat-c', 1500);
-    const cell = { list: [{ ...A }] };
+    const cell = { list: ([{ ...A }]).map(indexFixture) };
     const mocks = installMocks({
         stale: [{ ...A }],
         cell,
@@ -120,7 +121,7 @@ test('takeout import via transact: interleaved cross-tab write is not lost', asy
 
 test('takeout zero-change re-import via transact: no write, no cache touch', async () => {
     const A = mkConv('chat-a', 1000);
-    const cell = { list: [{ ...A }] };
+    const cell = { list: ([{ ...A }]).map(indexFixture) };
     const mocks = installMocks({
         stale: [{ ...A }],
         cell,
@@ -162,5 +163,5 @@ test('planTakeoutMerge - pure planner returns null when no change and valid plan
     assert.ok(planUpdated !== null);
     assert.strictEqual(planUpdated?.addedCount, 0);
     assert.strictEqual(planUpdated?.processed.length, 1);
-    assert.strictEqual(planUpdated?.processed[0].timestamp, 5000);
+    assert.strictEqual(planUpdated?.processed[0].updatedAt, 5000);
 });

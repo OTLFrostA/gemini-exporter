@@ -432,3 +432,204 @@ test('end-to-end: wire batchexecute response -> decodeGeminiDetail -> Domain -> 
     assert.ok(typst.includes('[1]'), `Typst should display [1]`);
 });
 
+test('extractGroundingCitationMarkers accepts combined [cite:1,2] markers', () => {
+    const cand = [
+        [
+            null,
+            [['Response text with [cite:1,2]']],
+            null, null, null, null, null, null, null, null, null, null,
+            [
+                {
+                    '8': [],
+                    '44': [
+                        [['[cite:1,2]', 0], []],
+                        [['[cite: 3, 4]', 1], []],
+                        [['[cite: x]', 2], []],
+                        [['[1,2]', 3], []],
+                    ],
+                },
+            ],
+        ],
+    ];
+
+    const markers = extractGroundingCitationMarkers(cand);
+    assert.deepStrictEqual(markers.sort(), ['[cite:1,2]', '[cite: 3, 4]'].sort());
+});
+
+test('metadata-confirmed [cite:1,2] transforms to two citationRefs in order', async () => {
+    const rawConv = {
+        id: 'c-test-combo-1',
+        title: 'Combined Citation Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Both files agree[cite:1,2] on the result.',
+                groundingCitationMarkers: ['[cite:1,2]'],
+            },
+        ],
+    };
+
+    const { domain } = await parseFixture(rawConv);
+    const msg = domain.messages[0];
+    const para = msg.content[0];
+    const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(citeRefs.length, 2);
+    assert.strictEqual(citeRefs[0].label, '[1]');
+    assert.strictEqual(citeRefs[1].label, '[2]');
+    assert.notEqual(citeRefs[0].citationId, citeRefs[1].citationId);
+    assert.ok(msg.citations?.some((citation: any) => citation.id === citeRefs[0].citationId));
+    assert.ok(msg.citations?.some((citation: any) => citation.id === citeRefs[1].citationId));
+
+    const remainingText = para.children.map((c: any) => c.text || '').join('');
+    assert.ok(!remainingText.includes('cite:'));
+});
+
+test('combined marker with spaces [cite: 1, 2] transforms to two citationRefs', async () => {
+    const rawConv = {
+        id: 'c-test-combo-2',
+        title: 'Combined Citation Space Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Spaced combo[cite: 1, 2] here.',
+                groundingCitationMarkers: ['[cite: 1, 2]'],
+            },
+        ],
+    };
+
+    const { domain } = await parseFixture(rawConv);
+    const para = domain.messages[0].content[0];
+    const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(citeRefs.length, 2);
+    assert.strictEqual(citeRefs[0].label, '[1]');
+    assert.strictEqual(citeRefs[1].label, '[2]');
+});
+
+test('duplicate number inside one combined marker [cite:1,1] collapses to one citationRef', async () => {
+    const rawConv = {
+        id: 'c-test-combo-3',
+        title: 'Combined Citation Duplicate Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Duplicate combo[cite:1,1] here.',
+                groundingCitationMarkers: ['[cite:1,1]'],
+            },
+        ],
+    };
+
+    const { domain } = await parseFixture(rawConv);
+    const para = domain.messages[0].content[0];
+    const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(citeRefs.length, 1);
+    assert.strictEqual(citeRefs[0].label, '[1]');
+});
+
+test('unconfirmed [cite:1,2] (no metadata) is preserved as plain text', async () => {
+    const rawConv = {
+        id: 'c-test-combo-4',
+        title: 'Unconfirmed Combined Citation Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Unconfirmed combo [cite:1,2] stays literal.',
+            },
+        ],
+    };
+
+    const { domain } = await parseFixture(rawConv);
+    const para = domain.messages[0].content[0];
+    const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(citeRefs.length, 0);
+    const fullText = para.children.map((c: any) => c.text || '').join('');
+    assert.ok(fullText.includes('[cite:1,2]'));
+});
+
+test('only single marker confirmed: combined marker in same message remains text', async () => {
+    const rawConv = {
+        id: 'c-test-combo-5',
+        title: 'Partial Combined Confirmation Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Combo[cite:1,2] but single[cite: 1].',
+                groundingCitationMarkers: ['[cite: 1]'],
+            },
+        ],
+    };
+
+    const { domain } = await parseFixture(rawConv);
+    const para = domain.messages[0].content[0];
+    const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(citeRefs.length, 1);
+    assert.strictEqual(citeRefs[0].label, '[1]');
+    const remainingText = para.children.map((c: any) => c.text || '').join('');
+    assert.ok(remainingText.includes('[cite:1,2]'));
+});
+
+test('combined marker inside inline code is preserved while confirmed prose combo converts', async () => {
+    const rawConv = {
+        id: 'c-test-combo-6',
+        title: 'Combined Citation Code Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Code `[cite:1,2]` stays, prose[cite:1,2] converts.',
+                groundingCitationMarkers: ['[cite:1,2]'],
+            },
+        ],
+    };
+
+    const { domain } = await parseFixture(rawConv);
+    const para = domain.messages[0].content[0];
+    const inlineCode = para.children.find((c: any) => c.type === 'inlineCode');
+    assert.ok(inlineCode);
+    assert.strictEqual(inlineCode.code, '[cite:1,2]');
+    const citeRefs = para.children.filter((c: any) => c.type === 'citationRef');
+    assert.strictEqual(citeRefs.length, 2);
+});
+
+test('combined [cite:1,2] renders without cite: leak in Markdown, HTML, and Typst payload', async () => {
+    const rawConv = {
+        id: 'c-test-combo-7',
+        title: 'Combined Citation Renderer Test',
+        timestamp: 1700000000000,
+        messages: [
+            {
+                id: 'm1',
+                role: 'model',
+                content: 'Loaded both files[cite:1,2]: verified.',
+                groundingCitationMarkers: ['[cite:1,2]'],
+            },
+        ],
+    };
+
+    const { domain, document, resources } = await parseFixture(rawConv);
+
+    const md = renderDocumentMarkdown(document, resources);
+    assert.ok(!md.includes('cite:'), `Markdown should not leak cite:, got: ${md}`);
+    assert.ok(md.includes('[1]'), `Markdown should display [1], got: ${md}`);
+    assert.ok(md.includes('[2]'), `Markdown should display [2], got: ${md}`);
+
+    const html = renderDocumentHtml(document, resources).html;
+    assert.ok(!html.includes('cite:'), `HTML should not leak cite:, got: ${html}`);
+    assert.ok(html.includes('[1]'), `HTML should display [1]`);
+    assert.ok(html.includes('[2]'), `HTML should display [2]`);
+
+    const typstJson = JSON.stringify(renderTypstFixture(document, resources).payload);
+    assert.ok(!typstJson.includes('cite:'), `Typst payload should not leak cite:, got: ${typstJson}`);
+    assert.ok(typstJson.includes('[1]'), `Typst payload should contain [1]`);
+    assert.ok(typstJson.includes('[2]'), `Typst payload should contain [2]`);
+});

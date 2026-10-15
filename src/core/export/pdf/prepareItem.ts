@@ -1,9 +1,9 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
-import type { Conversation } from '../../../types/conversation.js';
+import type { DomainConversationIndex } from '../../../types/conversation.js';
 import {
     BatchWorker,
-    resolveConversationData,
+    resolveChat,
     type FetchChatDetailResult,
     type ResolvedConversationSource,
 } from '../../engine/export/batchWorker.js';
@@ -114,6 +114,7 @@ export interface PreparedPdfItemSuccess {
     drift: ChatParseDrift;
     usedLocalSnapshot: boolean;
     messageCount: number;
+    sourceVersion?: number;
 }
 
 export interface PreparedPdfItemFailure {
@@ -128,7 +129,7 @@ export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFail
 
 export interface PreparePdfItemContext {
     source?: ResolvedConversationSource;
-    conversations?: Array<{ id: string; title?: string; cloudAvailability?: Conversation['cloudAvailability']; isTakeoutOnly?: boolean }>;
+    conversations?: DomainConversationIndex[];
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
@@ -216,7 +217,7 @@ async function prepareNativePdfItem(
     const id = source && source.providerId !== 'gemini' ? source.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');
     const listItem = context.conversations?.find(item => normId(item.id) === id);
     const rawTitle = typeof selectedItem === 'object' && 'title' in selectedItem ? selectedItem.title : undefined;
-    const title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.title) || id;
+    let title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.title) || id;
     const signal = context.signal ?? new AbortController().signal;
     const onLog = context.onLog ?? (() => {});
     const currentSlot = context.currentSlot ?? 'u0';
@@ -229,21 +230,22 @@ async function prepareNativePdfItem(
         if (fetched.ok) { parsed = fetched.chat; dataSource = fetched.source; }
         else onLog(fetched.error, 'warn');
     }
-    if (!parsed?.conversation.messages.length) {
-        const resolved = await resolveConversationData(parsed, id, listItem, context.takeoutEngine && 'getTakeoutOfflineChat' in context.takeoutEngine ? context.takeoutEngine : null, currentSlot, onLog);
-        if (isResourceConversationParseResult(resolved.result)) { parsed = resolved.result; dataSource = resolved.source; }
-    }
+    const resolved = await resolveChat(parsed, { id, title }, listItem,
+        context.takeoutEngine && 'getTakeoutOfflineChat' in context.takeoutEngine ? context.takeoutEngine : null,
+        currentSlot, undefined, onLog, { source: dataSource });
     if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-    if (!parsed?.conversation.messages.length) return { ok: false, id, title,
-        error: `[${PDF_NO_MESSAGES}] Native conversation body is unavailable`, diagnostics };
+    if (resolved.isError) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] ${resolved.errMsg}`, diagnostics };
+    parsed = resolved.chat;
+    dataSource = resolved.source;
+    title = parsed.conversation.title;
     const drift = extractChatParseDrift(parsed);
     const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
-        && !listItem?.isTakeoutOnly;
+        && !(listItem?.hasTakeoutImport && listItem.cloudAvailability !== 'available');
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);
-        const composed = composeDomainDocument({ ...parsed.conversation, title });
+        const composed = composeDomainDocument(parsed.conversation, { sourceVersion: parsed.sourceVersion });
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
@@ -266,7 +268,7 @@ async function prepareNativePdfItem(
     });
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, messageCount: document.messages.length };
+    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, sourceVersion: parsed.sourceVersion, messageCount: document.messages.length };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

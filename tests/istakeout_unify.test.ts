@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 /**
  * isTakeout 四条件判断统一回归测试。
  *
@@ -61,22 +62,22 @@ function withStubStorage() {
 test('store: reconcileWithCloud 保留 takeout+rpc 混血记录（与 hasTakeoutData 一致）', async () => {
     const restore = withStubStorage();
     try {
-        ConversationsStore.setConversations([hybrid(), pureTakeout(), pureOnline()]);
+        ConversationsStore.setConversations(([hybrid(), pureTakeout(), pureOnline()]).map(indexFixture));
         await ConversationsStore.reconcileWithCloud([], { keepTakeout: true });
         const ids = ConversationsStore.getConversations().map((c: any) => c.id);
-        assert.ok(ids.includes('c_hybrid1'), '混血记录应被保留（宽口径语义）');
-        assert.ok(ids.includes('c_takeout1'), '纯 takeout 记录应被保留');
-        assert.ok(!ids.includes('c_online1'), '纯在线记录不在云端列表时应被移除（对照组）');
+        assert.ok(ids.includes('hybrid1'), '混血记录应被保留（宽口径语义）');
+        assert.ok(ids.includes('takeout1'), '纯 takeout 记录应被保留');
+        assert.ok(!ids.includes('online1'), '纯在线记录不在云端列表时应被移除（对照组）');
     } finally { restore(); }
 });
 
 test('store: hasTakeoutData 对混血记录返回 true', () => {
-    ConversationsStore.setConversations([hybrid()]);
+    ConversationsStore.setConversations(([hybrid()]).map(indexFixture));
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 });
 
 test('storage: reconcileConversations 保留 takeout+rpc 混血记录', async () => {
-    await StorageService.setConversations('u0', [hybrid(), pureTakeout(), pureOnline()]);
+    await StorageService.setConversations('u0', ([hybrid(), pureTakeout(), pureOnline()]).map(indexFixture));
     const res = await StorageService.reconcileConversations('u0', [], { keepTakeout: true });
     assert.ok(!res.removedIds.includes('hybrid1'), '混血记录不应出现在 removedIds（宽口径语义）');
     const list = await StorageService.getConversations('u0');
@@ -89,13 +90,13 @@ test('storage: reconcileConversations 保留 takeout+rpc 混血记录', async ()
 test('helper: isTakeoutConversation 宽口径语义', () => {
     const { isTakeoutConversation } = require('../src/core/utils/titleUtils.js');
     assert.strictEqual(typeof isTakeoutConversation, 'function', 'titleUtils 应导出 isTakeoutConversation');
-    assert.strictEqual(isTakeoutConversation(hybrid()), true, 'takeout+rpc 混血 → true');
-    assert.strictEqual(isTakeoutConversation(pureTakeout()), true, 'source=takeout → true');
-    assert.strictEqual(isTakeoutConversation({ id: 'x', titleSource: 'takeout' }), true, 'titleSource=takeout → true');
-    assert.strictEqual(isTakeoutConversation({ id: 'x', isTakeoutOnly: true }), true, 'isTakeoutOnly → true');
-    assert.strictEqual(isTakeoutConversation({ id: 'x', titles: { takeout: 'T' } }), true, 'titles.takeout → true');
-    assert.strictEqual(isTakeoutConversation(pureOnline()), false, '纯在线 → false');
-    assert.strictEqual(isTakeoutConversation({ id: 'x', title: 'plain' }), false, '普通记录 → false');
+    assert.strictEqual(isTakeoutConversation(indexFixture(hybrid())), true, 'takeout+rpc 混血 → true');
+    assert.strictEqual(isTakeoutConversation(indexFixture(pureTakeout())), true, 'source=takeout → true');
+    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', titleSource: 'takeout' })), true, 'titleSource=takeout → true');
+    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', isTakeoutOnly: true })), true, 'isTakeoutOnly → true');
+    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', titles: { takeout: 'T' } })), true, 'titles.takeout → true');
+    assert.strictEqual(isTakeoutConversation(indexFixture(pureOnline())), false, '纯在线 → false');
+    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', title: 'plain' })), false, '普通记录 → false');
     assert.strictEqual(isTakeoutConversation(null), false, 'null → false');
     assert.strictEqual(isTakeoutConversation(undefined), false, 'undefined → false');
 });
@@ -105,6 +106,6 @@ test('facade: utils CJS 出口 re-export isTakeoutConversation', () => {
     // 拿到的就是 GeminiUtils 对象本身（这正是上一轮踩过的坑：CJS 实际出口）。
     const utils = require('../src/core/utils/utils.js');
     assert.strictEqual(typeof utils.isTakeoutConversation, 'function', 'utils CJS 出口应带 isTakeoutConversation');
-    assert.strictEqual(utils.isTakeoutConversation(hybrid()), true);
-    assert.strictEqual(utils.isTakeoutConversation(pureOnline()), false);
+    assert.strictEqual(utils.isTakeoutConversation(indexFixture(hybrid())), true);
+    assert.strictEqual(utils.isTakeoutConversation(indexFixture(pureOnline())), false);
 });

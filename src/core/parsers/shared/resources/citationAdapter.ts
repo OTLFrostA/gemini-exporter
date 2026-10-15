@@ -41,7 +41,7 @@ export function extractRawCitations(m: { citations?: unknown[]; sources?: unknow
 export function linkCitationMarkers(
     blocks: BlockNode[],
     citations: Citation[],
-    groundingMap?: Map<string, { citation: Citation; displayLabel: string }>,
+    groundingMap?: Map<string, { citation: Citation; displayLabel: string }[]>,
 ): void {
     const hasWebCits = citations.length > 0;
     const hasGrounding = !!(groundingMap && groundingMap.size > 0);
@@ -52,33 +52,35 @@ export function linkCitationMarkers(
         const out: InlineNode[] = [];
         for (const n of nodes) {
             if (n.type === 'text') {
-                const re = /\[(?:cite:\s*)?(\d+)\]/gi;
+                const re = /\[(?:cite:\s*)?(\d+(?:\s*,\s*\d+)*)\]/gi;
                 let last = 0;
                 let mt: RegExpExecArray | null;
                 let replaced = false;
                 while ((mt = re.exec(n.text)) !== null) {
                     const matchedStr = mt[0];
                     const isCite = /^\[cite:/i.test(matchedStr);
-                    let targetCitId: string | undefined;
-                    let targetLabel: string | undefined;
+                    let targets: { citationId: string; label: string }[] | undefined;
 
                     if (isCite) {
                         if (!hasGrounding) continue;
-                        const entry = groundingMap!.get(matchedStr) ?? groundingMap!.get(matchedStr.toLowerCase().replace(/\s+/g, ' '));
-                        if (!entry) continue;
-                        targetCitId = entry.citation.id;
-                        targetLabel = entry.displayLabel;
+                        const entries = groundingMap!.get(matchedStr) ?? groundingMap!.get(matchedStr.toLowerCase().replace(/\s+/g, ' '));
+                        if (!entries?.length) continue;
+                        targets = entries.map(entry => ({ citationId: entry.citation.id, label: entry.displayLabel }));
                     } else {
                         if (!hasWebCits) continue;
+                        // Plain web markers stay single-number only; a plain
+                        // [1,2] list is authored text, not a citation marker.
+                        if (mt[1].includes(',')) continue;
                         const cit = byIndex.get(Number(mt[1]));
                         if (!cit) continue;
-                        targetCitId = cit.id;
-                        targetLabel = matchedStr;
+                        targets = [{ citationId: cit.id, label: matchedStr }];
                     }
 
                     replaced = true;
                     if (mt.index > last) out.push({ type: 'text', text: n.text.slice(last, mt.index) });
-                    out.push({ type: 'citationRef', citationId: targetCitId, label: targetLabel });
+                    for (const target of targets) {
+                        out.push({ type: 'citationRef', citationId: target.citationId, label: target.label });
+                    }
                     last = mt.index + matchedStr.length;
                 }
                 if (replaced) {

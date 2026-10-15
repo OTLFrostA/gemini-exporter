@@ -412,6 +412,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         slot,
                         {
                             conversation: chat.conversation,
+                            chatTime: chat.sourceVersion,
                             conversationId: nid,
                             format: 'markdown',
                             exportedAt: now,

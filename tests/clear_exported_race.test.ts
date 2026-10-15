@@ -132,12 +132,12 @@ test('ListView.render: 传入 prevSelectedSet=null 时强制重置 canonicalSele
             querySelectorAll: () => []
         };
         const convs = [
-            { id: 'c_1', title: 'Chat 1', timestamp: 1000 },
-            { id: 'c_2', title: 'Chat 2', timestamp: 1000 }
+            { id: 'c_1', title: 'Chat 1', timestamp: 1000, updatedAt: 1000 },
+            { id: 'c_2', title: 'Chat 2', timestamp: 1000, updatedAt: 1000 }
         ];
         // 1. 初始全部已导出，默认 0 勾选（canonicalSelectedIds 为空 Set）
         ListView.setSelectedIds(null);
-        ListView.render(convs as any, { '1': { exportedAt: 2000 }, '2': { exportedAt: 2000 } } as any, null);
+        ListView.render(convs as any, { '1': { exportedAt: 2000, chatTime: 1000 }, '2': { exportedAt: 2000, chatTime: 1000 } } as any, null);
         assert.strictEqual(ListView.getSelectedIds().size, 0, '全部已导出时初始应 0 勾选');
 
         // 2. 清除导出记录后传入 expMap={} 与 prevSelectedSet=null，应重新自动全选

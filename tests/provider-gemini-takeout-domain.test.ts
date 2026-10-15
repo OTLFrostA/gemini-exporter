@@ -30,14 +30,15 @@ test('Takeout raw HTML constructs Domain without persisted records or fabricated
     const timestamp = Date.parse('2026-09-02T12:00:00Z');
     assert.deepEqual(conversation.messages.map(m => m.timestamp), [timestamp, timestamp]);
     assert.equal(conversation.createdAt, undefined);
-    assert.equal(conversation.updatedAt, timestamp);
+    assert.equal(native({ htmlText: activity('Question', '<p>Answer</p>') }).sourceVersion, timestamp);
+    assert.equal('updatedAt' in conversation, false);
     for (const message of conversation.messages) assert.equal(message.id, undefined);
     assertDomainClosure(conversation);
 });
 
 test('missing Takeout dates remain absent and activity logs never claim complete coverage', () => {
     const { conversation } = native({ htmlText: activity('Question', '<p>Answer</p>', '') });
-    assert.equal(conversation.updatedAt, undefined);
+    assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
     assert.equal(conversation.createdAt, undefined);
     for (const message of conversation.messages) assert.equal(message.timestamp, undefined);
     assert.equal(conversation.completeness, 'partial');

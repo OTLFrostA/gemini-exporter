@@ -9,6 +9,8 @@ export interface ConversationParseContext {
 /** Shared parser output. Problems are side-channel records, never conversation fields. */
 export interface ConversationParseResult {
     conversation: TrustedDomain;
+    /** Captured source activity version (epoch ms). Persist only as savedAt, never in Detail. */
+    sourceVersion?: number;
     diagnostics: DocumentDiagnostic[];
 }
 

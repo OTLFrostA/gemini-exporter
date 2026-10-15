@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -7,10 +8,10 @@ const { GeminiProvider } = require('../src/core/provider/gemini/geminiProvider.j
 function makeGeminiClient() {
     return {
         getAllConversations: async (_opts: any) => ({
-            conversations: [{
+            conversations: ([{
                 id: 'c1', title: 'T1', titleSource: 'rpc', titles: { rpc: 'T1' },
                 createdAt: 1, updatedAt: 2, chatTime: 2, timestamp: 2, messageCount: 3, url: 'u'
-            }],
+            }]).map(indexFixture),
             total: 1, stoppedEarly: true, diagnostics: { d: 1 }, hitGoogleLimit: false
         }),
         getConversationDetail: async (id: string, _sid: any) => ({

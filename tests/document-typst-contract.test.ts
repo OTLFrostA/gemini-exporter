@@ -267,9 +267,7 @@ test('system role becomes a visible note prefix', async () => {
 
 test('PDF date uses document timestamps and stays unknown without them', () => {
     const b: any = domainFixture([]);
-    b.updatedAt = '2026-09-28T00:00:00Z';
-    assert.strictEqual(renderTypstFixture(composeDomainDocument(b).document, {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages');
-    delete b.updatedAt;
+    assert.strictEqual(renderTypstFixture(composeDomainDocument(b, { sourceVersion: Date.parse('2026-09-28T00:00:00Z') }).document, {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages');
     assert.strictEqual(renderTypstFixture(composeDomainDocument(b).document, {}, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages');
     delete b.createdAt;
     const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');

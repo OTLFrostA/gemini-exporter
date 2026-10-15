@@ -19,6 +19,7 @@ test('search image export downloads from extension origin and writes actual imag
         const result = await pipeline.processAsset({ sourceUrl: 'http://encrypted-tbn2.gstatic.com/licensed-image?q=test',
             localName: 'assets/search.png' }, { id: 'chat' }, { isImage: true, maxRetries: 0 });
         assert.equal(result.saved, true);
+        assert.equal(writes.length, 1, 'success must write exactly one image');
         assert.equal(requests[0].url, 'https://encrypted-tbn2.gstatic.com/licensed-image?q=test');
         assert.equal(requests[0].init.credentials, 'omit');
         assert.equal(writes[0].path, 'assets/search.png');
@@ -30,14 +31,16 @@ test('search image export downloads from extension origin and writes actual imag
 test('missing search images retain HTTP errors and never write a fake successful asset', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async () => new Response('', { status: 404 });
+    let attemptedWrites = 0;
     try {
         const pipeline = new AssetPipeline({ useZip: false,
-            writeFileDirect: async () => { throw new Error('must not write missing images'); },
+            writeFileDirect: async () => { attemptedWrites++; throw new Error('must not write missing images'); },
             fetchAssetDelegate: async () => ({ success: false, error: 'Failed to fetch' })
         });
         const result = await pipeline.processAsset({ sourceUrl: 'https://encrypted-tbn2.gstatic.com/licensed-image?q=missing',
             localName: 'assets/missing.png' }, { id: 'chat' }, { isImage: true, maxRetries: 0 });
         assert.equal(result.saved, false);
         assert.match(result.failReason, /HTTP 404/);
+        assert.equal(attemptedWrites, 0, 'a failed HTTP fetch must never reach the writer');
     } finally { globalThis.fetch = originalFetch; }
 });

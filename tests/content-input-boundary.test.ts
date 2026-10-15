@@ -11,7 +11,7 @@ import { mapContentAssetReferences } from '../src/core/domain/content/assetRefer
 import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/index.js';
 import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapter.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import type { Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 
 const paragraph = (text: string): BlockNode[] => [{ type: 'paragraph', children: [{ type: 'text', text }] }];
 const metadata = { id: 'content-input', title: 'Content boundary', timestamp: null };

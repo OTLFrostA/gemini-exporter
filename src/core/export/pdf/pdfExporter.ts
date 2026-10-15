@@ -273,6 +273,8 @@ export class PdfExporter {
             pdfBytesWritten: number;
             status: 'ok' | 'partial';
             hasFailedAssets: boolean;
+            chatTime?: number;
+            messageCount: number;
         }> = [];
         let writer: IExportWriter | null = options.writer ?? null;
         let zipDelivery: PdfExportResult['zipDelivery'];
@@ -394,11 +396,11 @@ export class PdfExporter {
         fonts = mountedFonts.effectiveFonts;
 
         for (let i = 0; i < items.length; i++) {
-            const { id, title } = items[i];
+            const item = items[i];
             if (this.aborted || signal.aborted) break;
-            report(i, title);
+            report(i, item.title);
 
-            const prep = await preparePdfItem(items[i].selected, {
+            const prep = await preparePdfItem(item.selected, {
                 conversations: options.conversations,
                 source: options.source,
                 fetchChatDetail: fetchChatDetailFn,
@@ -424,6 +426,7 @@ export class PdfExporter {
                 continue;
             }
 
+            const { id, title } = prep;
             const itemDiagnostics: RenderDiagnostic[] = [...prep.diagnostics];
             try {
                 const itemInput: PipelineItemInput = {
@@ -486,6 +489,8 @@ export class PdfExporter {
                             bytesWritten: writeReport.bytesWritten,
                             status: statusInfo.status,
                             hasFailedAssets: statusInfo.hasFailedAssets,
+                            ...(prep.sourceVersion !== undefined ? { chatTime: prep.sourceVersion } : {}),
+                            messageCount: prep.messageCount,
                         };
                         succeeded++;
                         completed.add(id);
@@ -501,6 +506,8 @@ export class PdfExporter {
                             pdfBytesWritten: result.stagedArtifact.bytesWritten,
                             status: statusInfo.status,
                             hasFailedAssets: statusInfo.hasFailedAssets,
+                            ...(prep.sourceVersion !== undefined ? { chatTime: prep.sourceVersion } : {}),
+                            messageCount: prep.messageCount,
                         });
                         onLog(`[PDF] ${title} 已暂存，等待 ZIP 打包交付后确认`, 'info');
                     }
@@ -555,6 +562,8 @@ export class PdfExporter {
                         bytesWritten: s.pdfBytesWritten,
                         status: s.status,
                         hasFailedAssets: s.hasFailedAssets,
+                        ...(s.chatTime !== undefined ? { chatTime: s.chatTime } : {}),
+                        messageCount: s.messageCount,
                     };
                     succeeded++;
                     completed.add(s.id);

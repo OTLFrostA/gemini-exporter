@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -24,28 +25,28 @@ test('STORAGE_KEYS covers the two previously scattered keys', () => {
 
 test('bestTimestamp drops a garbage string instead of keeping it verbatim', () => {
     const res = mergeConversation(
-        conv({ timestamp: 'not-a-date', updatedAt: null }),
-        conv({ timestamp: null, updatedAt: null }),
+        indexFixture(conv({ timestamp: 'not-a-date', updatedAt: null })),
+        indexFixture(conv({ timestamp: null, updatedAt: null })),
         {}
     );
-    assert.strictEqual(res.merged.timestamp, null);
+    assert.strictEqual(res.merged.updatedAt, undefined);
 });
 
 test('bestTimestamp keeps a numeric string as a real number', () => {
     const res = mergeConversation(
-        conv({ timestamp: '1726358400000', updatedAt: null }),
-        conv({ timestamp: null, updatedAt: null }),
+        indexFixture(conv({ timestamp: '1726358400000', updatedAt: null })),
+        indexFixture(conv({ timestamp: null, updatedAt: null })),
         {}
     );
-    assert.strictEqual(res.merged.timestamp, 1726358400000);
-    assert.strictEqual(typeof res.merged.timestamp, 'number');
+    assert.strictEqual(res.merged.updatedAt, 1726358400000);
+    assert.strictEqual(typeof res.merged.updatedAt, 'number');
 });
 
 test('bestTimestamp prefers the newest real value across old and incoming', () => {
     const res = mergeConversation(
-        conv({ timestamp: 1000, updatedAt: null }),
-        conv({ timestamp: 9000, updatedAt: null }),
+        indexFixture(conv({ timestamp: 1000, updatedAt: null })),
+        indexFixture(conv({ timestamp: 9000, updatedAt: null })),
         {}
     );
-    assert.strictEqual(res.merged.timestamp, 9000);
+    assert.strictEqual(res.merged.updatedAt, 9000);
 });

@@ -1,3 +1,7 @@
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-options-metadata-resolution.test.ts
@@ -149,7 +153,7 @@ test('regression: metadata-only options.conversations item resolves full detail 
     const result = await exporter.run(
         {
             selected: [{ id, title }],
-            conversations: [metadataOnly],
+            conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
@@ -293,7 +297,7 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
     const result = await exporter.run(
         {
             selected: [{ id, title }],
-            conversations: [metadataOnly],
+            conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
@@ -335,7 +339,7 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
     const result = await exporter.run(
         {
             selected: [{ id, title }],
-            conversations: [metadataOnly],
+            conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
@@ -353,4 +357,29 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
     assert.strictEqual(compilerState.calls, 0, 'compiler must not run');
     assert.strictEqual(writer.files.size, 0, 'no PDF must be written');
     assert.strictEqual(exported.length, 0, 'no success record must be emitted');
+});
+
+
+test('PDF document and delivered record use current Index metadata and the saved body version', async () => {
+    const id = 'canonical-pdf';
+    const parsed = { ...historicalFixture({ id, title: 'Old body title', titleSource: 'rpc',
+        messages: [{ role: 'model', content: 'Retained body' }] }), sourceVersion: 100 };
+    await catalogStorage.setNativeConversations('u0', [parsed]);
+    await catalogStorage.updateConversation('u0', id, { title: 'Current index title', titleSource: 'rpc', updatedAt: 200 });
+    const selection = indexFixture({ id, title: 'Old selection title', titleSource: 'rpc' });
+    const state = { calls: 0, document: null as any };
+    const records: any[] = [];
+    const exporter = new PdfExporter(makeCaptureCompiler(state));
+    const options = { selected: [{ id }], conversations: [selection], includeAssets: false,
+        fetchChatDetail: async () => ({ success: false, error: 'offline' }), useZip: false, writer: makeMemoryWriter() };
+    const result = await exporter.run(options, { onItemExported: (_id: string, record: any) => records.push(record) });
+    assert.equal(result.succeeded, 1);
+    assert.equal(state.document.title, 'Current index title');
+    assert.match(documentBodyText(state.document), /Retained body/);
+    assert.equal(records[0].title, 'Current index title');
+    assert.equal(records[0].chatTime, 100);
+    await catalogStorage.setConversations('u0', []);
+    const absent = await exporter.run(options);
+    assert.equal(absent.succeeded, 0);
+    assert.equal(state.calls, 1, 'body without Index must not reach the compiler');
 });

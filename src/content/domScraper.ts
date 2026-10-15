@@ -1,4 +1,4 @@
-import type { ConversationMergeInput } from '../core/utils/mergeUtils.js';
+import type { IndexObservationInput } from '../core/compatibility/index/parseIndex.js';
 import type { DomDetail, DetailFailure } from '../types/detailTransport.js';
 import { parseGeminiDomConversation } from '../core/parsers/gemini/dom/parseConversation.js';
 import { contentContext } from './contentContext.js';
@@ -76,9 +76,9 @@ export function getScrollContainer(): HTMLElement | null {
     return null;
 }
 
-export function getConversationLinks(): ConversationMergeInput[] {
+export function getConversationLinks(): IndexObservationInput[] {
     if (typeof document === 'undefined') return [];
-    const items: ConversationMergeInput[] = [];
+    const items: IndexObservationInput[] = [];
     const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/app/"]');
     for (const a of Array.from(links)) {
         const href = a.href || a.getAttribute('href') || '';
@@ -89,15 +89,11 @@ export function getConversationLinks(): ConversationMergeInput[] {
             const rawTitle = (a.querySelector('.title, [class*="title"]')?.textContent || a.textContent || '').trim();
             const title = cleanTitle(rawTitle);
             const isReal = isRealTitle(title, id);
-            const titlesObj: Record<string, string> = {};
-            if (isReal) titlesObj.dom = title;
             items.push({
                 id,
                 title: isReal ? title : (contentContext.isZh() ? '未命名对话' : 'Untitled Chat'),
                 titleSource: isReal ? 'dom' : 'default',
-                titles: titlesObj,
-                url: `https://gemini.google.com/app/${id}`,
-                href: `https://gemini.google.com/app/${id}`
+                url: `https://gemini.google.com/app/${id}`
             });
         }
     }

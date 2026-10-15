@@ -1,3 +1,7 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
+import { indexFixture } from './helpers/indexFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,11 +15,12 @@ import type { ResourceConversationParseResult } from '../src/core/parsers/parsin
 
 test('cloud-deleted archive exports durable body and resource bytes without fetching cloud or deleting metadata', async () => {
     __clearDomainMemory();
-    const source: ResourceConversationParseResult = { conversation: validateParserDomain({ providerId: 'gemini', id: 'retained', title: 'Saved conversation', completeness: 'unknown', updatedAt: 1,
+    const source: ResourceConversationParseResult = { sourceVersion: 1, conversation: validateParserDomain({ providerId: 'gemini', id: 'retained', title: 'Saved conversation', completeness: 'unknown',
         assets: [{ id: 'image', kind: 'image', sourceUri: 'assets/image.png' }], messages: [
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
         ] }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+    await catalogStorage.setNativeConversations('u0', [source]);
     await saveDomainConversation('u0', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
     await saveDomainConversation('u1', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }));
     let deleted = false; let fetched = false;
@@ -53,7 +58,7 @@ test('failed persistence never advances checkpoint, keeps previous records, and 
         async getScanCheckpoint() { return checkpoint; }, async setScanCheckpoint(_slot: string, ts: number) { checkpoint = ts; }
     });
     try {
-        await assert.rejects(ingestRpcList([{ id: 'incoming', title: 'Incoming', titleSource: 'rpc', titles: { rpc: 'Incoming' }, createdAt: null, updatedAt: 2000, timestamp: 2000, chatTime: 2000, messageCount: 1, url: '' }], 'u0'), /Injected/);
+        await assert.rejects(ingestRpcList([indexFixture({ id: 'incoming', title: 'Incoming', titleSource: 'rpc', titles: { rpc: 'Incoming' }, createdAt: null, updatedAt: 2000, timestamp: 2000, chatTime: 2000, messageCount: 1, url: '' })], 'u0'), /Injected/);
         assert.equal(checkpoint, 1000); assert.deepEqual(records.map(c => c.id), ['existing']);
         fail = false;
         await upsertConversations([{ id: 'retry', title: 'Retry' }], 'retry', true, 'u0');

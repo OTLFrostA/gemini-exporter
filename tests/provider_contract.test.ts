@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import type { ApplicationProvider } from "../src/content/providerCompatibility.js";
 import test from 'node:test';
@@ -53,8 +54,8 @@ function detail(): GeminiProviderConversationDetail {
 }
 function result(reason: PaginationCompletionReason): PaginationResult {
     const exhaustive = reason === 'natural_exhaustion';
-    return { conversations: [{ id: 'typed-chat', title: 'Report', titleSource: 'rpc', titles: { rpc: 'Report' },
-        createdAt: null, updatedAt: 2, timestamp: 2, chatTime: 2, messageCount: 1, url: 'url' }],
+    return { conversations: [indexFixture({ id: 'typed-chat', title: 'Report', titleSource: 'rpc', titles: { rpc: 'Report' },
+        createdAt: null, updatedAt: 2, timestamp: 2, chatTime: 2, messageCount: 1, url: 'url' })],
         total: 1, exhaustive, completionReason: reason,
         ...(exhaustive ? {} : { stoppedEarly: true as const }),
         hitGoogleLimit: reason === 'hit_google_limit',
@@ -89,7 +90,7 @@ test('provider contract: all seven upstream reasons and diagnostic identity surv
         assert.strictEqual(page.diagnostics, upstream.diagnostics);
         assert.strictEqual(page.items, upstream.conversations);
         assert.strictEqual(page.conversations, upstream.conversations);
-        assert.strictEqual(page.items[0].titles, upstream.conversations[0].titles);
+        assert.strictEqual(page.items[0].titleSource, upstream.conversations[0].titleSource);
     }
 });
 
@@ -103,7 +104,7 @@ test('provider contract: typed batch/progress options and Gemini slot policy are
             assert.deepEqual(info, { page: 1, hasMore: true });
             return { shouldStop: true, reason: 'watermark' };
         },
-        onProgress: info => { observedProgress = true; assert.equal(info.batch?.[0].timestamp, 2); }
+        onProgress: info => { observedProgress = true; assert.equal(info.batch?.[0].updatedAt, 2); }
     };
     const provider = new GeminiProvider({ ...client(upstream), async getAllConversations(received) {
         assert.strictEqual(received, options);
@@ -132,7 +133,7 @@ test('provider contract: detailed media, provenance and parser evidence retain t
     assert.strictEqual(returned.transport, data.transport);
     assert.equal(returned.conversation.assets[0].sourceUri, 'https://example.com/image');
     assert.equal(returned.conversation.messages[0].citations?.[0].url, 'https://example.com');
-    assert.equal(returned.conversation.updatedAt, 2);
+    assert.equal(returned.sourceVersion, 2);
     assert.strictEqual(returned, data);
 });
 

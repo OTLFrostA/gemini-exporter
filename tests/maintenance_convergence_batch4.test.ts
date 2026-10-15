@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 // tests/maintenance_convergence_batch4.test.ts
 // Tests for Batch 4: Maintenance Convergence
 // (Unified deletion classifier, pagination completion contract, JSPB schema constants, URL scheme validation)
@@ -64,7 +65,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     const naturalClient = {
         aborted: false,
         getConversationList: async () => ({
-            conversations: [{ id: 'c_1', title: 'Chat 1' }],
+            conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
             nextPageToken: null
         })
     };
@@ -78,7 +79,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     const loopClient = {
         aborted: false,
         getConversationList: async () => ({
-            conversations: [{ id: 'c_1', title: 'Chat 1' }],
+            conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
             nextPageToken: 'tok_loop'
         })
     };
@@ -93,7 +94,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     const maxPagesClient = {
         aborted: false,
         getConversationList: async () => ({
-            conversations: [{ id: `c_${++p}`, title: `Chat ${p}` }],
+            conversations: ([{ id: `c_${++p}`, title: `Chat ${p}` }]).map(indexFixture),
             nextPageToken: `tok_${p}`
         })
     };
@@ -107,7 +108,7 @@ test('Batch 4 - Pagination completionReason and isPaginationExhaustive contract'
     const boundaryClient = {
         aborted: false,
         getConversationList: async () => ({
-            conversations: [{ id: 'c_1', title: 'Chat 1' }],
+            conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
             nextPageToken: 'tok_next'
         })
     };
@@ -156,11 +157,11 @@ test('Batch 4 - listView restricts conversation URLs to http/https and blocks ja
     };
 
     try {
-        const conversations = [
+        const conversations = ([
             { id: 'c_evil1', title: 'Evil JS URL', url: 'javascript:alert(1)', timestamp: 1700000000000 },
             { id: 'c_evil2', title: 'Evil Data URL', url: 'data:text/html,<script>alert(1)</script>', timestamp: 1700000000000 },
             { id: 'c_good', title: 'Good HTTPS URL', url: 'https://gemini.google.com/app/c_good', timestamp: 1700000000000 }
-        ];
+        ]).map(indexFixture);
 
         render(
             conversations,
@@ -174,8 +175,8 @@ test('Batch 4 - listView restricts conversation URLs to http/https and blocks ja
         const html = mockListEl.innerHTML;
         assert.ok(!html.includes('javascript:'), 'must never render javascript: scheme in href');
         assert.ok(!html.includes('data:text/html'), 'must never render data: scheme in href');
-        assert.ok(html.includes('href="https://gemini.google.com/app/c_evil1"'), 'must fall back to safe https Gemini URL for c_evil1');
-        assert.ok(html.includes('href="https://gemini.google.com/app/c_evil2"'), 'must fall back to safe https Gemini URL for c_evil2');
+        assert.ok(html.includes('href="https://gemini.google.com/app/evil1"'), 'must fall back to safe https Gemini URL for c_evil1');
+        assert.ok(html.includes('href="https://gemini.google.com/app/evil2"'), 'must fall back to safe https Gemini URL for c_evil2');
         assert.ok(html.includes('href="https://gemini.google.com/app/c_good"'), 'must preserve valid https URL');
         assert.ok(html.includes('rel="noopener noreferrer"'), 'must include rel="noopener noreferrer" on external link');
     } finally {

@@ -21,7 +21,7 @@ export function handleDomainStorageMessage(message: unknown, sender: chrome.runt
             const request = object(message), payload = object(request.payload);
             if (request.command === 'save') {
                 const raw = object(payload.parsed);
-                const parsed = { conversation: raw.conversation, acquisitionHints: readStoredAcquisitionHints(raw.acquisitionHints) };
+                const parsed = { sourceVersion: raw.sourceVersion, conversation: raw.conversation, acquisitionHints: readStoredAcquisitionHints(raw.acquisitionHints) };
                 if (payload.resources !== undefined && !Array.isArray(payload.resources)) throw new TypeError('Invalid transported resources');
                 if (payload.migration !== undefined && typeof payload.migration !== 'boolean') throw new TypeError('Invalid migration envelope');
                 const resources: StoredDomainResource[] = Array.isArray(payload.resources) ? payload.resources.map(value => {

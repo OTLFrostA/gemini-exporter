@@ -25,6 +25,7 @@ function nativeResult(value: unknown): ResourceConversationParseResult {
     const opaque: unknown = value;
     if (!object(value) || !object(value.conversation) || !Array.isArray(value.diagnostics)
         || !object(value.resourceHints) || !object(value.acquisitionHints)) throw new TypeError('Malformed native conversation result');
+    if (value.sourceVersion !== undefined && (typeof value.sourceVersion !== 'number' || !Number.isFinite(value.sourceVersion))) throw new TypeError('Invalid source conversation version');
     const graph = value.conversation;
     if (typeof graph.providerId !== 'string' || typeof graph.id !== 'string' || typeof graph.title !== 'string'
         || !Array.isArray(graph.messages) || !Array.isArray(graph.assets)) throw new TypeError('Malformed native conversation envelope');

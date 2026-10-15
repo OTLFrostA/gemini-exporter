@@ -1,11 +1,12 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getAllConversations } from '../src/core/api/client/pagination.js';
 import type { ConversationListItem, ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
 
 function item(id: string, timestamp = 1700000000000): ConversationListItem {
-    return { id, title: id, titleSource: 'rpc', titles: { rpc: id }, createdAt: timestamp,
-        updatedAt: timestamp, chatTime: timestamp, timestamp, messageCount: 0, url: '' };
+    return indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id }, createdAt: timestamp,
+        updatedAt: timestamp, chatTime: timestamp, timestamp, messageCount: 0, url: '' });
 }
 function page(ids: string[], token: string | null = null): ListParseResult {
     return { conversations: ids.map(id => item(id)), nextPageToken: token };

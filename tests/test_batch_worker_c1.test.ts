@@ -1,3 +1,7 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { saveDomainConversation, __clearDomainMemory } = require('../src/core/storage/domain/domainStore.js');
 export {};
@@ -193,16 +197,17 @@ test('C1 review: malformed raw replies are reportable failures rather than nativ
 });
 
 test('runtime detail recovery prefers native online, then native Takeout, then durable Domain', async () => {
-    const id = 'cascade_test'; const slot = 'runtime-cascade';
+    const id = 'cascade_test'; const slot = 'u2';
     const make = (text: string) => historicalFixture({ id, title: text, messages: [{ role: 'model', content: text }] });
     const online = make('online'), offline = make('offline'), stored = make('stored'); let calls = 0;
     const takeout = { getTakeoutOfflineChat() { calls++; return offline; } };
     assert.equal((await resolveConversationData(online, id, null, takeout, slot)).result, online); assert.equal(calls, 0);
     assert.equal((await resolveConversationData({ error: 'offline' }, id, null, takeout, slot)).result, offline);
-    await saveDomainConversation(slot, stored);
+    await catalogStorage.setNativeConversations(slot, [stored]);
     try {
         const recovered = await resolveConversationData({ error: 'offline' }, id, null, null, slot);
-        assert.deepEqual(recovered.result.conversation, stored.conversation);
+        assert.deepEqual(recovered.result.conversation.messages, stored.conversation.messages);
+        assert.equal(recovered.result.conversation.title, stored.conversation.title);
         const rejected = await resolveChat({ id, messages: [{ role: 'model', content: 'legacy runtime' }] }, { id: 'unmigrated' }, null, null, slot);
         assert.equal(rejected.isError, true); assert.equal(rejected.chat, undefined);
     } finally { __clearDomainMemory(); }
@@ -210,7 +215,7 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
 
 test('native resolver retains unknown source blocks and arbitrates titles without reparsing', async () => {
     const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
-    const list = { id: 'native-title', title: 'Takeout title', titleSource: 'takeout', titles: { takeout: 'Takeout title' } };
+    const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
     const resolved = await resolveChat(native, { id: 'native-title' }, list);
     assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.title, 'RPC title');
     assert.equal(resolved.chat.conversation.messages, native.conversation.messages);

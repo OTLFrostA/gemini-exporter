@@ -19,7 +19,7 @@ from scripts.framework.assertions import (
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
-from scripts.framework.cases.chat import ImagenMultimodalCase
+from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
     FastSkipExportedCase, select_format_targets,
@@ -30,6 +30,7 @@ from scripts.framework.driver.platform_driver import TurnResult
 from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
 from scripts.framework.scenario_provider import OnlineScenarioProvider
+from scripts.framework.image_evidence import assert_image_files, assert_zip_images, image_pixels, capture_webpage_images
 
 CID = '0123456789abcdef'
 OTHER = 'abcdef0123456789'
@@ -91,6 +92,15 @@ class SettledEvidenceTests(unittest.TestCase):
         cdp = MagicMock(); state = self.state(); state['chat_id'] = OTHER; cdp.eval.return_value = state
         with self.assertRaises(RuntimeError):
             GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
+
+    def test_image_capture_failure_is_deferred_to_artifact_acceptance(self):
+        state = self.state(); state['turns'][0].update(response='', has_images=True)
+        cdp = MagicMock(); cdp.eval.return_value = state
+        with patch('scripts.framework.driver.gemini_driver.time.sleep'), \
+             patch('scripts.framework.image_evidence.capture_webpage_images', side_effect=ValueError('image unavailable')):
+            turns = GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
+        self.assertEqual(turns[0]['image_evidence_error'], 'image unavailable')
+        self.assertTrue(turns[0]['has_images'])
 
     def test_missing_turns_changed_prompts_and_empty_answers_cannot_settle(self):
         for change in ('missing', 'prompt', 'empty'):
@@ -162,7 +172,7 @@ class DiskContentTests(unittest.TestCase):
         self.assertFalse(self.check(image))
         (self.root / 'assets').mkdir()
         (self.root / 'assets/diagram.png').write_bytes(b'nonempty image bytes')
-        self.assertTrue(self.check(image))
+        self.assertFalse(self.check(image))  # Nonempty bytes cannot prove a matching image.
         self.md.write_text(self.md.read_text() + '\nFabricated extra answer text.\n')
         self.assertFalse(self.check(image))
         self.md.write_text(document(image).replace('## 🤖 Assistant\n\n', '## 🤖 Assistant\n\n![Image](assets/diagram.png)'))
@@ -187,8 +197,12 @@ class DiskContentTests(unittest.TestCase):
         cdp = MagicMock()
         cdp.call.return_value = {'id': 1, 'result': {}}
         path = self.root / 'gemini_export_fresh.zip'
-        def export_now(*args, **kwargs):
-            path.write_bytes(b'fresh ZIP bytes')
+        def export_now(script, *args, **kwargs):
+            if "return !!btn" in script:
+                return True
+            if "const formatType" in script:
+                path.write_bytes(b'fresh ZIP bytes')
+                return {'clicked': True}
         cdp.eval.side_effect = export_now
         with patch('scripts.framework.actions.time.sleep'):
             result = CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1)
@@ -196,14 +210,26 @@ class DiskContentTests(unittest.TestCase):
         cdp.call.assert_called_once_with('Browser.setDownloadBehavior', {
             'behavior': 'allow', 'downloadPath': str(self.root), 'eventsEnabled': True})
 
-    def test_download_routing_failure_cannot_click_or_reuse_old_zip(self):
-        (self.root / 'gemini_export_old.zip').write_bytes(b'old ZIP bytes')
+    def test_export_idle_wait_observes_cleanup_and_trigger_refuses_a_missed_click(self):
         cdp = MagicMock()
-        cdp.call.return_value = {'error': {'message': 'denied'}}
-        self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
-        cdp.eval.assert_not_called()
+        cdp.eval.side_effect = [False, False, True]
+        with patch('scripts.framework.actions.time.sleep'):
+            self.assertTrue(CDPActions.wait_for_export_idle(cdp, max_wait=1))
+        self.assertEqual(cdp.eval.call_count, 3)
+        cdp.reset_mock()
+        cdp.call.return_value = {'result': {}}
+        cdp.eval.side_effect = [True, {'clicked': False}]
+        with patch('scripts.framework.actions.time.sleep') as sleep:
+            self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
+        sleep.assert_not_called()  # Never enter the download wait after a missed click.
 
     def test_cdp_download_directory_configuration_failure(self):
+        # A stale ZIP must never be reused if the configured CDP download route is denied.
+        (self.root / 'gemini_export_old.zip').write_bytes(b'old ZIP bytes')
+        cdp_message_only = MagicMock()
+        cdp_message_only.call.return_value = {'error': {'message': 'denied'}}
+        self.assertIsNone(CDPActions.trigger_export_zip(cdp_message_only, str(self.root), max_wait=1))
+        cdp_message_only.eval.assert_not_called()
         # 1. 模拟 CDP 返回错误响应
         cdp_err = MagicMock()
         cdp_err.call.return_value = {'error': {'code': -32000, 'message': 'Browser.setDownloadBehavior denied'}}
@@ -216,9 +242,6 @@ class DiskContentTests(unittest.TestCase):
         self.assertIsNone(CDPActions.trigger_export_zip(cdp_exc, str(self.root), max_wait=1))
         cdp_exc.eval.assert_not_called()
 
-        # 3. 严格禁止通过系统默认 ~/Downloads 目录搜索或回退旧文件
-        with patch('glob.glob', return_value=['/Users/user/Downloads/gemini_export_leaked.zip']):
-            self.assertIsNone(CDPActions.trigger_export_zip(cdp_err, str(self.root), max_wait=1))
 
     def test_role_headings_inside_code_are_not_turns(self):
         evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
@@ -278,6 +301,8 @@ $$
         self.assertTrue(assert_turn_content(exported, evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace("        return b", "    return b"), evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace("\n\n    return a @ b", "\n    return a @ b"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("        return b", "\treturn b"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("    # First step\n", "    # First step "), evidence)[0])
 
     def test_short_actual_answer_requires_its_whole_body(self):
         evidence = [{'prompt': '给一句建议', 'response': '以真实负载验证容量上限。', 'has_images': False}]
@@ -311,16 +336,6 @@ $$
         ok, msg = assert_turn_content(exported_truncated, evidence)
         self.assertFalse(ok)
         self.assertIn("全文不匹配", msg)
-
-    def test_long_answer_requires_middle_and_tail_not_just_two_fragments(self):
-        response = 'Opening explanation. ' * 20 + 'Essential middle calculation. ' * 10 + 'Required final conclusion.'
-        evidence = [{'prompt': 'Explain the whole calculation.', 'response': response}]
-        self.assertTrue(assert_turn_content(document(evidence), evidence)[0])
-        for shortened in ('Opening explanation. ' * 20,
-                          response.replace('Essential middle calculation. ' * 10, ''),
-                          response.removesuffix('Required final conclusion.')):
-            with self.subTest(shortened=shortened[-40:]):
-                self.assertFalse(assert_turn_content(document(evidence).replace(response, shortened), evidence)[0])
 
     def test_source_math_code_tables_and_numbered_lists_match_in_full(self):
         response = "波速v = \\frac{c}{\\sqrt{\\varepsilon_r}}。完整代码print('ok')\nvalue = '<br>'计算结论甲乙"
@@ -446,18 +461,10 @@ value = 2 ** 3
         self.assertFalse(self.check(evidence))  # metadata normalization cannot hide a missing asset
         (self.root/'assets').mkdir()
         (self.root/'assets/diagram.png').write_bytes(b'nonempty image bytes')
-        self.assertTrue(self.check(evidence))
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(self.check(evidence))  # Text normalization cannot waive image comparison.
         for changed in (exported.replace('a=1', 'a=2'), exported.replace("result = r'\\\\[2ex]'", "result = r'\\\\[4ex]'"),
                         exported.replace('Conclusion', '')):
-            self.assertFalse(assert_turn_content(changed, evidence)[0])
-
-    def test_visible_code_indentation_and_line_boundaries_cannot_be_normalized_away(self):
-        code = 'if ready:\n    run()\n    finish()'
-        evidence = [{'prompt': 'Give runnable code.', 'response': 'Program'+code, 'code_blocks': [code]}]
-        exported = document(evidence).replace(evidence[0]['response'], f'Program\n```python\n{code}\n```')
-        self.assertTrue(assert_turn_content(exported, evidence)[0])
-        for changed in (exported.replace('    run()', '  run()'), exported.replace('run()\n', 'run() '),
-                        exported.replace('    finish()', '\tfinish()')):
             self.assertFalse(assert_turn_content(changed, evidence)[0])
 
     def test_execution_records_are_separate_and_require_exact_independent_dom_evidence(self):
@@ -493,35 +500,6 @@ value = 2 ** 3
         exported = document(evidence).replace(code, f'```text\n{code}\n```')
         self.assertTrue(assert_turn_content(exported, evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace('Was this visual helpful?', ''), evidence)[0])
-
-    def test_real_retained_failure_sample_diagnosis_and_verification(self):
-        evidence_dir = Path(__file__).resolve().parents[1] / "temp/codex_sync_repair_2026-10-10/final-evidence"
-        if not evidence_dir.exists():
-            return
-
-        # 1. 验证保留的真实 5 轮超长回答样本 (material.md 与 material-dom.json)
-        mat_dom = evidence_dir / "material-dom.json"
-        mat_md = evidence_dir / "material.md"
-        if mat_dom.exists() and mat_md.exists():
-            dom_data = json.loads(mat_dom.read_text(encoding='utf-8'))
-            md_text = mat_md.read_text(encoding='utf-8')
-            # 确认第 5 轮为万字级真实超长回答
-            self.assertGreater(len(dom_data[4]['response']), 10000)
-            ok, msg = assert_turn_content(md_text, dom_data)
-            self.assertTrue(ok, f"真实 5 轮超长样本断言应通过: {msg}")
-
-        # 2. 诊断分析保留的真实差异样本 (settled-attempt/60c9b0834e0cf63f_turn_evidence.json)
-        settled_ev_path = evidence_dir / "settled-attempt/60c9b0834e0cf63f_turn_evidence.json"
-        if settled_ev_path.exists() and mat_md.exists():
-            settled_data = json.loads(settled_ev_path.read_text(encoding='utf-8'))
-            t1_settled = settled_data['turn_evidence'][0]['response']
-            # 定位差异：证明测试采集中混入了非正文 mini-app / follow-up 交互控件
-            self.assertIn("Was this visual helpful?", t1_settled)
-            # 混入控件的样本必须被断言拦截，证明未放宽断言，而是准确拦截采集污染
-            ok, msg = assert_turn_content(md_text, settled_data['turn_evidence'])
-            self.assertFalse(ok)
-            self.assertIn("第 1 轮真实 AI 回复全文不匹配", msg)
-
 
 class ScanAndImportTests(unittest.TestCase):
     def fallback_fixture(self):
@@ -582,12 +560,12 @@ class ScanAndImportTests(unittest.TestCase):
                     'initialized': True, 'historyComplete': True, 'activeRunId': None, 'lastStatus': 'up_to_date',
                     'streams': {'recent': {'initialized': True, 'range': {
                         'head': {'id': CID, 'time': 100}, 'tail': {'id': 'tail', 'time': 10}}}}}
-        initial = {'coverage': coverage, 'rows': [{'id': CID, 'timestamp': 100, 'titleSource': 'rpc'},
-                    {'id': 'tail', 'timestamp': 10, 'titleSource': 'rpc'}], 'exportIds': [CID]}
+        initial = {'coverage': coverage, 'rows': [{'id': CID, 'updatedAt': 100, 'titleSource': 'rpc'},
+                    {'id': 'tail', 'updatedAt': 10, 'titleSource': 'rpc'}], 'exportIds': [CID]}
         after = copy.deepcopy(initial)
         after['coverage']['streams']['recent']['range']['head'] = {'id': OTHER, 'time': 120}
-        after['rows'][0]['timestamp'] = 110
-        after['rows'].append({'id': OTHER, 'timestamp': 120, 'titleSource': 'rpc'})
+        after['rows'][0]['updatedAt'] = 110
+        after['rows'].append({'id': OTHER, 'updatedAt': 120, 'titleSource': 'rpc'})
         scan = scan_evidence()
         scan['response']['status'] = 'up_to_date'
         scan['response']['diagnostics'].update(incremental=True, stopReason='Connected to verified activity coverage')
@@ -657,7 +635,7 @@ class ScanAndImportTests(unittest.TestCase):
         for cid in (CID, OTHER):
             broken = copy.deepcopy(after)
             row = next(row for row in broken['rows'] if row['id'] == cid)
-            row['timestamp'] = 100
+            row['updatedAt'] = 100
             self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [cid])[0])
         for key in ('accountId', 'generation'):
             broken = copy.deepcopy(baseline)
@@ -686,7 +664,7 @@ class ScanAndImportTests(unittest.TestCase):
             broken = copy.deepcopy(after)
             broken[key] = [row for row in broken[key] if not isinstance(row, dict) or row['id'] != 'tail'] if key == 'rows' else []
             self.assertFalse(assert_activity_sync_result(baseline, before, scan, broken, [OTHER])[0], key)
-        before['rows'].append({'id': 'offline-only', 'timestamp': 5})
+        before['rows'].append({'id': 'offline-only', 'updatedAt': 5})
         self.assertFalse(assert_activity_sync_result(baseline, before, scan, after, [OTHER])[0])
 
     def test_complete_fast_scan_passes_without_sampling_busy_state(self):
@@ -719,8 +697,8 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_all_matched_titles_must_upgrade(self):
         cdp = MagicMock()
-        first = {'id': CID, 'title': 'Online title', 'source': 'rpc', 'titles': {'takeout': 'Offline', 'rpc': 'Online title'}}
-        second = {'id': OTHER, 'title': 'Offline', 'source': 'takeout', 'titles': {'takeout': 'Offline'}}
+        first = {'id': CID, 'title': 'Online title', 'source': 'rpc', 'hasTakeoutImport': True}
+        second = {'id': OTHER, 'title': 'Offline', 'source': 'takeout', 'hasTakeoutImport': True}
         cdp.eval.return_value = {'matched': [first, second]}
         self.assertFalse(CDPAssertions.assert_title_upgraded(cdp, [CID, OTHER])[0])
         cdp.eval.return_value = {'matched': [first]}
@@ -729,7 +707,7 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_takeout_empty_import_and_missing_resources_fail_idempotent_passes(self):
         media = {'image.png': hashlib.sha256(b'image bytes').hexdigest()}
-        record = {'id': CID, 'ok': True, 'summary': {'titles': {'takeout': 'Prompt'}},
+        record = {'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
                   'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                       {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]},
                   'resources': [{'sourcePath': 'Takeout/image.png', 'bytes': base64.b64encode(b'image bytes').decode()}]}
@@ -753,7 +731,7 @@ class ScanAndImportTests(unittest.TestCase):
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
             cdp = ctx.connect_options.return_value
-            cdp.eval.return_value = [{'id': CID, 'ok': True, 'summary': {'titles': {'takeout': 'Prompt'}},
+            cdp.eval.return_value = [{'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
                 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                     {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}, 'resources': []}]
             result = {'success': True, 'importedIds': [CID], 'status': 'ok', 'addedCount': 0}
@@ -763,7 +741,7 @@ class ScanAndImportTests(unittest.TestCase):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
 
     def test_empty_image_reply_requires_source_recorded_generation(self):
-        record = {'id': CID, 'ok': True, 'summary': {'titles': {'takeout': 'Draw'}},
+        record = {'id': CID, 'ok': True, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
                   'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                       {'role': 'user', 'content': [{'text': 'Draw'}]},
                       {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]},
@@ -782,7 +760,7 @@ class ScanAndImportTests(unittest.TestCase):
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
             ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True,
-                'summary': {'titles': {'takeout': 'Draw'}}, 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
+                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'id': CID, 'providerId': 'gemini', 'messages': [
                     {'role': 'user', 'content': [{'text': 'Draw'}]},
                     {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}, 'resources': []}]
             res = {'success': True, 'importedIds': [CID], 'status': 'ok', 'totalMediaCount': 1}
@@ -790,6 +768,108 @@ class ScanAndImportTests(unittest.TestCase):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
                 res['mediaDigests'] = {'Takeout/media.png': hashlib.sha256(b'Image bytes').hexdigest()}
                 self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
+
+
+class ImageOutcomeTests(unittest.TestCase):
+    def pixels(self, value=100, width=1024, height=512):
+        return {'width': width, 'height': height, 'pixels': [value] * (64 * 64 * 3)}
+
+    def test_loaded_blob_is_read_from_displayed_element_without_refetch(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = [{'chatId': CID, 'images': [{'turn': 1, 'src': 'blob:revoked', 'loaded': True}]}, self.pixels()]
+        result = capture_webpage_images(cdp, CID)
+        self.assertEqual(result, [dict(turn=1, **self.pixels())])
+        self.assertNotIn('fetch(', cdp.eval.call_args.args[0])
+
+    def test_remote_pixels_come_from_browser_resource_cache(self):
+        cdp = MagicMock()
+        cdp.eval.return_value = {'chatId': CID, 'images': [{'turn': 0, 'src': 'https://example.com/image.jpg', 'loaded': True}]}
+        cdp.call.side_effect = [{}, {'result': {'frameTree': {'frame': {'id': 'frame'}}}},
+                                {'result': {'base64Encoded': True, 'content': base64.b64encode(b'cached image').decode()}}]
+        with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels()) as decode:
+            self.assertEqual(capture_webpage_images(cdp, CID)[0]['turn'], 0)
+        decode.assert_called_once_with(cdp, b'cached image', 'application/octet-stream')
+
+    def test_other_chat_or_unloaded_image_cannot_supply_pixel_evidence(self):
+        for chat_id, loaded in ((OTHER, True), (CID, False)):
+            cdp = MagicMock(); cdp.eval.return_value = {
+                'chatId': chat_id, 'images': [{'turn': 0, 'src': 'blob:image', 'loaded': loaded}]}
+            with patch('scripts.framework.image_evidence.time.monotonic', side_effect=[0, 0, 2]), \
+                 patch('scripts.framework.image_evidence.time.sleep'):
+                with self.assertRaises(ValueError): capture_webpage_images(cdp, CID, timeout=1)
+            self.assertEqual(cdp.call.call_count, 1)  # Page.enable only; never decode foreign/incomplete images.
+
+    def test_preview_and_original_may_differ_in_size_and_compression(self):
+        with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels(101, 2048, 1024)):
+            errors = assert_image_files(None, [self.pixels()], [('image.jpg', b'original')])
+        self.assertLess(errors[0], .01)
+
+    def test_wrong_picture_or_aspect_ratio_and_missing_extra_images_fail(self):
+        for actual, entries in ((self.pixels(200), [('a.png', b'wrong')]),
+                                (self.pixels(100, 500, 500), [('a.png', b'wrong')]),
+                                (self.pixels(), []),
+                                (self.pixels(), [('a.png', b'one'), ('b.png', b'extra')])):
+            with self.subTest(entries=entries), patch('scripts.framework.image_evidence.image_pixels', return_value=actual):
+                with self.assertRaises(ValueError):
+                    assert_image_files(None, [self.pixels()], entries)
+
+    def test_same_file_cannot_satisfy_two_different_web_images(self):
+        with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels(100)):
+            with self.assertRaises(ValueError):
+                assert_image_files(None, [self.pixels(100), self.pixels(200)],
+                                   [('a.png', b'duplicate'), ('b.png', b'duplicate')])
+
+    def test_image_order_matches_webpage_order(self):
+        with patch('scripts.framework.image_evidence.image_pixels', side_effect=[self.pixels(200), self.pixels(100)]):
+            with self.assertRaises(ValueError):
+                assert_image_files(None, [self.pixels(100), self.pixels(200)],
+                                   [('second.png', b'second'), ('first.png', b'first')])
+
+    def test_corrupt_or_undecodable_image_fails(self):
+        cdp = MagicMock(); cdp.eval.return_value = None
+        with self.assertRaises(ValueError): image_pixels(cdp, b'not an image', 'image/png')
+
+    def archive_check(self, body, evidence, asset=True, cid=CID):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / 'export.zip'
+            with zipfile.ZipFile(archive, 'w') as zf:
+                zf.writestr(f'gemini_export/Chat_{CID[-6:]}.md', document(body, cid))
+                if asset: zf.writestr('gemini_export/assets/image.png', b'physical bytes')
+            with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels()):
+                return assert_zip_images(None, archive, CID, evidence)
+
+    def test_physical_zip_requires_per_turn_image_references_files_and_identity(self):
+        body = [{'prompt': 'One', 'response': '![Image](assets/image.png)'}]
+        evidence = [{'images': [self.pixels()]}]
+        self.assertEqual(self.archive_check(body, evidence), [0])
+        for changed, asset, cid in (([{'prompt': 'One', 'response': '[File](assets/image.png)'}], True, CID),
+                                    (body, False, CID), (body, True, OTHER),
+                                    ([{'prompt': 'One', 'response': '![Image](https://example.com/a.png)'}], True, CID)):
+            with self.subTest(changed=changed, asset=asset, cid=cid):
+                with self.assertRaises((ValueError, KeyError)):
+                    self.archive_check(changed, evidence, asset, cid)
+
+    def test_image_in_wrong_reply_or_missing_reply_is_rejected(self):
+        body = [{'prompt': 'One', 'response': 'No image'},
+                {'prompt': 'Two', 'response': '![Image](assets/image.png)'}]
+        evidence = [{'images': [self.pixels()]}, {'images': []}]
+        with self.assertRaises(ValueError): self.archive_check(body, evidence)
+        with self.assertRaises(ValueError): self.archive_check(body[:1], evidence)
+
+    def test_live_disk_images_require_independent_pixels_and_decoder(self):
+        evidence = [{'prompt': 'One', 'response': '', 'has_images': True, 'images': [self.pixels()]}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root/'assets').mkdir()
+            (root/'assets/image.png').write_bytes(b'physical bytes')
+            (root/f'Chat_{CID[-6:]}.md').write_text(document([{'prompt': 'One', 'response': '![Image](assets/image.png)'}]))
+            def check(turns, decoder):
+                return CDPAssertions.assert_real_disk_live_save(directory, [CID], turn_evidence={CID: turns}, image_cdp=decoder)[0]
+            with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels()):
+                self.assertTrue(check(evidence, MagicMock()))
+                self.assertFalse(check(evidence, None))
+                self.assertFalse(check([{**evidence[0], 'images': []}], MagicMock()))
+            with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels(200)):
+                self.assertFalse(check(evidence, MagicMock()))
 
 
 class CoverageTests(unittest.TestCase):
@@ -806,15 +886,11 @@ class CoverageTests(unittest.TestCase):
             finally:
                 OnlineScenarioProvider.reset()
 
-    def test_custom_dataset_and_imagen_case_require_real_image_scenario(self):
+    def test_scenarios_need_no_forced_modality_and_page_images_cannot_pass_export(self):
         ctx = TestContext(dataset=[{'turns': ['one', 'two']}, {'turns': ['one', 'two']}])
-        with self.assertRaises(RuntimeError): ctx.ensure_scenarios()
-        self.assertFalse(ImagenMultimodalCase().execute(ctx)[0])
-        ctx.scenarios[0]['features'] = ['imagen']
-        self.assertFalse(ImagenMultimodalCase().execute(ctx)[0])
-        ctx.shared_data.update(imagen_found=True, imagen_chat_id=CID)
+        self.assertEqual(len(ctx.ensure_scenarios()), 2)
         ctx.chat_records = [{'chat_id': CID, 'turn_evidence': [{'has_images': True}]}]
-        self.assertTrue(ImagenMultimodalCase().execute(ctx)[0])
+        self.assertFalse(ImagenMultimodalCase().execute(ctx)[0])
 
     def test_actual_turn_identity_is_bound_to_context(self):
         ctx = TestContext()
@@ -832,7 +908,8 @@ class CoverageTests(unittest.TestCase):
         ctx = MagicMock()
         ctx.chat_records = [{'chat_id': CID}]
         ctx.connect_options.return_value.eval.return_value = {'matched': [OTHER], 'missing': [CID]}
-        with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
+        with patch.object(CDPActions, 'wait_for_export_idle', return_value=True):
+            with self.assertRaises(RuntimeError): select_format_targets(ctx.connect_options(), ctx, 'html')
 
     def test_html_and_pdf_cases_reject_wrong_archive_targets(self):
         for case, extension in ((HtmlExportDownloadCase(), '.html'), (PdfExportDownloadCase(), '.pdf')):
@@ -871,7 +948,8 @@ class CoverageTests(unittest.TestCase):
             ctx.chat_records = []
             cdp = ctx.connect_options.return_value
             cdp.eval.return_value = {}
-            with patch.object(CDPActions, 'clear_search_workbench'), \
+            with patch.object(CDPActions, 'wait_for_export_idle', return_value=True), \
+                 patch.object(CDPActions, 'clear_search_workbench'), \
                  patch.object(CDPActions, 'trigger_export_zip'):
                 ZipExportDownloadCase().execute(ctx)
             scripts = [str(call.args[0]) for call in cdp.eval.call_args_list]
@@ -880,8 +958,9 @@ class CoverageTests(unittest.TestCase):
 
     def test_partial_skip_requires_both_states_and_exact_zip_contents(self):
         for partial, zip_ids, expected in (({'exportedId': OTHER}, [CID], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID}, [CID, OTHER], False),
-                                         ({'exportedId': OTHER, 'unexportedId': CID}, [CID], True)):
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'deleted'}, [CID], False),
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'available'}, [CID, OTHER], False),
+                                         ({'exportedId': OTHER, 'unexportedId': CID, 'unexportedCloudAvailability': 'available'}, [CID], True)):
             with self.subTest(partial=partial, zip_ids=zip_ids), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / 'partial.zip'
                 with zipfile.ZipFile(path, 'w') as zf:

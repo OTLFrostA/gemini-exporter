@@ -554,13 +554,13 @@ test('C4-9: writeIndexAndMeta matches exact index table escaping and meta.json s
             exportedAt: '2026-10-05T12:00:00.000Z',
             version: SessionRecovery.getExtensionVersion(),
             total: 2,
-            conversations: [{
+            conversations: ([{
                 title: 'Title | With [Special] \\ Chars',
                 exportFile: 'export_01.md',
                 messageCount: 10,
                 attachmentCount: 3,
                 url: 'https://gemini.google.com/app/test1'
-            }, {}]
+            }, {}])
         }, null, 2));
     } finally {
         Date.prototype.toISOString = origToISOString;

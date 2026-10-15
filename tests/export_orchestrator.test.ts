@@ -1,3 +1,7 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
+import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { FetchAssetParams } from '../src/core/engine/assetPipeline.js';
 import { makeTestWorker } from './helpers/makeTestWorker.js';
@@ -5,7 +9,6 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { ExportOrchestrator, AsyncQueue } = require('../src/core/engine/export/exportOrchestrator.js');
-const { RateLimitManager, isRateLimited, calculateBackoff } = require('../src/core/engine/export/rateLimiter.js');
 const { BatchWorker, formatDebugInfo } = require('../src/core/engine/export/batchWorker.js');
 const { ChatFormatter } = require('../src/core/engine/chatFormatter.js');
 const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
@@ -50,36 +53,6 @@ test('AsyncQueue - push, pop, length, FIFO order, and close', async () => {
 
     // Test pushing to closed queue returns false
     assert.strictEqual(queue.push('task-after-close'), false, 'pushing to closed queue must return false');
-});
-
-// ---------------------------------------------------------------------------
-// RateLimitManager
-// ---------------------------------------------------------------------------
-test('RateLimitManager - detect rate limit and exponential backoff', async () => {
-    assert.strictEqual(isRateLimited({ success: false, status: 429 }), true);
-    assert.strictEqual(isRateLimited({ success: false, error: 'Quota exceeded: too many requests' }), true);
-    assert.strictEqual(isRateLimited({ success: true, status: 200 }), false);
-    assert.strictEqual(isRateLimited({ success: false, error: '500 internal server error' }), false);
-
-    const delay0 = calculateBackoff(0, { initialDelayMs: 100, maxDelayMs: 1000, jitterMs: 0 });
-    assert.strictEqual(delay0, 100);
-
-    const delay1 = calculateBackoff(1, { initialDelayMs: 100, maxDelayMs: 1000, jitterMs: 0 });
-    assert.strictEqual(delay1, 200);
-
-    const delayMax = calculateBackoff(10, { initialDelayMs: 100, maxDelayMs: 500, jitterMs: 0 });
-    assert.strictEqual(delayMax, 500);
-
-    const manager = new RateLimitManager({ initialDelayMs: 50, maxDelayMs: 200, jitterMs: 0 });
-    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
-
-    manager.recordRateLimit(100);
-    assert.ok(manager.rateLimitCooldownUntil > Date.now());
-
-    await manager.waitForCooldown();
-    assert.ok(Date.now() >= manager.rateLimitCooldownUntil);
-    manager.reset();
-    assert.strictEqual(manager.rateLimitCooldownUntil, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -157,7 +130,6 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
                         { role: 'model', content: 'Hi there!' }
                     ]
                 }),
-                listTitle: requestedItem.title
             };
         }
     });
@@ -205,7 +177,6 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
                     title: requestedItem.title,
                     messages: [{ role: 'user', content: 'test' }]
                 }),
-                listTitle: requestedItem.title
             };
         }
     });
@@ -255,15 +226,17 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
-    const conversations = [
+    const conversations = ([
         { id: 'chat-new', title: 'New Conversation', timestamp: tExported },
+        { id: 'chat-partial', title: 'Partially Exported', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-updated', title: 'Updated Conversation', timestamp: tExported, updatedAt: tExported + 30000 },
         { id: 'chat-synced', title: 'Synced Conversation', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-old', title: 'Old Synced Conversation', timestamp: tExported - 10000 }
-    ];
+    ]).map(indexFixture);
 
     const exportedIds = {
         'chat-updated': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported, title: 'Updated Conversation' },
+        'chat-partial': { status: 'partial', exportedAt: new Date(tExported + 5000).toISOString(), chatTime: tExported, title: 'Partially Exported' },
         'chat-synced': { exportedAt: new Date(tExported + 5000).toISOString(), chatTime: tExported, title: 'Synced Conversation' },
         'chat-old': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported - 10000, title: 'Old Synced Conversation' }
     };
@@ -279,7 +252,6 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
                     title: requestedItem.title,
                     messages: [{ role: 'user', content: 'test' }]
                 }),
-                listTitle: requestedItem.title
             };
         }
     });
@@ -298,9 +270,10 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
         onLog: (msg: string) => logs.push(msg)
     });
 
-    assert.strictEqual(result.landedChats, 2, 'Only 2 chats (new and updated) should be exported');
+    assert.strictEqual(result.landedChats, 3, 'new, updated, and partial chats must be re-exported');
     assert.strictEqual(result.skipped, 2, '2 chats (synced and old) should be skipped upfront');
-    assert.deepStrictEqual(fetchedIds.sort(), ['chat-new', 'chat-updated'].sort(), 'Only new and updated chats should be fetched');
+    assert.deepStrictEqual(fetchedIds.sort(), ['chat-new', 'chat-updated', 'chat-partial'].sort(),
+        'an incomplete export must be fetched again even without a newer server timestamp');
     assert.ok(logs.some(l => (l.includes('Synced Conversation') || l.includes('chat-synced')) && (l.includes('跳过') || l.includes('skipped'))), 'Logs should report chat-synced skipped');
     assert.ok(logs.some(l => (l.includes('Old Synced Conversation') || l.includes('chat-old')) && (l.includes('跳过') || l.includes('skipped'))), 'Logs should report chat-old skipped');
 });
@@ -320,10 +293,10 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
-    const conversations = [
+    const conversations = ([
         { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
-    ];
+    ]).map(indexFixture);
 
     const exportedIds = {
         'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
@@ -366,10 +339,10 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
-    const conversations = [
+    const conversations = ([
         { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
-    ];
+    ]).map(indexFixture);
 
     const exportedIds = {
         'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
@@ -383,7 +356,6 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
             return {
                 success: true,
                 chat: historicalFixture({ id: item.id, title: item.title, messages: [{ role: 'user', content: 'Body' }] }),
-                listTitle: item.title
             };
         }
     });
@@ -511,9 +483,9 @@ test('ExportOrchestrator - unavailable body remains retryable and is not marked 
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
-    const conversations = [
+    const conversations = ([
         { id: 'cca63136d0630930', title: 'Used an Assistant feature', timestamp: 1710000000000 }
-    ];
+    ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
@@ -558,9 +530,9 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
 
     const tCreate = 1700000000000;
     const tUpdate = 1700086400000; // 24h newer than creation timestamp
-    const conversations = [
+    const conversations = ([
         { id: 'chat_with_img', title: 'Image Chat', timestamp: tCreate, updatedAt: tUpdate }
-    ];
+    ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
@@ -646,7 +618,6 @@ test('ExportOrchestrator - resolves the original first candidate without changin
                 return {
                     isError: true,
                     chat,
-                    listTitle: 'First candidate',
                     displayTitle: 'First candidate',
                     isConfirmedDeleted: false,
                     errMsg: 'Expected regression path',
@@ -724,7 +695,6 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
                 fetchChatDetail: async () => ({ success: true, chat: historicalFixture(fetchedChat) }),
                 resolveChat: async () => ({
                     chat: historicalFixture(resolvedChat),
-                    listTitle: 'Resolved chat',
                     displayTitle: 'Resolved chat',
                     isConfirmedDeleted: false,
                     isError: false,
@@ -751,9 +721,9 @@ test('ExportOrchestrator - writes native document content without reinterpreting
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
-    const conversations = [
+    const conversations = ([
         { id: 'chat_doc_1', title: 'Doc Analysis', timestamp: 1700000000000 }
-    ];
+    ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
@@ -969,11 +939,12 @@ test('all ordinary formats use completion for both records and meta, including f
             }
             const { savedRecords } = setupMockStorage();
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (scenario === 'snapshot' || scenario === 'deleted') await store.saveDomainConversation('u0', parsed);
+            if (scenario === 'snapshot' || scenario === 'deleted') await catalogStorage.setNativeConversations('u0', [parsed]);
+            if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
             try {
                 const result = await new ExportOrchestrator().run({
                     selected: [{ id, title: 'Integrity contract' }], format, useZip: true, downloadHandler: async () => {}, includeAssets: false, includeIndex: true,
-                    conversations: [{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }],
+                    conversations: ([{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }]).map(indexFixture),
                     takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
                     worker: makeTestWorker({ fetchChatDetail: async () => fallback || scenario === 'fetch-failed'
                         ? { success: false, error: 'offline' } : { success: true, chat: parsed } }),
@@ -997,7 +968,7 @@ test('all ordinary formats use completion for both records and meta, including f
     }
 });
 
-test('ZIP delivery boundary preserves real Storage, UI, counts and retry across failure stages', async () => {
+test('ZIP delivery with stub generator preserves real Storage, UI, counts and retry across failure stages', async () => {
     const Storage = require('../src/core/storage/storageService.js');
     const { SessionStore } = require('../src/core/storage/sessionStore.js');
     const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
@@ -1028,7 +999,8 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
             const zips = setupMockJSZip(), BaseZip = __getModuleOverride('JSZip');
             __setModuleOverride('StorageService', Storage);
             const orchestrator = new ExportOrchestrator();
-            let downloads = 0, fetches = 0;
+            let downloads = 0;
+            const fetchedIds: string[] = [];
             __setModuleOverride('JSZip', class extends BaseZip {
                 folder(name: string) {
                     const folder = super.folder(name);
@@ -1049,7 +1021,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
             });
             const selected = ['n1', 'n2', 'n3', ...(failure === 'storage' ? [] : ['c_n1']), ...(failure === 'item' ? ['broken'] : [])].map(id => ({ id, title: id }));
             const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => {
-                fetches++;
+                fetchedIds.push(item.id);
                 if (item.id === 'broken') return { success: false, error: 'Injected detail failure' };
                 await new Promise(resolve => setTimeout(resolve, item.id === 'n1' ? 2 : 0));
                 return { success: true, chat: historicalFixture({ id: item.id.replace(/^c_/, ''), title: item.id,
@@ -1058,7 +1030,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                 }) };
             } });
             const options = { selected, format, useZip: true, currentSlot: slot, includeAssets: false, includeIndex: true, concurrency: failure === 'storage' ? 1 : 4,
-                conversations: selected.map(item => ({ ...item, timestamp: 1720000000000 })), exportedIds: ui, worker,
+                conversations: selected.map(item => indexFixture({ ...item, updatedAt: 1720000000000 })), exportedIds: ui, worker,
                 downloadHandler: failure === 'missing-handler' ? undefined : () => {
                     downloads++;
                     assert.deepEqual(memory[expKey], old, 'physical Storage unchanged inside downloadHandler');
@@ -1116,10 +1088,13 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                     assert.deepEqual(ui, old); assert.deepEqual(notified, []); assert.deepEqual(persisted, []);
                     if (failure === 'missing-handler' || failure === 'cancel-generate' || failure === 'generate' || failure === 'index' || failure === 'meta') assert.equal(downloads, 0);
                     // Existing Skip rules must retry the old/stale and never-delivered conversations.
+                    const beforeRetry = fetchedIds.length;
                     injecting = false;
                     const retry = await new ExportOrchestrator().run({ ...options, skip: true, downloadHandler: () => {} });
                     assert.equal(retry.landedChats, 3);
-                    assert.equal(fetches, 8);
+                    const retriedIds = fetchedIds.slice(beforeRetry).map(id => id.replace(/^c_/, ''));
+                    assert.deepEqual([...new Set(retriedIds)].sort(), ['n1', 'n2', 'n3'],
+                        'failed delivery must retry every conversation, not just perform an exact count of fetch calls');
                 }
             } finally {
                 __clearModuleOverrides();

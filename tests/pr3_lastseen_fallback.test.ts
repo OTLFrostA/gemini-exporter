@@ -21,7 +21,13 @@ test('getEffectiveTimestamp: lastSeen-only chat returns 0', () => {
     assert.strictEqual(getEffectiveTimestamp(chat), 0, 'lastSeen must not feed the authoritative timestamp');
 
     // 数字型 lastSeen 也一样
-    assert.strictEqual(getEffectiveTimestamp({ id: 'c2', lastSeen: Date.now() }), 0);
+    assert.strictEqual(getEffectiveTimestamp({ id: 'c2', lastSeen: 1788100000000 }), 0);
+
+    // A newer local observation must not override a known authoritative server timestamp.
+    const serverUpdatedAt = 1788000000000;
+    assert.strictEqual(getEffectiveTimestamp({
+        id: 'c3', updatedAt: serverUpdatedAt, lastSeen: 1788100000000
+    }), serverUpdatedAt);
 });
 
 // Case 2: checkIsUpdated 不再因客户端 lastSeen 推进而误判 updated。

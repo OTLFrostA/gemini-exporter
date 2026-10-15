@@ -1,16 +1,9 @@
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
- * P0 回归测试 —— 2026-09-15 代码审查发现的 P0 缺陷（P0-3 ChatGPT provider
- * 尚未接入，暂不覆盖；P0-1 经执行验证为误报已撤回，其用例保留为通过性回归测试）。
- *
- * P0-2/4/5/6/7 这组测试是 red-by-design：在当前代码下应当 FAIL（复现缺陷），
- * 修复落地后应当全部 PASS。不要在修复前把本文件放入 tests/ 跑全量，
- * 否则 `npm run test:unit`（run_tests.py 要求每个 test 文件 returncode 为 0）会变红。
- *
- * 运行：node -r tests/ts_register.js --test tests/p0_regressions.test.ts
- *
- * @retire-when: P0-2/4/5/6/7 fixes land and this suite goes green — then fold
- *   surviving cases into the permanent suites and delete the red-by-design husks
+ * Historical P0 regression contracts, all expected to pass under the normal
+ * unit-test gate. P0-3 is deferred until the ChatGPT provider ships.
+ * P0-5 is an explicitly limited source guard for popup-local logging;
+ * the other cases exercise real storage/parser/formatter behavior.
  */
 export {};
 const test = require('node:test');
@@ -20,7 +13,6 @@ const path = require('path');
 
 const StorageService = require('../src/core/storage/storageService.js');
 const CredManager = require('../src/core/api/client/credentialManager.js').default;
-const BatchWorker = require('../src/core/engine/export/batchWorker.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 function readSrc(rel: string): string {
@@ -66,16 +58,8 @@ test('P0-1: export-record save chain recovers after a single failed batch (no po
         // 存储已恢复：第二次保存必须成功。
         // （原报告误称此处会以陈旧错误 reject 即"链中毒"；实际 .catch(reject)
         //  已将链重置为 resolved，见 P0-1 勘误。）
-        let secondErr: any = null;
-        try {
-            await StorageService.saveExportRecord('u0', 'c_p0_1_probe_b', { probe: 1 });
-        } catch (e) {
-            secondErr = e;
-        }
-        assert.strictEqual(
-            secondErr, null,
-            `save chain poisoned: second save rejected with stale error: ${secondErr && secondErr.message}`
-        );
+        // Let the second write fail the test directly if the chain is still poisoned.
+        await StorageService.saveExportRecord('u0', 'c_p0_1_probe_b', { probe: 1 });
         const got: any = await (global as any).chrome.storage.local.get(['exportedIds']);
         // P1-045 (2026-09-15): export records are now stored under a single canonical
         // key normId(id); readers look up all historical alias forms, so the record
@@ -119,13 +103,15 @@ test('P0-2: resolveCred backfill must not drop other accounts from the credentia
                 good: { sid: 'good', at: 'AT_GOOD', bl: 'BL_X', accountSlot: 'u1', lastUsed: 2 },
             },
         });
-        await CredManager.resolveCred();
+        const resolved = await CredManager.resolveCred();
         const after: Record<string, any> = sessionStore.gemini_credentials_map || {};
         assert.deepStrictEqual(
             Object.keys(after).sort(), ['bad', 'good'],
             `credential map was overwritten during backfill, keys now: ${JSON.stringify(Object.keys(after))}`
         );
         assert.strictEqual(after.good.at, 'AT_GOOD', 'the other account credential must be preserved');
+        assert.strictEqual(after.bad.at, 'PAGE_AT_FRESH', 'this fixture must actually exercise AT backfill');
+        assert.strictEqual(resolved.at, 'PAGE_AT_FRESH', 'resolved credentials should use the new page token');
     } finally {
         (global as any).chrome = prevChrome;
         if (prevDocument === undefined) delete (global as any).document;

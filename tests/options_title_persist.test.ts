@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -17,7 +18,7 @@ test.afterEach(() => {
 });
 
 function seedConversation() {
-    return { id: 'c_aaa111', title: '旧标题', titleSource: 'dom', titles: { dom: '旧标题' } };
+    return indexFixture({ id: 'c_aaa111', title: '旧标题', titleSource: 'dom' });
 }
 
 let memConvs: any[];
@@ -36,7 +37,7 @@ function installMocks() {
     __setModuleOverride('StorageService', {
         updateConversation: async (slot: string, id: string, updater: (c: any) => void) => {
             updateCalls.push({ slot, id });
-            const target = storedConvs.find((c) => c && c.id === id);
+            const target = storedConvs.find((c) => c && c.id === id.replace(/^c_/, ''));
             if (!target) return false;
             updater(target);
             return true;
@@ -67,14 +68,14 @@ test('persistTitleUpdate updates in-memory item AND persists title to storage', 
 
     // existing behavior: in-memory item reflects the arbitrated title
     assert.strictEqual(memConvs[0].title, '从RPC解析到的新标题');
-    assert.strictEqual(memConvs[0].titles.rpc, '从RPC解析到的新标题');
+    assert.strictEqual(memConvs[0].titleSource, 'rpc');
 
     // the fix: the stored copy must carry the new title too (survives reload)
     assert.strictEqual(updateCalls.length, 1, 'expected exactly one atomic storage write');
     assert.strictEqual(updateCalls[0].slot, 'u0');
     assert.strictEqual(updateCalls[0].id, 'c_aaa111');
     assert.strictEqual(storedConvs[0].title, '从RPC解析到的新标题');
-    assert.strictEqual(storedConvs[0].titles.rpc, '从RPC解析到的新标题');
+    assert.strictEqual(storedConvs[0].titleSource, 'rpc');
 });
 
 test('persistTitleUpdate ignores non-real titles (no storage write)', async () => {
@@ -114,7 +115,7 @@ test('late export title callback persists to its original slot without touching 
     installMocks();
     const visible = { id: 'c_aaa111', title: 'Other account title' };
     __setModuleOverride('ConversationsStore', {
-        getConversations: () => [visible],
+        getConversations: () => ([visible]).map(indexFixture),
         getCurrentSlot: () => 'u1',
     });
     const persistTitleUpdate = loadPersistTitleUpdate();

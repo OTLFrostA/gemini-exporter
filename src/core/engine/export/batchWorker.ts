@@ -1,14 +1,15 @@
+import { indexFromParsed } from '../../compatibility/index/parseIndex.js';
+import { mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { StorageService } from '../../storage/storageService.js';
-import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
+import { selectConversationBody, withConversationMetadata } from '../../domain/runtimeValidation.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import { requestNativeDetail, requestNativeBatch, type NativeBatchReply } from '../../utils/nativeDetailTransport.js';
 import type { FetchBatchMessage } from '../../../types/messages.js';
-import type { Conversation } from '../../../types/conversation.js';
+import type { DomainConversationIndex } from '../../../types/conversation.js';
 import type { TabServiceModule } from '../../../types/utils.js';
 import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { AssetPipelineItem } from '../assetPipeline.js';
-import { normalizeReliableTitleSource } from '../../utils/titleUtils.js';
-import { normId, cleanTitle, isRealTitle, resolveTitle, getErrorMessage } from '../../utils/utils.js';
+import { normId, getErrorMessage } from '../../utils/utils.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
 import TabService from '../../utils/tabService.js';
 import { isConfirmedDeletedError } from '../../protocol/protocol.js';
@@ -18,17 +19,25 @@ interface TabServiceLike { sendToGeminiTab?: (message: unknown, slot?: string, t
 interface FetchChatDetailOptions { messageSender?: MessageSenderFunction | null; tabService?: TabServiceModule | TabServiceLike | null }
 export type FetchChatDetailResult = NativeBatchReply;
 export type ResolvedConversationSource = 'online' | 'takeout' | 'local_snapshot' | 'unspecified';
-export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: Conversation['cloudAvailability'] };
+export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: DomainConversationIndex['cloudAvailability'] };
 export type WorkerChat = ResourceConversationParseResult;
 export type WorkerChatResolveInput = NativeConversationInput;
 export type WorkerMessageAttachment = AssetPipelineItem;
 export type ResolveChatResult = {
-    isError: false; chat: ResourceConversationParseResult; source: ResolvedConversationSource; listTitle: string;
+    isError: false; chat: ResourceConversationParseResult; source: ResolvedConversationSource;
     isConfirmedDeleted: false; errMsg: null; convsNeedSave: boolean;
 } | { isError: true; displayTitle: string; isConfirmedDeleted: boolean; errMsg: string; convsNeedSave: false };
 interface ResolveChatOptions { messageSender?: MessageSenderFunction | null; source?: ResolvedConversationSource }
 interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
+async function readSavedConversation(slot: string, id: string): Promise<ResourceConversationParseResult | null> {
+    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getConversation(id);
+    if (!stored?.detail) return null;
+    if (!stored.capture) throw new TypeError('Saved body is missing capture evidence');
+    return { conversation: withConversationMetadata(stored.detail, stored.index),
+        ...(stored.capture.savedAt !== undefined ? { sourceVersion: stored.capture.savedAt } : {}), diagnostics: [], resourceHints: {},
+        acquisitionHints: stored.capture.acquisitionHints };
+}
 function resolveRuntimeSender(): MessageSenderFunction | null {
     if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
         return (message: unknown, callback?: (response: unknown) => void) => {
@@ -54,7 +63,7 @@ export async function fetchChatDetail(
     const nid = normId(requestedItem.id);
     if (abortSignal?.aborted) return { success: false, error: 'aborted' };
     if (requestedItem.cloudAvailability === 'deleted') {
-        const stored = await getDomainConversationResult(currentSlot, nid);
+        const stored = await readSavedConversation(currentSlot, nid);
         if (stored?.conversation.messages.length) return { success: true, results: [stored], source: 'local-cache' };
     }
     if (requestedItem.cloudAvailability === 'deleted') {
@@ -158,7 +167,7 @@ export async function fetchChatDetail(
 }
 
 /** Resolve source or durable Domain bodies; historical strings are never export inputs. */
-export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: Partial<Conversation> | null,
+export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: DomainConversationIndex | null,
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}, source: ResolvedConversationSource = 'unspecified'): Promise<{ result: NativeConversationInput; source: ResolvedConversationSource }> {
     if (isResourceConversationParseResult(value) && value.conversation.messages.length) return { result: value, source };
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
@@ -166,7 +175,7 @@ export async function resolveConversationData(value: NativeConversationInput, id
         onLog('[Takeout] Recovered ' + id, 'info');
         return { result: offline, source: 'takeout' };
     }
-    const stored = await getDomainConversationResult(slot, id);
+    const stored = await readSavedConversation(slot, id);
     if (stored?.conversation.messages.length) {
         onLog(`Exporting local snapshot: ${id}; latest cloud content was not fetched.`, 'warn');
         return { result: stored, source: 'local_snapshot' };
@@ -174,13 +183,14 @@ export async function resolveConversationData(value: NativeConversationInput, id
     return { result: value, source };
 }
 
-export async function resolveChat(value: NativeConversationInput, requested: BatchWorkerRequestedItem, list?: Partial<Conversation> | null,
+export async function resolveChat(value: NativeConversationInput, requested: BatchWorkerRequestedItem, list?: DomainConversationIndex | null,
     takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0',
     onTitleUpdated: (id: string, title: string, source: string) => void = () => {},
     onLog: (message: string, level?: string) => void = () => {}, options: ResolveChatOptions = {}): Promise<ResolveChatResult> {
     const id = normId(requested.id);
     const evidence = value && !isResourceConversationParseResult(value) ? value : undefined;
-    if (evidence?.isDeleted === true || isConfirmedDeletedError(evidence?.error)) {
+    const confirmedDeleted = evidence?.isDeleted === true || isConfirmedDeletedError(evidence?.error);
+    if (confirmedDeleted) {
         requested.cloudAvailability = 'deleted';
         if (list) list.cloudAvailability = 'deleted';
         const storage = __resolveModule<Partial<Pick<typeof StorageService, 'updateConversation'>>>('StorageService', StorageService);
@@ -201,19 +211,24 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error, convsNeedSave: false };
     }
     const domain = result.conversation;
-    const titles = { ...list?.titles };
-    if (domain.titleSource && isRealTitle(domain.title, id)) titles[domain.titleSource] = cleanTitle(domain.title);
-    const resolved = resolveTitle({ id, title: list?.title || domain.title, titleSource: list?.titleSource || domain.titleSource, titles });
-    const title = resolved.title || domain.title || requested.title || id;
-    const source = resolved.source || domain.titleSource;
-    const storedTitles = Object.fromEntries(Object.entries(titles).flatMap(([key, value]) => {
-        const reliable = normalizeReliableTitleSource(key);
-        return reliable ? [[reliable, value]] : [];
-    }));
-    const changed = !!list && (list.title !== title || list.titleSource !== source || JSON.stringify(list.titles) !== JSON.stringify(storedTitles));
-    if (changed && list) { list.title = title; list.titleSource = normalizeReliableTitleSource(source); list.titles = storedTitles; onTitleUpdated(id, title, source || ''); }
-    return { isError: false, chat: { ...result, conversation: { ...domain, title, titleSource: source } }, source: dataSource,
-        listTitle: title, isConfirmedDeleted: false, errMsg: null, convsNeedSave: changed };
+    const cached = dataSource === 'local_snapshot';
+    const repository = cached ? StorageService.conversationRepository({ providerId: domain.providerId, accountSlot: slot }) : null;
+    const canonical = repository ? await repository.getConversationIndex(id) : null;
+    if (cached && !canonical) return { isError: true, displayTitle: requested.title || id,
+        isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued', convsNeedSave: false };
+    const observation = indexFromParsed(result, dataSource === 'takeout' ? 'takeout' : dataSource === 'local_snapshot' ? 'snapshot' : 'detail');
+    // Saved metadata is a projection of an earlier observation, never new evidence.
+    // A deletion confirmed by this request remains restrictive even if its marker
+    // failed to persist. An older saved Index cannot erase that live evidence.
+    const merged = canonical ? confirmedDeleted ? { ...canonical, cloudAvailability: 'deleted' as const } : canonical
+        : mergeConversationIndex(list ?? undefined, observation);
+    const changed = !!list && JSON.stringify(list) !== JSON.stringify(merged);
+    if (changed && list) {
+        Object.assign(list, merged);
+        if (!cached) onTitleUpdated(id, merged.title, merged.titleSource);
+    }
+    return { isError: false, chat: { ...result, conversation: withConversationMetadata(selectConversationBody(domain), merged) }, source: dataSource,
+        isConfirmedDeleted: false, errMsg: null, convsNeedSave: !cached && changed };
 }
 export const isWorkerChat = isResourceConversationParseResult;
 export function formatDebugInfo(debug: unknown): string {

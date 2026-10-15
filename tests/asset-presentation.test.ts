@@ -5,6 +5,7 @@ const { assetPresentation, isHumanMeaningfulFilename } = require('../src/core/do
 const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
 const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 
 test('asset labels suppress opaque storage names and preserve meaningful multilingual names', () => {
@@ -17,8 +18,8 @@ test('asset labels suppress opaque storage names and preserve meaningful multili
 
 test('opaque generated image caption policy agrees across Markdown HTML and Typst', () => {
     const name = 'watermarked_img_11204364633950674587.jpg';
-    const domain = { providerId: 'gemini', id: 'c', title: 'Title', timestamp: null, assets: [{ id: 'i', name, kind: 'image' }], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'image', assetId: 'i', alt: name, caption: [{ type: 'text', text: name }] }] }] };
-    const document = composeDomainDocument(domain).document;
+    const domain = { providerId: 'gemini', id: 'c', title: 'Title', completeness: 'unknown', assets: [{ id: 'i', name, kind: 'image' }], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'image', assetId: 'i', alt: name, caption: [{ type: 'text', text: name }] }] }] };
+    const document = composeDomainDocument(validateParserDomain(domain)).document;
     const resources = { i: 'assets/image.jpg' };
     const md = renderDocumentMarkdown(document, resources);
     assert.ok(md.includes('![Image](assets/image.jpg)'));
@@ -27,6 +28,6 @@ test('opaque generated image caption policy agrees across Markdown HTML and Typs
     assert.equal(payload.messages[0].blocks[0].caption, undefined);
     // HTML keeps the asset reference in href, but no opaque display label.
     const result = renderDocumentHtml(document, resources);
-    assert.ok(!JSON.stringify(result).includes(name));
-    assert.ok(result.html.includes('<h1 class="gem-conversation-title">Title</h1>'));
+    assert.ok(!result.html.includes(name), 'opaque storage name must not be user-visible HTML');
+    assert.ok(result.html.includes('assets/image.jpg'), 'the image must still be rendered from its prepared path');
 });

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import type { BlockNode } from '../src/core/domain/content/blocks.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';

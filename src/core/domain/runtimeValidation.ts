@@ -1,6 +1,7 @@
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
 import { TITLE_AUTHORITY_RANK } from './titleAuthority.js';
+import type { DomainConversationIndex } from './conversationIndex.js';
 
 type Check = (value: unknown) => boolean;
 const text: Check = v => typeof v === 'string';
@@ -59,12 +60,31 @@ function block(v: unknown): boolean {
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), updatedAt: optional(number), createdAt: optional(number), url: optional(text), titleSource: optional(enumeration(...Object.keys(TITLE_AUTHORITY_RANK))) };
+const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), createdAt: optional(number), url: optional(text), titleSource: optional(enumeration(...Object.keys(TITLE_AUTHORITY_RANK))) };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */
 declare const trustedDomain: unique symbol;
 export type TrustedDomain = DomainConversationDetail & { readonly [trustedDomain]: true };
+export type TrustedDomainBody = Pick<TrustedDomain, typeof trustedDomain | 'completeness' | 'messages' | 'assets'>;
+
+/** Preserve established graph trust when separating a stored snapshot's body.
+ * Metadata is deliberately not copied; this does not validate arbitrary input. */
+export function selectConversationBody(conversation: TrustedDomain): TrustedDomainBody {
+    const { providerId: _provider, id: _id, title: _title, titleSource: _source, createdAt: _created, url: _url, ...body } = conversation;
+    return body;
+}
+
+/** Metadata-only projection over an already trusted body. No repeated AST validation. */
+export function withConversationMetadata(body: TrustedDomainBody, index: DomainConversationIndex): TrustedDomain {
+    const projected: TrustedDomain = { ...body, providerId: index.providerId, id: index.id,
+        title: index.title, titleSource: index.titleSource, createdAt: index.createdAt, url: index.url };
+    // Full trusted snapshots are structurally assignable to body. Absent Index
+    // fields must still erase their stale optional metadata in that case.
+    if (index.createdAt === undefined) delete projected.createdAt;
+    if (index.url === undefined) delete projected.url;
+    return projected;
+}
 
 function serializeDomain(value: unknown): string | undefined {
     // Reject cycles/non-JSON values before recursive schema validation.

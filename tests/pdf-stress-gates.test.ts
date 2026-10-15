@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-stress-gates.test.ts
@@ -447,7 +448,7 @@ test('stress: full-pipeline release stress with real Typst compile (Item 4)', as
         result = await exporter.run(
             {
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
-                conversations,
+                conversations: conversations.map(indexFixture),
                 fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,

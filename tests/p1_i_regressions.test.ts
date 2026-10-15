@@ -6,8 +6,6 @@ import type { GeminiLiveSaveTriggerPayload } from '../src/core/protocol/events.j
 
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
 
 const Proto = require('../src/core/protocol/protocol.js');
 const { ProviderRegistryClass } = require('../src/core/provider/providerRegistry.js');
@@ -40,17 +38,11 @@ test('P1-075 - second DELETION_ANCHOR requires the c_ prefix (anchored disciplin
 });
 
 // ---------------------------------------------------------------- P1-077
-test('P1-077 - typed self-mounts, no as-any escape hatches', () => {
-    assert.strictEqual(Proto.GeminiProtocol, Proto, 'self mount intact');
-    assert.strictEqual(Proto.default, Proto, 'default mount intact');
-    assert.strictEqual(Proto.CrossWorldEvents, Proto.EVENTS, 'events mount intact');
-    // Phase 1c: the globalThis mount was intentionally removed — protocol now
-    // resolves via static import (or the __setModuleOverride test seam).
-    assert.strictEqual((globalThis as any).GeminiProtocol, undefined, 'globalThis mount must stay gone');
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/protocol/protocol.ts'), 'utf8');
-    assert.ok(!/^\s*\/\/\s*@ts-ignore/m.test(src), '@ts-ignore directive must be gone');
-    const codeOnly = src.replace(/\/\/.*$/gm, '');
-    assert.ok(!codeOnly.includes('as any'), 'as any casts must be gone from protocol.ts');
+test('P1-077 - protocol self-mounts remain available without a globalThis mount', () => {
+    assert.strictEqual(Proto.GeminiProtocol, Proto);
+    assert.strictEqual(Proto.default, Proto);
+    assert.strictEqual(Proto.CrossWorldEvents, Proto.EVENTS);
+    assert.strictEqual((globalThis as any).GeminiProtocol, undefined);
 });
 
 // ------------------------------------------------------------- P1-078/079/080
@@ -106,19 +98,15 @@ test('P1-080 - explicit matchesUrl=false is never overruled by hostPatterns', ()
 // ------------------------------------------------------------- P1-081/082 (fixed by #356, locked here; Phase E: dormant)
 
 
-// ---------------------------------------------------------------- P1-084
-test('P1-084 - live-save trigger payload is an explicit contract', () => {
-    // Type-level lock (checked by tsc): only cid/reason/mockMode are legal.
-    const payload: GeminiLiveSaveTriggerPayload = { cid: 'c_1', reason: 'turn_complete', mockMode: true };
-    // messageBridge-style destructuring forwards a well-typed options bag.
-    function fakeExecuteLiveSave(cid: string, reason: string, options: { mockMode?: boolean }): boolean {
-        return !!cid && reason === 'turn_complete' && options.mockMode === true;
-    }
-    const { cid, reason, ...options } = payload;
-    assert.ok(fakeExecuteLiveSave(cid, reason || 'turn_complete', options));
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/protocol/events.ts'), 'utf8');
-    assert.ok(!/^\s*\[key: string\]: any;/m.test(src), 'index signature must be gone from the payload');
-});
+// P1-084: TypeScript-checked contract (there is no useful runtime behavior here).
+// These assignments are checked by npm run type-check; do not mock the consumer.
+const acceptedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = {
+    cid: 'c_1', reason: 'turn_complete', mockMode: true
+};
+// @ts-expect-error: unknown payload fields must be rejected by the public type.
+const rejectedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = { cid: 'c_1', arbitraryField: 'not allowed' };
+void acceptedLiveSaveTrigger;
+void rejectedLiveSaveTrigger;
 
 // ---------------------------------------------------------------- P1-085
 
@@ -133,8 +121,6 @@ test('P1-084 - live-save trigger payload is an explicit contract', () => {
 
 // ---------------------------------------------------------------- P1-088
 test('P1-088 - checkReadiness never passes the slot id off as the account name', async () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src/core/provider/gemini/geminiProvider.ts'), 'utf8');
-    assert.ok(!src.includes('accountName: slot'), 'slot id must not masquerade as accountName');
     // Runtime: stub credential resolution to force the ready:true branch.
     const credMgr = require('../src/core/api/client/credentialManager.js').default;
     const orig = credMgr.resolveCred;

@@ -80,7 +80,9 @@ function styleRank(style: string): number {
     const s = style.toLowerCase();
     const bold = s.includes('bold') || s.includes('black') || s.includes('heavy');
     const italic = s.includes('italic') || s.includes('oblique');
-    if (!bold && !italic) return 0;
+    if (!bold && !italic) {
+        return s === 'regular' || s === 'book' || s === 'roman' || s === 'normal' ? 0 : 0.5;
+    }
     if (!bold && italic) return 1;
     if (bold && !italic) return 2;
     if (bold && italic) return 3;
@@ -124,6 +126,7 @@ export function rankLocalFontCandidates(
     const used = claimed ?? new Set<number>();
     const out: LocalFontCandidate[] = [];
     requested.forEach((family, requestedIndex) => {
+        const want = normalizeFontName(family);
         const matched: Array<{ entry: LocalFontEntry; index: number }> = [];
         entries.forEach((entry, index) => {
             if (!used.has(index) && entryMatchesRequest(entry, family)) {
@@ -132,6 +135,7 @@ export function rankLocalFontCandidates(
         });
         matched.sort(
             (a, b) =>
+                (Number(normalizeFontName(b.entry.family) === want) - Number(normalizeFontName(a.entry.family) === want)) ||
                 styleRank(a.entry.style) - styleRank(b.entry.style) ||
                 (a.entry.postscriptName < b.entry.postscriptName ? -1 : a.entry.postscriptName > b.entry.postscriptName ? 1 : 0),
         );

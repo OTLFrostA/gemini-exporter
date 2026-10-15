@@ -56,7 +56,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     // Ensure list is initially empty
     await optionsPage.evaluate(async () => {
       await chrome.storage.local.set({
-        gemini_conversations: [],
+        gemini_conversations: ([]).map(canonicalIndexFixture),
         gemini_scan_checkpoint: 9999999999999,
         exportedIds: {}
       });

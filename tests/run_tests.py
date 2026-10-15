@@ -485,7 +485,7 @@ def test_exported_history_and_slot_fallback():
     migration_ts = os.path.join(BASE_DIR, "src/core/storage/schemaMigration.ts")
     with open(migration_ts, "r", encoding="utf-8") as f:
         mig_code = f.read()
-    assert "gemini_conversations_u0" in mig_code, "schemaMigration should handle legacy gemini_conversations_u0"
+    assert "migrateConversationIndexes" in mig_code and "gemini_conversations_u0" in code, "schemaMigration should handle legacy gemini_conversations_u0"
     assert "migrateExportAliases" in mig_code, "schemaMigration should run migrateExportAliases"
 
     store_ts = os.path.join(BASE_DIR, "src/ui/state/conversationsStore.ts")

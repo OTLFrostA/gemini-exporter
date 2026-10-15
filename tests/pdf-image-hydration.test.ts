@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-image-hydration.test.ts
@@ -105,7 +106,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         {
-            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             fetchAsset: async (req: any) => {
                 fetchedUrls.push(typeof req === 'string' ? req : req.url);
                 return {
@@ -207,7 +208,7 @@ test('1b. Remote URL-only attachment and standalone Markdown remote image: conte
     const result = await exporter.run(
         {
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             fetchAsset: async () => ({
@@ -280,7 +281,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         {
-            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({
@@ -373,7 +374,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         {
-            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({
@@ -420,7 +421,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const runRes = await exporter.run(
         {
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             maxAssetRetries: 0,
@@ -464,7 +465,7 @@ test('4. Abort during asset acquisition stops immediately and writes no files', 
     const runPromise = exporter.run(
         {
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             fetchAsset: async () => {
@@ -525,7 +526,7 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
         const result = await exporter.run(
             {
                 selected: [{ id: rawChat.id, title: rawChat.title }],
-                conversations: [rawChat], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+                conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,
                 fetchAsset: async () => ({

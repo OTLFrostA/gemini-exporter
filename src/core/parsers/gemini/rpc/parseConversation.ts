@@ -1,4 +1,3 @@
-import { normalizeConversationTimes } from '../../../domain/time.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
@@ -65,21 +64,24 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     }), { sourceReferences: true });
     const hasMore = Boolean(evidence.nextPageToken?.trim());
     const rejected = (evidence.turnsRejected ?? 0) > 0;
+    const updatedAt = evidence.updatedAt;
+    const versionMismatch = updatedAt !== null && messages.some(message => message.timestamp !== undefined && message.timestamp > updatedAt);
     const metadata = evidence.metadataConversation;
     const conversation: DomainConversationDetail = {
         providerId: 'gemini',
-        completeness: hasMore || rejected ? 'partial' : 'unknown',
+        completeness: hasMore || rejected || versionMismatch ? 'partial' : 'unknown',
         id: metadata?.id ?? evidence.id, title: metadata?.title ?? evidence.title,
         titleSource: metadata ? 'rpc' : evidence.titleSource,
-        ...normalizeConversationTimes({ updatedAt: evidence.updatedAt }),
         url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
         assets: resources.assets, messages: resources.messages,
     };
     return {
+        ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
         conversation: validateParserDomain(conversation), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
         diagnostics: [
             ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
             ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),
+            ...(versionMismatch ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version' }] : []),
             ...contentDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),
         ],
         transport: {

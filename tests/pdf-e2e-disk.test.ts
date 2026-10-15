@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-e2e-disk.test.ts
@@ -54,6 +55,7 @@ function makeSample(idSuffix: string, title: string, marker?: string) {
     const c = JSON.parse(JSON.stringify(sample));
     c.id = `pdf-e2e-disk-${idSuffix}`;
     c.title = title;
+    c.titles = { [c.titleSource || 'legacy']: title };
     if (marker) {
         // Distinct body text per conversation so per-PDF text correctness is
         // verifiable (flows through the real normalizer into the bundle).
@@ -216,7 +218,7 @@ test('e2e-disk: single PDF export lands a real, parseable file on disk', async (
         const result = await exporter.run(
             {
                 selected: [{ id: conv.id, title: conv.title }],
-                conversations: [conv], fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([conv]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+                conversations: ([conv]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([conv]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,
             },
@@ -289,7 +291,7 @@ test('e2e-disk: batch ZIP of 3 conversations lands a real ZIP with 3 parseable P
         const result = await exporter.run(
             {
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
-                conversations,
+                conversations: conversations.map(indexFixture),
                 fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: true,
                 writer,

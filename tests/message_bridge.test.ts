@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
 const test = require('node:test');
@@ -34,7 +35,7 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
                 removedId = id;
                 return true;
             },
-            getConversations: async () => [{ id: 'c_remaining' }]
+            getConversations: async () => ([{ id: 'c_remaining' }]).map(indexFixture)
         },
         getAccountSlot: () => 'u0'
     });
@@ -145,7 +146,7 @@ test('client - getAllConversations respects opts.signal', async () => {
         aborted: false,
         isAborted: () => false,
         getConversationList: async () => {
-            return { conversations: [{ id: 'c_1', title: 'Chat 1' }], nextPageToken: 'tC_2' };
+            return { conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), nextPageToken: 'tC_2' };
         }
     };
 
@@ -295,4 +296,24 @@ test('messageBridge rejects malformed raw protocol fields before parser or strea
         await api.handleWindowMessage({ data: { type, payload: { id: 'valid', slot: 1 } } });
     }
     assert.strictEqual(touches, 0);
+});
+
+test('messageBridge normalizes detail conversation id before persisting to DomainStore', async () => {
+    const { __clearDomainMemory, getStoredDomain, storageIdentity } = require('../src/core/storage/domain/domainStore.js');
+    __clearDomainMemory();
+    const turn = [['c_1bd028d5c5b0c0e2', 'r_1'], [1788374200, 0], [['Prompt text']], [['rc_1', [['Answer text']]]]];
+    const text = ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Chat Title'])]]);
+    const api = MessageBridge.init({
+        getAccountSlot: () => 'u0',
+        upsertConversations: async () => 1
+    });
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_NETWORK_BATCHEXECUTE',
+            payload: { text, slot: 'u0' }
+        }
+    });
+    const stored = await getStoredDomain(storageIdentity('gemini', 'u0', '1bd028d5c5b0c0e2'));
+    assert.ok(stored);
+    assert.strictEqual(stored.conversation.id, '1bd028d5c5b0c0e2');
 });

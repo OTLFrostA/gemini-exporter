@@ -1,51 +1,42 @@
+import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
+import { deduplicateConversations } from '../utils/mergeUtils.js';
+import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
+import { parseIndexObservation, indexFromParsed } from '../compatibility/index/parseIndex.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from '../sync/streamCoverage.js';
 import type { PageObservation } from '../sync/pageObservation.js';
 import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from './scanCoverage.js';
 import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
 import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
-import { getDomainConversationResult } from './domain/nativePersistence.js';
-import { saveDomainConversation, removeStoredDomain, storageIdentity } from './domain/domainStore.js';
+import { backupLegacyValue, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
+import { createConversationRepository, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
 import {
-    readStoredValue, readStoredObject, isStoredConversationRow,
-    readStoredConversationFields, readStoredExportMap, readStoredSlotMap,
-    type StoredObject, type StoredConversationRow,
-    type StoredConversationFields, type StoredExportRecordMap,
+    readStoredValue, type StoredObject, readStoredObject, readStoredExportMap, readStoredSlotMap,
+    type StoredExportRecordMap,
     type StoredAccountSlotMap, type StoredSyncStatus,
 } from './storageCompatibility.js';
 import type {
-    Conversation,
+    DomainConversationIndex,
     ExportRecord,
     AccountSlotInfo,
     AccountSlots,
     ReconcileOptions
 } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
-import { isTakeoutConversation, applyExportTitleWriteback, cleanTitle, isRealTitle, resolveTitle, toTimestampMs, getEffectiveTimestamp, normalizeReliableTitleSource } from "../utils/titleUtils.js";
+
 import { STORAGE_KEYS } from "../utils/constants.js";
 
 export interface FinalizeExportOptions<T = ExportRecord> {
     /** Whether to skip updating conversation in gemini_conversations (defaults to false) */
     skipConversationUpdate?: boolean;
-    /** Conversation fields to update/merge into gemini_conversations */
-    conversationUpdate?: {
-        title?: string;
-        titleSource?: string;
-        titles?: Record<string, string>;
-        messageCount?: number;
-        updatedAt?: number | string;
-        timestamp?: number | string;
-        chatTime?: number | string;
-    };
+    /** DomainConversationIndex fields to update/merge into gemini_conversations */
+    conversationUpdate?: ConversationIndexPatch;
     /** Callback invoked after successful write */
     onItemExported?: (id: string, record: T) => void;
 }
 import {
-    saveConversationDetailsBatch,
     removeConversationDetails,
-    getConversationDetail,
-    clearAllDetails,
-    type ConversationDetailRecord
+    clearAllDetails
 } from './conversationDetailStore.js';
 import {
     getDevMode,
@@ -87,23 +78,9 @@ export interface ReconcileResult {
 
 export interface ConversationTransaction {
     /** List to persist. Must be a fresh array; the stored list is replaced wholesale. */
-    list: Conversation[];
+    list: DomainConversationIndex[];
     /** How many items the merge changed (drives badge / skip-write decisions). */
     changed: number;
-}
-
-function fields(raw: unknown): StoredObject {
-    if (raw === null || raw === undefined) throw new TypeError('Cannot read null conversation');
-    if (isObjectRecord(raw)) return readStoredObject(raw);
-    if (typeof raw === 'string') {
-        const chars: StoredObject = {};
-        for (let i = 0; i < raw.length; i++) chars[String(i)] = raw[i];
-        return chars;
-    }
-    return {};
-}
-function normalizedConversationId(raw: unknown): string {
-    return normId(String(fields(raw).id || ''));
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -129,13 +106,73 @@ function getStorageKeys(slot?: string | null): StorageKeys {
     };
 }
 
-async function getConversations(slot?: string | null): Promise<StoredConversationRow[]> {
+async function getConversations(slot?: string | null): Promise<DomainConversationIndex[]> {
     const { convKey } = getStorageKeys(slot);
     const data = await chrome.storage.local.get<Record<string, unknown>>([convKey]);
     const raw = data[convKey];
-    if (!Array.isArray(raw)) return [];
-    if (!raw.every(isStoredConversationRow)) throw new TypeError('Non-serializable stored conversation row');
-    return raw;
+    if (raw === undefined) return [];
+    if (!Array.isArray(raw)) throw new TypeError('Invalid conversation index container');
+    const indexes = raw.map(restoreConversationIndex);
+    const ids = new Set(indexes.map(c => JSON.stringify([c.providerId, c.id])));
+    if (ids.size !== indexes.length) throw new TypeError('Duplicate conversation index identity');
+    return indexes;
+}
+
+/** Startup-only conversion. Backups commit before slimming any legacy metadata. */
+export async function migrateConversationIndexes(): Promise<void> {
+    await withConversationLock(async () => {
+        const all = await chrome.storage.local.get<Record<string, unknown>>(null);
+        const containers = Object.entries(all).filter(([key]) => key === 'gemini_conversations' || /^gemini_conversations_u\d+$/.test(key));
+        const issues: Array<{ key: string; code: string; message: string }> = [];
+        const bySlot = new Map<string, DomainConversationIndex[]>();
+        // Preserve malformed containers as well as rejected rows; never lose recovery evidence.
+        for (const [key, value] of containers) await backupLegacyValue(`index-v2:${key}`, value);
+        for (const [key, value] of containers) {
+            const slot = key === 'gemini_conversations' ? 'u0' : normSlot(key.slice('gemini_conversations_'.length));
+            const list = bySlot.get(slot) ?? [];
+            bySlot.set(slot, list);
+            if (!Array.isArray(value)) {
+                issues.push({ key, code: 'INVALID_CONTAINER', message: 'Original index container retained in migration backup' });
+                continue;
+            }
+            for (const [position, row] of value.entries()) {
+                let index: DomainConversationIndex;
+                try {
+                    try { index = restoreConversationIndex(row); }
+                    catch { index = parseIndexObservation(row, 'legacy'); }
+                } catch (error) {
+                    if (!(error instanceof TypeError)) throw error;
+                    issues.push({ key: `${key}[${position}]`, code: 'INVALID_ROW', message: error.message });
+                    continue;
+                }
+                if (isObjectRecord(row) && (Array.isArray(row.messages) || Array.isArray(row.turns))) {
+                    let parsed: ResourceConversationParseResult | undefined;
+                    try { parsed = parseLegacyStorageConversation({ metadata: row }, { providerId: index.providerId }); }
+                    catch (error) {
+                        if (!(error instanceof TypeError)) throw error;
+                        issues.push({ key: `${key}[${position}]`, code: 'INVALID_BODY', message: error.message });
+                    }
+                    if (parsed) await saveDomainConversation(slot, parsed, [], true);
+                }
+                const body = await getStoredDomain(storageIdentity(index.providerId, slot, index.id));
+                if (body && (body.conversation.messages.length > 0 || body.conversation.completeness === 'complete')) {
+                    index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.messages.length);
+                }
+                list.push(index);
+            }
+        }
+
+        for (const [slot, rows] of bySlot) {
+            const { processed } = deduplicateConversations(rows);
+            await _setConversationsRaw(slot, processed);
+        }
+        // Alias removal happens only after the canonical list and report are durable.
+        const reportKey = 'gemini_index_migration_v2';
+        const oldReport = all[reportKey];
+        const previousIssues = isObjectRecord(oldReport) && Array.isArray(oldReport.issues) ? oldReport.issues : [];
+        await chrome.storage.local.set({ [reportKey]: { issues: [...new Map([...previousIssues, ...issues].map(issue => [JSON.stringify(issue), issue])).values()] } });
+        if ('gemini_conversations_u0' in all) await chrome.storage.local.remove('gemini_conversations_u0');
+    });
 }
 
 let _convChain: Promise<void> = Promise.resolve();
@@ -198,74 +235,29 @@ function withSlotLock<T>(fn: () => Promise<T>): Promise<T> {
     return p;
 }
 
-// Typed producer input retains its metadata contract after slimming. Raw
-// storage snapshots retain their compatibility type; no container check
-// upgrades them to a complete domain record.
-function _setConversationsRaw(slot: string | null | undefined, list: Conversation[]): Promise<Conversation[]>;
-function _setConversationsRaw(slot: string | null | undefined, list: StoredConversationRow[]): Promise<StoredConversationRow[]>;
-function _setConversationsRaw(slot: string | null | undefined, list: Conversation[] | StoredConversationRow[]): Promise<Conversation[] | StoredConversationRow[]>;
-function _setConversationsRaw(slot: string | null | undefined, list: unknown[]): Promise<StoredConversationRow[]>;
-async function _setConversationsRaw(
-    slot: string | null | undefined,
-    list: unknown[]
-): Promise<Conversation[] | StoredConversationRow[]> {
-    const { convKey } = getStorageKeys(slot);
-    const detailsToSave: ConversationDetailRecord[] = [];
-    const slimList = (list || []).map(value => {
-        if (!value) return readStoredValue(value);
-        if (typeof value === 'object' && 'conversation' in value) throw new TypeError('Native results require setNativeConversations');
-        const c = fields(value);
-        const hasMessages = Array.isArray(c.messages) && c.messages.length > 0;
-        const hasTurns = Array.isArray(c.turns) && c.turns.length > 0;
-        if (hasMessages || hasTurns) {
-            const detailRec: ConversationDetailRecord = {
-                id: normalizedConversationId(c),
-                messages: c.messages,
-                turns: c.turns,
-                updatedAt: c.updatedAt || c.timestamp || Date.now(),
-                savedAt: Date.now()
-            };
-            detailsToSave.push(detailRec);
-
-        }
-        const bestCount = Math.max(
-            Number(c.messageCount) || 0,
-            Array.isArray(c.messages) ? c.messages.length : 0,
-            Array.isArray(c.turns) ? c.turns.length : 0
-        );
-        const copy = { ...c };
-        if (bestCount > 0) {
-            copy.messageCount = bestCount;
-        }
-        delete copy.messages;
-        delete copy.turns;
-        return copy;
-    });
-
-    if (detailsToSave.length > 0) {
-        try {
-            await saveConversationDetailsBatch(detailsToSave);
-        } catch (e) {
-            console.error('[StorageService] Critical: failed to persist conversation details to IndexedDB, aborting write to prevent data truncation:', e);
-            throw e;
-        }
-    }
-
-    await chrome.storage.local.set({ [convKey]: slimList });
-    return slimList;
+/** Canonical index writes never inspect or persist conversation bodies. */
+async function _setConversationsRaw(slot: string | null | undefined, list: readonly DomainConversationIndex[]): Promise<DomainConversationIndex[]> {
+    await assertSchemaWritable();
+    const indexes = list.map(restoreConversationIndex);
+    if (new Set(indexes.map(c => JSON.stringify([c.providerId, c.id]))).size !== indexes.length) throw new TypeError('Duplicate conversation index identity');
+    indexes.sort(compareConversationIndexes);
+    await chrome.storage.local.set({ [getStorageKeys(slot).convKey]: indexes });
+    return indexes;
 }
-
-async function setConversations(slot: string | null | undefined, list: Conversation[] | StoredConversationRow[]): Promise<void> {
+async function setConversations(slot: string | null | undefined, list: readonly DomainConversationIndex[]): Promise<void> {
     await withConversationLock(() => _setConversationsRaw(slot, list));
 }
-
-/** Native producer results use their own typed persistence path, never the raw metadata reader. */
+/** Upsert a partial native import; unrelated indexes and stronger metadata remain intact. */
 async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
     await withConversationLock(async () => {
-        const metadata = list.map(({ conversation: c }) => ({ id: c.id, title: c.title, titleSource: c.titleSource,
-            url: c.url, timestamp: c.updatedAt, createdAt: c.createdAt, updatedAt: c.updatedAt, messageCount: c.messages.length }));
-        for (const parsed of list) await saveDomainConversation(normSlot(slot), parsed);
-        await _setConversationsRaw(slot, metadata);
+        if (!list.length) return;
+        const metadata = await getConversations(slot);
+        for (const parsed of list) {
+            await saveDomainConversation(normSlot(slot), parsed);
+            metadata.push(indexFromParsed(parsed, 'snapshot'));
+            // Persisting a local native snapshot is not evidence of current cloud availability.
+        }
+        await _setConversationsRaw(slot, deduplicateConversations(metadata).processed);
     });
 }
 
@@ -279,54 +271,37 @@ async function setNativeConversations(slot: string | null | undefined, list: rea
 // Callers must NOT read the list first and merge outside: that is exactly the
 // cross-tab lost-update hole this closes (two tabs read the same snapshot,
 // the later write discards the earlier tab's merge).
-function transactConversations(
-    slot: string | null | undefined,
-    updater: (existing: StoredConversationRow[]) => ConversationTransaction | null
-): Promise<{ list: StoredConversationRow[]; changed: number; written: false } | { list: Conversation[]; changed: number; written: true }>;
-function transactConversations(
-    slot: string | null | undefined,
-    updater: (existing: StoredConversationRow[]) => { list: unknown[]; changed: number } | null
-): Promise<{ list: StoredConversationRow[]; changed: number; written: boolean }>;
 async function transactConversations(
     slot: string | null | undefined,
-    updater: (existing: StoredConversationRow[]) => { list: unknown[]; changed: number } | null
-): Promise<{ list: Conversation[] | StoredConversationRow[]; changed: number; written: boolean }> {
+    updater: (existing: DomainConversationIndex[]) => ConversationTransaction | null
+): Promise<{ list: DomainConversationIndex[]; changed: number; written: boolean }> {
     return withConversationLock(async () => {
-        const existing = (await getConversations(slot)) || [];
-        const res = updater(existing);
-        if (!res || !Array.isArray(res.list)) {
-            return { list: existing, changed: 0, written: false };
-        }
-        const writtenList = await _setConversationsRaw(slot, res.list);
-        return { list: writtenList, changed: res.changed || 0, written: true };
+        const existing = await getConversations(slot);
+        const result = updater(existing);
+        if (!result) return { list: existing, changed: 0, written: false };
+        const list = await _setConversationsRaw(slot, result.list);
+        return { list, changed: result.changed, written: true };
     });
 }
-
 async function updateConversation(
     slot: string | null | undefined,
     conversationId: string,
-    patchOrUpdater: Partial<StoredConversationFields> | ((conv: StoredConversationFields) => Partial<StoredConversationFields> | null | void)
+    patchOrUpdater: ConversationIndexPatch | ((conv: DomainConversationIndex) => ConversationIndexPatch | null | void)
 ): Promise<boolean> {
     return withConversationLock(async () => {
-        if (!conversationId) return false;
-        const targetId = normId(conversationId);
+        const id = normId(conversationId);
         const list = await getConversations(slot);
-        const index = list.findIndex(c => c && fields(c).id && normalizedConversationId(c) === targetId);
-        if (index === -1) return false;
-
-        const current = readStoredConversationFields(fields(list[index]));
-        let updated: StoredObject;
-        if (typeof patchOrUpdater === 'function') {
-            const res = patchOrUpdater(current);
-            if (res === null) return false;
-            updated = res ? { ...current, ...res } : { ...current };
-        } else {
-            updated = { ...current, ...patchOrUpdater };
-        }
-
-        const nextList = [...list];
-        nextList[index] = readStoredConversationFields(updated);
-        await _setConversationsRaw(slot, nextList);
+        const position = list.findIndex(c => c.id === id);
+        if (position < 0) return false;
+        const old = list[position];
+        const current = { ...old };
+        const patch = typeof patchOrUpdater === 'function' ? patchOrUpdater(current) : patchOrUpdater;
+        if (patch === null) return false;
+        const incoming = restoreConversationIndex({ ...current, ...patch });
+        const merged = mergeConversationIndex(old, incoming);
+        if (JSON.stringify(merged) === JSON.stringify(old)) return false;
+        list[position] = merged;
+        await _setConversationsRaw(slot, list);
         return true;
     });
 }
@@ -363,7 +338,7 @@ async function removeConversation(slot: string | null | undefined, conversationI
         // Persist before removing the last discoverable list entry.
         await chrome.storage.local.set({ [pendingDeletionKey(slot)]: pending });
         const list = await getConversations(slot);
-        const filtered = list.filter(c => c && fields(c).id && normalizedConversationId(c) !== targetId);
+        const filtered = list.filter(c => c.id !== targetId);
         const { convKey, countKey } = getStorageKeys(slot);
         await chrome.storage.local.set({ [convKey]: filtered, [countKey]: filtered.length });
         await updateAccountSlot(slot, { count: filtered.length });
@@ -378,7 +353,7 @@ async function clearConversations(slot?: string | null): Promise<void> {
         const { convKey, countKey, checkpointKey, coverageKey, expKey } = getStorageKeys(slot);
         const existing = await getConversations(slot);
         await assertSchemaWritable();
-        const ids = [...new Set([...await pendingDeletions(slot), ...(existing || []).map(c => normalizedConversationId(c)).filter(Boolean)])];
+        const ids = [...new Set([...await pendingDeletions(slot), ...(existing || []).map(c => c.id).filter(Boolean)])];
         if (ids.length > 0) {
             await chrome.storage.local.set({ [pendingDeletionKey(slot)]: ids });
             await finishConversationDeletions(slot, ids, ids);
@@ -412,13 +387,13 @@ async function reconcileConversations(
             }
         });
 
-        const kept: unknown[] = [];
+        const kept: DomainConversationIndex[] = [];
         const removedIds = new Set(pending);
 
         for (const conv of existing) {
-            if (!conv || !fields(conv).id) continue;
-            const nid = normalizedConversationId(conv);
-            const isTakeout = keepTakeout && isTakeoutConversation(fields(conv));
+
+            const nid = conv.id;
+            const isTakeout = keepTakeout && conv.hasTakeoutImport;
 
             if (!removedIds.has(nid) && (activeIdSet.has(nid) || isTakeout)) {
                 kept.push(conv);
@@ -543,11 +518,6 @@ async function saveExportRecord<T = unknown>(
 
 interface StorageFinalizeDelegate {
     saveExportRecord?: <T = unknown>(slot: string | null | undefined, id: string, record: T) => Promise<StoredExportRecordMap>;
-    updateConversation?: (
-        slot: string | null | undefined,
-        conversationId: string,
-        patchOrUpdater: Partial<StoredConversationFields> | ((conv: StoredConversationFields) => Partial<StoredConversationFields> | null | void)
-    ) => Promise<boolean>;
 }
 
 async function finalizeConversationExport<T = ExportRecord>(
@@ -563,92 +533,31 @@ async function finalizeConversationExport<T = ExportRecord>(
 
     const selfDelegate: StorageFinalizeDelegate | null = typeof StorageService !== 'undefined' ? StorageService : null;
     const doSaveRecord = selfDelegate?.saveExportRecord || saveExportRecord;
-    const doUpdateConv = selfDelegate?.updateConversation || updateConversation;
 
     // 1. Serialized record write to exportedIds SSoT
     await doSaveRecord(slot, targetId, record);
 
-    // 2. Best-effort metadata and title promotion write-back to gemini_conversations if not skipped
+    // Completion is acquisition evidence, normalized once before index rules apply.
     if (!options?.skipConversationUpdate) {
         try {
-            const convUpdate = options?.conversationUpdate || {};
-            const recObj = isObjectRecord(record) ? readStoredObject(record) : null;
-            const recTitle = typeof recObj?.title === 'string' ? recObj.title : undefined;
-            const recMsgCount = recObj?.messageCount;
-            const recChatTime = recObj?.chatTime !== undefined ? recObj.chatTime : undefined;
-            const candidateTitle = convUpdate.title || recTitle;
-            const updated = await doUpdateConv(slot, targetId, (existing: StoredConversationFields) => {
-                const incomingTitles: Record<string, string> =
-                    convUpdate.titles && typeof convUpdate.titles === 'object' ? { ...convUpdate.titles } : {};
-                const candidateSource = convUpdate.titleSource || undefined;
-
-                const incoming: Partial<Pick<Conversation, 'id' | 'title' | 'titleSource' | 'titles'>> = {
-                    titles: incomingTitles,
-                    title: candidateTitle,
-                    titleSource: candidateSource
-                };
-
-                const titleTarget: Record<string, unknown> = existing;
-                applyExportTitleWriteback(titleTarget, incoming);
-
-                const newMsgCount = convUpdate.messageCount ?? recMsgCount;
-                if (typeof newMsgCount === 'number' && newMsgCount > 0) {
-                    existing.messageCount = Math.max(Number(existing.messageCount || 0), newMsgCount);
-                }
-
-                const rawTime = convUpdate.updatedAt || convUpdate.timestamp || convUpdate.chatTime || recChatTime;
-                const timeMs = toTimestampMs(rawTime);
-                if (timeMs && timeMs > 0) {
-                    const existingTs = getEffectiveTimestamp(titleTarget);
-                    if (timeMs > existingTs) {
-                        existing.updatedAt = timeMs;
-                        if (existing.timestamp) existing.timestamp = timeMs;
-                    }
-                }
-
-                return existing;
+            const update = options?.conversationUpdate ?? {};
+            const rec = isObjectRecord(record) ? readStoredObject(record) : {};
+            const incoming = parseIndexObservation({ id: targetId, ...update,
+                title: update.title ?? (typeof rec.title === 'string' ? rec.title : undefined),
+                titleSource: update.titleSource ?? 'legacy',
+                messageCount: update.messageCount ?? rec.messageCount,
+                updatedAt: update.updatedAt }, 'export');
+            await withConversationLock(async () => {
+                const list = await getConversations(slot);
+                const position = list.findIndex(c => c.id === targetId);
+                const merged = mergeConversationIndex(position < 0 ? undefined : list[position], restoreConversationIndex({ ...incoming,
+                    ...(update.updatedAt !== undefined ? { updatedAt: update.updatedAt } : {}),
+                    ...(update.createdAt !== undefined ? { createdAt: update.createdAt } : {}) }));
+                if (position < 0) list.push(merged); else list[position] = merged;
+                await _setConversationsRaw(slot, list);
             });
-
-            // If not found in current conversation list, register it fresh with resolved export metadata
-            if (!updated && candidateTitle) {
-                await withConversationLock(async () => {
-                    const list = await getConversations(slot);
-                    if (!list.some(c => c && normalizedConversationId(c) === targetId)) {
-                        const cleanedTitle = cleanTitle(candidateTitle);
-                        const initialSource = normalizeReliableTitleSource(convUpdate.titleSource) || 'legacy';
-                        const initialTitles: Record<string, string> = {};
-                        if (convUpdate.titles && typeof convUpdate.titles === 'object') {
-                            for (const [k, v] of Object.entries(convUpdate.titles)) {
-                                const reliableK = normalizeReliableTitleSource(k);
-                                if (reliableK && typeof v === 'string' && v) {
-                                    initialTitles[reliableK] = v;
-                                }
-                            }
-                        }
-                        if (initialSource && initialSource !== 'legacy') {
-                            initialTitles[initialSource] = cleanedTitle;
-                        } else if (initialSource === 'legacy' && cleanedTitle && isRealTitle(cleanedTitle, targetId)) {
-                            initialTitles.legacy = cleanedTitle;
-                        }
-
-                        const newConv = {
-                            id: targetId,
-                            title: cleanedTitle,
-                            titleSource: initialSource,
-                            titles: initialTitles,
-                            messageCount: convUpdate.messageCount ?? recMsgCount ?? 1,
-                            updatedAt: toTimestampMs(convUpdate.updatedAt || convUpdate.timestamp || recChatTime) || Date.now()
-                        };
-                        const resolved = resolveTitle(newConv);
-                        newConv.title = resolved.title;
-                        newConv.titleSource = resolved.source;
-                        const nextList: StoredConversationRow[] = [newConv, ...list];
-                        await _setConversationsRaw(slot, nextList);
-                    }
-                });
-            }
-        } catch (convUpdateErr) {
-            console.warn('[StorageService] finalizeConversationExport updateConversation failed for', targetId, convUpdateErr);
+        } catch (error) {
+            console.warn('[StorageService] finalizeConversationExport index update failed for', targetId, error);
         }
     }
 
@@ -907,7 +816,7 @@ async function updateAccountSlot(
                 }
             }
         }
-        const existingSlot = map[s] ? fields(map[s]) : {};
+        const existingSlot = isObjectRecord(map[s]) ? readStoredObject(map[s]) : {};
         const nextSlot = { ...existingSlot, ...cleanInfo };
         map[s] = readStoredSlotMap({ [s]: nextSlot })[s];
         await setAccountSlots(map);
@@ -928,26 +837,24 @@ async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
         const data = await chrome.storage.local.get<Record<string, unknown>>([STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]);
         if (data && data[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]) return true;
         const convs = await getConversations(slot);
-        return (convs || []).some(c => c && isTakeoutConversation(fields(c)));
+        return (convs || []).some(c => c && c.hasTakeoutImport);
     } catch {
         return false;
     }
 }
 
-async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<ResourceConversationParseResult | null> {
-    if (!id) return null;
-    const targetId = normId(id);
-    const list = await getConversations(slot);
-    const rawMeta = list.find(c => c && normalizedConversationId(c) === targetId);
-    if (!rawMeta) return null;
-    const native = await getDomainConversationResult(normSlot(slot), targetId);
-    if (!native) return null;
-    const meta = fields(rawMeta);
-    const title = typeof meta.title === 'string' ? meta.title : native.conversation.title;
-    return { ...native, conversation: { ...native.conversation, title } };
+function conversationRepository(scope: ConversationScope): ConversationRepository {
+    // This backend partitions catalogs by Chrome account slots. Do not silently map
+    // an unsupported scope to u0 using the historical normSlot convenience helper.
+    const slot = scope.providerId === 'gemini' && scope.accountSlot === 'default' ? 'u0' : scope.accountSlot;
+    if (!/^u\d+$/.test(slot)) throw new TypeError('Unsupported conversation account slot');
+    return createConversationRepository({ ...scope, accountSlot: slot }, {
+        readIndexes: () => getConversations(slot), readBody: getStoredDomain, readConsistently: withConversationLock,
+    });
 }
 
 export {
+    conversationRepository,
     normSlot,
     normId,
     getStorageKeys,
@@ -960,8 +867,6 @@ export {
     clearConversations,
     clearAllDetails,
     reconcileConversations,
-    getConversationDetail,
-    getConversationWithDetail,
     getExportedIds,
     // P1-3 follow-up: setExportedIds / setAccountSlots 已从公开 surface 彻底移除
     // （interface + 默认对象都不再声明）。函数本体仍保留在模块闭包内供
@@ -1005,6 +910,7 @@ export {
 };
 
 export const StorageService = {
+    conversationRepository,
     normSlot,
     normId,
     getStorageKeys,
@@ -1017,8 +923,6 @@ export const StorageService = {
     clearConversations,
     clearAllDetails,
     reconcileConversations,
-    getConversationDetail,
-    getConversationWithDetail,
     getExportedIds,
     saveExportRecord,
     finalizeConversationExport,

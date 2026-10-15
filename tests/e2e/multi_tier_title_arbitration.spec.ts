@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures';
 
-test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitration', () => {
+test.describe('E2E: Canonical Title Authority', () => {
   test('should arbitrate titles strictly by source tier and never allow low tier to corrupt high tier', async ({ context, extensionId }) => {
     // 1. Open options workbench and seed with Takeout imported chat
     const optionsPage = await context.newPage();
@@ -18,7 +18,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: initialConvs,
+        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
         exportedIds: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
@@ -84,7 +84,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
         return await chrome.storage.local.get(['gemini_conversations']);
       }) as Record<string, any>;
       const c = (data.gemini_conversations || []).find((x: any) => x.id === 'arbitration_chat_999');
-      return c && c.titles ? c.titles.dom : undefined;
+      return c?.titleSource === 'dom' ? c.title : undefined;
     }, { timeout: 10000 }).toBe('页面显式渲染的DOM标题');
 
     // 4. Simulate authoritative RPC arriving (Tier: rpc)
@@ -109,12 +109,12 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
         return await chrome.storage.local.get(['gemini_conversations']);
       }) as Record<string, any>;
       chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'arbitration_chat_999');
-      return chat?.titles?.rpc;
+      return chat?.titleSource === 'rpc' ? chat.title : undefined;
     }, { timeout: 10000 }).toBe('官方服务端RPC最终权威标题');
 
     expect(chat).toBeTruthy();
-    expect(chat.titles.takeout).toBe('Takeout Prompt 原始提问');
-    expect(chat.titles.rpc).toBe('官方服务端RPC最终权威标题');
+    expect(chat.hasTakeoutImport).toBe(true);
+    expect(chat).not.toHaveProperty('titles');
     expect(chat.title).toBe('官方服务端RPC最终权威标题');
     expect(chat.titleSource).toBe('rpc');
 
@@ -126,7 +126,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
     });
   });
 
-  test('should propagate sniffed firstUser prompt as sniff titleSource and update titles.sniff during export', async ({ context, extensionId }) => {
+  test('should persist the sniffed firstUser prompt as the canonical title during export', async ({ context, extensionId }) => {
     // 1. Open mock Gemini page in background with credentials
     const geminiPage = await context.newPage();
     await geminiPage.route('https://gemini.google.com/**', async (route) => {
@@ -194,7 +194,7 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: initialConvs,
+        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
         exportedIds: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
@@ -205,14 +205,14 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
     });
 
     const targetItem = optionsPage.locator('[data-chat-id="sniff_test_chat_888"]');
-    await expect(targetItem).toContainText('未命名对话');
+    await expect(targetItem).toContainText('Untitled Chat');
 
     // 3. Select all items and trigger export
     await optionsPage.click('#btnSelectAll');
     const exportBtn = optionsPage.locator('#btnExport');
     await exportBtn.click();
 
-    // 4. Verify title updated in workbench and storage with titleSource = 'sniff' and titles.sniff set
+    // 4. Verify the canonical title and its provenance in storage and the workbench.
     await expect(targetItem).toContainText('如何构建高性能分布式缓存系统');
 
     const storageData = await optionsPage.evaluate(async () => {
@@ -223,6 +223,6 @@ test.describe('E2E: Multi-Tier Non-Destructive Title Storage & Priority Arbitrat
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何构建高性能分布式缓存系统');
     expect(chat.titleSource).toBe('sniff');
-    expect(chat.titles.sniff).toBe('如何构建高性能分布式缓存系统');
+    expect(chat).not.toHaveProperty('titles');
   });
 });

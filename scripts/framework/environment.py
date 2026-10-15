@@ -155,25 +155,30 @@ class TestEnvironment:
                 print(f"   ⚠️ 自动创建 Gemini 标签页异常: {e}")
         return tab or self.get_gemini_tab()
 
-    def get_options_tab(self) -> Optional[Dict[str, Any]]:
+    def _get_extension_tab(self, path: str) -> Optional[Dict[str, Any]]:
+        """Only resolve pages belonging to the extension selected for this run."""
         ext_id = self.get_extension_id()
-        tabs = self.get_tabs()
-        if ext_id:
-            options_url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
-            tab = next((t for t in tabs if t.get("type", "page") == "page" and options_url in t.get("url", "")), None)
-            if tab:
+        if not ext_id:
+            return None
+        for tab in self.get_tabs():
+            url = urllib.parse.urlsplit(tab.get("url", ""))
+            if (tab.get("type", "page") == "page"
+                    and url.scheme == "chrome-extension"
+                    and url.netloc == ext_id and url.path == path):
                 return tab
-        return next((t for t in tabs if t.get("type", "page") == "page" and "options.html" in t.get("url", "")), None)
+        return None
+
+    def get_options_tab(self) -> Optional[Dict[str, Any]]:
+        return self._get_extension_tab("/src/ui/options/options.html")
 
     def ensure_options_tab(self) -> Optional[Dict[str, Any]]:
         """发现或幂等创建 Options 导出工作台标签页"""
         tab = self.get_options_tab()
         if not tab:
             ext_id = self.get_extension_id()
-            if ext_id:
-                base_url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
-            else:
-                base_url = "src/ui/options/options.html"
+            if not ext_id:
+                return None
+            base_url = f"chrome-extension://{ext_id}/src/ui/options/options.html"
             try:
                 new_url = f"http://127.0.0.1:{self.port}/json/new?{base_url}"
                 req = urllib.request.Request(new_url, method="PUT")
@@ -185,25 +190,17 @@ class TestEnvironment:
         return tab or self.get_options_tab()
 
     def get_popup_tab(self) -> Optional[Dict[str, Any]]:
-        """获取当前活跃的 Popup 标签页"""
-        ext_id = self.get_extension_id()
-        tabs = self.get_tabs()
-        if ext_id:
-            popup_url = f"chrome-extension://{ext_id}/src/ui/popup/popup.html"
-            tab = next((t for t in tabs if t.get("type", "page") == "page" and popup_url in t.get("url", "")), None)
-            if tab:
-                return tab
-        return next((t for t in tabs if t.get("type", "page") == "page" and "popup.html" in t.get("url", "")), None)
+        """获取本次测试扩展的 Popup 标签页。"""
+        return self._get_extension_tab("/src/ui/popup/popup.html")
 
     def ensure_popup_tab(self) -> Optional[Dict[str, Any]]:
         """发现或幂等创建 Popup 动作中心标签页"""
         tab = self.get_popup_tab()
         if not tab:
             ext_id = self.get_extension_id()
-            if ext_id:
-                base_url = f"chrome-extension://{ext_id}/src/ui/popup/popup.html"
-            else:
-                base_url = "src/ui/popup/popup.html"
+            if not ext_id:
+                return None
+            base_url = f"chrome-extension://{ext_id}/src/ui/popup/popup.html"
             try:
                 new_url = f"http://127.0.0.1:{self.port}/json/new?{base_url}"
                 req = urllib.request.Request(new_url, method="PUT")

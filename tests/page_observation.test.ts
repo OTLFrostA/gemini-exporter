@@ -46,3 +46,12 @@ test('different conversations with equal official timestamps retain ordering evi
     assert.equal(duplicate.valid, false);
     assert.equal(duplicate.ordered, false);
 });
+
+test('captured expanded webpage recent filter establishes request identity without accepting arbitrary layouts', () => {
+    const filter = [null, null, 1, null, null, null, null, null, null, 1];
+    const request = (value: unknown) => new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([31, null, value]), null, 'generic']]]) }).toString();
+    assert.deepEqual(readGeminiListRequest(request(filter)), { streamId: 'recent', requestCursor: null });
+    for (const invalid of [filter.slice(0, 9), [...filter, null], filter.map((value, index) => index === 8 ? 1 : value)]) {
+        assert.equal(readGeminiListRequest(request(invalid)), null);
+    }
+});

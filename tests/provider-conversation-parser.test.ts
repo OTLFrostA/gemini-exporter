@@ -82,7 +82,7 @@ test('markdown body keeps block order and structure', async () => {
 });
 
 test('reasoning is parsed before Domain and composed as a disclosure', async () => {
-    const { domain, document, resources } = await parseFixture(sample);
+    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     const model = domain.messages.find((m: any) => m.id === 'm-a1');
     const thought = document.messages[domain.messages.indexOf(model)].blocks[0];
     assert.strictEqual(thought.type, 'disclosure');
@@ -92,7 +92,7 @@ test('reasoning is parsed before Domain and composed as a disclosure', async () 
 });
 
 test('citations have message-local Domain identities referenced by content nodes', async () => {
-    const { domain, document, resources } = await parseFixture(sample);
+    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     // Duplicate URL collapses to one message-local citation.
     assert.strictEqual(domain.messages.find((m: any) => m.id === 'm-a1').citations.length, 2);
     assert.deepStrictEqual(
@@ -204,7 +204,7 @@ test('non-string content becomes bounded, deterministic visible text at normaliz
 });
 
 test('title authority: rpc candidate wins over takeout/sniff', async () => {
-    const { domain, document, resources } = await parseFixture(sample);
+    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     const title = domain.title;
     assert.strictEqual(title, 'RPC Authoritative Title');
     const low = await parseFixture({ id: 'x', titles: { takeout: 'T' }, messages: [] });
@@ -212,12 +212,13 @@ test('title authority: rpc candidate wins over takeout/sniff', async () => {
 });
 
 test('conversation identity and authored timestamp facts are preserved', async () => {
-    const { domain, document, resources } = await parseFixture(sample);
+    const { domain, document, resources, sourceVersion } = await parseFixture(sample);
     const conv = domain;
     assert.strictEqual(conv.providerId, 'gemini');
     assert.strictEqual(conv.id, 'c_f2b_sample_001');
     assert.strictEqual(conv.createdAt, sample.createdAt);
-    assert.strictEqual(conv.updatedAt, sample.updatedAt);
+    assert.strictEqual(sourceVersion, sample.updatedAt);
+    assert.strictEqual('updatedAt' in conv, false);
     assert.strictEqual(conv.url, 'https://gemini.google.com/share/f2b-sample');
 });
 
