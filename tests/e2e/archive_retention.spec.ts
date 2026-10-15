@@ -2,11 +2,12 @@ import { test, expect } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
+const cachedPngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=';
 
 test('cloud-deleted local archive produces a physical ZIP with body and cached attachment; cleanup requires confirmation', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await page.evaluate(async () => {
+    await page.evaluate(async (cachedPngBase64: string) => {
         await chrome.storage.local.set({ gemini_schema_version: 2, gemini_tour_completed: true,
             gemini_conversations: ([
                 { id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000, cloudAvailability: 'deleted' },
@@ -19,11 +20,11 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
                 { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local answer' }, { type: 'image', assetId: 'img' }] }], attachmentIds: ['img'] }
             ] }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] };
         const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountSlot: 'u0', parsed: native,
-            resources: [{ assetId: 'img', bytes: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS9sAAAAASUVORK5CYII=' }] } });
+            resources: [{ assetId: 'img', bytes: cachedPngBase64 }] } });
         if (!saved.ok) throw new Error(saved.error);
         if (!window.__workbenchLoadStore) throw new Error('Workbench unavailable');
         await window.__workbenchLoadStore(true);
-    });
+    }, cachedPngBase64);
     await expect(page.locator('#archiveNotice')).toContainText(/Detected conversations deleted from the cloud|检测到有对话已从云端删除/);
     await page.selectOption('#format', 'markdown');
     await page.check('#includeZip');
@@ -40,7 +41,10 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
     const text = await zip.files[md!].async('text');
     expect(text).toContain('Preserved local question'); expect(text).toContain('Preserved local answer');
     const attachment = Object.keys(zip.files).find(name => /\.(png|jpg)$/.test(name));
-    expect(attachment).toBeTruthy(); expect((await zip.files[attachment!].async('uint8array')).length).toBeGreaterThan(0);
+    expect(attachment).toBeTruthy();
+    const exportedPng = await zip.files[attachment!].async('uint8array');
+    expect(Buffer.from(exportedPng).equals(Buffer.from(cachedPngBase64, 'base64'))).toBe(true);
+
     await expect(page.locator('#log')).toContainText(/local snapshot|本地快照/);
     await expect(page.locator('#list .item')).toHaveCount(2);
     const cleanup = page.locator('#archiveNotice button').filter({ hasText: /Delete local records|删除本地记录/ });
