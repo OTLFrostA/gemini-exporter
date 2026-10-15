@@ -1,4 +1,4 @@
-import { TITLE_AUTHORITY_RANK, type TitleSource } from './titleAuthority.js';
+import { TITLE_AUTHORITY_RANK, isTitleSource, type TitleSource } from './titleAuthority.js';
 
 /** Canonical metadata. Account ownership belongs to the repository scope, never this record. */
 export interface DomainConversationIndex {
@@ -27,29 +27,35 @@ function isConversationUrl(value: unknown): value is string {
     try { const url = new URL(value); return url.protocol === 'http:' || url.protocol === 'https:'; } catch { return false; }
 }
 
+function isIndexRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
 /** Physical read/write boundary: exact schema, detached result, no historical interpretation. */
 export function restoreConversationIndex(value: unknown): DomainConversationIndex {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid conversation index');
-    const row = value as Record<string, unknown>;
-    if (Object.keys(row).some(key => !keys.has(key))
-        || typeof row.providerId !== 'string' || !row.providerId || row.providerId !== row.providerId.trim()
-        || typeof row.id !== 'string' || !row.id || row.id !== row.id.trim()
-        || typeof row.title !== 'string' || row.title !== row.title.trim()
-        || (row.title === '' ? row.titleSource !== 'default' : row.titleSource === 'default')
-        || typeof row.titleSource !== 'string' || !Object.hasOwn(TITLE_AUTHORITY_RANK, row.titleSource)
-        || typeof row.cloudAvailability !== 'string' || !['unknown', 'available', 'unlisted', 'deleted'].includes(row.cloudAvailability)
-        || typeof row.hasTakeoutImport !== 'boolean'
-        || ['createdAt', 'updatedAt'].some(key => row[key] !== undefined && (typeof row[key] !== 'number' || !Number.isFinite(row[key])))
-        || (row.url !== undefined && !isConversationUrl(row.url))
-        || (row.messageCount !== undefined && (typeof row.messageCount !== 'number' || !Number.isSafeInteger(row.messageCount) || row.messageCount < 0))) {
+    if (!isIndexRecord(value)) throw new TypeError('Invalid conversation index');
+    const { providerId, id, title, titleSource, cloudAvailability, hasTakeoutImport,
+        createdAt, updatedAt, url, messageCount } = value;
+    if (Object.keys(value).some(key => !keys.has(key))
+        || typeof providerId !== 'string' || !providerId || providerId !== providerId.trim()
+        || typeof id !== 'string' || !id || id !== id.trim()
+        || typeof title !== 'string' || title !== title.trim()
+        || (title === '' ? titleSource !== 'default' : titleSource === 'default')
+        || typeof titleSource !== 'string' || !isTitleSource(titleSource)
+        || (cloudAvailability !== 'unknown' && cloudAvailability !== 'available'
+            && cloudAvailability !== 'unlisted' && cloudAvailability !== 'deleted')
+        || typeof hasTakeoutImport !== 'boolean'
+        || (createdAt !== undefined && (typeof createdAt !== 'number' || !Number.isFinite(createdAt)))
+        || (updatedAt !== undefined && (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)))
+        || (url !== undefined && !isConversationUrl(url))
+        || (messageCount !== undefined && (typeof messageCount !== 'number' || !Number.isSafeInteger(messageCount) || messageCount < 0))) {
         throw new TypeError('Invalid conversation index schema');
     }
-    return { providerId: row.providerId, id: row.id, title: row.title, titleSource: row.titleSource as TitleSource,
-        cloudAvailability: row.cloudAvailability as DomainConversationIndex['cloudAvailability'], hasTakeoutImport: row.hasTakeoutImport,
-        ...(row.createdAt !== undefined ? { createdAt: row.createdAt as number } : {}),
-        ...(row.updatedAt !== undefined ? { updatedAt: row.updatedAt as number } : {}),
-        ...(row.url !== undefined ? { url: row.url as string } : {}),
-        ...(row.messageCount !== undefined ? { messageCount: row.messageCount as number } : {}) };
+    return { providerId, id, title, titleSource, cloudAvailability, hasTakeoutImport,
+        ...(createdAt !== undefined ? { createdAt } : {}),
+        ...(updatedAt !== undefined ? { updatedAt } : {}),
+        ...(url !== undefined ? { url } : {}),
+        ...(messageCount !== undefined ? { messageCount } : {}) };
 }
 
 /** Typed facts only. Title authority and import history survive weaker observations. */
