@@ -49,7 +49,8 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         { url: 'https://example.com/missing.png', fileName: 'missing.png' }
     ] }] });
     const [domain, takeout] = source.conversation.assets;
-    await catalogStorage.saveConversation('u0', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
+    await catalogStorage.setNativeConversations('u0', [source]);
+    await saveDomainConversation('u0', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
     await catalogStorage.updateConversation('u0', 'deleted_local', { cloudAvailability: 'deleted' });
     let requests = 0;
     const logs: string[] = [];

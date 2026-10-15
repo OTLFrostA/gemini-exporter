@@ -9,8 +9,7 @@ import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
 import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import { backupLegacyValue, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
-import { createConversationRepository, conversationParseResult, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
-import type { StoredDomainResource } from './domain/contracts.js';
+import { createConversationRepository, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
 import {
     readStoredValue, type StoredObject, readStoredObject, readStoredExportMap, readStoredSlotMap,
     type StoredExportRecordMap,
@@ -37,7 +36,6 @@ export interface FinalizeExportOptions<T = ExportRecord> {
 }
 import {
     removeConversationDetails,
-    getConversationDetail,
     clearAllDetails
 } from './conversationDetailStore.js';
 import {
@@ -260,17 +258,6 @@ async function setNativeConversations(slot: string | null | undefined, list: rea
             // Persisting a local native snapshot is not evidence of current cloud availability.
         }
         await _setConversationsRaw(slot, deduplicateConversations(metadata).processed);
-    });
-}
-
-/** Acquisition write entry: body commit precedes catalog publication under the same lock. */
-async function saveConversation(slot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = []): Promise<void> {
-    const repository = conversationRepository({ providerId: parsed.conversation.providerId, accountSlot: slot });
-    await withConversationLock(async () => {
-        await saveDomainConversation(repository.scope.accountSlot, parsed, resources);
-        const metadata = await getConversations(repository.scope.accountSlot);
-        metadata.push(indexFromParsed(parsed));
-        await _setConversationsRaw(repository.scope.accountSlot, deduplicateConversations(metadata).processed);
     });
 }
 
@@ -866,16 +853,8 @@ function conversationRepository(scope: ConversationScope): ConversationRepositor
     });
 }
 
-/** @deprecated Use the scoped repository. Kept as a renderer compatibility boundary. */
-async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<ResourceConversationParseResult | null> {
-    if (!id) return null;
-    const stored = await conversationRepository({ providerId: 'gemini', accountSlot: normSlot(slot) }).getStoredConversation(id);
-    return stored ? conversationParseResult(stored) : null;
-}
-
 export {
     conversationRepository,
-    saveConversation,
     normSlot,
     normId,
     getStorageKeys,
@@ -888,8 +867,6 @@ export {
     clearConversations,
     clearAllDetails,
     reconcileConversations,
-    getConversationDetail,
-    getConversationWithDetail,
     getExportedIds,
     // P1-3 follow-up: setExportedIds / setAccountSlots 已从公开 surface 彻底移除
     // （interface + 默认对象都不再声明）。函数本体仍保留在模块闭包内供
@@ -934,7 +911,6 @@ export {
 
 export const StorageService = {
     conversationRepository,
-    saveConversation,
     normSlot,
     normId,
     getStorageKeys,
@@ -947,8 +923,6 @@ export const StorageService = {
     clearConversations,
     clearAllDetails,
     reconcileConversations,
-    getConversationDetail,
-    getConversationWithDetail,
     getExportedIds,
     saveExportRecord,
     finalizeConversationExport,

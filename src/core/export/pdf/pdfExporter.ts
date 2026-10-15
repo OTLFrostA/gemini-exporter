@@ -396,11 +396,11 @@ export class PdfExporter {
         fonts = mountedFonts.effectiveFonts;
 
         for (let i = 0; i < items.length; i++) {
-            const { id, title } = items[i];
+            const item = items[i];
             if (this.aborted || signal.aborted) break;
-            report(i, title);
+            report(i, item.title);
 
-            const prep = await preparePdfItem(items[i].selected, {
+            const prep = await preparePdfItem(item.selected, {
                 conversations: options.conversations,
                 source: options.source,
                 fetchChatDetail: fetchChatDetailFn,
@@ -426,6 +426,7 @@ export class PdfExporter {
                 continue;
             }
 
+            const { id, title } = prep;
             const itemDiagnostics: RenderDiagnostic[] = [...prep.diagnostics];
             try {
                 const itemInput: PipelineItemInput = {

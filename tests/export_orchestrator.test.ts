@@ -130,7 +130,6 @@ test('ExportOrchestrator - accurate accounting for successful and failed chats (
                         { role: 'model', content: 'Hi there!' }
                     ]
                 }),
-                listTitle: requestedItem.title
             };
         }
     });
@@ -178,7 +177,6 @@ test('ExportOrchestrator - stops pipeline immediately on NotAllowedError (S-5)',
                     title: requestedItem.title,
                     messages: [{ role: 'user', content: 'test' }]
                 }),
-                listTitle: requestedItem.title
             };
         }
     });
@@ -254,7 +252,6 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
                     title: requestedItem.title,
                     messages: [{ role: 'user', content: 'test' }]
                 }),
-                listTitle: requestedItem.title
             };
         }
     });
@@ -359,7 +356,6 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
             return {
                 success: true,
                 chat: historicalFixture({ id: item.id, title: item.title, messages: [{ role: 'user', content: 'Body' }] }),
-                listTitle: item.title
             };
         }
     });
@@ -622,7 +618,6 @@ test('ExportOrchestrator - resolves the original first candidate without changin
                 return {
                     isError: true,
                     chat,
-                    listTitle: 'First candidate',
                     displayTitle: 'First candidate',
                     isConfirmedDeleted: false,
                     errMsg: 'Expected regression path',
@@ -700,7 +695,6 @@ test('ExportOrchestrator - prepares asset destinations while retaining Domain as
                 fetchChatDetail: async () => ({ success: true, chat: historicalFixture(fetchedChat) }),
                 resolveChat: async () => ({
                     chat: historicalFixture(resolvedChat),
-                    listTitle: 'Resolved chat',
                     displayTitle: 'Resolved chat',
                     isConfirmedDeleted: false,
                     isError: false,

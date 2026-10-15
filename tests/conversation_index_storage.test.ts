@@ -67,7 +67,7 @@ test('native detail persists separately and index updates cannot truncate or rep
         assert.equal('messages' in index, false);
         await storage.updateConversation('u0', 'chat', { messageCount: 1, title: 'Renamed', titleSource: 'rpc' });
         assert.deepEqual(await getDomainConversationResult('u0', 'chat'), before);
-        assert.equal((await storage.getConversationWithDetail('u0', 'chat'))?.conversation.title, 'Renamed');
+        assert.equal((await storage.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation('chat'))?.index.title, 'Renamed');
         await storage.clearConversations('u0');
         assert.equal(await getDomainConversationResult('u0', 'chat'), null);
     } finally { env.restore(); }

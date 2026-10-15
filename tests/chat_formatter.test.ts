@@ -113,8 +113,8 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
     );
 
     assert.strictEqual(resolved.isError, false);
-    assert.notStrictEqual(resolved.listTitle, 'Google Gemini');
-    assert.strictEqual(resolved.listTitle, '如何设计微服务架构');
+    assert.notStrictEqual(resolved.chat.conversation.title, 'Google Gemini');
+    assert.strictEqual(resolved.chat.conversation.title, '如何设计微服务架构');
 });
 
 test('engine - RateLimiter detects 429 status and calculates backoff with jitter', () => {
