@@ -33,7 +33,7 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
             index: { providerId: 'gemini', id: 'trust-copy-case', title: 'Original', titleSource: 'legacy',
                 cloudAvailability: 'unknown', hasTakeoutImport: false },
             detail: {
-                completeness: 'unknown',
+                quality: { status: 'unknown' },
                 assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }],
                 messages: [{ role: 'user', attachmentIds: ['asset'],
                     content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }],
