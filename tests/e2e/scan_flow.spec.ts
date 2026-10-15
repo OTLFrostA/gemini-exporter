@@ -86,7 +86,9 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     expect(convs.length).toBe(4);
     expect(storageData.gemini_scan_coverage).toMatchObject({ version: 3, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
       activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
-    expect(convs.find((c: any) => c.id === 'scan_001').title).toBe('量子计算与超导量子比特');
+    const oldChat = convs.find((c: any) => c.id === 'scan_001');
+    expect(oldChat.title).toBe('量子计算与超导量子比特');
+    expect(oldChat.updatedAt, 'initial source activity time comes from list RPC').toBe(1700000000000);
     await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 4 conversations|正在追踪 4 条对话/);
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     // Renaming an old item does not change its timestamp or move it ahead of the head.
@@ -95,8 +97,13 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     await expect(listItems).toHaveCount(4);
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('改名后的老会话');
-    const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['gemini_scan_coverage']));
-    expect(repeated.gemini_scan_coverage).toMatchObject({ complete: true, revision: 2, activeRunId: null });
+    const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['gemini_scan_coverage', 'gemini_conversations']));
+    expect(repeated.gemini_scan_coverage).toMatchObject({
+      complete: true, revision: 2, activeRunId: null,
+      baseline: { headTimestamp: 1700000200000 },
+    });
+    expect((repeated.gemini_conversations as any[]).find(c => c.id === 'scan_001').updatedAt,
+      'renaming an old chat must not advance its source activity version').toBe(oldChat.updatedAt);
     expect(requestedKinds).toEqual(['pinned', 'recent', 'pinned', 'recent']);
   });
 });
