@@ -2,7 +2,7 @@ let frozenMessage = () => "Storage schema is newer than this extension; writes a
 export function setSchemaFrozenMessage(factory: () => string): void { frozenMessage = factory; }
 
 export const SCHEMA_VERSION_KEY = "gemini_schema_version";
-export const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 2;
 
 export class SchemaFrozenError extends Error {
     constructor() {

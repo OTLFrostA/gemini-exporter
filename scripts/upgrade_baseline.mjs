@@ -74,8 +74,8 @@ export async function assertPersistedBaseline(before, after) {
     assert.equal(records.length, 1, message);
     const record = records[0];
     assert.deepEqual(record.identity, { providerId: 'gemini', accountSlot: fact.slot, conversationId: fact.id }, message);
-    assert.equal(record.storageVersion, 3, message);
-    assert.equal(record.domainVersion, 3, message);
+    assert.equal(record.storageVersion, 2, message);
+    assert.equal(record.domainVersion, 2, message);
     const { parseLegacyStorageConversation, readStorageDomain } = await loadDomainContracts();
     const saved = readStorageDomain(record.conversation);
     assert.equal(saved.index.providerId, 'gemini', message);

@@ -1,4 +1,3 @@
-import { parseDomainSnapshotV2 } from '../../parsers/legacyStorage/parseDomainSnapshotV2.js';
 import { savedConversationVersion } from '../../domain/conversationVersion.js';
 import { restoreConversationIndex, mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { sha256Hex } from '../../export/assets/sha256.js';
@@ -384,38 +383,4 @@ export async function cacheDomainResource(identity: DomainStorageIdentity, asset
             } catch { store.transaction.abort(); }
         };
     });
-}
-
-/** Startup-only upgrade. Backup and replacement commit atomically; byte-cache keys stay stable. */
-export async function migrateDomainSnapshots(): Promise<void> {
-    if (typeof indexedDB === 'undefined') return;
-    const db = await openDomainDB();
-    try {
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction([CURRENT, BACKUP], 'readwrite');
-            let failure: unknown;
-            tx.oncomplete = () => resolve();
-            tx.onabort = tx.onerror = () => reject(failure ?? tx.error ?? new Error('Domain snapshot upgrade failed'));
-            const cursor = tx.objectStore(CURRENT).openCursor();
-            cursor.onsuccess = () => {
-                const entry = cursor.result;
-                if (!entry) return;
-                try {
-                    const record = entry.value as DomainStorageRecord;
-                    if (Number(record.domainVersion) === 2 && Number(record.storageVersion) === 2) {
-                        const conversation = parseDomainSnapshotV2(record.conversation, record.savedAt);
-                        const upgraded = checkedBindings({ ...record, conversation,
-                            domainVersion: DOMAIN_CONTRACT_VERSION, storageVersion: DOMAIN_STORAGE_VERSION }, conversation);
-                        const key = `domain-v2:${record.key}`;
-                        const backup = tx.objectStore(BACKUP).get(key);
-                        backup.onsuccess = () => {
-                            if (!backup.result) tx.objectStore(BACKUP).put({ key, value: record, backedUpAt: Date.now() });
-                            entry.update(upgraded);
-                            entry.continue();
-                        };
-                    } else { checked(record); entry.continue(); }
-                } catch (error) { failure = error; tx.abort(); }
-            };
-        });
-    } finally { db.close(); }
 }

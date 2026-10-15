@@ -20,7 +20,7 @@ const delivered = Object.entries(native.resourceHints).map(([resourceId, hint]) 
 test('complete JSON preserves the full native Domain and versioned resource destinations', () => {
     const before = structuredClone(native);
     const archive = JSON.parse(formatContent(native, 'json', delivered).content);
-    assert.equal(archive.format, 'gemini-exporter-domain'); assert.equal(archive.version, 3);
+    assert.equal(archive.format, 'gemini-exporter-domain'); assert.equal(archive.version, 2);
     assert.deepEqual(archive.conversation, native.conversation); assertDomainClosure((archive.conversation).detail);
     assert.deepEqual(archive.resources, { image: { path: 'assets/image.png' }, file: { path: 'files/report.pdf' } });
     for (const name of ['diagnostics', 'transport', 'acquisitionHints']) assert.equal(name in archive, false);

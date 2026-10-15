@@ -126,7 +126,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     __setModuleOverride('TabService', {
         sendToGeminiTab: async (msg: any) => {
             assert.strictEqual(msg.action, 'getConversationDetail');
-            return { success: true, domainEnvelopeVersion: 3, data: historicalFixture(chatDetail) };
+            return { success: true, domainEnvelopeVersion: 2, data: historicalFixture(chatDetail) };
         }
     });
 

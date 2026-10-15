@@ -34,7 +34,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     // 1. Direct TabService success
     const mockDirectTabService = {
         sendToGeminiTab: async () => ({
-            success: true, domainEnvelopeVersion: 3,
+            success: true, domainEnvelopeVersion: 2,
             data: historicalFixture({ id: 'chat_direct_1', title: 'Direct Tab Chat', messages: [] })
         })
     };
@@ -109,7 +109,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     const mockFallbackSender = (msg: unknown, callback?: (res: unknown) => void) => {
         remotePayload = msg;
         callback?.({
-            success: true, domainEnvelopeVersion: 3,
+            success: true, domainEnvelopeVersion: 2,
             results: [historicalFixture({ id: 'chat_remote_1', title: 'Remote Fallback Chat', messages: [] })]
         });
     };
@@ -179,7 +179,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
 test('C1 review: malformed raw replies are reportable failures rather than native results', async () => {
     const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
     const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 3, data: payload }) }
+        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 2, data: payload }) }
     });
     assert.equal(direct.success, false);
     assert.equal(direct.results, undefined);

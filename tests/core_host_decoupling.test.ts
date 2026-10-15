@@ -67,7 +67,7 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         const mockSender = (msg: any, callback: any) => {
             sentMessage = msg;
             callback({
-                success: true, domainEnvelopeVersion: 3,
+                success: true, domainEnvelopeVersion: 2,
                 results: [historicalFixture({ id: 'chat_999', title: 'Decoupled Remote Chat' })]
             });
         };

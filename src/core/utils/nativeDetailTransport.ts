@@ -1,6 +1,6 @@
 import type { ResourceConversationParseResult, ConversationAcquisitionFailure, NativeConversationInput } from '../parsers/parsingResult.js';
 
-export const NATIVE_DETAIL_ENVELOPE_VERSION = 3;
+export const NATIVE_DETAIL_ENVELOPE_VERSION = 2;
 export interface NativeDetailReply {
     success: boolean; data?: NativeConversationInput; chat?: ResourceConversationParseResult;
     rawResponse?: unknown; error?: string; source?: string; retryAfterMs?: number; _debug?: unknown; _raw?: unknown;

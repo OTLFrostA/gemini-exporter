@@ -36,7 +36,7 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 会话统一使用 `{ index, detail }`：parser、持久化快照、repository 和 composer 共用同一个聚合结构。标题、URL、来源身份及创建/活动时间只属于 `index`；`detail` 只含 `completeness`、`assets` 和 `messages`。列表可以只有 Index，正文缺失与空正文有明确区别。Repository 返回目录中的权威 Index，快照中的 Index 是当次观测，不能覆盖后续改名或云端状态。列表 parser 返回 Index 正是该聚合的目录部分。
 
-`sourceVersion` 是随正文捕获的来源活动版本，持久化为包络中的 `savedAt`；后续 Index 可以更新而保留较早正文及其版本。文档元数据从权威 Index 生成。Domain、存储记录和原生传输包络升级为 v3；启动迁移通过 `parsers/legacyStorage/parseDomainSnapshotV2.ts` 转换旧平铺快照，在同一个 IndexedDB 事务中备份原记录并替换，保留附件字节、revision 和 savedAt。失败回滚并保留旧 schema 版本戳以供重试，读取不执行修复。JSON 原生归档也使用 v3 聚合结构。
+`sourceVersion` 是随正文捕获的来源活动版本，持久化为包络中的 `savedAt`；后续 Index 可以更新而保留较早正文及其版本。文档元数据从权威 Index 生成。Domain、存储记录、原生传输包络及 JSON 归档统一使用 v2 聚合结构。正式升级路径是已发布的 1.7 到本次 v2；历史数据只通过现有 `parsers/legacyStorage/` 路径转换，原始数据先备份，迁移失败不写入版本戳，读取不执行修复。开发过程中的中间快照不构成独立发布版本，也不增加迁移分支。
 
 导出完成只写交付记录，不再创建会话或更新标题、时间和消息数。HTML、Markdown、Typst/PDF 的正文与文档元数据均由 Document AST 提供；Markdown frontmatter 所需身份与 ISO 日期在 composer 内进入 AST。JSON 保持 Domain 语义存档契约，不改成展示 AST。
 

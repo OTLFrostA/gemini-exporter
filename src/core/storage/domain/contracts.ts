@@ -2,8 +2,8 @@ import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { DomainConversationWithDetail } from '../../domain/conversation.js';
 import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 
-export const DOMAIN_STORAGE_VERSION = 3;
-export const DOMAIN_CONTRACT_VERSION = 3;
+export const DOMAIN_STORAGE_VERSION = 2;
+export const DOMAIN_CONTRACT_VERSION = 2;
 export const DOMAIN_DB_NAME = 'gemini_exporter_domain';
 export const DOMAIN_DB_VERSION = 2;
 
