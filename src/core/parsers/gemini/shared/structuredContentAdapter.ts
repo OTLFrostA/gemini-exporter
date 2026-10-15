@@ -1,4 +1,5 @@
 import type { BlockNode, ListItem, TableCell, TableRow } from '../../../domain/content/blocks.js';
+import type { DomainCitation } from '../../../domain/conversationDetail.js';
 import type { InlineNode } from '../../../domain/content/inline.js';
 import type {
     GeminiAnnotation,
@@ -23,13 +24,16 @@ function textWithSoftBreaks(text: string): InlineNode[] {
     return nodes;
 }
 
-function isLeafAnnotation(type: number): boolean {
+export type GeminiSourceCitations = ReadonlyMap<string, readonly DomainCitation[]>;
+
+function isLeafAnnotation(type: GeminiAnnotation['type']): boolean {
     return type === 4 || type === 7;
 }
 
 export function convertGeminiInlines(
     text: string,
     annotations?: GeminiAnnotation[],
+    sources: GeminiSourceCitations = new Map(),
 ): InlineNode[] | null {
     if (annotations !== undefined && !Array.isArray(annotations)) return null;
     if (!annotations || annotations.length === 0) {
@@ -39,10 +43,10 @@ export function convertGeminiInlines(
     // Validate annotations integrity and bounds
     for (const a of annotations) {
         if (!a || typeof a !== 'object') return null;
-        if (typeof a.start !== 'number' || typeof a.end !== 'number' || typeof a.type !== 'number') {
+        if (typeof a.start !== 'number' || typeof a.end !== 'number' || (typeof a.type !== 'number' && a.type !== 'source')) {
             return null;
         }
-        if (a.start < 0 || a.end > text.length || a.start > a.end) {
+        if (!Number.isInteger(a.start) || !Number.isInteger(a.end) || a.start < 0 || a.end > text.length || a.start > a.end) {
             return null;
         }
         // Supported inline annotation types:
@@ -53,7 +57,9 @@ export function convertGeminiInlines(
         // 6: link
         // 7: inline code
         // 12: strikethrough
-        if (![0, 2, 4, 5, 6, 7, 12].includes(a.type)) {
+        if (a.type === 'source') {
+            if (!a.sourceIds?.length || a.sourceIds.some(id => !sources.get(id)?.length)) return null;
+        } else if (![0, 2, 4, 5, 6, 7, 12].includes(a.type)) {
             return null; // Unknown annotation type -> fallback
         }
     }
@@ -67,6 +73,8 @@ export function convertGeminiInlines(
         const lenA = a.end - a.start;
         const lenB = b.end - b.start;
         if (lenA !== lenB) return lenB - lenA;
+        if (a.type === 'source' && b.type !== 'source') return -1;
+        if (b.type === 'source' && a.type !== 'source') return 1;
         const leafA = isLeafAnnotation(a.type) ? 1 : 0;
         const leafB = isLeafAnnotation(b.type) ? 1 : 0;
         return leafA - leafB;
@@ -109,6 +117,8 @@ export function convertGeminiInlines(
             }
 
             const rawSlice = text.slice(a.start, a.end);
+            // Leaf nodes cannot contain another annotation without losing it.
+            if (isLeafAnnotation(a.type) && curAnnots.some(c => c !== a && c.start >= a.start && c.end <= a.end)) return null;
 
             if (a.type === 4) {
                 // Inline Math
@@ -122,7 +132,7 @@ export function convertGeminiInlines(
                     type: 'inlineCode',
                     code: rawSlice,
                 });
-            } else if ([0, 2, 5, 6, 12].includes(a.type)) {
+            } else if (a.type === 'source' || [0, 2, 5, 6, 12].includes(a.type)) {
                 // Container annotation with potential nested annotations
                 const innerAnnots = curAnnots.filter(
                     (c) => c !== a && c.start >= a.start && c.end <= a.end,
@@ -130,7 +140,15 @@ export function convertGeminiInlines(
                 const children = convertRange(a.start, a.end, innerAnnots);
                 if (children === null) return null;
 
-                if (a.type === 0) {
+                if (a.type === 'source') {
+                    nodes.push(...children);
+                    const emitted = new Set<string>();
+                    for (const id of a.sourceIds ?? []) for (const citation of sources.get(id) ?? []) {
+                        if (emitted.has(citation.id)) continue;
+                        emitted.add(citation.id);
+                        nodes.push({ type: 'citationRef', citationId: citation.id });
+                    }
+                } else if (a.type === 0) {
                     nodes.push({ type: 'strong', children });
                 } else if (a.type === 2 || a.type === 5) {
                     nodes.push({ type: 'emphasis', children });
@@ -156,18 +174,28 @@ export function convertGeminiInlines(
     return convertRange(0, text.length, sorted);
 }
 
-function convertCellChildren(children: GeminiStructuredNode[]): InlineNode[] | null {
+function convertCellChildren(children: GeminiStructuredNode[], sources: GeminiSourceCitations): InlineNode[] | null {
     const inlines: InlineNode[] = [];
     for (let i = 0; i < children.length; i++) {
         const child = children[i];
-        if (!child || typeof child !== 'object' || typeof child.nodeType !== 'number') {
+        if (!child || typeof child !== 'object' || !('nodeType' in child)) {
             return null;
         }
         if (child.nodeType === 18) {
-            if (typeof child.text !== 'string') return null;
-            const converted = convertGeminiInlines(child.text, child.annotations);
+            if (typeof child.text !== 'string' || child.jJ && child.jJ > 0) return null;
+            const converted = convertGeminiInlines(child.text, child.annotations, sources);
             if (converted === null) return null;
             inlines.push(...converted);
+        } else if (child.nodeType === 'paragraph') {
+            if (!Array.isArray(child.children)) return null;
+            const converted = convertCellChildren(child.children, sources);
+            if (converted === null) return null;
+            inlines.push(...converted);
+        } else if (child.nodeType === 'citation') {
+            if (!Number.isSafeInteger(child.number) || child.number < 1 || typeof child.title !== 'string' || !child.title) return null;
+            const citationId = `grounding-${child.number}`;
+            if (!sources.get(citationId)?.some(citation => citation.id === citationId)) return null;
+            inlines.push({ type: 'citationRef', citationId, label: `[${child.number}]` });
         } else if (child.nodeType === 12) {
             // Native display math can occur inside a table cell. Preserve its
             // source instead of falling back and reinterpreting other cell text.
@@ -185,6 +213,7 @@ function convertCellChildren(children: GeminiStructuredNode[]): InlineNode[] | n
 
 export function geminiStructuredToContent(
     doc: unknown,
+    sources: GeminiSourceCitations = new Map(),
 ): BlockNode[] | null {
     if (!doc || typeof doc !== 'object') return null;
 
@@ -204,15 +233,30 @@ export function geminiStructuredToContent(
     const blocks: BlockNode[] = [];
 
     for (const node of nodes) {
-        if (!node || typeof node !== 'object' || typeof node.nodeType !== 'number') {
+        if (!node || typeof node !== 'object' || !('nodeType' in node)) {
             return null;
         }
 
         switch (node.nodeType) {
+            case 'citation': {
+                const children = convertCellChildren([node], sources);
+                if (children === null) return null;
+                const previous = blocks[blocks.length - 1];
+                if (previous?.type === 'paragraph' || previous?.type === 'heading') previous.children.push(...children);
+                else blocks.push({ type: 'paragraph', children });
+                break;
+            }
+            case 'paragraph': {
+                if (!Array.isArray(node.children)) return null;
+                const children = convertCellChildren(node.children, sources);
+                if (children === null) return null;
+                blocks.push({ type: 'paragraph', children });
+                break;
+            }
             case 18: {
                 // Text / Heading / Paragraph
                 if (typeof node.text !== 'string') return null;
-                const inlines = convertGeminiInlines(node.text, node.annotations);
+                const inlines = convertGeminiInlines(node.text, node.annotations, sources);
                 if (inlines === null) return null;
 
                 if (node.jJ && node.jJ >= 1 && node.jJ <= 6) {
@@ -267,7 +311,7 @@ export function geminiStructuredToContent(
                 for (const item of node.items) {
                     if (!item || !Array.isArray(item.children)) return null;
                     const itemBlocks = geminiStructuredToContent(
-                        { children: item.children },
+                        { children: item.children }, sources,
                     );
                     if (itemBlocks === null) return null;
                     items.push({ blocks: itemBlocks });
@@ -285,7 +329,7 @@ export function geminiStructuredToContent(
                 // Blockquote
                 if (!Array.isArray(node.children)) return null;
                 const quoteBlocks = geminiStructuredToContent(
-                    { children: node.children },
+                    { children: node.children }, sources,
                 );
                 if (quoteBlocks === null) return null;
                 blocks.push({
@@ -304,7 +348,7 @@ export function geminiStructuredToContent(
                     const cells: TableCell[] = [];
                     for (const cell of row.cells) {
                         if (!cell || !Array.isArray(cell.children)) return null;
-                        const cellInlines = convertCellChildren(cell.children);
+                        const cellInlines = convertCellChildren(cell.children, sources);
                         if (cellInlines === null) return null;
                         cells.push({
                             children: cellInlines,

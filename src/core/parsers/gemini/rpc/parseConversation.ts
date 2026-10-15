@@ -1,3 +1,4 @@
+import type { GeminiStructuredNode } from './structuredContent.js';
 import { contentQuality } from '../../../domain/quality.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../utils/pathUtils.js';
@@ -25,15 +26,42 @@ export interface GeminiRpcParseResult extends ResourceConversationParseResult {
     };
 }
 
-function citationsOf(message: GeminiMessageEvidence): DomainCitation[] {
+function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitation[]; legacyCitations: DomainCitation[]; sourceCitations: Map<string, DomainCitation[]> } {
     const citations: DomainCitation[] = [];
-    const urls = new Set<string>();
-    for (const source of message.citations ?? []) {
-        if (!source.url?.trim() || urls.has(source.url)) continue;
-        urls.add(source.url);
-        citations.push({ id: `citation-${citations.length}`, url: source.url, ...(typeof source.title === 'string' ? { title: source.title } : {}) });
+    const byUrl = new Map<string, DomainCitation>();
+    const addSource = (source: { url: string; title?: string }): DomainCitation => {
+        const existing = byUrl.get(source.url);
+        if (existing) return existing;
+        const citation = { id: `citation-${byUrl.size}`, url: source.url, ...(typeof source.title === 'string' ? { title: source.title } : {}) };
+        byUrl.set(source.url, citation);
+        citations.push(citation);
+        return citation;
+    };
+    for (const source of message.citations ?? []) if (source.url?.trim()) addSource(source);
+    const legacyCitations = [...citations];
+    const sourceCitations = new Map<string, DomainCitation[]>();
+    for (const attribution of message.sourceAttributions ?? []) {
+        sourceCitations.set(attribution.sourceId, attribution.sources.map(addSource));
     }
-    return citations;
+    const files = new Map<number, Set<string>>();
+    const visit = (nodes: GeminiStructuredNode[]): void => {
+        for (const node of nodes) {
+            if (node.nodeType === 'citation') {
+                const titles = files.get(node.number) ?? new Set<string>();
+                titles.add(node.title);
+                files.set(node.number, titles);
+            } else if ('children' in node) visit(node.children);
+            else if ('items' in node) node.items.forEach(item => visit(item.children));
+            else if ('rows' in node) node.rows.forEach(row => row.cells.forEach(cell => visit(cell.children)));
+        }
+    };
+    if (message.structuredContent) visit(message.structuredContent.children);
+    for (const [number, titles] of files) {
+        const citation = { id: `grounding-${number}`, title: [...titles].join('; ') };
+        citations.push(citation);
+        sourceCitations.set(citation.id, [citation]);
+    }
+    return { citations, legacyCitations, sourceCitations };
 }
 
 /** Raw Gemini detail RPC -> a closed Domain graph. No persisted Conversation or record parser. */
@@ -53,17 +81,20 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
             details: { reason: extraction.status, ...(extraction.status === 'decode_rejected' ? { issue: { ...extraction.issue } } : {}) },
         });
         const reasoning = parseLegacyReasoning(message.thoughts, { diagnostics: contentDiagnostics, sourceRef });
-        const citations = citationsOf(message);
-        return closeLegacyCitations({
+        const { citations, legacyCitations, sourceCitations } = citationsOf(message);
+        const closed = closeLegacyCitations({
             ...(typeof message.id === 'string' && message.id.trim() ? { id: message.id } : {}),
             role: message.role === 'model' ? 'assistant' : 'user',
             content: message.role === 'user' ? parseGeminiPrompt(message.content)
-                : parseGeminiBody(message.content, message.structuredContent, { diagnostics: contentDiagnostics, sourceRef }),
+                : parseGeminiBody(message.content, message.structuredContent, { diagnostics: contentDiagnostics, sourceRef, sourceCitations }),
             ...(typeof message.timestamp === 'number' && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),
-            ...(citations.length ? { citations } : {}),
+            ...(legacyCitations.length ? { citations: legacyCitations } : {}),
         }, message.groundingCitationMarkers);
+        // Newly bound native sources are not evidence that literal [1] prose is a citation.
+        const allCitations = [...citations, ...(closed.citations ?? []).filter(item => !citations.some(c => c.id === item.id))];
+        return { ...closed, ...(allCitations.length ? { citations: allCitations } : {}) };
     });
     const resources = closeDomainResources('gemini', messages, evidence.messages.map(message => {
         // These resources were explicitly extracted from this turn; preserve its original token.

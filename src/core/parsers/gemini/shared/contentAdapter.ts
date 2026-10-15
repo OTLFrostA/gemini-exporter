@@ -6,7 +6,7 @@ import { extractImageEvidence } from '../rpc/sourceAttachments.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
 import { preprocessGeminiMarkdown } from './markdownCompatibility.js';
-import { geminiStructuredToContent } from './structuredContentAdapter.js';
+import { geminiStructuredToContent, type GeminiSourceCitations } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../domain/content/inline.js';
 import { normalizeTextUnderscores } from '../../../utils/latexCompatibility.js';
 
@@ -51,13 +51,13 @@ export function cleanGeminiBody(text: string): string {
 export function parseGeminiBody(
     content: unknown,
     structuredContent?: unknown,
-    context: MarkdownParseContext = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
+    context: MarkdownParseContext & { sourceCitations?: GeminiSourceCitations } = { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'content' } },
 ): BlockNode[] {
     const cleaned = typeof content === 'string' ? cleanGeminiBody(content) : '';
     if (structuredContent) {
         // Malformed provider data must never prevent the visible raw body from being exported.
         try {
-            const structured = geminiStructuredToContent(structuredContent);
+            const structured = geminiStructuredToContent(structuredContent, context.sourceCitations);
             if (structured !== null && (structured.length > 0 || !cleaned.trim())) return normalizeGeminiMath(structured);
         } catch {
             // Includes malformed annotation arrays and nested provider containers.
