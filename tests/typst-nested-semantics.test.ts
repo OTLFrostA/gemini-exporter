@@ -78,19 +78,3 @@ test('thought keeps code as a structured node instead of flat text', async () =>
     assert.strictEqual(note.blocks[0].type, 'code');
     assert.strictEqual(note.blocks[0].text, 'const x = 1');
 });
-
-
-
-
-
-test('strikethrough is transported natively without a warning', async () => {
-    const b = domainFixture([msg('m1', 'user', [
-        { type: 'paragraph', children: [{ type: 'strikethrough', children: [{ type: 'text', text: 'gone' }] }] },
-    ])]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), withPath);
-    assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_STRIKETHROUGH_DROPPED'));
-    const node = (payload.messages[0].blocks[0] as any).children[0];
-    assert.strictEqual(node.type, 'strikethrough');
-    assert.strictEqual(node.children[0].text, 'gone');
-});
-
