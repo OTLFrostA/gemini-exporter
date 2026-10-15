@@ -24,8 +24,8 @@ test('D3: getConversationDetail flags truncated=true when exceeding 20 pages', a
     const detail = await Pagination.getConversationDetail(mockClient, 'chat_long');
     assert.strictEqual(pageCalls, 20, 'Should stop after 20 pages');
     assert.strictEqual(detail.transport.truncated, true, 'detail must be flagged as truncated');
-    assert.strictEqual(detail.transport.truncated, true);
     assert.strictEqual(detail.transport.truncateReason, 'max_turns_page_limit_20');
+    assert.strictEqual(detail.conversation.completeness, 'partial', 'Truncated detail must not be presented as a complete body');
 });
 
 test('D3: getConversationDetail flags truncated=true on detail cursor token loop', async () => {
@@ -63,7 +63,6 @@ test('D5: resolveConversationExportState returns badgeKind=failed for failed rec
     });
     assert.strictEqual(stRecord.state, 'failed');
     assert.strictEqual(stRecord.badge.kind, 'failed');
-    assert.notStrictEqual(stRecord.badge.kind, 'exported_ok', 'Failed record must NEVER have exported_ok badge');
     assert.strictEqual(stRecord.badge.className, 'badge badge-failed');
 
     // Case B: Session failure without persisted record
@@ -117,19 +116,33 @@ test('D6: liveSaveCoordinator deduplicates candidateName collisions within the s
         assetFetcher: mockFetcher
     });
 
-    const native = historicalFixture(chatWithCollidingImages);
-    const before = JSON.stringify(native.conversation);
-    const saved = await LiveSaveCoordinator.processAndSaveImages(
-        native,
-        chatWithCollidingImages.id,
-        mockWriter
-    );
+    try {
+        const native = historicalFixture(chatWithCollidingImages);
+        const before = JSON.stringify(native.conversation);
+        const saved = await LiveSaveCoordinator.processAndSaveImages(
+            native,
+            chatWithCollidingImages.id,
+            mockWriter
+        );
 
-    assert.strictEqual(saved.length, 2, 'Both images must be saved');
-    assert.notStrictEqual(saved[0].fileName, saved[1].fileName, 'Both images must have distinct file names');
-    assert.strictEqual(writtenFiles.size, 2, 'Two separate files must exist on disk without overwriting');
+        assert.strictEqual(saved.length, 2, 'Both images must be saved');
+        assert.notStrictEqual(saved[0].fileName, saved[1].fileName, 'Both images must have distinct file names');
+        assert.strictEqual(writtenFiles.size, 2, 'Two separate files must exist on disk without overwriting');
+        assert.deepStrictEqual(
+            Array.from(writtenFiles.values(), (buffer) => Buffer.from(buffer).toString('utf8')).sort(),
+            ['BYTES_IMAGE_1', 'BYTES_IMAGE_2'],
+            'Both original image payloads must survive, not just distinct filenames'
+        );
+        for (const asset of saved) {
+            const archivePath = `assets/${asset.fileName}`;
+            assert.strictEqual(native.resourceHints[asset.assetId]?.archivePath, archivePath, 'Receipt must belong to its Domain asset');
+            assert.deepStrictEqual(Buffer.from(asset.base64, 'base64'), Buffer.from(writtenFiles.get(archivePath)), 'Collected asset bytes must match disk bytes');
+        }
 
-    const destinations = Object.values(native.resourceHints).map((hint: any) => hint.archivePath);
-    assert.equal(new Set(destinations).size, 2, 'Each Domain asset must retain its own saved destination');
-    assert.equal(JSON.stringify(native.conversation), before, 'Saving bytes cannot rewrite source facts');
+        const destinations = Object.values(native.resourceHints).map((hint: any) => hint.archivePath);
+        assert.equal(new Set(destinations).size, 2, 'Each Domain asset must retain its own saved destination');
+        assert.equal(JSON.stringify(native.conversation), before, 'Saving bytes cannot rewrite source facts');
+    } finally {
+        LiveSaveCoordinator.init();
+    }
 });
