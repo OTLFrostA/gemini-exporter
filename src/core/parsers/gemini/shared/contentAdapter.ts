@@ -8,6 +8,29 @@ import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
 import { preprocessGeminiMarkdown } from './markdownCompatibility.js';
 import { geminiStructuredToContent } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../domain/content/inline.js';
+import { normalizeTextUnderscores } from '../../../utils/latexCompatibility.js';
+
+/** Work only on parsed math nodes; code, user prose and file names stay literal. */
+function normalizeGeminiMath(blocks: BlockNode[]): BlockNode[] {
+    const inlines = (nodes: InlineNode[]): void => nodes.forEach(node => {
+        if (node.type === 'inlineMath') node.source = normalizeTextUnderscores(node.source);
+        else if ('children' in node) inlines(node.children);
+    });
+    const visit = (nodes: BlockNode[]): void => nodes.forEach(node => {
+        if (node.type === 'math') node.source = normalizeTextUnderscores(node.source);
+        else if ('children' in node) inlines(node.children);
+        else if (node.type === 'quote') visit(node.blocks);
+        else if (node.type === 'list') node.items.forEach(item => visit(item.blocks));
+        else if (node.type === 'table') {
+            if (node.caption) inlines(node.caption);
+            [...(node.headerRows ?? []), ...node.rows].forEach(row => row.cells.forEach(cell => inlines(cell.children)));
+        } else if ((node.type === 'image' && node.caption) || (node.type === 'file' && node.description)) {
+            inlines(node.type === 'image' ? node.caption! : node.description!);
+        }
+    });
+    visit(blocks);
+    return blocks;
+}
 
 /** Native RPC prompts are literal textbox contents, not model-authored Markdown. */
 export function parseGeminiPrompt(content: string): BlockNode[] {
@@ -35,12 +58,12 @@ export function parseGeminiBody(
         // Malformed provider data must never prevent the visible raw body from being exported.
         try {
             const structured = geminiStructuredToContent(structuredContent);
-            if (structured !== null && (structured.length > 0 || !cleaned.trim())) return structured;
+            if (structured !== null && (structured.length > 0 || !cleaned.trim())) return normalizeGeminiMath(structured);
         } catch {
             // Includes malformed annotation arrays and nested provider containers.
         }
     }
-    if (typeof content === 'string') return parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context);
+    if (typeof content === 'string') return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context));
     if (content === undefined || content === null) return [];
     const visible = formatUnknownPayload(content);
     context.diagnostics.push({
@@ -65,5 +88,5 @@ export function structuredBodyAttachments(message: { structuredContent?: unknown
 export function parseLegacyReasoning(reasoning: unknown, context: MarkdownParseContext): BlockNode[] | undefined {
     if (typeof reasoning !== 'string') return undefined;
     const cleaned = cleanGeminiBody(reasoning);
-    return cleaned.trim() ? parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context) : undefined;
+    return cleaned.trim() ? normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context)) : undefined;
 }
