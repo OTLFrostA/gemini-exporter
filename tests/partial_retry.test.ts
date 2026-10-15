@@ -1,168 +1,95 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
+import { indexFixture } from './helpers/indexFixture.js';
 useIndexStorage();
+
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-/**
- * Phase A (P1-2) 回归测试：partial 记录可重试。
- *
- * 契约：
- *   1. 坏 base64 附件 -> handleLiveSaveViaHandle 返回 ok:false + failedAssets，
- *      导出记录标 status:'partial' + hasFailedAssets:true（不再静默标成功）。
- *   2. checkIsUpdated 对 partial 记录永远返回 true —— 即使会话时间戳未变化，
- *      下次增量也不得跳过，保证失败附件可重试。
- *
- * 运行: node -r ./tests/ts_register.js --test tests/partial_retry.test.ts
- */
-export {};
 const test = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
+const { checkIsUpdated, resolveConversationExportState } = require('../src/core/utils/titleUtils.js');
+const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
+const idbStore = require('../src/core/storage/idbHandleStore.js');
+const { StorageService } = require('../src/core/storage/storageService.js');
 
-function mockChromeStorage() {
-    const origChrome = (global as any).chrome;
-
-    return () => { (global as any).chrome = origChrome; };
-}
-
-function mockDirHandle(writtenFiles: Record<string, any>) {
-    const mockAssetsDir = {
-        name: 'assets',
-        getFileHandle: async (name: string) => ({
-            createWritable: async () => ({
-                write: async (content: any) => { writtenFiles[`assets/${name}`] = content; },
-                close: async () => {}
-            })
-        })
-    };
-    const mockBatchDir = {
-        name: 'gemini_export',
-        getFileHandle: async (name: string) => ({
-            createWritable: async () => ({
-                write: async (content: any) => { writtenFiles[name] = content; },
-                close: async () => {}
-            })
+function mockDirHandle(writtenFiles: Record<string, Uint8Array | string>) {
+    const writable = (name: string) => ({
+        createWritable: async () => ({
+            write: async (content: Uint8Array | string) => { writtenFiles[name] = content; },
+            close: async () => {},
         }),
-        getDirectoryHandle: async () => mockAssetsDir
+    });
+    const batchDir = {
+        getFileHandle: async (name: string) => writable(name),
+        getDirectoryHandle: async () => ({ getFileHandle: async (name: string) => writable(`assets/${name}`) }),
     };
     return {
         name: 'UserSelectedFolder',
         queryPermission: async () => 'granted',
-        getDirectoryHandle: async () => mockBatchDir
+        getDirectoryHandle: async () => batchDir,
     };
 }
 
-test('坏 base64 附件 -> ok:false + failedAssets + partial 记录', async () => {
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
-    const idbStore = require('../src/core/storage/idbHandleStore.js');
-    const storageMod = require('../src/core/storage/storageService.js');
+async function withLiveSaveFolder<T>(fn: (written: Record<string, Uint8Array | string>) => Promise<T>): Promise<T> {
+    const written: Record<string, Uint8Array | string> = {};
+    const original = idbStore.getStoredDirHandle;
+    idbStore.getStoredDirHandle = async () => mockDirHandle(written);
+    try { return await fn(written); }
+    finally { idbStore.getStoredDirHandle = original; }
+}
 
-    const writtenFiles: Record<string, any> = {};
-    const origGetHandle = idbStore.getStoredDirHandle;
-    idbStore.getStoredDirHandle = async () => mockDirHandle(writtenFiles);
-    const origSave = storageMod.StorageService.saveExportRecord;
-    let savedRecord: any = null;
-    storageMod.StorageService.saveExportRecord = async (slot: string, nid: string, rec: any) => {
-        savedRecord = { slot, nid, rec };
-    };
-    const restoreChrome = mockChromeStorage();
-
-    try {
-        const res = await handleLiveSaveViaHandle({
-            chat: historicalFixture({
-                id: '1234567890abcdef', title: 'Bad Asset Chat',
-                messages: [{ role: 'user', content: 'hi' }]
-            }),
-            safeTitle: 'Bad Asset Chat',
-            nid: 'c_abcdef1234567890',
-            assets: [
-                // 纯非法 base64 字符：Node 的 Buffer.from 会解码出空 buffer，
-                // 走 "no valid binary data" 失败路径（浏览器 atob 则直接抛错，
-                // 同样进 failedAssets）
-                { fileName: 'bad_img.png', subDir: 'assets', base64: '!!!' }
-            ]
-        }, 'u0');
-
-        assert.strictEqual(res.ok, false, '坏 base64 附件应使 ok=false');
-        assert.ok(Array.isArray(res.failedAssets) && res.failedAssets.length === 1,
-            'failedAssets 应累积该附件');
-        assert.strictEqual(res.failedAssets[0].file, 'bad_img.png');
-        assert.ok(res.targetFile && res.targetFile in writtenFiles, '主 md 应照常落盘');
-        assert.ok(savedRecord, '应写导出记录');
-        assert.strictEqual(savedRecord.rec.status, 'partial');
-        assert.strictEqual(savedRecord.rec.hasFailedAssets, true);
-    } finally {
-        idbStore.getStoredDirHandle = origGetHandle;
-        storageMod.StorageService.saveExportRecord = origSave;
-        restoreChrome();
-    }
+const chatId = 'abcdef1234567890';
+const nid = `c_${chatId}`;
+const chat = historicalFixture({
+    id: chatId, title: 'Attachment retry',
+    messages: [{ role: 'user', content: 'hi' }],
 });
 
-test('全部附件成功 -> ok:true 且记录不带 partial', async () => {
-    const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
-    const idbStore = require('../src/core/storage/idbHandleStore.js');
-    const storageMod = require('../src/core/storage/storageService.js');
-
-    const writtenFiles: Record<string, any> = {};
-    const origGetHandle = idbStore.getStoredDirHandle;
-    idbStore.getStoredDirHandle = async () => mockDirHandle(writtenFiles);
-    const origSave = storageMod.StorageService.saveExportRecord;
-    let savedRecord: any = null;
-    storageMod.StorageService.saveExportRecord = async (slot: string, nid: string, rec: any) => {
-        savedRecord = { slot, nid, rec };
-    };
-    const restoreChrome = mockChromeStorage();
-
-    try {
-        const res = await handleLiveSaveViaHandle({
-            chat: historicalFixture({
-                id: '1234567890abcdef', title: 'Good Chat',
-                messages: [{ role: 'user', content: 'hi' }]
-            }),
-            safeTitle: 'Good Chat',
-            nid: 'c_abcdef1234567890',
-            assets: [
-                { fileName: 'good_img.png', subDir: 'assets', base64: Buffer.from('img-bytes').toString('base64') }
-            ]
+test('live save: corrupt bytes leave a retryable partial export record in actual storage', async () => {
+    await withLiveSaveFolder(async written => {
+        const result = await handleLiveSaveViaHandle({
+            chat, safeTitle: 'Attachment retry', nid,
+            assets: [{ fileName: 'bad_img.png', subDir: 'assets', base64: '!!!' }],
         }, 'u0');
 
-        assert.strictEqual(res.ok, true, '附件全成功时 ok 应为 true');
-        assert.ok(savedRecord, '应写导出记录');
-        assert.strictEqual(savedRecord.rec.status, 'ok', '成功记录应清除旧 partial 状态');
-        assert.strictEqual(savedRecord.rec.hasFailedAssets, false);
+        assert.equal(result.ok, false);
+        assert.deepEqual(result.failedAssets?.map((failure: any) => failure.file), ['bad_img.png']);
+        assert.ok(result.targetFile && written[result.targetFile], 'main Markdown must be saved despite an asset failure');
+        assert.equal(written['assets/bad_img.png'], undefined, 'invalid binary must never be written');
 
-        const partial = await handleLiveSaveViaHandle({
-            chat: historicalFixture({ id: '1234567890abcdef', title: 'Good Chat', messages: [{ role: 'user', content: 'hi' }] }),
-            safeTitle: 'Good Chat', nid: 'c_abcdef1234567890', assets: [],
-            failedAssets: [{ file: 'missing.png', error: 'image download returned no bytes' }]
-        }, 'u0');
-        assert.strictEqual(partial.ok, false, '后台必须保留内容脚本下载失败');
-        assert.strictEqual(savedRecord.rec.status, 'partial');
-        assert.strictEqual(savedRecord.rec.hasFailedAssets, true);
-
-    } finally {
-        idbStore.getStoredDirHandle = origGetHandle;
-        storageMod.StorageService.saveExportRecord = origSave;
-        restoreChrome();
-    }
+        const records = await StorageService.getExportedIds('u0');
+        const record = records[chatId];
+        assert.ok(record, 'the real exportedIds storage must contain a record for the requested chat');
+        assert.equal(record.status, 'partial');
+        assert.equal(record.hasFailedAssets, true);
+        assert.equal(checkIsUpdated(indexFixture({ id: chatId, updatedAt: 1000 }), record), true,
+            'a failed asset must remain retryable even when the source version does not change');
+        assert.equal(resolveConversationExportState(indexFixture({ id: chatId, updatedAt: 1000 }), record).needsIncrementalExport, true);
+        assert.equal(Object.keys(records).length, 1, 'an alias must not create a second export record');
+    });
 });
 
-test('checkIsUpdated: partial 记录即使时间戳未变化也判 true', async () => {
-    const { checkIsUpdated } = require('../src/core/utils/titleUtils.js');
-    // 会话时间戳 1000，记录 exportedAt=5000：无 partial 守卫时会因"导出新鲜锁"判 false（跳过）
-    const c = { id: 'chat-p', timestamp: 1000, updatedAt: 1000 };
-    const partialRec = {
-        exportedAt: new Date(5000).toISOString(),
-        status: 'partial',
-        hasFailedAssets: true
-    };
-    assert.strictEqual(checkIsUpdated(c, partialRec), true,
-        'partial 记录必须判 true，否则失败附件永远得不到重试');
+test('live save: valid bytes persist and a subsequent upstream download failure becomes partial', async () => {
+    await withLiveSaveFolder(async written => {
+        const originalBytes = Buffer.from('img-bytes');
+        const first = await handleLiveSaveViaHandle({
+            chat, safeTitle: 'Attachment retry', nid,
+            assets: [{ fileName: 'good_img.png', subDir: 'assets', base64: originalBytes.toString('base64') }],
+        }, 'u0');
+        assert.equal(first.ok, true);
+        assert.deepEqual(first.failedAssets, []);
+        assert.deepEqual(Buffer.from(written['assets/good_img.png'] as Uint8Array), originalBytes,
+            'the live-save writer must preserve the actual binary payload');
+        let record = (await StorageService.getExportedIds('u0'))[chatId];
+        assert.equal(record?.status, 'ok');
+        assert.equal(record?.hasFailedAssets, false);
 
-    // 仅 hasFailedAssets（无 status）同样判 true
-    assert.strictEqual(
-        checkIsUpdated(c, { exportedAt: new Date(5000).toISOString(), hasFailedAssets: true }),
-        true, 'hasFailedAssets 单独也应判 true');
-
-    // 对照：干净记录在同样时间戳下判 false（增量可跳过）
-    assert.strictEqual(
-        checkIsUpdated(c, { exportedAt: new Date(5000).toISOString(), chatTime: 1000, status: 'success' }),
-        false, '干净记录在时间戳未变化时应判 false');
+        const retry = await handleLiveSaveViaHandle({
+            chat, safeTitle: 'Attachment retry', nid, assets: [],
+            failedAssets: [{ file: 'missing.png', error: 'download returned no bytes' }],
+        }, 'u0');
+        assert.equal(retry.ok, false);
+        assert.deepEqual(retry.failedAssets?.map((f: any) => f.file), ['missing.png']);
+        record = (await StorageService.getExportedIds('u0'))[chatId];
+        assert.equal(record?.status, 'partial', 'a retry cannot silently reuse the earlier successful status');
+        assert.equal(record?.hasFailedAssets, true);
+    });
 });
