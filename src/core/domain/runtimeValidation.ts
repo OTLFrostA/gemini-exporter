@@ -59,7 +59,7 @@ function block(v: unknown): boolean {
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), updatedAt: optional(number), createdAt: optional(number), url: optional(text), titleSource: optional(enumeration(...Object.keys(TITLE_AUTHORITY_RANK))) };
+const domainFields: Record<string, Check> = { providerId: text, id: text, title: text, assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown'), createdAt: optional(number), url: optional(text), titleSource: optional(enumeration(...Object.keys(TITLE_AUTHORITY_RANK))) };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */

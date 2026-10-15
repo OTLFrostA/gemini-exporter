@@ -19,7 +19,7 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
         });
       }
       await chrome.storage.local.set({
-        gemini_conversations: mockConvs,
+        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         exportedIds: {},
         gemini_suppress_direct_write_prompt: false,
         has_completed_tour: true,

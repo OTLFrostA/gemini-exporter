@@ -1,6 +1,8 @@
+import { parseIndexObservation } from '../../compatibility/index/parseIndex.js';
+import type { ConversationIndexPatch } from '../../domain/conversationIndex.js';
 import type { ChatParseDrift } from './parseDrift.js';
 import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
-import type { Conversation, TitleSources } from '../../../types/conversation.js';
+import type { TitleSources } from '../../../types/conversation.js';
 import { normId } from '../../utils/pathUtils.js';
 import {
     cleanTitle,
@@ -24,9 +26,15 @@ export interface ExportCompletionStorageAdapter {
 
 /** Completion metadata only: accepts native messages, legacy containers, and count-only facts.
  * This structural contract does not establish Domain trust or validate raw storage. */
-export interface ExportCompletionFacts extends Partial<Pick<Conversation,
-    'id' | 'title' | 'titleSource' | 'titles' | 'timestamp' | 'updatedAt' | 'createdAt' | 'chatTime'
->> {
+export interface ExportCompletionFacts {
+    id?: string;
+    title?: string;
+    titleSource?: string;
+    titles?: TitleSources;
+    timestamp?: number | string | null;
+    updatedAt?: number | string | null;
+    createdAt?: number | string | null;
+    chatTime?: number | string | null;
     messages?: Array<{ timestamp?: number | string | Date | null }> | number;
     turns?: unknown[] | number;
     messageCount?: number | string | null;
@@ -83,14 +91,7 @@ export type StandardExportRecord = {
     truncateReason?: string;
 }
 
-export interface StandardConversationUpdate {
-    title: string;
-    titleSource?: string;
-    titles?: Record<string, string>;
-    messageCount: number;
-    chatTime?: number;
-    updatedAt?: number;
-}
+export type StandardConversationUpdate = ConversationIndexPatch;
 
 export interface ExportCompletionResult {
     /** Canonical normalized conversation ID without c_ prefix */
@@ -127,17 +128,10 @@ export function computeExportMessageCount(conversation: ExportCompletionConversa
  */
 export function computeAuthoritativeTimestamp(conversation: ExportCompletionConversation, explicitTime?: number | string | Date | null): number | undefined {
     const metadata = conversation && typeof conversation === 'object' ? conversation : undefined;
-    let tsFromMessages = 0;
-    if (Array.isArray(metadata?.messages)) {
-        for (const m of metadata.messages) {
-            const mt = toTimestampMs(m?.timestamp);
-            if (mt && mt > tsFromMessages) tsFromMessages = mt;
-        }
-    }
-    const max = Math.max(tsFromMessages, ...[
-        explicitTime, metadata?.chatTime, metadata?.updatedAt, metadata?.timestamp, metadata?.createdAt,
-    ].map(value => toTimestampMs(value) ?? 0));
-    return max > 0 ? max : undefined;
+    // A saved/exported version is a source update value. Neither local export time,
+    // creation time nor arbitrary message dates can manufacture that version.
+    return toTimestampMs(explicitTime) ?? toTimestampMs(metadata?.updatedAt)
+        ?? toTimestampMs(metadata?.chatTime) ?? toTimestampMs(metadata?.timestamp) ?? undefined;
 }
 
 export interface ResolveExportRecordStatusOptions {
@@ -295,12 +289,12 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         ...(isTruncated ? { isTruncated: true, truncateReason: input.truncateReason || chat.truncateReason || 'truncated' } : {})
     };
 
+    const index = parseIndexObservation({ id: targetId, title: candidateTitle, titleSource: candidateProvenance,
+        titles: mergedTitles, messageCount }, 'export');
+    const sourceUpdatedAt = chatTime ?? null;
     const conversationUpdate: StandardConversationUpdate = {
-        title: candidateTitle,
-        ...(candidateProvenance ? { titleSource: candidateProvenance } : {}),
-        ...(Object.keys(mergedTitles).length > 0 ? { titles: mergedTitles } : {}),
-        messageCount,
-        ...(chatTime ? { chatTime, updatedAt: chatTime } : {})
+        title: index.title, titleSource: index.titleSource, messageCount: index.messageCount,
+        ...(sourceUpdatedAt !== null ? { updatedAt: sourceUpdatedAt } : {}),
     };
 
     return {

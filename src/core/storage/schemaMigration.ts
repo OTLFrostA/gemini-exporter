@@ -8,8 +8,8 @@ import { migrateLegacyDomains } from './domain/migrateLegacy.js';
 //
 // New contract:
 // - `gemini_schema_version` in chrome.storage.local, current = 2.
-// - `migrate()` runs once at startup, serially: slim / export-alias /
-//   credentials / IDB, then stamps the version.
+// - `migrate()` runs once at startup, serially: legacy detail / export-alias /
+//   credentials / IDB / index, then stamps the version.
 // - Unknown future version -> migrate() returns { ok:false, frozen:true } and
 //   sets the SCHEMA_FROZEN flag: reads keep working, writes fail closed via
 //   assertSchemaWritable() (i18n error + badge warning).
@@ -18,7 +18,7 @@ import { migrateLegacyDomains } from './domain/migrateLegacy.js';
 import {
     normSlot,
     getAccountSlots,
-    transactConversations,
+    migrateConversationIndexes,
     migrateExportAliases
 } from "./storageService.js";
 import { migrateCredentials } from "../api/client/credentialManager.js";
@@ -51,40 +51,6 @@ async function listConversationSlots(): Promise<string[]> {
     return [...slots];
 }
 
-// Step 1 (P1-10): slim legacy fat conversations. The updater runs inside the
-// cross-tab conversation lock on a freshly re-read list, so a concurrent
-// transact can no longer be silently discarded by a stale snapshot.
-// _setConversationsRaw offloads messages/turns to IndexedDB first and throws
-// on IDB failure, so the slimmed write never truncates data.
-async function migrateSlimConversations(): Promise<void> {
-    const slots = await listConversationSlots();
-    for (const slot of slots) {
-        await transactConversations(slot, (list) => {
-            if (!Array.isArray(list) || !list.some((c: any) => c && (Array.isArray(c.messages) || Array.isArray(c.turns)))) {
-                return null;
-            }
-            return { list, changed: 0 };
-        });
-    }
-
-    try {
-        const u0Data = (await chrome.storage.local.get(['gemini_conversations_u0', 'gemini_conversations'])) as Record<string, any>;
-        if (u0Data && Array.isArray(u0Data.gemini_conversations_u0)) {
-            const legacy = u0Data.gemini_conversations_u0;
-            if (legacy.length > 0) {
-                // Decide under the conversation lock: an empty canonical array
-                // is not evidence that the legacy records were already copied.
-                await transactConversations('u0', (list) =>
-                    list.length > 0 ? null : { list: legacy, changed: legacy.length });
-            }
-            await chrome.storage.local.remove('gemini_conversations_u0');
-        }
-    } catch (e) {
-        // Keep the legacy key and withhold the schema version so startup can retry.
-        throw e;
-    }
-}
-
 async function migrateExportAliasesAll(): Promise<void> {
     const slots = await listConversationSlots();
     for (const slot of slots) {
@@ -105,7 +71,7 @@ async function migrateIdb(): Promise<void> {
 }
 
 /**
- * Startup one-time migration. Serial: slim -> alias -> credentials -> IDB,
+ * Startup one-time migration. Serial: legacy detail -> alias -> credentials -> IDB -> index,
  * then stamps gemini_schema_version = 2. Idempotent; safe to call from
  * multiple contexts (cross-tab locks serialize the write steps).
  * If any step fails, the version stamp is withheld and ok: false is returned
@@ -127,14 +93,15 @@ export async function migrate(): Promise<SchemaMigrateResult> {
     const fromVersion = typeof stored === "number" && stored >= 0 ? Math.floor(stored) : 0;
     if (fromVersion < CURRENT_SCHEMA_VERSION) {
         try {
-            // Preserve fat v0 rows and unscoped v1 details before compatibility slimming.
+            // Released v1 upgrades directly to the final v2 body and index contracts.
+            // Preserve fat v0 rows and unscoped v1 details before canonical index conversion.
             await migrateLegacyDomains();
             if (fromVersion < 1) {
-                await migrateSlimConversations();
                 await migrateExportAliasesAll();
                 await migrateStepCredentials();
                 await migrateIdb();
             }
+            await migrateConversationIndexes();
             await chrome.storage.local.set({ [SCHEMA_VERSION_KEY]: CURRENT_SCHEMA_VERSION });
         } catch (e: unknown) {
             console.error("[SchemaMigration] Migration step failed, version stamp withheld for retry:", e);

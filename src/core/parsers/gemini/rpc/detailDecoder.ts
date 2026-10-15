@@ -1,3 +1,4 @@
+import { findListConversationMetadata } from './listMetadata.js';
 import { extractGeneratedFiles } from './generatedFiles.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
 import type { GeminiUtilsModule } from "../../../utils/utils.js";
@@ -22,7 +23,6 @@ import {
     extractConversationId,
     smartSummarizePrompt,
     extractConversationTitle,
-    extractMetaTitleFromTop,
     extractTurnTimestamp,
     normId,
     cleanTitle,
@@ -624,12 +624,12 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             }
         }
 
-        const metaTitle = Array.isArray(top) ? extractMetaTitleFromTop(top, convId || targetConvId) : null;
+        const metadata = findListConversationMetadata(top, convId === 'c_unknown' ? targetConvId ?? '' : convId);
+        const metaTitle = metadata?.title || null;
         const titleObj = extractConversationTitle(inner, turns);
         const nextToken = extractNextPageToken(inner, GEMINI_JSPB_SCHEMA.INNER.NEXT_TOKEN_CANDIDATES);
         const url = `https://gemini.google.com/app/${String(convId).replace(/^c_/, "")}`;
-        const times = turns.map(t => extractTurnTimestamp(t)).filter((x): x is number => Number.isFinite(x));
-        const maxTs = times.length ? Math.max(...times) : null;
+
 
         let cleanT = metaTitle || cleanTitle(titleObj.title || convId);
         const isReal = isRealTitle(cleanT, convId);
@@ -665,7 +665,7 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             title: cleanT,
             titleSource: finalSource,
             messages: allMsgs,
-            updatedAt: maxTs,
+            updatedAt: metadata?.updatedAt ?? null,
             url,
             nextPageToken: nextToken,
             attachmentCount: allMsgs.reduce((a, m) => a + (m.attachmentCount || 0), 0),

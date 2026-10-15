@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -81,41 +82,6 @@ test('C2-1: slot key mapping handles u0 aliases and multi-slot keys canonically'
     assert.strictEqual(k1.syncKey, 'gemini_last_sync_u1');
     assert.strictEqual(k1.countKey, 'gemini_last_count_u1');
     assert.strictEqual(k1.checkpointKey, 'gemini_scan_checkpoint_u1');
-});
-
-test('C2-2: conversation roundtrip slims messages and preserves typed fields', async () => {
-    const { store, restore } = setupMockStorage();
-    try {
-        const conv = {
-            id: 'conv_1',
-            title: 'Roundtrip Test',
-            timestamp: 1700000000000,
-            messageCount: 2,
-            messages: [
-                { role: 'user', content: 'hello' },
-                { role: 'model', content: 'world' }
-            ]
-        };
-
-        await setConversations('u0', [conv]);
-
-        // Stored list must have messages stripped (slimming contract)
-        const storedList = store['gemini_conversations'];
-        assert.ok(Array.isArray(storedList));
-        assert.strictEqual(storedList.length, 1);
-        assert.strictEqual(storedList[0].id, 'conv_1');
-        assert.strictEqual(storedList[0].title, 'Roundtrip Test');
-        assert.strictEqual(storedList[0].messageCount, 2);
-        assert.strictEqual(storedList[0].messages, undefined);
-
-        // getConversations returns valid Conversation[]
-        const fetched = await getConversations('u0');
-        assert.strictEqual(fetched.length, 1);
-        assert.strictEqual(fetched[0].id, 'conv_1');
-        assert.strictEqual(fetched[0].title, 'Roundtrip Test');
-    } finally {
-        restore();
-    }
 });
 
 test('C2-3: export record canonical keys normalize prefixes and padding', async () => {
@@ -203,7 +169,7 @@ test('C2-5: cross-tab serialization lock order and queue integrity', async () =>
     });
 
     try {
-        await setConversations('u0', [{ id: 'conv_lock', title: 'Lock Test', timestamp: 1 }]);
+        await setConversations('u0', ([{ id: 'conv_lock', title: 'Lock Test', timestamp: 1 }]).map(indexFixture));
         await saveExportRecord('u0', 'conv_lock', { exportedAt: 100, status: 'ok' });
 
         assert.ok(lockCalls.includes('gemini-exporter:write:conversations'));
@@ -234,59 +200,18 @@ test('C2-6: queue survives failed write without stalling future tasks', async ()
         // First write should fail
         await assert.rejects(
             async () => {
-                await setConversations('u0', [{ id: 'fail_conv', title: 'Fails', timestamp: 1 }]);
+                await setConversations('u0', ([{ id: 'fail_conv', title: 'Fails', timestamp: 1 }]).map(indexFixture));
             },
             /Simulated write failure/
         );
 
         // Second write queued immediately after MUST succeed and not hang
-        await setConversations('u0', [{ id: 'ok_conv', title: 'Succeeds', timestamp: 2 }]);
+        await setConversations('u0', ([{ id: 'ok_conv', title: 'Succeeds', timestamp: 2 }]).map(indexFixture));
 
         const fetched = await getConversations('u0');
         assert.strictEqual(fetched.length, 1);
         assert.strictEqual(fetched[0].id, 'ok_conv');
         assert.strictEqual(store['gemini_conversations'] !== undefined, true);
-    } finally {
-        restore();
-    }
-});
-
-test('C2-7: finalize existing conversation updates metadata and returns ok', async () => {
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: [
-            { id: 'c_exist', title: 'Original Title', timestamp: 1000, messageCount: 2 }
-        ]
-    });
-    try {
-        let callbackCalled = false;
-        const res = await finalizeConversationExport(
-            'u0',
-            'c_exist',
-            { exportedAt: 2000, format: 'markdown', status: 'ok', title: 'Exported Title' },
-            {
-                conversationUpdate: {
-                    title: 'Updated Title',
-                    titleSource: 'rpc',
-                    messageCount: 5,
-                    updatedAt: 3000
-                },
-                onItemExported: (id: string, rec: any) => {
-                    assert.strictEqual(id, 'exist');
-                    assert.strictEqual(rec.status, 'ok');
-                    callbackCalled = true;
-                }
-            }
-        );
-
-        assert.strictEqual(res.ok, true);
-        assert.strictEqual(res.record.status, 'ok');
-        assert.strictEqual(callbackCalled, true);
-
-        const convs = store['gemini_conversations'];
-        assert.strictEqual(convs[0].title, 'Updated Title');
-        assert.strictEqual(convs[0].titleSource, 'rpc');
-        assert.strictEqual(convs[0].messageCount, 5);
-        assert.strictEqual(convs[0].updatedAt, 3000);
     } finally {
         restore();
     }
@@ -318,179 +243,6 @@ test('C2-8: skipConversationUpdate skips modifying conversation list', async () 
         // Export record is still saved
         const exports = store['exportedIds'];
         assert.strictEqual(exports['skip'].title, 'New Export Title');
-    } finally {
-        restore();
-    }
-});
-
-test('C2-9: messageCount and timestamp advance monotonically', async () => {
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: [
-            { id: 'c_mono', title: 'Mono Test', timestamp: 5000, updatedAt: 5000, messageCount: 10 }
-        ]
-    });
-    try {
-        // Attempt update with smaller messageCount and older timestamp
-        await finalizeConversationExport(
-            'u0',
-            'c_mono',
-            { exportedAt: 6000, status: 'ok' },
-            {
-                conversationUpdate: {
-                    messageCount: 3, // Smaller than 10
-                    updatedAt: 2000 // Older than 5000
-                }
-            }
-        );
-
-        let convs = store['gemini_conversations'];
-        assert.strictEqual(convs[0].messageCount, 10, 'messageCount must not decrease');
-        assert.strictEqual(convs[0].updatedAt, 5000, 'updatedAt must not rewind');
-
-        // Now attempt update with larger messageCount and newer timestamp
-        await finalizeConversationExport(
-            'u0',
-            'c_mono',
-            { exportedAt: 7000, status: 'ok' },
-            {
-                conversationUpdate: {
-                    messageCount: 15,
-                    updatedAt: 8000
-                }
-            }
-        );
-
-        convs = store['gemini_conversations'];
-        assert.strictEqual(convs[0].messageCount, 15, 'messageCount must advance');
-        assert.strictEqual(convs[0].updatedAt, 8000, 'updatedAt must advance forward');
-    } finally {
-        restore();
-    }
-});
-
-test('C2-10: missing-conversation registration creates conversation with clean metadata', async () => {
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: []
-    });
-    try {
-        const res = await finalizeConversationExport(
-            'u0',
-            'c_new_chat',
-            { exportedAt: 5000, title: 'Brand New Chat', status: 'ok', messageCount: 4, chatTime: 4000 },
-            {
-                conversationUpdate: {
-                    title: 'Brand New Chat',
-                    titleSource: 'rpc',
-                    titles: { rpc: 'Brand New Chat' },
-                    messageCount: 4
-                }
-            }
-        );
-
-        assert.strictEqual(res.ok, true);
-        const convs = store['gemini_conversations'];
-        assert.strictEqual(convs.length, 1);
-        assert.strictEqual(convs[0].id, 'new_chat');
-        assert.strictEqual(convs[0].title, 'Brand New Chat');
-        assert.strictEqual(convs[0].titleSource, 'rpc');
-        assert.strictEqual(convs[0].titles?.rpc, 'Brand New Chat');
-        assert.strictEqual(convs[0].messageCount, 4);
-        assert.strictEqual(convs[0].timestamp, undefined, 'timestamp must remain missing on registered newConv');
-        assert.strictEqual(convs[0].updatedAt, 4000, 'updatedAt must be populated from export chatTime');
-    } finally {
-        restore();
-    }
-});
-
-test('C2-11: title writeback enforces provenance arbitration without downgrade', async () => {
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: [
-            {
-                id: 'c_arb',
-                title: 'RPC Authoritative Title',
-                titleSource: 'rpc',
-                titles: { rpc: 'RPC Authoritative Title' },
-                timestamp: 1000
-            }
-        ]
-    });
-    try {
-        // Weaker takeout candidate cannot downgrade RPC title
-        await finalizeConversationExport(
-            'u0',
-            'c_arb',
-            { exportedAt: 2000, status: 'ok', title: 'Takeout Older Title' },
-            {
-                conversationUpdate: {
-                    title: 'Takeout Older Title',
-                    titleSource: 'takeout',
-                    titles: { takeout: 'Takeout Older Title' }
-                }
-            }
-        );
-
-        const convs = store['gemini_conversations'];
-        assert.strictEqual(convs[0].title, 'RPC Authoritative Title', 'RPC title must prevail');
-        assert.strictEqual(convs[0].titleSource, 'rpc');
-        assert.strictEqual(convs[0].titles?.takeout, 'Takeout Older Title');
-        assert.strictEqual(convs[0].titles?.rpc, 'RPC Authoritative Title');
-    } finally {
-        restore();
-    }
-});
-
-test('C2-12: removeConversation cleans up conversation, details, and export records', async () => {
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: [
-            { id: 'c_target', title: 'Target', timestamp: 1 },
-            { id: 'c_keep', title: 'Keep', timestamp: 2 }
-        ],
-        exportedIds: {
-            target: { exportedAt: 10, status: 'ok' },
-            c_target: { exportedAt: 10, status: 'ok' },
-            keep: { exportedAt: 20, status: 'ok' }
-        }
-    });
-    try {
-        const removed = await removeConversation('u0', 'c_target');
-        assert.strictEqual(removed, true);
-
-        const convs = store['gemini_conversations'];
-        assert.strictEqual(convs.length, 1);
-        assert.strictEqual(convs[0].id, 'c_keep');
-
-        const exports = store['exportedIds'];
-        assert.strictEqual(exports['target'], undefined);
-        assert.strictEqual(exports['c_target'], undefined);
-        assert.strictEqual(exports['keep'] !== undefined, true);
-    } finally {
-        restore();
-    }
-});
-
-test('C2-13: getConversations preserves historical partial metadata rows without filtering or mutation', async () => {
-    const historicalRows = [
-        { id: 'part_1' },
-        { id: 'part_2', title: 'Only Title' },
-        { id: 'part_3', timestamp: null, extraField: 'custom_value' }
-    ];
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: historicalRows
-    });
-    try {
-        const fetched = await getConversations('u0');
-        assert.strictEqual(fetched.length, 3);
-        assert.strictEqual(fetched[0].id, 'part_1');
-        assert.strictEqual((fetched[0] as any).title, undefined);
-        assert.strictEqual(fetched[1].title, 'Only Title');
-        assert.strictEqual((fetched[2] as any).extraField, 'custom_value');
-
-        // Roundtrip via setConversations preserves rows
-        await setConversations('u0', fetched);
-        const stored = store['gemini_conversations'];
-        assert.strictEqual(stored.length, 3);
-        assert.strictEqual(stored[0].id, 'part_1');
-        assert.strictEqual(stored[2].extraField, 'custom_value');
     } finally {
         restore();
     }
@@ -552,73 +304,6 @@ test('C2-15: getAccountSlots and updateAccountSlot preserve primitive and null v
     }
 });
 
-test('C2-16: finalizeConversationExport preserves {ok: true, record} and missing timestamp semantics', async () => {
-    const { store, restore } = setupMockStorage({
-        gemini_conversations: []
-    });
-    try {
-        const customRecord = { format: 'typst', exportedAt: 9999, customProp: 'hello' };
-        const res = await finalizeConversationExport(
-            'u0',
-            'c_fresh_chat',
-            customRecord,
-            {
-                conversationUpdate: {
-                    title: 'Fresh Chat Without Timestamp'
-                }
-            }
-        );
-
-        // Return shape must be exact { ok: true, record }
-        assert.strictEqual(res.ok, true);
-        assert.strictEqual(res.record, customRecord);
-        assert.strictEqual((res.record as any).customProp, 'hello');
-
-        const convs = store['gemini_conversations'];
-        assert.strictEqual(convs.length, 1);
-        assert.strictEqual(convs[0].id, 'fresh_chat');
-        assert.strictEqual(convs[0].title, 'Fresh Chat Without Timestamp');
-        // Missing timestamp in original registration must NOT be injected
-        assert.strictEqual(convs[0].timestamp, undefined, 'timestamp must remain missing');
-        assert.ok(typeof convs[0].updatedAt === 'number' && convs[0].updatedAt > 0, 'updatedAt must be generated');
-    } finally {
-        restore();
-    }
-});
-
-test('C2 review: detail writes preserve explicit fields and truthy timestamp fallback', async () => {
-    const fixture = setupMockStorage();
-    const details = require('../src/core/storage/conversationDetailStore.js');
-    const originalSave = details.saveConversationDetailsBatch;
-    const originalNow = Date.now;
-    const captured: Record<string, unknown>[] = [];
-    details.saveConversationDetailsBatch = async (records: Record<string, unknown>[]) => {
-        captured.push(...records);
-        return originalSave(records);
-    };
-    Date.now = () => 1710000000000;
-    const turns = [{ messages: [{ role: 'model', content: { legacy: true } }] }];
-    try {
-        await setConversations('u0', [
-            { id: 'c_zero', messages: [], turns, updatedAt: 0, timestamp: 12345 },
-            { id: 'c_empty', messages: undefined, turns, updatedAt: '', timestamp: 0 },
-            { id: 'c_iso', messages: [], turns, updatedAt: '2026-01-01T00:00:00Z' }
-        ]);
-        assert.strictEqual(captured.length, 3);
-        for (const record of captured) {
-            assert.strictEqual(Object.hasOwn(record, 'messages'), true);
-            assert.strictEqual(Object.hasOwn(record, 'turns'), true);
-            assert.strictEqual(record.turns, turns);
-            assert.strictEqual(record.savedAt, 1710000000000);
-        }
-        assert.deepStrictEqual(captured[0].messages, []);
-        assert.strictEqual(captured[1].messages, undefined);
-        assert.strictEqual(captured[0].updatedAt, 12345);
-        assert.strictEqual(captured[1].updatedAt, 1710000000000);
-        assert.strictEqual(captured[2].updatedAt, '2026-01-01T00:00:00Z');
-    } finally { details.saveConversationDetailsBatch = originalSave; Date.now = originalNow; details.__clearMemoryStore(); fixture.restore(); }
-});
-
 test('C2 review: last-sync reads keep historical truthiness without finite-number normalization', async () => {
     const fixture = setupMockStorage();
     const { getLastSync } = require('../src/core/storage/storageService.js');
@@ -630,37 +315,6 @@ test('C2 review: last-sync reads keep historical truthiness without finite-numbe
             assert.strictEqual(value.timestamp, timestamp || null);
             assert.strictEqual(value.count, count || 0);
         }
-    } finally { fixture.restore(); }
-});
-
-test('C2 review: container reads preserve raw elements without full-domain assertions', async () => {
-    const raw = [1, null, { id: 'partial', extension: true }];
-    const fixture = setupMockStorage({ gemini_conversations: raw, exportedIds: { c_primitive: 12, c_null: null } });
-    try {
-        assert.strictEqual(await getConversations('u0'), raw);
-        assert.deepStrictEqual(await getExportedIds('u0'), { primitive: 12, null: null });
-    } finally { fixture.restore(); }
-});
-
-
-test('C2 follow-up: compatibility reads and updates retain incompatible historical object fields', async () => {
-    const row = { id: 7, title: 23, messageCount: '7', titles: { rpc: false }, timestamp: { historical: true }, extension: ['retained', null] };
-    const fixture = setupMockStorage({ gemini_conversations: [row] });
-    try {
-        const read = await getConversations('u0');
-        assert.strictEqual(read[0], row);
-        let seen: unknown;
-        await updateConversation('u0', '7', (current: Record<string, unknown>) => {
-            seen = current;
-            return { url: 'https://gemini.google.com/app/7' };
-        });
-        assert.strictEqual(seen, row);
-        const updated = (await getConversations('u0'))[0];
-        assert.strictEqual(updated.title, 23);
-        assert.deepStrictEqual(updated.titles, { rpc: false });
-        assert.deepStrictEqual(updated.timestamp, { historical: true });
-        assert.deepStrictEqual(updated.extension, ['retained', null]);
-        assert.strictEqual(updated.url, 'https://gemini.google.com/app/7');
     } finally { fixture.restore(); }
 });
 

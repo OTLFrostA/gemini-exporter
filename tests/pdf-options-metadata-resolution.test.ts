@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/pdf-options-metadata-resolution.test.ts
@@ -149,7 +150,7 @@ test('regression: metadata-only options.conversations item resolves full detail 
     const result = await exporter.run(
         {
             selected: [{ id, title }],
-            conversations: [metadataOnly],
+            conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
@@ -293,7 +294,7 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
     const result = await exporter.run(
         {
             selected: [{ id, title }],
-            conversations: [metadataOnly],
+            conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
@@ -335,7 +336,7 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
     const result = await exporter.run(
         {
             selected: [{ id, title }],
-            conversations: [metadataOnly],
+            conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,

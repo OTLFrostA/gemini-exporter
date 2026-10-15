@@ -215,7 +215,7 @@ test('resource persistence: 40 continuous saves and repeated imports retain only
             for (let i = 1; i <= 40; i++) {
                 const parsed = api.storedParseResult(initial);
                 parsed.conversation.title = `Continuous save ${i}`;
-                parsed.conversation.updatedAt = Number(offline.conversation.updatedAt || 0) + i;
+                parsed.sourceVersion = Number(offline.sourceVersion || 0) + i;
                 final = await api.saveDomainConversation('u0', parsed);
             }
             const normal = { ...counts };

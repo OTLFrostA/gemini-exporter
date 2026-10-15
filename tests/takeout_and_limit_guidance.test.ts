@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -122,7 +123,7 @@ test('geminiClient - error with 1096 or BardErrorInfo flags hitGoogleLimit', asy
             throw new Error('rpc error: code = 1096, BardErrorInfo: cursor expired');
         }
         return {
-            conversations: [{ id: `conv_${pageCount}`, title: `Chat ${pageCount}` }],
+            conversations: ([{ id: `conv_${pageCount}`, title: `Chat ${pageCount}` }]).map(indexFixture),
             nextPageToken: `token_${pageCount + 1}`
         };
     };

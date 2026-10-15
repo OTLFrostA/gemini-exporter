@@ -1,7 +1,7 @@
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
 

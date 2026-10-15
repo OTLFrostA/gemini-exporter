@@ -237,10 +237,10 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
     frozen_head = frozen_head or (original.get('baseline') or {}).get('headTimestamp', 0) or 0
     span = current['streams']['recent'].get('range')
     for cid in target_ids:
-        old_time = old_rows.get(cid, {}).get('timestamp', frozen_head)
+        old_time = old_rows.get(cid, {}).get('updatedAt', frozen_head)
         row = new_rows.get(cid) or {}
-        if (row.get('titleSource') != 'rpc' or row.get('timestamp', 0) <= old_time
-                or span and span['head']['time'] < row.get('timestamp', 0)):
+        if (row.get('titleSource') != 'rpc' or row.get('updatedAt', 0) <= old_time
+                or span and span['head']['time'] < row.get('updatedAt', 0)):
             return False, f'Real activity was not saved or coverage did not advance: {cid}'
     for state in (initial, before):
         if (not {r['id'] for r in state.get('rows', [])}.issubset(new_rows)
@@ -324,8 +324,8 @@ class CDPAssertions:
                     const idx2 = domItems.indexOf(el2);
 
                     resolve({{
-                        ts1: c1 ? (c1.updatedAt || c1.timestamp || 0) : 0,
-                        ts2: c2 ? (c2.updatedAt || c2.timestamp || 0) : 0,
+                        ts1: c1 ? (c1.updatedAt ?? 0) : 0,
+                        ts2: c2 ? (c2.updatedAt ?? 0) : 0,
                         idx1: idx1,
                         idx2: idx2,
                         totalDom: domItems.length,
@@ -479,7 +479,7 @@ class CDPAssertions:
                             id: c.id,
                             title: c.title,
                             source: c.titleSource,
-                            titles: c.titles || {{}}
+                            hasTakeoutImport: c.hasTakeoutImport
                         }}))
                     }});
                 }});
@@ -496,10 +496,9 @@ class CDPAssertions:
 
         upgraded_count = 0
         for m in matched:
-            titles = m.get("titles", {})
             source = m.get("source", "")
-            has_takeout = "takeout" in titles
-            is_rpc = source == "rpc" and bool(titles.get("rpc")) and m.get("title") == titles.get("rpc")
+            has_takeout = m.get("hasTakeoutImport") is True
+            is_rpc = source == "rpc" and bool(m.get("title"))
             if has_takeout and is_rpc:
                 upgraded_count += 1
 
@@ -607,7 +606,8 @@ class CDPAssertions:
         target_chat_ids: Optional[List[str]] = None,
         min_mtime: Optional[float] = None,
         turn_evidence: Optional[Dict[str, List[Dict[str, Any]]]] = None,
-        baselines: Optional[Dict[str, str]] = None
+        baselines: Optional[Dict[str, str]] = None,
+        image_cdp=None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
         断言真实磁盘的自动实时导出目录。
@@ -696,12 +696,16 @@ class CDPAssertions:
                         resource_errors = validate_archive_resources(check_dir, os.path.relpath(mf[3], check_dir), text)
                         if resource_errors:
                             return False, f"{cid} 资源引用无效: {resource_errors}", summary
-                        for turn, message in zip((turn_evidence or {}).get(cid, []), markdown_messages(text)[1::2]):
-                            if turn.get('has_images'):
-                                refs = resource_references(message['content'])
-                                entities = [find_archive_resource(check_dir, os.path.relpath(mf[3], check_dir), ref) for ref in refs]
-                                if not any(entities):
-                                    return False, f"{cid} 图片回复没有有效的归档实体", summary
+                        evidence = (turn_evidence or {}).get(cid, [])
+                        if any(turn.get('has_images') for turn in evidence):
+                            if image_cdp is None:
+                                return False, f"{cid} 缺少图片解码器，无法验证导出画面", summary
+                            from .image_evidence import assert_markdown_images
+                            try:
+                                summary.setdefault('image_errors', {})[cid] = assert_markdown_images(
+                                    image_cdp, check_dir, os.path.relpath(mf[3], check_dir), text, evidence)
+                            except (ValueError, OSError, RuntimeError) as exc:
+                                return False, f"{cid} 图片与网页不一致: {exc}", summary
                         before = (baselines or {}).get(cid)
                         if before is not None:
                             old_messages, new_messages = markdown_messages(before), markdown_messages(text)

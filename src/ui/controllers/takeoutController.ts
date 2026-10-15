@@ -3,7 +3,7 @@ import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import ConversationsStore from '../state/conversationsStore.js';
 import StorageService from '../../core/storage/storageService.js';
-import { deduplicateConversations as staticDeduplicateConversations, planTakeoutMerge } from '../../core/utils/mergeUtils.js';
+import { planTakeoutMerge } from '../../core/utils/mergeUtils.js';
 import { t } from '../uiCommon.js';
 import { getErrorMessage } from '../../core/utils/messaging.js';
 
@@ -42,22 +42,7 @@ export async function handleTakeoutImport(
         }
         const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
-        // SSoT: merge via deduplicateConversations so multi-tier titles
-        // (titles.takeout seeding), timestamps and ordering converge with the
-        // online upsert path. A naive push-if-absent would drop takeout slots
-        // for existing ids and store raw temp titles unsorted for new ids.
-        const dedupe = (list: any[]) => {
-            if (Store && typeof Store.normalizeAndDeduplicate === 'function') {
-                return Store.normalizeAndDeduplicate(list);
-            }
-            const injected = __resolveModule('GeminiUtils', null);
-            if (injected && typeof injected.deduplicateConversations === 'function') {
-                return injected.deduplicateConversations(list);
-            }
-            return staticDeduplicateConversations(list);
-        };
-
-        const planMerge = (existing: any[]) => planTakeoutMerge(existing, incoming, dedupe);
+        const planMerge = (existing: import('../../core/domain/conversationIndex.js').DomainConversationIndex[]) => planTakeoutMerge(existing, incoming);
 
         const Storage = getStorage();
         const currentSlot = Store ? (Store.getCurrentSlot() || 'u0') : 'u0';

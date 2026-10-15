@@ -1,6 +1,6 @@
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
-import type { Conversation } from '../../../types/conversation.js';
+import type { DomainConversationIndex } from '../../../types/conversation.js';
 import {
     BatchWorker,
     resolveConversationData,
@@ -114,6 +114,7 @@ export interface PreparedPdfItemSuccess {
     drift: ChatParseDrift;
     usedLocalSnapshot: boolean;
     messageCount: number;
+    sourceVersion?: number;
 }
 
 export interface PreparedPdfItemFailure {
@@ -128,7 +129,7 @@ export type PreparedPdfItemResult = PreparedPdfItemSuccess | PreparedPdfItemFail
 
 export interface PreparePdfItemContext {
     source?: ResolvedConversationSource;
-    conversations?: Array<{ id: string; title?: string; cloudAvailability?: Conversation['cloudAvailability']; isTakeoutOnly?: boolean }>;
+    conversations?: DomainConversationIndex[];
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
@@ -239,11 +240,11 @@ async function prepareNativePdfItem(
     const drift = extractChatParseDrift(parsed);
     const usedLocalSnapshot = dataSource === 'local_snapshot'
         && listItem?.cloudAvailability !== 'deleted'
-        && !listItem?.isTakeoutOnly;
+        && !(listItem?.hasTakeoutImport && listItem.cloudAvailability !== 'available');
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);
-        const composed = composeDomainDocument({ ...parsed.conversation, title });
+        const composed = composeDomainDocument({ ...parsed.conversation, title }, { sourceVersion: parsed.sourceVersion });
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
@@ -266,7 +267,7 @@ async function prepareNativePdfItem(
     });
     diagnostics.push(...prepared.diagnostics);
     if (prepared.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
-    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, messageCount: document.messages.length };
+    return { ok: true, id, title, document, resources: prepared.resources, diagnostics, drift, usedLocalSnapshot, sourceVersion: parsed.sourceVersion, messageCount: document.messages.length };
 }
 
 /** Per-item source or storage failures remain reportable and retryable by the batch exporter. */

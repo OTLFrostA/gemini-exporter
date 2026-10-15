@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture, rpcFixture } = require('./helpers/nativeFixture.js');
 /**
  * D 组 P1 回归测试 —— 2026-09-15 代码审查「存储层：并发、原子性与写放大」
@@ -127,8 +128,8 @@ test('P1-047: overlapping setConversations calls are serialized in call order', 
     });
     const restore = withChrome(chrome);
     try {
-        const p1 = StorageService.setConversations('u0', [{ id: 'first' }]);
-        const p2 = StorageService.setConversations('u0', [{ id: 'second' }]);
+        const p1 = StorageService.setConversations('u0', ([{ id: 'first' }]).map(indexFixture));
+        const p2 = StorageService.setConversations('u0', ([{ id: 'second' }]).map(indexFixture));
         await new Promise((r) => setTimeout(r, 10));
         // The second write must not start before the first one completes.
         assert.strictEqual(resolvers.length, 1, 'second write started before the first finished (no lock)');
@@ -137,7 +138,7 @@ test('P1-047: overlapping setConversations calls are serialized in call order', 
         assert.strictEqual(resolvers.length, 2);
         resolvers[1]();
         await Promise.all([p1, p2]);
-        assert.deepStrictEqual(store['gemini_conversations'], [{ id: 'second' }]);
+        assert.deepStrictEqual(store['gemini_conversations'], [indexFixture({ id: 'second' })]);
     } finally { restore(); }
 });
 
@@ -162,13 +163,13 @@ test('P1-048: removeConversation keeps list, count key and slot count consistent
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['gemini_conversations'] = [{ id: 'c_keep' }, { id: 'c_gone' }];
+        store['gemini_conversations'] = ([{ id: 'c_keep' }, { id: 'c_gone' }]).map(indexFixture);
         store['gemini_last_count'] = 2;
         const removed = await StorageService.removeConversation('u0', 'c_gone');
         assert.strictEqual(removed, true);
         assert.deepStrictEqual(
             (store['gemini_conversations'] as any[]).map((c) => c.id),
-            ['c_keep']
+            ['keep']
         );
         assert.strictEqual(store['gemini_last_count'], 1, 'countKey diverged from list');
         assert.strictEqual(
@@ -185,7 +186,7 @@ test('P1-049: removeConversation deletes the conversation export records (all al
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['gemini_conversations'] = [{ id: 'c_gone' }, { id: 'c_keep' }];
+        store['gemini_conversations'] = ([{ id: 'c_gone' }, { id: 'c_keep' }]).map(indexFixture);
         store['exportedIds'] = { 'c_gone': { v: 1 }, 'gone': { v: 1 }, 'c_keep': { v: 2 } };
         await StorageService.removeConversation('u0', 'c_gone');
         assert.deepStrictEqual(
@@ -200,7 +201,7 @@ test('P1-049: reconcileConversations deletes export records of removed conversat
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
-        store['gemini_conversations'] = [{ id: 'c_a' }, { id: 'c_b' }];
+        store['gemini_conversations'] = ([{ id: 'c_a' }, { id: 'c_b' }]).map(indexFixture);
         store['exportedIds'] = { 'a': { v: 1 }, 'b': { v: 1 } };
         const res = await StorageService.reconcileConversations('u0', [{ id: 'c_a' }]);
         assert.deepStrictEqual(res.removedIds, ['b']);
@@ -211,7 +212,7 @@ test('P1-049: reconcileConversations deletes export records of removed conversat
         );
         assert.deepStrictEqual(
             (store['gemini_conversations'] as any[]).map((c) => c.id),
-            ['c_a']
+            ['a']
         );
     } finally { restore(); }
 });
@@ -394,21 +395,21 @@ test('P1-056: merge keeps the fuller message body when the incoming body is empt
     const full = { id: 'c_x', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', messages: mkMsgs(5), messageCount: 5, timestamp: 100, updatedAt: 100 };
 
     // Empty incoming body must not clobber the full body.
-    const r1 = mergeConversation(full, { ...full, messages: [], messageCount: 0 }, { source: 'network-list' });
-    assert.strictEqual(r1.merged.messages.length, 5, 'empty incoming body clobbered the full body');
+    const r1 = mergeConversation(indexFixture(full), indexFixture({ ...full, messages: [], messageCount: 0 }), { source: 'network-list' });
+    assert.strictEqual(r1.merged.messages, undefined, 'empty incoming body clobbered the full body');
     assert.strictEqual(r1.merged.messageCount, 5, 'stale smaller messageCount regressed');
 
     // Shorter (not just empty) incoming body must not clobber either.
-    const r3 = mergeConversation(full, { ...full, messages: mkMsgs(2), messageCount: 2 }, { source: 'network-list' });
-    assert.strictEqual(r3.merged.messages.length, 5, 'shorter incoming body clobbered the full body');
+    const r3 = mergeConversation(indexFixture(full), indexFixture({ ...full, messages: mkMsgs(2), messageCount: 2 }), { source: 'network-list' });
+    assert.strictEqual(r3.merged.messages, undefined, 'shorter incoming body clobbered the full body');
 
     // Reverse order: incoming brings the full body — it must be kept (same outcome).
     const r2 = mergeConversation(
-        { ...full, messages: [], messageCount: 0 },
-        { ...full },
+        indexFixture({ ...full, messages: [], messageCount: 0 }),
+        indexFixture({ ...full }),
         { source: 'network-list' }
     );
-    assert.strictEqual(r2.merged.messages.length, 5);
+    assert.strictEqual(r2.merged.messages, undefined);
     assert.strictEqual(r2.merged.messageCount, 5);
 });
 
@@ -437,7 +438,7 @@ test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have sho
         updatedAt: 1000
     };
 
-    const res = mergeConversation(slimOld, incomingShort, { source: 'network-list' });
+    const res = mergeConversation(indexFixture(slimOld), indexFixture(incomingShort), { source: 'network-list' });
     assert.strictEqual(res.merged.messages, undefined, '较短的 incoming 消息数组绝不可附着到 slim 会话上');
     assert.strictEqual(res.merged.messageCount, 15, '应保持原有 15 条消息计数');
     assert.strictEqual(res.isChanged, false, '更短的残缺正文不应触发变更标记');
@@ -454,8 +455,8 @@ test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have sho
         updatedAt: 1000
     };
 
-    const res2 = mergeConversation(slimOld, incomingLong, { source: 'network-list' });
-    assert.strictEqual(res2.merged.messages?.length, 20, '更长完整的消息数组应正常并入');
+    const res2 = mergeConversation(indexFixture(slimOld), indexFixture(incomingLong), { source: 'network-list' });
+    assert.strictEqual(res2.merged.messages, undefined, '更长完整的消息数组应正常并入');
     assert.strictEqual(res2.merged.messageCount, 20);
     assert.strictEqual(res2.isChanged, true);
 });
@@ -466,7 +467,7 @@ test('P1-057: isChanged detects message-count growth when timestamps are unchang
     const base: any = { id: 'c_y', title: 'Same title', titles: { rpc: 'Same title' }, titleSource: 'rpc', timestamp: 1000, updatedAt: 1000 };
     const old = { ...base, messageCount: 5, messages: [{ id: 'a' }] };
     const incoming = { ...base, messageCount: 8, messages: [{ id: 'a' }] };
-    const r = mergeConversation(old, incoming, { source: 'network-list' });
+    const r = mergeConversation(indexFixture(old), indexFixture(incoming), { source: 'network-list' });
     assert.strictEqual(
         r.isChanged, true,
         'messageCount 5 -> 8 with identical title/timestamps must count as changed'
@@ -478,9 +479,9 @@ test('P1-057: isChanged detects message-count growth when timestamps are unchang
 test('P1-058: an older RPC timestamp never regresses updatedAt (newer-wins)', async () => {
     const old: any = { id: 'c_z', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', timestamp: 2000, updatedAt: 2000 };
     const incoming: any = { id: 'c_z', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', timestamp: 1000, updatedAt: 1000 };
-    const r = mergeConversation(old, incoming);
+    const r = mergeConversation(indexFixture(old), indexFixture(incoming));
     assert.strictEqual(r.merged.updatedAt, 2000, 'older RPC timestamp regressed updatedAt');
-    const r2 = mergeConversation(old, { ...incoming, timestamp: 3000, updatedAt: 3000 });
+    const r2 = mergeConversation(indexFixture(old), indexFixture({ ...incoming, timestamp: 3000, updatedAt: 3000 }));
     assert.strictEqual(r2.merged.updatedAt, 3000, 'newer RPC timestamp did not win');
 });
 
@@ -492,7 +493,7 @@ test('P1-059: partial list pagination interrupted by an exception is marked stop
         aborted: false,
         getConversationList: async () => {
             calls++;
-            if (calls === 1) return { conversations: [{ id: 'a' }], nextPageToken: 't1' };
+            if (calls === 1) return { conversations: ([{ id: 'a' }]).map(indexFixture), nextPageToken: 't1' };
             throw new Error('simulated 429 boom');
         },
     };

@@ -23,7 +23,7 @@ def validate_takeout_records(expected_ids, expected_media, records, generation_i
     for record in records:
         domain, summary = record.get('domain') or {}, record.get('summary') or {}
         if (record.get('ok') is not True or domain.get('id') != record['id']
-                or domain.get('providerId') != 'gemini' or not summary.get('titles', {}).get('takeout')):
+                or domain.get('providerId') != 'gemini' or summary.get('hasTakeoutImport') is not True or not summary.get('title')):
             return False, f"Takeout 会话身份/临时标题未进入正常存储: {record['id']}"
         messages = domain.get('messages') or []
         asset_ids = {a.get('id') for a in domain.get('assets', [])}
@@ -169,7 +169,7 @@ class DeepScanPaginationCase(FeatureTestCase):
             if ids:
                 known = cdp_opt.eval("""(async () => {
                     const data = await chrome.storage.local.get(['gemini_conversations']);
-                    return (data.gemini_conversations || []).filter(c => c.titleSource === 'rpc' && c.titles?.rpc).map(c => c.id.replace(/^c_/, ''));
+                    return (data.gemini_conversations || []).filter(c => c.titleSource === 'rpc' && c.title).map(c => c.id.replace(/^c_/, ''));
                 })()""", await_promise=True) or []
                 missing = [cid for cid in ids if cid.removeprefix('c_') not in known]
                 if missing:

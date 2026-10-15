@@ -118,6 +118,8 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.waitForFunction(() => typeof (window as any).__workbenchLoadStore === 'function');
+    // The global loader exists before asynchronous schema startup binds the tour button.
+    await expect(page.locator('#ver')).toHaveText(/^v\d/);
     await page.evaluate(() => {
       (window as any).__fontQueries = 0;
       (window as any).queryLocalFonts = async () => {
@@ -329,7 +331,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     ];
 
     await page.evaluate(async (convs) => {
-      await chrome.storage.local.set({ gemini_conversations: convs });
+      await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -350,7 +352,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
             target.updatedAt = bumpedTime;
             target.timestamp = bumpedTime;
             convs.sort((a: any, b: any) => ((b.updatedAt || b.timestamp || 0) - (a.updatedAt || a.timestamp || 0)));
-            await chrome.storage.local.set({ gemini_conversations: convs });
+            await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
             chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'stream-complete' });
             if (typeof (window as any).__workbenchLoadStore === 'function') {
               await (window as any).__workbenchLoadStore(true);
@@ -404,7 +406,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     ];
 
     await page.evaluate(async (convs) => {
-      await chrome.storage.local.set({ gemini_conversations: convs });
+      await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -424,7 +426,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
         chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
           let convs = data.gemini_conversations || [];
           convs = convs.map((c: any) => c.id === 'del_eph_9999' ? { ...c, cloudAvailability: 'deleted' } : c);
-          await chrome.storage.local.set({ gemini_conversations: convs });
+          await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
           chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'delete-event' });
           if (typeof (window as any).__workbenchLoadStore === 'function') {
             await (window as any).__workbenchLoadStore(true);
@@ -481,7 +483,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     };
 
     await page.evaluate(async (c) => {
-      await chrome.storage.local.set({ gemini_conversations: [c] });
+      await chrome.storage.local.set({ gemini_conversations: ([c]).map(canonicalIndexFixture) });
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -502,7 +504,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
               takeout: '火星宇航员猫咪（离线提问前缀）',
               rpc: '火星宇航员猫咪（AI 生成图片 Imagen）'
             };
-            await chrome.storage.local.set({ gemini_conversations: convs });
+            await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
             chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'rpc-deep-scan' });
             if (typeof (window as any).__workbenchLoadStore === 'function') {
               await (window as any).__workbenchLoadStore(true);

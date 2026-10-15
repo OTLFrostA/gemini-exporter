@@ -4,7 +4,7 @@ test('legacy detail under the Gemini web origin transfers to the extension repos
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations: [{ id: 'page_legacy', title: 'Page legacy', timestamp: 1, messageCount: 1 }] });
+        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations: ([{ id: 'page_legacy', title: 'Page legacy', timestamp: 1, messageCount: 1 }]).map(canonicalIndexFixture) });
     });
     const source = await context.newPage();
     await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `
@@ -30,7 +30,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_conversations: [{ id: 'cross_origin_native', title: 'Cross origin', timestamp: 1 }], gemini_tour_completed: true });
+        await chrome.storage.local.set({ gemini_conversations: ([{ id: 'cross_origin_native', title: 'Cross origin', timestamp: 1 }]).map(canonicalIndexFixture), gemini_tour_completed: true });
     });
     const source = await context.newPage();
     await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `

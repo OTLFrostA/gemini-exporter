@@ -1,4 +1,4 @@
-import type { Conversation } from '../../types/index.js';
+import type { DomainConversationIndex } from '../../types/index.js';
 import {
     sanitizeFileName,
     sanitizeRelativePath,
@@ -26,9 +26,6 @@ import {
     stripHtmlTags,
     resolveTitle,
     resolveDetailTitle,
-    setTitleBySource,
-    applyExportTitleWriteback,
-    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
@@ -54,7 +51,6 @@ import {
 import {
     mergeConversation,
     deduplicateConversations,
-    type MergeConversationOptions,
     type MergeConversationResult,
     type DeduplicateResult
 } from './mergeUtils.js';
@@ -94,9 +90,6 @@ export {
     stripHtmlTags,
     resolveTitle,
     resolveDetailTitle,
-    setTitleBySource,
-    applyExportTitleWriteback,
-    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,
@@ -117,7 +110,6 @@ export {
     type ExportProgressInput,
     mergeConversation,
     deduplicateConversations,
-    type MergeConversationOptions,
     type MergeConversationResult,
     type DeduplicateResult,
     sendTypedMessage,
@@ -152,15 +144,12 @@ export interface GeminiUtilsModule {
     buildExportFileNameLegacy: (title?: string | null, id?: string | null, ext?: string) => string;
     resolveExportFileName: (title?: string | null, id?: string | null, ext?: string, exists?: (name: string) => boolean | Promise<boolean>) => Promise<string>;
     isVersionGreater: (v1?: string | null, v2?: string | null) => boolean;
-    resolveTitle: (chat?: Partial<Conversation> | null) => TitleResolution;
+    resolveTitle: typeof resolveTitle;
 
     resolveDetailTitle: typeof resolveDetailTitle;
-    setTitleBySource: typeof setTitleBySource;
-    applyExportTitleWriteback: typeof applyExportTitleWriteback;
-    assertCanonicalTitleProvenance: typeof assertCanonicalTitleProvenance;
     toTimestampMs: typeof toTimestampMs;
-    getEffectiveTimestamp: (chat?: Partial<Conversation> | null) => number;
-    compareConversations: (a?: Partial<Conversation> | null, b?: Partial<Conversation> | null) => number;
+    getEffectiveTimestamp: (chat?: Partial<DomainConversationIndex> | null) => number;
+    compareConversations: typeof compareConversations;
     checkIsUpdated: (c: any, rec?: any) => boolean;
     resolveConversationExportState: typeof resolveConversationExportState;
     isTakeoutConversation: typeof isTakeoutConversation;
@@ -210,9 +199,6 @@ export const GeminiUtils: GeminiUtilsModule = {
     resolveTitle,
 
     resolveDetailTitle,
-    setTitleBySource,
-    applyExportTitleWriteback,
-    assertCanonicalTitleProvenance,
     toTimestampMs,
     getEffectiveTimestamp,
     compareConversations,

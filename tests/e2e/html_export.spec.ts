@@ -70,7 +70,7 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
         { id: 'html_exp_001', title: '瞬态热激波与热膨胀物理机制', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: convs,
+        gemini_conversations: (convs).map(canonicalIndexFixture),
         exportedIds: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'

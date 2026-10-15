@@ -107,11 +107,16 @@ test('matcher: case-insensitive, no match returns empty', () => {
 test('bestCandidateForFamily returns the Regular-first candidate', () => {
     const entries = [
         mockEntry('Arial', 'Arial-Bold', 'Bold'),
+        mockEntry('Arial Black', 'Arial-Black', 'Regular'),
+        mockEntry('PingFang SC', 'PingFangSC-Light', 'Light'),
+        mockEntry('PingFang SC', 'PingFangSC-Regular', 'Regular'),
         mockEntry('Arial', 'ArialMT', 'Regular'),
     ];
-    const cands = rankLocalFontCandidates(entries, ['Arial']);
+    const cands = rankLocalFontCandidates(entries, ['Arial', 'PingFang SC']);
     const best = bestCandidateForFamily(cands, 'Arial');
     assert.strictEqual(best && best.postscriptName, 'ArialMT');
+    const bestCjk = bestCandidateForFamily(cands, 'PingFang SC');
+    assert.strictEqual(bestCjk && bestCjk.postscriptName, 'PingFangSC-Regular');
     assert.strictEqual(bestCandidateForFamily(cands, 'Missing'), undefined);
 });
 

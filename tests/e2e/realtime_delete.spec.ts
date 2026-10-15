@@ -16,12 +16,12 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
 
     await optionsPage.evaluate(async (convs) => {
       await chrome.storage.local.set({
-        gemini_conversations: convs,
+        gemini_conversations: (convs).map(canonicalIndexFixture),
         gemini_conversations_count_u0: convs.length,
         exportedIds: { [convs[0].id]: { status: 'ok', exportedAt: 1700000000000 } }
       });
       const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountSlot: 'u0', parsed: {
-        conversation: { providerId: 'gemini', id: convs[0].id, title: convs[0].title, updatedAt: 1700000000000, completeness: 'unknown', assets: [],
+        sourceVersion: 1700000000000, conversation: { providerId: 'gemini', id: convs[0].id, title: convs[0].title, completeness: 'unknown', assets: [],
           messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Durable archived body' }] }] }] },
         acquisitionHints: {}, resourceHints: {}, diagnostics: []
       } } });

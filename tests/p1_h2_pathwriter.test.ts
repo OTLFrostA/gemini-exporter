@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -78,7 +79,7 @@ test('p1_h2 - P1-107: takeout placeholder titles do not flow back in', () => {
 test('p1_h2 - P1-108: mergeConversation honors digit-string updatedAt', () => {
     const oldC = { id: 'c_1', updatedAt: '2024-01-01T00:00:00.000Z', title: 'Old' };
     const inc = { id: 'c_1', updatedAt: '1726358400000', title: 'New' };
-    const r = mergeConversation(oldC, inc);
+    const r = mergeConversation(indexFixture(oldC), indexFixture(inc));
     assert.ok(r.isChanged, 'newer digit-string timestamp should win');
     const eff = titleUtils.getEffectiveTimestamp(r.merged);
     assert.strictEqual(eff, 1726358400000);

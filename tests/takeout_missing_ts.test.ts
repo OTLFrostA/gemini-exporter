@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -40,7 +41,7 @@ test('takeout_missing_ts - parser leaves timestamp null when the block has no ti
     assert.strictEqual(result.conversations.length, 1);
     const conv = result.conversations[0];
     // Old behavior: `timestamp: ts || Date.now()` fabricated "now" here.
-    assert.strictEqual(conv.timestamp, null, 'missing timestamp must stay null, never Date.now()');
+    assert.strictEqual(conv.updatedAt, undefined, 'missing timestamp must stay null, never Date.now()');
 });
 
 test('takeout_missing_ts - merge with a null-timestamp takeout record keeps the old timestamp', () => {
@@ -63,8 +64,8 @@ test('takeout_missing_ts - merge with a null-timestamp takeout record keeps the 
         messageCount: 1,
     };
 
-    const { merged } = mergeConversation(old, incoming, {});
-    assert.strictEqual(merged.timestamp, oldTs, 'merge must keep old server timestamp, not null');
+    const { merged } = mergeConversation(indexFixture(old), indexFixture(incoming), {});
+    assert.strictEqual(merged.updatedAt, oldTs, 'merge must keep old server timestamp, not null');
 });
 
 test('takeout_missing_ts - merge with no timestamps anywhere stays null, not Date.now()', () => {
@@ -86,9 +87,9 @@ test('takeout_missing_ts - merge with no timestamps anywhere stays null, not Dat
     };
 
     const before = Date.now();
-    const { merged } = mergeConversation(old, incoming, {});
+    const { merged } = mergeConversation(indexFixture(old), indexFixture(incoming), {});
     const after = Date.now();
-    assert.strictEqual(merged.timestamp, null, 'no server time anywhere -> null, never fabricated now');
+    assert.strictEqual(merged.updatedAt, undefined, 'no server time anywhere -> null, never fabricated now');
     assert.ok(
         !(typeof merged.timestamp === 'number' && merged.timestamp >= before && merged.timestamp <= after),
         'merged timestamp must not be a fabricated Date.now()'

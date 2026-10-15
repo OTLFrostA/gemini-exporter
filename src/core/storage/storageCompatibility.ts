@@ -3,26 +3,6 @@ type StoredPrimitive = string | number | boolean | null | undefined;
 export type StoredValue = StoredPrimitive | StoredValue[] | StoredObject;
 export interface StoredObject { [key: string]: StoredValue; }
 
-export interface StoredConversation extends StoredObject {
-    id?: string | number | null;
-    title?: string;
-    titleSource?: string;
-    titles?: Record<string, string | undefined>;
-    timestamp?: StoredValue;
-    updatedAt?: StoredValue;
-    createdAt?: StoredValue;
-    chatTime?: StoredValue;
-    lastSeen?: StoredValue;
-    messageCount?: number;
-    messages?: StoredValue;
-    turns?: StoredValue;
-    url?: string;
-    href?: string;
-    source?: string;
-    isTakeoutOnly?: boolean;
-    hitGoogleLimit?: boolean;
-}
-
 export interface StoredExportRecord extends StoredObject {
     format?: string;
     exportedAt?: number | string;
@@ -49,14 +29,10 @@ export interface StoredAccountSlot extends StoredObject {
 type IncompatibleFields<Model, Keys extends keyof Model> = {
     [Key in Keys]-?: StoredObject & { [Field in Key]-?: Exclude<StoredValue, Model[Field]> }
 }[Keys];
-type ConversationKeys = 'id' | 'title' | 'titleSource' | 'titles' | 'messageCount' | 'url' | 'href' | 'source' | 'isTakeoutOnly' | 'hitGoogleLimit';
 type ExportKeys = 'format' | 'exportedAt' | 'title' | 'messageCount' | 'files' | 'status' | 'hasFailedAssets';
 type SlotKeys = 'email' | 'name' | 'slot' | 'accountId' | 'gaiaId' | 'count' | 'lastSync';
-type LegacyStoredConversation = IncompatibleFields<StoredConversation, ConversationKeys>;
 type LegacyStoredExportRecord = IncompatibleFields<StoredExportRecord, ExportKeys>;
 type LegacyStoredAccountSlot = IncompatibleFields<StoredAccountSlot, SlotKeys>;
-export type StoredConversationFields = StoredConversation | LegacyStoredConversation;
-export type StoredConversationRow = StoredConversationFields | StoredPrimitive | StoredValue[];
 export type StoredExportRecordMap = Record<string, StoredExportRecord | LegacyStoredExportRecord | StoredPrimitive | StoredValue[]>;
 export type StoredAccountSlotMap = Record<string, StoredAccountSlot | LegacyStoredAccountSlot | StoredPrimitive | StoredValue[]>;
 export interface StoredSyncStatus { timestamp: StoredValue; count: StoredValue; }
@@ -95,28 +71,8 @@ function optionalBoolean(value: StoredValue): boolean {
 function isRecordContainer(value: unknown): value is StoredObject {
     return isStoredObject(value) && !Array.isArray(value);
 }
-function isStoredConversation(value: unknown): value is StoredConversation {
-    return isRecordContainer(value)
-        && (value.id === undefined || value.id === null || typeof value.id === 'string' || typeof value.id === 'number')
-        && optionalStrings(value, ['title', 'titleSource', 'url', 'href', 'source'])
-        && optionalNumber(value.messageCount)
-        && optionalBoolean(value.isTakeoutOnly) && optionalBoolean(value.hitGoogleLimit)
-        && (value.titles === undefined || (isRecordContainer(value.titles)
-            && Object.values(value.titles).every(title => title === undefined || typeof title === 'string')));
-}
-function isLegacyStoredConversation(value: unknown): value is LegacyStoredConversation {
-    return isRecordContainer(value) && !isStoredConversation(value);
-}
-export function readStoredConversationFields(value: unknown): StoredConversationFields {
-    if (isStoredConversation(value) || isLegacyStoredConversation(value)) return value;
-    throw new TypeError('Expected stored conversation fields');
-}
 function isStoredPrimitive(value: unknown): value is StoredPrimitive {
     return value === null || value === undefined || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
-}
-export function isStoredConversationRow(value: unknown): value is StoredConversationRow {
-    return isStoredPrimitive(value) || (Array.isArray(value) && value.every(isStoredValue))
-        || isStoredConversation(value) || isLegacyStoredConversation(value);
 }
 function isStoredExportRecord(value: unknown): value is StoredExportRecord {
     return isRecordContainer(value) && optionalStrings(value, ['format', 'title', 'status'])

@@ -1,5 +1,5 @@
 import type { ScanCoverage } from '../../src/core/storage/scanCoverage.js';
-import type { Conversation } from '../../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from '../helpers/historicalConversation.js';
 import { test, expect } from './fixtures';
 
 test('partial accessible history initializes activity coverage and later sync closes without fetching its older tail', async ({ context, extensionId }) => {
@@ -29,7 +29,7 @@ test('partial accessible history initializes activity coverage and later sync cl
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_conversations: [{ id: 'retained', title: 'Retained archive', timestamp: 1 }], exportedIds: { retained: { status: 'ok' } } });
+        await chrome.storage.local.set({ gemini_conversations: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), exportedIds: { retained: { status: 'ok' } } });
         await chrome.storage.local.remove('gemini_scan_coverage');
     });
     const read = () => options.evaluate(async () => chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage; gemini_conversations: Conversation[]; exportedIds: Record<string, { status: string }> }>(['gemini_scan_coverage', 'gemini_conversations', 'exportedIds']));
@@ -49,7 +49,7 @@ test('partial accessible history initializes activity coverage and later sync cl
         expect(stored.gemini_scan_coverage.streams.recent.range!.head.time).toBe(round === 1 ? 1700000120000 : 1700000130000);
         expect(stored.gemini_scan_coverage.streams.recent.range!.tail.time).toBe(1700000070000);
         expect(requests[round]).toEqual(['pinned', 'head']);
-        expect(stored.gemini_conversations.find((item: { id: string }) => item.id === 'retained')?.cloudAvailability).toBeUndefined();
+        expect(stored.gemini_conversations.find((item: { id: string }) => item.id === 'retained')?.cloudAvailability).toBe('unknown');
         expect(stored.exportedIds.retained.status).toBe('ok');
         expect(JSON.stringify(stored.gemini_scan_coverage)).not.toContain('tC_');
     }
@@ -186,7 +186,7 @@ for (const inversion of ['within-page', 'cross-page'] as const) {
         await gemini.goto('https://gemini.google.com/app');
         const options = await context.newPage();
         await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-        await options.evaluate(async () => chrome.storage.local.set({ gemini_conversations: [{ id: 'retained', title: 'Retained archive', timestamp: 1 }], exportedIds: { retained: { status: 'ok' } } }));
+        await options.evaluate(async () => chrome.storage.local.set({ gemini_conversations: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), exportedIds: { retained: { status: 'ok' } } }));
         const read = () => options.evaluate(async () => chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage; gemini_conversations: Conversation[]; exportedIds: Record<string, { status: string }> }>(['gemini_scan_coverage', 'gemini_conversations', 'exportedIds']));
         for (round = 0; round < 3; round++) {
             await options.click('#btnSyncAll');
@@ -197,7 +197,7 @@ for (const inversion of ['within-page', 'cross-page'] as const) {
             expect(stored.gemini_scan_coverage).toMatchObject({ historyComplete: true, complete: true, lastStatus: 'complete', activeRunId: null });
             if (round > 0) {
                 expect(stored.gemini_scan_coverage.streams.recent).toMatchObject({ initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
-                expect(stored.gemini_conversations.some(item => item.id.startsWith(`round${round}_`) && item.timestamp === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
+                expect(stored.gemini_conversations.some(item => item.id.startsWith(`round${round}_`) && item.updatedAt === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
             }
             expect(stored.gemini_conversations.some(item => item.id === 'retained')).toBe(true);
             expect(stored.exportedIds.retained.status).toBe('ok');

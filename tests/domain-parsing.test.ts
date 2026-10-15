@@ -83,12 +83,12 @@ test('Domain completeness is validated and copied independently from input evide
 test('conversation timestamps cannot lose meaning during JSON serialization', () => {
     for (const timestamp of [NaN, Infinity, -Infinity, '123', undefined]) {
         const { conversation } = parse({ timestamp });
-        assert.equal(conversation.updatedAt, undefined);
+        assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
         assert.deepEqual(JSON.parse(JSON.stringify(conversation)), conversation);
     }
     for (const timestamp of [0, -1000, 1700000000123]) {
         const { conversation } = parse({ timestamp });
-        assert.equal(conversation.updatedAt, undefined);
+        assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
         assert.equal(Object.hasOwn(conversation, 'timestamp'), false);
     }
 });

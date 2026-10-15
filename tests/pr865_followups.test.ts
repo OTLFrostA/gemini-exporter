@@ -10,8 +10,10 @@ import { OptionsSync } from '../src/ui/options/modules/optionsSync.js';
 import { setScanRunning } from '../src/ui/controllers/syncController.js';
 import { OptionsExport } from '../src/ui/options/modules/optionsExport.js';
 import { ProgressView } from '../src/ui/views/progressView.js';
+import { setWorkbenchControlsDisabled } from '../src/ui/uiCommon.js';
 import { LOCALES } from '../src/core/utils/i18n.js';
-import type { Conversation } from '../src/types/conversation.js';
+import type { DomainConversationIndex as Conversation } from '../src/core/domain/conversationIndex.js';
+import { indexFixture } from './helpers/indexFixture.js';
 import type { UIExportResult } from '../src/types/ui.js';
 
 function globals(values: Record<string, unknown>): () => void {
@@ -55,7 +57,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
     });
     try {
         const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'deleted_local' }], currentSlot: 'u0',
-            conversations: [{ id: 'deleted_local', title: 'Deleted local', timestamp: 1, cloudAvailability: 'deleted' }], worker: BatchWorker,
+            conversations: [indexFixture({ id: 'deleted_local', title: 'Deleted local', timestamp: 1, cloudAvailability: 'deleted' })], worker: BatchWorker,
             takeoutEngine: { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [],
                 getTakeoutFallbackMedia: async (_id, lookup) => lookup.assetId === takeout.id ? new Uint8Array([4, 5, 6]) : null }
         }, { onLog: message => logs.push(message) });
@@ -84,7 +86,7 @@ test('normal export fetches fresh cloud content first and falls back to a local 
             } });
             const logs: string[] = [];
             const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
-                conversations: [{ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 }], worker: BatchWorker
+                conversations: [indexFixture({ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 })], worker: BatchWorker
             }, { onLog: message => logs.push(message) });
             assert.equal(result.landedChats, 1);
             assert.equal(result.failedChats.length, 0);
@@ -101,11 +103,11 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     __clearDomainMemory();
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
-    const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Fresh cloud content' }] });
+    const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', updatedAt: 1, messages: [{ role: 'user', content: 'Fresh cloud content' }] });
     await saveDomainConversation('u0', local);
     let calls = 0;
     let available = false;
-    const list: Conversation = { id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 };
+    const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
         calls++; return available ? { success: true, domainEnvelopeVersion: 2, data: fresh } : { success: false, error: 'HTTP 503' };
     } });
@@ -138,8 +140,8 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     await saveDomainConversation('u0', source);
     let assetRequests = 0;
     let writes = 0;
-    let memoryAtWrite: Conversation['cloudAvailability'];
-    const list: Conversation = { id: source.conversation.id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' };
+    let memoryAtWrite: Conversation['cloudAvailability'] = 'unknown';
+    const list: Conversation = indexFixture({ id: source.conversation.id, title: source.conversation.title, timestamp: 1, cloudAvailability: 'unlisted' });
     __setModuleOverride('StorageService', { getExportedIds: async () => records,
         saveExportRecord: async (_slot: string, id: string, record: unknown) => { records[id] = record; return records; },
         updateConversation: async (_slot: string, _id: string, update: unknown) => {
@@ -177,7 +179,7 @@ test('export completion warns for attachment-only and mixed failures in both lan
     const selected = [{ id: 'completion_test', title: 'Completion test', timestamp: 1 }];
     let result: UIExportResult = {};
     const logs: { message: string; level?: string }[] = [];
-    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => selected, getExportedIds: () => ({}) });
+    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => (selected).map(indexFixture), getExportedIds: () => ({}) });
     __setModuleOverride('ListView', { getSelectedIds: () => new Set(['completion_test']), setSelectedIds: () => {} });
     __setModuleOverride('FormatStore', { loadFormat: async () => ({ format: 'markdown' }) });
     __setModuleOverride('DirHandleController', { getDirHandle: () => null, restoreSavedDirHandle: async () => null });
@@ -266,9 +268,72 @@ test('a failed cloud fetch without a same-account body remains a failed export',
     __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
     try {
         const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], currentSlot: 'u0', includeAssets: false,
-            conversations: [{ id: 'missing_local', title: 'Unavailable', timestamp: 1 }], worker: BatchWorker });
+            conversations: [indexFixture({ id: 'missing_local', title: 'Unavailable', timestamp: 1 })], worker: BatchWorker });
         assert.equal(result.landedChats, 0);
         assert.equal(result.failedChats.length, 1);
         assert.equal(records.missing_local, undefined);
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
+});
+
+test('batch export records the fetched body version rather than a newer Index version', async () => {
+    __clearDomainMemory();
+    const { records } = exportMocks();
+    const body = historicalFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000000000,
+        messages: [{ role: 'user', content: 'Captured older body' }] });
+    const index = indexFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000005000 });
+    let requests = 0;
+    __setModuleOverride('TabService', { sendToGeminiTab: async () => {
+        requests++; return { success: true, domainEnvelopeVersion: 2, data: body };
+    } });
+    try {
+        const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: index.id }],
+            conversations: [index], currentSlot: 'u0', includeAssets: false, skip, worker: BatchWorker });
+        assert.equal((await run(false)).landedChats, 1);
+        assert.equal((records.stale_body_version as { chatTime: number }).chatTime, body.sourceVersion);
+        assert.equal(index.updatedAt, 1700000005000);
+        assert.equal((await run(true)).skipped, 0, 'newer source activity cannot be hidden by exporting an older body');
+        assert.equal(requests, 2);
+    } finally { __clearModuleOverrides(); __clearDomainMemory(); }
+});
+
+
+test('export session holds UI lock until storage refresh settles, including refresh rejection', async () => {
+    for (const rejectRefresh of [false, true]) {
+        const attrs = new Map<string, string>();
+        const button = { disabled: false, style: {}, textContent: '',
+            setAttribute: (key: string, value: string) => attrs.set(key, value),
+            addEventListener: () => {} };
+        const listElement = { dataset: {}, style: {}, querySelectorAll: () => [] };
+        const restore = globals({ document: { getElementById: (id: string) => id === 'btnExport' ? button : id === 'list' ? listElement : null } });
+        const selected = [indexFixture({ id: 'session-lock', title: 'Session lock', timestamp: 1 })];
+        let release!: () => void;
+        let entered!: () => void;
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        const refreshStarted = new Promise<void>(resolve => { entered = resolve; });
+        let calls = 0;
+        __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => selected, getExportedIds: () => ({}) });
+        __setModuleOverride('ListView', { getSelected: () => selected, getSelectedIds: () => new Set(['session-lock']), setSelectedIds: () => {} });
+        __setModuleOverride('FormatStore', { loadFormat: async () => ({ format: 'markdown' }), getCurrentFormat: () => 'markdown' });
+        __setModuleOverride('DirHandleController', { getDirHandle: () => null, restoreSavedDirHandle: async () => null });
+        __setModuleOverride('DialogView', { hideExportFailureBanner: () => {}, renderExportFailureBanner: () => {} });
+        __setModuleOverride('ExportController', { runExport: async () => {
+            calls++;
+            setWorkbenchControlsDisabled(false); // Inner engine completes before refresh.
+            return { landedChats: 1 };
+        } });
+        try {
+            await OptionsExport.init({ loadStore: async () => { entered(); await gate; if (rejectRefresh) throw new Error('Refresh rejected'); } });
+            const pending = OptionsExport.exportSelected();
+            await refreshStarted;
+            assert.equal(button.disabled, true, 'a downloaded ZIP must not unlock the next export');
+            assert.equal(attrs.get('aria-busy'), 'true');
+            await OptionsExport.exportSelected();
+            assert.equal(calls, 1, 'reentrant click cannot start another export during refresh');
+            release();
+            if (rejectRefresh) await assert.rejects(pending, /Refresh rejected/);
+            else await pending;
+            assert.equal(button.disabled, false);
+            assert.equal(attrs.get('aria-busy'), 'false');
+        } finally { release(); __clearModuleOverrides(); restore(); }
+    }
 });

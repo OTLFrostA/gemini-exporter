@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { saveDomainConversation, __clearDomainMemory } = require('../src/core/storage/domain/domainStore.js');
 export {};
@@ -210,7 +211,7 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
 
 test('native resolver retains unknown source blocks and arbitrates titles without reparsing', async () => {
     const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
-    const list = { id: 'native-title', title: 'Takeout title', titleSource: 'takeout', titles: { takeout: 'Takeout title' } };
+    const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
     const resolved = await resolveChat(native, { id: 'native-title' }, list);
     assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.title, 'RPC title');
     assert.equal(resolved.chat.conversation.messages, native.conversation.messages);

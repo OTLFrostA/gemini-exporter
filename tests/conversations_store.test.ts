@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -13,8 +14,8 @@ test('conversationsStore - normId', () => {
 
 test('conversationsStore - in-memory get and set', () => {
     const list: any[] = [{ id: '1', title: 'Chat 1' }, { id: '2', title: 'Chat 2' }];
-    ConversationsStore.setConversations(list);
-    assert.deepStrictEqual(ConversationsStore.getConversations(), list);
+    ConversationsStore.setConversations((list).map(indexFixture));
+    assert.deepStrictEqual(ConversationsStore.getConversations(), list.map(indexFixture));
 
     const expMap = { '1': { exportedAt: 1000 } };
     ConversationsStore.setExportedIds(expMap);
@@ -58,92 +59,39 @@ test('conversationsStore - getSignature', () => {
 });
 
 test('conversationsStore - hasTakeoutData detection', () => {
-    ConversationsStore.setConversations([
+    ConversationsStore.setConversations(([
         { id: '1', title: 'Normal Chat 1' },
         { id: '2', title: 'Normal Chat 2' }
-    ] as any);
+    ] as any).map(indexFixture));
     assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
 
-    ConversationsStore.setConversations([
+    ConversationsStore.setConversations(([
         { id: '1', title: 'Normal Chat 1' },
         { id: '2', title: 'Takeout Chat 2', source: 'takeout' }
-    ] as any);
+    ] as any).map(indexFixture));
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 
-    ConversationsStore.setConversations([
+    ConversationsStore.setConversations(([
         { id: '3', title: 'Takeout Chat 3', titleSource: 'takeout' }
-    ] as any);
+    ] as any).map(indexFixture));
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 
-    ConversationsStore.setConversations([
+    ConversationsStore.setConversations(([
         { id: '4', title: 'Takeout Chat 4', titles: { takeout: 'Takeout Title' } }
-    ] as any);
+    ] as any).map(indexFixture));
     assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 });
 
-test('conversationsStore - normalizeAndDeduplicate basic and multi-tier merge', () => {
-    const list = [
-        { id: 'c_abc123', title: 'Google Gemini', titleSource: 'dom', timestamp: 1700000000000 },
-        { id: 'abc123', title: '真实量子计算研究', titleSource: 'rpc', timestamp: 1700000005000 },
-        { id: 'def456', title: '未命名对话', titleSource: 'default', timestamp: 1690000000000 }
-    ];
-
-    const { processed, hasDirtyTitles } = ConversationsStore.normalizeAndDeduplicate(list);
-    assert.strictEqual(processed.length, 2);
-    assert.strictEqual(hasDirtyTitles, true);
-
-    const first = processed[0];
-    assert.strictEqual(first.id, 'abc123');
-    assert.strictEqual(first.title, '真实量子计算研究');
-    assert.strictEqual(first.titleSource, 'rpc');
-    assert.strictEqual(first.timestamp, 1700000005000);
-
-    const second = processed[1];
-    assert.strictEqual(second.id, 'def456');
-    assert.strictEqual(second.title, '未命名对话');
+test('conversationsStore consumes canonical indexes without rewriting them', () => {
+    const list = [indexFixture({ id: 'abc123', title: 'Research', titleSource: 'rpc', updatedAt: 42 })];
+    ConversationsStore.setConversations(list);
+    assert.strictEqual(ConversationsStore.getConversations(), list);
+    assert.equal(ConversationsStore.normalizeAndDeduplicate, undefined);
 });
 
-test('utils - mergeConversation SSoT title priority and timestamp arbitration', () => {
-    const GeminiUtils = require('../src/core/utils/utils.js');
-    const { mergeConversation, deduplicateConversations } = GeminiUtils;
 
-    // 1. Initial conversation with default/unnamed title
-    const old = {
-        id: 'chat_999',
-        title: '未命名对话',
-        titleSource: 'default',
-        timestamp: 1700000000000,
-        updatedAt: 1700000000000,
-        createdAt: 1700000000000
-    };
-
-    // 2. Incoming with sniffed prompt title
-    const incoming = {
-        id: 'c_chat_999',
-        title: '如何构建高性能分布式缓存系统',
-        titleSource: 'sniff',
-        timestamp: 1700000010000,
-        updatedAt: 1700000010000,
-        createdAt: 1699999990000
-    };
-
-    const res = mergeConversation(old, incoming);
-    assert.strictEqual(res.isChanged, true);
-    assert.strictEqual(res.merged.id, 'chat_999');
-    assert.strictEqual(res.merged.title, '如何构建高性能分布式缓存系统');
-    assert.strictEqual(res.merged.titleSource, 'sniff');
-    assert.strictEqual(res.merged.timestamp, 1700000010000);
-    assert.strictEqual(res.merged.createdAt, 1699999990000);
-    assert.strictEqual(res.merged.titles.sniff, '如何构建高性能分布式缓存系统');
-
-    // 3. DeduplicateConversations filtering bad URLs and sorting
-    const rawList: any[] = [
-        { id: '1', title: 'Earlier Chat', timestamp: 1000 },
-        { id: '2', title: 'Sign In', url: 'https://accounts.google.com/SignOutOptions' },
-        { id: '3', title: 'Later Chat', timestamp: 2000 }
-    ];
-    const dedup = deduplicateConversations(rawList);
-    assert.strictEqual(dedup.processed.length, 2);
-    assert.strictEqual(dedup.processed[0].id, '3');
-    assert.strictEqual(dedup.processed[1].id, '1');
+test('conversationsStore signature observes activity changes without a title or order change', () => {
+    const original = Array.from({ length: 8 }, (_, i) => indexFixture({ id: `signature-${i}`, title: 'Same title', updatedAt: 10 }));
+    const changed = original.map((row, i) => i === 4 ? { ...row, updatedAt: 20 } : row);
+    assert.notStrictEqual(ConversationsStore.getSignature(original), ConversationsStore.getSignature(changed));
 });

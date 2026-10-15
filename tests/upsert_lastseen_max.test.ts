@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 /**
  * upsert lastSeen 单调性回归测试。
  *
@@ -18,7 +19,7 @@ const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/
 function mockStorageContext() {
     let savedList: any[] = [];
     const mockStorage = {
-        getConversations: async () => [...savedList],
+        getConversations: async () => ([...savedList]).map(indexFixture),
         transactConversations: async (_slot: string, updater: any) => {
             const res = updater([...savedList]);
             if (res && res.list) savedList = res.list;
@@ -32,75 +33,24 @@ function mockStorageContext() {
     (global as any).chrome = { runtime: { sendMessage: () => {} } };
     __setModuleOverride('StorageService', mockStorage);
     return {
-        seed: (items: any[]) => { savedList = items.map(c => ({ ...c })); },
+        seed: (items: any[]) => { savedList = items.map(indexFixture); },
         find: (id: string) => savedList.find((c: any) => c.id === id),
     };
 }
 
-test('陈旧的 incoming lastSeen 不得回退已有的 lastSeen', async () => {
-    const ctx = mockStorageContext();
-    ctx.seed([
-        { id: 'chat1', title: 'T', timestamp: 1000, updatedAt: 1000, lastSeen: '2026-09-10T00:00:00.000Z', url: 'https://gemini.google.com/app/chat1' },
-    ]);
-
-    // takeout 导入：incoming 的 lastSeen 比已有记录旧 9 天
-    await SyncEngine.upsertConversations(
-        [{ id: 'chat1', title: 'T', timestamp: 1000, updatedAt: 1000, lastSeen: '2026-09-01T00:00:00.000Z' }],
-        'takeout', true, 'u0'
-    );
-
-    const c = ctx.find('chat1');
-    assert.strictEqual(
-        c.lastSeen, '2026-09-10T00:00:00.000Z',
-        `lastSeen 被陈旧的 incoming 回退了，得到 ${c.lastSeen}`
-    );
+test('local observation time never enters an existing or new index', async () => {
+    for (const previous of [[], [{ id: 'chat1', title: 'Research', updatedAt: 1000, lastSeen: 'old' }]]) {
+        const ctx = mockStorageContext(); ctx.seed(previous);
+        await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research', updatedAt: 900, lastSeen: '2099-01-01' }], 'page-sync', true, 'u0');
+        const index = ctx.find('chat1');
+        assert.equal(index.updatedAt, previous.length ? 1000 : 900);
+        assert.equal('lastSeen' in index, false);
+        assert.equal('timestamp' in index, false);
+    }
 });
-
-test('incoming lastSeen 更新时应推进', async () => {
-    const ctx = mockStorageContext();
-    ctx.seed([
-        { id: 'chat1', title: 'T', timestamp: 1000, updatedAt: 1000, lastSeen: '2026-09-01T00:00:00.000Z', url: 'https://gemini.google.com/app/chat1' },
-    ]);
-
-    await SyncEngine.upsertConversations(
-        [{ id: 'chat1', title: 'T', timestamp: 1000, updatedAt: 1000, lastSeen: '2026-09-12T00:00:00.000Z' }],
-        'takeout', true, 'u0'
-    );
-
-    const c = ctx.find('chat1');
-    assert.strictEqual(c.lastSeen, '2026-09-12T00:00:00.000Z', `更新的 incoming lastSeen 应推进，得到 ${c.lastSeen}`);
-});
-
-test('只有 incoming 携带 lastSeen 时应采用', async () => {
-    const ctx = mockStorageContext();
-    ctx.seed([
-        { id: 'chat1', title: 'T', timestamp: 1000, updatedAt: 1000, url: 'https://gemini.google.com/app/chat1' },
-    ]);
-
-    await SyncEngine.upsertConversations(
-        [{ id: 'chat1', title: 'T', timestamp: 1000, updatedAt: 1000, lastSeen: '2026-09-05T00:00:00.000Z' }],
-        'takeout', true, 'u0'
-    );
-
-    const c = ctx.find('chat1');
-    assert.strictEqual(c.lastSeen, '2026-09-05T00:00:00.000Z', `应采用 incoming 的 lastSeen，得到 ${c.lastSeen}`);
-});
-
-test('双方都缺失 lastSeen 时 seed 当前时间', async () => {
-    const ctx = mockStorageContext();
-    ctx.seed([]);
-
-    const before = Date.now();
-    await SyncEngine.upsertConversations(
-        [{ id: 'newchat', title: 'New', timestamp: 1000, updatedAt: 1000 }],
-        'page-sync', true, 'u0'
-    );
-    const after = Date.now();
-
-    const c = ctx.find('newchat');
-    const ms = new Date(c.lastSeen).getTime();
-    assert.ok(
-        Number.isFinite(ms) && ms >= before && ms <= after,
-        `新记录应 seed 当前时间，得到 ${c.lastSeen}`
-    );
+test('an observation without authored time stays undated', async () => {
+    const ctx = mockStorageContext(); ctx.seed([]);
+    await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research' }], 'page-sync', true, 'u0');
+    assert.equal(ctx.find('chat1').updatedAt, undefined);
+    assert.equal(ctx.find('chat1').createdAt, undefined);
 });

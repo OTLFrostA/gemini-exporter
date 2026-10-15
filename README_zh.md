@@ -185,7 +185,8 @@ graph LR
 - **第二层：真实 Chrome 全流程实跑测试 (`npm run test:tier2`)**：
   - 依托 9222 调试端口与真实 Google 账号交互；
   - 维持 20 题多模态高价值场景动态池（覆盖 Imagen 生图、LaTeX、代码块、长文本报告）；
-  - 严格通过物理解压 ZIP 逐字断言与 4 大黄金分类附件规范检验。
+  - 统一等待新回复结束并稳定，不根据提示词关键词或预期回复类型判断完成；
+  - 以实际导出文件验收：固定 golden 图片会话逐轮核对图片引用、可解码的附件与网页画面，允许预览图和原图的分辨率、压缩差异；实时回复实际含图时，对实时落盘文件执行同样核对。
 - **第三层：纯视觉 AI 盲测与自主质检 (`python3 scripts/test_visual_agent.py --playground` / `python3 scripts/test_visual_agent.py --api`)**：
   - 采用双途径纯截屏感知架构（无 Context 子智能体交互靶场 / 自定义多模态 AI 接口），零 DOM 泄露、硬件级物理鼠标/键盘事件驱动；
   - 闭环产出结构化 UX 体验评分卡与 HTML 视觉审计报告（`tests/output/visual_audit/`）。

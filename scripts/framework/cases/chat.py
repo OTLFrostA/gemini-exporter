@@ -63,8 +63,6 @@ class ChatGenerationCase(FeatureTestCase):
             except RuntimeError as e:
                 return False, f"模型检查不满足: {e}", None
 
-            imagen_found = False
-
             scenarios = ctx.ensure_scenarios()
             for chat_idx in range(min(2, len(scenarios))):
                 sc = scenarios[chat_idx]
@@ -124,11 +122,6 @@ description: "Dynamically created test attachment to verify multi-format user up
 
                     if turn_res.chat_id:
                         ctx.tracker.track(turn_res.chat_id)
-                    if turn_res.has_images and 'imagen' in sc.get('features', []):
-                        imagen_found = True
-                        ctx.shared_data["imagen_chat_id"] = turn_res.chat_id
-                        print("         🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
-
                     time.sleep(ctx.delay)
 
                 # Freeze final visible answers independently, before any export.
@@ -184,31 +177,7 @@ description: "Dynamically created test attachment to verify multi-format user up
                     except Exception as live_setup_err:
                         return False, f"实时落盘开启失败: {live_setup_err}", None
 
-            ctx.shared_data["imagen_found"] = imagen_found
             verify_activity_sync(ctx, baseline, [r['chat_id'] for r in ctx.chat_records], 'new_chat_incremental_sync')
             return True, "2 次会话全部轮次正常生成落地", {"chat_records": ctx.chat_records}
         finally:
             cdp_gemini.close()
-
-
-
-class ImagenMultimodalCase(FeatureTestCase):
-    def __init__(self):
-        super().__init__(
-            feature_id="feat_imagen_multimodal",
-            domain=FeatureDomain.PAGE_CHAT,
-            name="AI Imagen 生图与附件落地",
-            description="包含生图指令的 Prompt 触发，网页成功渲染高分辨率生成图像",
-            critical=True,
-            prerequisites=["feat_chat_generation"]
-        )
-
-    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        if not any('imagen' in sc.get('features', []) for sc in ctx.scenarios[:2]):
-            return False, "缺少必测 Imagen 场景，不能免除生图断言", None
-        if ctx.shared_data.get("imagen_found"):
-            cid = ctx.shared_data.get('imagen_chat_id')
-            records = [r for r in ctx.chat_records if r.get('chat_id') == cid]
-            if records and any(t.get('has_images') for t in records[0].get('turn_evidence', [])):
-                return True, "Imagen 场景的实际回复图片渲染落地", {'chat_id': cid}
-        return False, "预期 Imagen 场景没有绑定到实际回复的生图证据", None

@@ -4,7 +4,8 @@ import { collectDocumentResources } from '../src/core/document/ast/resourceRefer
 import { messageAssets } from './helpers/domainAssets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { ChatMessage, Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
+import type { ChatMessage } from '../src/types/conversation.js';
 import type { DomainConversationDetail, DomainGeneratedMediaIdentity } from '../src/core/domain/conversationDetail.js';
 import { composeFixture } from './helpers/documentFixture.js';
 import { supplementLegacyGeneratedMedia } from '../src/core/compatibility/legacyGeneratedMediaReconciliation.js';

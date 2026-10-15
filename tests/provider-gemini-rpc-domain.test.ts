@@ -67,17 +67,17 @@ test('wire chronology, primary answers and source dates remain explicit', () => 
     const { conversation } = native(rpc([[newer, older]]));
     assert.deepEqual(conversation.messages.map(m => text(m.content)), ['Older', 'Old answer', 'Newer', 'First']);
     assert.equal(conversation.createdAt, undefined);
-    assert.equal(conversation.updatedAt, 1700000010000);
-    assert.equal(conversation.updatedAt, 1700000010000);
+    assert.equal(Reflect.get(conversation, 'updatedAt'), undefined, 'message dates do not establish the metadata version');
+    assert.equal(conversation.messages.at(-1)?.timestamp, 1700000010000);
     for (const field of ['chatTime', 'lastSeen', 'href', 'turns']) assert.equal(field in conversation, false);
 });
 
 test('missing timestamps and request evidence are never fabricated', () => {
     const rawTurn = [[ID], null, [['Question']], [[['rc_answer', [['Answer']]]]]];
     const { conversation } = native(rpc([[rawTurn]]));
-    assert.equal(conversation.updatedAt, undefined);
+    assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
     assert.equal(conversation.createdAt, undefined);
-    assert.equal(conversation.updatedAt, undefined);
+    assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
     for (const message of conversation.messages) {
         assert.equal(message.timestamp, undefined);
         assert.equal(Object.hasOwn(message, 'provenance'), false);

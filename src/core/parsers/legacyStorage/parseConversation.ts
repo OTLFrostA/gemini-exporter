@@ -23,6 +23,9 @@ export function parseLegacyStorageConversation(raw: LegacyStorageRaw, context: C
     // Required container checks do not silently discard malformed historical body data.
     for (const key of ['messages', 'turns']) if (body[key] !== undefined && !Array.isArray(body[key])) throw new TypeError(`Invalid legacy ${key}`);
     const input = { ...metadata, id, messages: body.messages, turns: body.turns } as ConversationRecordInput;
+    // v1 metadata describes the latest listing, not the version of its cached body.
+    // Its local savedAt clock cannot establish that source version.
+    delete input.updatedAt;
     const missingBody = !length(body) && Number(metadata.messageCount) > 0;
     const parsed = parseConversationRecord(input, { ...context,
         completenessOverride: context.completenessOverride ?? (missingBody

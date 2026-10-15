@@ -1,3 +1,4 @@
+import { savedConversationVersion } from '../../domain/conversationVersion.js';
 import { isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
 import { resolveTitle } from '../../domain/titleAuthority.js';
 import { sha256Hex } from '../../export/assets/sha256.js';
@@ -19,7 +20,9 @@ const REMOVED = 'removed_conversations';
 const removedMemory = new Set<string>();
 const byteMemory = new Map<string, Uint8Array>();
 const memory = new Map<string, TrustedDomainStorageRecord>();
-export function __clearDomainMemory(): void { memory.clear(); byteMemory.clear(); removedMemory.clear(); }
+const backupMemory = new Map<string, unknown>();
+export function __getLegacyBackupForTest(key: string): unknown { return structuredClone(backupMemory.get(key)); }
+export function __clearDomainMemory(): void { memory.clear(); byteMemory.clear(); removedMemory.clear(); backupMemory.clear(); }
 
 export function storageIdentity(providerId: string, accountSlot: string, conversationId: string): DomainStorageIdentity {
     if (!providerId.trim() || !accountSlot.trim() || !conversationId.trim()) throw new TypeError('Invalid Domain storage identity');
@@ -36,7 +39,7 @@ function checked(record: DomainStorageRecord): TrustedDomainStorageRecord {
 function checkedEnvelope(record: DomainStorageRecord): void {
     if (!record || !['source', 'legacy-storage'].includes(record.origin)) throw new TypeError('Invalid Domain storage origin');
     if (record.storageVersion !== DOMAIN_STORAGE_VERSION || record.domainVersion !== DOMAIN_CONTRACT_VERSION) throw new TypeError('Unsupported Domain storage version');
-    if (typeof record.revision !== 'string' || !record.revision || !Number.isFinite(record.savedAt)) throw new TypeError('Invalid Domain storage envelope');
+    if (typeof record.revision !== 'string' || !record.revision || (record.savedAt !== undefined && (typeof record.savedAt !== 'number' || !Number.isFinite(record.savedAt) || record.origin === 'legacy-storage' || savedConversationVersion(record.conversation, record.savedAt) === undefined))) throw new TypeError('Invalid Domain storage envelope');
 }
 /** Internal records retain detached snapshots and storage invariants, without revalidating AST. */
 function checkedBindings(record: DomainStorageRecord, conversation: TrustedDomain): TrustedDomainStorageRecord {
@@ -106,11 +109,11 @@ function prefer(existing: DomainStorageRecord, incoming: DomainStorageRecord, mi
     if (old.messages.length > 0 && old.completeness !== 'partial' && next.completeness === 'partial') return false;
     if (migration) return (!existing.conversation.messages.length || existing.origin === 'legacy-storage') && incoming.conversation.messages.length > existing.conversation.messages.length; // A retry cannot overwrite data captured by the new release.
     if (old.messages.length < next.messages.length) return true;
-    const time = (v: DomainConversationDetail): number => v.updatedAt ?? 0;
-    return time(next) >= time(old);
+    return (incoming.savedAt ?? 0) >= (existing.savedAt ?? 0);
 }
 function sameContent(existing: DomainStorageRecord, incoming: DomainStorageRecord): boolean {
-    return existing.origin === incoming.origin
+    return existing.savedAt === incoming.savedAt
+        && existing.origin === incoming.origin
         && JSON.stringify(existing.conversation) === JSON.stringify(incoming.conversation)
         && JSON.stringify(existing.acquisitionHints) === JSON.stringify(incoming.acquisitionHints);
 }
@@ -178,27 +181,29 @@ export function saveDomainConversation(accountSlot: string, parsed: ResourceConv
 export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean): Promise<TrustedDomainStorageRecord | null>;
 export async function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = [], migration = false): Promise<TrustedDomainStorageRecord | null> {
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
-    if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountSlot, parsed: { conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checkedBindings(decodeDomainRecord(value), value.conversation); }
-    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration);
+    if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountSlot, parsed: { sourceVersion: parsed.sourceVersion, conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checkedBindings(decodeDomainRecord(value), value.conversation); }
+    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion);
 }
 
 /** Authenticated Broker save input is still raw; establish trust at the write snapshot boundary. */
-export async function saveDomainRequest(accountSlot: string, parsed: { conversation: unknown; acquisitionHints: ResourceAcquisitionHints },
+export async function saveDomainRequest(accountSlot: string, parsed: { conversation: unknown; acquisitionHints: ResourceAcquisitionHints; sourceVersion?: unknown },
     resources: readonly StoredDomainResource[] = [], migration = false): Promise<TrustedDomainStorageRecord | null> {
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
     if (needsDomainBroker()) throw new TypeError('Raw Domain save requests require extension-origin storage');
-    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration);
+    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion);
 }
 
 async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDomain, sourceHints: ResourceAcquisitionHints,
-    resources: readonly StoredDomainResource[], migration: boolean): Promise<TrustedDomainStorageRecord | null> {
+    resources: readonly StoredDomainResource[], migration: boolean, sourceVersion?: unknown): Promise<TrustedDomainStorageRecord | null> {
+    if (sourceVersion !== undefined && (typeof sourceVersion !== 'number' || !Number.isFinite(sourceVersion))) throw new TypeError('Invalid source conversation version');
     const identity = storageIdentity(conversation.providerId, accountSlot, conversation.id);
     // Export paths, diagnostics, pagination and runtime ZIP handles are deliberately excluded.
     const acquisitionHints = Object.fromEntries(Object.entries(sourceHints).map(([assetId, hint]) => [assetId, {
         ...(hint.url ? { url: hint.url } : {}), ...(hint.sourceUrl ? { sourceUrl: hint.sourceUrl } : {}), ...(hint.src ? { src: hint.src } : {}),
         ...(hint.candidates ? { candidates: [...hint.candidates] } : {}),
     }]));
-    const incoming = checkedBindings({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: crypto.randomUUID(), savedAt: Date.now(), conversation, acquisitionHints, resources: resources.map(r => ({ ...r })) }, conversation);
+    const savedAt = migration ? undefined : savedConversationVersion(conversation, sourceVersion);
+    const incoming = checkedBindings({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: crypto.randomUUID(), ...(savedAt !== undefined ? { savedAt } : {}), conversation, acquisitionHints, resources: resources.map(r => ({ ...r })) }, conversation);
     const hashes = new Map(await Promise.all(incoming.resources.map(async resource => [resource.assetId, await sha256Hex(resource.bytes)] as const)));
     const choose = (existing: TrustedDomainStorageRecord | null): TrustedDomainStorageRecord => {
         const changedResources = incoming.resources.some(r => hashes.get(r.assetId) !== existing?.resourceDigests?.[r.assetId]?.sha256
@@ -288,7 +293,7 @@ async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDoma
 
 export function storedParseResult(record: TrustedDomainStorageRecord): ResourceConversationParseResult {
     const valid = checkedBindings(record, record.conversation);
-    return { conversation: valid.conversation, diagnostics: [], resourceHints: {}, acquisitionHints: valid.acquisitionHints };
+    return { ...(valid.savedAt !== undefined ? { sourceVersion: valid.savedAt } : {}), conversation: valid.conversation, diagnostics: [], resourceHints: {}, acquisitionHints: valid.acquisitionHints };
 }
 export async function getDomainResource(identity: DomainStorageIdentity, assetId: string): Promise<Uint8Array | null> {
     if (needsDomainBroker()) { const value = await callDomainBroker('resource', { identity, assetId }); return value === null ? null : decodeBytes(value); }
@@ -323,7 +328,7 @@ export async function removeStoredDomain(identity: DomainStorageIdentity): Promi
 /** Original legacy values remain recoverable, including records that cannot be interpreted. */
 export async function backupLegacyValue(key: string, value: unknown): Promise<void> {
     if (needsDomainBroker()) { await callDomainBroker('backup', { key: `origin:${location.origin}:${key}`, value }); return; }
-    if (typeof indexedDB === 'undefined') return;
+    if (typeof indexedDB === 'undefined') { if (!backupMemory.has(key)) backupMemory.set(key, structuredClone(value)); return; }
     const db = await openDomainDB();
     try {
         await new Promise<void>((resolve, reject) => {
@@ -332,7 +337,7 @@ export async function backupLegacyValue(key: string, value: unknown): Promise<vo
             tx.onabort = tx.onerror = () => reject(tx.error || new Error('Legacy backup failed'));
             const store = tx.objectStore(BACKUP);
             const req = store.get(key);
-            req.onsuccess = () => { if (!req.result) store.put({ key, value, savedAt: Date.now() }); };
+            req.onsuccess = () => { if (!req.result) store.put({ key, value, backedUpAt: Date.now() }); };
         });
     } finally { db.close(); }
 }

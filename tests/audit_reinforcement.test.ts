@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
 /**
@@ -13,58 +14,15 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 
-// 1. Two-Tier Storage Atomic Abort Verification
-test('storageService: IDB failure aborts write and prevents chrome.storage.local corruption', async () => {
-    const StorageService = require('../src/core/storage/storageService.js');
-    const DetailStore = require('../src/core/storage/conversationDetailStore.js');
-
-    // Setup mock chrome.storage.local
-    const mockStorage: Record<string, any> = {};
-    (globalThis as any).chrome = {
-        storage: {
-            local: {
-                get: async (keys: string[]) => {
-                    const out: Record<string, any> = {};
-                    for (const k of keys) if (mockStorage[k]) out[k] = mockStorage[k];
-                    return out;
-                },
-                set: async (items: Record<string, any>) => {
-                    Object.assign(mockStorage, items);
-                }
-            }
-        }
-    };
-
-    // Save original method
-    const origSaveBatch = DetailStore.saveConversationDetailsBatch;
+// Index storage rejects content before touching physical storage.
+test('storageService rejects fat metadata without changing stored indexes', async () => {
+    const { indexStorage } = require('./helpers/indexStorage.js');
+    const env = indexStorage();
     try {
-        // Mock saveConversationDetailsBatch to throw an error (simulating quota exceeded or DB failure)
-        DetailStore.saveConversationDetailsBatch = async () => {
-            throw new Error('IndexedDB quota exceeded');
-        };
-
-        const testConversations = [
-            {
-                id: 'conv_1',
-                title: 'Test Chat 1',
-                messages: [{ id: 'm1', text: 'hello' }],
-                turns: [{ role: 'user', text: 'hello' }]
-            }
-        ];
-
-        // setConversations must throw, and chrome.storage.local must NOT receive the stripped list
-        await assert.rejects(
-            async () => {
-                await StorageService.setConversations('u0', testConversations);
-            },
-            /IndexedDB quota exceeded/
-        );
-
-        // Verify that gemini_conversations in chrome.storage.local is still empty (never written)
-        assert.strictEqual(mockStorage['gemini_conversations'], undefined);
-    } finally {
-        DetailStore.saveConversationDetailsBatch = origSaveBatch;
-    }
+        const storage = require('../src/core/storage/storageService.js');
+        await assert.rejects(storage.setConversations('u0', [{ ...indexFixture({ id: 'chat', title: 'Research' }), messages: [] }]), /index schema/);
+        assert.equal(env.writes(), 0);
+    } finally { env.restore(); }
 });
 
 // 2. Takeout MediaIndex Strict Slot Isolation Verification
@@ -118,9 +76,9 @@ test('pagination: getAllConversations detects token loop and terminates safely',
         getConversationList: async (token: string | null) => {
             callCount++;
             return {
-                conversations: [
+                conversations: ([
                     { id: `c_${callCount}`, title: `Chat ${callCount}` }
-                ],
+                ]).map(indexFixture),
                 // Return a repeating cursor
                 nextPageToken: 'repeating_token_xyz'
             };
@@ -147,7 +105,7 @@ test('pagination D1: non-exhaustive token-loop result prevents reconcileConversa
         getConversationList: async () => {
             callCount++;
             return {
-                conversations: [{ id: `c_${callCount}`, title: `Chat ${callCount}` }],
+                conversations: ([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture),
                 nextPageToken: 'looping_token'
             };
         }

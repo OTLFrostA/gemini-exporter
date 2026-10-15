@@ -5,7 +5,7 @@ import { contentComposer } from './composeContent.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { DocumentAst } from '../ast/ast.js';
 
-export interface DomainCompositionOptions { documentLanguage?: string }
+export interface DomainCompositionOptions { documentLanguage?: string; sourceVersion?: number }
 
 /** Domain facts -> one format-neutral presentation tree. No resource acquisition or raw parsing. */
 export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: DocumentDiagnostic[] } {
@@ -34,7 +34,7 @@ export function composeDomainDocument(conversation: TrustedDomain, options: Doma
             ...(citations.size ? { sources: { type: 'sources' as const, items: [...citations.keys()].map(ref => ({ ...source(ref), ...(citations.get(ref)?.title ? { label: citations.get(ref)!.title! } : {}), number: citations.get(ref)!.displayNumber })) } } : {}),
         };
     });
-    const date = selectDisplayDate(conversation.updatedAt, conversation.createdAt);
+    const date = selectDisplayDate(options.sourceVersion, conversation.createdAt);
     return { document: {
         schemaVersion: 2,
         ...(options.documentLanguage ? { documentLanguage: options.documentLanguage } : {}),

@@ -17,7 +17,7 @@ test('conversation times are independent finite epoch milliseconds and unknown f
     assert.deepEqual(restoreDomainSnapshot(base()), base());
 });
 test('current snapshots reject historical aliases and representations', () => {
-    for (const key of ['timestamp', 'chatTime', 'lastSeen', 'href', 'titles', 'provenance']) {
+    for (const key of ['updatedAt', 'timestamp', 'chatTime', 'lastSeen', 'href', 'titles', 'provenance']) {
         assert.throws(() => restoreDomainSnapshot({ ...base(), [key]: key === 'timestamp' ? null : 'old' }));
     }
     const old = { ...base(), completeness: { status: 'partial', reason: 'Selected' }, timestamp: 123, createdAt: '2026-10-06T00:00:00Z', updatedAt: null, href: 'https://example.test/chat' };
@@ -27,12 +27,12 @@ test('message dates do not fabricate conversation creation or update facts durin
     const conversation = validateParserDomain({ ...base(), messages: [{ role: 'user', timestamp: 1700000000000, content: [] }] });
     const merged = mergeConversationPages([{ conversation, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }]);
     assert.equal(merged.conversation.createdAt, undefined);
-    assert.equal(merged.conversation.updatedAt, undefined);
+    assert.equal(merged.sourceVersion, undefined);
     assert.equal(merged.conversation.messages[0].timestamp, 1700000000000);
 });
 test('Markdown preserves independently known creation/update facts and omits unknown times', async () => {
-    const dated = validateParserDomain({ ...base(), createdAt: 0, updatedAt: 1000 });
-    const markdown = await exportDomainMarkdown(dated);
+    const dated = validateParserDomain({ ...base(), createdAt: 0 });
+    const markdown = await exportDomainMarkdown(dated, { sourceVersion: 1000 });
     assert.ok(markdown.includes('1970-01-01T00:00:00.000Z'));
     assert.ok(markdown.includes('1970-01-01T00:00:01.000Z'));
     const undated = await exportDomainMarkdown(validateParserDomain(base()));

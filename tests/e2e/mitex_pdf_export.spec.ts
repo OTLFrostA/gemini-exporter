@@ -263,7 +263,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           { id: 'mitex_pdf_001', title: english ? 'Gaussian integral derivation' : '高斯积分推导', timestamp: 1700000000000 },
         ];
         await chrome.storage.local.set({
-          gemini_conversations: convs,
+          gemini_conversations: (convs).map(canonicalIndexFixture),
           exportedIds: {},
           has_completed_tour: true,
           last_seen_feature_version: '999.0.0',

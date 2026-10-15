@@ -1,3 +1,4 @@
+import { indexFromParsed } from '../index/parseIndex.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { persistNativeConversation } from '../../storage/domain/nativePersistence.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
@@ -8,11 +9,11 @@ import { MediaIndex, readTakeoutBytes, type TakeoutStore } from './mediaIndex.js
 import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive, type GeminiTakeoutZipRaw } from '../../parsers/gemini/takeout/parseZip.js';
 import { TakeoutParseError } from '../../../types/errors.js';
-import type { Conversation } from '../../../types/index.js';
+import type { DomainConversationIndex } from '../../../types/index.js';
 import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 
 export interface TakeoutParseResult extends TakeoutStore {
-    conversations: Conversation[];
+    conversations: DomainConversationIndex[];
     totalMediaCount: number;
     diagnostics: DocumentDiagnostic[];
     resourceResults: ResourceResult<ResourceDelivery>[];
@@ -52,7 +53,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         throw new TakeoutParseError(message, false);
     });
     const store: TakeoutStore = { convCache: {}, mediaMap: {}, globalMedia: {} };
-    const conversations: Conversation[] = [];
+    const conversations: DomainConversationIndex[] = [];
     const resourceResults: ResourceResult<ResourceDelivery>[] = [];
     const diagnostics: DocumentDiagnostic[] = [];
     const basenames = new Map<string, unknown[]>();
@@ -65,7 +66,6 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     for (const [name, entries] of basenames) if (entries.length === 1) store.globalMedia[name] = entries[0] as TakeoutStore['globalMedia'][string];
     for (const result of results) {
         const id = result.conversation.id;
-        const hasExplicitPrompt = result.conversation.messages.some(message => message.role === 'user');
         const durableResources: StoredDomainResource[] = [];
         const native = { conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints: result.acquisitionHints,
             resourceHints: {} as Record<string, { archivePath: string }> };
@@ -101,11 +101,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
         diagnostics.push(...native.diagnostics);
         // Preserve metadata-only import writes: Takeout fragments must never replace
         // a fuller detail already in storage. The runtime cache owns parsed bodies.
-        const domain = result.conversation;
-        conversations.push({ id, title: domain.title, titleSource: 'takeout', titles: { takeout: domain.title },
-            url: domain.url, href: domain.url, timestamp: domain.updatedAt ?? null,
-            lastSeen: domain.updatedAt ? new Date(domain.updatedAt).toISOString() : '', source: 'takeout-import',
-            messageCount: domain.messages.length, attachmentCount: domain.assets.length, hasExplicitPrompt });
+        conversations.push(indexFromParsed(result, 'takeout'));
         if (conversations.length % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
     }
     const totalMediaCount = Object.entries(inventory).filter(([path, entry]) => entry && typeof entry === 'object' && !('dir' in entry && entry.dir) && !/\.(html|json)$/i.test(path)).length;

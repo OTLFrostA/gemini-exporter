@@ -94,8 +94,7 @@ test('PR-A Test 1: First initialization runs migration on legacy fixture and sta
         assert.strictEqual(m.localStore['gemini_schema_version'], 2, 'Schema version stamped to CURRENT_SCHEMA_VERSION (2)');
         const convs = m.localStore['gemini_conversations'];
         assert.ok(!Array.isArray((convs[0] as any).messages), 'Conversations should be slimmed');
-        const mem = DetailStore.__getMemoryStore();
-        assert.ok(mem.has('fat_chat_1'), 'Fat messages offloaded to DetailStore');
+        assert.equal((await StorageService.getConversationWithDetail('u0', 'fat_chat_1')).conversation.messages.length, 1);
 
         const expIds = m.localStore['exportedIds'];
         assert.ok(!('c_fat_chat_1' in expIds), 'Export alias key collapsed');

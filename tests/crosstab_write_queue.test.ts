@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 export {};
 // Cross-tab write-queue regression tests.
 //
@@ -107,14 +108,14 @@ test('T1: concurrent transactConversations from two tabs must not lose updates',
     try {
         const tabA = freshService();
         const tabB = freshService();
-        await tabA.setConversations('u0', [{ id: 'seed', title: 'Seed' }]);
+        await tabA.setConversations('u0', ([{ id: 'seed', title: 'Seed' }]).map(indexFixture));
 
         const pA = tabA.transactConversations('u0', (existing: any[]) => ({
-            list: [...existing, { id: 'fromA', title: 'A' }],
+            list: ([...existing, { id: 'fromA', title: 'A' }]).map(indexFixture),
             changed: 1
         }));
         const pB = tabB.transactConversations('u0', (existing: any[]) => ({
-            list: [...existing, { id: 'fromB', title: 'B' }],
+            list: ([...existing, { id: 'fromB', title: 'B' }]).map(indexFixture),
             changed: 1
         }));
         const [rA, rB] = await Promise.all([pA, pB]);
@@ -175,14 +176,14 @@ test('T4: same-tab chains still serialize when Web Locks is unavailable (fallbac
     removeWebLocks();
     try {
         const tab = freshService();
-        await tab.setConversations('u0', [{ id: 'seed', title: 'Seed' }]);
+        await tab.setConversations('u0', ([{ id: 'seed', title: 'Seed' }]).map(indexFixture));
 
         const pA = tab.transactConversations('u0', (existing: any[]) => ({
-            list: [...existing, { id: 'first', title: '1' }],
+            list: ([...existing, { id: 'first', title: '1' }]).map(indexFixture),
             changed: 1
         }));
         const pB = tab.transactConversations('u0', (existing: any[]) => ({
-            list: [...existing, { id: 'second', title: '2' }],
+            list: ([...existing, { id: 'second', title: '2' }]).map(indexFixture),
             changed: 1
         }));
         await Promise.all([pA, pB]);
@@ -200,16 +201,16 @@ test('T5: transactConversations updater returning null must not write', async ()
     try {
         const tab = freshService();
         const seed = [{ id: 'seed', title: 'Seed' }];
-        await tab.setConversations('u0', seed);
+        await tab.setConversations('u0', (seed).map(indexFixture));
         const setsBefore = env.getSetCalls();
 
         const res = await tab.transactConversations('u0', () => null);
         assert.strictEqual(res.written, false);
-        assert.deepStrictEqual(res.list, seed);
+        assert.deepStrictEqual(res.list, seed.map(indexFixture));
         assert.strictEqual(env.getSetCalls(), setsBefore, 'no storage write should happen');
 
         const after = await tab.getConversations('u0');
-        assert.deepStrictEqual(after, seed);
+        assert.deepStrictEqual(after, seed.map(indexFixture));
     } finally {
         env.restore();
     }
@@ -221,16 +222,16 @@ test('T6: removeConversation inside the lock still drops export records atomical
     try {
         const tabA = freshService();
         const tabB = freshService();
-        await tabA.setConversations('u0', [
+        await tabA.setConversations('u0', ([
             { id: 'keep', title: 'Keep' },
             { id: 'drop', title: 'Drop' }
-        ]);
+        ]).map(indexFixture));
         await tabA.saveExportRecord('u0', 'drop', { ok: true });
 
         // Tab B adds a conversation while tab A removes one.
         const pRemove = tabA.removeConversation('u0', 'drop');
         const pAdd = tabB.transactConversations('u0', (existing: any[]) => ({
-            list: [...existing, { id: 'added', title: 'Added' }],
+            list: ([...existing, { id: 'added', title: 'Added' }]).map(indexFixture),
             changed: 1
         }));
         const [removed] = await Promise.all([pRemove, pAdd]);

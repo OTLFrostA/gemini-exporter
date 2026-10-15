@@ -53,7 +53,7 @@ test('one record copy isolates trusted graph, acquisition candidates and typed r
         messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }],
         assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }] });
     const original: import('../src/core/storage/domain/contracts.js').TrustedDomainStorageRecord = { key: domainStorageKey(identity), identity, conversation, origin: 'source' as const,
-        storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, savedAt: 1, revision: 'copy',
+        storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, revision: 'copy',
         resources: [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]) }], acquisitionHints: { asset: { candidates: ['opaque:original'] } } };
     const clone = globalThis.structuredClone; let calls = 0; let copiedBytes: Uint8Array | undefined;
     globalThis.structuredClone = <T>(value: T): T => {

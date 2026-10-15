@@ -170,11 +170,12 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         id: conversation.id ?? '',
         title: title?.value ?? '',
         ...(title ? { titleSource: title.source } : {}),
-        ...normalizeConversationTimes({ createdAt: conversation.createdAt, updatedAt: conversation.updatedAt }),
+        ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
         ...copyCompleteness(conversation),
         ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}),
         ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}),
         messages: resources.messages,
     };
-    return { conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
+    const sourceVersion = normalizeConversationTimes({ updatedAt: conversation.updatedAt }).updatedAt;
+    return { ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
 }

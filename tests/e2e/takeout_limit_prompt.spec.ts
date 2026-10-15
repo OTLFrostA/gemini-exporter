@@ -171,12 +171,12 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await page.evaluate(async () => {
       await chrome.storage.local.set({
         gemini_conversations: [
-          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout', timestamp: 1700000000000 }
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', hasTakeoutImport: true, providerId: 'gemini', titleSource: 'takeout', cloudAvailability: 'unknown', updatedAt: 1700000000000 }
         ]
       });
       if (window.ConversationsStore) {
         window.ConversationsStore.setConversations([
-          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', source: 'takeout', timestamp: 1700000000000 }
+          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', hasTakeoutImport: true, providerId: 'gemini', titleSource: 'takeout', cloudAvailability: 'unknown', updatedAt: 1700000000000 }
         ]);
       }
       if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {

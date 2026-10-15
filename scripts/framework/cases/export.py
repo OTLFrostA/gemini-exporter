@@ -7,6 +7,7 @@ import re
 import subprocess
 from typing import Tuple, Optional, Dict, Any
 
+from scripts.framework.image_evidence import capture_webpage_images, assert_zip_images
 from scripts.framework.archive_resources import validate_archive_resources
 from scripts.framework.cases.base import FeatureTestCase, TestContext
 from scripts.framework.features import FeatureDomain
@@ -59,6 +60,8 @@ DESIGNATED_HISTORICAL_CHATS = [
 
 
 def select_format_targets(cdp_opt, ctx, format_type):
+    if not CDPActions.wait_for_export_idle(cdp_opt):
+        raise RuntimeError("Previous export has not finished its UI/storage cleanup")
     required = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
     required += [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if not h.get('optional')]
     optional = [h['id'] for h in DESIGNATED_HISTORICAL_CHATS if h.get('optional')]
@@ -121,7 +124,7 @@ class LiveSaveNewChatCase(FeatureTestCase):
                 target_dir=ctx.output_dir,
                 target_chat_ids=[s2_id],
                 min_mtime=ctx.start_time,
-                turn_evidence={s2_id: ctx.chat_records[1].get('turn_evidence', [])}
+                turn_evidence={s2_id: ctx.chat_records[1].get('turn_evidence', [])}, image_cdp=cdp_opt
             )
             if not disk_ok:
                 return False, f"场景一物理磁盘落盘断言失败: {disk_msg}", disk_data
@@ -214,7 +217,7 @@ class LiveDiskAutoSaveCase(FeatureTestCase):
                 disk_ok, disk_msg, disk_data = CDPAssertions.assert_real_disk_live_save(
                     target_dir=ctx.output_dir, target_chat_ids=[s1_id], min_mtime=ctx.start_time,
                     turn_evidence={s1_id: ctx.chat_records[0].get('turn_evidence', [])},
-                    baselines={s1_id: baseline}
+                    baselines={s1_id: baseline}, image_cdp=cdp_opt
                 )
                 if disk_ok or time.monotonic() >= deadline:
                     break
@@ -274,54 +277,13 @@ class ZipExportDownloadCase(FeatureTestCase):
             })()
             """)
 
-            target_ids = []
-            target_ids.extend([r["chat_id"] for r in ctx.chat_records if r.get("chat_id") and len(str(r["chat_id"])) > 8])
-            target_ids.extend([h["id"] for h in DESIGNATED_HISTORICAL_CHATS])
-
-            target_titles = ["Martian Astronaut Cat", "Python日志与耗时装饰器", "贝尔不等式推导与物理意义", "韦伯望远镜深空探测重大发现", "Test Configuration Status Load"]
-
-            check_res = cdp_opt.eval(f"""
-            (() => {{
-                const searchInput = document.getElementById('chatSearchInput') || document.getElementById('search');
-                if (searchInput && searchInput.value) {{
-                    searchInput.value = '';
-                    searchInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                }}
-                const selectNone = document.getElementById('btnSelectNone');
-                if (selectNone) selectNone.click();
-                const targetIds = {json.dumps(target_ids)};
-                const targetTitles = {json.dumps(target_titles)};
-                const items = Array.from(document.querySelectorAll('#list .item'));
-                let checkedCount = 0;
-                const matchedList = [];
-                items.forEach(item => {{
-                    const cid = item.dataset.chatId;
-                    const titleText = item.querySelector('.chat-title, .title')?.textContent || '';
-                    const matchId = targetIds.some(tid => cid && (cid === tid || cid.includes(tid) || tid.includes(cid)));
-                    const matchTitle = targetTitles.some(tt => tt && tt.length > 2 && (titleText.includes(tt) || tt.includes(titleText)));
-                    if (matchId || matchTitle) {{
-                        const cb = item.querySelector('input[type=checkbox]');
-                        if (cb && !cb.checked) {{
-                            cb.checked = true;
-                            cb.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            checkedCount++;
-                            matchedList.push({{ id: cid, title: titleText }});
-                        }}
-                    }}
-                }});
-                return {{
-                    totalItems: items.length,
-                    checkedCount: checkedCount,
-                    matched: matchedList
-                }};
-            }})()
-            """) or {}
-            time.sleep(0.5)
-
-            checked_count = check_res.get("checkedCount", 0)
+            try:
+                check_res = select_format_targets(cdp_opt, ctx, "markdown")
+            except RuntimeError as e:
+                return False, f"ZIP 导出目标准备不足: {e}", None
             expected_min_checked = 6 if ctx.chat_records else 4
-            if checked_count < expected_min_checked:
-                return False, f"工作台勾选数不足: 实际 {checked_count} < 预期 {expected_min_checked}", check_res
+            if len(check_res['matched']) < expected_min_checked:
+                return False, f"工作台勾选数不足: {check_res}", check_res
 
             downloaded_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=60)
             if downloaded_zip and os.path.isfile(downloaded_zip) and os.path.getsize(downloaded_zip) > 0:
@@ -364,9 +326,55 @@ class MultimodalSpecCase(FeatureTestCase):
             uploaded_files=uploaded_files
         )
 
-        if spec_ok:
-            return True, spec_msg, spec_data
-        return False, spec_msg, spec_data
+        if not spec_ok:
+            return False, spec_msg, spec_data
+        image_records = [record for record in ctx.chat_records
+                         if any(turn.get('has_images') for turn in record.get('turn_evidence', []))]
+        if image_records:
+            cdp = ctx.connect_options()
+            try:
+                for record in image_records:
+                    assert_zip_images(cdp, downloaded_zip, record['chat_id'], record['turn_evidence'])
+            except (ValueError, OSError, RuntimeError, KeyError) as exc:
+                return False, f"现场会话 ZIP 图片与网页不一致: {exc}", spec_data
+            finally:
+                cdp.close()
+        return True, spec_msg, spec_data
+
+
+class ImagenMultimodalCase(FeatureTestCase):
+    def __init__(self):
+        super().__init__(
+            feature_id="feat_imagen_multimodal",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="图片导出与网页内容一致性",
+            description="核对 golden 会话导出 ZIP 中每轮图片引用、实体附件与网页画面",
+            critical=True,
+            prerequisites=["feat_zip_export_download"],
+        )
+
+    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        archive = ctx.shared_data.get('downloaded_zip')
+        if not archive or not os.path.isfile(archive):
+            return False, "缺少实际导出 ZIP，页面有图不能代替导出验收", None
+        chat_id = DESIGNATED_HISTORICAL_CHATS[0]['id']
+        cdp = ctx.connect_gemini()
+        try:
+            cdp.call('Page.navigate', {'url': f'https://gemini.google.com/app/{chat_id}'})
+            images = capture_webpage_images(cdp, chat_id)
+            count = cdp.eval("document.querySelectorAll('model-response').length")
+            evidence = [{'images': [image for image in images if image['turn'] == index]}
+                        for index in range(count)]
+            with open(os.path.join(ctx.output_dir, 'golden_image_evidence.json'), 'w', encoding='utf-8') as out:
+                json.dump({'chat_id': chat_id, 'turns': evidence}, out)
+            errors = assert_zip_images(cdp, archive, chat_id, evidence)
+            ctx.shared_data['golden_image_evidence'] = evidence
+            return True, "导出 ZIP 的图片引用、附件文件与网页画面一致", {
+                'chat_id': chat_id, 'images': len(images), 'pixel_errors': errors}
+        except (ValueError, OSError, RuntimeError, zipfile.BadZipFile, KeyError) as exc:
+            return False, f"图片导出验收失败: {exc}", None
+        finally:
+            cdp.close()
 
 
 class StaleTabImageExportCase(FeatureTestCase):
@@ -379,24 +387,15 @@ class StaleTabImageExportCase(FeatureTestCase):
             name="失效 Gemini 标签页下的图片导出",
             description="扩展重装后保留未刷新的同账号标签页，验证图片导出可转用已注入的标签页",
             critical=True,
-            # 真实数据前提：本轮已验证的 Imagen 会话（与导出格式链无关，
-            # 不因 Markdown/HTML/PDF 任一失败而被 SKIP）。
+            # Reuse independently captured golden webpage images after reinstall.
             prerequisites=["feat_imagen_multimodal"],
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        image_chat_id = ctx.shared_data.get("imagen_chat_id")
-        if not image_chat_id:
-            return False, "缺少本轮已验证的 Imagen 会话", None
-        image_record = next((r for r in ctx.chat_records if r["chat_id"] == image_chat_id), None)
-        if not image_record:
-            return False, "Imagen 会话未记录在本轮测试结果中", None
-        image_chat = {
-            "id": image_chat_id,
-            "name": image_record["title"],
-            "expected_generated_images": 1,
-            "syntax_checks": ["image"],
-        }
+        image_chat = DESIGNATED_HISTORICAL_CHATS[0]
+        evidence = ctx.shared_data.get('golden_image_evidence')
+        if not evidence:
+            return False, "缺少 golden 网页图片证据", None
         cdp_opt = ctx.connect_options()
         stale_id = None
         try:
@@ -482,7 +481,9 @@ class StaleTabImageExportCase(FeatureTestCase):
                     entries = zf.namelist()
                 if any(os.path.basename(name) == "_export_errors.json" for name in entries):
                     return False, "图片导出含错误清单", {"tabs": setup, "entries": entries}
-                return True, "无接收端旧标签页优先时，图片及 Markdown 引用均成功落盘", {"tabs": setup, "export": details}
+                errors = assert_zip_images(cdp_opt, archive, image_chat["id"], evidence)
+                details["image_errors"] = errors
+                return True, "无接收端旧标签页优先时，图片引用、附件和网页画面均一致", {"tabs": setup, "export": details}
             finally:
                 cdp_opt.close()
         finally:
@@ -502,9 +503,8 @@ class FastSkipExportedCase(FeatureTestCase):
             name="跳过已导出会话前置极速过滤",
             description="勾选【跳过已导出】时，已导出会话前置分流瞬间跳过（防空 ZIP 保护），含新会话时精准分流导出",
             critical=True,
-            # 无跨用例数据依赖：所需徽章/按钮状态在 execute 内自验（准备不足即 FAIL），
-            # 不以 Markdown 规范断言通过为必要条件。
-            prerequisites=[]
+            # Six exported records require both live conversations and the historical ZIP batch.
+            prerequisites=["feat_chat_generation", "feat_zip_export_download"]
         )
 
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -563,17 +563,23 @@ class FastSkipExportedCase(FeatureTestCase):
             partial = cdp_opt.eval("""
             (() => {
                 const items = Array.from(document.querySelectorAll('#list .item'));
+                const store = window.ConversationsStore;
+                if (!store || typeof store.getConversations !== 'function') return { error: 'Missing canonical index store' };
+                const normalize = id => (id || '').replace(/^c_/, '');
+                const available = new Set(store.getConversations()
+                    .filter(index => index.cloudAvailability === 'available').map(index => normalize(index.id)));
                 const exported = items.find(it => it.querySelector('.badge-exported'));
-                const unexported = items.find(it => !it.querySelector('.badge-exported'));
+                const unexported = items.find(it => !it.querySelector('.badge-exported') && available.has(normalize(it.dataset.chatId)));
                 for (const it of items) {
                     const cb = it.querySelector('input[type=checkbox]');
                     if (cb) { cb.checked = it === exported || it === unexported; cb.dispatchEvent(new Event('change', { bubbles: true })); }
                 }
-                return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId };
+                return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId,
+                         unexportedCloudAvailability: unexported ? 'available' : null };
             })()
             """) or {}
-            if not partial.get('exportedId') or not partial.get('unexportedId'):
-                return False, "部分跳过需要真实已导出与未导出两类会话，准备不足", partial
+            if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedCloudAvailability') != 'available':
+                return False, "部分跳过需要真实已导出会话与云端可用的未导出会话，准备不足", partial
             partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)
             if not partial_zip or not os.path.isfile(partial_zip):
                 return False, "部分跳过没有生成 ZIP", partial

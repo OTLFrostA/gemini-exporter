@@ -71,7 +71,7 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
         { id: 'real_exp_001', title: '深度学习反向传播算法详解', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: convs,
+        gemini_conversations: (convs).map(canonicalIndexFixture),
         exportedIds: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'

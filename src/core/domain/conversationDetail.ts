@@ -80,8 +80,6 @@ export interface DomainConversationDetail {
     id: string;
     title: string;
     /** Unix epoch milliseconds; omit when unknown. */
-    updatedAt?: number;
-    /** Unix epoch milliseconds; omit when unknown. */
     createdAt?: number;
     url?: string;
     messages: DomainMessage[];

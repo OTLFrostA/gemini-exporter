@@ -1,10 +1,10 @@
-import type { Conversation } from '../../../types/conversation.js';
+import type { DomainConversationIndex } from '../../../types/conversation.js';
 import { getStore, getStorage, getExportCtrl, getSyncCtrl, t } from '../optionsContext.js';
 
 let dismissed = '';
 
 /** One non-blocking summary, scoped to the visible account. Closing always retains data. */
-export async function renderArchiveNotice(conversations: Conversation[], slot: string, reload: () => Promise<void>): Promise<void> {
+export async function renderArchiveNotice(conversations: DomainConversationIndex[], slot: string, reload: () => Promise<void>): Promise<void> {
     const card = document.getElementById('archiveNotice');
     if (!card || getStore()?.getCurrentSlot() !== slot) return;
     const affected = conversations.filter(c => c.cloudAvailability === 'deleted');

@@ -65,7 +65,7 @@ test.describe('Export Workflow & State Update', () => {
         { id: 'exp_chat_001', title: '深度学习神经网络实践', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: mockConvs,
+        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         exportedIds: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
@@ -114,7 +114,7 @@ test.describe('Export Workflow & State Update', () => {
         { id: 'exp_chat_skip_001', title: '跳过测试会话', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: mockConvs,
+        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         gemini_export_zip: true,
         exportedIds: {
           'exp_chat_skip_001': {
@@ -177,10 +177,10 @@ test.describe('Export Workflow & State Update', () => {
         { id: 'clear_chat_002', title: '已导出会话二', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: mockConvs,
+        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
         exportedIds: {
-          'clear_chat_001': { exportedAt: 1700000005000, title: '已导出会话一' },
-          'clear_chat_002': { exportedAt: 1700000005000, title: '已导出会话二' }
+          'clear_chat_001': { exportedAt: 1700000005000, chatTime: 1700000000000, title: '已导出会话一' },
+          'clear_chat_002': { exportedAt: 1700000005000, chatTime: 1700000000000, title: '已导出会话二' }
         },
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'

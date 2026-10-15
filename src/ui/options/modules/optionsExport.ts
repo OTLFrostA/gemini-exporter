@@ -1,3 +1,5 @@
+import { parseIndexObservation } from '../../../core/compatibility/index/parseIndex.js';
+import { mergeConversationIndex } from '../../../core/domain/conversationIndex.js';
 import type { ExportProgress, ExportRecord, FailedChat, UIExportOptions } from '../../../types/ui.js';
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
@@ -21,7 +23,7 @@ import { getErrorMessage, isRealTitle } from '../../../core/utils/utils.js';
 import { normId } from '../../../core/utils/pathUtils.js';
 import { STORAGE_KEYS } from '../../../core/utils/constants.js';
 import { warmLocalFontCache } from '../../../core/export/typst/fonts/localFontProvider.js';
-import { $ } from '../../uiCommon.js';
+import { $, setExportSessionBusy } from '../../uiCommon.js';
 
 export { normId, isRealTitle };
 
@@ -115,7 +117,7 @@ export function updateZipUi(): void {
  * (the same convention exportOrchestrator uses). Previously this was a pure
  * in-memory dirty write and the resolved title was lost on page reload.
  *
- * Title arbitration is untouched: the same `setTitleBySource` transform is
+ * Title arbitration is untouched: the same Domain title merge is
  * applied to both the in-memory item and the stored copy.
  *
  * No loop risk: a storage write never re-enters the export pipeline, and
@@ -128,14 +130,11 @@ export async function persistTitleUpdate(chatId: string, newTitle: string, sourc
     const currentConvs = Store && visibleSlot === slot ? Store.getConversations() : [];
     const item = currentConvs.find((c) => normId(c.id) === normId(chatId));
     if ((!item && !exportSlot) || !isRealTitle(newTitle, chatId)) return;
-    const utils = getUtils();
-    const applyTitle = (chat: any) => {
-        if (utils && typeof utils.setTitleBySource === 'function') {
-            utils.setTitleBySource(chat, source || 'rpc', newTitle);
-        } else {
-            chat.title = newTitle;
-            (chat as any).titleSource = source || 'rpc';
-        }
+    const incoming = parseIndexObservation({ id: chatId, title: newTitle, titleSource: source }, 'export');
+    const applyTitle = (chat: import('../../../core/domain/conversationIndex.js').DomainConversationIndex) => {
+        const merged = mergeConversationIndex(chat, incoming);
+        chat.title = merged.title;
+        chat.titleSource = merged.titleSource;
     };
     // 1) in-memory (existing behavior; keeps the list UI fresh during export)
     if (item) applyTitle(item);
@@ -399,6 +398,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
     if (_isExporting) return;
     _isExporting = true;
     try {
+        setExportSessionBusy(true);
         const Store = getStore();
         const List = getList();
         const Formats = getFormats();
@@ -544,6 +544,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
     await startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle);
     } finally {
         _isExporting = false;
+        setExportSessionBusy(false);
     }
 }
 

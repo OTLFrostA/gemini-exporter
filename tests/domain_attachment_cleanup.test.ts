@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Conversation } from '../src/types/conversation.js';
+import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { normalizeLegacyAttachments } from '../src/core/parsers/shared/resources/resolveResources.js';
 import { structuredBodyAttachments } from '../src/core/compatibility/gemini/contentAdapter.js';

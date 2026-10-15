@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import type { FetchAssetParams } from '../src/core/engine/assetPipeline.js';
 import { makeTestWorker } from './helpers/makeTestWorker.js';
@@ -255,12 +256,12 @@ test('ExportOrchestrator - skip: true skips already exported up-to-date chats up
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
-    const conversations = [
+    const conversations = ([
         { id: 'chat-new', title: 'New Conversation', timestamp: tExported },
         { id: 'chat-updated', title: 'Updated Conversation', timestamp: tExported, updatedAt: tExported + 30000 },
         { id: 'chat-synced', title: 'Synced Conversation', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-old', title: 'Old Synced Conversation', timestamp: tExported - 10000 }
-    ];
+    ]).map(indexFixture);
 
     const exportedIds = {
         'chat-updated': { exportedAt: new Date(tExported).toISOString(), chatTime: tExported, title: 'Updated Conversation' },
@@ -320,10 +321,10 @@ test('ExportOrchestrator - skip: true when all selected chats are up-to-date com
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
-    const conversations = [
+    const conversations = ([
         { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
-    ];
+    ]).map(indexFixture);
 
     const exportedIds = {
         'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
@@ -366,10 +367,10 @@ test('ExportOrchestrator - skip: false exports all selected chats regardless of 
     const orchestrator = new ExportOrchestrator();
 
     const tExported = 1700000000000;
-    const conversations = [
+    const conversations = ([
         { id: 'chat-1', title: 'Conversation 1', timestamp: tExported, updatedAt: tExported },
         { id: 'chat-2', title: 'Conversation 2', timestamp: tExported, updatedAt: tExported }
-    ];
+    ]).map(indexFixture);
 
     const exportedIds = {
         'chat-1': { exportedAt: new Date(tExported + 10000).toISOString(), chatTime: tExported, title: 'Conversation 1' },
@@ -511,9 +512,9 @@ test('ExportOrchestrator - unavailable body remains retryable and is not marked 
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
-    const conversations = [
+    const conversations = ([
         { id: 'cca63136d0630930', title: 'Used an Assistant feature', timestamp: 1710000000000 }
-    ];
+    ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
@@ -558,9 +559,9 @@ test('ExportOrchestrator - records effective timestamp (updatedAt) in chatTime a
 
     const tCreate = 1700000000000;
     const tUpdate = 1700086400000; // 24h newer than creation timestamp
-    const conversations = [
+    const conversations = ([
         { id: 'chat_with_img', title: 'Image Chat', timestamp: tCreate, updatedAt: tUpdate }
-    ];
+    ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
@@ -751,9 +752,9 @@ test('ExportOrchestrator - writes native document content without reinterpreting
     setupMockStorage();
     const orchestrator = new ExportOrchestrator();
 
-    const conversations = [
+    const conversations = ([
         { id: 'chat_doc_1', title: 'Doc Analysis', timestamp: 1700000000000 }
-    ];
+    ]).map(indexFixture);
 
     const mockWorker = makeTestWorker({
         fetchChatDetail: async () => ({
@@ -973,7 +974,7 @@ test('all ordinary formats use completion for both records and meta, including f
             try {
                 const result = await new ExportOrchestrator().run({
                     selected: [{ id, title: 'Integrity contract' }], format, useZip: true, downloadHandler: async () => {}, includeAssets: false, includeIndex: true,
-                    conversations: [{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }],
+                    conversations: ([{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }]).map(indexFixture),
                     takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
                     worker: makeTestWorker({ fetchChatDetail: async () => fallback || scenario === 'fetch-failed'
                         ? { success: false, error: 'offline' } : { success: true, chat: parsed } }),
@@ -1058,7 +1059,7 @@ test('ZIP delivery boundary preserves real Storage, UI, counts and retry across 
                 }) };
             } });
             const options = { selected, format, useZip: true, currentSlot: slot, includeAssets: false, includeIndex: true, concurrency: failure === 'storage' ? 1 : 4,
-                conversations: selected.map(item => ({ ...item, timestamp: 1720000000000 })), exportedIds: ui, worker,
+                conversations: selected.map(item => indexFixture({ ...item, updatedAt: 1720000000000 })), exportedIds: ui, worker,
                 downloadHandler: failure === 'missing-handler' ? undefined : () => {
                     downloads++;
                     assert.deepEqual(memory[expKey], old, 'physical Storage unchanged inside downloadHandler');

@@ -69,14 +69,10 @@ class TestContext:
 
     def ensure_scenarios(self) -> List[Dict[str, Any]]:
         if not self.scenarios:
-            print("🏊 [场景池调度] 从在线对话池中提取 2 个最新多模态场景 (1个Imagen生图 + 1个深度推演)...")
-            sc_img = self.provider.pop_scenario(required_features=["imagen"], min_turns=2)
-            sc_text = self.provider.pop_scenario(min_turns=2)
-            self.scenarios = [sc_img, sc_text]
+            print("🏊 [场景池调度] 提取 2 个实时对话场景；固定 golden 会话覆盖图片导出。")
+            self.scenarios = [self.provider.pop_scenario(min_turns=2) for _ in range(2)]
         if len(self.scenarios) < 2 or any(len(sc.get("turns", [])) < 2 for sc in self.scenarios[:2]):
             raise RuntimeError("完整回归需要两个至少两轮的真实场景")
-        if not any("imagen" in sc.get("features", []) for sc in self.scenarios[:2]):
-            raise RuntimeError("完整回归的前两个场景必须包含明确标记为 imagen 的生图场景")
         return self.scenarios
 
     def record_turn(self, record: Dict[str, Any], result) -> None:

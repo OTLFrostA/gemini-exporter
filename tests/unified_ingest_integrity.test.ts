@@ -1,3 +1,4 @@
+import { indexFixture } from './helpers/indexFixture.js';
 /**
  * 统一数据摄入与 Fail-Closed 完整性防护测试套件
  *
@@ -36,30 +37,30 @@ function listItem(id: string, tsMs: number, title: string, messagesLen = 3) {
 // ---- 1. 数据平权：无 timestampSource 属性 ----
 
 test('数据平权：network-list 与 batchexecute 合并结果均无 timestampSource 字段', () => {
-    const sniffed: any = mergeConversation(null, listItem('a', 1000, 'A'), { source: 'network-list' });
+    const sniffed: any = mergeConversation(undefined, indexFixture(listItem('a', 1000, 'A')), { source: 'network-list' });
     assert.strictEqual(sniffed.merged.timestampSource, undefined, '嗅探输入不产生 timestampSource');
-    assert.strictEqual(sniffed.merged.timestamp, 1000);
+    assert.strictEqual(sniffed.merged.updatedAt, 1000);
 
-    const scanned: any = mergeConversation(null, listItem('b', 1000, 'B'), { source: 'batchexecute' });
+    const scanned: any = mergeConversation(undefined, indexFixture(listItem('b', 1000, 'B')), { source: 'batchexecute' });
     assert.strictEqual(scanned.merged.timestampSource, undefined, '扫描输入不产生 timestampSource');
-    assert.strictEqual(scanned.merged.timestamp, 1000);
+    assert.strictEqual(scanned.merged.updatedAt, 1000);
 });
 
 test('数据平权：同值或新值合并完全客观，无血统歧视', () => {
     // 嗅探先入库
-    const first: any = mergeConversation(null, listItem('c', 1000, 'Old Title', 2), { source: 'network-list' }).merged;
-    assert.strictEqual(first.timestamp, 1000);
+    const first: any = mergeConversation(undefined, indexFixture(listItem('c', 1000, 'Old Title', 2)), { source: 'network-list' }).merged;
+    assert.strictEqual(first.updatedAt, 1000);
     assert.strictEqual(first.messageCount, 2);
 
     // 扫描后拉取到更丰富的内容（更多消息数）
-    const second: any = mergeConversation(first, listItem('c', 1000, 'Old Title', 5), { source: 'batchexecute' }).merged;
-    assert.strictEqual(second.timestamp, 1000);
+    const second: any = mergeConversation(indexFixture(first), indexFixture(listItem('c', 1000, 'Old Title', 5)), { source: 'batchexecute' }).merged;
+    assert.strictEqual(second.updatedAt, 1000);
     assert.strictEqual(second.messageCount, 5, '消息数客观增长');
     assert.strictEqual(second.timestampSource, undefined);
 
     // 新时间戳更新
-    const third: any = mergeConversation(second, listItem('c', 2000, 'New Title', 5), { source: 'network-list' }).merged;
-    assert.strictEqual(third.timestamp, 2000, '时间戳客观前进');
+    const third: any = mergeConversation(indexFixture(second), indexFixture(listItem('c', 2000, 'New Title', 5)), { source: 'network-list' }).merged;
+    assert.strictEqual(third.updatedAt, 2000, '时间戳客观前进');
     assert.strictEqual(third.title, 'New Title');
     assert.strictEqual(third.timestampSource, undefined);
 });
@@ -70,7 +71,7 @@ function mockStorageContext() {
     let transactionInvoked = false;
     let savedList: any[] = [];
     const mockStorage = {
-        getConversations: async () => [...savedList],
+        getConversations: async () => ([...savedList]).map(indexFixture),
         transactConversations: async (_slot: string, updater: any) => {
             transactionInvoked = true;
             const res = updater([...savedList]);

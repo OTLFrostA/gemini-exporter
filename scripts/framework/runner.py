@@ -103,9 +103,10 @@ class FrameworkRunner:
 
         # 确定执行节点集合 (包含直接目标与传递前置闭包)
         gemini_required_fids = {
-            "feat_inpage_badge_dom",
+            "feat_inpage_export_badge",
             "feat_chat_generation",
-            "feat_imagen_multimodal_turn",
+            "feat_imagen_multimodal",
+            "feat_stale_tab_image_export",
             "feat_continued_chat_promotion",
             "feat_ephemeral_chat_pruning"
         }

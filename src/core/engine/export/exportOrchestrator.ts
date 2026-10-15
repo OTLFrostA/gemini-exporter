@@ -12,14 +12,13 @@ import type {
     ExportProgress,
     DirectoryHandle,
 } from "../../../types/ui.js";
-import type { Conversation } from "../../../types/conversation.js";
+import type { DomainConversationIndex } from "../../../types/conversation.js";
 import type { I18nModule, TabServiceModule } from "../../../types/utils.js";
 import type { StoredExportRecordMap } from "../../storage/storageCompatibility.js";
 import type { StorageServiceModule } from "../../storage/storageService.js";
 import {
     type ExportActivityRecord,
-    type TitleResolution,
-    type TitleResolutionInput
+    type TitleResolution
 } from "../../utils/titleUtils.js";
 import { isObjectRecord } from "../../utils/messageResponses.js";
 import type { BatchWorkerRequestedItem } from "./batchWorker.js";
@@ -35,7 +34,7 @@ export interface ExportOptions {
     skip?: boolean;
     includeIndex?: boolean;
     includeAssets?: boolean;
-    conversations?: Conversation[];
+    conversations?: DomainConversationIndex[];
     exportedIds?: StoredExportRecordMap;
     takeoutEngine?: TakeoutExportSource | null;
     downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
@@ -71,8 +70,7 @@ interface ExportItemPayload extends BatchWorkerRequestedItem {
     id: string;
     title: string;
     url: string;
-    timestamp?: number | null;
-    lastSeen?: number | string;
+    updatedAt?: number;
 }
 
 interface ExportSessionContext {
@@ -143,12 +141,9 @@ import GeminiUtils, {
     getErrorMessage,
     checkIsUpdated as utilsCheckIsUpdated,
     getEffectiveTimestamp as utilsGetEffectiveTimestamp,
-    setTitleBySource as utilsSetTitleBySource,
     cleanTitle as utilsCleanTitle,
-    isRealTitle as utilsIsRealTitle,
-    applyExportTitleWriteback
+    isRealTitle as utilsIsRealTitle
 } from "../../utils/utils.js";
-export { applyExportTitleWriteback };
 import { stripInternalChipMarkdown } from "../../utils/chipUtils.js";
 import { ExportPipelineError } from "../../../types/errors.js";
 import BatchWorker, {
@@ -169,7 +164,7 @@ import { ensureSubDir as fsEnsureSubDir } from "../writers/fsWriter.js";
 import { createWriter, type IExportWriter, type WriteFileContent } from "../writers/writerInterface.js";
 import { SessionStore } from "../../storage/sessionStore.js";
 import { StorageService as StorageServiceStatic } from "../../storage/storageService.js";
-import type { StoredConversationFields } from "../../storage/storageCompatibility.js";
+
 import { ChatFormatter, type FormattedResult } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
 import { extractChatParseDrift, type ChatParseDrift } from "./parseDrift.js";
@@ -215,19 +210,12 @@ export const sanitizeZipPath = (p?: string | null): string =>
     ((getUtils()?.sanitizeRelativePath) || sanitizeRelativePath)(p, 'file');
 
 export const checkIsUpdated = (
-    c?: Partial<Conversation> | null,
+    c?: Partial<DomainConversationIndex> | null,
     rec?: unknown
 ): boolean => ((getUtils()?.checkIsUpdated) || utilsCheckIsUpdated)(c, toExportActivityRecord(rec));
 
-export const getEffectiveTimestamp = (c?: Partial<Conversation> | null): number =>
+export const getEffectiveTimestamp = (c?: Partial<DomainConversationIndex> | null): number =>
     ((getUtils()?.getEffectiveTimestamp) || utilsGetEffectiveTimestamp)(c);
-
-export const setTitleBySource = (
-    chat?: TitleResolutionInput | null,
-    source?: string,
-    rawTitle?: string
-): TitleResolution =>
-    ((getUtils()?.setTitleBySource) || utilsSetTitleBySource)(chat, source, rawTitle);
 
 export const cleanTitle = (rawTitle?: string | null): string =>
     ((getUtils()?.cleanTitle) || utilsCleanTitle)(rawTitle);
@@ -430,9 +418,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 const itemPayload: ExportItemPayload = {
                     id: sid,
                     title: sObj?.title || sid,
-                    url: sObj?.url || sObj?.href || `https://gemini.google.com/app/${sid}`,
-                    timestamp: sObj?.timestamp,
-                    lastSeen: sObj?.lastSeen
+                    url: sObj?.url || `https://gemini.google.com/app/${sid}`,
+                    updatedAt: sObj?.updatedAt
                 };
 
                 if (skip) {
@@ -761,7 +748,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                     // Per-chat error isolation: one failed chat must not abort the entire batch
                     try {
                         const nid = normId(requestedItem.id);
-                        const listC: Conversation | null = (conversations || []).find(c => normId(c.id) === nid) || null;
+                        const listC: DomainConversationIndex | null = (conversations || []).find(c => normId(c.id) === nid) || null;
                         let rawRes: FetchChatDetailResult | null = null;
                         let retryCount = 0;
                         const maxRateLimitRetries = 3;
@@ -833,7 +820,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         }
 
                         const usedLocalSnapshot = resolvedRes.source === 'local_snapshot'
-                            && listC?.cloudAvailability !== 'deleted' && !listC?.isTakeoutOnly;
+                            && listC?.cloudAvailability !== 'deleted' && !(listC?.hasTakeoutImport && listC.cloudAvailability !== 'available');
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
@@ -852,16 +839,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             const storageService = Storage || __resolveModule<StorageServiceModule>('StorageService', StorageServiceStatic);
                             if (storageService && typeof storageService.updateConversation === 'function') {
                                 try {
-                                    await storageService.updateConversation(currentSlot, nid, (existing: StoredConversationFields) => {
-                                        if (listC) {
-                                            // Route the title write-back through the canonical tier
-                                            // arbitration: a lower-authority list snapshot must not
-                                            // downgrade a higher-authority stored title.
-                                            const titleTarget: Record<string, unknown> = existing;
-                                            applyExportTitleWriteback(titleTarget, listC);
-                                            if (listC.messageCount) existing.messageCount = listC.messageCount;
-                                        }
-                                        return existing;
+                                    if (listC) await storageService.updateConversation(currentSlot, nid, {
+                                        title: listC.title, titleSource: listC.titleSource,
+                                        updatedAt: listC.updatedAt, createdAt: listC.createdAt, messageCount: listC.messageCount,
                                     });
                                 } catch (err) {
                                     if (typeof console !== 'undefined' && console.warn) {
@@ -919,9 +899,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             diagnostics: [...exportResult.diagnostics, ...resourceDiagnostics(resourceResults)] };
                         let formatted: FormattedResult;
                         if (format === 'html') {
-                            formatted = await ChatFormatter.formatHtmlDocument(chat, { resourceResults });
+                            formatted = await ChatFormatter.formatHtmlDocument(exportResult, { resourceResults });
                         } else if (format === 'markdown') {
-                            formatted = await ChatFormatter.formatMarkdownDocument(chat, { resourceResults });
+                            formatted = await ChatFormatter.formatMarkdownDocument(exportResult, { resourceResults });
                         } else {
                             formatted = ChatFormatter.formatContent(exportResult, format, resourceResults);
                         }
@@ -945,10 +925,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const chatDrift = extractChatParseDrift(exportResult);
                         const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
 
-                        const authoritativeChatTime = Math.max(
-                            computeAuthoritativeTimestamp(listC) || 0,
-                            computeAuthoritativeTimestamp(chat) || 0
-                        ) || undefined;
+                        const authoritativeChatTime = computeAuthoritativeTimestamp(chat, exportResult.sourceVersion);
 
                         // Acquisition rejects unavailable/empty bodies before writing. Every remaining
                         // item gets one completion; failed writes use it only for meta, never persistence.
@@ -962,7 +939,6 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
                                 listC?.titleSource
                             ),
-                            titles: listC?.titles,
                             messageCount: actualMsgCount,
                             chatTime: authoritativeChatTime,
                             failedAssets: resourceResults.filter(r => !r.ok).length,
@@ -1033,7 +1009,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             title: listTitle,
                             url: chat.url || `https://gemini.google.com/app/${chatId}`,
                             createdAt: toIso(chat.createdAt),
-                            updatedAt: toIso(chat.updatedAt),
+                            updatedAt: toIso(exportResult.sourceVersion),
                             messageCount: completion.exportRecord.messageCount,
                             attachmentCount: queuedAssetsForThisChat || (chat.assets.length),
                             exportFile: fileName,

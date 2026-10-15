@@ -1,4 +1,5 @@
-import type { Conversation } from '../../types/conversation.js';
+import { indexActivityTime } from '../../core/domain/conversationIndex.js';
+import type { DomainConversationIndex } from '../../types/conversation.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { I18n as I18nStatic } from '../../core/utils/i18n.js';
 
@@ -8,7 +9,6 @@ import type { ExportRecord, IListView } from '../../types/ui.js';
 import {
     isRealTitle as utilsIsRealTitle,
     cleanTitle as utilsCleanTitle,
-    resolveTitle as utilsResolveTitle,
     getEffectiveTimestamp as utilsGetEffectiveTimestamp,
     checkIsUpdated as utilsCheckIsUpdated,
     resolveConversationExportState as utilsResolveConversationExportState,
@@ -23,8 +23,7 @@ export const isRealTitle = (title?: string | null, id?: string | null): boolean 
 export const cleanTitle = (tStr?: string | null): string =>
     gu()?.cleanTitle ? gu().cleanTitle(tStr) : utilsCleanTitle(tStr);
 
-export const resolveTitle = (chat: any): { title: string; source: string } =>
-    gu()?.resolveTitle ? gu().resolveTitle(chat) : utilsResolveTitle(chat);
+
 
 export const getEffectiveTimestamp = (chat?: any): number =>
     gu()?.getEffectiveTimestamp ? gu().getEffectiveTimestamp(chat) : utilsGetEffectiveTimestamp(chat);
@@ -63,7 +62,7 @@ function escapeHtml(str?: string | null): string {
         .replace(/'/g, '&#39;');
 }
 
-let currentConversationsRef: Conversation[] = [];
+let currentConversationsRef: DomainConversationIndex[] = [];
 let canonicalSelectedIds: Set<string> | null = null;
 let currentFilterType: string = 'all';
 let currentFailedChatIds: Set<string> | null = null;
@@ -125,7 +124,7 @@ export function setSelectedIds(ids: Set<string> | null): void {
 }
 
 export function render(
-    conversations: Conversation[],
+    conversations: DomainConversationIndex[],
     exportedIds: Record<string, ExportRecord> = {},
     prevSelectedSet?: Set<string> | null,
     searchFilter: string = '',
@@ -187,11 +186,7 @@ export function render(
 
         if (!matchesType) return false;
         if (!q) return true;
-        let effectiveTitle = resolveTitle(c).title || '';
-        if (!isRealTitle(effectiveTitle, c.id) && rec?.title && isRealTitle(rec.title, c.id)) {
-            effectiveTitle = cleanTitle(rec.title);
-        }
-        return effectiveTitle.toLowerCase().includes(q) || String(c.id || '').toLowerCase().includes(q);
+        return c.title.toLowerCase().includes(q) || c.id.toLowerCase().includes(q);
     });
 
     if (!filtered.length) {
@@ -219,26 +214,11 @@ export function render(
             isChecked = st.shouldAutoSelect;
         }
 
-        const resolved = resolveTitle(c);
-        let finalTitle = resolved.title;
-        if (!isRealTitle(finalTitle, c.id) && rec?.title && isRealTitle(rec.title, c.id)) {
-            finalTitle = cleanTitle(rec.title);
-        }
-        const displayTitle = escapeHtml(finalTitle);
-        const isBad = !isRealTitle(finalTitle, c.id);
-        const titleStyle = isBad ? 'color:var(--warn); opacity:0.85;' : '';
-
-        let dateStr = '';
-        const effTs = getEffectiveTimestamp(c);
-        const ts = effTs || c.updatedAt || c.timestamp;
-        if (ts) {
-            try {
-                const d = typeof ts === 'string' ? new Date(ts) : new Date(Number(ts));
-                if (!isNaN(d.getTime())) {
-                    dateStr = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                }
-            } catch {}
-        }
+        const displayTitle = escapeHtml(c.title || (t('untitledChat') || 'Untitled conversation'));
+        const titleStyle = c.titleSource === 'default' ? 'color:var(--warn); opacity:0.85;' : '';
+        const ts = indexActivityTime(c);
+        const dateStr = ts === undefined ? '' : new Date(ts).toLocaleDateString() + ' '
+            + new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         let badgeHtml = '';
         if (st.badge && st.badge.kind !== 'none') {
@@ -322,7 +302,7 @@ export function updateItemExportStatus(chatId: string, exportRecord?: Partial<Ex
     }
 }
 
-export function updateStat(conversations?: Conversation[]): void {
+export function updateStat(conversations?: DomainConversationIndex[]): void {
     const list = $('list');
     if (!list) return;
     const convs = conversations || currentConversationsRef || [];
@@ -342,7 +322,7 @@ export function updateStat(conversations?: Conversation[]): void {
     }
 }
 
-export function getSelected(conversations?: Conversation[]): Conversation[] {
+export function getSelected(conversations?: DomainConversationIndex[]): DomainConversationIndex[] {
     const convs = conversations || currentConversationsRef || [];
     if (canonicalSelectedIds && canonicalSelectedIds.size > 0) {
         const selected = convs.filter(c => {
@@ -351,7 +331,7 @@ export function getSelected(conversations?: Conversation[]): Conversation[] {
         });
         if (selected.length > 0) return selected;
     }
-    const selected: Conversation[] = [];
+    const selected: DomainConversationIndex[] = [];
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').forEach((cb) => {
         const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
@@ -383,7 +363,7 @@ export function getSelectedIds(): Set<string> {
     return ids;
 }
 
-export function selectAll(conversations?: Conversation[]): void {
+export function selectAll(conversations?: DomainConversationIndex[]): void {
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
         cb.checked = true;
@@ -404,7 +384,7 @@ export function selectAll(conversations?: Conversation[]): void {
     updateStat(conversations);
 }
 
-export function deselectAll(conversations?: Conversation[]): void {
+export function deselectAll(conversations?: DomainConversationIndex[]): void {
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
         cb.checked = false;
@@ -429,7 +409,7 @@ export function deselectAll(conversations?: Conversation[]): void {
     updateStat(conversations);
 }
 
-export function selectUnexported(conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>): void {
+export function selectUnexported(conversations?: DomainConversationIndex[], exportedIds?: Record<string, ExportRecord>): void {
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
@@ -456,7 +436,7 @@ export function selectUnexported(conversations?: Conversation[], exportedIds?: R
     updateStat(conversations);
 }
 
-export function selectByIds(targetIds: Set<string> | string[], conversations?: Conversation[]): void {
+export function selectByIds(targetIds: Set<string> | string[], conversations?: DomainConversationIndex[]): void {
     const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
     canonicalSelectedIds = new Set(idSet);
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {

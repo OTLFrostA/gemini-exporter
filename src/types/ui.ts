@@ -1,6 +1,6 @@
 import type { TakeoutResourceLookup } from '../core/engine/takeoutEngine.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import type { Attachment, Conversation, GeneratedMediaIdentity } from './conversation.js';
+import type { Attachment, DomainConversationIndex, GeneratedMediaIdentity } from './conversation.js';
 import type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
 export type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js';
 
@@ -70,7 +70,7 @@ export interface TakeoutExportSource {
     getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null>;
 }
 export interface UIExportOptions {
-    selected: Array<string | Pick<Conversation, 'id'> & Partial<Conversation>>;
+    selected: Array<string | Pick<DomainConversationIndex, 'id'> & Partial<DomainConversationIndex>>;
     format?: string;
     useZip?: boolean;
     currentSlot?: string;
@@ -78,7 +78,7 @@ export interface UIExportOptions {
     skip?: boolean;
     includeIndex?: boolean;
     includeAssets?: boolean;
-    conversations?: Conversation[];
+    conversations?: DomainConversationIndex[];
     exportedIds?: Record<string, ExportRecord>;
     takeoutEngine?: TakeoutExportSource | null;
     downloadHandler?: (blob: Blob, filename: string) => Promise<void> | void;
@@ -103,7 +103,7 @@ export interface UIExportResult {
 }
 export interface ActiveExportEngine { abort(): void; dispose?(): void; }
 export interface TakeoutImportResult {
-    conversations: Conversation[];
+    conversations: DomainConversationIndex[];
     totalMediaCount: number;
 }
 /** Background/content scan reply projected to the fields consumed by the UI. */
@@ -146,8 +146,8 @@ export interface TourStep {
 }
 
 export interface IConversationsStore {
-    getConversations: () => Conversation[];
-    setConversations: (list: Conversation[]) => void;
+    getConversations: () => DomainConversationIndex[];
+    setConversations: (list: DomainConversationIndex[]) => void;
     getExportedIds: () => Record<string, ExportRecord>;
     setExportedIds: (map: Record<string, ExportRecord>) => void;
     getCurrentSlot: () => string;
@@ -155,39 +155,38 @@ export interface IConversationsStore {
     getAccountSlots: () => AccountSlots;
     setAccountSlots: (map: AccountSlots) => void;
     getExportedRecord: (id: string | null | undefined) => ExportRecord | null;
-    getSignature: (list?: Conversation[]) => string;
+    getSignature: (list?: DomainConversationIndex[]) => string;
     loadStore: (slotOverride?: string) => Promise<{
-        conversations: Conversation[];
+        conversations: DomainConversationIndex[];
         exportedIds: Record<string, ExportRecord>;
         slot: string;
         accountSlots: AccountSlots;
     }>;
     getLastSync: (slot?: string) => Promise<{ timestamp: number | null; count: number }>;
-    saveConversations: (slot: string, list: Conversation[]) => Promise<void>;
+    saveConversations: (slot: string, list: DomainConversationIndex[]) => Promise<void>;
     clearExported: (slot: string) => Promise<void>;
     clearAll: (slot: string) => Promise<void>;
     getDevMode: () => Promise<boolean>;
     setDevMode: (devOn: boolean) => Promise<void>;
-    removeConversation: (id: string) => Promise<Conversation[]>;
-    reconcileWithCloud: (activeCloudList: Pick<Conversation, 'id'>[], options?: ReconcileOptions) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
-    normalizeAndDeduplicate: (incoming: Conversation[]) => { processed: Conversation[]; hasDirtyTitles: boolean; changedCount: number };
+    removeConversation: (id: string) => Promise<DomainConversationIndex[]>;
+    reconcileWithCloud: (activeCloudList: Pick<DomainConversationIndex, 'id'>[], options?: ReconcileOptions) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
     hasTakeoutData: () => boolean;
     normId: (id: string | null | undefined) => string;
 }
 
 export interface IListView {
-    render: (conversations: Conversation[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, filterType?: string, failedChatIds?: Set<string>) => void;
-    updateStat: (conversations?: Conversation[]) => void;
-    getSelected: (conversations?: Conversation[]) => Conversation[];
+    render: (conversations: DomainConversationIndex[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, filterType?: string, failedChatIds?: Set<string>) => void;
+    updateStat: (conversations?: DomainConversationIndex[]) => void;
+    getSelected: (conversations?: DomainConversationIndex[]) => DomainConversationIndex[];
     getSelectedIds: () => Set<string>;
-    selectAll: (conversations?: Conversation[]) => void;
-    deselectAll: (conversations?: Conversation[]) => void;
-    selectUnexported: (conversations?: Conversation[], exportedIds?: Record<string, ExportRecord>) => void;
+    selectAll: (conversations?: DomainConversationIndex[]) => void;
+    deselectAll: (conversations?: DomainConversationIndex[]) => void;
+    selectUnexported: (conversations?: DomainConversationIndex[], exportedIds?: Record<string, ExportRecord>) => void;
     isRealTitle: (title: string, id?: string) => boolean;
     updateItemExportStatus: (chatId: string, exportRecord?: Partial<ExportRecord> | null) => void;
-    selectByIds?: (targetIds: Set<string> | string[], conversations?: Conversation[]) => void;
-    checkIsUpdated?: (c: Partial<Conversation> | null | undefined, rec: ExportRecord | null | undefined) => boolean;
-    resolveConversationExportState?: (c: Partial<Conversation> | null | undefined, rec?: Partial<ExportRecord> | null, options?: ResolveConversationExportStateOptions) => ConversationExportState;
+    selectByIds?: (targetIds: Set<string> | string[], conversations?: DomainConversationIndex[]) => void;
+    checkIsUpdated?: (c: Partial<DomainConversationIndex> | null | undefined, rec: ExportRecord | null | undefined) => boolean;
+    resolveConversationExportState?: (c: Partial<DomainConversationIndex> | null | undefined, rec?: Partial<ExportRecord> | null, options?: ResolveConversationExportStateOptions) => ConversationExportState;
     setSelectedIds?: (ids: Set<string> | null) => void;
 }
 
@@ -258,7 +257,7 @@ export interface ExportControllerContract {
     getActiveEngine: () => ActiveExportEngine | null;
     runExport: (params: UIExportOptions, callbacks: UIExportCallbacks) => Promise<UIExportResult>;
     abort: () => void;
-    estimateMemoryUsage?: (selected: Array<string | Partial<Conversation> & { attachments?: Attachment[] }>, conversations: Conversation[]) => number;
+    estimateMemoryUsage?: (selected: Array<string | Partial<DomainConversationIndex> & { attachments?: Attachment[] }>, conversations: DomainConversationIndex[]) => number;
 }
 
 

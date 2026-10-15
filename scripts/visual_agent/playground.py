@@ -489,13 +489,9 @@ class VisualPlayground:
         cond = condition.lower().strip()
 
         if cond in ("stream_settled", "stream", "chat_complete"):
-            require_image = kwargs.get("require_image", False)
-            turn_start_time = kwargs.get("turn_start_time", t0)
             config = kwargs.get("config", None)
             action = AwaitStreamSettledAction(
                 timeout=timeout,
-                require_image=require_image,
-                turn_start_time=turn_start_time,
                 config=config
             )
             res = action.execute(None, self.cdp)
