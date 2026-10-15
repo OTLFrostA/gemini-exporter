@@ -21,6 +21,9 @@ test('parser validation preserves identity; recovery isolates all nested objects
     assert.deepEqual(Object.getOwnPropertySymbols(restored), []);
     restored.assets[0].id = 'changed';
     assert.equal(input.assets[0].id, 'image');
+    restored.messages[0].citations![0].url = 'https://changed.test';
+    assert.equal(input.messages[0].citations![0].url, 'https://example.test',
+        'a snapshot must deep-clone message-local citations, not just its top-level arrays');
 });
 test('both entry points reject independent malformed graphs and nonportable values', () => {
     const negatives: unknown[] = [
