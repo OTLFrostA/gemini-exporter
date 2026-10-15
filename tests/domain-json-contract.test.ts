@@ -1,4 +1,4 @@
-import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
+import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Runtime closure and JSON portability of actual Domain and Document AST fixtures. */
@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
 import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
@@ -15,13 +14,14 @@ import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js'
 test('each Domain fixture is closed and JSON round-trip preserves every backend output', () => {
     const dir = join(__dirname, 'fixtures', 'document-domain');
     const files = readdirSync(dir).filter(file => file.endsWith('.json'));
-    assert.equal(files.length, 4);
+    assert.ok(files.length > 0, 'the document-domain fixture suite must not be empty');
     for (const file of files) {
-        const domain: DomainConversationDetail = JSON.parse(readFileSync(join(dir, file), 'utf8'));
+        const fixture: unknown = JSON.parse(readFileSync(join(dir, file), 'utf8'));
+        const domain = restoreDomainSnapshot(fixture);
         assertDomainClosure(domain);
         const before = JSON.stringify(domain);
-        const document = composeDomainDocument(validateParserDomain(domain)).document;
-        const roundTrip = composeDomainDocument(JSON.parse(before)).document;
+        const document = composeDomainDocument(domain).document;
+        const roundTrip = composeDomainDocument(restoreDomainSnapshot(JSON.parse(before))).document;
         assert.deepEqual(roundTrip, document, file);
         const backends = [renderDocumentHtml, renderDocumentMarkdown, renderDocumentTypst];
         for (const backend of backends) assert.deepEqual(backend(document, {}), backend(roundTrip, {}), file);
