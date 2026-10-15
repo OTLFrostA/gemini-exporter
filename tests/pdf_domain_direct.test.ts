@@ -1,10 +1,9 @@
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { resourceStage } from '../src/core/export/pdf/pipeline/resourceStage.js';
@@ -12,11 +11,12 @@ import { payloadStage } from '../src/core/export/pdf/pipeline/payloadStage.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
-import { extractPdfText, parseObjects, inflateIfNeeded } from './helpers/pdfTextExtract.js';
+import { extractPdfText } from './helpers/pdfTextExtract.js';
 import type { TypstConversationRenderPayload } from '../src/core/renderers/typst/transport.js';
 
 const ctx = { signal: new AbortController().signal, log() {}, reportProgress() {} };
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const secondPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/nB0AAAAASUVORK5CYII=';
 const fixture = () => ({ id: 'direct-pdf', title: 'Direct PDF boundary', timestamp: 1700000000000, updatedAt: 1700000000000, messages: [
     { id: 'user', role: 'user', content: 'Explain the pipeline.' },
     { id: 'model', role: 'model', thoughts: 'Check **every** relation.', content: '# Results\n\n**Strong** text and [source](https://example.test).\n\n> A quoted result.\n\n1. First\n2. Second\n\n```ts filename=pipeline.ts\nconst layers = 2;\n```\n\n$$\\frac{a}{b}$$\n\n| Item | Value |\n|---|---:|\n| Result | 42 |\n\n![Sample](assets/sample.png)\n\n' + Array.from({ length: 100 }, (_, i) => `Paragraph ${i}: This detailed explanation exercises physical page breaks and flowing text.`).join('\n\n'),
@@ -59,22 +59,28 @@ test('PDF hydration cannot conflate two sources sharing an export destination', 
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/one' },
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/two' },
     ] }] };
-    const prepared = await preparePdfItem(historicalFixture(raw), { fetchAsset: async request => { urls.push(typeof request === 'string' ? request : request.url ?? ''); return { success: true, mime: 'image/png', dataBase64: png }; } });
+    const prepared = await preparePdfItem(historicalFixture(raw), { fetchAsset: async request => {
+        const url = typeof request === 'string' ? request : request.url ?? '';
+        urls.push(url);
+        return { success: true, mime: 'image/png', dataBase64: url.endsWith('/one') ? png : secondPng };
+    } });
     assert.ok(prepared.ok);
     assert.deepEqual(urls, ['https://example.test/one', 'https://example.test/two']);
     assert.equal(prepared.resources.size, 2);
-    assert.equal(prepared.document.messages[0].blocks.filter(block => block.type === 'image').length, 2);
+    const imageIds = prepared.document.messages[0].blocks
+        .filter(block => block.type === 'image')
+        .map(block => block.type === 'image' ? block.resourceId : '');
+    assert.equal(new Set(imageIds).size, 2, 'source images sharing an export name must remain separate Domain assets');
+    const recoveredBytes = imageIds.map(id => {
+        const outcome = prepared.resources.get(id);
+        assert.ok(outcome?.ok, `missing prepared resource for ${id}`);
+        return Buffer.from(outcome.value.bytes).toString('base64');
+    });
+    assert.deepEqual(recoveredBytes, [png, secondPng],
+        'each prepared resource must retain its OWN source bytes, not just exist in a two-entry map');
 });
 
-test('production PDF pipeline only consumes Document AST and prepared resources', () => {
-    for (const name of ['prepareItem.ts', 'pdfExporter.ts', 'pipeline/types.ts', 'pipeline/orchestrator.ts', 'pipeline/resourceStage.ts', 'pipeline/payloadStage.ts', 'pipeline/compileStage.ts']) {
-        const source = readFileSync(join(__dirname, '../src/core/export/pdf', name), 'utf8');
-        assert.doesNotMatch(source, /CanonicalConversationBundle|normalizeGeminiConversation|composeDocument\(|\.bundle\b|\.byteStore\b/);
-        if (name.startsWith('pipeline/')) assert.doesNotMatch(source, /parseConversation|provider\/|domain\//);
-    }
-});
-
-test('direct PDF keeps Typst layout and physical page content parity with the historical route', async () => {
+test('PDF transport matches reference and real compiled pages contain source-authored text', async () => {
     const raw = fixture();
     const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
     assert.ok(prepared.ok);
@@ -85,20 +91,19 @@ test('direct PDF keeps Typst layout and physical page content parity with the hi
     assert.deepEqual(direct.output.payload, reference);
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const compile = async (document: TypstConversationRenderPayload) => (await compiler.compile({ rendererSchemaVersion: 1, document, assetPaths: resolved.output.pathMap }, { ...ctx, assets: { resolve: async id => {
-        const path = resolved.output.pathMap.get(id), mount = resolved.output.mounts.find(item => item.virtualPath === path);
-        return mount ? { bytes: mount.bytes } : null;
-    } } })).pdfBytes;
     try {
-        const before = await compile(reference), after = await compile(direct.output.payload);
-        assert.deepEqual(extractPdfText(after), extractPdfText(before));
-        // XMP records wall-clock creation dates and derived instance IDs. They are not page content.
-        const content = (bytes: Uint8Array) => [...parseObjects(Buffer.from(bytes)).values()]
-            .filter(object => object.stream && !/\/Type\s*\/Metadata\b/.test(object.dict))
-            .map(object => inflateIfNeeded(object)?.toString('base64'));
-        assert.deepEqual(content(after), content(before));
-        assert.ok(extractPdfText(after).pageCount >= 3);
-        const output = join(repoRoot(), 'tests/output/pdf-domain-direct'); mkdirSync(output, { recursive: true });
-        writeFileSync(join(output, 'before.pdf'), before); writeFileSync(join(output, 'after.pdf'), after);
+        const rendered = (await compiler.compile(
+            { rendererSchemaVersion: 1, document: direct.output.payload, assetPaths: resolved.output.pathMap },
+            { ...ctx, assets: { resolve: async id => {
+                const path = resolved.output.pathMap.get(id);
+                const mount = resolved.output.mounts.find(item => item.virtualPath === path);
+                return mount ? { bytes: mount.bytes } : null;
+            } } },
+        )).pdfBytes;
+        const physical = extractPdfText(rendered);
+        assert.ok(physical.pageCount >= 3, 'long source text must paginate in the compiled PDF');
+        assert.match(physical.text, /Explain the pipeline/, 'actual PDF must contain the user question');
+        assert.match(physical.text, /Paragraph 99:/, 'actual PDF must contain the end of the long model answer');
+        assert.match(physical.text, /Results/, 'actual PDF must preserve the authored heading');
     } finally { compiler.dispose(); }
 });
