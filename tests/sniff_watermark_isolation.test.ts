@@ -13,7 +13,9 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
         },
         async setLastSync() {}, async updateAccountSlot() {},
         async beginScanCoverage() { throw new Error('Sniff must not begin coverage'); },
-        async finishScanCoverage() { throw new Error('Sniff must not finish coverage'); }
+        async finishScanCoverage() { throw new Error('Sniff must not finish coverage'); },
+        async preparePageCoverage() { throw new Error('Sniff must not prepare coverage'); },
+        async recordPageCoverage() { throw new Error('Sniff must not advance coverage'); }
     });
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
@@ -22,6 +24,9 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
     try {
         await ingestRpcList([item], 'u0');
         await ingestRpcList([{ ...item, timestamp: item.timestamp - 1000, updatedAt: item.updatedAt - 1000 }], 'u0');
+        assert.equal(records.length, 1, 'an older repeated capture must not create a second chat');
+        assert.equal(records[0].updatedAt, item.updatedAt, 'an older capture must not regress updatedAt');
+        assert.equal(records[0].timestamp, item.timestamp, 'an older capture must not regress timestamp');
         await ingestRpcList([{ ...item }], 'u0');
         assert.equal(records.length, 1);
         assert.equal(records[0].updatedAt, item.updatedAt);
