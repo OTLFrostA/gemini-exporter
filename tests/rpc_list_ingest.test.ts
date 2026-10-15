@@ -38,6 +38,8 @@ test('RPC lists from the bridge and scanner persist identical titles, time, sour
     await bridge.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2' } } } as MessageEvent);
     const sniffed = structuredClone(state.records);
     assert.equal(sniffed[0].title, 'Server title');
+    assert.equal(sniffed[0].titleSource, 'rpc');
+    assert.equal(sniffed[0].updatedAt, 1700000000000, 'server-authored activity must survive ingest');
     assert.equal('source' in sniffed[0], false);
     assert.equal(sniffed[0].cloudAvailability, 'available');
     await ingestRpcList(batch(), 'u2');
