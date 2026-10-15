@@ -25,7 +25,7 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
             import { validateParserDomain,countSnapshots } from './src/core/domain/runtimeValidation.ts';
             export async function run() {
                 __clearDomainMemory();
-                const source={conversation:validateParserDomain({index:{providerId:'gemini',id:'independent',title:'Original',titleSource:'legacy',cloudAvailability:'unknown',hasTakeoutImport:false},detail:{completeness:'unknown',assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
+                const source={conversation:validateParserDomain({index:{providerId:'gemini',id:'independent',title:'Original',titleSource:'legacy',cloudAvailability:'unknown',hasTakeoutImport:false},detail:{quality: { status: 'unknown' },assets:[],messages:[{role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Body'}]}]}]}}),acquisitionHints:{},resourceHints:{},diagnostics:[]};
                 await saveDomainConversation('u0',source);
                 const write=countSnapshots();
                 source.conversation.detail.messages[0].content[0].children[0].text='Mutated source';
@@ -49,7 +49,7 @@ test('writes isolate and validate once; recovery validates once; trusted adaptat
 
 test('one record copy isolates trusted graph, acquisition candidates and typed resource bytes', async () => {
     const identity = storageIdentity('gemini', 'u0', 'copy-case');
-    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'copy-case', title: 'Original' }, detail: { completeness: 'unknown', messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }], assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }] } });
+    const conversation = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'copy-case', title: 'Original' }, detail: { quality: { status: 'unknown' }, messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body' }] }] }], assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }] } });
     const original: import('../src/core/storage/domain/contracts.js').TrustedDomainStorageRecord = { key: domainStorageKey(identity), identity, conversation, origin: 'source' as const,
         storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, revision: 'copy',
         resources: [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]) }], acquisitionHints: { asset: { candidates: ['opaque:original'] } } };

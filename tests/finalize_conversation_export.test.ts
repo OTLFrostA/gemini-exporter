@@ -489,19 +489,15 @@ test('completion metadata retains primitive and count-only compatibility', () =>
 });
 
 test('completion integrity facts are monotonic and preserve status precedence', () => {
-    const clean = { schemaDrift: [], sourcePartial: false, turnsRejected: 0, hasHeuristicDocs: false, truncated: false };
     const cases = [
-        { evidence: clean, expected: 'ok' },
-        { evidence: { ...clean, sourcePartial: true }, expected: 'partial' },
-        { evidence: { ...clean, turnsRejected: 1 }, expected: 'partial' },
-        { evidence: { ...clean, hasHeuristicDocs: true }, expected: 'partial' },
-        { evidence: { ...clean, truncated: true }, expected: 'partial' },
-        { evidence: { ...clean, schemaDrift: ['benign warning'] }, expected: 'ok' },
+        { quality: { status: 'unknown' }, expected: 'ok' },
+        { quality: { status: 'complete' }, expected: 'ok' },
+        { quality: { status: 'partial' }, expected: 'partial' },
         { usedLocalSnapshot: true, expected: 'partial' },
         { failedAssetsCount: 1, expected: 'partial' },
         { statusOverride: 'ok', failedAssetsCount: 1, expected: 'partial' },
-        { statusOverride: 'failed', evidence: { ...clean, sourcePartial: true }, messageCount: 0, expected: 'failed' },
-        { messageCount: 0, evidence: { ...clean, truncated: true }, expected: 'empty' },
+        { statusOverride: 'failed', quality: { status: 'partial' }, messageCount: 0, expected: 'failed' },
+        { messageCount: 0, quality: { status: 'partial', truncation: 'limit' }, expected: 'empty' },
     ];
     for (const { expected, ...facts } of cases) {
         const result = resolveExportRecordStatus({ messageCount: 2, ...facts });
@@ -510,11 +506,11 @@ test('completion integrity facts are monotonic and preserve status precedence', 
     }
     for (const status of ['partial', 'unknown', 'complete']) {
         const result = buildExportCompletion({
-            conversation: { id: 'monotonic', messages: [{}], completeness: status }, evidence: clean,
+            conversation: { id: 'monotonic', messages: [{}], quality: { status } },
         });
         assert.equal(result.exportRecord.status, status === 'partial' ? 'partial' : 'ok');
     }
-    assert.equal(buildExportCompletion({ conversation: { id: 'truncated', messages: [{}], truncateReason: 'limit' } }).exportRecord.status, 'partial');
+    assert.equal(buildExportCompletion({ conversation: { id: 'truncated', messages: [{}], quality: { status: 'partial', truncation: 'limit' } } }).exportRecord.status, 'partial');
 });
 
 test('Directory finalizes real Storage and UI immediately after file close, before the next conversation', async () => {

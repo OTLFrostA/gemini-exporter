@@ -1,3 +1,4 @@
+import { contentQuality } from '../../../domain/quality.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../utils/pathUtils.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
@@ -19,8 +20,6 @@ export interface GeminiRpcParseResult extends ResourceConversationParseResult {
     /** Pagination and wire/debug evidence are acquisition context, never Domain fields. */
     transport: {
         nextPageToken: string | null;
-        turnsRejected?: number;
-        schemaDrift?: string[];
         decodedPayload?: unknown;
         debug?: GeminiDetailDebugEvidence | null;
     };
@@ -75,7 +74,8 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
             titleSource: metadata ? 'rpc' : evidence.titleSource,
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
-        detail: { completeness: hasMore || rejected || versionMismatch ? 'partial' as const : 'unknown' as const,
+        detail: { quality: contentQuality({ status: versionMismatch ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
+            ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }),
             assets: resources.assets, messages: resources.messages },
     };
     return {
@@ -89,8 +89,6 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
         ],
         transport: {
             nextPageToken: evidence.nextPageToken,
-            ...(evidence.turnsRejected !== undefined ? { turnsRejected: evidence.turnsRejected } : {}),
-            ...(evidence.schemaDrift !== undefined ? { schemaDrift: [...evidence.schemaDrift] } : {}),
             ...(evidence._raw !== undefined ? { decodedPayload: evidence._raw } : {}),
             ...(evidence._debug !== undefined ? { debug: evidence._debug } : {}),
         },

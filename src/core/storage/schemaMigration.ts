@@ -1,3 +1,4 @@
+import { needsDomainBroker, callDomainBroker } from './domain/transport.js';
 import { migrateLegacyDomains } from './domain/migrateLegacy.js';
 // Why this exists (P1-10 / P1-13): storage migrations used to be scattered
 // across read paths ("migrate on touch"): getConversations fire-and-forget a
@@ -90,6 +91,11 @@ export async function migrate(): Promise<SchemaMigrateResult> {
         return { ok: false, frozen: true };
     }
     __setSchemaFrozenForTest(false);
+    // Page contexts use a different IndexedDB origin; canonical readiness belongs to the background.
+    if (needsDomainBroker()) {
+        try { await callDomainBroker('ready', {}); return { ok: true, frozen: false }; }
+        catch (error) { return { ok: false, frozen: false, error: getErrorMessage(error) }; }
+    }
     const fromVersion = typeof stored === "number" && stored >= 0 ? Math.floor(stored) : 0;
     if (fromVersion < CURRENT_SCHEMA_VERSION) {
         try {

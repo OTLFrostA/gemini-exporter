@@ -196,7 +196,7 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
 // ---------------------------------------------------------------------------
 
 function makeDomain(extra: any = {}) {
-    return { index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false, createdAt: Date.parse('2026-09-20T10:00:00Z') }, detail: { completeness: 'unknown', assets: extra.assets ?? [], messages: extra.messages ?? [
+    return { index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false, createdAt: Date.parse('2026-09-20T10:00:00Z') }, detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: extra.messages ?? [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
         { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
     ] } };

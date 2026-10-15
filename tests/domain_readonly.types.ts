@@ -9,7 +9,7 @@ function consumerContract(input: Parameters<typeof composeDomainDocument>[0]) {
     // @ts-expect-error Consumers cannot rewrite metadata.
     input.index.title = 'changed';
     // @ts-expect-error Consumers cannot replace the body.
-    input.detail = { completeness: 'complete', messages: [], assets: [] };
+    input.detail = { quality: { status: 'complete' }, messages: [], assets: [] };
     // @ts-expect-error Consumers cannot append messages.
     input.detail.messages.push({ role: 'assistant', content: [] });
     // @ts-expect-error Consumers cannot edit message-owned references.

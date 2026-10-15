@@ -25,7 +25,7 @@ const shape = (fields: Record<string, Check>, nonEmpty = false): Check => v => {
     return (!nonEmpty || keys.length > 0) && keys.every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
 };
 const generation = shape({ providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) }, true);
-const document = shape({ id: optional(text), contentMarkdown: optional(text), hasFabricatedText: optional(boolean) }, true);
+const document = shape({ id: optional(text), contentMarkdown: optional(text) }, true);
 const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(text), dataBase64: optional(text), generation: optional(generation), document: optional(document) });
 const citation = shape({ id: text, url: optional(text), title: optional(text) });
 
@@ -68,7 +68,13 @@ function block(v: unknown): boolean {
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown') };
+const quality = shape({
+    status: enumeration('complete', 'partial', 'unknown'),
+    rejectedTurns: optional(v => typeof v === 'number' && Number.isSafeInteger(v) && v > 0),
+    truncation: optional(v => typeof v === 'string' && !!v.trim()),
+    heuristicDocumentIds: optional(array(text)),
+});
+const domainFields: Record<string, Check> = { assets: array(asset), messages: array(message), quality };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */

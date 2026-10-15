@@ -464,7 +464,7 @@ export class PdfExporter {
                     const statusInfo = resolveExportRecordStatus({
                         failedAssetsCount,
                         messageCount: prep.messageCount,
-                        evidence: prep.drift,
+                        quality: prep.quality,
                         usedLocalSnapshot: prep.usedLocalSnapshot,
                     });
                     if (statusInfo.status !== 'ok' && statusInfo.status !== 'partial') {

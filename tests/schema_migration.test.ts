@@ -298,3 +298,28 @@ test('D-P0-1: migrate() cleans up legacy gemini_conversations_u0 once canonical 
         m.restore();
     }
 });
+
+test('content readiness delegates to the extension origin without stamping page storage', async () => {
+    const m = installMock();
+    const previousLocation = Object.getOwnPropertyDescriptor(globalThis, 'location');
+    try {
+        m.localStore.gemini_schema_version = 1;
+        Object.defineProperty(globalThis, 'location', { configurable: true, value: { protocol: 'https:' } });
+        const requests: unknown[] = [];
+        let version = 2;
+        Reflect.set(m.chrome, 'runtime', { id: 'same-extension', sendMessage: async (message: unknown) => {
+            requests.push(message);
+            return { ok: true, domainEnvelopeVersion: version };
+        } });
+        assert.deepEqual(await SchemaMigration.migrate(), { ok: true, frozen: false });
+        assert.deepEqual(requests, [{ action: 'domainStorage', command: 'ready', payload: {} }]);
+        assert.equal(m.localStore.gemini_schema_version, 1, 'only the background may stamp canonical readiness');
+        version = 1;
+        assert.equal((await SchemaMigration.migrate()).ok, false, 'stale background cannot establish current readiness');
+        assert.equal(m.localStore.gemini_schema_version, 1);
+    } finally {
+        if (previousLocation) Object.defineProperty(globalThis, 'location', previousLocation);
+        else Reflect.deleteProperty(globalThis, 'location');
+        m.restore();
+    }
+});

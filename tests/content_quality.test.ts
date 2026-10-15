@@ -1,0 +1,33 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { historicalFixture, rpcFixture } from './helpers/nativeFixture.js';
+import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
+import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
+
+test('parser closes heuristic document identities and rejects malformed messages before Domain', () => {
+    const parsed = historicalFixture({ id: 'quality', messages: [null as never,
+        { role: 'model', content: 'Body', attachments: [{ type: 'doc', id: 'source-doc', contentMarkdown: 'Report', hasFabricatedText: true }] }] });
+    assert.deepEqual(parsed.conversation.detail.quality, { status: 'partial', rejectedTurns: 1,
+        heuristicDocumentIds: [parsed.conversation.detail.assets[0].id] });
+    assert.equal('hasFabricatedText' in parsed.conversation.detail.assets[0].document!, false);
+    assert.equal(buildExportCompletion({ conversation: parsed.conversation }).exportRecord.status, 'partial');
+});
+
+test('finished pagination clears pending coverage and remaps heuristic references on asset collisions', () => {
+    const page = (body: string) => rpcFixture({ id: 'pages', messages: [{ id: body, role: 'model', content: body,
+        attachments: [{ type: 'doc', id: 'report', contentMarkdown: body, hasFabricatedText: true }] }] });
+    const first = page('new'), second = page('old');
+    assert.equal(first.conversation.detail.assets[0].id, second.conversation.detail.assets[0].id);
+    const merged = mergeConversationPages([first, second]);
+    assert.deepEqual(merged.conversation.detail.quality.heuristicDocumentIds, merged.conversation.detail.assets.map(a => a.id));
+    assert.equal(merged.conversation.detail.quality.status, 'partial');
+    const cleanFirst = rpcFixture({ id: 'pages', messages: [{ role: 'user', content: 'New' }] }, { nextPageToken: 'cursor' });
+    const cleanLast = rpcFixture({ id: 'pages', messages: [{ role: 'user', content: 'Old' }] });
+    assert.deepEqual(cleanFirst.conversation.detail.quality, { status: 'partial', truncation: 'pagination_pending' });
+    assert.deepEqual(mergeConversationPages([cleanFirst, cleanLast]).conversation.detail.quality, { status: 'unknown' });
+    const stopped = mergeConversationPages([cleanFirst], 'token_loop');
+    assert.deepEqual(stopped.conversation.detail.quality, { status: 'partial', truncation: 'token_loop' });
+    assert.deepEqual(mergeConversationPages([stopped, cleanLast]).conversation.detail.quality,
+        { status: 'partial', truncation: 'token_loop' }, 'only pending pagination may be cleared');
+});
+

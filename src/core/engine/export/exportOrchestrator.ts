@@ -22,7 +22,7 @@ import {
 } from "../../utils/titleUtils.js";
 import { isObjectRecord } from "../../utils/messageResponses.js";
 import type { BatchWorkerRequestedItem } from "./batchWorker.js";
-import type { ExportIndexMetaItem, FinalizeChatRecordEntry } from "./sessionRecovery.js";
+import type { ExportIndexMetaItem, FinalizeChatRecordEntry, SessionParseDriftEntry } from "./sessionRecovery.js";
 import type { ProgressReporterModule } from "./progressReporter.js";
 
 export interface ExportOptions {
@@ -107,11 +107,6 @@ interface JSZipLike {
 
 type ZipPackageSource = IExportWriter | JSZipLike | null;
 
-interface ParseDriftChatEntry extends Pick<ChatParseDrift, 'schemaDrift' | 'turnsRejected' | 'hasHeuristicDocs'> {
-    id: string;
-    title?: string;
-}
-
 function isNamedError(value: unknown, name: string): boolean {
     return value !== null
         && (typeof value === 'object' || typeof value === 'function')
@@ -167,7 +162,7 @@ import { StorageService as StorageServiceStatic } from "../../storage/storageSer
 
 import { ChatFormatter, type FormattedResult } from "../chatFormatter.js";
 import { shortId } from "../../utils/pathUtils.js";
-import { extractChatParseDrift, type ChatParseDrift } from "./parseDrift.js";
+
 import { I18n as I18nStatic } from "../../utils/i18n.js";
 import { assertSchemaWritable } from "../../storage/schemaMigration.js";
 import { FlightRecorder } from "../../diagnostics/flightRecorder.js";
@@ -650,7 +645,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             let landedChats = 0;
             let failedChats: ExportFailedChat[] = [];
             let failedAttachments: FailedAttachment[] = [];
-            let parseDriftChats: ParseDriftChatEntry[] = [];
+            let parseDriftChats: SessionParseDriftEntry[] = [];
             let skipped = skippedItems.length;
             let metaResults: ExportIndexMetaItem[] = [];
 
@@ -900,8 +895,9 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         catch (error) { mainWriteError = error; }
 
                         // P1-8/P1-9: parser 诊断随 chat 透出，不在生产环境静默
-                        const chatDrift = extractChatParseDrift(exportResult);
-                        const driftNotable = chatDrift.turnsRejected > 0 || chatDrift.schemaDrift.length > 0 || chatDrift.hasHeuristicDocs;
+                        const quality = chat.detail.quality;
+                        const parserDiagnostics = exportResult.diagnostics.filter(d => d.severity !== 'info');
+                        const driftNotable = quality.status === 'partial' || parserDiagnostics.length > 0;
 
                         const authoritativeChatTime = computeAuthoritativeTimestamp(chat, exportResult.sourceVersion);
 
@@ -920,12 +916,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             messageCount: chat.detail.messages.length,
                             chatTime: authoritativeChatTime,
                             failedAssets: resourceResults.filter(r => !r.ok).length,
-                            evidence: chatDrift,
                             usedLocalSnapshot,
-                            statusOverride: mainWriteError ? 'failed' : undefined,
-                            truncateReason: chatDrift.truncated
-                                ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
-                                : undefined
+                            statusOverride: mainWriteError ? 'failed' : undefined
                         });
                         if (!mainWriteError) {
                             if (!useZip) {
@@ -935,21 +927,20 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 onLog(`[${listTitle}] Prepared for ZIP delivery (${fileName})`, 'info');
                             }
                             if (driftNotable) {
-                                const bits: string[] = [];
-                                if (chatDrift.turnsRejected > 0) bits.push(`拒识 ${chatDrift.turnsRejected} 个 turn`);
-                                if (chatDrift.schemaDrift.length > 0) bits.push(`${chatDrift.schemaDrift.length} 条 schema 漂移告警`);
-                                if (chatDrift.hasHeuristicDocs) bits.push(`含启发式拼凑文档`);
+                                const bits: string[] = [`内容质量 ${quality.status}`];
+                                if ((quality.rejectedTurns ?? 0) > 0) bits.push(`拒识 ${(quality.rejectedTurns ?? 0)} 个 turn`);
+                                if (parserDiagnostics.length > 0) bits.push(`${parserDiagnostics.length} 条解析诊断`);
+                                if (quality.heuristicDocumentIds?.length) bits.push(`含启发式拼凑文档`);
                                 const statusNote = completion.exportRecord.status === 'partial' ? '，导出完整性为 partial' : '（仅告警，不影响导出完整性）';
                                 onLog(`[${listTitle}] 解析异常（${bits.join("；")}）${statusNote}`, 'warn');
                                 parseDriftChats.push({
                                     id: chatId,
                                     title: listTitle,
-                                    schemaDrift: chatDrift.schemaDrift,
-                                    turnsRejected: chatDrift.turnsRejected,
-                                    hasHeuristicDocs: chatDrift.hasHeuristicDocs
+                                    quality,
+                                    diagnostics: parserDiagnostics
                                 });
                             }
-                            if (chatDrift.truncated) {
+                            if (quality.truncation) {
                                 onLog(`[${listTitle}] 会话内容超出最大拉取深度或检测到游标异常，已截断导出并标记为部分导出 (partial)`, 'warn');
                             }
 
@@ -991,13 +982,8 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             attachmentCount: queuedAssetsForThisChat || (chat.detail.assets.length),
                             exportFile: fileName,
                             status: metaStatus,
-                            ...(driftNotable ? {
-                                // Parser diagnosis only; assets and source freshness are excluded.
-                                parseStatus: chatDrift.turnsRejected > 0 || chatDrift.hasHeuristicDocs ? 'partial' : 'ok',
-                                schemaDrift: chatDrift.schemaDrift,
-                                turnsRejected: chatDrift.turnsRejected,
-                                hasHeuristicDocs: chatDrift.hasHeuristicDocs || void 0
-                            } : {})
+                            quality,
+                            ...(parserDiagnostics.length ? { diagnostics: parserDiagnostics } : {})
                         });
 
                         completedCount++;

@@ -75,7 +75,7 @@ test('native detail persists separately and index updates cannot truncate or rep
         assert.equal(await getDomainConversationResult('u0', 'chat'), null);
     } finally { env.restore(); }
 });
-test('released v1 upgrades directly to final v2 indexes once, merges u0 aliases, preserves raw evidence and reports rejected rows', async () => {
+test('released v1 upgrades directly to current indexes once, merges u0 aliases, preserves raw evidence and reports rejected rows', async () => {
     const raw = [{ id: 'c_chat', title: 'Google Gemini', titles: { takeout: 'Offline title' }, timestamp: '1700000000', lastSeen: '2099', messageCount: 7, source: 'takeout' }, null];
     const env = indexStorage({ gemini_schema_version: 1, gemini_conversations: raw,
         gemini_conversations_u0: [{ id: 'chat', title: 'Online title', titleSource: 'rpc', updatedAt: 1700000005000 }],

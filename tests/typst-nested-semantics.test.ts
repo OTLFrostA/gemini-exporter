@@ -7,7 +7,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { completeness: 'unknown', assets, messages: messages } });
+    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { quality: { status: 'unknown' }, assets, messages: messages } });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {

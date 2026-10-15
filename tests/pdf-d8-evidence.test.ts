@@ -59,7 +59,7 @@ function msg(id: string, role: 'user' | 'assistant', blocks: unknown[], extra: R
 }
 
 function makeDomain(messages: unknown[], opts: { title?: string; conversationId?: string; assets?: unknown[] } = {}) {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: opts.conversationId ?? 'd8-evidence', title: opts.title ?? 'D8 evidence', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { completeness: 'unknown', assets: opts.assets ?? [], messages } };
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: opts.conversationId ?? 'd8-evidence', title: opts.title ?? 'D8 evidence', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { quality: { status: 'unknown' }, assets: opts.assets ?? [], messages } };
 }
 
 function makeContext(overrides: { assets?: Record<string, Uint8Array> } = {}) {

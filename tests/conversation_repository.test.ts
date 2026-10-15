@@ -40,10 +40,10 @@ test('index-only, absent, empty saved body and incomplete body remain distinct w
         await saveDomainConversation('u0', historicalFixture({ id: 'chat', messages: [] }));
         const empty = await repository.getConversation('chat');
         assert.deepEqual(empty?.detail?.messages, []);
-        const partial = parsed(); partial.conversation.detail.completeness = 'partial';
+        const partial = parsed(); partial.conversation.detail.quality.status = 'partial';
         await saveDomainConversation('u0', partial);
         const capture = await repository.getConversation('chat');
-        assert.equal(capture?.detail?.completeness, 'partial');
+        assert.equal(capture?.detail?.quality.status, 'partial');
         assert.equal(capture?.capture?.savedAt, undefined);
     } finally { env.restore(); }
 });
@@ -59,7 +59,7 @@ test('index owns every metadata field while capture retains the actual older bod
         const writes = env.writes();
         const stored = await repository.getConversation('c_chat');
         assert.ok(stored?.detail);
-        assert.deepEqual(Object.keys(stored.detail).sort(), ['assets', 'completeness', 'messages']);
+        assert.deepEqual(Object.keys(stored.detail).sort(), ['assets', 'messages', 'quality']);
         assert.equal(stored.index.updatedAt, 200);
         assert.equal(stored.capture?.savedAt, 100);
         const resolved = await resolveChat(undefined, { id: 'chat' }, stored.index, null, 'u0');
@@ -208,7 +208,7 @@ test('accepting a partial observation advances Index but returns the retained co
         await storage.ingestConversation('u0', parsed());
         const partial = parsed();
         partial.conversation.detail.messages = partial.conversation.detail.messages.slice(0, 1);
-        partial.conversation.detail.completeness = 'partial';
+        partial.conversation.detail.quality.status = 'partial';
         partial.conversation.index.title = 'New authoritative title';
         partial.sourceVersion = 200; partial.conversation.index.updatedAt = 200;
         const accepted = await storage.ingestConversation('u0', partial);
@@ -225,7 +225,7 @@ test('accepting a partial observation advances Index but returns the retained co
 test('initial partial capture publishes activity to Index without claiming a saved complete-body version', async () => {
     const env = indexStorage();
     try {
-        const partial = parsed(); partial.conversation.detail.completeness = 'partial';
+        const partial = parsed(); partial.conversation.detail.quality.status = 'partial';
         const accepted = await storage.ingestConversation('u0', partial);
         assert.equal(accepted.sourceVersion, undefined);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
