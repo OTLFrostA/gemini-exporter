@@ -57,4 +57,8 @@ test('无基线（本地为空）：扫到服务端尽头自然结束', async ()
     assert.strictEqual(calls, 3, '应扫完全部 3 页');
     assert.strictEqual(savedIds.size, 150, '150 条应全部交付');
     assert.strictEqual(res.stoppedEarly, undefined, '自然结束不应标记 stoppedEarly');
+    assert.strictEqual(res.exhaustive, true, 'server exhaustion must be explicitly verified');
+    assert.strictEqual(res.completionReason, 'natural_exhaustion');
+    assert.deepStrictEqual(res.conversations.map((c: any) => c.id), pages.flat().map(c => c.id),
+        'the returned list must contain every fetched page without loss or duplication');
 });
