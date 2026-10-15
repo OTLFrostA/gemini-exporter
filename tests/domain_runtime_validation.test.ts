@@ -48,3 +48,51 @@ test('storage rejects toJSON laundering, parser does not silently normalize it',
     assert.throws(() => restoreDomainSnapshot(value));
     assert.throws(() => validateParserDomain(value));
 });
+
+
+test('both entry points share index identity and reference closure rules', () => {
+    for (const id of ['', '   ', ' padded ']) {
+        const value = valid(); value.index.id = id;
+        assert.throws(() => validateParserDomain(value), TypeError);
+        assert.throws(() => restoreDomainSnapshot(value), TypeError);
+    }
+    const empty = valid();
+    empty.detail.assets = []; empty.detail.messages = [];
+    assert.equal(validateParserDomain(empty), empty);
+    assert.deepEqual(restoreDomainSnapshot(empty), empty);
+});
+
+test('both entry points reject holes and undefined elements throughout nested Domain arrays', () => {
+    const hole = <T>(): T[] => new Array<T>(1);
+    const cases: Array<(value: DomainConversationWithDetail) => void> = [
+        v => { v.detail.messages = hole(); },
+        v => { v.detail.assets = hole(); },
+        v => { v.detail.messages[0].content = hole(); },
+        v => { v.detail.messages[0].reasoning = hole(); },
+        v => { v.detail.messages[0].attachmentIds = hole(); },
+        v => { v.detail.messages[0].citations = hole(); },
+        v => { v.detail.messages[0].content = [{ type: 'paragraph', children: hole() }]; },
+        v => { v.detail.messages[0].content = [{ type: 'paragraph', children: [{ type: 'strong', children: hole() }] }]; },
+        v => { v.detail.messages[0].content = [{ type: 'list', ordered: false, items: hole() }]; },
+        v => { v.detail.messages[0].content = [{ type: 'list', ordered: false, items: [{ blocks: hole() }] }]; },
+        v => { v.detail.messages[0].content = [{ type: 'quote', blocks: hole() }]; },
+        v => { v.detail.messages[0].content = [{ type: 'table', columns: hole(), rows: [] }]; },
+        v => { v.detail.messages[0].content = [{ type: 'table', headerRows: hole(), rows: [] }]; },
+        v => { v.detail.messages[0].content = [{ type: 'table', rows: hole() }]; },
+        v => { v.detail.messages[0].content = [{ type: 'table', rows: [{ cells: hole() }] }]; },
+        v => { v.detail.messages[0].content = [{ type: 'table', rows: [{ cells: [{ children: hole() }] }] }]; },
+        v => { v.detail.messages[0].content = [{ type: 'image', assetId: 'image', caption: hole() }]; },
+        v => { v.detail.messages[0].content = [{ type: 'file', assetId: 'image', description: hole() }]; },
+    ];
+    for (const [index, corrupt] of cases.entries()) {
+        const value = valid(); corrupt(value);
+        assert.throws(() => validateParserDomain(value), TypeError, `parser case ${index}`);
+        assert.throws(() => restoreDomainSnapshot(value), TypeError, `storage case ${index}`);
+        // JSON represents the same unusable positions as null, which must also fail.
+        assert.throws(() => restoreDomainSnapshot(JSON.parse(JSON.stringify(value))), TypeError);
+    }
+    const undefinedNode = valid();
+    Object.assign(undefinedNode.detail.messages[0].content, { 0: undefined });
+    assert.throws(() => validateParserDomain(undefinedNode), TypeError);
+    assert.throws(() => restoreDomainSnapshot(undefinedNode), TypeError);
+});

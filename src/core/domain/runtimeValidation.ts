@@ -1,3 +1,4 @@
+import type { DeepReadonly } from './readonly.js';
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
 import type { DomainConversationWithDetail } from './conversation.js';
@@ -9,7 +10,13 @@ const text: Check = v => typeof v === 'string';
 const number: Check = v => typeof v === 'number' && Number.isFinite(v);
 const boolean: Check = v => typeof v === 'boolean';
 const optional = (check: Check): Check => v => v === undefined || check(v);
-const array = (check: Check): Check => v => Array.isArray(v) && v.every(check);
+const array = (check: Check): Check => v => {
+    if (!Array.isArray(v)) return false;
+    for (let index = 0; index < v.length; index++) {
+        if (!Object.hasOwn(v, index) || !check(v[index])) return false;
+    }
+    return true;
+};
 const enumeration = (...values: string[]): Check => v => typeof v === 'string' && values.includes(v);
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === 'object' && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype; }
 const shape = (fields: Record<string, Check>, nonEmpty = false): Check => v => {
@@ -69,6 +76,9 @@ declare const trustedDomain: unique symbol;
 export type TrustedDomainBody = DomainConversationDetail & { readonly [trustedDomain]: true };
 export interface TrustedDomain extends DomainConversationWithDetail { detail: TrustedDomainBody }
 
+/** Consumer view only; builders and trust construction retain their existing contracts. */
+export type ReadonlyDomain = DeepReadonly<TrustedDomain>;
+
 /** Body trust survives metadata changes; no flat snapshot is constructed. */
 export function selectConversationBody(conversation: TrustedDomain): TrustedDomainBody { return conversation.detail; }
 
@@ -92,17 +102,22 @@ function assertSchema(value: unknown): asserts value is DomainConversationDetail
     }
 }
 
-function assertConversation(value: unknown): asserts value is DomainConversationWithDetail {
+function assertConversationShape(value: unknown): asserts value is DomainConversationWithDetail {
     if (!object(value) || Object.keys(value).some(key => key !== 'index' && key !== 'detail')) throw new TypeError('Invalid Domain conversation');
     restoreConversationIndex(value.index);
     assertSchema(value.detail);
+}
+
+/** Shared Domain rules for producer finalization and persisted snapshot recovery. */
+function assertConversation(value: unknown): asserts value is DomainConversationWithDetail {
+    assertConversationShape(value);
+    assertDomainClosure(value.detail);
 }
 
 /** Parser finalization validates the graph without cloning or changing its content. */
 export function validateParserDomain(value: DomainConversationWithDetail): TrustedDomain {
     serializeDomain(value);
     assertConversation(value);
-    assertDomainClosure(value.detail);
     return value as TrustedDomain;
 }
 
@@ -110,8 +125,7 @@ export function validateParserDomain(value: DomainConversationWithDetail): Trust
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
     const json = serializeDomain(value);
     const clone: unknown = json === undefined ? undefined : JSON.parse(json);
-    assertConversation(value);
+    assertConversationShape(value);
     assertConversation(clone);
-    assertDomainClosure(clone.detail);
     return clone as TrustedDomain;
 }

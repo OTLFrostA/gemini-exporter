@@ -1,3 +1,4 @@
+import type { DeepReadonly } from '../../domain/readonly.js';
 import { missingResource, resourceDiagnostics, type ResourceResult, type ResourceBytes, type PreparedResources } from '../../resources/resourceResult.js';
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
@@ -13,7 +14,7 @@ interface PreparePdfResourcesOptions {
 
 /** Runtime bytes and failures travel beside Domain/AST through the shared resource contract. */
 export async function preparePdfResources(
-    domain: DomainConversationDetail,
+    domain: DeepReadonly<DomainConversationDetail>,
     imageIds: ReadonlySet<string>,
     acquisitionHints: ResourceAcquisitionHints,
     options: PreparePdfResourcesOptions = {},
