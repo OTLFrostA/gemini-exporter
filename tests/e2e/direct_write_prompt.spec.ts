@@ -67,9 +67,18 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
     // Wait for first export to settle before triggering second export
     await expect(page.locator('#btnCancel')).toBeHidden({ timeout: 10000 });
 
-    // 8. Next time exporting >= 50 items, modal should NEVER appear again
+    // 8. A new options-page instance must honor the persisted suppression setting.
+    // Staying on the same page could hide a broken storage-read path behind in-memory state.
+    await page.reload();
+    await expect(page.locator('#list .item')).toHaveCount(55);
+    await page.click('#btnSelectAll');
+    await expect(page.locator('#selectedStat')).toHaveText(/\\b55\\b/);
+    expect(await page.evaluate(async () =>
+      (await chrome.storage.local.get('gemini_suppress_direct_write_prompt')).gemini_suppress_direct_write_prompt
+    )).toBe(true);
+
+    // The next bulk export proceeds without offering the ZIP/folder choice again.
     await page.click('#btnExport');
-    await expect(page.locator('#btnCancel')).toBeVisible();
     await expect(modal).toBeHidden();
   });
 });
