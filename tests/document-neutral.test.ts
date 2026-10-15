@@ -62,7 +62,7 @@ test('neutral AST has no output controls and renderers do not import source mode
         const imports = ts.preProcessFile(readFileSync(`src/core/renderers/${name}.ts`, 'utf8'), true, true)
             .importedFiles.map(item => item.fileName);
         for (const source of imports) {
-            assert.doesNotMatch(source, /(^|\\/)(?:canonical|domain|provider|content)\\//,
+            assert.doesNotMatch(source, /(^|\/)(?:canonical|domain|provider|content)\//,
                 `Renderer ${name} cannot import source-model module ${source}`);
         }
     }
