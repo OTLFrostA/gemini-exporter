@@ -31,7 +31,9 @@ test('index boundary rejects unknown fields, malformed values and duplicate iden
     try {
         for (const bad of [null, 'row', [], { ...row(), messages: [] }, { ...row(), titles: {} }, { ...row(), timestamp: 5 },
             { ...row(), lastMessageAt: NaN }, { ...row(), lastMessageAt: '5' }, { ...row(), updatedAt: '5' }, { ...row(), messageCount: -1 }, { ...row(), messageCount: 1.5 },
-            { ...row(), titleSource: 'made-up' }, { ...row(), title: '', titleSource: 'rpc' },
+            { ...row(), createdAt: '5' }, { ...row(), createdAt: null }, { ...row(), createdAt: NaN },
+            { ...row(), createdAt: Infinity }, { ...row(), updatedAt: null }, { ...row(), updatedAt: NaN }, { ...row(), updatedAt: -Infinity },
+            { ...row(), titleSource: 'made-up' }, { ...row(), titleSource: 'toString' }, { ...row(), title: '', titleSource: 'rpc' },
             { ...row(), url: 'https://' }, { ...row(), url: 'javascript:alert(1)' },
             { ...row(), cloudAvailability: new String('available') }, { ...row(), cloudAvailability: 'maybe' }, { ...row(), hasTakeoutImport: undefined }]) {
             assert.throws(() => restoreConversationIndex(bad), TypeError);
