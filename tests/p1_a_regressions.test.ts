@@ -1,92 +1,118 @@
 /**
- * P1-A 组回归测试 —— 2026-09-15 代码审查「凭证与跨 world 消息安全」(P1-001~P1-010)。
+ * P1-A: credential and browser-message safety.
  *
- * 运行: node -r ./tests/ts_register.js --test tests/p1_a_regressions.test.ts
+ * Only retain source assertions where the security rule is not yet reachable
+ * through a focused runtime harness. These are narrow guards, NOT proof of
+ * full end-to-end credential confidentiality.
  */
 export {};
 const test = require('node:test');
-const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
-function readSrc(rel: string): string {
-    return fs.readFileSync(path.join(__dirname, '..', 'src', rel), 'utf8');
+const readSrc = (rel: string): string =>
+    fs.readFileSync(path.join(__dirname, '..', 'src', rel), 'utf8');
+
+function replaceGlobal(key: string, value: unknown): () => void {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+    return () => {
+        if (previous) Object.defineProperty(globalThis, key, previous);
+        else Reflect.deleteProperty(globalThis, key);
+    };
 }
 
-// ---------------------------------------------------------------- P1-001
-test('P1-001: credential postMessage carries an honest threat-model note (broadcast, not private)', () => {
-    const src = readSrc('content/hookCredentials.ts');
-    assert.ok(src.includes('broadcast, not a private channel'), 'missing honest broadcast note');
-    assert.ok(src.includes('targetOrigin is locked'), 'missing targetOrigin note');
-});
+// P1-001 / P1-004 were comment-text tests, not security contracts.
+// P1-002's specific identifier absence was weaker than the actual session
+// storage behavior covered by known_issue_credentials_session.test.ts.
+// P1-007 pinned an obsolete diagnostic string instead of detecting secrets.
 
-// ---------------------------------------------------------------- P1-002
-test('P1-002: bl is never written to page-readable localStorage', () => {
+test('P1-003: bootstrap avoids the previously leaked token logging patterns', () => {
     const src = readSrc('content/bootstrap.ts');
-    assert.ok(!src.includes('__gemExporterBl'), 'localStorage __gemExporterBl write still present');
+    assert.ok(!src.includes('atFromPage.slice(0, 12)'), 'credential prefix should never be logged');
+    assert.ok(!src.includes("console.log('[Gemini Exporter] bl refreshed', blFromPage)"), 'raw bl should never be logged');
+    assert.ok(src.includes("'atLen', atFromPage.length"), 'at log should use only length');
+    assert.ok(src.includes("'blLen', blFromPage.length"), 'bl log should use only length');
 });
 
-// ---------------------------------------------------------------- P1-003
-test('P1-003: credential logs are dev-gated and carry lengths only', () => {
+test('P1-005: empty postMessage token must not replace the stored token (source guard)', () => {
     const src = readSrc('content/bootstrap.ts');
-    assert.ok(!src.includes('atFromPage.slice(0, 12)'), 'raw at prefix still logged');
-    assert.ok(!src.includes("console.log('[Gemini Exporter] bl refreshed', blFromPage)"), 'raw bl value still logged');
-    assert.ok(src.includes("'atLen', atFromPage.length"), 'expected length-only at log');
-    assert.ok(src.includes("'blLen', blFromPage.length"), 'expected length-only bl log');
+    assert.ok(src.includes('at: p.at || old.at'), 'empty token must not overwrite stored at');
 });
 
-// ---------------------------------------------------------------- P1-004
-test('P1-004: messageBridge states the real threat model (source===window does not authenticate)', () => {
-    const src = readSrc('content/messageBridge.ts');
-    assert.ok(src.includes('does NOT authenticate the sender'), 'missing honest threat-model note');
-});
+test('P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers', () => {
+    const calls: string[] = [];
+    const handlers = new Set<(message: any, sender: any, response: (value: any) => void) => unknown>();
+    const restoreWindow = replaceGlobal('window', { __gemExporterCleanups: [] });
+    const restoreChrome = replaceGlobal('chrome', { runtime: {
+        onMessage: {
+            addListener: (fn: any) => handlers.add(fn),
+            removeListener: (fn: any) => handlers.delete(fn)
+        }
+    } });
+    try {
+        const { MessageRouter } = require('../src/content/messageRouter.js');
+        const { runCleanups } = require('../src/content/cleanupRegistry.js');
+        const assets = {
+            handleGetFileBlob: (_msg: any, cb: (value: unknown) => void) => {
+                calls.push('getFileBlob');
+                cb({ success: true });
+            },
+            handleGetImageBlob: (_msg: any, cb: (value: unknown) => void) => {
+                calls.push('getImageBlob');
+                cb({ success: true });
+            },
+            downloadAssetDirect: (_msg: any, cb: (value: unknown) => void) => {
+                calls.push('downloadAssetDirect');
+                cb({ success: true });
+            }
+        };
+        MessageRouter.init({ assets });
+        assert.equal(handlers.size, 1);
+        const listener = [...handlers][0];
 
-// ---------------------------------------------------------------- P1-005
-test('P1-005: GEMINI_CREDENTIALS listener treats payload as untrusted; empty at never clobbers stored at', () => {
-    const src = readSrc('content/bootstrap.ts');
-    assert.ok(src.includes('treat the payload as'), 'missing untrusted-payload note');
-    assert.ok(src.includes('at: p.at || old.at'), 'empty at could clobber the stored credential');
-});
+        for (const action of ['getFileBlob', 'getImageBlob', 'downloadAssetDirect']) {
+            for (const url of [
+                'http://lh3.googleusercontent.com/photo.png',
+                'https://googleusercontent.com.evil.example/photo.png',
+                'https://evil.example/photo.png',
+                'javascript:alert(1)'
+            ]) {
+                let reply: any;
+                listener({ action, url }, {}, (value) => { reply = value; });
+                assert.equal(reply?.success, false, `${action} must reject ${url}`);
+                assert.match(reply?.error || '', /not allowlisted/i);
+            }
+            assert.ok(!calls.includes(action), `${action} must not fetch a blocked URL`);
 
-// ---------------------------------------------------------------- P1-006
-test('P1-006: message router allowlists asset URLs before cookie-authenticated fetch', () => {
-    const src = readSrc('content/messageRouter.ts');
-    assert.ok(!src.includes('sid !== ownId'), 'sender.id check should be gone (non-threat)');
-    assert.ok(src.includes('isAllowedAssetUrl'), 'URL allowlist helper missing');
-    for (const action of ['getFileBlob', 'getImageBlob', 'downloadAssetDirect']) {
-        const i = src.indexOf(`msg.action === '${action}'`);
-        assert.ok(i >= 0, `handler for ${action} missing`);
-        const block = src.slice(i, i + 700);
-        assert.ok(block.includes('blocked: asset url not allowlisted'), `${action} not gated by URL allowlist`);
+            let validReply: any;
+            listener({ action, url: 'https://lh3.googleusercontent.com/photo.png' }, {}, (value) => {
+                validReply = value;
+            });
+            assert.equal(validReply?.success, true, `${action} should accept an allowlisted URL`);
+            assert.equal(calls.filter(a => a === action).length, 1);
+        }
+
+        runCleanups();
+        assert.equal(handlers.size, 0, 'the injected runtime listener should be removed');
+    } finally {
+        restoreChrome();
+        restoreWindow();
     }
 });
 
-// ---------------------------------------------------------------- P1-007
-test('P1-007: error diagnostics carry credential lengths/presence only', () => {
-    const src = readSrc('core/api/geminiClient.ts');
-    assert.ok(!src.includes('bl:${cred.bl'), 'bl prefix still leaked into error text');
-    assert.ok(!src.includes('sid:${cred.sid'), 'sid prefix still leaked into error text');
-    assert.ok(src.includes('sidLen:'), 'expected sidLen in diagnostics');
-    assert.ok(src.includes("hasBl:${cred.bl ? 'yes' : 'no'}"), 'expected hasBl presence flag');
-});
-
-// ---------------------------------------------------------------- P1-009
-// (P1-008 sender.id check removed: chrome.runtime.onMessage is not reachable
-// from web pages; the remaining cross-extension sender is a non-threat —
-// a malicious extension installed on the machine is a bigger problem than
-// anything a sender.id check stops.)
-test('P1-009: reloadGeminiTab only reloads Gemini tabs', () => {
+test('P1-009: background reload remains scoped to Gemini tabs (source guard)', () => {
     const src = readSrc('background/background.ts');
-    assert.ok(!src.includes('sid !== ownId'), 'P1-008 sender.id check should be gone');
-    assert.ok(src.includes('not a gemini tab'), 'tab URL validation missing');
-    assert.ok(src.includes("startsWith('https://gemini.google.com/')"), 'gemini URL prefix check missing');
+    assert.ok(src.includes('not a gemini tab'));
+    assert.ok(src.includes("startsWith('https://gemini.google.com/')"));
 });
 
-// ---------------------------------------------------------------- P1-010（行为测试 + 可反向验证）
-test('P1-010: self-healed bl is written back to storage (not memory-only)', async () => {
+// P1-010: this is a genuine storage behavior test; preserve it.
+test('P1-010: self-healed bl is written to session storage rather than memory only', async () => {
     const CredManager = require('../src/core/api/client/credentialManager.js').default;
     const resolveCred = CredManager.resolveCred;
-    assert.ok(typeof resolveCred === 'function', 'resolveCred not exported');
+    assert.equal(typeof resolveCred, 'function');
 
     const setCalls: any[] = [];
     const stored: any = {
@@ -94,7 +120,7 @@ test('P1-010: self-healed bl is written back to storage (not memory-only)', asyn
             sid1: { sid: 'sid1', at: 'at-value', bl: '', accountSlot: 'default', lastUsed: 1 }
         }
     };
-    (globalThis as any).chrome = {
+    const undoChrome = replaceGlobal('chrome', {
         storage: {
             session: {
                 get: async (keys: string[]) => {
@@ -106,20 +132,18 @@ test('P1-010: self-healed bl is written back to storage (not memory-only)', asyn
             },
             local: { remove: async () => {} }
         }
-    };
-    (globalThis as any).document = {};
-    (globalThis as any).__gemExporterBl = 'healed-bl-from-page';
-
+    });
+    const undoDoc = replaceGlobal('document', {});
+    const undoBl = replaceGlobal('__gemExporterBl', 'healed-bl-from-page');
     try {
         const cred = await resolveCred();
-        assert.ok(setCalls.length > 0, 'healed bl was NOT persisted to storage (memory-only regression)');
+        assert.ok(setCalls.length > 0, 'healed bl must be persisted');
         const persisted = setCalls[setCalls.length - 1].gemini_credentials_map;
-        assert.ok(persisted && persisted.sid1 && persisted.sid1.bl === 'healed-bl-from-page',
-            'persisted map does not contain the healed bl');
-        assert.strictEqual(cred.bl, 'healed-bl-from-page');
+        assert.equal(persisted?.sid1?.bl, 'healed-bl-from-page');
+        assert.equal(cred.bl, 'healed-bl-from-page');
     } finally {
-        delete (globalThis as any).chrome;
-        delete (globalThis as any).document;
-        delete (globalThis as any).__gemExporterBl;
+        undoBl();
+        undoDoc();
+        undoChrome();
     }
 });
