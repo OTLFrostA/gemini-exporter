@@ -24,3 +24,14 @@ coverage using independent strings and keeps unknown flags/containers rejected.
 This fixture does not establish the semantics of wire field 13 with embedded
 file citations. Such containers remain unsupported and emit a shape-only
 `GEMINI_STRUCTURED_FALLBACK` warning rather than being silently discarded.
+
+
+`structured_rpc/live-imagen-panel.json` preserves a second captured wire shape:
+`[[[imagePanelNode]], []]`, with only field 9 populated in the node. Live image
+URLs, signed tokens, filenames and generation prompts have been replaced with
+fixture values; array shapes, MIME types and dimension evidence are retained.
+Field 9 contains the generated image files and image-generation prompt metadata.
+The decoder retains this resource panel in attachment evidence and delegates
+image binding to the existing resource pipeline. An empty envelope trailer is
+supported; unknown nonempty trailers, ambiguous nodes and panels without a
+recognized generated image file continue to reject.

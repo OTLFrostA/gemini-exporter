@@ -1,4 +1,5 @@
 import { GEMINI_JSPB_SCHEMA } from "./extractors.js";
+import { extractImageEvidence } from "./sourceAttachments.js";
 
 export interface GeminiAnnotation {
     start: number;
@@ -429,6 +430,20 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         return { nodeType: 17, rows };
     }
 
+    // Captured Imagen resource panel (field 9). Its image files are bound by
+    // the shared resource pipeline, just like other nodeType 0 attachments.
+    // Retain the complete panel rather than inventing body text from its prompt metadata.
+    if (Array.isArray(w[9]) && w[9].length === 1 && Array.isArray(w[9][0]) && w[9][0].length > 0) {
+        const panels: unknown[] = w[9][0];
+        const knownPanels = w.every((value, index) => value == null || index === 9) && panels.every(panel => Array.isArray(panel) && panel.length === 12
+            && Array.isArray(panel[0]) && Array.isArray(panel[1])
+            && typeof panel[1][0] === 'string'
+            && /^https?:\/\/googleusercontent\.com\/image_generation_content\//.test(panel[1][0])
+            && extractImageEvidence(panel[0]).some(image => image.isGenerated));
+        if (knownPanels) return { nodeType: 0, Xj: [{ generatedImagePayload: w[9] }] };
+        return null;
+    }
+
     // Field 3: Code block
     if (w.length > 3 && w[3] !== null && w[3] !== undefined) {
         const codePayload = w[3];
@@ -502,6 +517,12 @@ export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssue
     // Case 2: Array payload (wire format or array of nodes)
     if (Array.isArray(raw)) {
         let nodeArray: unknown[] = raw;
+        // Captured Imagen documents add an empty metadata trailer: [[[nodes]], []].
+        // Nonempty trailers remain unsupported; never discard unknown metadata.
+        if (nodeArray.length === 2 && Array.isArray(nodeArray[1]) && nodeArray[1].length === 0
+            && Array.isArray(nodeArray[0]) && nodeArray[0].length === 1 && Array.isArray(nodeArray[0][0])) {
+            nodeArray = [nodeArray[0]];
+        }
         // Turn field 12 envelope in JSPB: [ [ [ node_0, node_1, ... ] ] ]
         if (nodeArray.length === 1 && Array.isArray(nodeArray[0])) {
             if (nodeArray[0].length === 1 && Array.isArray(nodeArray[0][0])) {

@@ -84,3 +84,31 @@ test('adapter rejection remains visible and preserves complete Markdown body', (
     assert.deepEqual(diagnostics[0].details, { reason: 'adapter_rejected' });
     assert.equal(diagnostics[0].sourceRef?.providerMessageId, 'rc_bad');
 });
+
+
+test('captured Imagen envelope retains resource panels and closes exactly one native image asset', () => {
+    const panel: unknown = JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8'));
+    const decoded = decodeGeminiStructuredPayload(panel);
+    assert.ok(decoded);
+    assert.equal(decoded.children.length, 1);
+    assert.equal(decoded.children[0].nodeType, 0);
+    assert.ok(JSON.stringify(decoded).includes('generatedImagePayload'), 'resource evidence is retained, not dropped');
+    const result = parseGeminiRpcConversation(wire(panel, [['rc_image', [['\n']]]]), { providerId: 'gemini' });
+    assert.equal(result.conversation.detail.assets.length, 1);
+    assert.equal(result.conversation.detail.assets[0].kind, 'image');
+    assert.equal(result.conversation.detail.assets[0].name, 'fixture.jpg');
+    assert.ok(!result.diagnostics.some(d => d.code === 'GEMINI_STRUCTURED_FALLBACK'));
+    assert.ok(!JSON.stringify(result.conversation.detail.messages[1].content).includes('fixture metadata'));
+});
+
+test('unproven Imagen envelopes and incomplete/ambiguous panels still reject', () => {
+    const panel = JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8')) as unknown[][];
+    panel[1] = ['unrecognized metadata'];
+    assert.equal(decodeGeminiStructuredPayload(panel), null);
+    const node: unknown[] = Array(10).fill(null);
+    node[9] = [[[[], ['http://googleusercontent.com/image_generation_content/0_fixture']]]];
+    assert.equal(decodeGeminiStructuredPayload([[[node]]]), null, 'no inferred image without a proven image file');
+    const valid = JSON.parse(readFileSync('tests/fixtures/provider/structured_rpc/live-imagen-panel.json', 'utf8'));
+    valid[0][0][0][8] = 'unknown body';
+    assert.equal(decodeGeminiStructuredPayload(valid), null, 'do not hide another populated wire field');
+});
