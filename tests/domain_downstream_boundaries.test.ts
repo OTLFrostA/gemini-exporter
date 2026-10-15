@@ -23,7 +23,7 @@ test('diagnostic acquisition rejects bad records individually before typed state
 });
 
 test('validated tables compose across header rowspans without changing Domain data', () => {
-    const input = validateParserDomain({ index, detail: { completeness: 'complete', assets: [], messages: [{ role: 'assistant', content: [{ type: 'table', headerRows: [{ cells: [{ children: [], rowSpan: 2 }] }], rows: [{ cells: [{ children: [], colSpan: 2 }] }, { cells: [] }] }] }] } });
+    const input = validateParserDomain({ index, detail: { quality: { status: 'complete' }, assets: [], messages: [{ role: 'assistant', content: [{ type: 'table', headerRows: [{ cells: [{ children: [], rowSpan: 2 }] }], rows: [{ cells: [{ children: [], colSpan: 2 }] }, { cells: [] }] }] }] } });
     const original = JSON.stringify(input);
     const blocks = contentComposer(new Map(), id => ({ id, label: id }))(input.detail.messages[0].content);
     assert.equal(JSON.stringify(input), original);
