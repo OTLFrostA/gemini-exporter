@@ -1,8 +1,6 @@
-const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-gemini-markup-sanitization.test.ts
- * Tier 1 test for PR 2: Gemini Structured Content Sanitization.
+ * Runtime provider content-adapter and Document renderer contract.
  *
  * Verifies that Gemini provider-specific structured markup:
  * - <ElicitationsGroup message="..."> ... </ElicitationsGroup>
@@ -10,7 +8,7 @@ const { parseConversation } = require('../src/core/parsers/parseConversation.js'
  * - <FollowUp label="..." query="..." />
  * - <GenerateWidget id="..." />
  *
- * is intercepted and sanitized at the Provider Normalization boundary,
+ * is intercepted and sanitized at the Gemini content adapter,
  * preventing any proprietary metadata syntax from leaking into Domain content
  * or final HTML / Markdown exports.
  */
@@ -19,9 +17,12 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { parseGeminiBody, parseLegacyReasoning } = require('../src/core/parsers/gemini/shared/contentAdapter.js');
+const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
+const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
-test('Gemini structured markup is sanitized at normalization boundary and never reaches Domain content or HTML', async () => {
+test('Gemini interactive markup is removed by provider content adapter before Domain and both renderers', () => {
     const rawContent = [
         '经典比特（Bit）与量子比特（Qubit）有着本质区别：',
         '',
@@ -41,19 +42,23 @@ test('Gemini structured markup is sanitized at normalization boundary and never 
         '总结：量子比特具备指数级并行潜力。',
     ].join('\n');
 
-    const raw = {
+    // This is the same provider adapter used by native Gemini RPC parsing.
+    // Do not re-import the body through the historical record compatibility fixture.
+    const reasoning = parseLegacyReasoning(
+        '思考过程：\n<Elicitation label="内部测试"/>\n分析比特与量子比特。',
+        { diagnostics: [], sourceRef: { providerId: 'gemini', locator: 'messages[0].reasoning' } },
+    );
+    const domain = validateParserDomain({
         id: 'gemini_markup_test_chat',
+        providerId: 'gemini',
+        completeness: 'unknown',
         title: 'Structured Markup Sanitization Test',
-        messages: [{
-            id: 'm1',
-            role: 'model',
-            content: rawContent,
-            thoughts: '思考过程：\n<Elicitation label="内部测试"/>\n分析比特与量子比特。',
-        }],
-    };
-
-    const { conversation: domain } = await historicalFixture(raw, { providerId: 'gemini' });
+        assets: [],
+        messages: [{ id: 'm1', role: 'assistant', content: parseGeminiBody(rawContent), reasoning }],
+    });
     const msg = domain.messages[0];
+    assert.ok(msg.reasoning?.length, 'authored reasoning must remain visible');
+    assert.ok(JSON.stringify(msg.reasoning).includes('分析比特与量子比特'));
 
     // Domain content assertions
     const allText = JSON.stringify(msg.content);
@@ -66,12 +71,16 @@ test('Gemini structured markup is sanitized at normalization boundary and never 
     assert.ok(allText.includes('经典比特（Bit）与量子比特（Qubit）'));
     assert.ok(allText.includes('量子比特具备指数级并行潜力。'));
 
-    // HTML export assertions
-    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
-    assert.strictEqual(html.includes('ElicitationsGroup'), false, 'HTML output must not contain ElicitationsGroup');
-    assert.strictEqual(html.includes('Elicitation'), false, 'HTML output must not contain Elicitation');
-    assert.strictEqual(html.includes('FollowUp'), false, 'HTML output must not contain FollowUp');
-    assert.strictEqual(html.includes('GenerateWidget'), false, 'HTML output must not contain GenerateWidget');
-    assert.ok(html.includes('经典比特（Bit）与量子比特（Qubit）'));
-    assert.ok(html.includes('量子比特具备指数级并行潜力。'));
+    // Both backend outputs receive the same already-sanitized, trusted Domain content.
+    const document = composeDomainDocument(domain).document;
+    const { html } = renderDocumentHtml(document, {});
+    const markdown = renderDocumentMarkdown(document, {});
+    for (const output of [html, markdown]) {
+        for (const providerTag of ['ElicitationsGroup', 'Elicitation', 'FollowUp', 'GenerateWidget']) {
+            assert.equal(output.includes(providerTag), false, providerTag + ' leaked to exported content');
+        }
+        assert.ok(output.includes('经典比特（Bit）与量子比特（Qubit）'));
+        assert.ok(output.includes('量子比特具备指数级并行潜力。'));
+        assert.ok(output.includes('分析比特与量子比特'));
+    }
 });
