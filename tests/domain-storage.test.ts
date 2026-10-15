@@ -22,8 +22,8 @@ test('v2 stores structured Domain intact and excludes render/parse transport sta
     const before = structuredClone(parsed);
     const record = await saveDomainConversation('u0', parsed, [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]), sourcePath: 'Takeout/source.png' }]);
     assert.deepEqual(record.conversation, parsed.conversation);
-    assert.equal(record.storageVersion, 3);
-    assert.equal(record.domainVersion, 3);
+    assert.equal(record.storageVersion, 2);
+    assert.equal(record.domainVersion, 2);
     assert.doesNotMatch(JSON.stringify(record), /archivePath|localName|resolvedUrl|diagnostics/);
     assert.deepEqual(parsed, before);
     record.conversation.detail.messages[0].model = 'mutated';

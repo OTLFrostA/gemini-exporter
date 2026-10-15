@@ -62,7 +62,7 @@ test('count actual Schema passes and Closure calls separately at every trust bou
                 await measure('WriteSnapshot',()=>saveDomainConversation('u0',takeout[0]));
                 const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.index.id)));
                 const parsed=await measure('AdaptRecord',()=>storedParseResult(record));
-                await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 3,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 3,results:[parsed]}));});
+                await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 2,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 2,results:[parsed]}));});
                 await measure('PdfAcceptance',async()=>{const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
                 await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);});
                 return rows;

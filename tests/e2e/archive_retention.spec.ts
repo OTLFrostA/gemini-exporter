@@ -8,7 +8,7 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async (cachedPngBase64: string) => {
-        await chrome.storage.local.set({ gemini_schema_version: 3, gemini_tour_completed: true,
+        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_tour_completed: true,
             gemini_conversations: ([
                 { id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000, cloudAvailability: 'deleted' },
                 { id: 'metadata_only', title: 'Title without body', timestamp: 1, cloudAvailability: 'deleted' }

@@ -1,4 +1,3 @@
-import { migrateDomainSnapshots } from './domain/domainStore.js';
 import { migrateLegacyDomains } from './domain/migrateLegacy.js';
 // Why this exists (P1-10 / P1-13): storage migrations used to be scattered
 // across read paths ("migrate on touch"): getConversations fire-and-forget a
@@ -8,7 +7,7 @@ import { migrateLegacyDomains } from './domain/migrateLegacy.js';
 // version key, so future format changes had no detection point.
 //
 // New contract:
-// - `gemini_schema_version` in chrome.storage.local, current = 3.
+// - `gemini_schema_version` in chrome.storage.local, current = 2.
 // - `migrate()` runs once at startup, serially: legacy detail / export-alias /
 //   credentials / IDB / index, then stamps the version.
 // - Unknown future version -> migrate() returns { ok:false, frozen:true } and
@@ -73,7 +72,7 @@ async function migrateIdb(): Promise<void> {
 
 /**
  * Startup one-time migration. Serial: legacy detail -> alias -> credentials -> IDB -> index,
- * then stamps gemini_schema_version = 3. Idempotent; safe to call from
+ * then stamps gemini_schema_version = 2. Idempotent; safe to call from
  * multiple contexts (cross-tab locks serialize the write steps).
  * If any step fails, the version stamp is withheld and ok: false is returned
  * so migration can be retried on next startup.
@@ -94,9 +93,7 @@ export async function migrate(): Promise<SchemaMigrateResult> {
     const fromVersion = typeof stored === "number" && stored >= 0 ? Math.floor(stored) : 0;
     if (fromVersion < CURRENT_SCHEMA_VERSION) {
         try {
-            // Upgrade flat v2 snapshots atomically before migrating older legacy records.
             // Preserve fat v0 rows and unscoped v1 details before canonical index conversion.
-            await migrateDomainSnapshots();
             if (fromVersion < 2) await migrateLegacyDomains();
             if (fromVersion < 1) {
                 await migrateExportAliasesAll();

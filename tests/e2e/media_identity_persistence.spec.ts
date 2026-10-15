@@ -24,7 +24,7 @@ test.beforeAll(async () => {
 async function install(page: import('@playwright/test').Page, extensionId: string) {
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(bundle);
-    await page.evaluate(async () => { await chrome.storage.local.set({ gemini_schema_version: 3, gemini_tour_completed: true }); });
+    await page.evaluate(async () => { await chrome.storage.local.set({ gemini_schema_version: 2, gemini_tour_completed: true }); });
 }
 
 for (const order of ['online-first', 'takeout-first'] as const) {

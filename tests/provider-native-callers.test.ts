@@ -93,7 +93,7 @@ test('standard JSON preserves native data without mutation', () => {
     const json = JSON.parse(formatContent(view, 'json').content);
     assert.equal('parsed' in json, false);
     assert.deepEqual(json.conversation, native.conversation);
-    assert.equal(json.version, 3);
+    assert.equal(json.version, 2);
     assert.deepEqual(native.conversation, snapshot);
 
 });

@@ -4,7 +4,7 @@ test('legacy detail under the Gemini web origin transfers to the extension repos
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_schema_version: 3, gemini_conversations: ([{ id: 'page_legacy', title: 'Page legacy', timestamp: 1, messageCount: 1 }]).map(canonicalIndexFixture) });
+        await chrome.storage.local.set({ gemini_schema_version: 2, gemini_conversations: ([{ id: 'page_legacy', title: 'Page legacy', timestamp: 1, messageCount: 1 }]).map(canonicalIndexFixture) });
     });
     const source = await context.newPage();
     await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `
@@ -62,7 +62,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
             });
         } finally { db.close(); }
     }) as { conversation: { detail: { messages: Array<{ model?: string; content: unknown[] }> } }; storageVersion: number; identity: { accountSlot: string } };
-    expect(stored.storageVersion).toBe(3);
+    expect(stored.storageVersion).toBe(2);
     expect(stored.identity.accountSlot).toBe('u0');
     expect(stored.conversation.detail.messages).toHaveLength(2);
     expect(stored.conversation.detail.messages[1].model).toBe('Cross origin model');

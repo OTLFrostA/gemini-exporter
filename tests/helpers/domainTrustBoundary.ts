@@ -6,7 +6,7 @@ import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, i
 
 const validator = 'core/domain/runtimeValidation.ts';
 const parserOwners = new Set(['core/parsers/gemini/rpc/parseConversation.ts', 'core/parsers/gemini/dom/parseConversation.ts',
-    'core/parsers/gemini/takeout/parseConversation.ts', 'core/parsers/gemini/rpc/mergePages.ts', 'core/parsers/chatgpt/parseConversation.ts', 'core/parsers/legacyStorage/parseRecord.ts', 'core/parsers/legacyStorage/parseDomainSnapshotV2.ts']);
+    'core/parsers/gemini/takeout/parseConversation.ts', 'core/parsers/gemini/rpc/mergePages.ts', 'core/parsers/chatgpt/parseConversation.ts', 'core/parsers/legacyStorage/parseRecord.ts']);
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],

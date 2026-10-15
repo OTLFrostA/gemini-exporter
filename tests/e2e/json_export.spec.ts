@@ -112,7 +112,7 @@ test.describe('Deep E2E: Standard JSON export', () => {
     // The standard archive retains native blocks.
     expect(parsed).toBeTruthy();
     expect(parsed.format).toBe('gemini-exporter-domain');
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(2);
     expect(parsed.conversation.index.providerId).toBe('gemini');
     expect(parsed.conversation.detail.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
     expect(JSON.stringify(parsed.conversation.detail.messages[0].content))

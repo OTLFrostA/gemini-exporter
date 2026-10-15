@@ -83,8 +83,8 @@ test('released v1 upgrades directly to final v2 indexes once, merges u0 aliases,
     try {
         await assert.rejects(storage.getConversations('u0'), TypeError);
         assert.deepEqual(await migrate(), { ok: true, frozen: false });
-        assert.equal(CURRENT_SCHEMA_VERSION, 3);
-        assert.equal(env.local.gemini_schema_version, 3);
+        assert.equal(CURRENT_SCHEMA_VERSION, 2);
+        assert.equal(env.local.gemini_schema_version, 2);
         const index = (await storage.getConversations('u0'))[0];
         assert.equal(index.title, 'Online title'); assert.equal(index.titleSource, 'rpc');
         assert.equal(index.hasTakeoutImport, true); assert.equal(index.updatedAt, 1700000005000);

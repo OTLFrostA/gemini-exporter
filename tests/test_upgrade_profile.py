@@ -79,7 +79,7 @@ const {build}=await import('esbuild');
 const bundle=await build({stdin:{contents:"export {parseLegacyStorageConversation} from './src/core/parsers/legacyStorage/parseConversation.ts'",resolveDir:process.cwd(),loader:'ts'},bundle:true,write:false,format:'esm',platform:'node'});
 const {parseLegacyStorageConversation}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const conversation=parseLegacyStorageConversation({metadata:before.local.gemini_conversations[0]},{providerId:'gemini'}).conversation;
-const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:3,domainVersion:3,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
+const record={key:JSON.stringify(['gemini','u0','a']),storageVersion:2,domainVersion:2,origin:'legacy-storage',revision:'test-revision',savedAt:1234,acquisitionHints:{},resources:[],identity:{providerId:'gemini',accountSlot:'u0',conversationId:'a'},conversation};
 const migrated={local:empty.local,databases:{...before.databases,gemini_exporter_domain:{stores:{conversations:[record]}}}};
 await assertPersistedBaseline(before,migrated);
 const padded=structuredClone(before);padded.local.gemini_conversations[0].id=' c_a '.trim();

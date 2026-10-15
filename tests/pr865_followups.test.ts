@@ -89,7 +89,7 @@ test('normal export fetches fresh cloud content first and falls back to a local 
             await catalogStorage.setNativeConversations('u0', [local]);
             const { files } = exportMocks();
             __setModuleOverride('TabService', { sendToGeminiTab: async () => {
-                calls++; return error ? { success: false, error } : { success: true, domainEnvelopeVersion: 3, data: fresh };
+                calls++; return error ? { success: false, error } : { success: true, domainEnvelopeVersion: 2, data: fresh };
             } });
             const logs: string[] = [];
             const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
@@ -116,7 +116,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     let available = false;
     const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
-        calls++; return available ? { success: true, domainEnvelopeVersion: 3, data: fresh } : { success: false, error: 'HTTP 503' };
+        calls++; return available ? { success: true, domainEnvelopeVersion: 2, data: fresh } : { success: false, error: 'HTTP 503' };
     } });
     const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list],
         currentSlot: 'u0', includeAssets: false, skip, worker: BatchWorker });
@@ -158,7 +158,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
             }
         }
     });
-    __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 3, data: { id: list.id, isDeleted: true, error: 'HTTP 404' } }) });
+    __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 2, data: { id: list.id, isDeleted: true, error: 'HTTP 404' } }) });
     __setModuleOverride('AssetPipeline', class extends AssetPipeline {
         constructor(options: AssetPipelineOptions) { super({ ...options, fetchAsset: async () => {
             assetRequests++; return { success: true, dataBase64: 'AQID' };
@@ -292,7 +292,7 @@ test('batch export records the fetched body version rather than a newer Index ve
     await catalogStorage.setConversations('u0', [index]);
     let requests = 0;
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
-        requests++; return { success: true, domainEnvelopeVersion: 3, data: body };
+        requests++; return { success: true, domainEnvelopeVersion: 2, data: body };
     } });
     try {
         const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: index.id }],
