@@ -584,6 +584,8 @@ def test_scenario_pool_pipeline():
 
 def test_online_scenario_provider_and_lifecycle_tracker():
     import tempfile
+    import contextlib
+    import io
     scripts_dir = os.path.join(BASE_DIR, "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
@@ -609,15 +611,17 @@ def test_online_scenario_provider_and_lifecycle_tracker():
         assert status["count"] == 2
         assert status["has_imagen"] == 1
 
-        # Pop imagen
-        sc1 = prov.pop_scenario(required_features=["imagen"])
-        assert sc1["id"] == "sc_img"
-        assert prov.get_status()["count"] == 1
+        # Suppress live-run messages emitted for synthetic fixture scenarios.
+        with contextlib.redirect_stdout(io.StringIO()):
+            # Pop imagen
+            sc1 = prov.pop_scenario(required_features=["imagen"])
+            assert sc1["id"] == "sc_img"
+            assert prov.get_status()["count"] == 1
 
-        # Pop next
-        sc2 = prov.pop_scenario()
-        assert sc2["id"] == "sc_code"
-        assert prov.get_status()["count"] == 0
+            # Pop next
+            sc2 = prov.pop_scenario()
+            assert sc2["id"] == "sc_code"
+            assert prov.get_status()["count"] == 0
 
         # Archive check
         with open(a_path, "r", encoding="utf-8") as af:
@@ -643,9 +647,10 @@ def test_online_scenario_provider_and_lifecycle_tracker():
 
     # 2. Test SessionLifecycleTracker
     tracker = SessionLifecycleTracker()
-    tracker.track("chat_abc_1")
-    tracker.track("chat_abc_2")
-    tracker.track("chat_abc_1")  # duplicate
+    with contextlib.redirect_stdout(io.StringIO()):
+        tracker.track("chat_abc_1")
+        tracker.track("chat_abc_2")
+        tracker.track("chat_abc_1")  # duplicate
     assert len(tracker._tracked_chat_ids) == 2
 
     # mark one deleted (e.g. from ephemeral deletion test)
@@ -656,7 +661,8 @@ def test_online_scenario_provider_and_lifecycle_tracker():
     assert tracker.get_active_chats() == ["chat_abc_2"]
 
     # teardown retains active chats without deleting them
-    retained = tracker.teardown()
+    with contextlib.redirect_stdout(io.StringIO()):
+        retained = tracker.teardown()
     assert retained == 1
 
     print("  ✓ OnlineScenarioProvider & SessionLifecycleTracker unit tests passed")
