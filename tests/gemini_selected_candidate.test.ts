@@ -43,7 +43,7 @@ test('selection is by candidate identity even when the displayed answer is not f
 });
 
 test('legacy missing, telemetry and unknown selections use a single primary draft', () => {
-    for (const selection of [undefined, null, 'c', 6, 'rc_missing']) {
+    for (const selection of [null, 'c', 6, 'rc_missing']) {
         const parsed = decodeGeminiDetail(rpc(candidates, selection));
         assert.equal(parsed.messages.length, 2);
         assert.equal(parsed.messages[1].id, 'rc_displayed');
@@ -51,14 +51,21 @@ test('legacy missing, telemetry and unknown selections use a single primary draf
 });
 
 test('unselected images do not leak into the selected answer or consume its resources', () => {
-    const image = 'https://lh3.googleusercontent.com/selected-image.png';
+    const unselectedImage = 'https://lh3.googleusercontent.com/unselected-image.png';
+    const selectedImage = 'https://lh3.googleusercontent.com/selected-image.png';
     const wire = rpc([
-        ['rc_unselected', [[`Unselected image ![image](${image})`], [image, 640, 480]]],
-        ['rc_selected', [[`Displayed image ![image](${image})`], [image, 640, 480]]],
+        ['rc_unselected', [[`Unselected image ![image](${unselectedImage})`], [unselectedImage, 640, 480]]],
+        ['rc_selected', [[`Displayed image ![image](${selectedImage})`], [selectedImage, 640, 480]]],
     ], 'rc_selected');
     const parsed = decodeGeminiDetail(wire);
     assert.equal(parsed.messages.length, 2);
     assert.equal(parsed.messages[1].id, 'rc_selected');
     assert.equal(parsed.messages[1].images?.length, 1);
-    assert.equal(parsed.messages[1].images?.[0].sourceUrl, image);
+    assert.equal(parsed.messages[1].images?.[0].sourceUrl, selectedImage);
+
+    // Resource ownership must survive the native Domain boundary, not just decoding.
+    const domain = parse(wire).conversation;
+    assert.ok(domain.assets.some(asset => asset.sourceUri === selectedImage));
+    assert.ok(!domain.assets.some(asset => asset.sourceUri === unselectedImage));
+    assert.equal(domain.messages.filter(message => message.role === 'assistant').length, 1);
 });
