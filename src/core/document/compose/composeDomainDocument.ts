@@ -1,5 +1,5 @@
 import { toIso } from '../../domain/time.js';
-import type { TrustedDomain } from '../../domain/runtimeValidation.js';
+import type { ReadonlyDomain } from '../../domain/runtimeValidation.js';
 import { collectReferencedAssetIds } from '../../domain/content/collectAssetReferences.js';
 import { selectDisplayDate } from './displayDate.js';
 import { contentComposer } from './composeContent.js';
@@ -9,7 +9,7 @@ import type { DocumentAst } from '../ast/ast.js';
 export interface DomainCompositionOptions { documentLanguage?: string }
 
 /** Domain facts -> one format-neutral presentation tree. No resource acquisition or raw parsing. */
-export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: Diagnostic[] } {
+export function composeDomainDocument(conversation: ReadonlyDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: Diagnostic[] } {
     const assets = new Map(conversation.detail.assets.map(asset => [asset.id, asset]));
     let citationNumber = 0;
     const messages = conversation.detail.messages.map((message, index) => {

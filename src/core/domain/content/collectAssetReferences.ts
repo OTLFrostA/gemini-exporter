@@ -1,9 +1,10 @@
+import type { DeepReadonly } from '../readonly.js';
 import type { BlockNode } from './blocks.js';
 import type { InlineNode } from './inline.js';
 
-function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<string> {
+function collectImpl(blocks: DeepReadonly<BlockNode[]> | undefined, imagesOnly: boolean): Set<string> {
     const ids = new Set<string>();
-    const walkInline = (nodes: InlineNode[]): void => {
+    const walkInline = (nodes: DeepReadonly<InlineNode[]>): void => {
         for (const node of nodes) {
             switch (node.type) {
                 case 'image': ids.add(node.assetId); break;
@@ -15,7 +16,7 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
             }
         }
     };
-    const walkBlocks = (list: BlockNode[]): void => {
+    const walkBlocks = (list: DeepReadonly<BlockNode[]>): void => {
         for (const block of list) {
             switch (block.type) {
                 case 'image': ids.add(block.assetId); break;
@@ -46,7 +47,7 @@ function collectImpl(blocks: BlockNode[] | undefined, imagesOnly: boolean): Set<
     return ids;
 }
 
-export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<string> {
+export function collectReferencedAssetIds(blocks: DeepReadonly<BlockNode[]> | undefined): Set<string> {
     return collectImpl(blocks, false);
 }
 
@@ -54,6 +55,6 @@ export function collectReferencedAssetIds(blocks: BlockNode[] | undefined): Set<
  * Binary byte resolution follows AST placement (ImageBlock / ImageInline) rather than
  * Asset.kind, since a 'file'-kind asset placed as an image still needs bytes while a FileBlock only renders metadata.
  */
-export function collectBinaryRenderAssetIds(blocks: BlockNode[] | undefined): Set<string> {
+export function collectBinaryRenderAssetIds(blocks: DeepReadonly<BlockNode[]> | undefined): Set<string> {
     return collectImpl(blocks, true);
 }

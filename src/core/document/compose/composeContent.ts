@@ -1,3 +1,4 @@
+import type { DeepReadonly } from '../../domain/readonly.js';
 import type { BlockNode, TableBlock } from '../../domain/content/blocks.js';
 import type { InlineNode } from '../../domain/content/inline.js';
 import type { DomainAsset } from '../../domain/conversationDetail.js';
@@ -5,10 +6,10 @@ import { assetPresentation, assetCaptionText, isHumanMeaningfulFilename } from '
 import type { DisplayBlock, DisplayCell, DisplayInline } from '../ast/ast.js';
 
 /** Shared logical content composition; callers provide resolved semantic relationships. */
-export function contentComposer(assets: ReadonlyMap<string, DomainAsset>, source: (id: string, explicit?: string) => { id: string; label: string; href?: string }): (nodes: BlockNode[]) => DisplayBlock[] {
+export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainAsset>>, source: (id: string, explicit?: string) => { id: string; label: string; href?: string }): (nodes: DeepReadonly<BlockNode[]>) => DisplayBlock[] {
     const isTransportAlias = (id: string, value: string | undefined) => value !== undefined && value === assets.get(id)?.name && !isHumanMeaningfulFilename(value);
     const label = (id: string, explicit?: string, fallback = 'Image'): string => (!isTransportAlias(id, explicit) && explicit?.trim()) || assetPresentation(assets.get(id), undefined, fallback).label;
-    const inlines = (nodes: InlineNode[]): DisplayInline[] => nodes.map(node => {
+    const inlines = (nodes: DeepReadonly<InlineNode[]>): DisplayInline[] => nodes.map(node => {
         switch (node.type) {
             case 'text': return { type: 'text', text: node.text };
             case 'strong': case 'emphasis': case 'strikethrough': return { type: node.type, children: inlines(node.children) };
@@ -20,7 +21,7 @@ export function contentComposer(assets: ReadonlyMap<string, DomainAsset>, source
             case 'image': return assets.has(node.assetId) ? { type: 'image', resourceId: node.assetId, alt: node.alt ?? '', ...(node.title ? { title: node.title } : {}) } : { type: 'placeholder', resourceId: node.assetId, kind: 'image', text: node.alt ?? `[image: ${node.assetId}]` };
         }
     });
-    const table = (node: TableBlock): DisplayBlock => {
+    const table = (node: DeepReadonly<TableBlock>): DisplayBlock => {
         const occupied: number[] = [];
         const rows = [...(node.headerRows ?? []), ...node.rows].map((row, rowIndex) => {
             let column = 0;
@@ -35,7 +36,7 @@ export function contentComposer(assets: ReadonlyMap<string, DomainAsset>, source
         const width = Math.max(1, node.columns?.length ?? 0, ...rows.flatMap(cells => cells.map(cell => cell.column + cell.colSpan)));
         return { type: 'table', columnAlignments: Array.from({ length: width }, (_, column) => node.columns?.[column]?.align ?? 'default'), ...(node.caption ? { caption: inlines(node.caption) } : {}), headerRows: rows.slice(0, node.headerRows?.length ?? 0), rows: rows.slice(node.headerRows?.length ?? 0) };
     };
-    const blocks = (nodes: BlockNode[]): DisplayBlock[] => nodes.map(node => {
+    const blocks = (nodes: DeepReadonly<BlockNode[]>): DisplayBlock[] => nodes.map(node => {
         switch (node.type) {
             case 'paragraph': return { type: 'paragraph', children: inlines(node.children) };
             case 'heading': return { type: 'heading', level: node.level, children: inlines(node.children) };

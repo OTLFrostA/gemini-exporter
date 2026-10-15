@@ -1,3 +1,4 @@
+import type { DeepReadonly } from '../../domain/readonly.js';
 import type { InlineNode } from '../../domain/content/inline.js';
 import type { DomainAsset } from '../../domain/conversationDetail.js';
 
@@ -20,13 +21,13 @@ export function isHumanMeaningfulFilename(value?: string): boolean {
  * Explicit prose wins; opaque filenames/URLs never become visible labels.
  * Schema is intentionally unchanged in Phase 1.
  */
-export function assetPresentation(asset?: DomainAsset, explicit?: string, fallback = 'Image'): { label: string; caption?: string } {
+export function assetPresentation(asset?: DeepReadonly<DomainAsset>, explicit?: string, fallback = 'Image'): { label: string; caption?: string } {
     const human = (value?: string): string | undefined => isHumanMeaningfulFilename(value) ? value!.trim() : undefined;
     const caption = human(explicit) ?? human(asset?.name);
     return { label: caption ?? fallback, ...(caption ? { caption } : {}) };
 }
 
-export function assetCaptionText(nodes?: InlineNode[]): string | undefined {
+export function assetCaptionText(nodes?: DeepReadonly<InlineNode[]>): string | undefined {
     if (!nodes?.length) return undefined;
     return nodes.map(node => {
         if (node.type === 'text') return node.text;
