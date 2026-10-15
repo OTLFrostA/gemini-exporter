@@ -1,3 +1,6 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
@@ -17,7 +20,7 @@ test('cloud-deleted archive exports durable body and resource bytes without fetc
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
         ] }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
-    await saveDomainConversation('u0', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
+    await catalogStorage.saveConversation('u0', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
     await saveDomainConversation('u1', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }));
     let deleted = false; let fetched = false;
     __setModuleOverride('StorageService', { removeConversation: async () => { deleted = true; } });

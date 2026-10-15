@@ -129,3 +129,4 @@ export interface Turn {
 }
 
 export type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
+export type { DomainConversation, DomainConversationBody } from '../core/domain/conversation.js';

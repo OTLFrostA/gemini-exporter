@@ -1,3 +1,6 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
@@ -46,7 +49,8 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         { url: 'https://example.com/missing.png', fileName: 'missing.png' }
     ] }] });
     const [domain, takeout] = source.conversation.assets;
-    await saveDomainConversation('u0', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
+    await catalogStorage.saveConversation('u0', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
+    await catalogStorage.updateConversation('u0', 'deleted_local', { cloudAvailability: 'deleted' });
     let requests = 0;
     const logs: string[] = [];
     __setModuleOverride('TabService', { sendToGeminiTab: async () => { requests++; return { success: false, error: 'unexpected request' }; } });
@@ -76,7 +80,7 @@ test('normal export fetches fresh cloud content first and falls back to a local 
     __clearDomainMemory();
     const local = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Stale snapshot' }] });
     const fresh = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Fresh cloud answer' }] });
-    await saveDomainConversation('u0', local);
+    await catalogStorage.setNativeConversations('u0', [local]);
     let calls = 0;
     try {
         for (const error of [null, 'HTTP 503', 'Malformed direct response envelope']) {
@@ -104,7 +108,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
     const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', updatedAt: 1, messages: [{ role: 'user', content: 'Fresh cloud content' }] });
-    await saveDomainConversation('u0', local);
+    await catalogStorage.setNativeConversations('u0', [local]);
     let calls = 0;
     let available = false;
     const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
@@ -125,6 +129,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
         assert.match(Object.values(files).filter(value => typeof value === 'string').join(' '), /Fresh cloud content/);
         assert.equal((await run(true)).skipped, 1); assert.equal(calls, 3);
         list.cloudAvailability = 'deleted';
+        await catalogStorage.updateConversation('u0', list.id, { cloudAvailability: 'deleted' });
         await run(false);
         assert.equal(status(), 'ok', 'known deleted local export remains complete');
         assert.equal(calls, 3);
@@ -137,7 +142,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     const { records } = exportMocks();
     const source = historicalFixture({ id: 'delete_write_failure', title: 'Delete write failure', messages: [{ role: 'model', content: 'Retained answer',
         images: [{ url: 'https://example.com/missing-deleted.png', fileName: 'missing.png' }] }] });
-    await saveDomainConversation('u0', source);
+    await catalogStorage.setNativeConversations('u0', [source]);
     let assetRequests = 0;
     let writes = 0;
     let memoryAtWrite: Conversation['cloudAvailability'] = 'unknown';

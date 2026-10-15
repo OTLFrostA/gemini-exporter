@@ -1,3 +1,6 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
@@ -23,7 +26,7 @@ test('shared acquisition prefers online and uses cache only after unusable Takeo
     const online = historicalFixture({ id: 'fallback', messages: [message('online')] });
     assert.equal((await resolveConversationData(online, 'fallback', null, takeout)).result, online);
     assert.equal(calls, 0);
-    await store.saveDomainConversation('u0', historicalFixture({ id: 'fallback', messages: [message('cache')] }));
+    await catalogStorage.setNativeConversations('u0', [historicalFixture({ id: 'fallback', messages: [message('cache')] })]);
     try {
         const recovered = await resolveConversationData({ messages: [] }, 'fallback', null, takeout);
         assert.match(JSON.stringify(recovered.result.conversation.messages), /cache/);
@@ -106,7 +109,7 @@ test('acquisition reports provenance beside the result and never mutates parser 
     const takeout = await resolveConversationData(undefined, 'provenance', null, { getTakeoutOfflineChat: () => parsed });
     assert.equal(takeout.result, parsed);
     assert.equal(takeout.source, 'takeout');
-    await store.saveDomainConversation('u0', parsed);
+    await catalogStorage.setNativeConversations('u0', [parsed]);
     try {
         const snapshot = await resolveConversationData(undefined, 'provenance');
         assert.equal(snapshot.source, 'local_snapshot');

@@ -8,8 +8,9 @@ import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type Sc
 import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
 import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
-import { getDomainConversationResult } from './domain/nativePersistence.js';
-import { backupLegacyValue, saveDomainConversation, removeStoredDomain, storageIdentity } from './domain/domainStore.js';
+import { backupLegacyValue, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
+import { createConversationRepository, conversationParseResult, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
+import type { StoredDomainResource } from './domain/contracts.js';
 import {
     readStoredValue, type StoredObject, readStoredObject, readStoredExportMap, readStoredSlotMap,
     type StoredExportRecordMap,
@@ -155,7 +156,7 @@ export async function migrateConversationIndexes(): Promise<void> {
                     }
                     if (parsed) await saveDomainConversation(slot, parsed, [], true);
                 }
-                const body = await getDomainConversationResult(slot, index.id, index.providerId);
+                const body = await getStoredDomain(storageIdentity(index.providerId, slot, index.id));
                 if (body && (body.conversation.messages.length > 0 || body.conversation.completeness === 'complete')) {
                     index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.messages.length);
                 }
@@ -254,11 +255,22 @@ async function setNativeConversations(slot: string | null | undefined, list: rea
         if (!list.length) return;
         const metadata = await getConversations(slot);
         for (const parsed of list) {
-            const selected = await saveDomainConversation(normSlot(slot), parsed);
-            metadata.push(indexFromParsed({ ...parsed, conversation: selected.conversation }, 'snapshot'));
+            await saveDomainConversation(normSlot(slot), parsed);
+            metadata.push(indexFromParsed(parsed, 'snapshot'));
             // Persisting a local native snapshot is not evidence of current cloud availability.
         }
         await _setConversationsRaw(slot, deduplicateConversations(metadata).processed);
+    });
+}
+
+/** Acquisition write entry: body commit precedes catalog publication under the same lock. */
+async function saveConversation(slot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = []): Promise<void> {
+    const repository = conversationRepository({ providerId: parsed.conversation.providerId, accountSlot: slot });
+    await withConversationLock(async () => {
+        await saveDomainConversation(repository.scope.accountSlot, parsed, resources);
+        const metadata = await getConversations(repository.scope.accountSlot);
+        metadata.push(indexFromParsed(parsed));
+        await _setConversationsRaw(repository.scope.accountSlot, deduplicateConversations(metadata).processed);
     });
 }
 
@@ -844,19 +856,26 @@ async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
     }
 }
 
+function conversationRepository(scope: ConversationScope): ConversationRepository {
+    // This backend partitions catalogs by Chrome account slots. Do not silently map
+    // an unsupported scope to u0 using the historical normSlot convenience helper.
+    const slot = scope.providerId === 'gemini' && scope.accountSlot === 'default' ? 'u0' : scope.accountSlot;
+    if (!/^u\d+$/.test(slot)) throw new TypeError('Unsupported conversation account slot');
+    return createConversationRepository({ ...scope, accountSlot: slot }, {
+        readIndexes: () => getConversations(slot), readBody: getStoredDomain, readConsistently: withConversationLock,
+    });
+}
+
+/** @deprecated Use the scoped repository. Kept as a renderer compatibility boundary. */
 async function getConversationWithDetail(slot: string | null | undefined, id: string): Promise<ResourceConversationParseResult | null> {
     if (!id) return null;
-    const targetId = normId(id);
-    const list = await getConversations(slot);
-    const rawMeta = list.find(c => c && c.id === targetId);
-    if (!rawMeta) return null;
-    const native = await getDomainConversationResult(normSlot(slot), targetId);
-    if (!native) return null;
-    return { ...native, conversation: { ...native.conversation, title: rawMeta.title, titleSource: rawMeta.titleSource,
-        url: rawMeta.url } };
+    const stored = await conversationRepository({ providerId: 'gemini', accountSlot: normSlot(slot) }).getStoredConversation(id);
+    return stored ? conversationParseResult(stored) : null;
 }
 
 export {
+    conversationRepository,
+    saveConversation,
     normSlot,
     normId,
     getStorageKeys,
@@ -914,6 +933,8 @@ export {
 };
 
 export const StorageService = {
+    conversationRepository,
+    saveConversation,
     normSlot,
     normId,
     getStorageKeys,

@@ -420,3 +420,45 @@ test('saved source version survives reload and stays behind a newer Index until 
     expect(fresh.conversation).not.toHaveProperty('updatedAt');
     expect(fresh).not.toHaveProperty('sourceVersion');
 });
+
+test('scoped aggregate survives reload with one metadata authority and the actual saved body version', async ({ page }) => {
+    await install(page);
+    await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        await chrome.storage.local.set({ gemini_schema_version: 2 });
+        const parsed = { sourceVersion: 100, conversation: { providerId: 'gemini', id: 'gateway', title: 'Old title', titleSource: 'rpc',
+            completeness: 'unknown', createdAt: 90, url: 'https://gemini.google.com/app/gateway',
+            assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Saved body' }] }] }] },
+            acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
+        await api.StorageService.saveConversation('u0', parsed);
+        await api.StorageService.updateConversation('u0', 'gateway', { title: 'Renamed', titleSource: 'rpc', createdAt: 50,
+            updatedAt: 200, url: 'https://gemini.google.com/u/0/app/gateway', cloudAvailability: 'deleted' });
+        await api.StorageService.setConversations('u1', [api.indexFixture({ id: 'gateway', title: 'Other account' })]);
+    });
+    await page.reload(); await install(page);
+    const read = await page.evaluate(async () => {
+        const api = Reflect.get(globalThis, 'storageProbe');
+        const repository = api.StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' });
+        const identity = api.storageIdentity('gemini', 'u0', 'gateway');
+        const before = await api.getStoredDomain(identity);
+        const chromeBefore = await chrome.storage.local.get(null);
+        const aggregate = await repository.getConversation('c_gateway');
+        const stored = await repository.getStoredConversation('gateway');
+        const legacy = await api.StorageService.getConversationWithDetail('u0', 'gateway');
+        const other = await api.StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u1' }).getConversation('gateway');
+        return { before, after: await api.getStoredDomain(identity), chromeBefore, chromeAfter: await chrome.storage.local.get(null),
+            aggregate, stored, legacy, other, absent: await repository.getConversation('missing') };
+    });
+    expect(read.aggregate.index).toMatchObject({ title: 'Renamed', createdAt: 50, updatedAt: 200, cloudAvailability: 'deleted' });
+    expect(Object.keys(read.aggregate.detail).sort()).toEqual(['assets', 'completeness', 'messages']);
+    expect(read.aggregate.detail.messages[0].content[0].children[0].text).toBe('Saved body');
+    expect(read.stored.capture.savedAt).toBe(100);
+    expect(read.legacy.sourceVersion).toBe(100);
+    expect(read.legacy.conversation).toMatchObject({ title: 'Renamed', createdAt: 50, url: 'https://gemini.google.com/u/0/app/gateway' });
+    expect(read.before.conversation.title).toBe('Old title');
+    expect(read.after).toEqual(read.before);
+    expect(read.chromeAfter).toEqual(read.chromeBefore);
+    expect(read.other.index.title).toBe('Other account');
+    expect(read.other).not.toHaveProperty('detail');
+    expect(read.absent).toBeNull();
+});

@@ -1,5 +1,10 @@
 # Domain model and upstream parsing boundary
 
+Saved application reads use the [scoped conversation repository](conversation-access.md).
+Its aggregate exposes one canonical index plus an optional body containing only
+messages, assets and completeness. Parser/storage snapshots retain their existing
+wire contract; their repeated metadata is not a second application authority.
+
 Domain is the provider-neutral semantic conversation we intend to remember over time. It owns source facts and relationships, independently of the current exporter or storage implementation. The target producer pipeline is `raw input → source parser → Domain`. Consumers then use `Domain → Document AST → Renderer`.
 
 Production conversation detail inputs now follow raw source → native parser → Domain: RPC pages, Takeout archives and DOM observations. Runtime application envelopes carry the native conversation result. Versioned storage receives Domain directly. Standard JSON serializes Domain directly; a dedicated legacy-storage parser interprets historical persisted records.
