@@ -31,8 +31,7 @@ import type {
     UnknownBlock,
 } from '../../../domain/content/blocks.js';
 import type { ImageInline, InlineNode, LinkInline } from '../../../domain/content/inline.js';
-import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
-import type { SourceRef } from '../../../domain/content/sourceRef.js';
+import type { Diagnostic, SourceRef } from '../../../diagnostics/diagnostic.js';
 
 /** Provider-neutral parsing hooks; asset ownership stays with the caller. */
 export interface MarkdownParseContext {

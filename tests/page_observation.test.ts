@@ -66,3 +66,12 @@ test('captured expanded webpage recent filter establishes request identity witho
         assert.equal(readGeminiListRequest(request(invalid)), null);
     }
 });
+
+test('list coverage uses the parser failure outcome, never the diagnostic payload', () => {
+    const result = parseList(wire([row('abcdef123', 1700000020)]));
+    const request = { streamId: 'recent' as const, requestCursor: null };
+    const debug = { error: 'NO_INNER_STR' as const, bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null };
+    assert.deepEqual(geminiListObservation({ ...result, _debug: debug }, request, 'account'),
+        geminiListObservation(result, request, 'account'));
+    assert.equal(geminiListObservation({ ...result, failure: 'invalid_response' }, request, 'account').valid, false);
+});

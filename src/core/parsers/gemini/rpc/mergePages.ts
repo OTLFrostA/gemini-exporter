@@ -2,9 +2,12 @@ import type { DomainAsset, DomainConversationDetail, DomainMessage } from '../..
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
+import type { GeminiRpcParseResult } from './parseConversation.js';
+
+type ConversationPage = ResourceConversationParseResult & { transport?: Pick<GeminiRpcParseResult['transport'], 'turnsRejected'> };
 
 /** Pages arrive newest first. Asset collisions without shared source identity remain distinct. */
-export function mergeConversationPages(pages: readonly ResourceConversationParseResult[], truncatedReason?: string): ResourceConversationParseResult {
+export function mergeConversationPages(pages: readonly ConversationPage[], truncatedReason?: string): ResourceConversationParseResult {
     if (!pages.length) throw new TypeError('No conversation pages');
     const first = pages[0].conversation;
     const assets = new Map<string, DomainAsset>();
@@ -39,10 +42,12 @@ export function mergeConversationPages(pages: readonly ResourceConversationParse
             ...(message.attachmentIds ? { attachmentIds: [...new Set(message.attachmentIds.map(id => aliases.get(id) ?? id))] } : {}) }));
         messages = [...fresh, ...messages];
     }
-    const rejected = pages.some(page => page.diagnostics.some(d => ['GEMINI_TURNS_REJECTED', 'CONVERSATION_VERSION_MISMATCH'].includes(d.code)));
+    const rejected = pages.some(page => (page.transport?.turnsRejected ?? 0) > 0);
+    const versionMismatch = pages.some(page => page.sourceVersion !== undefined
+        && page.conversation.messages.some(message => message.timestamp !== undefined && message.timestamp > page.sourceVersion!));
     const versionChanged = pages.some(page => page.sourceVersion !== pages[0].sourceVersion);
     const conversation: DomainConversationDetail = { ...first, messages, assets: [...assets.values()],
-        completeness: truncatedReason || rejected || versionChanged ? 'partial' : 'unknown' };
+        completeness: truncatedReason || rejected || versionMismatch || versionChanged ? 'partial' : 'unknown' };
     return { ...(pages[0].sourceVersion !== undefined ? { sourceVersion: pages[0].sourceVersion } : {}), conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
         ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };

@@ -1,8 +1,7 @@
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
-import type { DocumentDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
-import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
+import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
@@ -65,7 +64,7 @@ export async function parseGeminiTakeoutArchiveAsync(raw: GeminiTakeoutRaw, cont
 }
 
 function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>): GeminiTakeoutParseResult {
-    const diagnostics: DocumentDiagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = [];
     const groups: Array<{ input: { attachments: ResourceEvidence[] } }> = [];
@@ -135,5 +134,5 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         if (bound) archiveResources[asset.id] = bound;
     }
     return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
-        diagnostics: [...diagnostics, ...contentDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
+        diagnostics: [...diagnostics, ...contentDiagnostics] };
 }

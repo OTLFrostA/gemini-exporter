@@ -71,7 +71,7 @@ export interface BuildExportCompletionInput {
     isTruncated?: boolean;
     truncateReason?: string;
     /** Integrity evidence facts */
-    evidence?: ChatParseDrift;
+    evidence?: Omit<ChatParseDrift, 'schemaDrift'>;
     usedLocalSnapshot?: boolean;
 }
 
@@ -131,7 +131,7 @@ export interface ResolveExportRecordStatusOptions {
     statusOverride?: 'ok' | 'partial' | 'empty' | 'failed';
     messageCount?: number;
     isEmpty?: boolean;
-    evidence?: ChatParseDrift;
+    evidence?: Omit<ChatParseDrift, 'schemaDrift'>;
     usedLocalSnapshot?: boolean;
 }
 
@@ -228,7 +228,6 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         isEmpty: !!chat.isEmpty || !!chat._empty,
         usedLocalSnapshot: input.usedLocalSnapshot,
         evidence: {
-            schemaDrift: input.evidence?.schemaDrift ?? [],
             sourcePartial: chat.completeness === 'partial' || !!input.evidence?.sourcePartial,
             turnsRejected: input.evidence?.turnsRejected ?? 0,
             hasHeuristicDocs: input.evidence?.hasHeuristicDocs ?? false,

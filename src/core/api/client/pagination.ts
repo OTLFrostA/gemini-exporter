@@ -69,7 +69,7 @@ export interface PaginationPageDiagnostic {
     debugInfo: ListParseDiagnostics | null;
 }
 
-/** Gemini-specific diagnostics persisted by sync and read by Takeout UI. */
+/** Gemini-specific observations persisted for diagnostic reports. */
 export interface GeminiPaginationDiagnostics {
     startTime: string;
     endTime?: string;
@@ -99,7 +99,6 @@ export interface PaginationCompletenessEvidence {
     exhaustive?: boolean;
     completionReason?: string;
     hitGoogleLimit?: boolean;
-    diagnostics?: { hitGoogleLimit?: boolean } | null;
 }
 
 /** Request flags actually read by GeminiAPIClient; no provider/session abstraction. */
@@ -154,7 +153,7 @@ interface PaginationAbortFlags {
 export function isPaginationExhaustive(res: PaginationCompletenessEvidence | null | undefined): boolean {
     if (!res) return false;
     if (res.stoppedEarly) return false;
-    if (res.hitGoogleLimit || res.diagnostics?.hitGoogleLimit) return false;
+    if (res.hitGoogleLimit) return false;
     if (res.exhaustive === false) return false;
     if (res.completionReason && res.completionReason !== 'natural_exhaustion') return false;
     return true;
@@ -268,7 +267,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 }
 
                 if (typeof opts?.onPageBatch === 'function' && (res.conversations.length > 0
-                    || (opts.includePinned && !res._debug))) {
+                    || (opts.includePinned && !res.failure))) {
                     const decision = await opts.onPageBatch(res.conversations, {
                         page: i + 1,
                         hasMore: !!res?.nextPageToken || listKind === 'pinned',
@@ -294,7 +293,7 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                             exhaustive: false,
                             completionReason: 'unchanged_boundary',
                             diagnostics: diagLog,
-                            hitGoogleLimit: !!diagLog.hitGoogleLimit
+                            hitGoogleLimit: false
                         };
                     }
                 }
@@ -304,13 +303,13 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
                 reachedMax = false; stoppedEarly = true; completionReason = 'error'; break;
             }
             if (!res?.conversations || res.conversations.length === 0) {
-                const isGoogleLimit = res?._debug?.bardError || res?._debug?.error === "BARD_ERROR_INFO";
+                const isGoogleLimit = res.failure === 'hit_google_limit';
                 if (isGoogleLimit) {
                     diagLog.hitGoogleLimit = true;
                     diagLog.stopReason = `Google 服务端翻页到达极限 (BardErrorInfo: 游标链已达服务端上限)`;
                     stoppedEarly = true;
                     completionReason = 'hit_google_limit';
-                } else if (res?._debug?.error === "NO_INNER_STR" || !Array.isArray(res?.conversations)) {
+                } else if (res.failure === 'invalid_response' || !Array.isArray(res?.conversations)) {
                     diagLog.stopReason = `第 ${i + 1} 页列表响应无法解析，不能确认历史已耗尽`;
                     stoppedEarly = true;
                     completionReason = 'error';
@@ -374,12 +373,13 @@ export function isPaginationExhaustive(res: PaginationCompletenessEvidence | nul
         }
         diagLog.totalConversations = all.length;
         diagLog.endTime = new Date().toISOString();
-        const isEarly = !!(stoppedEarly || interruptedByError || reachedMax || diagLog.hitGoogleLimit);
+        const hitGoogleLimit = completionReason === 'hit_google_limit';
+        const isEarly = !!(stoppedEarly || interruptedByError || reachedMax || hitGoogleLimit);
         const finalResult: PaginationResult = {
             conversations: all,
             total: all.length,
             diagnostics: diagLog,
-            hitGoogleLimit: !!diagLog.hitGoogleLimit,
+            hitGoogleLimit,
             exhaustive: !isEarly,
             completionReason: isEarly ? (completionReason === 'natural_exhaustion' ? 'hit_google_limit' : completionReason) : 'natural_exhaustion'
         };

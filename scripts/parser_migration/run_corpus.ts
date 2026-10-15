@@ -19,14 +19,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
 import type { DomainConversationDetail } from '../../src/core/domain/conversationDetail.js';
-import type { DocumentDiagnostic } from '../../src/core/diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
 import { convertMathWithMitex, initMitexWasm } from '../../src/core/renderers/typst/mathConverter.js';
 import { compareMarkdownAst, compareMathConversion, type DiffCategory } from './diff_runner.js';
 import { TypstSandboxCompiler } from '../../src/core/export/typst/typstSandboxCompiler.js';
 import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
 import { RealWasmSandboxHost, repoRoot } from '../../tests/helpers/realWasmSandbox.js';
 
-export type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: DocumentDiagnostic[] }>;
+export type MarkdownParserFn = (content: string, id: string) => Promise<{ conversation: DomainConversationDetail; diagnostics: Diagnostic[] }>;
 export type MathConverterFn = (latex: string, display: boolean) => { typst?: string; diagnostic?: any };
 
 export interface CorpusRunnerOptions {

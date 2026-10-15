@@ -9,12 +9,12 @@ import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
 import { parseGeminiTakeoutZipArchive, type GeminiTakeoutZipRaw } from '../../parsers/gemini/takeout/parseZip.js';
 import { TakeoutParseError } from '../../../types/errors.js';
 import type { DomainConversationIndex } from '../../../types/index.js';
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 
 export interface TakeoutParseResult extends TakeoutStore {
     conversations: DomainConversationIndex[];
     totalMediaCount: number;
-    diagnostics: DocumentDiagnostic[];
+    diagnostics: Diagnostic[];
     resourceResults: ResourceResult<ResourceDelivery>[];
     status: 'ok' | 'partial';
 }
@@ -50,7 +50,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     const store: TakeoutStore = { convCache: {}, mediaMap: {}, globalMedia: {} };
     const importedIds = new Set(results.map(result => result.conversation.id));
     const resourceResults: ResourceResult<ResourceDelivery>[] = [];
-    const diagnostics: DocumentDiagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
     const basenames = new Map<string, unknown[]>();
     for (const [path, entry] of Object.entries(inventory)) {
         if (!entry || typeof entry !== 'object' || ('dir' in entry && entry.dir)) continue;

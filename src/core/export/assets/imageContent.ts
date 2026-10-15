@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 
 export const MAX_ASSET_BYTES = 50 * 1024 * 1024;
 
@@ -165,7 +165,7 @@ export function extFromName(name?: string): string | undefined {
 export function checkImageContent(
     asset: { id: string; name?: string; mimeType?: string },
     bytes: Uint8Array,
-    diag: (assetId: string, severity: DocumentDiagnostic['severity'], code: string, message: string) => void,
+    diag: (assetId: string, severity: Diagnostic['severity'], code: string, message: string) => void,
 ): { ok: true; ext: string; mime: string } | { ok: false } {
     const declared = normalizeMime(asset.mimeType);
     const sniffed = sniffImage(bytes);

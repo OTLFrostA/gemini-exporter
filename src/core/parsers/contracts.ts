@@ -1,5 +1,5 @@
 import type { TrustedDomain } from '../domain/runtimeValidation.js';
-import type { DocumentDiagnostic } from '../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 /** Every raw parser knows its producer. No filename/source-string heuristics at this boundary. */
 export interface ConversationParseContext {
@@ -11,7 +11,7 @@ export interface ConversationParseResult {
     conversation: TrustedDomain;
     /** Captured source activity version (epoch ms). Persist only as savedAt, never in Detail. */
     sourceVersion?: number;
-    diagnostics: DocumentDiagnostic[];
+    diagnostics: Diagnostic[];
 }
 
 /** Raw decoders construct a closed Domain graph before returning, including after async acquisition. */

@@ -3,7 +3,7 @@ import type { DomainConversationDetail } from '../../domain/conversationDetail.j
 import type { AcquireAssetBytesResult } from '../../engine/assetPipeline.js';
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
 import type { PreparedResource, PreparedResources } from '../assets/preparedResources.js';
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { decodeDataUrl } from '../assets/dataUrl.js';
 import { MAX_ASSET_BYTES } from '../assets/imageContent.js';
 
@@ -19,9 +19,9 @@ export async function preparePdfResources(
     imageIds: ReadonlySet<string>,
     acquisitionHints: ResourceAcquisitionHints,
     options: PreparePdfResourcesOptions = {},
-): Promise<{ resources: PreparedResources; diagnostics: DocumentDiagnostic[]; aborted: boolean }> {
+): Promise<{ resources: PreparedResources; diagnostics: Diagnostic[]; aborted: boolean }> {
     const resources = new Map<string, PreparedResource>();
-    const diagnostics: DocumentDiagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
     for (const asset of domain.assets) {
         if (options.signal?.aborted) return { resources, diagnostics, aborted: true };
         const resource: PreparedResource = { name: asset.name, mediaType: asset.mediaType };

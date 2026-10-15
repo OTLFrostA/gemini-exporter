@@ -58,7 +58,8 @@ test.beforeAll(async () => {
                 scraper: { contentFetchChatDetail: async () => {
                     domCalls++;
                     return { id, error: scenario.route === 'network' ? 'HTTP 503' : 'Not found',
-                        _debug: { isNotFound: scenario.route !== 'network' } };
+                        isDeleted: scenario.route !== 'network',
+                        _debug: { isNotFound: scenario.route === 'network' } };
                 } }
             });
             chrome.runtime.onMessage.addListener = originalAdd;

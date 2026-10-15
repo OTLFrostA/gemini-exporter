@@ -53,16 +53,13 @@ function _runScan(
         const res = raw;
         setScanRunning(false);
 
-        const hitGoogleLimit = !!(
-            res?.hitGoogleLimit ||
-            res?.diagnostics?.hitGoogleLimit
-        );
+        const hitGoogleLimit = !!res.hitGoogleLimit || res.status === 'partial_limit';
 
         if (res.status && res.status !== 'complete' && res.status !== 'up_to_date') {
             const count = res.count ?? res.total ?? 0;
             const key = res.status === 'partial_limit' ? 'syncFinishedWithLimit'
                 : res.status === 'aborted' ? 'syncAbortedSaved' : 'syncIncompleteSaved';
-            const finishMsg = t(key, count, res.error || res.diagnostics?.stopReason || '');
+            const finishMsg = t(key, count, res.error || '');
             if (onLog) onLog(finishMsg, 'warn');
             if (onError) onError(new Error(res.error || res.status), finishMsg, { hitGoogleLimit, res });
         } else if (res && res.success) {

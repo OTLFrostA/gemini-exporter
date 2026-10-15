@@ -106,7 +106,7 @@ export function init({
                         error: res.error,
                         count: res?.count || 0,
                         diagnostics: res?.diagnostics,
-                        hitGoogleLimit: !!(res?.hitGoogleLimit || res?.diagnostics?.hitGoogleLimit)
+                        hitGoogleLimit: !!res?.hitGoogleLimit || res?.status === 'partial_limit'
                     });
                 } catch (e: unknown) {
                     const errStr = getErrorMessage(e);
@@ -208,8 +208,7 @@ export function init({
                             return;
                         } else {
                             const failure = chat && 'error' in chat ? chat : { id: cid, error: 'DOM returned empty content' };
-                            const isConfirmedDeleted = !!failure?.isDeleted
-                                || !!failure?._debug && 'isNotFound' in failure._debug && failure._debug.isNotFound === true;
+                            const isConfirmedDeleted = failure.isDeleted === true;
                             if (isConfirmedDeleted) {
                                 const slot = detailMsg.accountSlot || (Sync && Sync.getAccountSlot ? Sync.getAccountSlot() : 'u0');
                                 await recordCloudDeletion(slot, cid);

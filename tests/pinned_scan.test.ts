@@ -58,7 +58,7 @@ test('page budget, errors, limits and cancellation at the group boundary cannot 
         const client = { aborted: false, async getConversationList(): Promise<ListParseResult> {
             if (calls++ === 0) return page(['pinned']);
             if (cause === 'error') throw new Error('network failed');
-            if (cause === 'limit') return { ...page([]), _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
+            if (cause === 'limit') return { ...page([]), failure: 'hit_google_limit', _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
             if (cause === 'sparse') return page([], 'not-exhausted');
             throw new Error('must stop before recent request');
         } };
@@ -73,7 +73,7 @@ test('page budget, errors, limits and cancellation at the group boundary cannot 
 test('a malformed pinned chain is not treated as an empty account', async () => {
     let calls = 0;
     const result = await getAllConversations({ async getConversationList() {
-        calls++; return { ...page([]), _debug: { error: 'NO_INNER_STR' as const, bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
+        calls++; return { ...page([]), failure: 'invalid_response' as const, _debug: { error: 'NO_INNER_STR' as const, bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
     } }, { includePinned: true });
     assert.equal(calls, 1); assert.equal(result.exhaustive, false); assert.equal(result.completionReason, 'error');
 });

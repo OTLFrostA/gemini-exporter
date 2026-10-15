@@ -1,6 +1,6 @@
 import { PdfResourceError, isAbortError } from '../pdf/errors.js';
 import { missingResource, type ResourceFailure } from '../../resources/resourceResult.js';
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic as RenderDiagnostic } from '../../diagnostics/diagnostic.js';
 import type { IPdfCompiler, PdfCompileResult, PdfCompileContext, TypstRenderPayload } from '../pdf/pdfCompiler.js';
 
 import {

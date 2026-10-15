@@ -43,7 +43,7 @@ export function geminiListObservation(result: ListParseResult, request: GeminiLi
             ? payloadToMs(row[5]) : null;
         return { id: item.id, time: time ?? 0 };
     });
-    const valid = (result.nextPageToken === null || keys.length > 0) && !truncated && !result._debug && rows !== null && rows.length === result.conversations.length
+    const valid = (result.nextPageToken === null || keys.length > 0) && !truncated && !result.failure && rows !== null && rows.length === result.conversations.length
         && keys.every(key => key.id.length >= 3) && new Set(keys.map(key => key.id)).size === keys.length;
     return { providerId: 'gemini', accountId, streamId: request?.streamId ?? 'unknown', items: result.conversations,
         requestCursor: request?.requestCursor ?? null, nextCursor: result.nextPageToken,
