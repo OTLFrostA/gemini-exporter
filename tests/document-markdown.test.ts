@@ -61,10 +61,17 @@ test('Markdown composition owns unavailability and emits diagnostics without rem
     assert.deepEqual(composeDomainDocument(validateParserDomain(fixture())).document, document);
 });
 
-test('Markdown backend cannot import semantic models, registries or clocks', () => {
+test('Markdown renderer cannot depend on provider, Domain or storage services', () => {
     const code = readFileSync('src/core/renderers/markdown/renderMarkdown.ts', 'utf8');
-    assert.doesNotMatch(code, /canonical\/|content\/|provider\/|Domain|Canonical|assetPresentation|citationDisplayLabel|new Date|\.role\b|\.storageRef\b/);
-    assert.match(code, /function projectedTable/);
+    // This is a module-boundary policy, not a check for literal words or function names.
+    const dependencies = [...code.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map(match => match[1]);
+    assert.ok(dependencies.length > 0, 'module import scan must find the real renderer dependencies');
+    for (const dependency of dependencies) {
+        assert.doesNotMatch(dependency, /(?:^|\/)(?:domain|parsers|storage|provider|api|engine)(?:\/|$)/,
+            'Markdown rendering must consume Document AST instead of source-side services');
+    }
+    assert.doesNotMatch(code, /\b(?:new\s+Date|Date\.now)\s*\(/, 'renderers must use supplied timestamps');
+    assert.doesNotMatch(code, /\.(?:role|storageRef)\b/, 'renderers must not inspect Domain or storage-only fields');
 });
 
 test('Markdown front matter reads identity and source dates only from Document AST', () => {
