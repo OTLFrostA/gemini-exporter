@@ -15,7 +15,7 @@ const {
 
 function domainFixture(messages: any[], assets: any[] = []) {
     // Use a valid, trusted Domain graph before testing DocumentAst/Typst behavior.
-    return validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { completeness: 'unknown', assets, messages } });
+    return validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { quality: { status: 'unknown' }, assets, messages } });
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {

@@ -274,7 +274,7 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
     const toolMsg = detail.conversation.detail.messages.find((m) => m.id === 't1');
     assert.deepEqual(toolMsg?.attachmentIds, [detail.conversation.detail.assets[1]?.id]);
     assert.ok(toolMsg?.content.some((b) => b.type === 'image'));
-    assert.equal(detail.conversation.detail.completeness, 'partial');
+    assert.equal(detail.conversation.detail.quality.status, 'partial');
     assert.ok(detail.diagnostics.some((d) => d.code === 'CHATGPT_IMAGE_ASSET_UNAVAILABLE'));
 });
 

@@ -37,7 +37,7 @@ test('source provenance and explicit completeness survive JSON without leaking t
     const original = structuredClone(data);
     const { conversation } = parse(data);
     assert.equal(Reflect.get(conversation, 'provenance'), undefined);
-    assert.equal(conversation.detail.completeness, 'complete');
+    assert.equal(conversation.detail.quality.status, 'complete');
     assert.deepEqual(JSON.parse(JSON.stringify(conversation)), conversation);
     assertDomainClosure((conversation).detail);
     assert.equal('nextPageToken' in conversation, false);
@@ -54,7 +54,7 @@ test('positive truncation or paging evidence takes precedence over a complete cl
         const data = { completeness: { status: 'complete' as const }, truncateReason: 'Source limit', ...evidence };
         const original = structuredClone(data);
         const { conversation } = parse(data);
-        assert.equal(conversation.detail.completeness, 'partial');
+        assert.equal(conversation.detail.quality.status, 'partial');
         assert.ok(!JSON.stringify(conversation).includes('opaque-cursor'));
         assert.deepEqual(data, original);
     }
@@ -62,22 +62,22 @@ test('positive truncation or paging evidence takes precedence over a complete cl
 
 test('absence of truncation is not evidence of complete coverage', () => {
     for (const data of [{}, { truncated: false, isTruncated: false, nextPageToken: null }, { nextPageToken: '  ', truncateReason: 'Unconfirmed' }]) {
-        assert.equal(parse(data).conversation.detail.completeness, 'unknown');
+        assert.equal(parse(data).conversation.detail.quality.status, 'unknown');
     }
-    assert.deepEqual(parse({ completeness: { status: 'unknown' } }).conversation.detail.completeness, 'unknown');
-    assert.deepEqual(parse({ nextPageToken: 'cursor', completeness: { status: 'partial', reason: 'Selected range' } }).conversation.detail.completeness,
+    assert.deepEqual(parse({ completeness: { status: 'unknown' } }).conversation.detail.quality.status, 'unknown');
+    assert.deepEqual(parse({ nextPageToken: 'cursor', completeness: { status: 'partial', reason: 'Selected range' } }).conversation.detail.quality.status,
         'partial');
-    assert.deepEqual(parse({ completeness: { status: 'partial', reason: 'Only a selected range' } }).conversation.detail.completeness,
+    assert.deepEqual(parse({ completeness: { status: 'partial', reason: 'Only a selected range' } }).conversation.detail.quality.status,
         'partial');
 });
 
 test('Domain completeness is validated and copied independently from input evidence', () => {
     const data = { completeness: { status: 'partial' as const, reason: 'Missing older messages' } };
     const { conversation } = parse(data);
-    conversation.detail.completeness = 'complete';
+    conversation.detail.quality.status = 'complete';
     assert.equal(data.completeness.reason, 'Missing older messages');
-    assert.throws(() => parse({ completeness: { status: 'finished' as never } }), /completeness/);
-    assert.equal(parse({ completeness: { status: 'partial', reason: 42 as never } }).conversation.detail.completeness, 'partial');
+    assert.throws(() => parse({ completeness: { status: 'finished' as never } }), /quality/);
+    assert.equal(parse({ completeness: { status: 'partial', reason: 42 as never } }).conversation.detail.quality.status, 'partial');
 });
 
 test('conversation timestamps cannot lose meaning during JSON serialization', () => {

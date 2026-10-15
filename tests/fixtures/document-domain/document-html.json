@@ -103,6 +103,8 @@
         ]
       }
     ],
-    "completeness": "unknown"
+    "quality": {
+      "status": "unknown"
+    }
   }
 }

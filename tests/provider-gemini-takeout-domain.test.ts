@@ -41,7 +41,7 @@ test('missing Takeout dates remain absent and activity logs never claim complete
     assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
     assert.equal(conversation.index.createdAt, undefined);
     for (const message of conversation.detail.messages) assert.equal(message.timestamp, undefined);
-    assert.equal(conversation.detail.completeness, 'partial');
+    assert.equal(conversation.detail.quality.status, 'partial');
 });
 
 test('batch and selected parsing preserve separate conversation identities and source chronology', () => {

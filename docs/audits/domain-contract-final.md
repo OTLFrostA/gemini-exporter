@@ -1,3 +1,5 @@
+> Superseded for content quality by Domain v2: `quality` replaces completeness, transport quality flags and asset heuristic flags. See [the current contract](../domain-model.md).
+
 # Final Domain contract cleanup after #925 / #926
 
 ## Contract changes

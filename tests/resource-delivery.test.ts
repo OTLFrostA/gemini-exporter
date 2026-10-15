@@ -24,7 +24,7 @@ const JSZip = require('../lib/jszip.min.js');
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6aAAAAABJRU5ErkJggg==', 'base64');
 afterEach(() => { __clearModuleOverrides(); mock.restoreAll(); });
 function native(failure: string): ResourceConversationParseResult {
-    return { conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure' }, detail: { completeness: 'unknown', assets: [
+    return { conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: `delivery-${failure}`, title: 'Resource failure' }, detail: { quality: { status: 'unknown' }, assets: [
         { id: 'good', kind: 'image', name: `${'delivered_'.repeat(10)}.png`, mediaType: 'image/png', sourceUri: 'https://example.test/good' },
         { id: 'good-doc', kind: 'file', name: 'good.md', document: { contentMarkdown: '# Delivered companion' } },
         { id: 'bad', kind: failure === 'file-write' ? 'file' : 'image', name: 'bad.png',

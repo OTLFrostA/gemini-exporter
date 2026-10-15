@@ -1,5 +1,4 @@
 import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
-import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
 import { resolveConversationExportState } from '../src/core/utils/titleUtils.js';
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 const { extractBlockText } = require('../src/core/domain/content/unknownFallback.js');
@@ -152,8 +151,8 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
     // DOM coverage must remain retryable even with successful writes and no failed assets,
     // including after JSON restoration has discarded transient transport/diagnostics.
     const restored = { conversation: restoreDomainSnapshot(parsed.conversation), diagnostics: [], acquisitionHints: {}, resourceHints: {} };
-    assert.strictEqual(restored.conversation.detail.completeness, 'partial');
-    const completion = buildExportCompletion({ conversation: restored.conversation, evidence: extractChatParseDrift(restored), failedAssets: 0 });
+    assert.strictEqual(restored.conversation.detail.quality.status, 'partial');
+    const completion = buildExportCompletion({ conversation: restored.conversation, failedAssets: 0 });
     assert.strictEqual(completion.exportRecord.status, 'partial');
     assert.strictEqual(completion.exportRecord.hasFailedAssets, false);
     assert.strictEqual(resolveConversationExportState({ id: 'chat_001' }, completion.exportRecord).needsIncrementalExport, true);

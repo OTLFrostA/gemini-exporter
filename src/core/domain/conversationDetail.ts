@@ -1,3 +1,4 @@
+import type { ContentQuality } from './quality.js';
 import type { BlockNode } from './content/blocks.js';
 
 /** Provider-neutral description of a complete conversation detail. */
@@ -24,8 +25,6 @@ export interface DomainAsset {
     document?: {
         id?: string;
         contentMarkdown?: string;
-        /** Retained across storage so heuristic report content cannot export as complete. */
-        hasFabricatedText?: boolean;
     };
 }
 
@@ -72,7 +71,7 @@ export interface DomainMessage {
 
 /** Body facts only. All conversation metadata belongs to DomainConversationIndex. */
 export interface DomainConversationDetail {
-    completeness: 'complete' | 'partial' | 'unknown';
+    quality: ContentQuality;
     /** One record per semantic resource; body/reasoning assetId values refer to these IDs. */
     assets: DomainAsset[];
     messages: DomainMessage[];

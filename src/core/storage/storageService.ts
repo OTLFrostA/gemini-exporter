@@ -154,7 +154,7 @@ export async function migrateConversationIndexes(): Promise<void> {
                     if (parsed) await saveDomainConversation(slot, parsed, [], true);
                 }
                 const body = await getStoredDomain(storageIdentity(index.providerId, slot, index.id));
-                if (body && (body.conversation.detail.messages.length > 0 || body.conversation.detail.completeness === 'complete')) {
+                if (body && (body.conversation.detail.messages.length > 0 || body.conversation.detail.quality.status === 'complete')) {
                     index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.detail.messages.length);
                 }
                 list.push(index);

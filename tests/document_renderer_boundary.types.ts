@@ -72,5 +72,5 @@ void metadataBypass;
 
 import type { ResolveExportRecordStatusOptions } from '../src/core/engine/export/exportCompletion.js';
 // @ts-expect-error Diagnostic descriptions are reporting data, not export-integrity evidence.
-const diagnosticStatusInput: ResolveExportRecordStatusOptions = { evidence: { schemaDrift: ['warning'] } };
+const diagnosticStatusInput: ResolveExportRecordStatusOptions = { quality: { status: 'unknown', diagnostics: ['warning'] } };
 void diagnosticStatusInput;

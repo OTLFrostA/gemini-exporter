@@ -20,7 +20,7 @@ function domainFixture(messages: any[], extra: any = {}) {
     const updatedAt = require('../src/core/domain/time.js').normalizeTimestamp(extra.updatedAt);
     return { index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
         ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
-        detail: { completeness: 'unknown', assets: extra.assets ?? [], messages } };
+        detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages } };
 }
 
 function msg(id: string, role: string, blocks: any[], extra: any = {}) {

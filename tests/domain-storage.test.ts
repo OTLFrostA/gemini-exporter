@@ -15,7 +15,7 @@ import { __setSchemaFrozenForTest } from '../src/core/storage/schemaState.js';
 
 beforeEach(() => { __clearDomainMemory(); __clearMemoryStore(); });
 function source(id = 'chat', count = 2): ResourceConversationParseResult {
-    return { sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id, title: 'Stored title' }, detail: { completeness: 'unknown', assets: [{ id: 'asset', kind: 'image', sourceUri: 'source.png' }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) } }), resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
+    return { sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id, title: 'Stored title' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'image', sourceUri: 'source.png' }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) } }), resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
 }
 test('v2 stores structured Domain intact and excludes render/parse transport state', async () => {
     const parsed = source();
@@ -46,11 +46,11 @@ test('accounts and providers isolate identical IDs; non-Gemini IDs remain opaque
     assert.ok(await getStoredDomain(storageIdentity('future', 'u0', 'c_chat')));
 });
 test('partial/older captures cannot truncate current detail; migration retries are idempotent', async () => {
-    const full = source('chat', 4); full.conversation.detail.completeness = 'complete';
+    const full = source('chat', 4); full.conversation.detail.quality.status = 'complete';
     await saveDomainConversation('u0', full);
     const shorter = source('chat', 1); shorter.sourceVersion = 1800000000000;
     await saveDomainConversation('u0', shorter);
-    const partial = source('chat', 4); partial.conversation.detail.completeness = 'partial';
+    const partial = source('chat', 4); partial.conversation.detail.quality.status = 'partial';
     await saveDomainConversation('u0', partial);
     assert.deepEqual((await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.conversation, full.conversation);
     await saveDomainConversation('u0', shorter, [], true);
@@ -95,7 +95,7 @@ test('legacy-storage is a distinct unified parser format and joins metadata with
 test('legacy metadata without body reports partial coverage instead of fabricating a transcript', () => {
     const result = parseLegacyStorageConversation({ metadata: { id: 'meta', title: 'Meta', messageCount: 5 } }, { providerId: 'gemini' });
     assert.equal(result.conversation.detail.messages.length, 0);
-    assert.equal(result.conversation.detail.completeness, 'partial');
+    assert.equal(result.conversation.detail.quality.status, 'partial');
 });
 test('identical captures retain the current record token', async () => {
     const parsed = source();
@@ -106,7 +106,7 @@ test('identical captures retain the current record token', async () => {
 test('future schema freezes writes and deletion while known Domain remains readable', async () => {
     await saveDomainConversation('u0', source());
     const before = globalThis.chrome;
-    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 4 }) } } } as unknown as typeof chrome;
+    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 999 }) } } } as unknown as typeof chrome;
     try {
         await assert.rejects(saveDomainConversation('u0', source('new')), { name: 'SchemaFrozenError' });
         await assert.rejects(removeStoredDomain(storageIdentity('gemini', 'u0', 'chat')), { name: 'SchemaFrozenError' });
@@ -163,23 +163,23 @@ test('migration retries cannot resurrect scoped deleted bodies, while a fresh ca
 
 test('larger partial and unknown captures protect complete body while title arbitration remains independent', async () => {
     const full = source('chat', 2);
-    full.conversation.detail.completeness = 'complete';
+    full.conversation.detail.quality.status = 'complete';
     full.conversation.index.titleSource = 'dom';
     await saveDomainConversation('u0', full);
     const more = source('chat', 5);
-    more.conversation.detail.completeness = 'partial';
+    more.conversation.detail.quality.status = 'partial';
     more.sourceVersion = 1900000000000;
     more.conversation.index.title = 'RPC authoritative title';
     more.conversation.index.titleSource = 'rpc';
     await saveDomainConversation('u0', more);
     const stored = (await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.conversation;
     assert.deepEqual(stored.detail.messages, full.conversation.detail.messages);
-    assert.equal(stored.detail.completeness, 'complete');
+    assert.equal(stored.detail.quality.status, 'complete');
     assert.equal('updatedAt' in stored, false);
     assert.equal((await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')))!.savedAt, full.sourceVersion);
     assert.equal(stored.index.title, more.conversation.index.title);
     assert.equal(stored.index.titleSource, 'rpc');
-    more.conversation.detail.completeness = 'unknown';
+    more.conversation.detail.quality.status = 'unknown';
     more.conversation.index.title = 'Weaker incoming title';
     more.conversation.index.titleSource = 'takeout';
     await saveDomainConversation('u0', more);
@@ -242,13 +242,13 @@ test('a partial capture fills an empty metadata placeholder without replacing ex
     const placeholder = source('dom-capture', 0);
     await saveDomainConversation('u0', placeholder);
     const captured = source('dom-capture', 2);
-    captured.conversation.detail.completeness = 'partial';
+    captured.conversation.detail.quality.status = 'partial';
     await saveDomainConversation('u0', captured);
     assert.deepEqual((await getStoredDomain(identity))!.conversation.detail.messages, captured.conversation.detail.messages);
     const full = source('dom-capture', 3);
     await saveDomainConversation('u0', full);
     const fragment = source('dom-capture', 5);
-    fragment.conversation.detail.completeness = 'partial';
+    fragment.conversation.detail.quality.status = 'partial';
     await saveDomainConversation('u0', fragment);
     assert.deepEqual((await getStoredDomain(identity))!.conversation.detail.messages, full.conversation.detail.messages);
 });

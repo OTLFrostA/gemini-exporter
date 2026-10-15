@@ -1,5 +1,5 @@
 import type { DomainConversationWithDetail } from '../../domain/conversation.js';
-import type { ChatParseDrift } from './parseDrift.js';
+import type { ContentQuality } from '../../domain/quality.js';
 import type { StorageService, FinalizeExportOptions } from '../../storage/storageService.js';
 import type { TitleSources } from '../../../types/conversation.js';
 import { normId } from '../../utils/pathUtils.js';
@@ -37,10 +37,7 @@ export interface ExportCompletionFacts {
     messageCount?: number | string | null;
     isEmpty?: boolean;
     _empty?: boolean;
-    truncated?: boolean;
-    isTruncated?: boolean;
-    truncateReason?: string;
-    completeness?: string;
+    quality?: ContentQuality;
 }
 
 export type ExportCompletionConversation = ExportCompletionFacts | DomainConversationWithDetail | string | number | boolean | null | undefined;
@@ -68,11 +65,6 @@ export interface BuildExportCompletionInput {
     messageCount?: number;
     /** Explicit authoritative timestamp if available */
     chatTime?: number | string | Date | null;
-    /** Truncation flag */
-    isTruncated?: boolean;
-    truncateReason?: string;
-    /** Integrity evidence facts */
-    evidence?: Omit<ChatParseDrift, 'schemaDrift'>;
     usedLocalSnapshot?: boolean;
 }
 
@@ -135,7 +127,7 @@ export interface ResolveExportRecordStatusOptions {
     statusOverride?: 'ok' | 'partial' | 'empty' | 'failed';
     messageCount?: number;
     isEmpty?: boolean;
-    evidence?: Omit<ChatParseDrift, 'schemaDrift'>;
+    quality?: ContentQuality;
     usedLocalSnapshot?: boolean;
 }
 
@@ -160,8 +152,7 @@ export function resolveExportRecordStatus(options: ResolveExportRecordStatusOpti
         return { status: 'empty', hasFailedAssets: hasFailed };
     }
     if (options.statusOverride === 'partial' || hasFailed || options.usedLocalSnapshot
-        || options.evidence?.sourcePartial || (options.evidence?.turnsRejected ?? 0) > 0
-        || options.evidence?.hasHeuristicDocs || options.evidence?.truncated) {
+        || options.quality?.status === 'partial') {
         return { status: 'partial', hasFailedAssets: hasFailed };
     }
     return { status: 'ok', hasFailedAssets: false };
@@ -218,27 +209,14 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         ? input.failedAssets.length
         : (typeof input.failedAssets === 'number' ? input.failedAssets : 0);
 
-    const isTruncated = Boolean(
-        input.isTruncated ||
-        chat.truncated ||
-        chat.isTruncated ||
-        input.evidence?.truncated ||
-        Boolean(input.truncateReason) ||
-        Boolean(chat.truncateReason)
-    );
-
+    const quality = native?.detail.quality ?? chat.quality;
     const statusInfo = resolveExportRecordStatus({
         failedAssetsCount,
         statusOverride: input.statusOverride,
         messageCount,
         isEmpty: !!chat.isEmpty || !!chat._empty,
         usedLocalSnapshot: input.usedLocalSnapshot,
-        evidence: {
-            sourcePartial: (native?.detail.completeness ?? chat.completeness) === 'partial' || !!input.evidence?.sourcePartial,
-            turnsRejected: input.evidence?.turnsRejected ?? 0,
-            hasHeuristicDocs: input.evidence?.hasHeuristicDocs ?? false,
-            truncated: isTruncated,
-        },
+        quality,
     });
 
     const exportRecord: StandardExportRecord = {
@@ -249,7 +227,7 @@ export function buildExportCompletion(input: BuildExportCompletionInput): Export
         status: statusInfo.status,
         hasFailedAssets: statusInfo.hasFailedAssets,
         ...(chatTime ? { chatTime } : {}),
-        ...(isTruncated ? { isTruncated: true, truncateReason: input.truncateReason || chat.truncateReason || 'truncated' } : {})
+        ...(quality?.truncation ? { isTruncated: true, truncateReason: quality.truncation } : {})
     };
 
 

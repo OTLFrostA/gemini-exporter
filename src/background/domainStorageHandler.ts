@@ -35,6 +35,7 @@ export function handleDomainStorageMessage(message: unknown, sender: chrome.runt
                 await backupLegacyValue(text(payload.key), payload.value);
                 respond({ ok: true }); return;
             }
+            if (request.command === 'ready') { respond({ ok: true }); return; }
             const rawIdentity = object(payload.identity);
             const identity = storageIdentity(text(rawIdentity.providerId), text(rawIdentity.accountSlot), text(rawIdentity.conversationId));
             if (request.command === 'cache') { await cacheDomainResource(identity, text(payload.assetId), text(payload.sourceUri), decodeBytes(payload.bytes)); respond({ ok: true }); return; }

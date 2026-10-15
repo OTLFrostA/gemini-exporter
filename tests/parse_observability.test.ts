@@ -14,7 +14,7 @@ const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js')
 const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
 const pagination = require('../src/core/api/client/pagination.js');
 const { resolveExportRecordStatus } = require('../src/core/engine/export/exportCompletion.js');
-const parseDrift = require('../src/core/engine/export/parseDrift.js');
+const { contentQuality } = require('../src/core/domain/quality.js');
 
 // ---------------------------------------------------------------- helpers
 function makeDetailRpc(inner: unknown): string {
@@ -59,21 +59,22 @@ test('P1-8b: 正常 payload 无拒识、无漂移', () => {
     assert.ok(!res.schemaDrift || res.schemaDrift.length === 0, '正常 payload 不应有 schemaDrift');
 });
 
-test('P1-8c: extractChatParseDrift 抽取诊断，turnsRejected>0 判 partial', () => {
+test('P1-8c: parser 统一质量状态，拒识内容判 partial', () => {
     const junk = [["x_123"], [1, 0], [["u"]]];
     const res = detailDecoder.decodeGeminiDetail(makeDetailRpc([[makeTurn(), junk]]));
-    const drift = parseDrift.extractChatParseDrift(parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', targetConvId: 'abc123def456' }));
-    assert.strictEqual(drift.turnsRejected, 1);
-    assert.ok(drift.schemaDrift.length >= 0);
-    assert.strictEqual(drift.hasHeuristicDocs, false);
-    assert.strictEqual(resolveExportRecordStatus({ evidence: drift }).status, 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
+    const result = parseGeminiRpcConversation(makeDetailRpc([[makeTurn(), junk]]), { providerId: 'gemini', targetConvId: 'abc123def456' });
+    const quality = result.conversation.detail.quality;
+    assert.strictEqual(quality.rejectedTurns, 1);
+    assert.ok(result.diagnostics.some((d: { code: string }) => d.code === 'GEMINI_TURNS_REJECTED'));
+    assert.strictEqual(quality.heuristicDocumentIds, undefined);
+    assert.strictEqual(resolveExportRecordStatus({ quality }).status, 'partial', 'turnsRejected>0 必须标 partial，不能是 ok');
 });
 
 test('P1-8d: 无漂移时状态保持 ok；heuristic 文档也判 partial', () => {
-    const clean = { schemaDrift: [], turnsRejected: 0, hasHeuristicDocs: false };
-    assert.strictEqual(resolveExportRecordStatus({ evidence: clean }).status, 'ok');
-    const heur = { schemaDrift: [], turnsRejected: 0, hasHeuristicDocs: true };
-    assert.strictEqual(resolveExportRecordStatus({ evidence: heur }).status, 'partial', 'heuristic 文档链必须标 partial');
+    const clean = contentQuality({ status: 'unknown' });
+    assert.strictEqual(resolveExportRecordStatus({ quality: clean }).status, 'ok');
+    const heur = contentQuality({ status: 'unknown', heuristicDocumentIds: ['doc'] });
+    assert.strictEqual(resolveExportRecordStatus({ quality: heur }).status, 'partial', 'heuristic 文档链必须标 partial');
 });
 
 test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）', async () => {
@@ -84,8 +85,8 @@ test('P1-8e: pagination 跨页合并 turnsRejected 与 schemaDrift（去重）',
     let calls = 0;
     const client = { fetchConversationPage: async () => { const page = pages[calls++]; return rpcFixture(page, { nextPageToken: page.nextPageToken, schemaDrift: page.schemaDrift, turnsRejected: page.turnsRejected }); } };
     const res = await pagination.getConversationDetail(client, "c_x");
-    assert.strictEqual(res.transport.turnsRejected, 3, 'turnsRejected 应跨页累加');
-    assert.deepStrictEqual([...res.transport.schemaDrift].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
+    assert.strictEqual(res.conversation.detail.quality.rejectedTurns, 3, 'turnsRejected 应跨页累加');
+    assert.deepStrictEqual([...new Set(res.diagnostics.filter((d: { code: string }) => d.code === 'GEMINI_SCHEMA_DRIFT').map((d: { message: string }) => d.message))].sort(), ["drift-a", "drift-b"], 'schemaDrift 应跨页合并去重');
 });
 
 // ---------------------------------------------------------------- P1-9: 文档元数据来源标记

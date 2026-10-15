@@ -446,11 +446,10 @@ test('C4-8: session-log formatting matches exact sections, debug/raw precedence,
                 {
                     id: 'drift_1',
                     title: 'Drift Title',
-                    turnsRejected: 2,
-                    hasHeuristicDocs: true,
-                    schemaDrift: ['d1', 'd2', 'd3', 'd4', 'd5', 'd6_excess']
+                    quality: { status: 'partial', rejectedTurns: 2, heuristicDocumentIds: ['doc'] },
+                    diagnostics: ['d1', 'd2', 'd3', 'd4', 'd5', 'd6_excess'].map(message => ({ severity: 'warning', code: 'DRIFT', message }))
                 },
-                {}
+                { quality: { status: 'unknown' }, diagnostics: [] }
             ]
         });
 
@@ -481,11 +480,11 @@ test('C4-8: session-log formatting matches exact sections, debug/raw precedence,
         assert.ok(fullLog.includes('  - Chat: "undefined" | File: "undefined" | Reason: undefined\n'));
 
         // Parse drift assertions
-        assert.ok(fullLog.includes('  - drift_1 | "Drift Title" | turnsRejected=2, heuristicDocs\n'));
-        assert.ok(fullLog.includes('    [drift] d1\n'));
-        assert.ok(fullLog.includes('    [drift] d5\n'));
-        assert.ok(!fullLog.includes('    [drift] d6_excess\n'), 'schemaDrift must be sliced to 5');
-        assert.ok(fullLog.includes('  - unknown | "" | schema drift\n'));
+        assert.ok(fullLog.includes('  - drift_1 | "Drift Title" | quality=partial, turnsRejected=2, heuristicDocs\n'));
+        assert.ok(fullLog.includes('    [drift] DRIFT: d1\n'));
+        assert.ok(fullLog.includes('    [drift] DRIFT: d5\n'));
+        assert.ok(!fullLog.includes('    [drift] DRIFT: d6_excess\n'), 'schemaDrift must be sliced to 5');
+        assert.ok(fullLog.includes('  - unknown | "" | quality=unknown\n'));
         assert.strictEqual(fullLog, [
             '=======================================================',
             ' Gemini Exporter Session Log (Dev Mode)',
@@ -506,10 +505,10 @@ test('C4-8: session-log formatting matches exact sections, debug/raw precedence,
             '  - Chat: "Chat Attach Legacy" | File: "file.bin" | Reason: EIO',
             '  - Chat: "undefined" | File: "undefined" | Reason: undefined', '',
             '[PARSE DRIFT / PARTIAL SESSIONS]',
-            '  - drift_1 | "Drift Title" | turnsRejected=2, heuristicDocs',
-            '    [drift] d1', '    [drift] d2', '    [drift] d3',
-            '    [drift] d4', '    [drift] d5',
-            '  - unknown | "" | schema drift', '', ''
+            '  - drift_1 | "Drift Title" | quality=partial, turnsRejected=2, heuristicDocs',
+            '    [drift] DRIFT: d1', '    [drift] DRIFT: d2', '    [drift] DRIFT: d3',
+            '    [drift] DRIFT: d4', '    [drift] DRIFT: d5',
+            '  - unknown | "" | quality=unknown', '', ''
         ].join('\n'));
     } finally {
         Date.prototype.toISOString = origToISOString;

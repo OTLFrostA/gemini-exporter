@@ -640,11 +640,13 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                     attachments: scenario === 'metadata' ? [{ type: 'file', name: 'report.pdf', mimeType: 'application/pdf', url: 'https://example.com/report.pdf' }] : scenario === 'assets-disabled' ? [{ type: 'image', url: 'https://example.test/missing.png' }] : [] },
                     { role: 'model', content: 'A' }],
                 completeness: { status: scenario === 'partial' ? 'partial' : 'unknown' },
-            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, truncated: scenario === 'truncated', schemaDrift: scenario === 'warning' ? ['benign'] : [] });
+                isTruncated: scenario === 'truncated',
+            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
                 const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
                 parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { ...parsed.conversation.detail,
-                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated', hasFabricatedText: true } }],
+                    quality: { status: 'partial', heuristicDocumentIds: ['report'] },
+                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated' } }],
                 } });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);

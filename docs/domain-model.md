@@ -2,8 +2,7 @@
 
 Saved application reads use the [scoped conversation repository](conversation-access.md).
 Its aggregate exposes one canonical index plus an optional body containing only
-messages, assets and completeness. Parser/storage snapshots retain their existing
-wire contract; their repeated metadata is not a second application authority.
+messages, assets and quality. Parser/storage snapshots use the same aggregate contract; their observed Index is not a second application authority.
 
 Domain is the provider-neutral semantic conversation we intend to remember over time. It owns source facts and relationships, independently of the current exporter or storage implementation. The target producer pipeline is `raw input → source parser → Domain`. Consumers then use `Domain → Document AST → Renderer`.
 
@@ -35,7 +34,7 @@ When a raw producer migrates, add its explicit format and raw schema to this dis
 
 The native parser preserves messages/candidates, body/reasoning, citations, structured resources, source dates, metadata-only titles and the original request tokens. Historical normalized lookup keys and archive destinations remain compatibility/preparation hints. Model names pass through when source evidence exposes them; this change does not guess an undocumented model slot.
 
-A result covers one decoded detail page. Remaining pagination or rejected source turns imply partial coverage; an absent cursor leaves completeness unknown. `transport` carries pagination, schema warnings and decoded/debug payloads beside Domain. Diagnostics also remain outside the graph. Client fetch and network interception use the native parser. Pagination merges Domain messages, resource registries and diagnostics, remaps colliding page-local asset identities and marks token-loop/page-limit truncation explicitly. Synthetic envelopes plus existing sanitized wire fixtures verify offline semantic parity. The complete logged-in Chrome Tier 2 run on 2026-10-07 also passed all 24 features, including real generation, pagination, import and physical exports; see [the acceptance record](audits/native-domain-parser-tier2.md). This evidence covers the exercised live sources, not all future wire variants.
+A result covers one decoded detail page. Remaining pagination or rejected source turns imply partial coverage; an absent cursor leaves quality unknown. `quality` owns rejected-turn counts, truncation and heuristic document identities. `transport` carries only pagination cursors and decoded/debug payloads beside Domain. Schema warnings are diagnostics. Diagnostics also remain outside the graph. Client fetch and network interception use the native parser. Pagination merges Domain messages, resource registries and diagnostics, remaps colliding page-local asset identities and marks token-loop/page-limit truncation explicitly. Synthetic envelopes plus existing sanitized wire fixtures verify offline semantic parity. The complete logged-in Chrome Tier 2 run on 2026-10-07 also passed all 24 features, including real generation, pagination, import and physical exports; see [the acceptance record](audits/native-domain-parser-tier2.md). This evidence covers the exercised live sources, not all future wire variants.
 
 ## Gemini Takeout raw boundary
 
@@ -49,12 +48,24 @@ The production import/cache/storage path keeps its compatibility API around nati
 
 ## What Domain remembers (contract v2)
 
-- Detail identity, one confirmed title/source, optional source `createdAt`, and one `url`.
-  Activity `updatedAt` belongs solely to Index; Detail has no duplicate field.
+- Index owns identity, one confirmed title/source, optional source `createdAt` and `updatedAt`, and one `url`. Detail has no duplicate metadata.
 - Authored body and provider-exposed `reasoning` as Content AST, with readable unknown content.
 - Message identity, role, model, timestamp, explicit resource relationships, generation events and message-local citations.
 - Resources with original `sourceUri`, canonical document Markdown and necessary generation identity.
-- Required `completeness: 'complete' | 'partial' | 'unknown'`. Unknown means insufficient evidence; partial indicates incomplete source coverage, including DOM observations restricted to currently available messages; complete requires coverage evidence. Message count alone proves none of these states.
+- Required `quality.status: 'complete' | 'partial' | 'unknown'`. Unknown means insufficient evidence; partial indicates incomplete source coverage, including DOM observations restricted to currently available messages; complete requires coverage evidence. Message count alone proves none of these states.
+
+`ContentQuality` is the only durable content-quality contract:
+
+```ts
+interface ContentQuality {
+  status: 'complete' | 'partial' | 'unknown';
+  rejectedTurns?: number;
+  truncation?: string;
+  heuristicDocumentIds?: string[];
+}
+```
+
+Known rejection, truncation or heuristic reconstruction requires `partial`. Parsers finalize that decision; export reads `quality.status` and separately accounts for delivery failures and local-snapshot freshness. Diagnostics remain a reporting sink and never establish content quality. A pending RPC page uses `truncation: 'pagination_pending'`; completed pagination replaces that temporary fact with the final coverage, retaining actual rejection, heuristic and version problems. Display renderers still consume only Document AST; JSON preserves Domain quality.
 
 All times are finite epoch-millisecond numbers, omitted when unknown. Creation and update times are independent facts. Source parsers must not invent creation time from the earliest observed message or update time from a local scan. Index activity uses only canonical `updatedAt`; local observation and creation time never become update versions. Native RPC acquisition carries that fact as transient `sourceVersion` from matching batched List metadata; it does not add an `updatedAt` field to Detail. The selected complete/nonpartial body records that source version as optional storage `savedAt`. ExportRecord `chatTime` records the version of the body actually exported. Partial/unversioned bodies cannot establish a saved cloud version.
 
@@ -70,13 +81,13 @@ Producer adapters reconcile attachments, images, documents, structured-body evid
 
 Asset IDs are opaque and independent of export numbering. Known source/document/generation evidence yields deterministic IDs; ambiguous resources get distinct minted IDs. IDs survive JSON serialization. Changing message order does not change identities supported by unambiguous source evidence.
 
-Resources retain kind, name, media type, byte length, inline source bytes and necessary generation identity. Acquisition failures remain in Diagnostics/ResourceResult and runtime PreparedResources; they are not persisted on Domain assets. Document resources retain `id`, canonical `contentMarkdown` and `hasFabricatedText`. The flag remains necessary because `engine/export/parseDrift.ts` must recognize heuristic reports after storage recovery and `exportCompletion.ts` must classify their export as partial; transient parser diagnostics alone cannot do that. Resource `generation` and `document` use ordinary optional-field types; the existing runtime schema rejects empty objects and producers omit absent information. Direct caller objects containing only undefined values can pass the parser check but fail JSON snapshot restoration; this known boundary limitation does not occur in normal producers. Partial generation identity remains valid, independently of message generation events. Citation IDs bind references; only Document Composer allocates display numbers. Source sections/links are incorporated into canonical Markdown before Domain; dimensions, origin, chip URLs, document dates and candidate URLs do not enter Domain. Acquisition candidate URLs remain outside the graph.
+Resources retain kind, name, media type, byte length, inline source bytes and necessary generation identity. Acquisition failures remain in Diagnostics/ResourceResult and runtime PreparedResources; they are not persisted on Domain assets. Document resources retain `id` and canonical `contentMarkdown`. Parsers move raw heuristic flags into `quality.heuristicDocumentIds`, so the caution survives storage without coupling export decisions to asset internals or transient diagnostics. Resource `generation` and `document` use ordinary optional-field types; the existing runtime schema rejects empty objects and producers omit absent information. Direct caller objects containing only undefined values can pass the parser check but fail JSON snapshot restoration; this known boundary limitation does not occur in normal producers. Partial generation identity remains valid, independently of message generation events. Citation IDs bind references; only Document Composer allocates display numbers. Source sections/links are incorporated into canonical Markdown before Domain; dimensions, origin, chip URLs, document dates and candidate URLs do not enter Domain. Acquisition candidate URLs remain outside the graph.
 
 `sourceUri` identifies the original source URI. Export destinations and historical `localName` belong to preparation hints. Generation identity retains request ID, time, prompt, source event ordinal, image count and image ordinal. Parent conversation identity is supplied by the caller during matching; no resource stores `chatId`/`turnId`. Shared matching treats conversation IDs as opaque. Provider-specific normalization stays at storage/Takeout boundaries. Distinct requests, conflicting evidence and ambiguous image positions cannot be rebound.
 
 The Content AST uses one reasoning representation (`message.reasoning`), code without `filename`, and absent table alignment for default layout. Citation IDs/numbers remain source facts; the composer allocates conversation-wide display numbers consistently in body, reasoning and Sources, preserving custom labels and references without URLs.
 
-`assertDomainClosure` checks provider identity, finite conversation/message times and completeness validity, resource/citation identities and references, and repeated attachment relationships. It is a graph guard, not a complete runtime schema validator. The single runtime schema in `core/domain/runtimeValidation.ts` checks every semantic field and Content AST variant before the shared closure check. Direct RPC, DOM, Takeout and legacy record parsers call `validateParserDomain` only after building the final graph; dispatching does not add another validation. Pagination validates the newly merged graph once, not its already trusted input pages. The type-only `TrustedDomain` brand is never attached to serialized data.
+`assertDomainClosure` checks provider identity, finite conversation/message times and quality validity, resource/citation identities and references, and repeated attachment relationships. It is a graph guard, not a complete runtime schema validator. The single runtime schema in `core/domain/runtimeValidation.ts` checks every semantic field and Content AST variant before the shared closure check. Direct RPC, DOM, Takeout and legacy record parsers call `validateParserDomain` only after building the final graph; dispatching does not add another validation. Pagination validates the newly merged graph once, not its already trusted input pages. The type-only `TrustedDomain` brand is never attached to serialized data.
 
 ## Consumer boundary
 
@@ -105,8 +116,7 @@ The separately authorized storage upgrade adopts a versioned Domain repository.
 Native captures write structured Domain directly; old chrome/IndexedDB records
 are explicit legacy-storage parser inputs, backed up before interpretation and
 transfer. The canonical `DomainConversationIndex` and independent settings/account/
-export APIs retain their existing keys. Released v1 upgrades directly to the final application schema v2, including both
-canonical indexes and the v2 body repository. Runtime string projections are not the
+export APIs retain their existing keys. Released v1 upgrades directly to application schema v2, including canonical indexes and the current body repository. Runtime string projections are not the
 new durable body. See [Domain storage contract and upgrade behavior](domain-storage.md).
 
 Raw source parsers remain independent of storage. Only the legacy-storage parser
@@ -132,11 +142,11 @@ Native ZIP parsing retains the selected MyActivity entry path, including the `My
 HTML image references retain their image and generation evidence even when the matching archive entry lacks an image extension. The reference's extension is not proof of the acquired bytes' media type; acquisition still validates the bytes. Archive handles remain outside Domain. A local extracted Takeout audit contained 186 files and 176 unique bare resource references: 158 resolved relative to MyActivity, 16 by extension fallback, and two by Takeout name normalization, with no missing or ambiguous resources. All 1049 parsed conversations passed resource closure and JSON round-trip checks. Every one of the 176 resources, including seven audio files, had a message relation, a Document AST reference and readable archive bytes. Import projection remained metadata-only. Only anonymized filename shapes are committed as regression contracts; the personal archive stays local. This local archive audit complements the separately completed Tier 2 run.
 
 
-Standard JSON is the only JSON export. It uses `{ format: 'gemini-exporter-domain', version: 1, conversation, resources? }`, preserving the full Domain and optional asset destinations without storage or transport implementation state. OpenAI-compatible and developer raw JSON exports and the historical output projector have been removed.
+Standard JSON is the only JSON export. It uses `{ format: 'gemini-exporter-domain', version: 2, conversation, resources? }`, preserving the full Domain and optional asset destinations without storage or transport implementation state. OpenAI-compatible and developer raw JSON exports and the historical output projector have been removed.
 
 
 ## Storage migration boundary
 
-Released Storage v1 records go through the `legacy-storage` Parser before being written to Storage v2. Storage v2 accepts only the final Domain contract (version 2); there is no converter for unshipped intermediate Domain records. `restoreDomainSnapshot(value)` validates and detaches the current schema without repairing historical aliases. Unsupported envelope versions and obsolete fields are rejected without rewriting disk records. Storage and IndexedDB remain version 2; this cleanup does not introduce Storage v3.
+Released 1.7 storage records go through the existing `legacy-storage` parser before being written to Storage v2. That parser converts completeness, truncation and heuristic source evidence into Domain quality before validation. Domain, storage, JSON and authenticated envelopes retain the unreleased v2 contract; intermediate development snapshots have no compatibility adapters. Current restoration validates without read-time repair. Content contexts await background readiness before accessing extension-origin storage. IndexedDB layout remains version 2.
 
 The complete TypeScript schema and original cleanup verification are recorded in [the final cleanup audit](audits/domain-final-semantic-cleanup.md).

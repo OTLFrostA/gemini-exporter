@@ -8,7 +8,7 @@ const { renderTypstFixture } = require('./helpers/renderTypstFixture.js');
 const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js');
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Matrix', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { completeness: 'unknown', assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
+    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Matrix', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
 }
 
 const txt = (text: string) => ({ type: 'text', text });

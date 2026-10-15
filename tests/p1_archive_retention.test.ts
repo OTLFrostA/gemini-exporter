@@ -15,7 +15,7 @@ import type { ResourceConversationParseResult } from '../src/core/parsers/parsin
 
 test('cloud-deleted archive exports durable body and resource bytes without fetching cloud or deleting metadata', async () => {
     __clearDomainMemory();
-    const source: ResourceConversationParseResult = { sourceVersion: 1, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'retained', title: 'Saved conversation' }, detail: { completeness: 'unknown', assets: [{ id: 'image', kind: 'image', sourceUri: 'assets/image.png' }], messages: [
+    const source: ResourceConversationParseResult = { sourceVersion: 1, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'retained', title: 'Saved conversation' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image', sourceUri: 'assets/image.png' }], messages: [
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
         ] } }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
