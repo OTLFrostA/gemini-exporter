@@ -1,86 +1,153 @@
+/**
+ * P1-H3 UI regressions.
+ * Prefer observable DOM / callback behavior over checking production source.
+ * Keep the few bootstrapping/modal source guards until an integration harness
+ * covers those entire user-interaction flows.
+ */
 export {};
 const test = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', 'src', p), 'utf8');
+const SRC = (p: string): string =>
+    fs.readFileSync(path.join(__dirname, '..', 'src', p), 'utf8');
 
-// ---------- P1-118: CSS.escape ----------
-test('p1_h3 - P1-118: listView escapes dynamic ids in selectors', () => {
-    const src = SRC('ui/views/listView.ts');
-    assert.ok(src.includes('CSS.escape'), 'updateItemExportStatus must use CSS.escape');
+function replaceGlobal(key: string, value: unknown): () => void {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, key);
+    Object.defineProperty(globalThis, key, { configurable: true, writable: true, value });
+    return () => {
+        if (previous) Object.defineProperty(globalThis, key, previous);
+        else Reflect.deleteProperty(globalThis, key);
+    };
+}
+
+test('P1-118: list status update escapes dynamic IDs before querying the DOM', () => {
+    const values: string[] = [];
+    let query = '';
+    const restoreCSS = replaceGlobal('CSS', {
+        escape(value: string) {
+            values.push(value);
+            return `escaped:${value}`;
+        }
+    });
+    const restoreDoc = replaceGlobal('document', {
+        getElementById: () => null,
+        querySelector(selector: string) { query = selector; return null; }
+    });
+    try {
+        const view = require('../src/ui/views/listView.js');
+        view.updateItemExportStatus('c_chat:with[brackets]');
+        assert.ok(values.includes('chat:with[brackets]'), 'the normalized ID was escaped');
+        assert.match(query, /escaped:chat:with\[brackets\]/, 'escaped ID reaches the DOM selector');
+    } finally {
+        restoreDoc();
+        restoreCSS();
+    }
 });
 
-// ---------- P1-119: dirHandleController ----------
-test('p1_h3 - P1-119: restore never calls requestPermission without a gesture', async () => {
+test('P1-119: permission prompt is never requested without user activation', async () => {
     const dh = require('../src/ui/controllers/dirHandleController.js');
     let requested = false;
-    const fakeHandle = {
+    const handle = {
         queryPermission: async () => 'prompt',
         requestPermission: async () => { requested = true; return 'granted'; },
         keys: async function* () {}
     };
-    const ok = await dh.verifyDirPermission(fakeHandle);
-    assert.strictEqual(ok, false, 'prompt permission is not granted');
-    assert.strictEqual(requested, false, 'requestPermission must not fire without user activation');
+    assert.equal(await dh.verifyDirPermission(handle), false);
+    assert.equal(requested, false);
 });
-test('p1_h3 - P1-119: stored handle is only dropped on confirmed NotFoundError', () => {
-    const src = SRC('ui/controllers/dirHandleController.ts');
-    assert.ok(src.includes('r.notFound'), 'restore must gate handle deletion on notFound');
-    assert.ok(src.includes('userActivation'), 'requestPermission gated on user activation');
+// P1-119 stored handle preservation is exercised in the runtime test
+// live_save_permission_deadlock.test.ts; deleted duplicate source assertion.
+
+test('P1-120: Takeout file input resets after success and error callbacks', () => {
+    const { __setModuleOverride, __getModuleOverride } =
+        require('../src/core/utils/moduleOverrides.js');
+    const takeout = require('../src/ui/options/modules/optionsTakeout.js');
+    const previousCtrl = __getModuleOverride('TakeoutController');
+    const restoreDoc = replaceGlobal('document', { getElementById: () => null });
+    const input = { value: 'original.zip' };
+    try {
+        __setModuleOverride('TakeoutController', {
+            handleTakeoutImport: (_file: unknown, callbacks: any) => {
+                callbacks.onFinished({ message: 'done' });
+                return Promise.resolve();
+            }
+        });
+        takeout.processTakeoutImport({ name: 'original.zip' } as File, input as HTMLInputElement);
+        assert.equal(input.value, '', 'successful import must let the same ZIP be selected again');
+        assert.equal(takeout.isImporting(), false);
+
+        input.value = 'original.zip';
+        __setModuleOverride('TakeoutController', {
+            handleTakeoutImport: (_file: unknown, callbacks: any) => {
+                callbacks.onError(new Error('invalid zip'));
+                return Promise.resolve();
+            }
+        });
+        takeout.processTakeoutImport({ name: 'original.zip' } as File, input as HTMLInputElement);
+        assert.equal(input.value, '', 'failed import must also clear the input');
+        assert.equal(takeout.isImporting(), false);
+    } finally {
+        __setModuleOverride('TakeoutController', previousCtrl);
+        restoreDoc();
+    }
 });
 
-// ---------- P1-120/121/122: options UI glue ----------
-test('p1_h3 - P1-120: takeout file input is reset after import', () => {
-    const src = SRC('ui/options/modules/optionsTakeout.ts');
-    assert.ok(src.includes('input.value = '), 'input must be cleared so the same zip can be re-picked');
+test('P1-121: loadStore rejection reports an error through the UI log', async () => {
+    const { __setModuleOverride, __getModuleOverride } =
+        require('../src/core/utils/moduleOverrides.js');
+    const previousStore = __getModuleOverride('ConversationsStore');
+    const previousLog = __getModuleOverride('LogView');
+    const reported: Array<{ message: string; level: string }> = [];
+    __setModuleOverride('ConversationsStore', {
+        getCurrentSlot: () => 'u0',
+        getConversations: () => [],
+        loadStore: async () => { throw new Error('synthetic load failure'); }
+    });
+    __setModuleOverride('LogView', {
+        log: (message: string, level: string) => reported.push({ message, level })
+    });
+    try {
+        await require('../src/ui/options/modules/optionsInit.js').loadStore();
+        assert.equal(reported.length, 1);
+        assert.equal(reported[0].level, 'error');
+        assert.ok(reported[0].message, 'UI log should contain an error message');
+    } finally {
+        __setModuleOverride('ConversationsStore', previousStore);
+        __setModuleOverride('LogView', previousLog);
+    }
 });
-test('p1_h3 - P1-121: loadStore failure reaches the UI log', () => {
-    const src = SRC('ui/options/modules/optionsInit.ts');
-    assert.ok(/loadStore error[\s\S]{0,400}log\(/.test(src), 'catch must call log()');
-    assert.ok(src.includes("'error'"), 'logged at error level');
-});
-test('p1_h3 - P1-122: initWorkbench boot is catch-guarded on both paths', () => {
+
+test('P1-122: workbench startup is guarded in both entry paths (source guard)', () => {
     const src = SRC('ui/options/options.ts');
-    assert.ok(src.includes('startWorkbench'), 'guarded starter exists');
-    assert.ok(src.includes(".catch("), 'startup promise has .catch');
-    assert.ok(src.includes("addEventListener('DOMContentLoaded', startWorkbench)"), 'DOMContentLoaded path wrapped');
+    assert.ok(src.includes('startWorkbench'));
+    assert.ok(src.includes('.catch('));
+    assert.ok(src.includes("addEventListener('DOMContentLoaded', startWorkbench)"));
 });
 
-// ---------- P1-123: popup ----------
-test('p1_h3 - P1-123: popup language switch re-applies i18n + toggle UI + count', () => {
+test('P1-123: popup language change refreshes its controls (source guard)', () => {
     const src = SRC('ui/popup/popup.ts');
-    assert.ok(src.includes('i18n.applyI18n()'), 'explicit applyI18n on language change');
-    assert.ok(src.includes('applyLangToggleUI()'), 'toggle UI refreshed');
-    assert.ok(src.includes('await updateCount()'), 'count refreshed');
+    assert.ok(src.includes('i18n.applyI18n()'));
+    assert.ok(src.includes('applyLangToggleUI()'));
+    assert.ok(src.includes('await updateCount()'));
 });
-test('p1_h3 - P1-123: export-current-page has a re-entrancy guard released in finally', () => {
-    const src = SRC('ui/popup/popup.ts');
-    assert.ok(src.includes('__exportingCurrentPage'), 'guard variable exists');
-    assert.ok(/finally\s*\{\s*__releaseExportGuard\(\);/.test(src), 'guard released when the async callback ends');
-});
-test('p1_h3 - P1-123: popupExportBusy key exists in en and zh', () => {
+// Popup export guard release is separately checked in seam_s3_ui_timeout.test.ts.
+
+test('P1-121/123: user-facing error and busy messages exist in both locales', () => {
     const en = require('../src/core/utils/locales/en.js');
     const zh = require('../src/core/utils/locales/zh.js');
-    assert.ok(typeof en.popupExportBusy === 'string' && en.popupExportBusy.length > 0, 'en key present');
-    assert.ok(typeof zh.popupExportBusy === 'string' && zh.popupExportBusy.length > 0, 'zh key present');
+    for (const key of ['popupExportBusy', 'loadStoreFailed']) {
+        assert.ok(typeof en[key] === 'string' && en[key].length > 0, `missing English ${key}`);
+        assert.ok(typeof zh[key] === 'string' && zh[key].length > 0, `missing Chinese ${key}`);
+    }
 });
 
-// ---------- P1-121: loadStoreFailed i18n key ----------
-test('p1_h3 - P1-121: loadStoreFailed key exists in en and zh', () => {
-    const en = require('../src/core/utils/locales/en.js');
-    const zh = require('../src/core/utils/locales/zh.js');
-    assert.ok(typeof en.loadStoreFailed === 'string' && en.loadStoreFailed.length > 0, 'en key present');
-    assert.ok(typeof zh.loadStoreFailed === 'string' && zh.loadStoreFailed.length > 0, 'zh key present');
-});
-
-// ---------- Direct-write modal mutex (decisionMade guards the observer) ----------
-test('p1_h3 - direct-write: decisionMade guards the modal observer', () => {
+test('direct-write: modal observer does not override a user decision (source guard)', () => {
     const src = SRC('ui/options/modules/optionsExport.ts');
-    assert.ok(src.includes('decisionMade'), 'decisionMade flag exists');
-    assert.ok(/!decisionMade\)\s*settleDecision\(\)/.test(src), 'observer only settles when no decision was made (Esc/X)');
-    const folderCb = src.indexOf('async () => {\n                        decisionMade = true;');
-    assert.ok(folderCb !== -1, 'folder-choice callback sets decisionMade synchronously at the top');
-    assert.ok(src.includes('await decisionPromise'), 'exportSelected waits for the user decision');
+    assert.ok(src.includes('decisionMade'));
+    assert.ok(/!decisionMade\)\s*settleDecision\(\)/.test(src));
+    const choice = src.indexOf('async () => {\n                        decisionMade = true;');
+    assert.ok(choice >= 0, 'folder choice synchronously locks its decision');
+    assert.ok(src.includes('await decisionPromise'));
 });
