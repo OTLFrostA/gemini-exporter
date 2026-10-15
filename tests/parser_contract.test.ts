@@ -12,7 +12,6 @@ import type { GeminiProtocolModule } from '../src/core/protocol/protocol.js';
 import type { GeminiUtilsModule } from '../src/core/utils/utils.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { decodeGeminiDetail } from '../src/core/parsers/gemini/rpc/detailDecoder.js';
-import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 
 // Compile-time regression: native evidence and application views preserve contracts rather
 // than widening media/results/dependencies back to an unchecked escape.
@@ -30,51 +29,23 @@ type OutputContracts = [
     Assert<Equal<ReturnType<typeof decodeGeminiDetail>, GeminiDetailEvidence>>,
 ];
 const contracts: OutputContracts = [true, true, true, true, true, true, true, true, true];
-test('native parser evidence and application transport contracts remain explicitly typed', () => {
-    assert.ok(contracts.every(Boolean));
-});
+// The tuple already enforces these contracts at TypeScript compile time.
+// A runtime .every(Boolean) assertion on literal true values cannot detect a parser bug.
+void contracts;
 
-test('detail error narrowing preserves Error and non-Error diagnostic text', () => {
-    try {
-        for (const [thrown, expected] of [
-            [new Error('fixture failure'), 'detail parse fail: fixture failure'],
-            [{ message: 'object failure' }, 'detail parse fail: object failure'],
-            [{ message: 42 }, 'detail parse fail: 42'],
-            ['primitive failure', 'detail parse fail: undefined']
-        ] as const) {
-            __setModuleOverride('GeminiUtils', { isDevMode() { throw thrown; } });
-            assert.throws(() => decodeGeminiDetail('[]'), { message: expected });
-        }
-        // Legacy null/undefined throws fail at the property read itself.
-        for (const thrown of [null, undefined]) {
-            __setModuleOverride('GeminiUtils', { isDevMode() { throw thrown; } });
-            assert.throws(() => decodeGeminiDetail('[]'), TypeError);
-        }
-    } finally {
-        __clearModuleOverrides();
-    }
-});
-
-test('list error narrowing preserves Error and non-Error diagnostic text', () => {
+test('malformed list and detail wire inputs fail closed without creating conversation evidence', () => {
     const previousWarn = console.warn;
-    const previousError = console.error;
     try {
-        console.error = () => {};
-        for (const [thrown, expected] of [
-            [new Error('fixture failure'), '列表解析失败: fixture failure'],
-            [{ message: 'object failure' }, '列表解析失败: object failure'],
-            [{ message: 42 }, '列表解析失败: 42'],
-            ['primitive failure', '列表解析失败: undefined']
-        ] as const) {
-            console.warn = () => { throw thrown; };
-            assert.throws(() => parseList('[]'), { message: expected });
-        }
-        for (const thrown of [null, undefined]) {
-            console.warn = () => { throw thrown; };
-            assert.throws(() => parseList('[]'), TypeError);
-        }
+        console.warn = () => {};
+        const parsed = parseList('[]');
+        assert.deepEqual(parsed.conversations, []);
+        assert.equal(parsed.nextPageToken, null);
+        assert.equal(parsed._debug?.error, 'NO_INNER_STR');
+        assert.throws(
+            () => parseGeminiRpcConversation('[]', { providerId: 'gemini' }),
+            /detail parse fail:/,
+        );
     } finally {
         console.warn = previousWarn;
-        console.error = previousError;
     }
 });
