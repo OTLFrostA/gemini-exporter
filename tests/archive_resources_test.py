@@ -35,7 +35,10 @@ class ArchiveResourcesTest(unittest.TestCase):
         for filename in ('cb8bd7_test_config.json', '2b4994_============================================================.md'):
             (self.root / 'files' / filename).write_text('nonempty attachment')
             broken = f'<a href="assets/files/{filename}">attachment</a>'
-            self.assertEqual(len(validate_archive_resources(self.root, 'chat.html', broken, True)), 1)
+            errors = validate_archive_resources(self.root, 'chat.html', broken, True)
+            self.assertEqual(len(errors), 1)
+            self.assertIn(f'assets/files/{filename}', errors[0],
+                          'the error must identify the broken link, not an unrelated parser failure')
             self.assertEqual(validate_archive_resources(self.root, 'chat.html', broken.replace('assets/files/', 'files/'), True), [])
 
     def test_all_html_resource_tags(self):

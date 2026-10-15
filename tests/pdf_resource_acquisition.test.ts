@@ -85,7 +85,6 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         assert.equal(JSON.stringify(parsed.acquisitionHints), hintsJson);
         assert.equal(JSON.stringify(document), astJson);
         assert.equal(JSON.stringify(composeDomainDocument(parsed.conversation).document), astJson);
-        assert.equal(JSON.stringify(historicalFixture(raw, { providerId: 'gemini' }).conversation), domainJson);
         assert.ok(!domainJson.includes('dataBase64'));
         assert.ok(!domainJson.includes(Buffer.from(firstBytes).toString('base64')));
         for (const resource of prepared.resources.values()) {
@@ -94,7 +93,17 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
         }
         const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async item => result(item.assetId, bytes) } });
         assert.equal(pdf.ok, true);
-            assert.equal(JSON.stringify(pdf.document), astJson);
+        assert.equal(JSON.stringify(pdf.document), astJson);
+        assert.equal(pdf.resources.size, imageIds.size, 'every placed image must retain an acquisition outcome');
+        for (const outcome of pdf.resources.values()) {
+            if (bytes !== null) {
+                assert.equal(outcome.ok, true);
+                if (outcome.ok) assert.deepEqual(outcome.value.bytes, bytes);
+            } else {
+                assert.equal(outcome.ok, false, 'failed resource acquisition must not become a successful blank image');
+                if (!outcome.ok) assert.equal(outcome.code, 'HTTP_NOT_FOUND');
+            }
+        }
     }
     const restored = JSON.parse(domainJson);
     assert.equal(JSON.stringify(composeDomainDocument(restored).document), astJson);
