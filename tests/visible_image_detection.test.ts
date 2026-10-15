@@ -1,10 +1,12 @@
-const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { extractResponseImages, extractImages } = require('../src/core/compatibility/gemini/attachments.js');
+const { extractResponseImages } = require('../src/core/compatibility/gemini/attachments.js');
+const { parseGeminiRpcConversation } = require('../src/core/parsers/gemini/rpc/parseConversation.js');
+const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
+const { renderDocumentMarkdown } = require('../src/core/renderers/markdown/renderMarkdown.js');
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 
 // Same media tuple shape as the false detections in the user's diagnostics.
@@ -16,27 +18,32 @@ const searchResult = [
     ['http://googleusercontent.com/image_agent_tag_example', null, 'Reference diagram', null, null, 1]
 ];
 
-function parseWithMetadata(document?: unknown, secondCandidate?: any): any {
+function rawWithMetadata(document?: unknown, secondCandidate?: any): string {
     const candidate: any[] = ['rc_visible_images_test', ['Answer without pictures'], 'en'];
     candidate[12] = [searchResult];
     const model: any[] = [[candidate, ...(secondCandidate ? [secondCandidate] : [])]];
     if (document) model[12] = document;
     const turn = [['c_visible_images_test'], [1700000000, 0], [['Question']], model];
     const rpc = ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
-    return decodeGeminiDetail(rpc, 'c_visible_images_test');
+    return rpc;
+}
+function parseWithMetadata(document?: unknown, secondCandidate?: any): any {
+    return decodeGeminiDetail(rawWithMetadata(document, secondCandidate), 'c_visible_images_test');
 }
 
-test('candidate search metadata does not become a phantom image in exported Markdown', async () => {
-    assert.equal(extractImages(searchResult).length, 1, 'fixture reproduces the old media detection');
+test('candidate search metadata does not become a phantom image in native Domain Markdown', () => {
     const result = parseWithMetadata();
     const answer = result.messages.find((m: any) => m.role === 'model');
     assert.ok(answer);
     assert.equal(answer.images, undefined);
     assert.equal(answer.attachments, undefined);
-    const { formatMarkdownDocument } = require('../src/core/engine/chatFormatter.js');
-    const markdown = await formatMarkdownDocument(historicalFixture(result));
-    assert.match(markdown.content, /Answer without pictures/);
-    assert.doesNotMatch(markdown.content, /assets\/|Reference diagram|licensed-image/);
+
+    // Check the actual native parser -> Domain -> Document -> Markdown path.
+    const native = parseGeminiRpcConversation(rawWithMetadata(), { providerId: 'gemini' });
+    assert.deepStrictEqual(native.conversation.assets, [], 'search metadata is not an authored image resource');
+    const markdown = renderDocumentMarkdown(composeDomainDocument(native.conversation).document, {});
+    assert.match(markdown, /Answer without pictures/);
+    assert.doesNotMatch(markdown, /assets\/|Reference diagram|licensed-image/);
 });
 
 test('real wire answer image survives while unrelated search metadata is excluded', () => {
