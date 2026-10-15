@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,7 +20,7 @@ function detail(): PaginatedDetailResult {
         { decodedPayload: { wire: [null, 'evidence'] }, schemaDrift: ['drift'], turnsRejected: 1 });
 }
 async function list(): Promise<PaginationResult> {
-    return getAllConversations({ async getConversationList() { return { conversations: [], nextPageToken: null }; } });
+    return getAllConversations({ async getConversationList() { return listFixture(); } });
 }
 function client(data: PaginatedDetailResult, page: PaginationResult): GeminiProviderClient {
     return { async getConversationDetail() { return data; }, async getAllConversations() { return page; } };

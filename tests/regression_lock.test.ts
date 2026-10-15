@@ -192,7 +192,7 @@ function createHookSandbox() {
         setTimeout: () => 0,
         URLSearchParams, Request,
         sniffUserProfileFromDom: require('../src/content/accountSniffer.js').sniffUserProfileFromDom,
-        readGeminiListRequest: require('../src/core/provider/gemini/listObservation.js').readGeminiListRequest
+        readGeminiListRequest: require('../src/core/parsers/gemini/rpc/listRequest.js').readGeminiListRequest
     };
     vm.createContext(sandbox);
     vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });

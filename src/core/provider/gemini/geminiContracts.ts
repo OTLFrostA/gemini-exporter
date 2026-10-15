@@ -1,11 +1,11 @@
 import type {
     AIProvider, ProviderReadiness
 } from "../aiProvider.js";
-import type { ConversationListItem } from "../../parsers/gemini/rpc/parseList.js";
+import type { DomainConversationIndex } from "../../domain/conversationIndex.js";
 import type { PaginationOptions, PaginationResult, PaginatedDetailResult } from "../../api/client/pagination.js";
 
 /** Full parser/pagination evidence retained for current Gemini consumers. */
-export type GeminiProviderConversationItem = ConversationListItem;
+export type GeminiProviderConversationItem = DomainConversationIndex;
 export type GeminiProviderConversationDetail = PaginatedDetailResult;
 
 export interface GeminiProviderPageResult extends PaginationResult {

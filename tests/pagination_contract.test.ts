@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
@@ -16,7 +17,7 @@ function item(id: string): ConversationListItem {
         messageCount: 0, url: `https://gemini.google.com/app/${id}` });
 }
 function page(ids: string[], nextPageToken: string | null = null): ListParseResult {
-    return { conversations: ids.map(item), nextPageToken };
+    return listFixture(ids.map(item), nextPageToken);
 }
 function listClient(pages: (ListParseResult | Error)[]): GeminiPaginationListClient & { calls: number } {
     return { aborted: false, calls: 0, async getConversationList() {
@@ -78,7 +79,7 @@ test('list: invalid populated transport preserves dedupe, persisted batches and 
     const debug: NonNullable<ListParseResult['_debug']> = {
         error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'raw', topParsed: null
     };
-    const second = { ...page(['one', 'two']), _debug: debug, _raw: { unvalidated: true } };
+    const second = { ...page(['one', 'two']), pageEvidence: { valid: false, ordered: false, keys: [] }, _debug: debug, _raw: { unvalidated: true } };
     const client = listClient([page(['one'], 'tC_cursor'), second]);
     const progress: PaginationProgressInfo[] = [];
     const batches: { ids: string[]; page: number; hasMore: boolean }[] = [];

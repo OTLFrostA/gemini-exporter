@@ -7,15 +7,12 @@
 import type {
     AIProvider,
     ProviderConversationDetail,
-    ProviderConversationItem,
     ProviderListOptions,
     ProviderPageResult,
     ProviderReadiness,
 } from '../aiProvider.js';
 import type {
-    ChatGPTApiConversationItem,
     ChatGPTApiConversationWithId,
-    ChatGPTApiConversations,
     ChatGPTApiSession,
 } from '../../parsers/chatgpt/chatgptTypes.js';
 import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
@@ -37,6 +34,9 @@ import {
     parseFileDownloadPayload,
 } from './imageAssets.js';
 
+import type { DomainConversationIndex } from '../../domain/conversationIndex.js';
+import { parseChatGPTList } from '../../parsers/chatgpt/parseList.js';
+
 export interface ChatGPTFetch {
     (input: string, init?: RequestInit): Promise<Response>;
 }
@@ -44,27 +44,6 @@ export interface ChatGPTFetch {
 interface ChatGPTProviderDeps {
     fetchFn?: ChatGPTFetch;
     origin?: string;
-}
-
-function toEpochMs(value: number | string | undefined): number | undefined {
-    if (typeof value === 'number') {
-        return value < 1e12 ? Math.round(value * 1000) : Math.round(value);
-    }
-    if (typeof value === 'string' && value) {
-        const ms = Date.parse(value);
-        return Number.isFinite(ms) ? ms : undefined;
-    }
-    return undefined;
-}
-
-function toProviderItem(item: ChatGPTApiConversationItem): ProviderConversationItem {
-    return {
-        id: item.id,
-        title: item.title || 'ChatGPT Conversation',
-        url: `https://chatgpt.com/c/${item.id}`,
-        createdAt: toEpochMs(item.create_time) ?? null,
-        updatedAt: toEpochMs(item.update_time) ?? null,
-    };
 }
 
 export class ChatGPTProvider implements AIProvider {
@@ -132,24 +111,24 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<ProviderConversationItem>> {
+    async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<DomainConversationIndex>> {
         const limit = 100;
         const maxPages = typeof options?.maxPages === 'number' && options.maxPages > 0
             ? Math.floor(options.maxPages)
             : 20;
-        const all: ProviderConversationItem[] = [];
+        const all: DomainConversationIndex[] = [];
         let offset = 0;
         let total: number | undefined;
         let cursor: string | null = null;
         let exhaustive = false;
         for (let page = 0; page < maxPages; page += 1) {
-            const result = await this.authedGet<ChatGPTApiConversations>(
+            const result = parseChatGPTList(await this.authedGet<unknown>(
                 `/conversations?offset=${offset}&limit=${limit}`,
-            );
-            const batch = (result.items ?? []).map(toProviderItem);
+            ));
+            const batch = result.conversations;
             all.push(...batch);
             if (typeof result.total === 'number') total = result.total;
-            cursor = result.cursor ?? null;
+            cursor = result.nextCursor ?? null;
             options?.onProgress?.({
                 page: page + 1,
                 added: batch.length,
@@ -163,7 +142,7 @@ export class ChatGPTProvider implements AIProvider {
             }
             // pionxzh stop rules: no total and no cursor means one-shot list;
             // reaching the reported total means history is complete.
-            if (result.total == null && result.cursor == null) {
+            if (result.total == null && result.nextCursor == null) {
                 exhaustive = true;
                 break;
             }

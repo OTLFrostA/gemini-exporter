@@ -1,15 +1,7 @@
 import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
+import type { DomainConversationIndex } from '../domain/conversationIndex.js';
 
 /** Provider-neutral lifecycle and data. Gemini evidence belongs in gemini contracts. */
-export interface ProviderConversationItem {
-    id: string;
-    title: string;
-    url?: string;
-    createdAt?: number | null;
-    updatedAt?: number | null;
-    messageCount?: number;
-}
-
 export interface ProviderConversationDetail extends ResourceConversationParseResult {}
 
 export interface ProviderPageResult<T> {
@@ -34,7 +26,7 @@ export interface ProviderStopDecision {
     reason?: string;
 }
 
-export interface ProviderProgressInfo<T = ProviderConversationItem> {
+export interface ProviderProgressInfo<T = DomainConversationIndex> {
     page: number;
     added: number;
     total: number;
@@ -44,7 +36,7 @@ export interface ProviderProgressInfo<T = ProviderConversationItem> {
     reason?: string;
 }
 
-export interface ProviderListOptions<T = ProviderConversationItem> {
+export interface ProviderListOptions<T = DomainConversationIndex> {
     maxPages?: number;
     incremental?: boolean;
     signal?: AbortSignal | null;
@@ -65,7 +57,7 @@ export interface AIProvider {
 
     /** Context/detail options are unverified at the neutral seam. */
     checkReadiness: (context?: unknown) => Promise<ProviderReadiness>;
-    listConversations: (options?: ProviderListOptions) => Promise<ProviderPageResult<ProviderConversationItem>>;
+    listConversations: (options?: ProviderListOptions) => Promise<ProviderPageResult<DomainConversationIndex>>;
     fetchConversationDetail: (conversationId: string, options?: unknown) => Promise<ProviderConversationDetail>;
     matchesUrl(url: string): boolean;
     /** @unverified-provider-scaffold No implementation or production caller yet. */

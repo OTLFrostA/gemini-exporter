@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { geminiListObservation, readGeminiListRequest } from '../src/core/provider/gemini/listObservation.js';
+import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
+import { readGeminiListRequest } from '../src/core/parsers/gemini/rpc/listRequest.js';
 const wire = (rows: unknown[], token: string | null = null) => JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, token, rows])]]);
 const row = (id: string, seconds: number) => ['c_' + id, id, null, null, null, [seconds, 0]];
 const body = (filter: unknown, cursor: unknown = null) => new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([50, cursor, filter]), null, 'generic']]]) }).toString();
@@ -40,7 +41,7 @@ test('captured empty Gemini list payload [] is valid exhaustion, while unknown n
     const empty = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']]));
     assert.equal(geminiListObservation(empty, { streamId: 'pinned', requestCursor: null }, 'account').valid, true);
     assert.equal(geminiListObservation(empty, { streamId: 'recent', requestCursor: null }, 'account').ordered, true);
-    assert.equal(geminiListObservation({ conversations: [], nextPageToken: null, _raw: [null, { unexpected: true }] }, { streamId: 'recent', requestCursor: null }, 'account').valid, false);
+    assert.equal(geminiListObservation(parseList(JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, { unexpected: true }])]])), { streamId: 'recent', requestCursor: null }, 'account').valid, false);
 });
 
 test('different conversations with equal official timestamps retain ordering evidence', () => {

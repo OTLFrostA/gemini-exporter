@@ -82,7 +82,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             || (requestedAt !== undefined && (typeof requestedAt !== 'number' || !Number.isFinite(requestedAt)))
             || (requestAccountId !== undefined && requestAccountId !== null && typeof requestAccountId !== 'string')) return;
         const request = field('listRequest');
-        let listRequest: import('../core/provider/gemini/listObservation.js').GeminiListRequestContext | null = null;
+        let listRequest: import('../core/parsers/gemini/rpc/listRequest.js').GeminiListRequestContext | null = null;
         if (request !== undefined && request !== null) {
             if (typeof request !== 'object' || !('streamId' in request) || !('requestCursor' in request)
                 || (request.streamId !== 'recent' && request.streamId !== 'pinned')

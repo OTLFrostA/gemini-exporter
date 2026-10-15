@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -12,10 +13,7 @@ test('D1: Pagination getAllConversations sets stoppedEarly=true and exhaustive=f
     const mockClient = {
         getConversationList: async () => {
             callCount++;
-            return {
-                conversations: ([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture),
-                nextPageToken: 'looping_cursor'
-            };
+            return listFixture(([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture), 'looping_cursor');
         }
     };
 
@@ -33,15 +31,9 @@ test('D1: Natural end sets stoppedEarly=false and exhaustive=true', async () => 
         getConversationList: async (token: string | null) => {
             callCount++;
             if (callCount === 1) {
-                return {
-                    conversations: ([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture),
-                    nextPageToken: 'next_page'
-                };
+                return listFixture(([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), 'next_page');
             }
-            return {
-                conversations: ([{ id: 'c_2', title: 'Chat 2' }]).map(indexFixture),
-                nextPageToken: null // Natural end
-            };
+            return listFixture(([{ id: 'c_2', title: 'Chat 2' }]).map(indexFixture), null);
         }
     };
 

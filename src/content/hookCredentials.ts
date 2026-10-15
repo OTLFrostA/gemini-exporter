@@ -1,5 +1,5 @@
 import { sniffUserProfileFromDom } from './accountSniffer.js';
-import { readGeminiListRequest } from '../core/provider/gemini/listObservation.js';
+import { readGeminiListRequest } from '../core/parsers/gemini/rpc/listRequest.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
 import type {

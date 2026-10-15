@@ -1,3 +1,4 @@
+import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
@@ -75,13 +76,9 @@ test('pagination: getAllConversations detects token loop and terminates safely',
     const mockClient = {
         getConversationList: async (token: string | null) => {
             callCount++;
-            return {
-                conversations: ([
+            return listFixture(([
                     { id: `c_${callCount}`, title: `Chat ${callCount}` }
-                ]).map(indexFixture),
-                // Return a repeating cursor
-                nextPageToken: 'repeating_token_xyz'
-            };
+                ]).map(indexFixture), 'repeating_token_xyz');
         }
     };
 
@@ -104,10 +101,7 @@ test('pagination D1: non-exhaustive token-loop result prevents reconcileConversa
     const mockClient = {
         getConversationList: async () => {
             callCount++;
-            return {
-                conversations: ([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture),
-                nextPageToken: 'looping_token'
-            };
+            return listFixture(([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture), 'looping_token');
         }
     };
 
