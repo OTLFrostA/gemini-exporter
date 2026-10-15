@@ -9,12 +9,12 @@ import { TITLE_AUTHORITY_RANK, resolveTitle as resolveAuthorityTitle } from '../
 export interface TitleResolutionInput { id?: string | number; title?: string; titleSource?: string; titles?: import('../../types/conversation.js').TitleSources; }
 
 /** Export freshness also recognizes historical truncation flags. */
-export type ExportActivityRecord = Partial<Pick<ExportRecord,
+export type ExportActivityRecord = Readonly<Partial<Pick<ExportRecord,
     'exportedAt' | 'chatTime' | 'messageCount' | 'status' | 'hasFailedAssets'
 >> & {
     isTruncated?: boolean;
     truncated?: boolean;
-};
+}>;
 
 export interface TitleResolution {
     title: string;
@@ -54,7 +54,7 @@ export function resolveReliableTitleSource(...sources: (string | null | undefine
 }
 
 
-export function isTakeoutConversation(c?: Partial<DomainConversationIndex> | null): boolean {
+export function isTakeoutConversation(c?: Readonly<Partial<DomainConversationIndex>> | null): boolean {
     return c?.hasTakeoutImport === true;
 }
 
@@ -203,7 +203,7 @@ export function toTimestampMs(raw: unknown): number | null {
 }
 
 /** Canonical index facts only; historical conversion belongs to acquisition/migration. */
-export function getEffectiveTimestamp(chat?: Partial<DomainConversationIndex> | null): number {
+export function getEffectiveTimestamp(chat?: Readonly<Partial<DomainConversationIndex>> | null): number {
     return chat ? indexActivityTime(chat) ?? 0 : 0;
 }
 export function compareConversations(a: DomainConversationIndex, b: DomainConversationIndex): number {
@@ -248,7 +248,7 @@ export interface ConversationExportState {
 
 export interface ResolveConversationExportStateOptions {
     isFailedInSession?: boolean;
-    customHasNewerActivity?: (c: Partial<DomainConversationIndex> | null | undefined, rec: ExportActivityRecord | null | undefined) => boolean;
+    customHasNewerActivity?: (c: Readonly<Partial<DomainConversationIndex>> | null | undefined, rec: ExportActivityRecord | null | undefined) => boolean;
 }
 
 const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], ConversationBadgeDescriptor> = {
@@ -308,7 +308,7 @@ const BADGE_DESCRIPTORS: Record<ConversationBadgeDescriptor['kind'], Conversatio
     }
 };
 
-function computeHasNewerActivity(c: Partial<DomainConversationIndex> | null | undefined, rec: ExportActivityRecord | null | undefined): boolean {
+function computeHasNewerActivity(c: Readonly<Partial<DomainConversationIndex>> | null | undefined, rec: ExportActivityRecord | null | undefined): boolean {
     if (!c || !rec) return false;
     const cTs = c.updatedAt;
     const savedVersion = toTimestampMs(rec.chatTime);
@@ -318,7 +318,7 @@ function computeHasNewerActivity(c: Partial<DomainConversationIndex> | null | un
 }
 
 export function resolveConversationExportState(
-    c: Partial<DomainConversationIndex> | null | undefined,
+    c: Readonly<Partial<DomainConversationIndex>> | null | undefined,
     rec?: ExportActivityRecord | null,
     options?: ResolveConversationExportStateOptions
 ): ConversationExportState {
@@ -377,7 +377,7 @@ export function resolveConversationExportState(
     };
 }
 
-export function checkIsUpdated(c: Partial<DomainConversationIndex> | null | undefined, rec?: ExportActivityRecord | null): boolean {
+export function checkIsUpdated(c: Readonly<Partial<DomainConversationIndex>> | null | undefined, rec?: ExportActivityRecord | null): boolean {
     if (!c || !rec) return false;
     // Partial export records are never considered up-to-date so failed attachments can be retried on subsequent syncs
     const st = resolveConversationExportState(c, rec);

@@ -3,7 +3,6 @@ import type { DomainConversationIndex } from '../../types/conversation.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 import { I18n as I18nStatic } from '../../core/utils/i18n.js';
 
-const gu = (): any => __resolveModule('GeminiUtils', null);
 import type { ExportRecord, IListView } from '../../types/ui.js';
 
 import {
@@ -11,46 +10,45 @@ import {
     cleanTitle as utilsCleanTitle,
     getEffectiveTimestamp as utilsGetEffectiveTimestamp,
     checkIsUpdated as utilsCheckIsUpdated,
-    resolveConversationExportState as utilsResolveConversationExportState,
-    type ConversationExportState
+    resolveConversationExportState as utilsResolveConversationExportState
 } from '../../core/utils/utils.js';
 import { $, t } from '../uiCommon.js';
 import { normId } from '../../core/utils/pathUtils.js';
 
-export const isRealTitle = (title?: string | null, id?: string | null): boolean =>
-    gu()?.isRealTitle ? gu().isRealTitle(title, id) : utilsIsRealTitle(title, id || undefined);
+type ListUtilities = Partial<{
+    isRealTitle: typeof utilsIsRealTitle;
+    cleanTitle: typeof utilsCleanTitle;
+    getEffectiveTimestamp: typeof utilsGetEffectiveTimestamp;
+    checkIsUpdated: typeof utilsCheckIsUpdated;
+    resolveConversationExportState: typeof utilsResolveConversationExportState;
+}>;
+const gu = (): ListUtilities => __resolveModule<ListUtilities>('GeminiUtils', {});
 
-export const cleanTitle = (tStr?: string | null): string =>
-    gu()?.cleanTitle ? gu().cleanTitle(tStr) : utilsCleanTitle(tStr);
+export const isRealTitle: typeof utilsIsRealTitle = (title, id) =>
+    (gu().isRealTitle ?? utilsIsRealTitle)(title, id);
 
+export const cleanTitle: typeof utilsCleanTitle = title =>
+    (gu().cleanTitle ?? utilsCleanTitle)(title);
 
+export const getEffectiveTimestamp: typeof utilsGetEffectiveTimestamp = chat =>
+    (gu().getEffectiveTimestamp ?? utilsGetEffectiveTimestamp)(chat);
 
-export const getEffectiveTimestamp = (chat?: any): number =>
-    gu()?.getEffectiveTimestamp ? gu().getEffectiveTimestamp(chat) : utilsGetEffectiveTimestamp(chat);
+export const checkIsUpdated: typeof utilsCheckIsUpdated = (conversation, record) =>
+    (gu().checkIsUpdated ?? utilsCheckIsUpdated)(conversation, record);
 
-export function checkIsUpdated(c: any, rec?: ExportRecord | null): boolean {
-    return gu()?.checkIsUpdated
-        ? gu().checkIsUpdated(c, rec)
-        : utilsCheckIsUpdated(c, rec);
-}
-
-export function resolveConversationExportState(
-    c: any,
-    rec?: Partial<ExportRecord> | null,
-    options?: { isFailedInSession?: boolean }
-): ConversationExportState {
-    const customResolve = gu()?.resolveConversationExportState;
-    if (typeof customResolve === 'function') {
-        return customResolve(c, rec, options);
+export const resolveConversationExportState: typeof utilsResolveConversationExportState = (conversation, record, options) => {
+    const utilities = gu();
+    if (utilities.resolveConversationExportState) {
+        return utilities.resolveConversationExportState(conversation, record, options);
     }
-    const customCheck = gu()?.checkIsUpdated;
-    return utilsResolveConversationExportState(c, rec, {
+    const customCheck = utilities.checkIsUpdated;
+    return utilsResolveConversationExportState(conversation, record, {
         ...options,
-        customHasNewerActivity: typeof customCheck === 'function'
-            ? (conv, record) => customCheck(conv, { ...record, status: 'ok', hasFailedAssets: false })
+        customHasNewerActivity: customCheck
+            ? (conv, rec) => customCheck(conv, { ...rec, status: 'ok', hasFailedAssets: false })
             : undefined
     });
-}
+};
 
 function escapeHtml(str?: string | null): string {
     if (!str) return '';
@@ -62,7 +60,7 @@ function escapeHtml(str?: string | null): string {
         .replace(/'/g, '&#39;');
 }
 
-let currentConversationsRef: DomainConversationIndex[] = [];
+let currentConversationsRef: readonly Readonly<DomainConversationIndex>[] = [];
 let canonicalSelectedIds: Set<string> | null = null;
 let currentFilterType: string = 'all';
 let currentFailedChatIds: Set<string> | null = null;
@@ -124,7 +122,7 @@ export function setSelectedIds(ids: Set<string> | null): void {
 }
 
 export function render(
-    conversations: DomainConversationIndex[],
+    conversations: readonly Readonly<DomainConversationIndex>[],
     exportedIds: Record<string, ExportRecord> = {},
     prevSelectedSet?: Set<string> | null,
     searchFilter: string = '',
@@ -302,7 +300,7 @@ export function updateItemExportStatus(chatId: string, exportRecord?: Partial<Ex
     }
 }
 
-export function updateStat(conversations?: DomainConversationIndex[]): void {
+export function updateStat(conversations?: readonly Readonly<DomainConversationIndex>[]): void {
     const list = $('list');
     if (!list) return;
     const convs = conversations || currentConversationsRef || [];
@@ -322,7 +320,7 @@ export function updateStat(conversations?: DomainConversationIndex[]): void {
     }
 }
 
-export function getSelected(conversations?: DomainConversationIndex[]): DomainConversationIndex[] {
+export function getSelected(conversations?: readonly Readonly<DomainConversationIndex>[]): Readonly<DomainConversationIndex>[] {
     const convs = conversations || currentConversationsRef || [];
     if (canonicalSelectedIds && canonicalSelectedIds.size > 0) {
         const selected = convs.filter(c => {
@@ -331,7 +329,7 @@ export function getSelected(conversations?: DomainConversationIndex[]): DomainCo
         });
         if (selected.length > 0) return selected;
     }
-    const selected: DomainConversationIndex[] = [];
+    const selected: Readonly<DomainConversationIndex>[] = [];
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]:checked').forEach((cb) => {
         const item = typeof cb.closest === 'function' ? cb.closest<HTMLElement>('.item') : null;
         const chatId = item?.dataset?.chatId;
@@ -363,7 +361,7 @@ export function getSelectedIds(): Set<string> {
     return ids;
 }
 
-export function selectAll(conversations?: DomainConversationIndex[]): void {
+export function selectAll(conversations?: readonly Readonly<DomainConversationIndex>[]): void {
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
         cb.checked = true;
@@ -384,7 +382,7 @@ export function selectAll(conversations?: DomainConversationIndex[]): void {
     updateStat(conversations);
 }
 
-export function deselectAll(conversations?: DomainConversationIndex[]): void {
+export function deselectAll(conversations?: readonly Readonly<DomainConversationIndex>[]): void {
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
         cb.checked = false;
@@ -409,7 +407,7 @@ export function deselectAll(conversations?: DomainConversationIndex[]): void {
     updateStat(conversations);
 }
 
-export function selectUnexported(conversations?: DomainConversationIndex[], exportedIds?: Record<string, ExportRecord>): void {
+export function selectUnexported(conversations?: readonly Readonly<DomainConversationIndex>[], exportedIds?: Record<string, ExportRecord>): void {
     const convList = conversations || currentConversationsRef || [];
     const expMap = exportedIds || {};
     if (!canonicalSelectedIds) canonicalSelectedIds = new Set<string>();
@@ -436,7 +434,7 @@ export function selectUnexported(conversations?: DomainConversationIndex[], expo
     updateStat(conversations);
 }
 
-export function selectByIds(targetIds: Set<string> | string[], conversations?: DomainConversationIndex[]): void {
+export function selectByIds(targetIds: Set<string> | string[], conversations?: readonly Readonly<DomainConversationIndex>[]): void {
     const idSet = new Set(Array.from(targetIds).map(id => normId(id)));
     canonicalSelectedIds = new Set(idSet);
     document.querySelectorAll<HTMLInputElement>('#list input[type=checkbox]').forEach((cb) => {
