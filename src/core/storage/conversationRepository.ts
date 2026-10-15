@@ -1,7 +1,7 @@
 import type { DomainConversation } from '../domain/conversation.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { selectConversationBody, type TrustedDomainBody } from '../domain/runtimeValidation.js';
-import type { ResourceAcquisitionHints } from '../parsers/shared/resources/resourceAcquisitionHints.js';
+import type { ResourceAcquisitionHints } from '../resources/resourceAcquisition.js';
 import type { DomainStorageIdentity, TrustedDomainStorageRecord } from './domain/contracts.js';
 import { domainStorageKey, storageIdentity } from './domain/domainStore.js';
 

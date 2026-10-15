@@ -1,11 +1,11 @@
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { attemptResource, missingResource, type ResourceFailure } from '../../resources/resourceResult.js';
-import type { AssetPipelineItem } from '../../engine/assetPipeline.js';
+import type { ResourceRequest } from '../../resources/resourceAcquisition.js';
 import { sanitizeFileName, sanitizeRelativePath, shortScope } from '../../utils/pathUtils.js';
 import { highResVariant } from '../../resources/geminiImageUrl.js';
 import { decodeDataUrlAsset } from './dataUrl.js';
 
-export interface ExportAssetPlan { assetId: string; item: AssetPipelineItem; isImage: boolean; content?: string | Uint8Array }
+export interface ExportAssetPlan { assetId: string; item: ResourceRequest; isImage: boolean; content?: string | Uint8Array }
 /** Allocate file destinations once, outside source parsing and without projecting message bodies. */
 export async function planExportResources(result: ResourceConversationParseResult): Promise<{ result: ResourceConversationParseResult; assets: ExportAssetPlan[]; failures: ResourceFailure[] }> {
     const resourceHints = {};
@@ -39,10 +39,10 @@ export async function planExportResources(result: ResourceConversationParseResul
         }
         used.add(path);
         const source = result.acquisitionHints[asset.id] ?? {};
-        const item: AssetPipelineItem = { assetId: asset.id, url: source.url ?? asset.sourceUri,
+        const item: ResourceRequest = { assetId: asset.id, url: source.url ?? asset.sourceUri,
             sourceUrl: source.sourceUrl ?? asset.sourceUri, resolvedUrl: source.resolvedUrl ?? (isImage && /^https?:/.test(asset.sourceUri ?? '') ? highResVariant(asset.sourceUri!) : undefined),
             src: source.src, candidates: source.candidates, localName: path, fileName: path.split('/').pop(),
-            name: asset.name, title: asset.name, mimeType: asset.mediaType, type: isImage ? 'image' : 'file', generation: asset.generation };
+            name: asset.name, title: asset.name, mimeType: asset.mediaType, generation: asset.generation };
         assets.push({ assetId: asset.id, item, isImage, ...(content !== undefined ? { content } : {}) });
     }
     return { result: { ...result, resourceHints }, assets, failures };

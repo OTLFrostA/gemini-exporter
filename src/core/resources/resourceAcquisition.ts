@@ -1,9 +1,7 @@
-import type { GeneratedMediaIdentity as SourceGeneratedMediaIdentity } from '../../../../types/conversation.js';
+import type { DomainGeneratedMediaIdentity } from '../domain/conversationDetail.js';
 
-/** Parser-owned transport evidence. Never serialized as Domain or Document AST. */
+/** Acquisition context carried beside Domain/AST, never conversation semantics or delivery state. */
 export interface ResourceAcquisitionHint {
-    /** Runtime lookup identity for the durable resource repository. */
-    assetId?: string;
     url?: string;
     sourceUrl?: string;
     resolvedUrl?: string;
@@ -17,8 +15,11 @@ export interface ResourceAcquisitionHint {
     candidates?: string[];
     providerRequestId?: string;
     imageOrdinal?: number;
-    generation?: Omit<SourceGeneratedMediaIdentity, 'time'> & { time?: number };
+    generation?: Partial<DomainGeneratedMediaIdentity>;
 }
 
 /** Domain asset identity, rather than a URL or export destination, owns acquisition. */
 export type ResourceAcquisitionHints = Readonly<Record<string, ResourceAcquisitionHint>>;
+
+/** Every runtime acquisition is owned by a Domain asset, never identified by URL alone. */
+export interface ResourceRequest extends ResourceAcquisitionHint { assetId: string }

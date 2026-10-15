@@ -61,8 +61,8 @@ for (const order of ['online-first', 'takeout-first'] as const) {
             const receipts = [];
             for (const asset of plan.assets) {
                 const saved = await pipeline.processAsset(asset.item, { id: api.mediaChatId }, { isImage: true, maxRetries: 0 });
-                if (!saved.saved) throw new Error(saved.failReason);
-                receipts.push({ ok: true, resourceId: asset.assetId, value: { path: saved.localName } });
+                if (!saved.ok) throw new Error(saved.reason);
+                receipts.push(saved);
             }
             files['conversation.md'] = (await api.formatMarkdownDocument(plan.result, { resourceResults: receipts })).content;
             files['conversation.html'] = (await api.formatHtmlDocument(plan.result, { resourceResults: receipts })).content;

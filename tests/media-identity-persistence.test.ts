@@ -37,8 +37,8 @@ test('real parsed sources recover renamed exports and refuse insufficient or amb
             fetchAsset: async () => ({ success: false, error: 'offline' }) });
         const result = await pipeline.acquireAssetBytes(plan.assets[0].item, { id: mediaChatId }, { isImage: true, maxRetries: 0 });
         assert.equal(result.ok, Object.keys(options).length === 0);
-        if (result.ok) { assert.deepEqual(result.bytes, mediaBytes); assert.equal(result.recoveredFromTakeout, true); }
-        else assert.equal(result.bytes, null);
+        if (result.ok) assert.deepEqual(result.value.bytes, mediaBytes);
+        else assert.ok(result.reason);
     }
 });
 

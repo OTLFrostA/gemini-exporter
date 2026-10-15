@@ -70,8 +70,8 @@ test('restored Domain detects heuristic reports and unavailable images without p
         assert.equal(restored.conversation.assets[0].document?.contentMarkdown, conversation.assets[0].document?.contentMarkdown);
         assert.deepEqual(restored.conversation.messages[0].generation, { mediaKind: 'image', outputCount: 1 });
         const prepared = await preparePdfResources(restored.conversation, new Set(['image']), restored.acquisitionHints);
-        assert.equal(prepared.resources.get('image')?.bytes, undefined);
-        assert.ok(prepared.resources.get('image')?.failureReason);
+        assert.equal(prepared.resources.get('image')?.ok, false);
+        assert.ok(prepared.resources.get('image'));
         assert.equal(resolveExportRecordStatus({ failedAssetsCount: prepared.diagnostics.length }).status, 'partial');
         assert.ok(prepared.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE' && d.path === 'asset:image'));
         assert.equal(Object.hasOwn(restored.conversation.assets[1], 'failureReason'), false);

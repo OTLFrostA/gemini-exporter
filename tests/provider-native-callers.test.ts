@@ -128,7 +128,7 @@ test('production Takeout binds extension variations once and carries native Doma
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', { assetId: '', sourceUri: 'image-hash' }, slot), null);
         const pdf = await preparePdfItem(view, { currentSlot: slot, takeoutEngine: MediaIndex, fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0 });
         assert.ok(pdf.ok);
-        assert.equal([...pdf.resources.values()].filter(r => r.bytes).length, 2);
+        assert.equal([...pdf.resources.values()].filter(r => r.ok && r.value.bytes.length).length, 2);
     } finally { MediaIndex.clearTakeoutData(slot); }
 });
 
@@ -171,8 +171,8 @@ test('missing ZIP references and unsupported URI schemes report failures through
             const restored = await getDomainConversationResult(slot, 'native');
             assert.ok(restored);
             const prepared = await preparePdfResources(restored.conversation, new Set([asset.id]), restored.acquisitionHints);
-            assert.equal(prepared.resources.get(asset.id)?.bytes, undefined);
-            assert.ok(prepared.resources.get(asset.id)?.failureReason, uri);
+            assert.equal(prepared.resources.get(asset.id)?.ok, false);
+            assert.ok(prepared.resources.get(asset.id) && !prepared.resources.get(asset.id)!.ok, uri);
             assert.ok(prepared.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE'), uri);
         } finally { MediaIndex.clearTakeoutData(slot); }
     }

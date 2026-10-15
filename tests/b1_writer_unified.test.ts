@@ -46,11 +46,11 @@ test('B1 - 10 张 PNG 经 writer 落盘：totalBytes 含附件且 compression=ST
 
     for (let i = 0; i < 10; i++) {
         const res = await pipeline.processAsset(
-            { url: `https://example.com/img${i}.png`, localName: `assets/img${i}.png` },
+            { assetId: `image-${i}`, url: `https://example.com/img${i}.png`, localName: `assets/img${i}.png` },
             { id: 'c1', title: 'chat' },
             { isImage: true }
         );
-        assert.strictEqual(res.saved, true, `img${i}.png should be saved, got failReason=${res.failReason}`);
+        assert.strictEqual(res.ok, true, `img${i}.png should be saved, got failReason=${res.reason}`);
     }
 
     assert.strictEqual(
@@ -102,13 +102,12 @@ test('B1 - takeout fallback 统一走 writer.writeFile', async () => {
     });
 
     const res = await pipeline.processAsset(
-        { url: 'https://example.com/f.bin', localName: 'f.bin' },
+        { assetId: 'test-asset', url: 'https://example.com/f.bin', localName: 'f.bin' },
         { id: 'c9', title: 'chat' },
         { maxRetries: 0 }
     );
 
-    assert.strictEqual(res.saved, true, `takeout fallback should save, got failReason=${res.failReason}`);
-    assert.strictEqual(res.recoveredFromTakeout, true);
+    assert.strictEqual(res.ok, true, `takeout fallback should save, got failReason=${res.reason}`);
     assert.strictEqual(written.length, 1);
     assert.strictEqual(written[0][0], 'f.bin', 'takeout fallback must go through writer.writeFile');
 });

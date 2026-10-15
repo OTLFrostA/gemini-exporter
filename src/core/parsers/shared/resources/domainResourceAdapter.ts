@@ -1,4 +1,4 @@
-import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from './resourceAcquisitionHints.js';
+import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../../resources/resourceAcquisition.js';
 import type { LegacyResourceHints } from './resourceHints.js';
 import type { DomainAsset, DomainAssetKind, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ResourceEvidence } from './resourceEvidence.js';

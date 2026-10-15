@@ -108,11 +108,11 @@ test('asset_dedup - AssetPipeline preserves byteOffset and byteLength for sliced
         }
     });
 
-    const item = { localName: 'assets/sliced.png', url: 'https://example.com/sliced.png' };
+    const item = { assetId: 'sliced', localName: 'assets/sliced.png', url: 'https://example.com/sliced.png' };
     const chat = { id: 'chat1', title: 'Test Chat' };
     const res = await pipeline.processAsset(item, chat, { isImage: true });
 
-    assert.strictEqual(res.saved, true);
+    assert.strictEqual(res.ok, true);
     assert.strictEqual(writtenPath, 'assets/sliced.png');
     assert.ok(writtenBytes instanceof Uint8Array, 'Written content must be Uint8Array');
     assert.strictEqual(writtenBytes.byteLength, 4, `Expected byteLength 4, got ${writtenBytes.byteLength}`);

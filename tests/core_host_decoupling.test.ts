@@ -39,7 +39,7 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
             }
         });
 
-        const item = { url: 'https://example.com/asset.png', fileName: 'asset.png' };
+        const item = { assetId: 'test-asset', url: 'https://example.com/asset.png', fileName: 'asset.png' };
         const chat = { id: 'c_test_1' };
 
         const result = await pipeline.processAsset(item, chat, { isImage: true });
@@ -47,7 +47,7 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
         assert.strictEqual(delegateCalls.length, 1, 'fetchAssetDelegate must be invoked');
         assert.strictEqual(delegateCalls[0].url, 'https://example.com/asset.png');
         assert.strictEqual(delegateCalls[0].preferBuffer, true);
-        assert.strictEqual(result.saved, true, 'Asset should be successfully marked as saved');
+        assert.strictEqual(result.ok, true, 'Asset should be successfully marked as saved');
         assert.strictEqual(savedFiles.length, 1, 'Asset file must be written to zip folder');
         assert.strictEqual(savedFiles[0].name, 'asset.png');
 

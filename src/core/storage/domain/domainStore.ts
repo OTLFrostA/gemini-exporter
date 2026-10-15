@@ -6,7 +6,7 @@ import { matchResourceSets, resourceIdentity } from '../../parsers/shared/resour
 import { needsDomainBroker, callDomainBroker, encodeBytes, decodeBytes, decodeDomainRecord } from './transport.js';
 import { assertSchemaWritable } from '../schemaState.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
-import type { ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
+import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 import type { DomainConversationDetail } from '../../domain/conversationDetail.js';
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { normId } from '../../utils/pathUtils.js';

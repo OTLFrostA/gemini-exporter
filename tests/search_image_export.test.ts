@@ -16,9 +16,9 @@ test('search image export downloads from extension origin and writes actual imag
             writeFileDirect: async (path: string, bytes: any) => writes.push({ path, bytes }),
             fetchAssetDelegate: async () => { throw new Error('must not use page CORS fetch'); }
         });
-        const result = await pipeline.processAsset({ sourceUrl: 'http://encrypted-tbn2.gstatic.com/licensed-image?q=test',
+        const result = await pipeline.processAsset({ assetId: 'test-asset', sourceUrl: 'http://encrypted-tbn2.gstatic.com/licensed-image?q=test',
             localName: 'assets/search.png' }, { id: 'chat' }, { isImage: true, maxRetries: 0 });
-        assert.equal(result.saved, true);
+        assert.equal(result.ok, true);
         assert.equal(writes.length, 1, 'success must write exactly one image');
         assert.equal(requests[0].url, 'https://encrypted-tbn2.gstatic.com/licensed-image?q=test');
         assert.equal(requests[0].init.credentials, 'omit');
@@ -37,10 +37,10 @@ test('missing search images retain HTTP errors and never write a fake successful
             writeFileDirect: async () => { attemptedWrites++; throw new Error('must not write missing images'); },
             fetchAssetDelegate: async () => ({ success: false, error: 'Failed to fetch' })
         });
-        const result = await pipeline.processAsset({ sourceUrl: 'https://encrypted-tbn2.gstatic.com/licensed-image?q=missing',
+        const result = await pipeline.processAsset({ assetId: 'test-asset', sourceUrl: 'https://encrypted-tbn2.gstatic.com/licensed-image?q=missing',
             localName: 'assets/missing.png' }, { id: 'chat' }, { isImage: true, maxRetries: 0 });
-        assert.equal(result.saved, false);
-        assert.match(result.failReason, /HTTP 404/);
+        assert.equal(result.ok, false);
+        assert.match(result.reason, /HTTP 404/);
         assert.equal(attemptedWrites, 0, 'a failed HTTP fetch must never reach the writer');
     } finally { globalThis.fetch = originalFetch; }
 });

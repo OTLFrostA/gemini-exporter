@@ -37,11 +37,11 @@ test('asset download retries another Gemini tab when the selected tab has no con
             sendToGeminiTab: TabService.sendToGeminiTab,
             writer: { writeFile: async (name: string, content: unknown, options?: { base64?: boolean }) => {
                 writes.push({ name, content, base64: options?.base64 === true });
-                return name;
+                return 'assets/actual-image.jpg';
             } } as any
         });
         const result = await pipeline.processAsset(
-            { url: 'https://lh3.googleusercontent.com/image', localName: 'assets/image.jpg' },
+            { assetId: 'test-asset', url: 'https://lh3.googleusercontent.com/image', localName: 'assets/image.jpg' },
             { id: 'chat_1' },
             { isImage: true, maxRetries: 0 }
         );
@@ -52,9 +52,9 @@ test('asset download retries another Gemini tab when the selected tab has no con
             'the healthy tab must first receive a binary-buffer request');
         assert.ok(sent.some(request => request.tabId === 22 && !request.preferBuffer),
             'a dropped ArrayBuffer must trigger a base64 retry on a working tab');
-        assert.equal(result.saved, true);
-        assert.deepEqual(writes, [{ name: 'assets/image.jpg', content: 'AQID', base64: true }],
-            'the decoded fallback must be written once using the base64 writer contract');
+        assert.deepEqual(result, { ok: true, resourceId: 'test-asset', value: { path: 'assets/actual-image.jpg' } });
+        assert.deepEqual(writes, [{ name: 'assets/image.jpg', content: new Uint8Array([1, 2, 3]), base64: false }],
+            'the decoded fallback must be written once as normalized bytes');
     } finally {
         (globalThis as any).chrome = originalChrome;
     }

@@ -1,5 +1,5 @@
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../../utils/nativeDetailTransport.js';
-import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../parsers/shared/resources/resourceAcquisitionHints.js';
+import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 import type { TrustedDomainStorageRecord } from './contracts.js';
 
 export type DomainStoreCommand = 'get' | 'save' | 'resource' | 'remove' | 'backup' | 'cache';

@@ -6,7 +6,9 @@ import assert from 'node:assert/strict';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import type { AssetPipelineOptions, AssetPipelineItem, ProcessAssetResult } from '../src/core/engine/assetPipeline.js';
+import type { AssetPipelineOptions } from '../src/core/engine/assetPipeline.js';
+import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
+import type { ResourceResult, ResourceDelivery } from '../src/core/resources/resourceResult.js';
 import { makeTestWorker } from './helpers/makeTestWorker.js';
 import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
 import { formatHtmlDocument, formatMarkdownDocument, formatContent } from '../src/core/engine/chatFormatter.js';
@@ -42,13 +44,13 @@ for (const format of ['markdown', 'html', 'json']) for (const failure of ['throw
         __setModuleOverride('StorageService', { getExportedIds: async () => ({}), saveExportRecord: async (_slot: string, id: string, record: { status: string }) => { records[id] = record; return records; } });
         __setModuleOverride('AssetPipeline', class {
             constructor(private readonly options: AssetPipelineOptions) {}
-            async processAsset(item: AssetPipelineItem): Promise<ProcessAssetResult> {
+            async processAsset(item: ResourceRequest): Promise<ResourceResult<ResourceDelivery>> {
                 if (item.assetId === 'bad' && failure !== 'write') {
-                    if (failure === 'empty') return { saved: false, localName: item.localName!, failReason: 'zero bytes', recoveredFromTakeout: false };
+                    if (failure === 'empty') return { ok: false as const, resourceId: item.assetId, reason: 'zero bytes', code: 'RESOURCE_UNAVAILABLE' };
                     throw new Error('Injected acquisition failure');
                 }
                 await this.options.writer!.writeFile(item.localName!, png);
-                return { saved: true, localName: item.localName!, failReason: '', recoveredFromTakeout: false };
+                return { ok: true as const, resourceId: item.assetId, value: { path: item.localName! } };
             }
         });
         // Exercise real writer rejection, including inline document companion writes.
@@ -91,12 +93,12 @@ test('formatters cannot turn an unconfirmed destination plan into local referenc
 });
 for (const failure of ['throw', 'empty', 'corrupt']) for (const useZip of [false, true]) for (const includeAssets of [false, true]) test(`PDF ${failure} ZIP=${useZip} assets=${includeAssets} preserves requested resource status`, async () => {
     const source = native('throw'), before = structuredClone(source);
-    const pipeline = { acquireAssetBytes: async (item: AssetPipelineItem) => {
+    const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => {
         if (item.assetId === 'bad') {
             if (failure === 'throw') throw new Error('Injected PDF acquisition failure');
-            return { ok: true, bytes: failure === 'empty' ? new Uint8Array() : new Uint8Array([1, 2, 3]), mimeType: 'image/png', failReason: '', localName: 'bad.png', recoveredFromTakeout: false };
+            return { ok: true as const, resourceId: item.assetId, value: { bytes: failure === 'empty' ? new Uint8Array() : new Uint8Array([1, 2, 3]), mediaType: 'image/png' } };
         }
-        return { ok: true, bytes: png, mimeType: 'image/png', failReason: '', localName: 'good.png', recoveredFromTakeout: false };
+        return { ok: true as const, resourceId: item.assetId, value: { bytes: png, mediaType: 'image/png' } };
     } };
     const prep = await preparePdfItem(source, { assetPipeline: pipeline }); assert.ok(prep.ok);
     const ctx = { signal: new AbortController().signal, reportProgress: () => {}, log: () => {} };
@@ -181,10 +183,10 @@ for (const mode of ['queued', 'transport']) test(`resource cancellation ${mode} 
     let started!: () => void;
     const startedWork = new Promise<void>(resolve => { started = resolve; });
     __setModuleOverride('AssetPipeline', class {
-        async processAsset(): Promise<ProcessAssetResult> {
+        async processAsset(): Promise<ResourceResult<ResourceDelivery>> {
             started();
             if (mode === 'transport') throw new DOMException('Transport cancelled', 'AbortError');
-            return new Promise<ProcessAssetResult>(() => {});
+            return new Promise<ResourceResult<ResourceDelivery>>(() => {});
         }
     });
     const engine = new ExportOrchestrator(); let downloaded = false;
@@ -234,9 +236,7 @@ for (const [kind, broken] of [
     // Two distinct assets with identical broken bytes share one content-addressed mount.
     source.conversation.assets.push({ id: 'bad-alias', kind: 'image', name: 'also-broken.png' });
     source.conversation.messages[0].content.push({ type: 'paragraph', children: [{ type: 'image', assetId: 'bad-alias' }] });
-    const pipeline = { acquireAssetBytes: async (item: AssetPipelineItem) => ({ ok: true,
-        bytes: item.assetId === 'good' ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') : broken,
-        mimeType: 'image/png', failReason: '', localName: 'image.png', recoveredFromTakeout: false }) };
+    const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: item.assetId === 'good' ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') : broken, mediaType: 'image/png' } }) };
     const files: Uint8Array[] = [], records: Array<{ status: string; hasFailedAssets: boolean }> = [];
     try {
         const result = await new PdfExporter(compiler).run({ selected: [source], assetPipeline: pipeline, useZip: false,
@@ -300,9 +300,7 @@ test('real WASM PDF: unrelated Typst compile failure stays fatal and does not di
     };
     const compiler = new TypstSandboxCompiler({ host });
     let writes = 0;
-    const pipeline = { acquireAssetBytes: async () => ({ ok: true,
-        bytes: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'),
-        mimeType: 'image/png', failReason: '', localName: 'image.png', recoveredFromTakeout: false }) };
+    const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'), mediaType: 'image/png' } }) };
     try {
         const result = await new PdfExporter(compiler).run({ selected: [native('throw')], assetPipeline: pipeline, useZip: false,
             writer: { type: 'directory', writeFile: () => { writes++; return 'should-not-exist.pdf'; } },

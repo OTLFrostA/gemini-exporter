@@ -1,6 +1,6 @@
 import type { ResourceResult, ResourceDelivery } from '../../../resources/resourceResult.js';
 import type { DocumentAst } from '../../../document/ast/ast.js';
-import type { PreparedResources } from '../../assets/preparedResources.js';
+import type { PreparedResources } from '../../../resources/resourceResult.js';
 import type {
     ArtifactWriteReport,
 } from '../../artifacts.js';

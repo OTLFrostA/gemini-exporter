@@ -1,6 +1,7 @@
 import { getDomainResource, cacheDomainResource, storageIdentity } from '../storage/domain/domainStore.js';
 import type { IExportWriter } from "./writers/writerInterface.js";
-import type { DomainGeneratedMediaIdentity } from "../domain/conversationDetail.js";
+import type { ResourceRequest } from '../resources/resourceAcquisition.js';
+import { attemptResource, missingResource, type ResourceResult, type ResourceBytes, type ResourceDelivery } from '../resources/resourceResult.js';
 import type { TakeoutEngineModule, TakeoutResourceLookup } from "./takeoutEngine.js";
 import type { DownloadAssetDirectMessage } from "../../types/messages.js";
 
@@ -11,24 +12,6 @@ export interface ProcessAssetOptions {
     timeoutMs?: number;
     signal?: AbortSignal | null;
     maxRetries?: number;
-}
-
-export interface ProcessAssetResult {
-    saved: boolean;
-    failReason: string;
-    recoveredFromTakeout: boolean;
-    localName: string;
-}
-
-export interface AcquireAssetBytesResult {
-    ok: boolean;
-    bytes: Uint8Array | null;
-    base64?: string | null;
-    fromBuffer?: boolean;
-    mimeType?: string;
-    failReason: string;
-    recoveredFromTakeout: boolean;
-    localName: string;
 }
 
 interface AssetDownloadResponse {
@@ -63,24 +46,6 @@ export interface AssetPipelineChat {
     title?: string | null;
 }
 
-export interface AssetPipelineItem {
-    assetId?: string;
-    url?: string;
-    sourceUrl?: string;
-    resolvedUrl?: string;
-    src?: string;
-    localName?: string;
-    fileName?: string;
-    name?: string;
-    title?: string;
-    type?: string;
-    mimeType?: string;
-    mime?: string;
-    candidates?: string[];
-    generation?: Partial<DomainGeneratedMediaIdentity>;
-    sourceEvidence?: unknown;
-}
-
 export interface FetchAssetParams {
     url: string;
     referer: string;
@@ -88,7 +53,7 @@ export interface FetchAssetParams {
     timeoutMs: number;
     slot: string;
     chat: AssetPipelineChat;
-    item: AssetPipelineItem;
+    item: ResourceRequest;
     signal?: AbortSignal | null;
     fileName?: string;
     candidates?: string[];
@@ -137,8 +102,8 @@ export interface AssetPipelineInstance {
     fetchAssetDelegate: ((params: FetchAssetParams) => Promise<unknown>) | null;
     onLog: (msg: string, level?: string) => void;
     downloadTimeoutMs: number;
-    acquireAssetBytes: (item: AssetPipelineItem, chat: AssetPipelineChat, opts?: ProcessAssetOptions) => Promise<AcquireAssetBytesResult>;
-    processAsset: (item: AssetPipelineItem, chat: AssetPipelineChat, opts?: ProcessAssetOptions) => Promise<ProcessAssetResult>;
+    acquireAssetBytes: (item: ResourceRequest, chat: AssetPipelineChat, opts?: ProcessAssetOptions) => Promise<ResourceResult<ResourceBytes>>;
+    processAsset: (item: ResourceRequest, chat: AssetPipelineChat, opts?: ProcessAssetOptions) => Promise<ResourceResult<ResourceDelivery>>;
 }
 
 import { sanitizeRelativePath } from "../utils/utils.js";
@@ -150,6 +115,10 @@ import { getErrorMessage } from "../utils/messaging.js";
 export function sanitizeZipPath(p?: string | null): string {
     if (!p) return '';
     return sanitizeRelativePath(p, 'file');
+}
+
+function resourceName(item: ResourceRequest, isImage: boolean): string {
+    return item.localName || item.fileName || item.title || (isImage ? 'image.jpg' : 'file.bin');
 }
 
 function hasValidBuffer(r: AssetDownloadResponse | null | undefined): boolean {
@@ -303,7 +272,7 @@ class AssetPipeline implements AssetPipelineInstance {
     private async downloadOnce(
         targetUrl: string,
         chat: AssetPipelineChat,
-        item: AssetPipelineItem,
+        item: ResourceRequest,
         timeoutMs: number,
         signal: AbortSignal | null
     ): Promise<AssetDownloadResponse | null> {
@@ -393,73 +362,23 @@ class AssetPipeline implements AssetPipelineInstance {
         return r;
     }
 
-    private extractDownloadPayload(r: AssetDownloadResponse | null | undefined, isImage: boolean): {
-        ok: boolean;
-        bytes: Uint8Array | null;
-        base64: string | null;
-        fromBuffer: boolean;
-        mimeType?: string;
-        failReason: string;
-    } {
-        if (!r || (!r.success && !r.ok)) {
-            const defaultFail = isImage ? 'image direct download failed' : 'downloadAssetDirect failed';
-            return {
-                ok: false,
-                bytes: null,
-                base64: null,
-                fromBuffer: false,
-                failReason: r ? (r.error || defaultFail) : defaultFail,
-            };
+    private extractDownloadPayload(resourceId: string, r: AssetDownloadResponse | null | undefined, isImage: boolean): ResourceResult<ResourceBytes> {
+        const defaultFail = isImage ? 'image direct download failed' : 'downloadAssetDirect failed';
+        if (!r || (!r.success && !r.ok)) return missingResource(resourceId, r?.error || defaultFail);
+        const mediaType = r.mimeType || r.mime || undefined;
+        if (hasValidBuffer(r) && r.dataBuffer) {
+            const bytes = r.dataBuffer instanceof ArrayBuffer ? new Uint8Array(r.dataBuffer)
+                : new Uint8Array(r.dataBuffer.buffer, r.dataBuffer.byteOffset, r.dataBuffer.byteLength);
+            return { ok: true, resourceId, value: { bytes, mediaType } };
         }
-        const isValidBuffer = hasValidBuffer(r);
-        let bufferBytes: Uint8Array | null = null;
-        if (isValidBuffer && r.dataBuffer) {
-            if (typeof ArrayBuffer !== 'undefined' && r.dataBuffer instanceof ArrayBuffer) {
-                bufferBytes = new Uint8Array(r.dataBuffer);
-            } else if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(r.dataBuffer)) {
-                bufferBytes = new Uint8Array(r.dataBuffer.buffer, r.dataBuffer.byteOffset, r.dataBuffer.byteLength);
-            }
-        }
-        const rawB64 = r.dataBase64 || r.blobBase64 || (typeof r.dataUrl === 'string' && r.dataUrl.includes(',') ? r.dataUrl.split(',')[1] : null);
-        const b64 = typeof rawB64 === 'string' && rawB64.length > 0 ? rawB64 : null;
-        const mimeType = typeof (r.mimeType || r.mime) === 'string' && (r.mimeType || r.mime)
-            ? String(r.mimeType || r.mime)
-            : undefined;
-
-        if (bufferBytes && bufferBytes.length > 0) {
-            return {
-                ok: true,
-                bytes: bufferBytes,
-                base64: b64,
-                fromBuffer: true,
-                mimeType,
-                failReason: '',
-            };
-        }
-        if (b64) {
+        const base64 = r.dataBase64 || r.blobBase64 || (r.dataUrl?.includes(',') ? r.dataUrl.split(',')[1] : undefined);
+        if (base64) {
             try {
-                const decoded = decodeBase64ToBytes(b64);
-                if (decoded.length > 0) {
-                    return {
-                        ok: true,
-                        bytes: decoded,
-                        base64: b64,
-                        fromBuffer: false,
-                        mimeType,
-                        failReason: '',
-                    };
-                }
-            } catch {
-                // fall through to failure below
-            }
+                const bytes = decodeBase64ToBytes(base64);
+                if (bytes.length) return { ok: true, resourceId, value: { bytes, mediaType } };
+            } catch { /* Report malformed payloads through the same failure contract. */ }
         }
-        return {
-            ok: false,
-            bytes: null,
-            base64: null,
-            fromBuffer: false,
-            failReason: r.error || 'Empty or unparseable binary/base64 payload',
-        };
+        return missingResource(resourceId, r.error || 'Empty or unparseable binary/base64 payload');
     }
 
     private logTakeoutRecovery(chat: AssetPipelineChat, localName: string, isImage: boolean): void {
@@ -468,7 +387,7 @@ class AssetPipeline implements AssetPipelineInstance {
         this.onLog(I18n.t(logKey, chat.title || chat.id, localName), 'info');
     }
 
-    async acquireAssetBytes(item: AssetPipelineItem, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<AcquireAssetBytesResult> {
+    async acquireAssetBytes(item: ResourceRequest, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<ResourceResult<ResourceBytes>> {
         const isImage = !!opts.isImage;
         const url = item.url;
         const sourceUrl = item.sourceUrl;
@@ -479,10 +398,7 @@ class AssetPipeline implements AssetPipelineInstance {
         const targetUrl = isImage
             ? (resolvedUrl || sourceUrl || url || src)
             : (nonThumbCandidates[0] || rawCandidates[0]);
-        const localName = item.localName
-            || item.fileName
-            || item.title
-            || (isImage ? 'image.jpg' : 'file.bin');
+        const localName = resourceName(item, isImage);
         const signal = opts.signal || null;
         const maxRetries = (typeof opts.maxRetries === "number" && opts.maxRetries >= 0) ? Math.floor(opts.maxRetries) : 3;
         const timeoutMs = opts.timeoutMs || this.downloadTimeoutMs;
@@ -491,55 +407,37 @@ class AssetPipeline implements AssetPipelineInstance {
         const isRemoteTarget = typeof targetUrl === 'string' && /^(https?:|blob:|data:)/i.test(targetUrl);
         const canAttemptRemote = !opts.localOnly && Boolean(targetUrl && (this.fetchAssetDelegate || isRemoteTarget));
 
-        if (signal && signal.aborted) {
-            return {
-                ok: false,
-                bytes: null,
-                base64: null,
-                fromBuffer: false,
-                failReason: 'aborted',
-                recoveredFromTakeout: false,
-                localName,
-            };
-        }
-
-        if (item.assetId) {
-            const stored = await getDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId);
-            if (stored?.byteLength) return { ok: true, bytes: stored, base64: null, fromBuffer: true, failReason: '', recoveredFromTakeout: false, localName };
-        }
+        signal?.throwIfAborted();
+        const stored = await getDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId);
+        signal?.throwIfAborted();
+        if (stored?.byteLength) return { ok: true, resourceId: item.assetId, value: { bytes: stored, name: localName } };
 
         if (canAttemptRemote && targetUrl) {
             try {
                 let attempt = 0;
                 for (;;) {
-                    if (signal && signal.aborted) { failReason = 'aborted'; break; }
+                    signal?.throwIfAborted();
                     const r = await this.downloadOnce(targetUrl, chat, item, timeoutMs, signal);
-                    if (signal && signal.aborted) { failReason = 'aborted'; break; }
-                    const extracted = this.extractDownloadPayload(r, isImage);
-                    if (extracted.ok && extracted.bytes && extracted.bytes.length > 0) {
-                        if (item.assetId && (sourceUrl || url || src)) {
-                            try { await cacheDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId, sourceUrl || url || src || '', extracted.bytes); }
+                    signal?.throwIfAborted();
+                    const extracted = this.extractDownloadPayload(item.assetId, r, isImage);
+                    if (extracted.ok) {
+                        if (sourceUrl || url || src) {
+                            try { await cacheDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId, sourceUrl || url || src || '', extracted.value.bytes); }
                             catch (error) { this.onLog(`[${chat.title || chat.id}] Resource downloaded but durable cache write failed: ${getErrorMessage(error)}`, 'warn'); }
                         }
-                        return {
-                            ok: true,
-                            bytes: extracted.bytes,
-                            base64: extracted.base64,
-                            fromBuffer: extracted.fromBuffer,
-                            ...(extracted.mimeType ? { mimeType: extracted.mimeType } : {}),
-                            failReason: '',
-                            recoveredFromTakeout: false,
-                            localName,
-                        };
+                        signal?.throwIfAborted();
+                        return { ...extracted, value: { ...extracted.value, name: localName } };
                     }
-                    failReason = extracted.failReason;
+                    failReason = extracted.reason;
                     if (attempt >= maxRetries) break;
                     const delayMs = calculateBackoff(attempt, { initialDelayMs: 1000, maxDelayMs: 10000, jitterMs: 500 });
                     this.onLog(`[${chat.title || chat.id}] 附件下载失败，${delayMs}ms 后重试 (${attempt + 1}/${maxRetries}): ${localName}`, 'warn');
-                    if (await abortableSleep(delayMs, signal)) { failReason = 'aborted'; break; }
+                    if (await abortableSleep(delayMs, signal)) signal?.throwIfAborted();
                     attempt++;
                 }
             } catch (e: unknown) {
+                signal?.throwIfAborted();
+                if (e instanceof Error && e.name === 'AbortError') throw e;
                 failReason = getErrorMessage(e);
             }
         } else {
@@ -550,99 +448,42 @@ class AssetPipeline implements AssetPipelineInstance {
         if (!(signal && signal.aborted) && this.takeoutEngine && typeof this.takeoutEngine.getTakeoutFallbackMedia === 'function') {
             try {
                 const offlineBin = await this.takeoutEngine.getTakeoutFallbackMedia(chat.id, {
-                    assetId: item.assetId ?? '',
+                    assetId: item.assetId,
                     sourceUri: sourceUrl ?? url ?? src,
                     generation: item.generation,
                 }, this.currentSlot);
                 if (offlineBin && offlineBin.length > 0) {
-                    const bytes = offlineBin;
-                    if (!this.writer && !this.writeFileDirect) {
-                        this.logTakeoutRecovery(chat, localName, isImage);
-                    }
-                    return {
-                        ok: true,
-                        bytes,
-                        base64: null,
-                        fromBuffer: true,
-                        failReason: '',
-                        recoveredFromTakeout: true,
-                        localName,
-                    };
+                    signal?.throwIfAborted();
+                    this.logTakeoutRecovery(chat, localName, isImage);
+                    return { ok: true, resourceId: item.assetId, value: { bytes: offlineBin, name: localName } };
                 }
             } catch (e) {
+                signal?.throwIfAborted();
+                if (e instanceof Error && e.name === 'AbortError') throw e;
                 if (typeof console !== "undefined" && console.debug) console.debug("[GemExporter:assetPipeline.ts]", e);
             }
         }
 
-        return {
-            ok: false,
-            bytes: null,
-            base64: null,
-            fromBuffer: false,
-            failReason,
-            recoveredFromTakeout: false,
-            localName,
-        };
+        signal?.throwIfAborted();
+        return missingResource(item.assetId, failReason);
     }
 
-    async processAsset(item: AssetPipelineItem, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<ProcessAssetResult> {
-        const isImage = !!opts.isImage;
+    async processAsset(item: ResourceRequest, chat: AssetPipelineChat, opts: ProcessAssetOptions = {}): Promise<ResourceResult<ResourceDelivery>> {
         const acquired = await this.acquireAssetBytes(item, chat, opts);
-        let localName = sanitizeZipPath(acquired.localName);
-        if (!acquired.ok || !acquired.bytes || acquired.bytes.length === 0) {
-            return {
-                saved: false,
-                failReason: acquired.failReason,
-                recoveredFromTakeout: false,
-                localName,
-            };
-        }
-
-        let saved = false;
-        let failReason = '';
-        if (this.writer) {
-            try {
-                if (acquired.fromBuffer || !acquired.base64) {
-                    const written = await this.writer.writeFile(localName, acquired.bytes);
-                    if (typeof written === 'string' && written) localName = written;
-                    saved = true;
-                } else {
-                    const written = await this.writer.writeFile(localName, acquired.base64, { base64: true });
-                    if (typeof written === 'string' && written) localName = written;
-                    saved = true;
-                }
-            } catch (e) {
-                // Phase A (P0-1) 语义：writeFile 失败抛错，不静默记成功。
-                // 写入本地失败不再向 CDN 盲目重试网络拉取。
-                saved = false;
-                failReason = getErrorMessage(e);
-                if (!acquired.recoveredFromTakeout) {
-                    this.onLog(`[${chat.title || chat.id}] 附件写入本地失败 (${localName}): ${failReason}`, 'warn');
-                } else if (typeof console !== "undefined" && console.debug) {
-                    console.debug("[GemExporter:assetPipeline.ts] takeout fallback write failed", e);
-                }
+        if (!acquired.ok) return acquired;
+        const localName = sanitizeZipPath(resourceName(item, !!opts.isImage));
+        const delivered = await attemptResource(item.assetId, async () => {
+            if (this.writer) {
+                const written = await this.writer.writeFile(localName, acquired.value.bytes);
+                return { path: typeof written === 'string' && written ? written : localName };
             }
-        } else if (this.writeFileDirect) {
-            try {
-                await this.writeFileDirect(localName, acquired.bytes);
-                saved = true;
-            } catch (e) {
-                saved = false;
-                failReason = getErrorMessage(e);
-                if (!acquired.recoveredFromTakeout) {
-                    this.onLog(`[${chat.title || chat.id}] 附件写入本地失败 (${localName}): ${failReason}`, 'warn');
-                }
-            }
-        } else {
-            failReason = 'Empty or unparseable binary/base64 payload';
-        }
-
-        const recoveredFromTakeout = saved && acquired.recoveredFromTakeout;
-        if (recoveredFromTakeout) {
-            this.logTakeoutRecovery(chat, localName, isImage);
-        }
-
-        return { saved, failReason, recoveredFromTakeout, localName };
+            if (!this.writeFileDirect) throw new Error('Resource writer is unavailable');
+            await this.writeFileDirect(localName, acquired.value.bytes);
+            return { path: localName };
+        }, opts.signal);
+        // A failed write never triggers another download.
+        if (!delivered.ok) this.onLog(`[${chat.title || chat.id}] 附件写入本地失败 (${localName}): ${delivered.reason}`, 'warn');
+        return delivered;
     }
 }
 
