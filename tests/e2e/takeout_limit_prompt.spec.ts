@@ -9,17 +9,20 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     const modal = page.locator('#takeoutLimitModal');
     await expect(modal).toBeHidden();
 
-    // Trigger takeout limit prompt with count 620
-    await page.evaluate(() => {
-      if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
-        window.DialogView.showTakeoutLimitPrompt({ count: 620 });
-      }
+    // Fail rather than silently skipping a missing UI mount.
+    await page.waitForFunction(() => typeof window.DialogView?.showTakeoutLimitPrompt === 'function');
+    await page.evaluate(async () => {
+      await chrome.storage.local.remove('has_completed_takeout_prompt');
+      window.ConversationsStore.setConversations([]);
+      await window.DialogView.showTakeoutLimitPrompt({ count: 620 });
     });
 
     await expect(modal).toBeVisible();
     await expect(page.locator('#takeoutLimitPromptText')).toContainText('620');
     await expect(page.locator('#btnModalImportTakeout')).toBeVisible();
     await expect(page.locator('#btnModalDismissTakeout')).toBeVisible();
+    await expect(page.locator('#btnModalOpenTakeoutWeb'))
+      .toHaveAttribute('href', 'https://takeout.google.com/settings/takeout/custom/gemini');
 
     // Click "我知道了，不再提示" to dismiss
     await page.click('#btnModalDismissTakeout');
@@ -33,10 +36,8 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     expect(isPromptCompleted).toBe(true);
 
     // Verify subsequent showTakeoutLimitPrompt call without force is suppressed
-    await page.evaluate(() => {
-      if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
-        window.DialogView.showTakeoutLimitPrompt({ count: 630 });
-      }
+    await page.evaluate(async () => {
+      await window.DialogView.showTakeoutLimitPrompt({ count: 630 });
     });
     await expect(modal).toBeHidden();
   });
@@ -49,16 +50,18 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     const modal = page.locator('#takeoutLimitModal');
 
     // Monitor takeoutFileInput clicks
-    await page.evaluate(() => {
+    await page.waitForFunction(() => typeof window.DialogView?.showTakeoutLimitPrompt === 'function');
+    await page.evaluate(async () => {
       window.__takeoutClicked = false;
       const fileInput = document.getElementById('takeoutFileInput');
-      if (fileInput) {
-        fileInput.addEventListener('click', (e) => {
-          e.preventDefault(); // Prevent opening system dialog during automated test
-          window.__takeoutClicked = true;
-        });
-      }
-      window.DialogView.showTakeoutLimitPrompt({ count: 650 });
+      if (!fileInput) throw new Error('Takeout file input missing');
+      fileInput.addEventListener('click', (e) => {
+        e.preventDefault(); // Prevent opening system dialog during automated test
+        window.__takeoutClicked = true;
+      });
+      await chrome.storage.local.remove('has_completed_takeout_prompt');
+      window.ConversationsStore.setConversations([]);
+      await window.DialogView.showTakeoutLimitPrompt({ count: 650 });
     });
 
     await expect(modal).toBeVisible();
@@ -144,48 +147,48 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await expect(modal).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#takeoutLimitPromptTitle')).toContainText(/已达网页端上限|Reached Google Cloud History Limit/i);
     await expect(page.locator('#takeoutLimitPromptText')).toContainText('2');
+    expect(requestCount).toBeGreaterThanOrEqual(2); // Must have consumed the mocked pagination/error sequence.
 
     // Close via close button ✕
     await page.click('#btnTakeoutLimitClose');
     await expect(modal).toBeHidden();
   });
 
-  test('should verify Google Takeout button links to custom Gemini deep link', async ({ context, extensionId }) => {
+  test('should suppress an otherwise eligible prompt after a Takeout import', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await page.waitForLoadState('domcontentloaded');
-
-    const link = page.locator('#btnModalOpenTakeoutWeb');
-    await expect(link).toHaveAttribute('href', 'https://takeout.google.com/settings/takeout/custom/gemini');
-  });
-
-  test('should suppress takeout limit prompt if takeout conversations already exist', async ({ context, extensionId }) => {
-    const page = await context.newPage();
-    await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await page.waitForLoadState('domcontentloaded');
+    await page.waitForFunction(() => typeof window.DialogView?.showTakeoutLimitPrompt === 'function');
 
     const modal = page.locator('#takeoutLimitModal');
+    await page.evaluate(async () => {
+      await chrome.storage.local.remove('has_completed_takeout_prompt');
+      window.ConversationsStore.setConversations([]);
+      await window.DialogView.showTakeoutLimitPrompt({ count: 620 });
+    });
+    await expect(modal).toBeVisible(); // Prove the prompt is eligible before adding Takeout data.
+    await page.click('#btnTakeoutLimitClose');
     await expect(modal).toBeHidden();
 
-    // Inject a takeout conversation into storage & ConversationsStore and await the prompt check
     await page.evaluate(async () => {
-      await chrome.storage.local.set({
-        gemini_conversations: [
-          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', hasTakeoutImport: true, providerId: 'gemini', titleSource: 'takeout', cloudAvailability: 'unknown', updatedAt: 1700000000000 }
-        ]
-      });
-      if (window.ConversationsStore) {
-        window.ConversationsStore.setConversations([
-          { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', hasTakeoutImport: true, providerId: 'gemini', titleSource: 'takeout', cloudAvailability: 'unknown', updatedAt: 1700000000000 }
-        ]);
-      }
-      if (window.DialogView && window.DialogView.showTakeoutLimitPrompt) {
-        await window.DialogView.showTakeoutLimitPrompt({ count: 620 });
-      }
+      // The baseline close button records completion. Clear it so the only
+      // suppression condition for this second attempt is Takeout history.
+      await chrome.storage.local.remove('has_completed_takeout_prompt');
+      window.ConversationsStore.setConversations([
+        { id: 'takeout_chat_1', title: 'Takeout Recovered Chat', hasTakeoutImport: true,
+          providerId: 'gemini', titleSource: 'takeout', cloudAvailability: 'unknown', updatedAt: 1700000000000 }
+      ]);
+      if (!window.ConversationsStore.hasTakeoutData()) throw new Error('Takeout seed did not reach the live Store');
+      await window.DialogView.showTakeoutLimitPrompt({ count: 620 });
     });
+    await expect(modal).toBeHidden();
 
-
-    // Modal should NOT be shown because Takeout data is already present
+    // Force bypasses the suppression policy, proving a missing handler or
+    // permanently hidden modal was not the reason for the preceding assertion.
+    await page.evaluate(async () => {
+      await window.DialogView.showTakeoutLimitPrompt({ count: 620, force: true });
+    });
+    await expect(modal).toBeVisible();
+    await page.click('#btnTakeoutLimitClose');
     await expect(modal).toBeHidden();
   });
 });
