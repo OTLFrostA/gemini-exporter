@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
@@ -27,7 +29,7 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
     let removedId: any = null;
     let verification: any = null;
     const oldChrome = (global as any).chrome;
-    (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { verification = msg; return { data: { isDeleted: true } }; } } };
+    (global as any).chrome = { ...globalThis.chrome, runtime: { sendMessage: async (msg: any) => { verification = msg; return { data: { isDeleted: true } }; } } };
     try {
     const api = MessageBridge.init({
         Storage: {
@@ -57,7 +59,7 @@ test('messageBridge retries a deletion verification until the server confirms it
     const oldChrome = (global as any).chrome;
     const requests: any[] = [];
     let removed = false;
-    (global as any).chrome = { runtime: { sendMessage: async (msg: any) => {
+    (global as any).chrome = { ...globalThis.chrome, runtime: { sendMessage: async (msg: any) => {
         requests.push(msg);
         return { success: true, data: { isDeleted: requests.length >= 2 } };
     } } };
@@ -83,7 +85,7 @@ test('messageBridge - rejects forged postMessage from foreign source', async () 
     const requests: any[] = [];
     try {
         (global as any).window = fakeWindow;
-        (global as any).chrome = { runtime: { sendMessage: async (msg: any) => { requests.push(msg); return { data: { isDeleted: true } }; } } };
+        (global as any).chrome = { ...globalThis.chrome, runtime: { sendMessage: async (msg: any) => { requests.push(msg); return { data: { isDeleted: true } }; } } };
         const api = MessageBridge.init({
             Storage: {
                 removeConversation: async (_slot: any, id: any) => {

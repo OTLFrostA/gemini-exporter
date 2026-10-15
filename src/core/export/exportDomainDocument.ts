@@ -1,6 +1,5 @@
 import type { ResourceResult, ResourceDelivery } from '../resources/resourceResult.js';
 import type { TrustedDomain } from '../domain/runtimeValidation.js';
-import { toIso } from '../domain/time.js';
 import { composeDomainDocument, type DomainCompositionOptions } from '../document/compose/composeDomainDocument.js';
 import { prepareDomainResources } from './assets/prepareDomainResources.js';
 import { renderDocumentHtml } from '../renderers/html/renderHtml.js';
@@ -23,13 +22,7 @@ export async function exportDomainHtml(conversation: TrustedDomain, options: Dom
 export async function exportDomainMarkdown(conversation: TrustedDomain, options: DomainMarkdownExportOptions = {}): Promise<string> {
     const { document } = composeDomainDocument(conversation, options);
     const resources = prepareDomainResources(options.resourceResults);
-    const createdAt = toIso(conversation.createdAt);
-    const updatedAt = toIso(options.sourceVersion);
     return renderDocumentMarkdown(document, resources, { locale: options.locale ?? options.lang,
-        thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, frontMatter: options.frontMatter ?? [
-            { key: 'title', value: document.header.title }, { key: 'id', value: conversation.id }, { key: 'provider', value: conversation.providerId },
-            ...(conversation.url ? [{ key: 'url', value: conversation.url! }] : []),
-            ...(createdAt ? [{ key: 'date', value: createdAt }] : []), ...(updatedAt ? [{ key: 'updated', value: updatedAt }] : []),
-            { key: 'exported', value: options.exportedAt ?? new Date().toISOString() }, { key: 'tags', value: [`${conversation.providerId}-export`] },
-        ] });
+        thoughtInitiallyCollapsed: options.thoughtInitiallyCollapsed, includeFrontMatter: options.includeFrontMatter ?? true,
+        exportedAt: options.exportedAt ?? new Date().toISOString() });
 }

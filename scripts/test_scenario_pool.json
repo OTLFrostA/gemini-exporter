@@ -1,45 +1,5 @@
 [
   {
-    "id": "mesh_topology_euler_characteristic_handles",
-    "title": "Polyhedral topology: vertices, edges, faces and handles",
-    "domain": "topology_polygon_meshes",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Generate an original educational cutaway illustration comparing a closed cube-like polyhedral surface and a closed torus-like polygon mesh. Distinguish vertices, edges and faces with a legend; keep the illustration explicitly conceptual rather than a certified mesh.",
-      "Define a finite oriented polygon mesh and derive Euler characteristic for connected closed orientable surfaces in LaTeX. Explain boundary components, disconnected components and why geometry alone does not determine genus.",
-      "Write complete runnable standard-library Python for validating edge incidence and orientation in explicit cube and triangulated torus meshes. Compute V, E, F, connected components and Euler characteristic, with assertions for duplicated faces, boundary edges and non-manifold edges.",
-      "Use a Markdown table to compare the mesh invariants for a tetrahedron, cube, torus, open disk and a disconnected union. State the hypotheses under which genus can be recovered and include examples that violate them.",
-      "Write a long reproducibility report connecting the illustration with the mesh data structures. Discuss welding tolerances, degenerate triangles, self-intersections, orientation, manifold tests and the distinction between a rendered surface and combinatorial proof."
-    ]
-  },
-  {
-    "id": "optimization_assignment_hungarian_duality",
-    "title": "Assignment optimization: Hungarian potentials and certificates",
-    "domain": "optimization_bipartite_assignment",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a fictional five-worker five-task integer cost matrix. Formulate the minimum-cost assignment linear program and its dual in LaTeX, including all equality and sign conventions.",
-      "Derive reduced costs and complementary slackness. Work through potential updates and alternating augmenting paths on the example, explaining how feasibility is preserved.",
-      "Write complete runnable standard-library Python implementing the Hungarian method with an explicit deterministic tie policy. Compare with exhaustive permutations for small cases and assert negative costs, repeated optima, rectangular input policy and invalid inputs.",
-      "Use a Markdown table to report the selected assignment, primal cost, dual objective and reduced-cost residuals. Compare optimality certificates with greedy heuristics using a concrete counterexample.",
-      "Write a long algorithm verification report covering time complexity, numerical considerations, degeneracies, forbidden assignments and how to distinguish implementation tests from a proof of optimality."
-    ]
-  },
-  {
     "id": "hydrology_reservoir_finite_volume_conservation",
     "title": "Reservoir networks: water balance and conservative timesteps",
     "domain": "hydrology_conservative_simulation",
@@ -389,6 +349,46 @@
       "Provide complete runnable Python standard-library code to construct graph Laplacians, compute the Fiedler vector via deflated power/inverse iteration on small graphs and evaluate sweep-cut conductance with exact assertions on path and barbell graphs.",
       "Compare exhaustive min-cut enumeration, spectral sweep cuts, Kernighan-Lin refinement and max-flow min-cut in a Markdown table covering approximation guarantees, computational complexity and balanced-cut behavior. Include English and Chinese terminology.",
       "Construct a reproducible graph-partitioning audit on synthetic bottleneck graphs. Include LaTeX proof sketches, runnable test cases and a Markdown results table comparing exact conductance against Cheeger lower and upper bounds."
+    ]
+  },
+  {
+    "id": "acoustics_room_image_source_reverberation",
+    "title": "Room acoustics: image sources and impulse response",
+    "domain": "acoustics_room_image_sources",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational image of a rectangular room showing a sound source, receiver, and first-order image sources reflected across walls. Distinguish real and virtual positions with a legend, and state that rays are conceptual.",
+      "Derive direct and reflected path arrival times and inverse-distance amplitudes in LaTeX for a rectangular room with explicitly chosen dimensions and sound speed. State the limits of specular reflection and frequency-independent absorption.",
+      "Write complete runnable standard-library Python enumerating image sources up to reflection order two, accumulating a sampled impulse response with fractional-delay interpolation. Assert the direct path arrival time and invariance under swapping source and receiver.",
+      "Use a Markdown table to compare direct sound, early reflections, diffuse reverberation, room modes, and numerical artifacts. Include units, approximations, and an appropriate validation method for each.",
+      "Write a long reproducibility report covering sample rate, finite reflection order, wall coefficients, energy decay estimation, and why image-source geometry alone cannot establish perceptual quality."
+    ]
+  },
+  {
+    "id": "probability_markov_absorbing_chain_fundamental_matrix",
+    "title": "Absorbing Markov chains: exact probabilities and hitting times",
+    "domain": "probability_absorbing_markov_chains",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a fictional absorbing Markov chain with three transient and two absorbing states, using explicit rational transition probabilities. Explain the state semantics and verify each row sums to one.",
+      "Derive the fundamental matrix, absorption probabilities, and expected absorption time in LaTeX. Explain the condition ensuring the transient submatrix has spectral radius below one.",
+      "Write complete runnable standard-library Python using fractions.Fraction and Gaussian elimination to calculate exact absorption probabilities and hitting times. Test a chain with immediate absorption, a self-loop, and a state that cannot reach absorption.",
+      "Use a Markdown table to report exact and decimal probabilities and expected times for every transient state. Compare them with a seeded Monte Carlo simulation and distinguish sampling error from implementation error.",
+      "Write a detailed numerical audit discussing conditioning, nearly absorbing states, termination bounds, uncertainty intervals, and the distinction between finite sample evidence and exact algebraic verification."
     ]
   }
 ]

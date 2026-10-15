@@ -66,12 +66,12 @@ test('dedup - formatLiveSaveMarkdown uses shared filename format and formatter',
         formatter: { formatMarkdownDocument: async (c: any) => ({ content: `#MOCK#${c.conversation.title}#${c.conversation.id}`, ext: 'md', mime: 'text/markdown' }) },
     };
     const { fileName, markdown } = await formatLiveSaveMarkdown(
-        { chat: historicalFixture({ messages: [{ role: 'user', content: 'hi' }] }), safeTitle: 'My Chat', nid: 'abc123' },
+        { chat: historicalFixture({ id: 'abc123', title: 'Canonical title', messages: [{ role: 'user', content: 'hi' }] }), safeTitle: 'My Chat', nid: 'abc123' },
         deps
     );
     assert.deepStrictEqual(seen, [['My Chat', 'abc123', 'md']]);
     assert.strictEqual(fileName, 'My Chat_abc123.md');
-    assert.strictEqual(markdown, '#MOCK#My Chat#abc123');
+    assert.strictEqual(markdown, '#MOCK#Canonical title#abc123');
 });
 
 test('dedup - live-save formatting failures propagate without writing a fallback', async () => {

@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 export {};
 const test = require('node:test');
 const assert = require('node:assert');

@@ -3,6 +3,7 @@ import {
     t,
     getTabService,
     getStore,
+    getStorage,
     getExportCtrl as getExportController,
     getSyncCtrl as getSyncController
 } from '../optionsContext.js';
@@ -72,7 +73,13 @@ function bindSyncButtons(): void {
 }
 
 export function bindBroadcastListeners(): void {
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
+    if (typeof chrome === 'undefined') return;
+    chrome.storage?.onChanged?.addListener((changes, area) => {
+        const slot = getStore()?.getCurrentSlot() || 'u0';
+        const key = getStorage().getStorageKeys(slot).convKey;
+        if (area === 'local' && changes[key] && __loadStore) void __loadStore(true);
+    });
+    if (!chrome.runtime?.onMessage) return;
 
     chrome.runtime.onMessage.addListener((msg: any) => {
         if (msg.action === 'scanProgress') {

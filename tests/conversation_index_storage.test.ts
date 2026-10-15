@@ -106,20 +106,15 @@ test('failed index migration withholds schema stamp and retries without losing a
         assert.equal((await storage.getConversations('u0'))[0].updatedAt, 42);
     } finally { env.restore(); }
 });
-test('export completion registers undated metadata without inventing conversation activity', async () => {
+test('export completion records delivery without creating an Index', async () => {
     const env = indexStorage();
     try {
         const record = { title: 'Exported title', messageCount: 2, exportedAt: new Date().toISOString() };
-        assert.deepEqual(await storage.finalizeConversationExport('u0', 'c_chat', record), { ok: true, record });
-        const index = (await storage.getConversations('u0'))[0];
-        assert.equal(index.title, record.title); assert.equal(index.titleSource, 'legacy'); assert.equal(index.messageCount, 2);
-        assert.equal(index.updatedAt, undefined); assert.equal(index.createdAt, undefined);
-        await storage.updateConversation('u0', 'chat', { cloudAvailability: 'deleted' });
         await storage.finalizeConversationExport('u0', 'chat', record);
-        assert.equal((await storage.getConversations('u0'))[0].cloudAvailability, 'deleted');
+        assert.deepEqual(await storage.getConversations('u0'), []);
+        assert.deepEqual((await storage.getExportedIds('u0')).chat, record);
     } finally { env.restore(); }
 });
-
 
 test('partial and concurrent native imports retain unrelated indexes and existing metadata facts', async () => {
     const env = indexStorage();
@@ -174,9 +169,8 @@ test('export chatTime remains an export baseline and never poisons metadata upda
         assert.equal((await storage.getConversations('u0'))[0].updatedAt, 50);
         const completion = buildExportCompletion({ conversation: { id: 'chat', title: 'Research', updatedAt: 999999,
             messages: [{ timestamp: 200 }] } });
-        assert.equal(completion.conversationUpdate.updatedAt, 999999);
-        await storage.finalizeConversationExport('u0', 'chat', completion.exportRecord, { conversationUpdate: completion.conversationUpdate });
-        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 999999);
+        await storage.finalizeConversationExport('u0', 'chat', completion.exportRecord);
+        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 50);
     } finally { env.restore(); }
 });
 

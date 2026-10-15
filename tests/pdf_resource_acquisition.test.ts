@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
@@ -17,7 +19,7 @@ function result(bytes: Uint8Array | null): AcquireAssetBytesResult {
         recoveredFromTakeout: false, localName: 'same.png' };
 }
 function input() {
-    return { id: 'resource-boundary', title: 'Boundary', messages: ['request-one', 'request-two'].map((request, index) => ({
+    return { id: 'resource-boundary', url: 'https://gemini.google.com/app/resource-boundary', title: 'Boundary', messages: ['request-one', 'request-two'].map((request, index) => ({
         role: 'model', id: `message-${index}`, content: `![Image](${url})`, attachments: [{
             type: 'image', url, localName: 'assets/same.png', fileName: `original-${index}.png`,
             candidates: [`https://example.test/fallback-${index}`], providerRequestId: request,

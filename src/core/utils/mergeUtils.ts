@@ -21,11 +21,3 @@ export function deduplicateConversations(list: readonly DomainConversationIndex[
     }
     return { processed: [...map.values()].sort(compareConversationIndexes), changedCount };
 }
-export interface TakeoutMergePlan { processed: DomainConversationIndex[]; addedCount: number; changed: number }
-export function planTakeoutMerge(existing: readonly DomainConversationIndex[], incoming: readonly DomainConversationIndex[]): TakeoutMergePlan | null {
-    const result = deduplicateConversations([...existing, ...incoming]);
-    if (JSON.stringify(result.processed) === JSON.stringify(existing)) return null;
-    const old = new Map(existing.map(item => [JSON.stringify([item.providerId, item.id]), item]));
-    return { processed: result.processed, addedCount: result.processed.filter(item => !old.has(JSON.stringify([item.providerId, item.id]))).length,
-        changed: result.processed.filter(item => JSON.stringify(item) !== JSON.stringify(old.get(JSON.stringify([item.providerId, item.id])))).length };
-}

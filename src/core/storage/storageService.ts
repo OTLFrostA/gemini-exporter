@@ -1,3 +1,5 @@
+import { selectConversationBody, withConversationMetadata } from '../domain/runtimeValidation.js';
+import type { StoredDomainResource } from './domain/contracts.js';
 import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
 import { deduplicateConversations } from '../utils/mergeUtils.js';
 import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
@@ -8,7 +10,7 @@ import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type Sc
 import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
 import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
-import { backupLegacyValue, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
+import { backupLegacyValue, storedParseResult, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
 import { createConversationRepository, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
 import {
     readStoredValue, type StoredObject, readStoredObject, readStoredExportMap, readStoredSlotMap,
@@ -27,10 +29,6 @@ import { normId } from "../utils/pathUtils.js";
 import { STORAGE_KEYS } from "../utils/constants.js";
 
 export interface FinalizeExportOptions<T = ExportRecord> {
-    /** Whether to skip updating conversation in gemini_conversations (defaults to false) */
-    skipConversationUpdate?: boolean;
-    /** DomainConversationIndex fields to update/merge into gemini_conversations */
-    conversationUpdate?: ConversationIndexPatch;
     /** Callback invoked after successful write */
     onItemExported?: (id: string, record: T) => void;
 }
@@ -247,18 +245,27 @@ async function _setConversationsRaw(slot: string | null | undefined, list: reado
 async function setConversations(slot: string | null | undefined, list: readonly DomainConversationIndex[]): Promise<void> {
     await withConversationLock(() => _setConversationsRaw(slot, list));
 }
+/** Accept parsed external evidence before any consumer composes or renders it. */
+async function ingestConversation(slot: string, parsed: ResourceConversationParseResult,
+    resources: readonly StoredDomainResource[] = [], source: 'detail' | 'takeout' | 'snapshot' = 'detail'): Promise<ResourceConversationParseResult> {
+    return withConversationLock(async () => {
+        const stored = await saveDomainConversation(normSlot(slot), parsed, resources);
+        const list = await getConversations(slot);
+        const incoming = indexFromParsed(parsed, source);
+        const position = list.findIndex(row => row.providerId === incoming.providerId && row.id === incoming.id);
+        const index = mergeConversationIndex(position < 0 ? undefined : list[position], incoming);
+        if (position < 0) list.push(index); else list[position] = index;
+        await _setConversationsRaw(slot, list);
+        const accepted = storedParseResult(stored);
+        return { ...parsed, ...accepted, sourceVersion: accepted.sourceVersion, diagnostics: parsed.diagnostics, resourceHints: parsed.resourceHints,
+            acquisitionHints: { ...accepted.acquisitionHints, ...parsed.acquisitionHints },
+            conversation: withConversationMetadata(selectConversationBody(accepted.conversation), index) };
+    });
+}
+
 /** Upsert a partial native import; unrelated indexes and stronger metadata remain intact. */
 async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
-    await withConversationLock(async () => {
-        if (!list.length) return;
-        const metadata = await getConversations(slot);
-        for (const parsed of list) {
-            await saveDomainConversation(normSlot(slot), parsed);
-            metadata.push(indexFromParsed(parsed, 'snapshot'));
-            // Persisting a local native snapshot is not evidence of current cloud availability.
-        }
-        await _setConversationsRaw(slot, deduplicateConversations(metadata).processed);
-    });
+    for (const parsed of list) await ingestConversation(normSlot(slot), parsed, [], 'snapshot');
 }
 
 // Atomic read-merge-write for the conversation list.
@@ -536,30 +543,6 @@ async function finalizeConversationExport<T = ExportRecord>(
 
     // 1. Serialized record write to exportedIds SSoT
     await doSaveRecord(slot, targetId, record);
-
-    // Completion is acquisition evidence, normalized once before index rules apply.
-    if (!options?.skipConversationUpdate) {
-        try {
-            const update = options?.conversationUpdate ?? {};
-            const rec = isObjectRecord(record) ? readStoredObject(record) : {};
-            const incoming = parseIndexObservation({ id: targetId, ...update,
-                title: update.title ?? (typeof rec.title === 'string' ? rec.title : undefined),
-                titleSource: update.titleSource ?? 'legacy',
-                messageCount: update.messageCount ?? rec.messageCount,
-                updatedAt: update.updatedAt }, 'export');
-            await withConversationLock(async () => {
-                const list = await getConversations(slot);
-                const position = list.findIndex(c => c.id === targetId);
-                const merged = mergeConversationIndex(position < 0 ? undefined : list[position], restoreConversationIndex({ ...incoming,
-                    ...(update.updatedAt !== undefined ? { updatedAt: update.updatedAt } : {}),
-                    ...(update.createdAt !== undefined ? { createdAt: update.createdAt } : {}) }));
-                if (position < 0) list.push(merged); else list[position] = merged;
-                await _setConversationsRaw(slot, list);
-            });
-        } catch (error) {
-            console.warn('[StorageService] finalizeConversationExport index update failed for', targetId, error);
-        }
-    }
 
     // 3. Trigger callback if provided
     try {
@@ -855,6 +838,7 @@ function conversationRepository(scope: ConversationScope): ConversationRepositor
 
 export {
     conversationRepository,
+    ingestConversation,
     normSlot,
     normId,
     getStorageKeys,
@@ -911,6 +895,7 @@ export {
 
 export const StorageService = {
     conversationRepository,
+    ingestConversation,
     normSlot,
     normId,
     getStorageKeys,

@@ -103,7 +103,17 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
             case 'unsupported': return `${escapeText(`${locale === 'en' ? 'Unsupported' : strings.unsupportedContent} · ${node.sourceType}`)}\n\n${escapeText(node.text)}`;
         }
     };
-    const yaml = options.frontMatter?.map(entry => {
+    const metadata = document.metadata;
+    if (options.includeFrontMatter && !metadata) throw new TypeError('Markdown document metadata is required');
+    const entries: Array<{ key: string; value: string | string[] }> | undefined = options.includeFrontMatter && metadata ? [
+        { key: 'title', value: document.header.title }, { key: 'id', value: metadata.id }, { key: 'provider', value: metadata.provider },
+        ...(metadata.url ? [{ key: 'url', value: metadata.url }] : []),
+        ...(metadata.createdAt ? [{ key: 'date', value: metadata.createdAt }] : []),
+        ...(metadata.updatedAt ? [{ key: 'updated', value: metadata.updatedAt }] : []),
+        ...(options.exportedAt ? [{ key: 'exported', value: options.exportedAt }] : []),
+        { key: 'tags', value: [`${metadata.provider}-export`] },
+    ] : undefined;
+    const yaml = entries?.map(entry => {
         if (!/^[a-z][a-z\d_-]*$/i.test(entry.key)) throw new TypeError('Invalid front matter key');
         return Array.isArray(entry.value)
         ? `${entry.key}:\n${entry.value.map(value => `  - ${/^[a-z][a-z\d_-]*$/i.test(value) && !/^(?:null|true|false|yes|no|on|off)$/i.test(value) ? value : JSON.stringify(value)}`).join('\n')}`

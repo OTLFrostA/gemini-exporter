@@ -1,5 +1,5 @@
 import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
-import { persistNativeConversation } from '../core/storage/domain/nativePersistence.js';
+import { ingestConversation } from '../core/storage/storageService.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import { decodeDataUrlAsset } from '../core/export/assets/dataUrl.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
@@ -153,8 +153,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const detail = await new InjectedClass().getConversationDetail(nid);
             if (detail && Array.isArray(detail.conversation.messages) && detail.conversation.messages.length > 0) {
-                await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
-                return detail;
+                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
             }
         } catch (e) {
             if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
@@ -163,8 +162,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const detail = await provider.fetchConversationDetail(nid);
             if (detail && Array.isArray(detail.conversation.messages) && detail.conversation.messages.length > 0) {
-                await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
-                return detail;
+                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
             }
         } catch (e) {
             if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
@@ -177,8 +175,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const docResult = Scraper.parseDoc(doc, nid);
             if (docResult && Array.isArray(docResult.conversation.messages) && docResult.conversation.messages.length > 0) {
-                await persistNativeConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
-                return docResult;
+                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
             }
         } catch {
             /* intentional */

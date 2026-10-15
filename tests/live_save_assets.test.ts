@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');

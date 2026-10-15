@@ -279,8 +279,6 @@ function initPopupEvents(): void {
 
                     ProgressView.update(80);
                     const chat = res.chat;
-                    if (!chat.conversation.id) chat.conversation.id = _activeConvId || chat.conversation.id;
-                    chat.conversation.title = cleanTitle(chat.conversation.title || _activeChatTitle);
 
                     // This action delivers one body file. It has no companion-file writer.
                     const missing = chat.conversation.assets.filter(() => format === 'html' || format === 'markdown')

@@ -11,6 +11,7 @@ const store = require('../src/core/storage/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
 test('PDF successful empty online response recovers Takeout messages before normalization', async () => {
+    await catalogStorage.setNativeConversations('u0', [historicalFixture({ id: 'fallback', messages: [message('Recovered Takeout')] })]);
     const result = await preparePdfItem({ id: 'fallback' }, {
         includeAssets: false,
         fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ messages: [] })] }),

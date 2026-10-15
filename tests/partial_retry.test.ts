@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * Phase A (P1-2) 回归测试：partial 记录可重试。
@@ -16,14 +18,7 @@ const assert = require('node:assert');
 
 function mockChromeStorage() {
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
-        storage: {
-            local: {
-                get: async () => ({ live_save_config: {} }),
-                set: async () => {}
-            }
-        }
-    };
+
     return () => { (global as any).chrome = origChrome; };
 }
 
@@ -72,7 +67,7 @@ test('坏 base64 附件 -> ok:false + failedAssets + partial 记录', async () =
     try {
         const res = await handleLiveSaveViaHandle({
             chat: historicalFixture({
-                title: 'Bad Asset Chat',
+                id: '1234567890abcdef', title: 'Bad Asset Chat',
                 messages: [{ role: 'user', content: 'hi' }]
             }),
             safeTitle: 'Bad Asset Chat',
@@ -118,7 +113,7 @@ test('全部附件成功 -> ok:true 且记录不带 partial', async () => {
     try {
         const res = await handleLiveSaveViaHandle({
             chat: historicalFixture({
-                title: 'Good Chat',
+                id: '1234567890abcdef', title: 'Good Chat',
                 messages: [{ role: 'user', content: 'hi' }]
             }),
             safeTitle: 'Good Chat',
@@ -134,7 +129,7 @@ test('全部附件成功 -> ok:true 且记录不带 partial', async () => {
         assert.strictEqual(savedRecord.rec.hasFailedAssets, false);
 
         const partial = await handleLiveSaveViaHandle({
-            chat: historicalFixture({ title: 'Good Chat', messages: [{ role: 'user', content: 'hi' }] }),
+            chat: historicalFixture({ id: '1234567890abcdef', title: 'Good Chat', messages: [{ role: 'user', content: 'hi' }] }),
             safeTitle: 'Good Chat', nid: 'c_abcdef1234567890', assets: [],
             failedAssets: [{ file: 'missing.png', error: 'image download returned no bytes' }]
         }, 'u0');

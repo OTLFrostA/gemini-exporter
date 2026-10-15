@@ -805,6 +805,7 @@ test('BatchWorker - accepts typed native results; storage rejects a mutated grap
 
 test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
     for (const mode of ['envelope', 'missing', 'falsy-first']) {
+        require('../src/core/storage/domain/domainStore.js').__clearDomainMemory();
         const useEnvelopeChat = mode === 'envelope';
         setupMockJSZip();
         setupMockStorage();
@@ -939,7 +940,7 @@ test('all ordinary formats use completion for both records and meta, including f
             }
             const { savedRecords } = setupMockStorage();
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (scenario === 'snapshot' || scenario === 'deleted') await catalogStorage.setNativeConversations('u0', [parsed]);
+            if (fallback) await catalogStorage.setNativeConversations('u0', [parsed]);
             if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
             try {
                 const result = await new ExportOrchestrator().run({

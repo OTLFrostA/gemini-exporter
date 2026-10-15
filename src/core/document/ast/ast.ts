@@ -54,12 +54,13 @@ export interface DisplayMessage {
 export interface DocumentAst {
     schemaVersion: 2;
     documentLanguage?: string;
+    /** Format-neutral document identity and ISO dates, selected once by the composer. */
+    metadata?: { id: string; provider: string; url?: string; createdAt?: string; updatedAt?: string };
     header: {
         title: string;
         providerLabel: string;
         /** UTC YYYY-MM-DD display date, not an export date or a raw timestamp.
-         * First valid fact: updatedAt, lastSeen, createdAt, timestamp, chatTime.
-         * Compatibility inputs expose only updatedAt and createdAt. Omitted if none is valid.
+         * Source version, then creation date; omitted if neither is valid.
          * Composers select it once; backends must not reselect or reinterpret it.
          */
         date?: string;

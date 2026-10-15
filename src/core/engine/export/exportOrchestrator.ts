@@ -827,29 +827,6 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const listTitle = chat.title;
                         const chatId = chat.id;
 
-                        const actualMsgCount = chat.messages.length;
-                        let needUpdateStorage = !!resolvedRes.convsNeedSave;
-                        if (resolvedRes.source !== 'local_snapshot' && listC && typeof listC === 'object' && actualMsgCount > (listC.messageCount ?? 0)) {
-                            listC.messageCount = actualMsgCount;
-                            needUpdateStorage = true;
-                        }
-
-                        if (needUpdateStorage) {
-                            const storageService = Storage || __resolveModule<StorageServiceModule>('StorageService', StorageServiceStatic);
-                            if (storageService && typeof storageService.updateConversation === 'function') {
-                                try {
-                                    if (listC) await storageService.updateConversation(currentSlot, nid, {
-                                        title: listC.title, titleSource: listC.titleSource,
-                                        updatedAt: listC.updatedAt, createdAt: listC.createdAt, messageCount: listC.messageCount,
-                                    });
-                                } catch (err) {
-                                    if (typeof console !== 'undefined' && console.warn) {
-                                        console.warn('[Gemini Exporter] atomic updateConversation failed for', nid, err);
-                                    }
-                                }
-                            }
-                        }
-
                         // Resource writes finish before rendering, so a failed write can never leave a dangling binding.
                         const queuedAssetsForThisChat = includeAssets ? planned.assets.length + planned.failures.length : 0;
                         const resourceResults: ResourceResult<ResourceDelivery>[] = includeAssets ? [...planned.failures] : [];
@@ -938,12 +915,11 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                                 typeof chat.titleSource === 'string' ? chat.titleSource : undefined,
                                 listC?.titleSource
                             ),
-                            messageCount: actualMsgCount,
+                            messageCount: chat.messages.length,
                             chatTime: authoritativeChatTime,
                             failedAssets: resourceResults.filter(r => !r.ok).length,
                             evidence: chatDrift,
                             usedLocalSnapshot,
-                            metadataSource: resolvedRes.source === 'local_snapshot' ? 'saved' : 'acquisition',
                             statusOverride: mainWriteError ? 'failed' : undefined,
                             truncateReason: chatDrift.truncated
                                 ? (typeof chatDrift.truncateReason === 'string' ? chatDrift.truncateReason : 'truncated')
@@ -978,8 +954,6 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                             chatRecordsMap.set(nid, {
                                 ...completion.exportRecord,
                                 exportRecord: completion.exportRecord,
-                                conversationUpdate: completion.conversationUpdate,
-                                skipConversationUpdate: completion.skipConversationUpdate,
                                 targetId: completion.targetId
                             });
                             if (!useZip) await finalizeChatExport(chatId);

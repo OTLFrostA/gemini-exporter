@@ -34,7 +34,7 @@ test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves
     if (prepared.ok) assert.equal(prepared.document.messages.length, 1);
 });
 
-test('pure Composer and all export preparations add zero Domain validations', async () => {
+test('pure rendering adds no validations; PDF acquisition crosses the storage boundary', async () => {
     const bundle = await build({ write: false, bundle: true, platform: 'node', format: 'iife', globalName: 'instrumentedExport', logLevel: 'silent',
         stdin: { resolveDir: process.cwd(), loader: 'ts', contents: `
             import {validateParserDomain,countDomainSchemas} from './src/core/domain/runtimeValidation.ts';
@@ -60,7 +60,7 @@ test('pure Composer and all export preparations add zero Domain validations', as
     const api: { run: () => Promise<{before:number;after:number;doc:{messages:unknown[]};html:string;markdown:string;native:{conversation:DomainConversationDetail};pdf:{ok:boolean}}> } =
         new Function('module', 'require', bundle.outputFiles[0].text + ';return instrumentedExport;')(undefined, createRequire(process.cwd() + '/package.json'));
     const result = await api.run();
-    assert.equal(result.before, 1); assert.equal(result.after, 1);
+    assert.equal(result.before, 1); assert.equal(result.after, 3);
     assert.equal(result.doc.messages.length, 2); assert.equal(result.pdf.ok, true);
     assert.match(result.html, /Question &lt;safe&gt;/); assert.match(result.markdown, /const value = 2;/);
     assert.equal(result.native.conversation.completeness, 'partial');

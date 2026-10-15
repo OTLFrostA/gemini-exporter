@@ -1,5 +1,3 @@
-import { parseIndexObservation } from '../../../core/compatibility/index/parseIndex.js';
-import { mergeConversationIndex } from '../../../core/domain/conversationIndex.js';
 import type { ExportProgress, ExportRecord, FailedChat, UIExportOptions } from '../../../types/ui.js';
 import type { OptionsExportOptions } from '../../../types/ui.js';
 import {
@@ -109,46 +107,14 @@ export function updateZipUi(): void {
     }
 }
 
-/**
- * Export title-update handler, extracted for testability.
- *
- * Applies an export-resolved title to the in-memory conversation AND persists
- * it to storage via the atomic `updateConversation` read-modify-write path
- * (the same convention exportOrchestrator uses). Previously this was a pure
- * in-memory dirty write and the resolved title was lost on page reload.
- *
- * Title arbitration is untouched: the same Domain title merge is
- * applied to both the in-memory item and the stored copy.
- *
- * No loop risk: a storage write never re-enters the export pipeline, and
- * exportOrchestrator's own write (when convsNeedSave) carries identical values.
- */
-export async function persistTitleUpdate(chatId: string, newTitle: string, source?: string, exportSlot?: string): Promise<void> {
+/** Refresh visible metadata from the accepted Domain; export callbacks never write it. */
+export async function refreshConversationIndex(chatId: string, exportSlot?: string): Promise<void> {
     const Store = getStore();
-    const visibleSlot = Store?.getCurrentSlot?.() || 'u0';
-    const slot = exportSlot || visibleSlot;
-    const currentConvs = Store && visibleSlot === slot ? Store.getConversations() : [];
-    const item = currentConvs.find((c) => normId(c.id) === normId(chatId));
-    if ((!item && !exportSlot) || !isRealTitle(newTitle, chatId)) return;
-    const incoming = parseIndexObservation({ id: chatId, title: newTitle, titleSource: source }, 'export');
-    const applyTitle = (chat: import('../../../core/domain/conversationIndex.js').DomainConversationIndex) => {
-        const merged = mergeConversationIndex(chat, incoming);
-        chat.title = merged.title;
-        chat.titleSource = merged.titleSource;
-    };
-    // 1) in-memory (existing behavior; keeps the list UI fresh during export)
-    if (item) applyTitle(item);
-    // 2) persist so the title survives reload
-    try {
-        const storage = getStorage();
-        if (storage && typeof storage.updateConversation === 'function') {
-            await storage.updateConversation(slot, chatId, (existing: any) => {
-                applyTitle(existing);
-            });
-        }
-    } catch (err) {
-        log(`persistTitleUpdate failed for ${chatId}: ${getErrorMessage(err)}`, 'warn');
-    }
+    const slot = exportSlot || Store?.getCurrentSlot?.() || 'u0';
+    const index = await getStorage()?.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getConversationIndex(normId(chatId));
+    if (Store?.getCurrentSlot?.() !== slot || !index) return;
+    const item = Store.getConversations().find(c => normId(c.id) === index.id);
+    if (item) Object.assign(item, index);
 }
 
 export async function startExportPipeline(
@@ -252,11 +218,8 @@ export async function startExportPipeline(
             onLog: (msg: string, lvl?: 'info' | 'warn' | 'error') => {
                 if (Store?.getCurrentSlot?.() === currentSlot) log(msg, lvl);
             },
-            onTitleUpdated: (chatId: string, newTitle: string, source?: string) => {
-                // Fire-and-forget: persistTitleUpdate updates the in-memory item
-                // synchronously first, then persists to storage; failures are
-                // logged inside and never reject here.
-                void persistTitleUpdate(chatId, newTitle, source, currentSlot);
+            onTitleUpdated: (chatId: string) => {
+                void refreshConversationIndex(chatId, currentSlot).catch(err => log(getErrorMessage(err), 'warn'));
             },
             onItemPendingAssets: (chatId: string) => {
                 if (Store?.getCurrentSlot?.() !== currentSlot) return;
@@ -642,7 +605,7 @@ export const OptionsExport = {
     init,
     exportSelected,
     startExportPipeline,
-    persistTitleUpdate,
+    refreshConversationIndex,
     updateZipUi,
     getLastFailedChats,
     renderExportFailureBanner,

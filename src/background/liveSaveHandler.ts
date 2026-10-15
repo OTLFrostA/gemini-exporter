@@ -1,4 +1,3 @@
-import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
@@ -68,7 +67,7 @@ export function withLiveSaveLock<T>(key: string, op: () => Promise<T>): Promise<
 export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
     try {
         if (!await isLiveSaveFormatSupported()) return { ok: false, error: 'live_save_requires_markdown' };
-        const { chat, safeTitle, nid, fileName, assets, failedAssets: upstreamFailures } = payload || {};
+        const { chat: parsedChat, safeTitle, nid, fileName, assets, failedAssets: upstreamFailures } = payload || {};
         const handle = await getStoredDirHandle();
         if (!handle) {
             return { ok: false, error: 'no_dir_handle' };
@@ -108,10 +107,12 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             }
         }
 
+        const chat = await StorageService.ingestConversation(accountSlot, parsedChat);
+
         // Shared live-save writer: filename format + markdown formatting + write.
         // Serialized through withLiveSaveLock per file to prevent concurrent createWritable
         // collisions (NoModificationAllowedError) when multiple tabs write simultaneously.
-        const fileLockKey = String(fileName || nid || safeTitle || chat?.id || 'live_save');
+        const fileLockKey = String(fileName || nid || safeTitle || chat.conversation.id || 'live_save');
 
         const { targetFile, failedAssets } = await withLiveSaveLock(fileLockKey, async () => {
             const writer = await createLiveSaveWriter(handle);
@@ -180,37 +181,20 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             /* best-effort storage update */
         }
 
-        // Shared export completion: builds standardized ExportRecord and promotes title in gemini_conversations.
-        // Phase A (P1-2): 主 md 成功即写记录；附件有失败则标 partial（与导出管线
-        // sessionRecovery 的 partial 惯例对齐），保证下次增量不跳过、可重试。
+        // Delivery records cannot publish conversation metadata.
         try {
-            let convInStore: DomainConversationIndex | undefined;
-            try {
-                const list = await StorageService.getConversations(accountSlot || 'u0');
-                convInStore = list.find(c => c.id === nid);
-            } catch {}
-
-            const effectiveChatTime = chat.sourceVersion;
-            const effectiveMsgCount = (Array.isArray(chat?.conversation.messages) ? chat.conversation.messages.length : 0) || convInStore?.messageCount || 0;
-
             await completeConversationExport(
                 StorageService,
                 accountSlot || 'u0',
                 {
-                    conversation: {
-                        ...convInStore,
-                        ...chat.conversation,
-                        messageCount: effectiveMsgCount,
-                        updatedAt: chat.sourceVersion
-                    },
+                    conversation: chat.conversation,
                     conversationId: nid,
                     format: 'markdown',
                     exportedAt: now,
                     failedAssets,
                     titleCandidate: safeTitle,
-                    titleProvenance: chat.conversation.titleSource || convInStore?.titleSource,
-                    messageCount: effectiveMsgCount,
-                    chatTime: effectiveChatTime
+                    messageCount: chat.conversation.messages.length,
+                    chatTime: chat.sourceVersion
                 }
             );
         } catch (e) {

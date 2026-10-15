@@ -6,6 +6,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
 import { saveDomainConversation, getStoredDomain, storageIdentity } from '../src/core/storage/domain/domainStore.js';
 import { createConversationRepository } from '../src/core/storage/conversationRepository.js';
+import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
 import { resolveChat } from '../src/core/engine/export/batchWorker.js';
 import { buildExportCompletion, completeConversationExport } from '../src/core/engine/export/exportCompletion.js';
 import { finalizeChatExport } from '../src/core/engine/export/sessionRecovery.js';
@@ -76,7 +77,6 @@ test('index owns every metadata field while capture retains the actual older bod
             assert.equal(resolved.chat.conversation.createdAt, 50);
             assert.equal(resolved.chat.conversation.url, projected.conversation.url);
             assert.equal(resolved.chat.sourceVersion, 100);
-            assert.equal(resolved.convsNeedSave, false);
         }
         assert.equal(env.writes(), writes);
         assert.deepEqual(await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')), before);
@@ -101,7 +101,6 @@ test('cached projections cannot roll back newer metadata passed by a caller', as
             assert.equal(resolved.chat.conversation.title, 'Renamed');
             assert.equal(resolved.chat.conversation.createdAt, 50);
             assert.equal(resolved.chat.conversation.url, current.url);
-            assert.equal(resolved.convsNeedSave, false);
         }
         assert.equal(cached.conversation.title, 'Old title');
     } finally { env.restore(); }
@@ -117,7 +116,7 @@ test('a rename after preparation survives direct and staged cached export comple
         const old = resolved.chat;
         await storage.updateConversation('u0', 'chat', { title: 'Rename during export', titleSource: 'rpc', updatedAt: 200 });
         const input = { conversation: old.conversation, chatTime: old.sourceVersion, usedLocalSnapshot: true };
-        await completeConversationExport(storage, 'u0', input, { skipConversationUpdate: false });
+        await completeConversationExport(storage, 'u0', input);
         assert.equal((await storage.getConversations('u0'))[0].title, 'Rename during export');
         const completion = buildExportCompletion(input);
         await finalizeChatExport('chat', { slot: 'u0', Storage: storage,
@@ -179,5 +178,82 @@ test('index reads avoid body I/O; malformed identities and storage failures reje
         const write = storage.updateConversation('u0', 'chat', { title: 'Queued rename', titleSource: 'rpc' });
         const read = ordered.getConversation('chat');
         await write; assert.equal((await read)?.index.title, 'Queued rename');
+    } finally { env.restore(); }
+});
+
+test('fresh acquisition commits all metadata before rendering, independently of export completion', async () => {
+    const env = indexStorage();
+    try {
+        const fresh = parsed();
+        fresh.conversation.createdAt = 20;
+        fresh.conversation.url = 'https://gemini.google.com/u/0/app/chat';
+        const prepared = await preparePdfItem({ id: 'chat', title: 'Stale selection' }, { includeAssets: false,
+            fetchChatDetail: async () => ({ success: true, chat: fresh }) });
+        assert.equal(prepared.ok, true);
+        const stored = await storage.conversationRepository(scope).getConversation('chat');
+        assert.ok(stored?.detail);
+        assert.equal(stored.index.title, fresh.conversation.title);
+        assert.equal(stored.index.titleSource, 'rpc');
+        assert.equal(stored.index.createdAt, 20);
+        assert.equal(stored.index.updatedAt, 100);
+        assert.equal(stored.index.url, fresh.conversation.url);
+        assert.equal(stored.index.messageCount, 2);
+        assert.deepEqual(await storage.getExportedIds('u0'), {});
+    } finally { env.restore(); }
+});
+
+test('accepting a partial observation advances Index but returns the retained complete body and its version', async () => {
+    const env = indexStorage();
+    try {
+        await storage.ingestConversation('u0', parsed());
+        const partial = parsed();
+        partial.conversation.messages = partial.conversation.messages.slice(0, 1);
+        partial.conversation.completeness = 'partial';
+        partial.conversation.title = 'New authoritative title';
+        partial.sourceVersion = 200;
+        const accepted = await storage.ingestConversation('u0', partial);
+        assert.equal(accepted.conversation.title, 'New authoritative title');
+        assert.equal(accepted.conversation.messages.length, 2);
+        assert.equal(accepted.sourceVersion, 100);
+        const index = await storage.conversationRepository(scope).getConversationIndex('chat');
+        assert.equal(index?.updatedAt, 200);
+        assert.equal(index?.messageCount, 2);
+    } finally { env.restore(); }
+});
+
+
+test('initial partial capture publishes activity to Index without claiming a saved complete-body version', async () => {
+    const env = indexStorage();
+    try {
+        const partial = parsed(); partial.conversation.completeness = 'partial';
+        const accepted = await storage.ingestConversation('u0', partial);
+        assert.equal(accepted.sourceVersion, undefined);
+        const stored = await storage.conversationRepository(scope).getConversation('chat');
+        assert.equal(stored?.capture?.savedAt, undefined);
+        assert.equal(stored?.index.updatedAt, 100);
+    } finally { env.restore(); }
+});
+
+test('Takeout export cache reads current Domain and cannot republish old metadata or resurrect a missing Index', async () => {
+    const env = indexStorage();
+    try {
+        const cached = await storage.ingestConversation('u0', parsed(), [], 'takeout');
+        const fresh = parsed(); fresh.sourceVersion = 200; fresh.conversation.title = 'New title';
+        fresh.conversation.messages[0].content = [{ type: 'paragraph', children: [{ type: 'text', text: 'New body' }] }];
+        await storage.ingestConversation('u0', fresh);
+        const writes = env.writes();
+        const takeout = { getTakeoutOfflineChat: () => cached };
+        const resolved = await resolveChat({ error: 'offline' }, { id: 'chat' }, null, takeout);
+        assert.equal(resolved.isError, false);
+        if (!resolved.isError) {
+            assert.equal(resolved.chat.conversation.title, 'New title');
+            assert.match(JSON.stringify(resolved.chat.conversation.messages), /New body/);
+            assert.equal(resolved.chat.sourceVersion, 200);
+        }
+        assert.equal(env.writes(), writes);
+        await storage.setConversations('u0', []);
+        const absent = await resolveChat({ error: 'offline' }, { id: 'chat' }, null, takeout);
+        assert.equal(absent.isError, true);
+        assert.deepEqual(await storage.getConversations('u0'), []);
     } finally { env.restore(); }
 });

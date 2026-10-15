@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /** Provider parsing, Domain closure and composed attachment-placement regressions. */
 export {};
@@ -248,7 +250,7 @@ test('parsed Domain is closed, JSON portable and does not mutate raw fixtures', 
         assertDomainClosure(domain);
         const roundTrip = JSON.parse(JSON.stringify(domain));
         assertDomainClosure(roundTrip);
-        assert.deepEqual(composeDomainDocument(roundTrip).document, document);
+        assert.deepEqual(composeDomainDocument(roundTrip, { sourceVersion: require('./helpers/nativeFixture.js').historicalFixture(raw).sourceVersion }).document, document);
         assert.equal(JSON.stringify(raw), before);
         assert.ok(!diagnostics.some((d: any) => d.severity === 'error'));
     }
