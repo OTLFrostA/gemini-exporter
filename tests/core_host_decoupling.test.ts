@@ -65,8 +65,9 @@ test('BatchWorker uses the injected message sender without Chrome runtime or Tab
             0, 1, 'u0', false, 'md', null,
             {
                 tabService: {}, // force the transport seam instead of trying the browser implementation
-                messageSender: (msg: unknown, callback: (reply: unknown) => void) => {
+                messageSender: (msg: unknown, callback?: (reply: unknown) => void) => {
                     requests.push(msg);
+                    assert.ok(callback, 'the batch fetch must supply a reply callback');
                     callback({
                         success: true, domainEnvelopeVersion: 2,
                         results: [historicalFixture({ id: 'chat_999', title: 'Decoupled Remote Chat' })],
@@ -138,6 +139,7 @@ test('production mode ignores injected test overrides and cannot install new one
     const previous = __getModuleOverride(key);
     const priorMode = process.env.NODE_ENV;
     try {
+        process.env.NODE_ENV = 'test';
         __setModuleOverride(key, { value: 'dev-mock' });
         assert.deepEqual(__resolveModule(key, { value: 'fallback' }), { value: 'dev-mock' });
         process.env.NODE_ENV = 'production';
