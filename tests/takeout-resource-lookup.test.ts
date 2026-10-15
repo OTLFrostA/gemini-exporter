@@ -19,7 +19,7 @@ const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
         [asset.id, { archivePath: asset.sourceUri!! }])),
 });
 
-async function recover(assets: DomainAsset[], item: ResourceRequest) {
+async function recover(assets: DomainAsset[], item: ResourceRequest, options: { localOnly?: boolean } = {}) {
     const slot = 'lookup-regression-slot';
     let downloads = 0;
     const written: Array<{ path: string; bytes: Uint8Array }> = [];
@@ -30,7 +30,7 @@ async function recover(assets: DomainAsset[], item: ResourceRequest) {
         const pipeline = new AssetPipeline({ currentSlot: slot, takeoutEngine: TakeoutEngine,
             fetchAsset: async () => { downloads++; return { success: false, error: 'network unavailable' }; },
             writeFileDirect: async (path, bytes) => { written.push({ path, bytes }); } });
-        const result = await pipeline.processAsset(item, { id: chatId }, { isImage: true, maxRetries: 0 });
+        const result = await pipeline.processAsset(item, { id: chatId }, { isImage: true, maxRetries: 0, ...options });
         return { result, written, downloads };
     } finally { clearTakeoutData(slot); }
 }
@@ -44,6 +44,14 @@ test('Takeout lookup through AssetPipeline preserves source identity when export
     assert.equal(recovered.downloads, 1);
     assert.equal(recovered.result.ok, true);
     assert.deepEqual(recovered.written, [{ path: item.localName, bytes: new Uint8Array([1, 42]) }]);
+    if (!recovered.result.ok) throw new Error('expected offline recovery');
+    assert.equal(recovered.result.resourceId, item.assetId, 'recovery must retain requested Domain identity');
+    assert.equal(recovered.result.value.path, item.localName, 'writer path must match the planned export destination');
+
+    const offlineOnly = await recover([asset], item, { localOnly: true });
+    assert.equal(offlineOnly.downloads, 0, 'offline exports must never attempt a remote download');
+    assert.equal(offlineOnly.result.ok, true);
+    assert.deepEqual(offlineOnly.written, [{ path: item.localName, bytes: new Uint8Array([1, 42]) }]);
 });
 
 test('Takeout lookup through AssetPipeline uses the exact source URI when asset IDs differ', async () => {
@@ -51,7 +59,10 @@ test('Takeout lookup through AssetPipeline uses the exact source URI when asset 
     const recovered = await recover([asset], { assetId: 'online-id', sourceUrl: asset.sourceUri!,
         resolvedUrl: 'https://offline.test/image.png', localName: 'assets/abcdef_diagram.png' });
     assert.equal(recovered.result.ok, true);
-    assert.deepEqual(recovered.written[0].bytes, new Uint8Array([1, 42]));
+    assert.deepEqual(recovered.written, [{ path: 'assets/abcdef_diagram.png', bytes: new Uint8Array([1, 42]) }]);
+    if (!recovered.result.ok) throw new Error('expected source-URI recovery');
+    assert.equal(recovered.result.resourceId, 'online-id',
+        'the Takeout source identity must not replace the requested Domain asset identity');
 });
 
 test('Takeout lookup through AssetPipeline links different IDs by a unique generation event and image ordinal', async () => {
