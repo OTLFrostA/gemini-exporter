@@ -127,5 +127,6 @@
   "src/core/parsers/gemini/parseIndexObservation.ts",
   "src/core/storage/conversationIndexFromParsed.ts",
   "src/core/resources/geminiImageUrl.ts",
-  "src/core/parsers/shared/resources/c2paTimestamp.ts"
+  "src/core/parsers/shared/resources/c2paTimestamp.ts",
+  "src/core/parsers/shared/markdown/mdastToContent.ts"
 ]

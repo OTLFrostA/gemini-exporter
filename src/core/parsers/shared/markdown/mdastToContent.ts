@@ -14,61 +14,26 @@
 import type {
     Root,
     RootContent,
-    BlockContent,
     PhrasingContent,
     Paragraph,
-    Heading,
-    ThematicBreak,
-    Blockquote,
-    List,
     ListItem as MdastListItem,
-    Table,
     TableRow as MdastTableRow,
     TableCell as MdastTableCell,
-    Code,
-    HTML,
-    Text,
-    Emphasis,
-    Strong,
-    Delete,
-    InlineCode as MdastInlineCode,
-    Link,
-    Image,
-    Break,
-    Definition,
-    LinkReference,
-    ImageReference,
 } from 'mdast';
-import type { InlineMath, Math as MdastMath } from 'mdast-util-math';
+// Register math nodes in MDAST's discriminated unions without a runtime import.
+import type {} from 'mdast-util-math';
 import type {
     BlockNode,
-    CodeBlock,
-    HeadingBlock,
-    ListBlock,
     ListItem,
     MathBlock,
-    ParagraphBlock,
-    QuoteBlock,
-    TableBlock,
     TableColumn,
     TableRow,
-    ThematicBreakBlock,
     UnknownBlock,
 } from '../../../domain/content/blocks.js';
-import type {
-    ImageInline,
-    InlineCode,
-    InlineNode,
-    LineBreakInline,
-    LinkInline,
-    StrikethroughInline,
-    StrongInline,
-    EmphasisInline,
-    TextInline,
-} from '../../../domain/content/inline.js';
-import type { JsonValue } from '../../../utils/jsonTypes.js';
+import type { ImageInline, InlineNode, LinkInline } from '../../../domain/content/inline.js';
 import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
 import type { SourceRef } from '../../../domain/content/sourceRef.js';
+
 /** Provider-neutral parsing hooks; asset ownership stays with the caller. */
 export interface MarkdownParseContext {
     diagnostics: Diagnostic[];
@@ -93,9 +58,9 @@ function imageInline(ref: string, alt: string, title: string | undefined, ctx: M
 export function mergeAdjacentTextNodes(nodes: InlineNode[]): InlineNode[] {
     const result: InlineNode[] = [];
     for (const node of nodes) {
-        if ('children' in node && Array.isArray((node as any).children)) {
-            const mergedChildren = mergeAdjacentTextNodes((node as any).children);
-            result.push({ ...(node as any), children: mergedChildren });
+        if ('children' in node && Array.isArray(node.children)) {
+            const mergedChildren = mergeAdjacentTextNodes(node.children);
+            result.push({ ...node, children: mergedChildren });
         } else if (node.type === 'text') {
             const prev = result[result.length - 1];
             if (prev && prev.type === 'text') {
@@ -138,9 +103,9 @@ export function collectDefinitions(
     node: Root | RootContent,
     definitions: Map<string, { url: string; title?: string }>,
 ): void {
-    if (!node) return;
+    if (!node || typeof node !== 'object') return;
     if (node.type === 'definition') {
-        const def = node as Definition;
+        const def = node;
         const normId = (def.identifier || def.label || '').trim().toLowerCase();
         if (normId && !definitions.has(normId)) {
             definitions.set(normId, {
@@ -149,11 +114,40 @@ export function collectDefinitions(
             });
         }
     }
-    if ('children' in node && Array.isArray((node as any).children)) {
-        for (const child of (node as any).children) {
+    if ('children' in node && Array.isArray(node.children)) {
+        for (const child of node.children) {
             collectDefinitions(child, definitions);
         }
     }
+}
+
+/** Unknown extension nodes retain visible text without trusting their shape. */
+function isNodeRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function nodeRecord(value: unknown): Record<string, unknown> {
+    return isNodeRecord(value) ? value : {};
+}
+
+function unknownInlineText(value: unknown): string {
+    const node = nodeRecord(value);
+    if (node.type === 'break') return '\n';
+    const children: unknown[] = Array.isArray(node.children) ? node.children : [];
+    const childText = children.map(unknownInlineText).join('');
+    if (childText) return childText;
+    return [node.value, node.alt, node.label, node.identifier, node.source, node.code]
+        .find((text): text is string => typeof text === 'string' && text.length > 0) || '';
+}
+
+function unknownBlockText(value: unknown): string {
+    const node = nodeRecord(value);
+    const ownText = [node.value, node.alt, node.label, node.identifier]
+        .find((text): text is string => typeof text === 'string' && text.trim().length > 0);
+    if (ownText) return ownText;
+    const children: unknown[] = Array.isArray(node.children) ? node.children : [];
+    const separator = node.type === 'paragraph' || node.type === 'heading' ? '' : '\n';
+    return children.map(unknownBlockText).filter(text => text.trim()).join(separator);
 }
 
 /**
@@ -197,7 +191,7 @@ export function adaptPhrasingNode(
         }
 
         case 'linkReference': {
-            const refNode = node as unknown as LinkReference;
+            const refNode = node;
             const normId = (refNode.identifier || refNode.label || '').trim().toLowerCase();
             const def = ctx.definitions?.get(normId);
             const children = adaptInlines(refNode.children || [], ctx);
@@ -228,7 +222,7 @@ export function adaptPhrasingNode(
         }
 
         case 'imageReference': {
-            const refNode = node as unknown as ImageReference;
+            const refNode = node;
             const normId = (refNode.identifier || refNode.label || '').trim().toLowerCase();
             const def = ctx.definitions?.get(normId);
             if (def) {
@@ -258,7 +252,7 @@ export function adaptPhrasingNode(
         }
 
         case 'inlineMath': {
-            const val = (node as unknown as InlineMath).value || '';
+            const val = node.value || '';
             if (val.startsWith(' ') || val.endsWith(' ')) {
                 return textWithSoftBreaks(`$${val}$`);
             }
@@ -269,25 +263,19 @@ export function adaptPhrasingNode(
         }
 
         default: {
-            const unknownNode = node as any;
+            const unknownNode = nodeRecord(node);
+            const nodeType = typeof unknownNode.type === 'string' ? unknownNode.type : 'unknown';
             ctx.diagnostics.push({
                 id: `unknown-inline:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                 severity: 'warning',
                 code: 'MDAST_UNKNOWN_INLINE',
-                message: `Encountered unsupported MDAST phrasing node type '${unknownNode?.type}'; preserved via fallback`,
+                message: `Encountered unsupported MDAST phrasing node type '${nodeType}'; preserved via fallback`,
                 sourceRef: ctx.sourceRef,
                 path: ctx.path,
-                details: { nodeType: unknownNode?.type } as JsonValue,
+                details: { nodeType },
             });
 
-            const visibleText = (node: any): string => {
-                if (node?.type === 'break') return '\n';
-                const children = Array.isArray(node?.children) ? node.children.map(visibleText).join('') : '';
-                if (children) return children;
-                return [node?.value, node?.alt, node?.label, node?.identifier, node?.source, node?.code]
-                    .find((value) => typeof value === 'string' && value.length > 0) || '';
-            };
-            return textWithSoftBreaks(visibleText(unknownNode) || `[Unsupported inline: ${unknownNode?.type || 'unknown'}]`);
+            return textWithSoftBreaks(unknownInlineText(unknownNode) || `[Unsupported inline: ${nodeType || 'unknown'}]`);
         }
     }
 }
@@ -370,7 +358,7 @@ function tryExtractDisplayMathParagraph(
     if (pos && pos.start.offset !== undefined) {
         const rawSlice = rawMarkdown.slice(pos.start.offset, pos.start.offset + 2);
         if (rawSlice === '$$') {
-            const source = (child as unknown as InlineMath).value || '';
+            const source = child.value || '';
             if (!source.trim()) {
                 ctx.diagnostics.push({
                     id: `math-empty:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
@@ -412,7 +400,7 @@ export function adaptBlockNode(
         }
 
         case 'heading': {
-            const level = Math.min(6, Math.max(1, node.depth)) as 1 | 2 | 3 | 4 | 5 | 6;
+            const level = node.depth < 1 ? 1 : node.depth > 6 ? 6 : node.depth;
             return [{
                 type: 'heading',
                 level,
@@ -466,7 +454,7 @@ export function adaptBlockNode(
         }
 
         case 'math': {
-            const mathNode = node as unknown as MdastMath;
+            const mathNode = node;
             let source = mathNode.value || '';
             if (mathNode.meta && mathNode.meta.trim()) {
                 source = `${mathNode.meta.trim()}\n${source}`;
@@ -486,8 +474,8 @@ export function adaptBlockNode(
                         code: 'MATH_FENCE_UNCLOSED',
                         message: 'display-math fence never closed; kept collected lines as the formula source',
                         sourceRef: ctx.sourceRef,
-                    path: ctx.path,
-                        details: { line: rawSlice.slice(0, 80) } as JsonValue,
+                        path: ctx.path,
+                        details: { line: rawSlice.slice(0, 80) },
                     });
                 }
             }
@@ -501,7 +489,7 @@ export function adaptBlockNode(
                     message: 'empty display-math fence; kept as source evidence',
                     sourceRef: ctx.sourceRef,
                     path: ctx.path,
-                    details: { line: preview } as JsonValue,
+                    details: { line: preview },
                 });
             }
 
@@ -531,34 +519,28 @@ export function adaptBlockNode(
             return [];
 
         default: {
-            const unknownNode = node as any;
+            const unknownNode = nodeRecord(node);
+            const nodeType = typeof unknownNode.type === 'string' ? unknownNode.type : 'unknown';
             ctx.diagnostics.push({
                 id: `unknown-block:${ctx.sourceRef.locator}:${ctx.diagnostics.length}`,
                 severity: 'warning',
                 code: 'MDAST_UNKNOWN_BLOCK',
-                message: `Encountered unsupported MDAST block node type '${unknownNode?.type}'; preserved via fallback`,
+                message: `Encountered unsupported MDAST block node type '${nodeType}'; preserved via fallback`,
                 sourceRef: ctx.sourceRef,
                 path: ctx.path,
-                details: { nodeType: unknownNode?.type } as JsonValue,
+                details: { nodeType },
             });
 
-            const visibleText = (value: any): string => {
-                const ownText = [value?.value, value?.alt, value?.label, value?.identifier]
-                    .find((text) => typeof text === 'string' && text.trim());
-                if (ownText) return ownText;
-                if (!Array.isArray(value?.children)) return '';
-                const separator = value.type === 'paragraph' || value.type === 'heading' ? '' : '\n';
-                return value.children.map(visibleText).filter((text: string) => text.trim()).join(separator);
-            };
-            const start = unknownNode.position?.start?.offset;
-            const end = unknownNode.position?.end?.offset;
+            const position = nodeRecord(unknownNode.position);
+            const start = nodeRecord(position.start).offset;
+            const end = nodeRecord(position.end).offset;
             const rawSlice = typeof start === 'number' && typeof end === 'number'
                 ? rawMarkdown.slice(start, end).trim() : '';
-            const sourceType = String(unknownNode?.type || 'unknown');
+            const sourceType = nodeType || 'unknown';
             const unknownBlock: UnknownBlock = {
                 type: 'unknown',
                 sourceType,
-                text: rawSlice || visibleText(unknownNode) || `[Unsupported block: ${sourceType}]`,
+                text: rawSlice || unknownBlockText(unknownNode) || `[Unsupported block: ${sourceType}]`,
             };
             return [unknownBlock];
         }
