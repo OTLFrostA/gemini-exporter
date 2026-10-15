@@ -918,11 +918,13 @@ test('all ordinary formats use completion for both records and meta, including f
             const parsed = rpcFixture({ id, title: 'Integrity contract',
                 messages: scenario === 'empty' ? [] : [{ role: 'user', content: 'Q', attachments: scenario === 'assets-disabled' ? [{ type: 'image', url: 'https://example.test/missing.png' }] : [] }, { role: 'model', content: 'A' }],
                 completeness: { status: scenario === 'partial' ? 'partial' : 'unknown' },
-            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, truncated: scenario === 'truncated', schemaDrift: scenario === 'warning' ? ['benign'] : [] });
+                isTruncated: scenario === 'truncated',
+            }, { turnsRejected: scenario === 'rejected' ? 1 : 0, schemaDrift: scenario === 'warning' ? ['benign'] : [] });
             if (scenario === 'heuristic') {
                 const { validateParserDomain } = require('../src/core/domain/runtimeValidation.js');
                 parsed.conversation = validateParserDomain({ ...parsed.conversation, detail: { ...parsed.conversation.detail,
-                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated', hasFabricatedText: true } }],
+                    quality: { status: 'partial', heuristicDocumentIds: ['report'] },
+                    assets: [{ id: 'report', kind: 'file', name: 'report.md', document: { contentMarkdown: '# Fabricated' } }],
                 } });
             }
             const zips = setupMockJSZip();
@@ -961,8 +963,8 @@ test('all ordinary formats use completion for both records and meta, including f
                     assert.equal(savedRecords[id].status, expected, `${format}/${scenario}`);
                     const meta = JSON.parse(zips[0].files['meta.json']).conversations[0];
                     assert.equal(meta.status, expected === 'ok' ? 'success' : expected);
-                    if (scenario === 'warning') assert.equal(meta.parseStatus, 'ok');
-                    if (scenario === 'rejected') assert.equal(meta.turnsRejected, 1);
+                    if (scenario === 'warning') { assert.equal(meta.quality.status, 'unknown'); assert.ok(meta.diagnostics.length > 0); }
+                    if (scenario === 'rejected') assert.equal(meta.quality.rejectedTurns, 1);
                 }
             } finally { store.__clearDomainMemory(); }
         }
@@ -1074,7 +1076,7 @@ test('ZIP delivery with stub generator preserves real Storage, UI, counts and re
                         if (failure === 'storage') {
                             assert.deepEqual(records.n2, old.n2);
                             assert.equal(meta.length, 3, 'delivered ZIP keeps all three distinct conversations');
-                            assert.equal(Object.keys(zips[0].files).filter(path => path.endsWith(format === 'markdown' ? '.md' : format === 'html' ? '.html' : '.json') && !['00_INDEX.md', 'meta.json'].includes(path)).length, 3);
+                            assert.equal(Object.keys(zips[0].files).filter(path => path.endsWith(format === 'markdown' ? '.md' : format === 'html' ? '.html' : '.json') && !['00_INDEX.md', 'meta.json', '_export_errors.json'].includes(path)).length, 3);
                             assert.match(result.failedChats[0].error, /persistence failed after ZIP delivery/);
                             injecting = false;
                             const retry = await new ExportOrchestrator().run({ ...options, selected: [{ id: 'n2', title: 'n2' }], skip: true, downloadHandler: () => {} });

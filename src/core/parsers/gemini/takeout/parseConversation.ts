@@ -1,3 +1,4 @@
+import { contentQuality } from '../../../domain/quality.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
@@ -130,7 +131,7 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,
             url: `https://gemini.google.com/app/${id}` }, 'takeout'),
-        detail: { completeness: 'partial' as const, assets: resources.assets, messages: resources.messages },
+        detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
     };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {

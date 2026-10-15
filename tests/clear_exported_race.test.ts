@@ -11,7 +11,29 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const ConversationsStore = require('../src/ui/state/conversationsStore.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+
+let previousStorageOverride: any;
+let previousChrome: PropertyDescriptor | undefined;
+let previousDocument: PropertyDescriptor | undefined;
+let previousSlot: string;
+let previousExportedRecords: Record<string, any>;
+test.beforeEach(() => {
+    previousStorageOverride = __getModuleOverride('StorageService');
+    previousChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    previousDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    previousSlot = ConversationsStore.getCurrentSlot();
+    previousExportedRecords = ConversationsStore.getExportedIds();
+});
+test.afterEach(() => {
+    __setModuleOverride('StorageService', previousStorageOverride);
+    ConversationsStore.setCurrentSlot(previousSlot);
+    ConversationsStore.setExportedIds(previousExportedRecords);
+    if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome);
+    else delete (globalThis as any).chrome;
+    if (previousDocument) Object.defineProperty(globalThis, 'document', previousDocument);
+    else delete (globalThis as any).document;
+});
 
 function makeMockStorage(initial: Record<string, any>) {
     const state: Record<string, any> = { ...initial };
@@ -47,10 +69,6 @@ test('P1-3: clearExported 走 removeExportRecords(slot, allIds)，不用裸写',
         assert.deepStrictEqual(new Set(dels[0][2]), new Set(['a', 'b']),
             '应传入当前全部导出 id');
 
-        // 裸写原语在 mock 上根本不存在：若 clearExported 仍走旧路径会直接抛错
-        assert.strictEqual(storage.setExportedIds, undefined,
-            'storage mock 不应提供 setExportedIds');
-
         assert.deepStrictEqual(storage.state, {}, 'storage 侧 map 应被清空');
         assert.deepStrictEqual(ConversationsStore.getExportedIds(), {},
             '内存 map 应同步清空');
@@ -59,23 +77,38 @@ test('P1-3: clearExported 走 removeExportRecords(slot, allIds)，不用裸写',
     }
 });
 
-test('P1-3: 并发 clear + write 不丢失新记录', async () => {
-    ConversationsStore.setCurrentSlot('u0');
-    const storage = makeMockStorage({ a: { id: 'a' } });
-    const origRemove = storage.removeExportRecords;
-    storage.removeExportRecords = async (slot: string, ids: string[] | null | undefined) => {
-        // 模拟一次在 clear 读名单之后、删执行之前落盘的并发写入
-        storage.state['c'] = { id: 'c' };
-        return origRemove(slot, ids);
+test('real StorageService serialization preserves a record saved during an in-flight deletion', async () => {
+    const StorageService = require('../src/core/storage/storageService.js');
+    const stored: Record<string, any> = { exportedIds: { a: { id: 'a' } } };
+    let notifyFirstWrite!: () => void;
+    let releaseFirstWrite!: () => void;
+    const firstWriteStarted = new Promise<void>(resolve => { notifyFirstWrite = resolve; });
+    const firstWriteGate = new Promise<void>(resolve => { releaseFirstWrite = resolve; });
+    let firstWrite = true;
+    (globalThis as any).chrome = {
+        storage: { local: {
+            get: async (keys: string[]) => Object.fromEntries(keys.filter(key => key in stored).map(key => [key, stored[key]])),
+            set: async (updates: Record<string, any>) => {
+                if (firstWrite) {
+                    firstWrite = false;
+                    notifyFirstWrite();
+                    await firstWriteGate;
+                }
+                Object.assign(stored, updates);
+            }
+        } }
     };
-    __setModuleOverride('StorageService', storage);
-    try {
-        await ConversationsStore.clearExported('u0');
-        assert.ok(!('a' in storage.state), '名单内的旧记录应被删除');
-        assert.ok('c' in storage.state, '并发写入的新记录不得丢失（旧裸写会整 map 覆盖丢掉它）');
-    } finally {
-        __setModuleOverride('StorageService', undefined as any);
-    }
+
+    // Hold the actual old-ID deletion while another real storage write is queued.
+    const removal = StorageService.removeExportRecords('u0', ['a']);
+    await firstWriteStarted;
+    const saving = StorageService.saveExportRecord('u0', 'c', { exportedAt: 2000 });
+    releaseFirstWrite();
+    await Promise.all([removal, saving]);
+    const remaining = await StorageService.getExportedIds('u0');
+    assert.deepStrictEqual(Object.keys(remaining), ['c'],
+        'in-flight deletion removes only the old ID and preserves the subsequent save');
+    assert.deepStrictEqual(stored.exportedIds, { c: { exportedAt: 2000 } });
 });
 
 test('StorageService.removeExportRecords: u0 清除时正确从 exportedIds 中移除记录', async () => {

@@ -14,7 +14,7 @@ const entries = new Map<string, Set<string>>([
     ['readStorageDomain', new Set(['core/storage/domain/domainStore.ts'])],
     ['requestNativeDetail', new Set(['background/batchFetcher.ts', 'core/engine/export/batchWorker.ts', 'ui/popup/popup.ts'])],
     ['requestNativeBatch', new Set(['core/engine/export/batchWorker.ts'])],
-    ['callDomainBroker', new Set(['core/storage/domain/domainStore.ts'])],
+    ['callDomainBroker', new Set(['core/storage/domain/domainStore.ts', 'core/storage/schemaMigration.ts'])],
 ]);
 const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'ResourceConversationParseResult',
     'GeminiRpcParseResult', 'GeminiDomParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainStorageRecord',

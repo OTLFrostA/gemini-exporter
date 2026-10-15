@@ -1,4 +1,3 @@
-import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
 import { toJsonStandard } from '../src/core/engine/formatters/jsonFormatter.js';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -68,7 +67,7 @@ test('partial, unknown, metadata-only, conflicting and migrated bodies carry no 
     const unknown = await saveDomainConversation('u0', detail([1700000000, 0], undefined, false, 'unknown_chat'));
     assert.equal(unknown.savedAt, undefined);
     const conflicting = await saveDomainConversation('u0', detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
-    assert.equal(conflicting.conversation.detail.completeness, 'partial');
+    assert.equal(conflicting.conversation.detail.quality.status, 'partial');
     assert.equal(conflicting.savedAt, undefined);
     const metadata = parseGeminiRpcConversation(wire([['MaZiqc', [null, null, [['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]]]]]]), { providerId: 'gemini', targetConvId: 'metadata_chat' });
     assert.equal((await saveDomainConversation('u0', metadata)).savedAt, undefined);
@@ -81,7 +80,7 @@ test('a version change during pagination invalidates the saved version until a c
     const first = detail([1700000005, 0], [1700000005, 0], true);
     const changed = detail([1700000000, 0], [1700000010, 0]);
     const mixed = mergeConversationPages([first, changed]);
-    assert.equal(mixed.conversation.detail.completeness, 'partial');
+    assert.equal(mixed.conversation.detail.quality.status, 'partial');
     assert.ok(mixed.diagnostics.some(d => d.code === 'CONVERSATION_VERSION_CHANGED'));
     assert.equal((await saveDomainConversation('u0', mixed)).savedAt, undefined);
     const consistent = mergeConversationPages([first, detail([1700000000, 0], [1700000005, 0])]);
@@ -112,15 +111,15 @@ test('JSON archives retain one saved body version outside Detail and partial cap
 
 test('diagnostic deletion or spoofed diagnostic codes cannot change merged completeness or export status', () => {
     const healthy = detail([1700000000, 0], [1700000005, 0]);
-    const rejected = { ...healthy, transport: { ...healthy.transport, turnsRejected: 1 } };
+    const rejected = { ...healthy, conversation: { ...healthy.conversation, detail: { ...healthy.conversation.detail, quality: { status: 'partial' as const, rejectedTurns: 1 } } } };
     const mismatched = detail([1700000010, 0], [1700000005, 0]);
     for (const [input, expected] of [[healthy, 'unknown'], [rejected, 'partial'], [mismatched, 'partial']] as const) {
         const warnings = [{ severity: 'error' as const, code: 'GEMINI_TURNS_REJECTED', message: 'diagnostic only' },
             { severity: 'error' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'diagnostic only' }];
         const records = [[], warnings].map(diagnostics => {
             const merged = mergeConversationPages([{ ...input, diagnostics }]);
-            assert.equal(merged.conversation.detail.completeness, expected);
-            return buildExportCompletion({ conversation: merged.conversation, evidence: extractChatParseDrift(merged), exportedAt: 1900000000000 }).exportRecord;
+            assert.equal(merged.conversation.detail.quality.status, expected);
+            return buildExportCompletion({ conversation: merged.conversation, exportedAt: 1900000000000 }).exportRecord;
         });
         assert.deepEqual(records[0], records[1]);
         assert.equal(records[0].status, expected === 'partial' ? 'partial' : 'ok');

@@ -1,5 +1,6 @@
 import type { DeepReadonly } from '../../domain/readonly.js';
 import type { BlockNode, TableBlock } from '../../domain/content/blocks.js';
+import { tableCellPlacements } from '../../domain/content/tableLayout.js';
 import type { InlineNode } from '../../domain/content/inline.js';
 import type { DomainAsset } from '../../domain/conversationDetail.js';
 import { assetPresentation, assetCaptionText, isHumanMeaningfulFilename } from './resourcePresentation.js';
@@ -22,18 +23,12 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
         }
     });
     const table = (node: DeepReadonly<TableBlock>): DisplayBlock => {
-        const occupied: number[] = [];
-        const rows = [...(node.headerRows ?? []), ...node.rows].map((row, rowIndex) => {
-            let column = 0;
-            return row.cells.map(cell => {
-                const colSpan = Math.max(1, cell.colSpan ?? 1), rowSpan = Math.max(1, cell.rowSpan ?? 1);
-                while (Array.from({ length: colSpan }, (_, i) => occupied[column + i] > rowIndex).some(Boolean)) column++;
-                const result: DisplayCell = { column, colSpan, rowSpan, align: node.columns?.[column]?.align ?? 'default', children: inlines(cell.children) };
-                for (let i = 0; i < colSpan; i++) occupied[column + i] = rowIndex + rowSpan;
-                column += colSpan; return result;
-            });
-        });
-        const width = Math.max(1, node.columns?.length ?? 0, ...rows.flatMap(cells => cells.map(cell => cell.column + cell.colSpan)));
+        const rows: DisplayCell[][] = [...(node.headerRows ?? []), ...node.rows].map(() => []);
+        let width = Math.max(1, node.columns?.length ?? 0);
+        for (const { cell, rowIndex, column, colSpan, rowSpan } of tableCellPlacements(node)) {
+            rows[rowIndex].push({ column, colSpan, rowSpan, align: node.columns?.[column]?.align ?? 'default', children: inlines(cell.children) });
+            width = Math.max(width, column + colSpan);
+        }
         return { type: 'table', columnAlignments: Array.from({ length: width }, (_, column) => node.columns?.[column]?.align ?? 'default'), ...(node.caption ? { caption: inlines(node.caption) } : {}), headerRows: rows.slice(0, node.headerRows?.length ?? 0), rows: rows.slice(node.headerRows?.length ?? 0) };
     };
     const blocks = (nodes: DeepReadonly<BlockNode[]>): DisplayBlock[] => nodes.map(node => {

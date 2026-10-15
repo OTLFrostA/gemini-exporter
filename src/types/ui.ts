@@ -175,18 +175,18 @@ export interface IConversationsStore {
 }
 
 export interface IListView {
-    render: (conversations: DomainConversationIndex[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, filterType?: string, failedChatIds?: Set<string>) => void;
-    updateStat: (conversations?: DomainConversationIndex[]) => void;
-    getSelected: (conversations?: DomainConversationIndex[]) => DomainConversationIndex[];
+    render: (conversations: readonly Readonly<DomainConversationIndex>[], exportedIds: Record<string, ExportRecord>, prevSelectedSet?: Set<string> | null, searchFilter?: string, filterType?: string, failedChatIds?: Set<string>) => void;
+    updateStat: (conversations?: readonly Readonly<DomainConversationIndex>[]) => void;
+    getSelected: (conversations?: readonly Readonly<DomainConversationIndex>[]) => Readonly<DomainConversationIndex>[];
     getSelectedIds: () => Set<string>;
-    selectAll: (conversations?: DomainConversationIndex[]) => void;
-    deselectAll: (conversations?: DomainConversationIndex[]) => void;
-    selectUnexported: (conversations?: DomainConversationIndex[], exportedIds?: Record<string, ExportRecord>) => void;
+    selectAll: (conversations?: readonly Readonly<DomainConversationIndex>[]) => void;
+    deselectAll: (conversations?: readonly Readonly<DomainConversationIndex>[]) => void;
+    selectUnexported: (conversations?: readonly Readonly<DomainConversationIndex>[], exportedIds?: Record<string, ExportRecord>) => void;
     isRealTitle: (title: string, id?: string) => boolean;
     updateItemExportStatus: (chatId: string, exportRecord?: Partial<ExportRecord> | null) => void;
-    selectByIds?: (targetIds: Set<string> | string[], conversations?: DomainConversationIndex[]) => void;
-    checkIsUpdated?: (c: Partial<DomainConversationIndex> | null | undefined, rec: ExportRecord | null | undefined) => boolean;
-    resolveConversationExportState?: (c: Partial<DomainConversationIndex> | null | undefined, rec?: Partial<ExportRecord> | null, options?: ResolveConversationExportStateOptions) => ConversationExportState;
+    selectByIds?: (targetIds: Set<string> | string[], conversations?: readonly Readonly<DomainConversationIndex>[]) => void;
+    checkIsUpdated?: (c: Readonly<Partial<DomainConversationIndex>> | null | undefined, rec: Readonly<ExportRecord> | null | undefined) => boolean;
+    resolveConversationExportState?: (c: Readonly<Partial<DomainConversationIndex>> | null | undefined, rec?: Readonly<Partial<ExportRecord>> | null, options?: ResolveConversationExportStateOptions) => ConversationExportState;
     setSelectedIds?: (ids: Set<string> | null) => void;
 }
 

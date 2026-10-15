@@ -5,7 +5,7 @@ import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
 import { exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-const base = (): DomainConversationWithDetail => ({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'chat', title: 'Times' }, detail: { completeness: 'unknown', assets: [], messages: [] } });
+const base = (): DomainConversationWithDetail => ({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'chat', title: 'Times' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [] } });
 test('conversation times are independent finite epoch milliseconds and unknown facts are absent', () => {
     assert.deepEqual(normalizeConversationTimes({ updatedAt: 0 }), { updatedAt: 0 });
     assert.deepEqual(normalizeConversationTimes({ createdAt: null, updatedAt: '1700000000123' }), { updatedAt: 1700000000123 });

@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('serialized literal dollars round-trip as text while links and math retain their nodes', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'currency', title: 'Currency' }, detail: { completeness: 'unknown', assets: [], messages: [{ id: 'message', role: 'assistant', content: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'currency', title: 'Currency' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [
                 { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },
                     { type: 'link', href: 'files/foo.pdf', children: [{ type: 'text', text: 'receipt' }] },

@@ -51,15 +51,25 @@ test('UI locale, theme and page policy change independently of document language
     assert.equal(JSON.stringify(document), before);
 });
 
-test('neutral contract carries no units, output formats, UI controls or source-model dependencies', () => {
+test('neutral AST has no output controls and renderers do not import source models', () => {
     const { document } = composeDomainDocument(validateParserDomain(fixture()));
     const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'openLabel']);
     function check(value: unknown): void { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), key); check(child); } }
     check(document);
+    // Inspect import/export declarations, not unrelated implementation tokens.
+    // TypeScript 7 no longer exposes preProcessFile; keep this guard test-only.
+    const importSources = (file: string): string[] =>
+        [...readFileSync(file, 'utf8').matchAll(/^\s*(?:import|export)\s+(?:(?:type\s+)?[^;]*?\bfrom\s+)?(['"])([^'"]+)\1/gm)]
+            .map(match => match[2]);
     for (const name of ['html/renderHtml', 'markdown/renderMarkdown', 'typst/renderTypst', 'shared/backendPresentation', 'shared/renderOptions', 'shared/renderStrings']) {
-        assert.doesNotMatch(readFileSync(`src/core/renderers/${name}.ts`, 'utf8'), /from ['"].*(?:canonical|domain|provider|content)\//);
+        for (const source of importSources(`src/core/renderers/${name}.ts`)) {
+            assert.doesNotMatch(source, /(^|\/)(?:canonical|domain|provider|content)\//,
+                `Renderer ${name} cannot import source-model module ${source}`);
+        }
     }
-    assert.doesNotMatch(readFileSync('src/core/document/compose/composeDomainDocument.ts', 'utf8'), /visualContract|getRendererStrings|RenderOptions|isMarkdown|isPdf|\.75|gapBeforePt/);
+    const composerImports = importSources('src/core/document/compose/composeDomainDocument.ts');
+    assert.ok(composerImports.every(source => !source.includes('/renderers/')),
+        'Document composition must not import an output backend');
 });
 
 

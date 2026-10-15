@@ -34,7 +34,7 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 外部正文统一通过 `StorageService.ingestConversation(slot, parsed, resources, source)` 接受：parser 负责来源解释，入库入口在现有会话锁内保存正文、合并完整 Index，并返回按权威 Index 投影的实际保留正文。RPC 拦截、主动拉取、DOM、Takeout、live-save 和导出采集共用这一入口。已有快照只从 scoped repository 读取，Index 不存在时不使用孤立正文。此锁不表示 Chrome Storage 与 IndexedDB 之间存在跨存储事务。
 
-会话统一使用 `{ index, detail }`：parser、持久化快照、repository 和 composer 共用同一个聚合结构。标题、URL、来源身份及创建/活动时间只属于 `index`；`detail` 只含 `completeness`、`assets` 和 `messages`。列表可以只有 Index，正文缺失与空正文有明确区别。Repository 返回目录中的权威 Index，快照中的 Index 是当次观测，不能覆盖后续改名或云端状态。列表 parser 返回 Index 正是该聚合的目录部分。
+会话统一使用 `{ index, detail }`：parser、持久化快照、repository 和 composer 共用同一个聚合结构。标题、URL、来源身份及创建/活动时间只属于 `index`；`detail` 只含 `quality`、`assets` 和 `messages`。列表可以只有 Index，正文缺失与空正文有明确区别。Repository 返回目录中的权威 Index，快照中的 Index 是当次观测，不能覆盖后续改名或云端状态。列表 parser 返回 Index 正是该聚合的目录部分。
 
 `sourceVersion` 是随正文捕获的来源活动版本，持久化为包络中的 `savedAt`；后续 Index 可以更新而保留较早正文及其版本。文档元数据从权威 Index 生成。Domain、存储记录、原生传输包络及 JSON 归档统一使用 v2 聚合结构。正式升级路径是已发布的 1.7 到本次 v2；历史数据只通过现有 `parsers/legacyStorage/` 路径转换，原始数据先备份，迁移失败不写入版本戳，读取不执行修复。开发过程中的中间快照不构成独立发布版本，也不增加迁移分支。
 
@@ -113,7 +113,7 @@ graph TD
         end
 
         subgraph ExportEngines ["导出、转换与打包引擎 (src/core/engine/)"]
-            ENG_Orchestrator["ExportOrchestrator & parseDrift<br/>(批量导出编排器 / AsyncQueue / 协议漂移遥测)"]
+            ENG_Orchestrator["ExportOrchestrator<br/>(批量导出编排器 / AsyncQueue / 协议漂移遥测)"]
             ENG_Worker["BatchWorker<br/>(单会话抓取与任务单元)"]
             ENG_Rate["RateLimiter<br/>(自适应指数退避与熔断器)"]
             ENG_Formatter["ChatFormatter & htmlTemplate.ts<br/>(Markdown / 1:1 独立 HTML / Standard JSON)"]
@@ -232,7 +232,7 @@ graph TD
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
 | `src/core/engine/export/batchWorker.ts` | Core: Engine | `fetchChatDetail` / `resolveChat` | 独立执行单条会话详情抓取与解析（RPC 请求与详情解析），实际导出装配由 `exportOrchestrator` 协调。 | `exportOrchestrator.ts` | `geminiClient`, `conversationDetailStore` | `ENG_Worker` |
-| `src/core/engine/export/parseDrift.ts` | Core: Engine | `recordParseDrift`, `getParseDriftSummary` | 记录并聚合 JSPB 协议结构漂移（Schema Drift）遥测告警，辅助诊断上游协议变更。 | `exportOrchestrator.ts`, `batchWorker.ts` | 诊断告警统计 | `ENG_Orchestrator` |
+| `src/core/domain/quality.ts` | Core: Domain | `ContentQuality`, `contentQuality` | parser 统一完整度、拒识、截断与启发式文档事实，导出直接读取状态。 | 原生 parser、存储、导出 | 内容质量 | `ENG_Orchestrator` |
 | `src/core/engine/export/rateLimiter.ts` | Core: Engine | `isRateLimited` / `calculateBackoff` / `abortableSleep` / `RateLimitManager` | 自适应限流器状态机，根据响应延迟与 429 频率动态调整请求间隔与并发数。 | `exportOrchestrator.ts` | 延迟休眠控制 | `ENG_Rate` |
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |

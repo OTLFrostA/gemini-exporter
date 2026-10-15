@@ -14,7 +14,7 @@ const {
 } = require('./helpers/realWasmSandbox.js');
 
 function domainFixture(blocks: any[], assets: any[] = []) {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: '2026-09-26T10:00:00Z' }, detail: { completeness: 'unknown', assets, messages: [{ id: 'm1', role: 'assistant', content: blocks }] } };
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: '2026-09-26T10:00:00Z' }, detail: { quality: { status: 'unknown' }, assets, messages: [{ id: 'm1', role: 'assistant', content: blocks }] } };
 }
 
 function msg(id: string, role: string, blocks: any[]) {

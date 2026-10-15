@@ -82,7 +82,7 @@ function fakeConvertMath(source: string, _display: boolean): string | undefined 
 }
 
 function domainFixture(messages: any[], assets: any[] = []) {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'P0 门禁回归', createdAt: '2026-09-26T10:00:00Z' }, detail: { completeness: 'unknown', assets, messages: messages } };
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'P0 门禁回归', createdAt: '2026-09-26T10:00:00Z' }, detail: { quality: { status: 'unknown' }, assets, messages: messages } };
 }
 
 function msg(id: string, role: string, blocks: any[]) {

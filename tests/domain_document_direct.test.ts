@@ -70,7 +70,7 @@ test('Domain JSON round-trip gives the same AST and HTML/Markdown, including res
 });
 
 test('composer trusts literal Domain content and does not reinterpret Markdown or marker syntax', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'literal', title: 'Literal' }, detail: { completeness: 'unknown', assets: [], messages: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'literal', title: 'Literal' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: '**literal** [1] [cite:2] ![pic](url)' }] }],
             citations: [{ id: 'source', url: 'https://example.test' }] },
     ] } };
@@ -81,7 +81,7 @@ test('composer trusts literal Domain content and does not reinterpret Markdown o
 });
 
 test('reasoning placement prevents another attachment copy and dangling citations fail closed', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'placement', title: '' }, detail: { completeness: 'unknown', assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'placement', title: '' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'shared', kind: 'image', name: 'diagram.png' }], messages: [
             { role: 'assistant', content: [], reasoning: [{ type: 'image', assetId: 'shared' }], attachmentIds: ['shared'] },
             { role: 'user', content: [], attachmentIds: ['shared'] },
         ] } };
@@ -124,7 +124,7 @@ test('provider citation binding covers rich captions/descriptions and ignores co
 });
 
 test('prepared paths retain archive namespaces, hash inline bytes and omit failed/remote resources', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'resources', title: '' }, detail: { completeness: 'unknown', messages: [], assets: [
+    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'default', providerId: 'custom', id: 'resources', title: '' }, detail: { quality: { status: 'unknown' }, messages: [], assets: [
         { id: 'path', kind: 'file',  },
         { id: 'bytes', kind: 'image', mediaType: 'image/png', dataBase64: 'AQID' },
         { id: 'uri', kind: 'image', sourceUri: 'data:image/png;base64,AQID' },
@@ -141,7 +141,7 @@ test('prepared paths retain archive namespaces, hash inline bytes and omit faile
 
 
 test('citation numbering is conversation-wide in body, reasoning and Sources, including references without URLs', async () => {
-    const domain = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'citations', title: 'Citations' }, detail: { completeness: 'complete', assets: [], messages: [
+    const domain = validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'citations', title: 'Citations' }, detail: { quality: { status: 'complete' }, assets: [], messages: [
         { id: 'first', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[17]' }] }], citations: [{ id: 'same', url: 'https://example.test/one', title: 'First source' }] },
         { id: 'second', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same' }] }], reasoning: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'same', label: '[91]' }] }], citations: [{ id: 'same', title: 'Offline source' }] },
     ] } });

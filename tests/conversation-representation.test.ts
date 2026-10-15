@@ -18,7 +18,7 @@ test('Index owns exported metadata while the body version remains capture eviden
     const json = JSON.parse(formatContent(parsed, 'json').content);
     assert.equal(json.savedAt, 100);
     assert.equal(json.conversation.index.updatedAt, 200);
-    assert.deepEqual(Object.keys(json.conversation.detail).sort(), ['assets', 'completeness', 'messages']);
+    assert.deepEqual(Object.keys(json.conversation.detail).sort(), ['assets', 'messages', 'quality']);
     assert.throws(() => restoreDomainSnapshot({ ...parsed.conversation, detail: { ...parsed.conversation.detail, title: 'Second authority' } }), TypeError);
 });
 

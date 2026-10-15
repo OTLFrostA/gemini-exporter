@@ -8,7 +8,7 @@ new raw source → native parser → TrustedDomain → v2 repository
 v2 repository → shared snapshot restoration → TrustedDomain → Document AST → renderer
 ```
 
-`gemini_schema_version = 2` marks completion of both the body and canonical index migrations. Released users upgrade directly from v1; v2 has not yet shipped. The repository lives
+`gemini_schema_version = 2` marks completion of the body, canonical index and quality migrations. Released 1.7 sources upgrade directly through the legacy-storage parser. The repository lives
 under the extension origin in `gemini_exporter_domain` (IndexedDB version 2).
 Content scripts use the background message broker; they do not create a second
 Domain repository under the Gemini web origin. Old web-origin detail databases
@@ -37,17 +37,15 @@ The `conversations` object store holds the selected `DomainStorageRecord`:
 Diagnostics, RPC debug/pagination state, export destinations and ZIP file handles
 are excluded. Domain is strictly validated at both write and read boundaries,
 including field shapes, content nodes, resource/citation closure and finite
-numbers. Domain contract version is now **2**, independently of IndexedDB/storage
-version 2. Both reads and writes accept only the final schema. Unsupported
-versions and obsolete fields fail closed without rewriting originals. Released
-users migrate directly from Storage v1 through the legacy-storage Parser; the
-unshipped intermediate Domain schema has no compatibility layer. Canonical indexes are part of the same unreleased v2 upgrade; there is no v2-to-v3 migration.
+numbers. Both reads and writes accept only the unreleased Domain contract v2. Unsupported versions and obsolete fields fail closed without rewriting originals on read.
 
-Restored report assets retain `document.hasFabricatedText` so export status can remain partial even after transient parser diagnostics are gone. Resource acquisition failures are recomputed during export through the existing ResourceResult/PreparedResources path; no Domain `failureReason` or replacement persistent error field is stored.
+The existing 1.7 legacy migration parses old completeness, truncation and heuristic resource evidence into quality before saving Domain v2. Intermediate development snapshots have no migration adapters. Original legacy values remain backed up by that migration; read paths never repair obsolete fields.
+
+Restored `quality` preserves content caution even after transient parser diagnostics are gone. Resource acquisition failures are recomputed during export through ResourceResult/PreparedResources; no Domain failure state is stored.
 
 Persisted `DomainStorageRecord` remains an unbranded JSON contract. Every physical record recovery establishes `TrustedDomainStorageRecord` with `restoreDomainSnapshot` (re-exported as `readStorageDomain`). Restoration intentionally retains two Schema passes, before and after JSON serialization, and one Closure pass. This is one trust-restoration operation, not one total tree traversal. Writes perform the same detached-snapshot checks because a type-only brand does not freeze caller objects; reading an existing physical record during a write requires its own restoration.
 
-Trusted internal record adaptation retains envelope/version, identity, acquisition/resource/digest bindings and detached-copy isolation without repeating Domain AST validation. Content scripts use a current-version authenticated Broker reply adapter after the background restores a record. Raw Broker saves still establish trust at the background write snapshot boundary. Communication envelope version 2 rejects stale extension/page code carrying the previous Domain schema; publishers and consumers share the existing envelope-version constant. This protocol version remains outside Domain and does not change IndexedDB/storage versions. Page `postMessage` is never that authenticated channel: origin/source checks plus raw protocol field checks lead to Parser input, not TrustedDomain.
+Trusted internal record adaptation retains envelope/version, identity, acquisition/resource/digest bindings and detached-copy isolation without repeating Domain AST validation. Content scripts use a current-version authenticated Broker reply adapter after the background restores a record. Raw Broker saves still establish trust at the background write snapshot boundary. Communication envelope version 2 rejects stale extension/page code carrying the previous Domain schema; publishers and consumers share the existing envelope-version constant. This protocol version remains outside Domain and does not change the IndexedDB layout. Page `postMessage` is never that authenticated channel: origin/source checks plus raw protocol field checks lead to Parser input, not TrustedDomain.
 
 See [the trust audit](domain-trust-audit.md) for authorized entries, remaining assertions, measured Schema/Closure counts, and qualified validation results.
 

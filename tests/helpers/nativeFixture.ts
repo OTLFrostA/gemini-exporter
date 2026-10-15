@@ -8,8 +8,14 @@ export function historicalFixtureDomain(record: ConversationRecordInput, options
     return historicalFixture(record, options).conversation;
 }
 
+import { contentQuality } from '../../src/core/domain/quality.js';
 import type { GeminiRpcParseResult } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
 /** A native runtime fixture with explicit transport evidence, never an application projection. */
-export function rpcFixture<T extends ConversationRecordInput>(record: T, transport: Partial<GeminiRpcParseResult['transport']> = {}): GeminiRpcParseResult {
-    return { ...historicalFixture(record), transport: { nextPageToken: null, ...transport } };
+export function rpcFixture<T extends ConversationRecordInput>(record: T, transport: Partial<GeminiRpcParseResult['transport']> & { turnsRejected?: number; schemaDrift?: string[] } = {}): GeminiRpcParseResult {
+    const { turnsRejected, schemaDrift = [], ...acquisition } = transport;
+    const parsed = historicalFixture(record);
+    parsed.conversation.detail.quality = contentQuality({ ...parsed.conversation.detail.quality, rejectedTurns: turnsRejected,
+        ...(acquisition.nextPageToken ? { truncation: 'pagination_pending' } : {}) });
+    parsed.diagnostics.push(...schemaDrift.map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })));
+    return { ...parsed, transport: { nextPageToken: null, ...acquisition } };
 }

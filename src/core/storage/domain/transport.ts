@@ -2,7 +2,7 @@ import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../../utils/nativeDetailTranspor
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 import type { TrustedDomainStorageRecord } from './contracts.js';
 
-export type DomainStoreCommand = 'get' | 'save' | 'resource' | 'remove' | 'backup' | 'cache';
+export type DomainStoreCommand = 'get' | 'save' | 'resource' | 'remove' | 'backup' | 'cache' | 'ready';
 export function needsDomainBroker(): boolean {
     return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id && chrome.runtime.sendMessage)
         && typeof location !== 'undefined' && location.protocol !== 'chrome-extension:';
@@ -16,6 +16,7 @@ export async function callDomainBroker(command: DomainStoreCommand, payload: unk
         const error = response && typeof response === 'object' && 'error' in response ? response.error : undefined;
         throw new Error(typeof error === 'string' ? error : 'Domain storage background did not acknowledge the request');
     }
+    if (command === 'ready' && (!('domainEnvelopeVersion' in response) || response.domainEnvelopeVersion !== NATIVE_DETAIL_ENVELOPE_VERSION)) throw new TypeError('Incompatible Domain storage reply');
     const value = 'value' in response ? response.value : undefined;
     if (command === 'get' || command === 'save') {
         if (!('domainEnvelopeVersion' in response) || response.domainEnvelopeVersion !== NATIVE_DETAIL_ENVELOPE_VERSION) throw new TypeError('Incompatible Domain storage reply');

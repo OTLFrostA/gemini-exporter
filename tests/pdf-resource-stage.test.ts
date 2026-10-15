@@ -26,6 +26,8 @@ test('image placements resolve bytes and content-addressed mounts; repeated byte
     const result = await resourceStage({ document: tree, resources }, ctx());
     assert.equal(result.output.pathMap.size, 2);
     assert.equal(result.output.mounts.length, 1);
+    assert.equal(result.output.pathMap.get('a'), result.output.pathMap.get('b'),
+        'equal binary content must share a mount path across distinct resource IDs');
     assert.equal(result.output.mounts[0].bytes, bytes);
     assert.equal(result.output.mounts[0].mimeType, 'image/png');
     assert.deepEqual(result.diagnostics, []);

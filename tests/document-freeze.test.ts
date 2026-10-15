@@ -16,7 +16,7 @@ import { collectDocumentResources } from '../src/core/document/ast/resourceRefer
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 
 function domain(): DomainConversationWithDetail {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'freeze', title: 'Boundary' }, detail: { completeness: 'unknown', assets: [], messages: [
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'custom', id: 'freeze', title: 'Boundary' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [
         { id: 'same unsafe / " identity', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Question '.repeat(40) }] }] },
         { id: 'answer', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Answer' }] }] },
     ] } };

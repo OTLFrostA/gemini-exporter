@@ -123,11 +123,11 @@ test('source gate rejects leaked provider syntax while trusted AST retains liter
     const message = { role: 'assistant' as const, content: paragraph('**literal** [1]'),
         reasoning: paragraph('Reasoning'), citations: [{ id: 'citation-0', url: 'https://example.test/source' }],
     };
-    const expected = await composeFixture({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [message] } });
+    const expected = await composeFixture({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [message] } });
     const leaked = { ...message, structuredContent: { children: [{ nodeType: 18, text: 'wrong raw body' }] },
         thoughts: 'wrong reasoning', sources: ['https://wrong.example.test'],
     };
-    await assert.rejects(composeFixture({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { completeness: 'unknown', assets: [], messages: [leaked] } }), /Invalid persisted Domain contract: messages/);
+    await assert.rejects(composeFixture({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [leaked] } }), /Invalid persisted Domain contract: messages/);
     const body = expected.document.messages[0].blocks.find(block => block.type === 'paragraph');
     assert.ok(body?.type === 'paragraph' && body.children.some(node => node.type === 'text' && node.text.includes('**literal**')));
 });

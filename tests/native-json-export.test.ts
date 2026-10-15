@@ -5,7 +5,7 @@ import { formatContent } from '../src/core/engine/chatFormatter.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 const native: ResourceConversationParseResult = {
-    conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'test-provider', id: 'opaque-id', title: 'Portable archive', createdAt: 0 }, detail: { completeness: 'partial', assets: [
+    conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'test-provider', id: 'opaque-id', title: 'Portable archive', createdAt: 0 }, detail: { quality: { status: 'partial' }, assets: [
             { id: 'image', kind: 'image', name: 'image.png', mediaType: 'image/png', sourceUri: 'https://example.test/image.png' },
             { id: 'file', kind: 'file', name: 'report.pdf', mediaType: 'application/pdf', byteLength: 42 } ], messages: [{ id: 'system', role: 'system', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Instruction' }] }] },
             { id: 'answer', role: 'assistant', timestamp: 0, model: 'Source model',

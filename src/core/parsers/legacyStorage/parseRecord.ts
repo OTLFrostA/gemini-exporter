@@ -1,3 +1,4 @@
+import { contentQuality, type ContentQuality } from '../../domain/quality.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { normalizeConversationTimes } from '../../domain/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
@@ -107,12 +108,7 @@ export interface ConversationRecordParseContext extends ConversationParseContext
     /** Detached Takeout/provider generated-media evidence, reconciled before returning Domain. */
     generatedMedia?: readonly unknown[];
     /** Migration coverage correction is applied before final schema validation. */
-    completenessOverride?: DomainConversationDetail['completeness'];
-}
-
-function copyCompleteness(input: ConversationRecordInput): Pick<DomainConversationDetail, 'completeness'> {
-    const partial = input.truncated === true || input.isTruncated === true || Boolean(input.nextPageToken?.trim());
-    return { completeness: partial ? 'partial' : input.completeness?.status ?? 'unknown' };
+    qualityStatusOverride?: ContentQuality['status'];
 }
 
 /** Choose the authoritative title while raw source alternatives are still available. */
@@ -134,8 +130,10 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         ? conversation.messages
         : flattenLegacyTurns(conversation);
     // Clone provider evidence before reconciliation so legacy input remains untouched.
+    let rejectedTurns = 0;
     const legacyMessages = rawMessages.flatMap((message, index) => {
         if (!message || typeof message !== 'object' || Array.isArray(message)) {
+            rejectedTurns++;
             diagnostics.push({ severity: 'warning', code: 'BAD_MESSAGE_SHAPE', message: 'Ignored malformed provider message', path: `messages[${index}]` });
             return [];
         }
@@ -167,8 +165,11 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
             ...(title ? { titleSource: title.source } : {}), ...normalizeConversationTimes({ createdAt: conversation.createdAt }),
             ...(sourceVersion !== undefined ? { updatedAt: sourceVersion } : {}), messageCount: resources.messages.length,
             ...(conversation.url || conversation.href ? { url: conversation.url || conversation.href } : {}) }),
-        detail: { assets: resources.assets, messages: resources.messages, ...copyCompleteness(conversation),
-            ...(options.completenessOverride ? { completeness: options.completenessOverride } : {}) },
+        detail: { assets: resources.assets, messages: resources.messages,
+            quality: contentQuality({ status: options.qualityStatusOverride ?? conversation.completeness?.status ?? 'unknown', rejectedTurns,
+                ...(conversation.truncated === true || conversation.isTruncated === true || conversation.nextPageToken?.trim()
+                    ? { truncation: conversation.truncateReason || (conversation.nextPageToken?.trim() ? 'pagination_pending' : 'truncated') } : {}),
+                heuristicDocumentIds: resources.heuristicDocumentIds }) },
     };
     return { ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
 }

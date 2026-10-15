@@ -56,7 +56,6 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     const document = {
         ...(record.id !== undefined ? { id: record.id } : {}),
         ...(contentMarkdown ? { contentMarkdown } : {}),
-        ...(record.hasFabricatedText !== undefined ? { hasFabricatedText: record.hasFabricatedText } : {}),
     };
     const generation = {
         ...Object.fromEntries(['providerRequestId', 'time', 'prompt', 'generationOrdinal', 'imageCount', 'imageOrdinal'].flatMap(key => {
@@ -87,7 +86,7 @@ function acquisitionHint(record: ResourceEvidence): ResourceAcquisitionHint {
 }
 
 /** Close every body/reasoning reference over one conversation resource registry before Domain. */
-export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[], options: { sourceReferences?: boolean } = {}): { assets: DomainAsset[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints } {
+export function closeDomainResources(providerId: string, messages: DomainMessage[], groups: LegacyAttachmentGroup[], options: { sourceReferences?: boolean } = {}): { assets: DomainAsset[]; heuristicDocumentIds: string[]; messages: DomainMessage[]; resourceHints: LegacyResourceHints; acquisitionHints: ResourceAcquisitionHints } {
     const normalize = options.sourceReferences ? normalizedSourceReference : normalizedResourceReference;
     const resolved = resolveLegacyAttachmentGroups(groups, { semanticOnly: true, ...options });
     const claimedIds = new Set<string>();
@@ -143,5 +142,6 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
                 ...(generated[0].generation?.imageCount !== undefined ? { outputCount: generated[0].generation.imageCount } : {}) } } : {}),
             ...(attachmentIds.length || groups[groupIndex].input.attachments ? { attachmentIds } : {}) };
     });
-    return { assets, messages: closed, resourceHints, acquisitionHints };
+    const heuristicDocumentIds = resolved.attachments.flatMap((record, index) => record.hasFabricatedText ? [assets[index].id] : []);
+    return { assets, heuristicDocumentIds, messages: closed, resourceHints, acquisitionHints };
 }

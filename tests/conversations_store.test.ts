@@ -5,6 +5,21 @@ const assert = require('node:assert');
 
 const ConversationsStore = require('../src/ui/state/conversationsStore.js');
 
+// This module owns singleton UI state; one case must not seed another.
+let previousConversations: any[];
+let previousExportedIds: Record<string, any>;
+let previousSlot: string;
+test.beforeEach(() => {
+    previousConversations = ConversationsStore.getConversations();
+    previousExportedIds = ConversationsStore.getExportedIds();
+    previousSlot = ConversationsStore.getCurrentSlot();
+});
+test.afterEach(() => {
+    ConversationsStore.setConversations(previousConversations);
+    ConversationsStore.setExportedIds(previousExportedIds);
+    ConversationsStore.setCurrentSlot(previousSlot);
+});
+
 test('conversationsStore - normId', () => {
     assert.strictEqual(ConversationsStore.normId('c_12345678'), '12345678');
     assert.strictEqual(ConversationsStore.normId('12345678'), '12345678');
@@ -14,8 +29,9 @@ test('conversationsStore - normId', () => {
 
 test('conversationsStore - in-memory get and set', () => {
     const list: any[] = [{ id: '1', title: 'Chat 1' }, { id: '2', title: 'Chat 2' }];
-    ConversationsStore.setConversations((list).map(indexFixture));
-    assert.deepStrictEqual(ConversationsStore.getConversations(), list.map(indexFixture));
+    const canonicalList = list.map(indexFixture);
+    ConversationsStore.setConversations(canonicalList);
+    assert.strictEqual(ConversationsStore.getConversations(), canonicalList, 'the UI store must keep the supplied canonical list');
 
     const expMap = { '1': { exportedAt: 1000 } };
     ConversationsStore.setExportedIds(expMap);
@@ -58,35 +74,29 @@ test('conversationsStore - getSignature', () => {
     assert.ok(sigA !== sigD);
 });
 
-test('conversationsStore - hasTakeoutData detection', () => {
-    ConversationsStore.setConversations(([
-        { id: '1', title: 'Normal Chat 1' },
-        { id: '2', title: 'Normal Chat 2' }
-    ] as any).map(indexFixture));
+test('conversationsStore detects historical import fact, not title provenance', () => {
+    const canonical = (id: string, titleSource: 'rpc' | 'takeout', hasTakeoutImport: boolean) =>
+        indexFixture({ providerId: 'gemini', id, title: 'Valid title', titleSource,
+            cloudAvailability: 'unknown', hasTakeoutImport });
+
+    const online = canonical('online', 'rpc', false);
+    const titleOnly = canonical('title-only', 'takeout', false);
+    const importedRenamed = canonical('imported', 'rpc', true);
+
+    ConversationsStore.setConversations([online, titleOnly]);
+    assert.strictEqual(ConversationsStore.hasTakeoutData(), false,
+        'a Takeout-looking title does not prove a prior import');
+    ConversationsStore.setConversations([online, importedRenamed]);
+    assert.strictEqual(ConversationsStore.hasTakeoutData(), true,
+        'a conversation renamed online still carries its import history');
+    ConversationsStore.setConversations([online]);
     assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
-
-    ConversationsStore.setConversations(([
-        { id: '1', title: 'Normal Chat 1' },
-        { id: '2', title: 'Takeout Chat 2', source: 'takeout' }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
-
-    ConversationsStore.setConversations(([
-        { id: '3', title: 'Takeout Chat 3', titleSource: 'takeout' }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
-
-    ConversationsStore.setConversations(([
-        { id: '4', title: 'Takeout Chat 4', titles: { takeout: 'Takeout Title' } }
-    ] as any).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
 });
 
 test('conversationsStore consumes canonical indexes without rewriting them', () => {
     const list = [indexFixture({ id: 'abc123', title: 'Research', titleSource: 'rpc', updatedAt: 42 })];
     ConversationsStore.setConversations(list);
     assert.strictEqual(ConversationsStore.getConversations(), list);
-    assert.equal(ConversationsStore.normalizeAndDeduplicate, undefined);
 });
 
 

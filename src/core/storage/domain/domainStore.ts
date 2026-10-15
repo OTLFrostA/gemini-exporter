@@ -103,8 +103,8 @@ export async function getStoredDomain(identity: DomainStorageIdentity): Promise<
 function prefer(existing: DomainStorageRecord, incoming: DomainStorageRecord, migration: boolean): boolean {
     const old = existing.conversation, next = incoming.conversation;
     if (old.detail.messages.length > next.detail.messages.length) return false;
-    if (old.detail.completeness === 'complete' && next.detail.completeness !== 'complete') return false;
-    if (old.detail.messages.length > 0 && old.detail.completeness !== 'partial' && next.detail.completeness === 'partial') return false;
+    if (old.detail.quality.status === 'complete' && next.detail.quality.status !== 'complete') return false;
+    if (old.detail.messages.length > 0 && old.detail.quality.status !== 'partial' && next.detail.quality.status === 'partial') return false;
     if (migration) return (!existing.conversation.detail.messages.length || existing.origin === 'legacy-storage') && incoming.conversation.detail.messages.length > existing.conversation.detail.messages.length; // A retry cannot overwrite data captured by the new release.
     if (old.detail.messages.length < next.detail.messages.length) return true;
     return (incoming.savedAt ?? 0) >= (existing.savedAt ?? 0);

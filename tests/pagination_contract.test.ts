@@ -1,3 +1,4 @@
+import { contentQuality } from '../src/core/domain/quality.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
@@ -222,27 +223,31 @@ test('completeness guard preserves legacy absence semantics and rejects each exp
 });
 
 test('detail: typed aggregation preserves reverse page order, dedupe, diagnostics and raw evidence', async () => {
-    const first = detailPage(['new'], 'tC_more'); first.transport = { ...first.transport, turnsRejected: 1, schemaDrift: ['drift one'], decodedPayload: { evidence: 'not validated' } };
-    const second = detailPage(['old', 'new']); second.transport = { ...second.transport, turnsRejected: 2, schemaDrift: ['drift one', 'drift two'] };
+    const first = detailPage(['new'], 'tC_more'); first.transport.decodedPayload = { evidence: 'not validated' };
+    const second = detailPage(['old', 'new']);
+    first.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 1, truncation: 'pagination_pending' });
+    second.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 2 });
+    first.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'drift one' }];
+    second.diagnostics = ['drift one', 'drift two'].map(message => ({ severity: 'warning', code: 'DRIFT', message }));
     const result: PaginatedDetailResult = await getConversationDetail(detailClient([first, second]), 'c_test');
     assert.equal(result.conversation.index.id, 'test');
     assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['old', 'new']);
     assert.equal(result.conversation.detail.messages.length, 2);
-    assert.equal(result.transport.turnsRejected, 3);
-    assert.deepEqual(result.transport.schemaDrift, ['drift one', 'drift two']);
+    assert.equal(result.conversation.detail.quality.rejectedTurns, 3);
+    assert.deepEqual([...new Set(result.diagnostics.map(d => d.message))], ['drift one', 'drift two']);
     assert.strictEqual(result.transport.decodedPayload, first.transport.decodedPayload);
-    assert.equal(result.transport.truncated, undefined);
-    assert.equal(result.transport.truncateReason, undefined);
+    assert.equal(Boolean(result.conversation.detail.quality.truncation), false);
+    assert.equal(result.conversation.detail.quality.truncation, undefined);
 });
 
 test('detail: token loop and 20-page cap retain exact truncation reasons', async () => {
     const loop = await getConversationDetail(detailClient([detailPage(['one'], 'tC_loop'), detailPage(['two'], 'tC_loop')]), 'test');
-    assert.equal(loop.transport.truncateReason, 'token_loop');
-    assert.equal(loop.transport.truncated, true);
+    assert.equal(loop.conversation.detail.quality.truncation, 'token_loop');
+    assert.equal(Boolean(loop.conversation.detail.quality.truncation), true);
     const max = await getConversationDetail(detailClient(Array.from({ length: 20 }, (_, i) => detailPage([`m${i}`], `tC_${i}`))), 'test');
     assert.equal(max.conversation.detail.messages.length, 20);
-    assert.equal(max.transport.truncateReason, 'max_turns_page_limit_20');
-    assert.equal(max.transport.truncated, true);
+    assert.equal(max.conversation.detail.quality.truncation, 'max_turns_page_limit_20');
+    assert.equal(Boolean(max.conversation.detail.quality.truncation), true);
 });
 
 test('list: first-page Bard limit returns an incomplete empty result; first-page HTTP limit rejects', async () => {
@@ -292,9 +297,12 @@ test('list: zero maxPages keeps its default fallback and negative maxPages is an
 test('detail: metadata-only retry flags and authoritative primary title remain unchanged', async () => {
     const first = detailPage([]);
     first.conversation.index.title = 'Authoritative metadata title';
-    first.transport = { ...first.transport, decodedPayload: [null, null, [['c_test', 'metadata title']]], turnsRejected: 1, schemaDrift: ['initial drift'] };
+    first.transport.decodedPayload = [null, null, [['c_test', 'metadata title']]];
+    first.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 1 });
+    first.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'initial drift' }];
     const retry = detailPage(['answer']); retry.conversation.index.title = 'Prompt fallback'; retry.conversation.index.titleSource = 'sniff';
-    retry.transport = { ...retry.transport, turnsRejected: 2, schemaDrift: ['retry drift'] };
+    retry.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 2 });
+    retry.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'retry drift' }];
     let calls = 0;
     const client: GeminiPaginationDetailClient = { async fetchConversationPage(id, token, sid, opts) {
         assert.equal(id, 'c_test');
@@ -313,8 +321,8 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
     assert.equal(result.conversation.index.titleSource, 'rpc');
     assert.equal(Object.hasOwn(result.conversation, 'titles'), false);
     assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['answer']);
-    assert.equal(result.transport.turnsRejected, 3);
-    assert.deepEqual(result.transport.schemaDrift, ['initial drift', 'retry drift']);
+    assert.equal(result.conversation.detail.quality.rejectedTurns, 3);
+    assert.deepEqual([...new Set(result.diagnostics.map(d => d.message))], ['initial drift', 'retry drift']);
 });
 
 test('list: an empty NO_INNER_STR parser result is incomplete', async () => {

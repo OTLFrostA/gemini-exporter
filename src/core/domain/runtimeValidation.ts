@@ -1,3 +1,5 @@
+import type { TableBlock } from './content/blocks.js';
+import { MAX_TABLE_COLUMNS, MAX_TABLE_ROW_SPAN, tableCellPlacements } from './content/tableLayout.js';
 import type { DeepReadonly } from './readonly.js';
 import type { DomainConversationDetail } from './conversationDetail.js';
 import { assertDomainClosure } from './closure.js';
@@ -25,7 +27,7 @@ const shape = (fields: Record<string, Check>, nonEmpty = false): Check => v => {
     return (!nonEmpty || keys.length > 0) && keys.every(k => Object.hasOwn(fields, k)) && Object.entries(fields).every(([k, check]) => check(v[k]));
 };
 const generation = shape({ providerRequestId: optional(text), time: optional(number), prompt: optional(text), generationOrdinal: optional(number), imageCount: optional(number), imageOrdinal: optional(number) }, true);
-const document = shape({ id: optional(text), contentMarkdown: optional(text), hasFabricatedText: optional(boolean) }, true);
+const document = shape({ id: optional(text), contentMarkdown: optional(text) }, true);
 const asset = shape({ id: text, kind: enumeration('image', 'file', 'audio', 'video', 'other'), name: optional(text), mediaType: optional(text), byteLength: optional(number), sourceUri: optional(text), dataBase64: optional(text), generation: optional(generation), document: optional(document) });
 const citation = shape({ id: text, url: optional(text), title: optional(text) });
 
@@ -45,6 +47,16 @@ function inline(v: unknown): boolean {
         default: return false;
     }
 }
+function tableShape(v: unknown): v is TableBlock {
+    const span = (max: number): Check => v => typeof v === 'number' && Number.isSafeInteger(v) && v >= 1 && v <= max;
+    const row = shape({ cells: array(shape({ children: array(inline), colSpan: optional(span(MAX_TABLE_COLUMNS)), rowSpan: optional(span(MAX_TABLE_ROW_SPAN)) })) });
+    return shape({ type: enumeration('table'), caption: optional(array(inline)), columns: optional(array(shape({ align: optional(enumeration('left', 'center', 'right')) }))), headerRows: optional(array(row)), rows: array(row) })(v);
+}
+function table(v: unknown): boolean {
+    if (!tableShape(v) || (v.columns?.length ?? 0) > MAX_TABLE_COLUMNS) return false;
+    for (const cell of tableCellPlacements(v)) if (cell.column + cell.colSpan > MAX_TABLE_COLUMNS) return false;
+    return true;
+}
 function block(v: unknown): boolean {
     if (!object(v)) return false;
     const t = v.type;
@@ -58,17 +70,20 @@ function block(v: unknown): boolean {
         case 'math': return shape({ type: enumeration(t), source: text })(v);
         case 'image': return shape({ type: enumeration(t), assetId: text, alt: optional(text), caption: optional(children) })(v);
         case 'file': return shape({ type: enumeration(t), assetId: text, label: optional(text), description: optional(children) })(v);
-        case 'table': {
-            const row = shape({ cells: array(shape({ children, colSpan: optional(number), rowSpan: optional(number) })) });
-            return shape({ type: enumeration(t), caption: optional(children), columns: optional(array(shape({ align: optional(enumeration('left', 'center', 'right')) }))), headerRows: optional(array(row)), rows: array(row) })(v);
-        }
+        case 'table': return table(v);
         case 'thematicBreak': return shape({ type: enumeration(t) })(v);
         case 'unknown': return shape({ type: enumeration(t), sourceType: text, text })(v);
         default: return false;
     }
 }
 const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
-const domainFields: Record<string, Check> = { assets: array(asset), messages: array(message), completeness: enumeration('complete', 'partial', 'unknown') };
+const quality = shape({
+    status: enumeration('complete', 'partial', 'unknown'),
+    rejectedTurns: optional(v => typeof v === 'number' && Number.isSafeInteger(v) && v > 0),
+    truncation: optional(v => typeof v === 'string' && !!v.trim()),
+    heuristicDocumentIds: optional(array(text)),
+});
+const domainFields: Record<string, Check> = { assets: array(asset), messages: array(message), quality };
 const domain = shape(domainFields);
 
 /** Compile-time evidence of schema and reference closure; never serialized. */

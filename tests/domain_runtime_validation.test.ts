@@ -4,7 +4,7 @@ import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 function valid(): DomainConversationWithDetail {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future', id: 'independent', title: 'Fixture' }, detail: { completeness: 'unknown', assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
+    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'future', id: 'independent', title: 'Fixture' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image' }], messages: [{ role: 'assistant',
             citations: [{ id: 'cite', url: 'https://example.test' }],
             content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }, { type: 'citationRef', citationId: 'cite' }] },
                 { type: 'unknown', sourceType: 'future', text: 'preserved' }] }] } };
@@ -27,7 +27,7 @@ test('parser validation preserves identity; recovery isolates all nested objects
 test('both entry points reject independent malformed graphs and nonportable values', () => {
     const negatives: unknown[] = [
         { index: { ...valid().index, title: 4 }, detail: { ...valid().detail } }, { index: { ...valid().index }, detail: { ...valid().detail, messages: {} } }, { index: { ...valid().index }, detail: { ...valid().detail }, timestamp: Infinity },
-        { index: { ...valid().index }, detail: { ...valid().detail, completeness: { status: 'fabricated' } } }, { index: { ...valid().index }, detail: { ...valid().detail }, extra: true },
+        { index: { ...valid().index }, detail: { ...valid().detail, quality: { status: 'fabricated' } } }, { index: { ...valid().index }, detail: { ...valid().detail }, extra: true },
         { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 1 }] }] }] } },
         { index: { ...valid().index }, detail: { ...valid().detail, assets: [] } },
         { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'citationRef', citationId: 'missing' }] }] }] } },
@@ -35,6 +35,12 @@ test('both entry points reject independent malformed graphs and nonportable valu
         { index: { ...valid().index }, detail: { ...valid().detail, messages: [{ role: 'assistant', content: [], attachmentIds: ['image', 'image'] }] } },
         { index: { ...valid().index, title: () => 'bad' }, detail: { ...valid().detail } }, { index: { ...valid().index }, detail: { ...valid().detail }, timestamp: 1n },
     ];
+    for (const quality of [{ status: 'complete', rejectedTurns: 1 }, { status: 'partial', rejectedTurns: -1 },
+        { status: 'partial', rejectedTurns: 0 }, { status: 'partial', rejectedTurns: 1.5 }, { status: 'partial', truncation: ' ' },
+        { status: 'partial', heuristicDocumentIds: ['missing'] }, { status: 'partial', heuristicDocumentIds: ['image', 'image'] },
+        { status: 'partial', extra: true }]) negatives.push({ ...valid(), detail: { ...valid().detail, quality } });
+    negatives.push({ ...valid(), detail: { ...valid().detail, completeness: 'unknown' } });
+    negatives.push({ ...valid(), detail: { ...valid().detail, assets: [{ id: 'image', kind: 'image', document: { hasFabricatedText: true } }] } });
     const cycle = valid(); cycle.detail.messages[0].content.push({ type: 'quote', blocks: cycle.detail.messages[0].content });
     negatives.push(cycle);
     for (const input of negatives) {
@@ -95,4 +101,40 @@ test('both entry points reject holes and undefined elements throughout nested Do
     Object.assign(undefinedNode.detail.messages[0].content, { 0: undefined });
     assert.throws(() => validateParserDomain(undefinedNode), TypeError);
     assert.throws(() => restoreDomainSnapshot(undefinedNode), TypeError);
+});
+
+test('parser and recovery reject nonintegral, out-of-range, and over-wide table grids before composition', () => {
+    const withTable = (table: import('../src/core/domain/content/blocks.js').TableBlock) => {
+        const value = valid(); value.detail.messages[0].content = [table]; return value;
+    };
+    const invalidTables: import('../src/core/domain/content/blocks.js').TableBlock[] = [];
+    for (const span of [0, -1, 1.5, 4294967296, Number.MAX_VALUE]) {
+        invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], colSpan: span }] }] });
+        invalidTables.push({ type: 'table', rows: [{ cells: [{ children: [], rowSpan: span }] }] });
+    }
+    invalidTables.push(
+        { type: 'table', rows: [{ cells: [{ children: [], colSpan: 1001 }] }] },
+        { type: 'table', rows: [{ cells: [{ children: [], rowSpan: 65535 }] }] },
+        { type: 'table', columns: Array.from({ length: 1001 }, () => ({})), rows: [] },
+        { type: 'table', rows: [{ cells: [{ children: [], colSpan: 1000 }, { children: [] }] }] },
+        // Individually valid rows can overflow once the header's rowspan occupies columns.
+        { type: 'table', headerRows: [{ cells: [{ children: [], colSpan: 1000, rowSpan: 2 }] }], rows: [{ cells: [{ children: [] }] }] },
+    );
+    for (const table of invalidTables) {
+        const value = withTable(table);
+        assert.throws(() => validateParserDomain(value), TypeError);
+        assert.throws(() => restoreDomainSnapshot(value), TypeError);
+        // Nested tables use the same boundary rules.
+        value.detail.messages[0].content = [{ type: 'quote', blocks: [table] }];
+        assert.throws(() => validateParserDomain(value), TypeError);
+    }
+    for (const table of [
+        { type: 'table' as const, rows: [] },
+        { type: 'table' as const, rows: [{ cells: [] }] },
+        { type: 'table' as const, rows: [{ cells: [{ children: [], colSpan: 1000, rowSpan: 65534 }] }] },
+    ]) {
+        const value = withTable(table);
+        assert.equal(validateParserDomain(value), value);
+        assert.deepEqual(restoreDomainSnapshot(value), value);
+    }
 });

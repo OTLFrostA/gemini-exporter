@@ -122,7 +122,10 @@ test('liveSave: provider and injected acquisition retain title/media/evidence an
     }
     const existing = detail(); existing.sourceVersion = 1500000000000;
     set(async () => existing); initLive();
-    assert.equal((await resolveConversationDetail('detail123'))?.sourceVersion, existing.sourceVersion);
+    assert.equal((await resolveConversationDetail('detail123'))?.sourceVersion, undefined, 'rejected content cannot prove a saved source version');
+    const clean = { ...existing, conversation: { index: { ...existing.conversation.index, id: 'clean-version' }, detail: { ...existing.conversation.detail, quality: { status: 'unknown' as const } } } };
+    set(async () => clean); initLive();
+    assert.equal((await resolveConversationDetail('clean-version'))?.sourceVersion, existing.sourceVersion);
     assert.equal(existing.sourceVersion, 1500000000000);
 }));
 
