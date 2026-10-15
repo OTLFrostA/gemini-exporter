@@ -42,7 +42,6 @@ function stripCitationsOutsideCode(text: string): string {
 }
 
 const BR_TAG = /<br\s*\/?>/gi;
-const ANY_TAG = /<[^>]+>/g;
 
 function normalizeMathOutsideCode(text: string): string {
     return text
@@ -60,7 +59,7 @@ export function preprocessChatGPTMarkdown(source: string): string {
         let part = parts[i] ?? '';
         part = normalizeMathOutsideCode(part);
         part = stripCitationsOutsideCode(part);
-        part = part.replace(BR_TAG, ' ').replace(ANY_TAG, '');
+        part = part.replace(BR_TAG, ' ');
         parts[i] = part;
     }
     return parts.join('');
