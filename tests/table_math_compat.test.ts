@@ -3,7 +3,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normalizeTableMathPipes, preprocessGeminiMarkdown } from '../src/core/parsers/gemini/shared/markdownCompatibility.js';
-import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
+import { parseMarkdownAst, parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
+import { decodeGeminiStructuredNode } from '../src/core/parsers/gemini/rpc/structuredContent.js';
+import { geminiStructuredToContent } from '../src/core/parsers/gemini/shared/structuredContentAdapter.js';
+import type { BlockNode } from '../src/core/domain/content/blocks.js';
+
+function visibleText(node: { value?: string; children?: unknown[] }): string {
+    return node.value ?? (node.children ?? []).map(child => visibleText(child as typeof node)).join('');
+}
 
 test('captured Gemini table keeps eight columns and complete absolute-value formulas', () => {
     const original = readFileSync('tests/fixtures/provider/math/gm_md_002_evidence.md', 'utf8');
@@ -24,11 +34,6 @@ test('table compatibility excludes prose, code, escaped bars, unmatched math and
     }
 });
 
-import { parseMarkdownToBlocks } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
-
 test('Domain and serialized Markdown preserve the captured numeric row and all eight headers', () => {
     const raw = readFileSync('tests/fixtures/provider/math/gm_md_002_evidence.md', 'utf8');
     const blocks = parseMarkdownToBlocks(preprocessGeminiMarkdown(raw), 'live', { sourceRef: { providerId: 'gemini', locator: 'live.5' }, diagnostics: [] });
@@ -36,19 +41,14 @@ test('Domain and serialized Markdown preserve the captured numeric row and all e
     const output = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
     const table = parseMarkdownAst(output).children.find(node => node.type === 'table');
     assert.ok(table?.type === 'table');
-    const content = (node: { value?: string; children?: unknown[] }): string => node.value ?? (node.children ?? []).map(child => content(child as typeof node)).join('');
-    assert.deepEqual(table.children[1].children.map(cell => content(cell)), [
+    assert.deepEqual(table.children[1].children.map(cell => visibleText(cell)), [
         '10^{-4}', 'Bisection', '15', '36.938477', String.raw`3.5 \times 10^{-4}`,
         String.raw`1.9 \times 10^{-4}`, String.raw`1.2 \times 10^{-3}`, String.raw`Rejected (\Delta\Pi > 0.01 u_c)`,
     ]);
     assert.equal(table.children[0].children.length, 8);
-    assert.equal(content(table.children[0].children[4]), String.raw`Final Residual \vert{}F(\beta)\vert{}`);
-    assert.equal(content(table.children[0].children[5]), String.raw`Numerical Error \vert{}\beta - \beta^*\vert{} [^\circ]`);
+    assert.equal(visibleText(table.children[0].children[4]), String.raw`Final Residual \vert{}F(\beta)\vert{}`);
+    assert.equal(visibleText(table.children[0].children[5]), String.raw`Numerical Error \vert{}\beta - \beta^*\vert{} [^\circ]`);
 });
-
-import { decodeGeminiStructuredNode } from '../src/core/parsers/gemini/rpc/structuredContent.js';
-import { geminiStructuredToContent } from '../src/core/parsers/gemini/shared/structuredContentAdapter.js';
-import type { BlockNode } from '../src/core/domain/content/blocks.js';
 
 const liveTables = JSON.parse(readFileSync('tests/fixtures/provider/math/gemini_table_display_math.json', 'utf8')) as { displayTable: unknown; normTable: unknown };
 function renderCapturedTable(wire: unknown): { blocks: BlockNode[]; output: string } {
@@ -70,9 +70,8 @@ test('native display math inside a captured table does not reinterpret neighbori
     const table = parseMarkdownAst(output).children.find(node => node.type === 'table');
     assert.ok(table?.type === 'table');
     assert.ok(table.children.every(row => row.children.length === 5));
-    const text = (node: { value?: string; children?: unknown[] }): string => node.value ?? (node.children ?? []).map(child => text(child as typeof node)).join('');
-    assert.equal(text(table.children[1].children[1]), String.raw`Constant K_{\text{plant}}:$$\Delta\Psi = \frac{E}{K_{\text{plant}}}$$Flow is linearly proportional to the water-potential gradient via Ohm's law analogy.`);
-    assert.ok(text(table.children[4].children[1]).includes(String.raw`Q_{\text{in}}!\left`));
+    assert.equal(visibleText(table.children[1].children[1]), String.raw`Constant K_{\text{plant}}:$$\Delta\Psi = \frac{E}{K_{\text{plant}}}$$Flow is linearly proportional to the water-potential gradient via Ohm's law analogy.`);
+    assert.ok(visibleText(table.children[4].children[1]).includes(String.raw`Q_{\text{in}}!\left`));
 });
 
 test('native norm formulas serialize as valid six-column GFM without becoming absolute-value bars', () => {
@@ -84,5 +83,8 @@ test('native norm formulas serialize as valid six-column GFM without becoming ab
     const norm = table.children[0].children[2].children.find(node => node.type === 'inlineMath');
     assert.equal(norm?.type === 'inlineMath' && norm.value, String.raw`\Vert{}\cdot\Vert{}_{\infty}`);
     assert.ok(!output.includes(String.raw`\\|`));
-    assert.ok(output.includes('120.0') && output.includes('7.5'));
+    assert.equal(visibleText(table.children[1].children[0]), '120.0',
+        'the first native numeric cell must remain in its original row');
+    assert.equal(visibleText(table.children[5].children[0]), '7.5',
+        'the last native numeric cell must remain in its original row');
 });
