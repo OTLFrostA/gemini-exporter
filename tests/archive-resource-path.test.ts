@@ -50,10 +50,11 @@ test('archive resource names allow legitimate literal percent characters in file
 });
 
 test('extractAttachmentInlineBytes decodes contentMarkdown as UTF-8 bytes', () => {
-    const attWithMd = { contentMarkdown: '# Hello World\nSome content' };
-    const bytes = extractAttachmentInlineBytes(attWithMd);
+    const markdown = '# Hello 世界 🧪\nSome content';
+    const bytes = extractAttachmentInlineBytes({ contentMarkdown: markdown });
     assert.ok(bytes instanceof Uint8Array);
-    assert.equal(new TextDecoder().decode(bytes), '# Hello World\nSome content');
+    assert.equal(new TextDecoder().decode(bytes), markdown);
+    assert.deepEqual(bytes, new TextEncoder().encode(markdown), 'multibyte Unicode must be encoded as UTF-8');
 
     const attEmpty = { contentMarkdown: '   ' };
     assert.equal(extractAttachmentInlineBytes(attEmpty), null);
