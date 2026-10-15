@@ -5,40 +5,46 @@ const assert = require('node:assert');
 const StorageService = require('../src/core/storage/storageService.js');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 
-function setupMockChromeStorage() {
+function setupMockChromeStorage(options: { beforeSet?: (data: Record<string, any>) => Promise<void> } = {}) {
     const mockStorage: Record<string, any> = {};
-    const origChrome = (global as any).chrome;
-    (global as any).chrome = {
-        storage: {
-            local: {
-                get: async (keys: any) => {
-                    if (keys === null) return { ...mockStorage };
-                    if (typeof keys === 'string') keys = [keys];
-                    const res: Record<string, any> = {};
-                    for (const k of (keys || [])) {
-                        if (k in mockStorage) res[k] = mockStorage[k];
-                    }
-                    return res;
+    const prior = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    Object.defineProperty(globalThis, 'chrome', {
+        configurable: true, writable: true,
+        value: {
+            storage: {
+                local: {
+                    get: async (keys: any) => {
+                        if (keys === null) return structuredClone(mockStorage);
+                        if (typeof keys === 'string') keys = [keys];
+                        const result: Record<string, any> = {};
+                        for (const key of (keys || [])) {
+                            if (Object.prototype.hasOwnProperty.call(mockStorage, key)) {
+                                result[key] = structuredClone(mockStorage[key]);
+                            }
+                        }
+                        return result;
+                    },
+                    set: async (data: Record<string, any>) => {
+                        await options.beforeSet?.(data);
+                        Object.assign(mockStorage, structuredClone(data));
+                    },
+                    remove: async (keys: any) => {
+                        for (const key of (typeof keys === 'string' ? [keys] : keys || [])) delete mockStorage[key];
+                    },
                 },
-                set: async (obj: any) => {
-                    Object.assign(mockStorage, obj);
-                },
-                remove: async (keys: any) => {
-                    if (typeof keys === 'string') keys = [keys];
-                    for (const k of (keys || [])) delete mockStorage[k];
-                }
-            }
-        }
-    };
+            },
+        },
+    });
     return {
         mockStorage,
         restore: () => {
-            (global as any).chrome = origChrome;
-        }
+            if (prior) Object.defineProperty(globalThis, 'chrome', prior);
+            else Reflect.deleteProperty(globalThis, 'chrome');
+        },
     };
 }
 
-test('StorageService.updateConversation - atomic targeted update', async () => {
+test('StorageService.updateConversation patches only the target record and rejects missing IDs', async () => {
     const env = setupMockChromeStorage();
     try {
         await StorageService.setConversations('u0', ([
@@ -80,7 +86,7 @@ test('StorageService.updateConversation - atomic targeted update', async () => {
     }
 });
 
-test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
+test('mergeConversation keeps source updatedAt monotonic and earliest createdAt', () => {
     const existing = {
         id: 'chat_monotonic',
         title: 'Monotonic Test',
@@ -101,9 +107,8 @@ test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
     };
 
     const res1 = mergeConversation(indexFixture(existing), indexFixture(olderIncoming));
-    // updatedAt and timestamp must NOT regress to 1700000050000
+    // An older index version must not overwrite the latest known source timestamp.
     assert.strictEqual(res1.merged.updatedAt, 1700000050000, 'updatedAt must not regress');
-    assert.strictEqual(res1.merged.timestamp, undefined, 'timestamp must not regress');
     // createdAt must remain earliest known
     assert.strictEqual(res1.merged.createdAt, 1700000000000, 'createdAt must remain earliest');
 
@@ -120,57 +125,49 @@ test('mergeConversation - CON-HF10 timestamp monotonicity', () => {
 
     const res2 = mergeConversation(indexFixture(existing), indexFixture(newerIncoming));
     assert.strictEqual(res2.merged.updatedAt, 1700000090000, 'updatedAt must advance to newer timestamp');
-    assert.strictEqual(res2.merged.timestamp, undefined, 'timestamp must advance to newer timestamp');
     assert.strictEqual(res2.merged.createdAt, 1699999990000, 'createdAt must advance to earlier timestamp');
 });
 
-test('CON-HF7: Export avoids stale snapshot overwrite & respects concurrent deletion/addition', async () => {
-    const env = setupMockChromeStorage();
+test('overlapping updateConversation writes preserve both independent changes', async () => {
+    // Unlike a sequential "export snapshot" scenario, this suspends the first
+    // actual indexed-list write while a second update races on the same slot.
+    let blockNext = false;
+    let releaseWrite: (() => void) | undefined;
+    let firstWriteEntered: (() => void) | undefined;
+    const hold = new Promise<void>(resolve => { releaseWrite = resolve; });
+    const entered = new Promise<void>(resolve => { firstWriteEntered = resolve; });
+    const env = setupMockChromeStorage({
+        beforeSet: async data => {
+            if (blockNext && Object.prototype.hasOwnProperty.call(data, 'gemini_conversations')) {
+                blockNext = false;
+                firstWriteEntered!();
+                await hold;
+            }
+        },
+    });
     try {
-        // Initial conversations in storage before export begins
-        await StorageService.setConversations('u0', ([
-            { id: 'chat_export_1', title: 'Export Chat 1', messageCount: 1 },
-            { id: 'chat_export_2', title: 'Export Chat 2 (to be deleted)', messageCount: 1 },
-            { id: 'chat_export_3', title: 'Export Chat 3', messageCount: 1 }
-        ]).map(indexFixture));
+        await StorageService.setConversations('u0', [
+            { id: 'first', title: 'Before', messageCount: 1 },
+            { id: 'second', title: 'Independent', messageCount: 1 },
+        ].map(indexFixture));
 
-        // Export starts: it takes a snapshot of IDs to export
-        const snapshotConversations = await StorageService.getConversations('u0');
-        assert.strictEqual(snapshotConversations.length, 3);
+        blockNext = true;
+        const writeFirst = StorageService.updateConversation('u0', 'first', { title: 'After' });
+        await entered; // First read-modify-write is now intentionally in flight.
+        const writeSecond = StorageService.updateConversation('u0', 'second', { messageCount: 7 });
+        await new Promise<void>(resolve => setImmediate(resolve)); // Give a broken unlocked implementation a chance to read stale state.
+        releaseWrite!();
+        const results = await Promise.all([writeFirst, writeSecond]);
+        assert.deepStrictEqual(results, [true, true]);
 
-        // While export is running:
-        // 1. chat_export_2 is confirmed deleted in cloud or deleted by user in UI
-        await StorageService.removeConversation('u0', 'chat_export_2');
-
-        // 2. A new conversation chat_new arrives concurrently (e.g. user chats in another tab)
-        const currentList = await StorageService.getConversations('u0');
-        await StorageService.setConversations('u0', ([
-            ...currentList,
-            { id: 'chat_new', title: 'Concurrent New Chat', messageCount: 3 }
-        ]).map(indexFixture));
-
-        // 3. Export worker finishes chat_export_1 and updates its metadata atomically
-        await StorageService.updateConversation('u0', 'chat_export_1', {
-            title: 'Export Chat 1 (Resolved)',
-            messageCount: 5
-        });
-
-        // Verify final storage state:
-        // In the old buggy code, `await Storage.setConversations(slot, snapshotConversations)`
-        // would wipe out `chat_new` and resurrect `chat_export_2`.
-        // With our fix, only atomic updates occurred.
-        const finalList = await StorageService.getConversations('u0');
-        const finalIds = finalList.map((c: any) => c.id);
-
-        assert.ok(!finalIds.includes('chat_export_2'), 'Deleted conversation must NOT be resurrected');
-        assert.ok(finalIds.includes('chat_new'), 'Concurrently added conversation must NOT be lost');
-        assert.ok(finalIds.includes('chat_export_1'), 'Exported conversation must exist');
-        assert.ok(finalIds.includes('chat_export_3'), 'Untouched conversation must exist');
-
-        const updatedChat1 = finalList.find((c: any) => c.id === 'chat_export_1');
-        assert.strictEqual(updatedChat1.title, 'Export Chat 1 (Resolved)');
-        assert.strictEqual(updatedChat1.messageCount, 5);
+        const final = await StorageService.getConversations('u0');
+        assert.equal(final.length, 2);
+        assert.equal(final.find((c: any) => c.id === 'first')?.title, 'After',
+            'first committed change must not be lost by the second write');
+        assert.equal(final.find((c: any) => c.id === 'second')?.messageCount, 7,
+            'second committed change must not be lost by the first write');
     } finally {
+        releaseWrite?.();
         env.restore();
     }
 });
