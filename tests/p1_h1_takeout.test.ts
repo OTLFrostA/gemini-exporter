@@ -2,46 +2,31 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
 const zipBombGuard = require('../src/core/imports/takeout/zipBombGuard.js');
 const mediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
 
-// ---------- P1-112: no substring cross-file matching ----------
-test('p1_h1 - P1-112: fallback media never returns an unrelated file via substring', async () => {
-    mediaIndex.clearTakeoutData();
+// The full media-index suite covers general matching/slot isolation. This is a
+// distinct substring-direction regression: the requested name contains a stored one.
+test('p1_h1 - fallback must not match another file via substring', async () => {
+    const slot = 'p1-h1-substring';
     const fakeBytes = new Uint8Array([1, 2, 3]);
-    mediaIndex.commitTakeoutData(null, {
-        mediaMap: {
-            // NOTE: keys are normId-normalized ('c_1' -> '1')
-            '1': [{ filename: 'cat-photo.png', fileObj: { async: async () => fakeBytes } }]
-        },
+    mediaIndex.commitTakeoutData(slot, {
+        mediaMap: { '1': [{ filename: 'cat-photo.png', fileObj: { async: async () => fakeBytes } }] },
         globalMedia: {},
         convCache: {}
     });
-    // 'sunset-cat-photo' merely CONTAINS 'cat-photo' — must not match.
-    const hit = await mediaIndex.getTakeoutFallbackMedia('c_1', { assetId: '', sourceUri: 'sunset-cat-photo.png' });
-    assert.strictEqual(hit, null, 'substring match must not return another file\'s bytes');
-    // Exact stem still matches.
-    const exact = await mediaIndex.getTakeoutFallbackMedia('c_1', { assetId: '', sourceUri: 'cat-photo.png' });
-    assert.ok(exact && exact.length === 3, 'exact match must still work');
-    mediaIndex.clearTakeoutData();
-});
-
-// ---------- P1-113: slot isolation ----------
-test('p1_h1 - P1-113: unknown slot never falls back to another slot\'s data', () => {
-    mediaIndex.clearTakeoutData();
-    mediaIndex.commitTakeoutData(null, {
-        mediaMap: { '9': [{ filename: 'secret.png', fileObj: {} }] },
-        globalMedia: {},
-        convCache: {}
-    });
-    const store = mediaIndex.getStore('slot-that-never-imported');
-    assert.deepStrictEqual(store.mediaMap, {}, 'isolated store must be empty');
-    assert.deepStrictEqual(mediaIndex.getTakeoutMediaForChat('c_9', 'slot-that-never-imported'), [],
-        'explicit unknown slot must not leak legacy-global media');
-    // Legacy path (no slot) still works.
-    assert.strictEqual(mediaIndex.getTakeoutMediaForChat('c_9').length, 1);
-    mediaIndex.clearTakeoutData();
+    try {
+        assert.strictEqual(
+            await mediaIndex.getTakeoutFallbackMedia('c_1', { assetId: '', sourceUri: 'sunset-cat-photo.png' }, slot),
+            null, 'a longer requested filename must not steal unrelated media'
+        );
+        assert.deepStrictEqual(
+            await mediaIndex.getTakeoutFallbackMedia('c_1', { assetId: '', sourceUri: 'cat-photo.png' }, slot),
+            fakeBytes, 'exact source name must preserve the intended bytes'
+        );
+    } finally {
+        mediaIndex.clearTakeoutData(slot);
+    }
 });
 
 // ---------- P1-114: zip bomb guards fail closed ----------
@@ -57,27 +42,15 @@ test('p1_h1 - P1-114: zip guards fail closed on unknown size', () => {
     assert.doesNotThrow(
         () => zipBombGuard.validateZipEntries({ files: { 'a.txt': { dir: false, _data: { uncompressedSize: 10 } } } } as any)
     );
+    assert.throws(
+        () => zipBombGuard.validateZipEntries({ files: { 'huge.bin': { dir: false, _data: {
+            uncompressedSize: zipBombGuard.MAX_TOTAL_UNCOMPRESSED + 1
+        } } } } as any),
+        /过大|超过|too large|OOM/i, 'declared uncompressed size must enforce the ZIP bomb cap without allocating bytes'
+    );
 });
 
-// ---------- P1-117: C2PA trust marker + date validation ----------
-test('p1_h1 - P1-117: C2PA needs a trust marker and a valid calendar date', () => {
-    const f = TakeoutEngine.extractC2PATimestamp;
-    const trusted2032 = f('c2pa:claim_generator="Google" date="20321115123000Z"');
-    assert.ok(trusted2032 !== null, 'trusted 2032 timestamp must parse');
-    assert.strictEqual(new Date(trusted2032).getUTCFullYear(), 2032);
-    assert.strictEqual(f('dummy_header_20321115123000Z_dummy_footer'), null,
-        'bare digit run with no trust context must be rejected');
-    assert.strictEqual(f('c2pa manifest date="20321301123000Z"'), null, 'month 13 is invalid');
-    assert.strictEqual(f('xmp:CreateDate="20230230123000Z"'), null, 'Feb 30 is invalid');
-    const buf = f(Buffer.from('junk jumb data 20260322143000Z tail'));
-    assert.ok(buf !== null, 'Buffer input with jumb marker must parse');
-    const u8 = f(new TextEncoder().encode('junk jumb data 20260322143000Z tail'));
-    assert.ok(u8 !== null, 'Uint8Array with jumb marker must parse');
-    assert.strictEqual(f(null), null);
-    assert.strictEqual(f(123), null);
-    assert.strictEqual(f({}), null);
-    assert.strictEqual(f(new ArrayBuffer(16)), null);
-});
+// C2PA marker/date coverage lives in media_index_safety.test.ts and takeout_engine.test.ts.
 
 // ---------- takeoutHtmlSizeUnknown i18n key ----------
 test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
@@ -87,13 +60,10 @@ test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
     assert.ok(typeof zh.takeoutHtmlSizeUnknown === 'string' && zh.takeoutHtmlSizeUnknown.length > 0, 'zh key present');
 });
 
-test('p1_h1 - parseTakeoutTimestamp CST and numeric offset handling', () => {
+test('p1_h1 - explicit numeric UTC offsets in English and Chinese Takeout dates', () => {
     const { parseTakeoutTimestamp } = require('../src/core/parsers/gemini/takeout/decodeHtml.js');
-    const blockCjkCst = '<div class="content-cell">Prompted 介绍木星<br>Jul 15, 2024, 2:30:00 PM CST</div>';
-    const tsCst = parseTakeoutTimestamp(blockCjkCst);
-    assert.ok(tsCst !== null);
-    const isoCst = new Date(tsCst).toISOString();
-    assert.strictEqual(isoCst, '2024-07-15T06:30:00.000Z', 'CST in CJK context must map to UTC+8 (+0800)');
+    // Avoid asserting a CST interpretation from prompt language: CST is ambiguous
+    // without locale metadata, and a Chinese prompt is not timezone evidence.
 
     const blockUtc = '<div class="content-cell">Prompted Hello<br>Jul 15, 2024, 2:30:00 PM UTC+8</div>';
     const tsUtc = parseTakeoutTimestamp(blockUtc);
