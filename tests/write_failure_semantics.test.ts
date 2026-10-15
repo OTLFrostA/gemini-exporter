@@ -10,19 +10,33 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 //   4. diagnostics 写失败 -> 用户可见（onLog error），不外抛，不污染资产失败账目
 import { makeTestWorker } from './helpers/makeTestWorker.js';
 const test = require('node:test');
+const { beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert');
 
 const { ExportOrchestrator } = require('../src/core/engine/export/exportOrchestrator.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+
+// An injected JSZip/StorageService may not leak to another scenario or test file.
+let originalZip: any, originalStorage: any;
+beforeEach(() => {
+    originalZip = __getModuleOverride('JSZip');
+    originalStorage = __getModuleOverride('StorageService');
+});
+afterEach(() => {
+    __setModuleOverride('JSZip', originalZip);
+    __setModuleOverride('StorageService', originalStorage);
+});
 
 // 按文件名决定是否抛错的 MockJSZip
 function setupFailingJSZip(shouldFail: (path: string) => boolean) {
+    const attempted: string[] = [];
     __setModuleOverride('JSZip', class MockJSZip {
         files: Record<string, any> = {};
         folder(_name: string) {
             const self = this;
             return {
                 file: (path: string, content: any) => {
+                    attempted.push(path);
                     if (shouldFail(path)) {
                         throw new Error(`mock disk failure: ${path}`);
                     }
@@ -35,6 +49,7 @@ function setupFailingJSZip(shouldFail: (path: string) => boolean) {
             return new Blob(['mock-zip'], { type: 'application/zip' });
         }
     });
+    return attempted;
 }
 
 // 内存 StorageService：必须实现 saveExportRecord（finalize fail-closed）
@@ -76,7 +91,7 @@ function collectLogs() {
 
 // 1. 主 md 写失败 -> failed，不标 success，无导出记录（下次可重试）
 test('write-failure semantics - main markdown write failure marks chat failed, never success', async () => {
-    setupFailingJSZip((p) => /\.md$/.test(p) && !p.includes('00_INDEX'));
+    const attempts = setupFailingJSZip((p) => /\.md$/.test(p) && !p.includes('00_INDEX'));
     const mem = setupMockStorage();
     const { logs, onLog, errorLogs } = collectLogs();
     const orchestrator = new ExportOrchestrator();
@@ -96,6 +111,8 @@ test('write-failure semantics - main markdown write failure marks chat failed, n
     assert.ok(result.failedChats[0].error && result.failedChats[0].error.length > 0, 'real error must be saved, not swallowed');
     // 无导出记录 -> 增量导出不会跳过它，可重试
     assert.strictEqual(mem['chat-main-fail'], undefined, 'no export record may be persisted for a failed main-md');
+    assert.ok(attempts.some(path => path.endsWith('.md') && path !== '00_INDEX.md'),
+        'the injected failure must have reached an actual main Markdown write');
     // 用户可见
     assert.ok(errorLogs().length > 0, 'failure must surface as user-visible error log');
     void logs;
@@ -103,7 +120,7 @@ test('write-failure semantics - main markdown write failure marks chat failed, n
 
 // 2. doc-md 写失败 -> failedAttachments，记录为 partial（主 md 成功）
 test('write-failure semantics - doc-md write failure lands in failedAttachments with partial record', async () => {
-    setupFailingJSZip((p) => p.startsWith('files/') && p.endsWith('.md'));
+    const attempts = setupFailingJSZip((p) => p.startsWith('files/') && p.endsWith('.md'));
     const mem = setupMockStorage();
     const { onLog } = collectLogs();
     const orchestrator = new ExportOrchestrator();
@@ -126,6 +143,10 @@ test('write-failure semantics - doc-md write failure lands in failedAttachments 
     assert.strictEqual(result.failedChats.length, 0, 'chat itself is not failed');
     assert.strictEqual(result.failedAttachments.length, 1, 'doc-md failure must be tracked');
     assert.ok(result.failedAttachments[0].file.endsWith('.md'));
+    assert.ok(attempts.some(path => path.startsWith('files/') && path.endsWith('.md')),
+        'the simulated doc-md failure must actually be exercised');
+    assert.ok(attempts.some(path => path.endsWith('.md') && !path.startsWith('files/')),
+        'the conversation Markdown must still have been written');
     const rec = mem['chat-doc-fail'];
     assert.ok(rec, 'export record must exist');
     assert.strictEqual(rec.status, 'partial', 'record with failed assets must be partial, never ok');
@@ -134,8 +155,8 @@ test('write-failure semantics - doc-md write failure lands in failedAttachments 
 
 // 3. index 写失败 -> fail-closed，run() 外抛
 test('write-failure semantics - index write failure fails closed (run rejects)', async () => {
-    setupFailingJSZip((p) => p.includes('00_INDEX.md'));
-    setupMockStorage();
+    const attempts = setupFailingJSZip((p) => p.includes('00_INDEX.md'));
+    const mem = setupMockStorage();
     const { onLog, errorLogs } = collectLogs();
     const orchestrator = new ExportOrchestrator();
 
@@ -151,13 +172,16 @@ test('write-failure semantics - index write failure fails closed (run rejects)',
         /00_INDEX/,
         'index write failure must propagate out of run() (fail-closed)'
     );
-    assert.ok(errorLogs().length > 0, 'index failure must be user-visible before rethrow');
+    assert.ok(attempts.includes('00_INDEX.md'), 'the run must reach the real index writer');
+    assert.deepEqual(mem, {}, 'no export records can be finalized when ZIP preparation fails');
+    assert.ok(errorLogs().some(entry => entry.msg.includes('00_INDEX')),
+        'index failure must be user-visible before rethrow');
 });
 
 // 4. diagnostics 写失败 -> 用户可见，不外抛，不污染资产失败账目
 test('write-failure semantics - diagnostics write failure is visible but never pollutes asset ledger', async () => {
     // 主 md 失败 -> 触发 diagnostics 写入；同时让 _export_dev.log 也失败
-    setupFailingJSZip((p) => (/\.md$/.test(p) && !p.includes('00_INDEX')) || p.includes('_export_dev.log'));
+    const attempts = setupFailingJSZip((p) => (/\.md$/.test(p) && !p.includes('00_INDEX')) || p.includes('_export_dev.log'));
     setupMockStorage();
     const { onLog, errorLogs } = collectLogs();
     const orchestrator = new ExportOrchestrator();
@@ -173,5 +197,7 @@ test('write-failure semantics - diagnostics write failure is visible but never p
 
     assert.strictEqual(result.failedChats.length, 1, 'main-md failure still recorded');
     assert.strictEqual(result.failedAttachments.length, 0, 'diagnostics failure must not pollute the asset failure ledger');
-    assert.ok(errorLogs().length > 0, 'diagnostics failure must still be user-visible');
+    assert.ok(attempts.includes('_export_dev.log'), 'diagnostic writer must actually be called');
+    assert.ok(errorLogs().some(entry => entry.msg.includes('_export_dev.log')),
+        'the distinct diagnostics failure must be user-visible, not just the original Markdown failure');
 });
