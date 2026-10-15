@@ -257,6 +257,9 @@ test('fetchConversationDetail downloads image pointers into Domain assets', asyn
         },
     });
     const detail = await provider.fetchConversationDetail('conv-img');
+    assert.equal(detail.sourceVersion, 1700000060000);
+    assert.equal(detail.conversation.createdAt, 1700000000000);
+    assert.equal(Object.hasOwn(detail.conversation, 'updatedAt'), false);
     assert.equal(detail.conversation.assets.length, 2);
     assert.equal(detail.conversation.assets[0]?.kind, 'image');
     assert.equal(detail.conversation.assets[0]?.sourceUri, 'sediment://file_cat');
@@ -376,6 +379,8 @@ test('bodies parse to structured blocks and models stay per-message', () => {
         },
         assetsByNode: new Map(),
     });
+    assert.equal(parsed.sourceVersion, 2000);
+    assert.equal(Object.hasOwn(parsed.conversation, 'updatedAt'), false);
     const kinds = parsed.conversation.messages.find((m) => m.id === 'a1')?.content.map((b) => b.type);
     assert.ok(kinds?.includes('heading'));
     assert.ok(kinds?.includes('code'));
@@ -494,7 +499,7 @@ test('listConversations paginates until the reported total is reached', async ()
             }
             calls.push(u);
             const items = [
-                { id: 'a', title: 'A', create_time: 1 },
+                { id: 'a', title: 'A', create_time: 1, update_time: 2 },
                 { id: 'b', title: 'B', create_time: 1 },
                 { id: 'c', title: 'C', create_time: 1 },
             ];
@@ -505,6 +510,8 @@ test('listConversations paginates until the reported total is reached', async ()
     });
     const page = await provider.listConversations({ maxPages: 5 });
     assert.deepEqual(page.items.map((i) => i.id), ['a', 'b', 'c']);
+    assert.equal(page.items[0]?.createdAt, 1000);
+    assert.equal(page.items[0]?.updatedAt, 2000);
     assert.equal(page.exhaustive, true);
     assert.equal(page.total, 3);
     assert.equal(calls.length, 1);

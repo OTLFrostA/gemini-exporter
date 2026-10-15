@@ -229,7 +229,10 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
         ),
     );
     const hasMissingImage = assets.some((a) => a.kind === 'image' && !a.dataBase64);
+    // Source activity versions travel beside Detail; Index owns updatedAt.
+    const sourceVersion = toEpochMs(conversation.update_time);
     return {
+        ...(sourceVersion !== undefined ? { sourceVersion } : {}),
         conversation: validateParserDomain({
             providerId: 'chatgpt',
             completeness: hasMissingImage ? 'partial' : 'complete',
@@ -237,7 +240,6 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
             id: conversation.id,
             title: conversation.title || 'ChatGPT Conversation',
             createdAt: toEpochMs(conversation.create_time),
-            updatedAt: toEpochMs(conversation.update_time),
             url: `https://chatgpt.com/c/${conversation.id}`,
             messages,
         }),
