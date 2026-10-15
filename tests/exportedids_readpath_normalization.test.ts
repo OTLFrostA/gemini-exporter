@@ -12,7 +12,7 @@ const assert = require('node:assert');
 // canonical-key probe — no triple lookup.
 
 function installChromeMock(store: Record<string, any>) {
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     (global as any).chrome = {
         storage: {
             local: {
@@ -31,7 +31,10 @@ function installChromeMock(store: Record<string, any>) {
             }
         }
     };
-    return () => { (global as any).chrome = origChrome; };
+    return () => {
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    };
 }
 
 test('read-path normalization - StorageService.getExportedIds folds legacy alias keys to canonical', async () => {
@@ -72,33 +75,21 @@ test('read-path normalization - alias-only legacy storage stays readable via sin
 
 test('read-path normalization - ConversationsStore.setExportedIds normalizes the in-memory map', () => {
     const ConversationsStore = require('../src/ui/state/conversationsStore.js');
+    const previous = ConversationsStore.getExportedIds();
     const rec = { exportedAt: 5000 };
-    ConversationsStore.setExportedIds({ 'c_123': rec, '  456  ': rec });
-    const ids = ConversationsStore.getExportedIds();
-    assert.deepStrictEqual(Object.keys(ids).sort(), ['123', '456']);
-
-    // getExportedRecord resolves every id form through the single canonical
-    // probe — no triple lookup needed.
-    assert.strictEqual(ConversationsStore.getExportedRecord('123'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('c_123'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('  123  '), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('456'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('nope'), null);
-
-    // Reset the singleton so later tests start clean.
-    ConversationsStore.setExportedIds({});
-});
-
-test('read-path normalization - normalized map needs no alias keys for listView-style lookup', () => {
-    const ConversationsStore = require('../src/ui/state/conversationsStore.js');
-    const rec = { exportedAt: 6000 };
-    ConversationsStore.setExportedIds({ 'c_789': rec });
     try {
-        // This mirrors the production listView/exportOrchestrator read pattern.
-        const expMap = ConversationsStore.getExportedIds();
-        const nid = ConversationsStore.normId('c_789');
-        assert.strictEqual(expMap[nid] || null, rec);
+        ConversationsStore.setExportedIds({ 'c_123': rec, '  456  ': rec });
+        const ids = ConversationsStore.getExportedIds();
+        assert.deepStrictEqual(Object.keys(ids).sort(), ['123', '456']);
+
+        // getExportedRecord resolves every id form through the single canonical
+        // probe — no triple lookup needed.
+        assert.strictEqual(ConversationsStore.getExportedRecord('123'), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('c_123'), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('  123  '), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('456'), rec);
+        assert.strictEqual(ConversationsStore.getExportedRecord('nope'), null);
     } finally {
-        ConversationsStore.setExportedIds({});
+        ConversationsStore.setExportedIds(previous);
     }
 });
