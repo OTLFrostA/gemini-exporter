@@ -8,7 +8,9 @@ const {
     IDB_KEY,
     getStoredDirHandle,
     saveStoredDirHandle,
-    clearStoredDirHandle
+    clearStoredDirHandle,
+    getMemoryDirHandle,
+    setMemoryDirHandle,
 } = require('../src/core/storage/idbHandleStore.js');
 
 test('idbHandleStore - constants integrity', () => {
@@ -20,6 +22,8 @@ test('idbHandleStore - constants integrity', () => {
 
 test('idbHandleStore - environment with no indexedDB returns safe defaults', async () => {
     const origIdb = (global as any).indexedDB;
+    const priorMemoryHandle = getMemoryDirHandle();
+    setMemoryDirHandle(null);
     (global as any).indexedDB = undefined;
     try {
         const handle = await getStoredDirHandle();
@@ -30,11 +34,13 @@ test('idbHandleStore - environment with no indexedDB returns safe defaults', asy
         assert.strictEqual(clearRes, false);
     } finally {
         (global as any).indexedDB = origIdb;
+        setMemoryDirHandle(priorMemoryHandle);
     }
 });
 
 test('idbHandleStore - save, get, and clear handle in mock IndexedDB', async () => {
     const memoryStores: Record<string, Map<any, any>> = {};
+    let closedConnections = 0;
 
     const mockIdb = {
         open: (name: string, version: number) => {
@@ -42,6 +48,7 @@ test('idbHandleStore - save, get, and clear handle in mock IndexedDB', async () 
                 result: {
                     name,
                     version,
+                    close: () => { closedConnections++; },
                     objectStoreNames: {
                         contains: (n: string) => n in memoryStores
                     },
@@ -92,6 +99,8 @@ test('idbHandleStore - save, get, and clear handle in mock IndexedDB', async () 
     };
 
     const origIdb = (global as any).indexedDB;
+    const priorMemoryHandle = getMemoryDirHandle();
+    setMemoryDirHandle(null);
     (global as any).indexedDB = mockIdb;
 
     try {
@@ -107,7 +116,7 @@ test('idbHandleStore - save, get, and clear handle in mock IndexedDB', async () 
         // Retrieve handle
         const retrieved = await getStoredDirHandle();
         assert.ok(retrieved);
-        assert.strictEqual(retrieved.name, 'Vault_Obsidian');
+        assert.strictEqual(retrieved, mockHandle, 'the in-memory cache keeps the saved handle identity');
 
         // Clear handle
         const cleared = await clearStoredDirHandle();
@@ -116,6 +125,7 @@ test('idbHandleStore - save, get, and clear handle in mock IndexedDB', async () 
         // Retrieve after clear
         const afterClear = await getStoredDirHandle();
         assert.strictEqual(afterClear, null);
+        assert.strictEqual(closedConnections, 4, 'every actual IndexedDB open must close; cached get must not open a DB');
     } finally {
         (global as any).indexedDB = origIdb;
     }
