@@ -30,7 +30,6 @@ test('adapter: all declared evidence and nested media retain values and identiti
     const data = detail();
     const mapped = await new GeminiProvider(client(data, await list())).fetchConversationDetail('adapter');
     assert.strictEqual(mapped, data);
-    assert.deepEqual(mapped, data);
     for (const field of detailFields) assert.strictEqual(mapped[field], data[field], field);
     assert.strictEqual(mapped.conversation.messages, data.conversation.messages);
     assert.strictEqual(mapped.conversation.assets, data.conversation.assets);
@@ -44,7 +43,12 @@ test('adapter: absent and explicit undefined optional transport evidence keep th
         if (mode === 'undefined') { data.transport.decodedPayload = undefined; data.transport.schemaDrift = undefined; }
         const mapped = await new GeminiProvider(client(data, page)).fetchConversationDetail('adapter');
         assert.strictEqual(mapped, data);
-        assert.deepEqual(Object.keys(mapped.transport).sort(), Object.keys(data.transport).sort());
+        assert.equal(Object.hasOwn(mapped.transport, 'decodedPayload'), mode === 'undefined');
+        assert.equal(Object.hasOwn(mapped.transport, 'schemaDrift'), mode === 'undefined');
+        if (mode === 'undefined') {
+            assert.equal(mapped.transport.decodedPayload, undefined);
+            assert.equal(mapped.transport.schemaDrift, undefined);
+        }
     }
 });
 
