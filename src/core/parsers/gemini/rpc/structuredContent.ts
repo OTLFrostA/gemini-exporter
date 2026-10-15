@@ -95,7 +95,26 @@ export interface GeminiStructuredDocument {
     children: GeminiStructuredNode[];
 }
 
-export function decodeGeminiAnnotation(wa: unknown): GeminiAnnotation | null {
+/** Shape-only rejection evidence: never includes source text, URLs or file tokens. */
+export interface GeminiStructuredDecodeIssue {
+    kind: 'annotation' | 'node' | 'payload';
+    nodeType?: number;
+    fields?: number[];
+    styleFlag?: number;
+}
+
+type DecodeIssues = GeminiStructuredDecodeIssue[];
+
+export function decodeGeminiAnnotation(wa: unknown, issues?: DecodeIssues): GeminiAnnotation | null {
+    const decoded = decodeAnnotation(wa);
+    if (!decoded && issues && !issues.length) {
+        const flag: unknown = Array.isArray(wa) && Array.isArray(wa[2]) && Array.isArray(wa[2][0]) ? wa[2][0][4] : undefined;
+        issues.push({ kind: 'annotation', ...(typeof flag === 'number' ? { styleFlag: flag } : {}) });
+    }
+    return decoded;
+}
+
+function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
     if (!wa) return null;
     if (typeof wa === "object" && !Array.isArray(wa)) {
         const d = wa as Record<string, unknown>;
@@ -142,6 +161,8 @@ export function decodeGeminiAnnotation(wa: unknown): GeminiAnnotation | null {
             t = 0; // strong (bold)
         } else if (flag === 1) {
             t = 5; // emphasis (subtle/italic)
+        } else if (flag === 3) {
+            t = 7; // inline code; captured RPC style flag, not internal annotation enum
         }
     } else if (style.length > 1 && Array.isArray(style[1])) {
         // link url or other formatting
@@ -165,7 +186,19 @@ export function decodeGeminiAnnotation(wa: unknown): GeminiAnnotation | null {
     };
 }
 
-export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | null {
+export function decodeGeminiStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructuredNode | null {
+    const decoded = decodeStructuredNode(w, issues);
+    if (!decoded && issues && !issues.length) {
+        const nodeType = w && typeof w === 'object' && !Array.isArray(w) ? (w as Record<string, unknown>).nodeType : undefined;
+        issues.push({ kind: 'node',
+            ...(typeof nodeType === 'number' ? { nodeType } : {}),
+            ...(Array.isArray(w) ? { fields: w.flatMap((value, index) => value == null ? [] : [index]) } : {}),
+        });
+    }
+    return decoded;
+}
+
+function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructuredNode | null {
     if (!w) return null;
     if (typeof w === "object" && !Array.isArray(w)) {
         const node = w as Record<string, unknown>;
@@ -178,7 +211,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                 if (Array.isArray(node.annotations)) {
                     annotations = [];
                     for (const a of node.annotations) {
-                        const decoded = decodeGeminiAnnotation(a);
+                        const decoded = decodeGeminiAnnotation(a, issues);
                         if (!decoded) return null;
                         annotations.push(decoded);
                     }
@@ -221,7 +254,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                 if (!Array.isArray(node.children)) return null;
                 const children: GeminiStructuredNode[] = [];
                 for (const c of node.children) {
-                    const decoded = decodeGeminiStructuredNode(c);
+                    const decoded = decodeGeminiStructuredNode(c, issues);
                     if (!decoded) return null;
                     children.push(decoded);
                 }
@@ -237,7 +270,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                     if (!Array.isArray(itemRecord.children)) return null;
                     const children: GeminiStructuredNode[] = [];
                     for (const c of itemRecord.children) {
-                        const decoded = decodeGeminiStructuredNode(c);
+                        const decoded = decodeGeminiStructuredNode(c, issues);
                         if (!decoded) return null;
                         children.push(decoded);
                     }
@@ -261,7 +294,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                         if (!Array.isArray(cellRecord.children)) return null;
                         const children: GeminiStructuredNode[] = [];
                         for (const c of cellRecord.children) {
-                            const decoded = decodeGeminiStructuredNode(c);
+                            const decoded = decodeGeminiStructuredNode(c, issues);
                             if (!decoded) return null;
                             children.push(decoded);
                         }
@@ -316,7 +349,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             : [];
         const children: GeminiStructuredNode[] = [];
         for (const rc of rawChildren) {
-            const dn = decodeGeminiStructuredNode(rc);
+            const dn = decodeGeminiStructuredNode(rc, issues);
             if (!dn) return null; // Fail closed on unsupported nested node
             children.push(dn);
         }
@@ -334,7 +367,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             const rawChildren = Array.isArray(rit) && rit.length > 0 && Array.isArray(rit[0]) ? rit[0] : [];
             const children: GeminiStructuredNode[] = [];
             for (const rc of rawChildren) {
-                const dn = decodeGeminiStructuredNode(rc);
+                const dn = decodeGeminiStructuredNode(rc, issues);
                 if (!dn) return null; // Fail closed on unsupported nested node
                 children.push(dn);
             }
@@ -357,7 +390,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             const rawChildren = Array.isArray(rit) && rit.length > 0 && Array.isArray(rit[0]) ? rit[0] : [];
             const children: GeminiStructuredNode[] = [];
             for (const rc of rawChildren) {
-                const dn = decodeGeminiStructuredNode(rc);
+                const dn = decodeGeminiStructuredNode(rc, issues);
                 if (!dn) return null; // Fail closed on unsupported nested node
                 children.push(dn);
             }
@@ -380,7 +413,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
                 const rawChildren = Array.isArray(rc) && rc.length > 0 && Array.isArray(rc[0]) ? rc[0] : [];
                 const children: GeminiStructuredNode[] = [];
                 for (const rch of rawChildren) {
-                    const dn = decodeGeminiStructuredNode(rch);
+                    const dn = decodeGeminiStructuredNode(rch, issues);
                     if (!dn) return null; // Fail closed on unsupported nested node
                     children.push(dn);
                 }
@@ -413,7 +446,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
             const rawAnnots = Array.isArray(textPayload[3]) ? textPayload[3] : [];
             const annotations: GeminiAnnotation[] = [];
             for (const ra of rawAnnots) {
-                const da = decodeGeminiAnnotation(ra);
+                const da = decodeGeminiAnnotation(ra, issues);
                 if (!da) return null; // Fail closed on unknown annotation
                 annotations.push(da);
             }
@@ -448,7 +481,7 @@ export function decodeGeminiStructuredNode(w: unknown): GeminiStructuredNode | n
     return null;
 }
 
-export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDocument | null {
+export function decodeGeminiStructuredPayload(raw: unknown, issues?: DecodeIssues): GeminiStructuredDocument | null {
     if (!raw) return null;
 
     // Case 1: Already structured document object
@@ -457,7 +490,7 @@ export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDoc
         if (Array.isArray(doc.children)) {
             const children: GeminiStructuredNode[] = [];
             for (const ch of doc.children) {
-                const node = decodeGeminiStructuredNode(ch);
+                const node = decodeGeminiStructuredNode(ch, issues);
                 if (node) children.push(node);
                 else return null;
             }
@@ -480,7 +513,7 @@ export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDoc
 
         const children: GeminiStructuredNode[] = [];
         for (const item of nodeArray) {
-            const node = decodeGeminiStructuredNode(item);
+            const node = decodeGeminiStructuredNode(item, issues);
             if (node) {
                 children.push(node);
             } else {
@@ -493,45 +526,36 @@ export function decodeGeminiStructuredPayload(raw: unknown): GeminiStructuredDoc
     return null;
 }
 
-export function extractStructuredContent(turn: unknown, cand?: unknown, candidateIndex: number = 0): GeminiStructuredDocument | undefined {
+export type GeminiStructuredExtraction =
+    | { status: 'decoded'; document: GeminiStructuredDocument }
+    | { status: 'missing' | 'candidate_unmatched' }
+    | { status: 'decode_rejected'; issue: GeminiStructuredDecodeIssue };
+
+export function inspectStructuredContent(turn: unknown, cand?: unknown, candidateIndex = 0): GeminiStructuredExtraction {
     const getStructuredContent = (value: unknown): unknown => {
-        if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
         return (value as Record<string, unknown>).structuredContent;
     };
-    // 1. Check if mock / test fixture already populated structuredContent directly on cand
-    const candidateStructuredContent = getStructuredContent(cand);
-    if (candidateStructuredContent) {
-        const decoded = decodeGeminiStructuredPayload(candidateStructuredContent);
-        if (decoded) return decoded;
-    }
+    const decode = (raw: unknown): GeminiStructuredExtraction => {
+        const issues: DecodeIssues = [];
+        const document = decodeGeminiStructuredPayload(raw, issues);
+        return document ? { status: 'decoded', document }
+            : { status: 'decode_rejected', issue: issues[0] ?? { kind: 'payload' } };
+    };
+    const candidateContent = getStructuredContent(cand);
+    if (candidateContent != null) return decode(candidateContent);
 
-    // 2. Direct turn-attached structuredContent (test fixture / mock): only applies to primary candidate
-    const turnStructuredContent = getStructuredContent(turn);
-    if (turnStructuredContent) {
-        if (candidateIndex === 0) {
-            const decoded = decodeGeminiStructuredPayload(turnStructuredContent);
-            if (decoded) return decoded;
-        }
-        return undefined;
-    }
+    const turnContent = getStructuredContent(turn);
+    const modelPayload: unknown = Array.isArray(turn) ? turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD] : undefined;
+    const raw = turnContent ?? (Array.isArray(modelPayload)
+        ? modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12] : undefined);
+    if (raw == null) return { status: 'missing' };
+    // turn[3][12] is proven to belong only to the primary candidate (PR #705).
+    if (candidateIndex !== 0) return { status: 'candidate_unmatched' };
+    return decode(raw);
+}
 
-    // 3. Wire path: turn[3][12]
-    // PR #705 established turn[3][12] correlation specifically for the primary model candidate (index 0).
-    // Candidate 1+ must not inherit turn[3][12] without proven wire evidence.
-    if (candidateIndex !== 0) {
-        return undefined;
-    }
-
-    if (!Array.isArray(turn) || turn.length <= GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD) {
-        return undefined;
-    }
-    const modelPayload = turn[GEMINI_JSPB_SCHEMA.TURN.MODEL_PAYLOAD];
-    if (!Array.isArray(modelPayload) || modelPayload.length <= (GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12)) {
-        return undefined;
-    }
-    const rawF12 = modelPayload[GEMINI_JSPB_SCHEMA.MODEL_PAYLOAD.STRUCTURED_CONTENT ?? 12];
-    if (!rawF12) return undefined;
-
-    const decoded = decodeGeminiStructuredPayload(rawF12);
-    return decoded || undefined;
+export function extractStructuredContent(turn: unknown, cand?: unknown, candidateIndex = 0): GeminiStructuredDocument | undefined {
+    const result = inspectStructuredContent(turn, cand, candidateIndex);
+    return result.status === 'decoded' ? result.document : undefined;
 }

@@ -1,6 +1,6 @@
 import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
-import type { GeminiStructuredDocument } from './structuredContent.js';
+import type { GeminiStructuredDocument, GeminiStructuredExtraction } from './structuredContent.js';
 import type { GeneratedMediaIdentity as SourceGeneratedMediaIdentity } from '../../../../types/conversation.js';
 
 /** Source extraction evidence, not the persisted Conversation/Message contract. */
@@ -57,6 +57,7 @@ export interface GeminiMessageEvidence {
     attachmentCount: number;
     messageCount: number;
     structuredContent?: GeminiStructuredDocument;
+    structuredExtraction?: GeminiStructuredExtraction;
     groundingCitationMarkers?: string[];
 }
 
