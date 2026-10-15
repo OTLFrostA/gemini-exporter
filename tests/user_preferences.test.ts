@@ -10,7 +10,7 @@ const StorageService = require('../src/core/storage/storageService.js');
 
 function installStorageMock() {
     const store: Record<string, any> = {};
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     (global as any).chrome = {
         storage: {
             local: {
@@ -35,7 +35,10 @@ function installStorageMock() {
     };
     return {
         store,
-        restore: () => { (global as any).chrome = origChrome; }
+        restore: () => {
+            if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+            else Reflect.deleteProperty(globalThis, 'chrome');
+        }
     };
 }
 
@@ -75,6 +78,9 @@ test('userPreferences - feature version and isVersionGreater', async () => {
         assert.strictEqual(UserPreferences.isVersionGreater('1.6.1', '1.6.0'), true);
         assert.strictEqual(UserPreferences.isVersionGreater('1.6.0', '1.6.1'), false);
         assert.strictEqual(StorageService.isVersionGreater('2.0.0', '1.9.9'), true);
+        assert.strictEqual(UserPreferences.isVersionGreater('1.10.0', '1.9.9'), true, 'numeric minor versions must not sort lexicographically');
+        assert.strictEqual(UserPreferences.isVersionGreater('1.9.9', '1.10.0'), false);
+        assert.strictEqual(UserPreferences.isVersionGreater('1.6.0', '1.6.0'), false);
     } finally {
         m.restore();
     }
