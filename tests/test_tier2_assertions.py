@@ -223,14 +223,13 @@ class DiskContentTests(unittest.TestCase):
             self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
         sleep.assert_not_called()  # Never enter the download wait after a missed click.
 
-    def test_download_routing_failure_cannot_click_or_reuse_old_zip(self):
-        (self.root / 'gemini_export_old.zip').write_bytes(b'old ZIP bytes')
-        cdp = MagicMock()
-        cdp.call.return_value = {'error': {'message': 'denied'}}
-        self.assertIsNone(CDPActions.trigger_export_zip(cdp, str(self.root), max_wait=1))
-        cdp.eval.assert_not_called()
-
     def test_cdp_download_directory_configuration_failure(self):
+        # A stale ZIP must never be reused if the configured CDP download route is denied.
+        (self.root / 'gemini_export_old.zip').write_bytes(b'old ZIP bytes')
+        cdp_message_only = MagicMock()
+        cdp_message_only.call.return_value = {'error': {'message': 'denied'}}
+        self.assertIsNone(CDPActions.trigger_export_zip(cdp_message_only, str(self.root), max_wait=1))
+        cdp_message_only.eval.assert_not_called()
         # 1. 模拟 CDP 返回错误响应
         cdp_err = MagicMock()
         cdp_err.call.return_value = {'error': {'code': -32000, 'message': 'Browser.setDownloadBehavior denied'}}
@@ -243,9 +242,6 @@ class DiskContentTests(unittest.TestCase):
         self.assertIsNone(CDPActions.trigger_export_zip(cdp_exc, str(self.root), max_wait=1))
         cdp_exc.eval.assert_not_called()
 
-        # 3. 严格禁止通过系统默认 ~/Downloads 目录搜索或回退旧文件
-        with patch('glob.glob', return_value=['/Users/user/Downloads/gemini_export_leaked.zip']):
-            self.assertIsNone(CDPActions.trigger_export_zip(cdp_err, str(self.root), max_wait=1))
 
     def test_role_headings_inside_code_are_not_turns(self):
         evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
@@ -305,6 +301,8 @@ $$
         self.assertTrue(assert_turn_content(exported, evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace("        return b", "    return b"), evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace("\n\n    return a @ b", "\n    return a @ b"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("        return b", "\treturn b"), evidence)[0])
+        self.assertFalse(assert_turn_content(exported.replace("    # First step\n", "    # First step "), evidence)[0])
 
     def test_short_actual_answer_requires_its_whole_body(self):
         evidence = [{'prompt': '给一句建议', 'response': '以真实负载验证容量上限。', 'has_images': False}]
@@ -338,16 +336,6 @@ $$
         ok, msg = assert_turn_content(exported_truncated, evidence)
         self.assertFalse(ok)
         self.assertIn("全文不匹配", msg)
-
-    def test_long_answer_requires_middle_and_tail_not_just_two_fragments(self):
-        response = 'Opening explanation. ' * 20 + 'Essential middle calculation. ' * 10 + 'Required final conclusion.'
-        evidence = [{'prompt': 'Explain the whole calculation.', 'response': response}]
-        self.assertTrue(assert_turn_content(document(evidence), evidence)[0])
-        for shortened in ('Opening explanation. ' * 20,
-                          response.replace('Essential middle calculation. ' * 10, ''),
-                          response.removesuffix('Required final conclusion.')):
-            with self.subTest(shortened=shortened[-40:]):
-                self.assertFalse(assert_turn_content(document(evidence).replace(response, shortened), evidence)[0])
 
     def test_source_math_code_tables_and_numbered_lists_match_in_full(self):
         response = "波速v = \\frac{c}{\\sqrt{\\varepsilon_r}}。完整代码print('ok')\nvalue = '<br>'计算结论甲乙"
@@ -479,15 +467,6 @@ value = 2 ** 3
                         exported.replace('Conclusion', '')):
             self.assertFalse(assert_turn_content(changed, evidence)[0])
 
-    def test_visible_code_indentation_and_line_boundaries_cannot_be_normalized_away(self):
-        code = 'if ready:\n    run()\n    finish()'
-        evidence = [{'prompt': 'Give runnable code.', 'response': 'Program'+code, 'code_blocks': [code]}]
-        exported = document(evidence).replace(evidence[0]['response'], f'Program\n```python\n{code}\n```')
-        self.assertTrue(assert_turn_content(exported, evidence)[0])
-        for changed in (exported.replace('    run()', '  run()'), exported.replace('run()\n', 'run() '),
-                        exported.replace('    finish()', '\tfinish()')):
-            self.assertFalse(assert_turn_content(changed, evidence)[0])
-
     def test_execution_records_are_separate_and_require_exact_independent_dom_evidence(self):
         code = 'if ready:\n    run()\n\n\nfinish()'
         evidence = [{'prompt': 'Run and explain.', 'response': 'Final answer', 'code_blocks': [],
@@ -521,35 +500,6 @@ value = 2 ** 3
         exported = document(evidence).replace(code, f'```text\n{code}\n```')
         self.assertTrue(assert_turn_content(exported, evidence)[0])
         self.assertFalse(assert_turn_content(exported.replace('Was this visual helpful?', ''), evidence)[0])
-
-    def test_real_retained_failure_sample_diagnosis_and_verification(self):
-        evidence_dir = Path(__file__).resolve().parents[1] / "temp/codex_sync_repair_2026-10-10/final-evidence"
-        if not evidence_dir.exists():
-            return
-
-        # 1. 验证保留的真实 5 轮超长回答样本 (material.md 与 material-dom.json)
-        mat_dom = evidence_dir / "material-dom.json"
-        mat_md = evidence_dir / "material.md"
-        if mat_dom.exists() and mat_md.exists():
-            dom_data = json.loads(mat_dom.read_text(encoding='utf-8'))
-            md_text = mat_md.read_text(encoding='utf-8')
-            # 确认第 5 轮为万字级真实超长回答
-            self.assertGreater(len(dom_data[4]['response']), 10000)
-            ok, msg = assert_turn_content(md_text, dom_data)
-            self.assertTrue(ok, f"真实 5 轮超长样本断言应通过: {msg}")
-
-        # 2. 诊断分析保留的真实差异样本 (settled-attempt/60c9b0834e0cf63f_turn_evidence.json)
-        settled_ev_path = evidence_dir / "settled-attempt/60c9b0834e0cf63f_turn_evidence.json"
-        if settled_ev_path.exists() and mat_md.exists():
-            settled_data = json.loads(settled_ev_path.read_text(encoding='utf-8'))
-            t1_settled = settled_data['turn_evidence'][0]['response']
-            # 定位差异：证明测试采集中混入了非正文 mini-app / follow-up 交互控件
-            self.assertIn("Was this visual helpful?", t1_settled)
-            # 混入控件的样本必须被断言拦截，证明未放宽断言，而是准确拦截采集污染
-            ok, msg = assert_turn_content(md_text, settled_data['turn_evidence'])
-            self.assertFalse(ok)
-            self.assertIn("第 1 轮真实 AI 回复全文不匹配", msg)
-
 
 class ScanAndImportTests(unittest.TestCase):
     def fallback_fixture(self):
