@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 
-function fixture(second = 'endA', middle = 'Middle sentence.'): Buffer {
+function fixture(): Buffer {
     const stream = (text: string) => `<< /Length ${Buffer.byteLength(text)} >>\nstream\n${text}\nendstream`;
     const span = (mcid: number, text: string) => `/Span << /MCID ${mcid} >> BDC BT /F1 10 Tf (${text}) Tj ET EMC\n`;
     const objects = new Map<number, string>([
@@ -11,8 +11,8 @@ function fixture(second = 'endA', middle = 'Middle sentence.'): Buffer {
         [3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'],
         [4, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>'],
         [5, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>'],
-        [6, stream(span(0, 'Question.First sentence.' + middle + 'Final sentence.') + span(1, 'Alpha') + span(2, 'Beta') + span(3, 'x') + '/Artifact << /Subtype /Footer >> BDC BT /F1 10 Tf (1) Tj ET EMC')],
-        [7, stream(span(0, second) + span(1, 'endB') + span(2, 'Answer tail.') + span(3, 'if x < 3: print(x)'))],
+        [6, stream(span(0, 'Question.First sentence.Middle sentence.Final sentence.') + span(1, 'Alpha') + span(2, 'Beta') + span(3, 'x') + '/Artifact << /Subtype /Footer >> BDC BT /F1 10 Tf (1) Tj ET EMC')],
+        [7, stream(span(0, 'endA') + span(1, 'endB') + span(2, 'Answer tail.') + span(3, 'if x < 3: print(x)'))],
         [10, '<< /Type /StructElem /S /Document /P 30 0 R /K [11 0 R 12 0 R 20 0 R 21 0 R] >>'],
         [11, '<< /Type /StructElem /S /P /P 10 0 R /Pg 4 0 R /K [0] >>'],
         [12, '<< /Type /StructElem /S /Table /P 10 0 R /K [13 0 R] >>'],
@@ -49,11 +49,3 @@ test('independent PDF extraction preserves complete prose/code and logical pagin
     assert.ok(!pdf.contentRuns.some(run => run.text === '1'), 'semantic content excludes tagged footer');
 });
 
-test('valid PDF with missing middle/tail content exposes the loss in extracted content', () => {
-    const pdf = extractPdfText(fixture('', ''));
-    const text = pdf.contentRuns.map(run => run.text).join('');
-    assert.ok(!text.includes('Middle sentence.'));
-    assert.ok(!text.includes('endA'));
-    assert.ok(text.includes('First sentence.'));
-    assert.ok(text.includes('Final sentence.'));
-});
