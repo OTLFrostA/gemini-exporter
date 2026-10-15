@@ -34,6 +34,9 @@ test('production scan entry admits one pagination call while another scan is pen
         assert.strictEqual(calls, 1);
         release();
         await first;
+        assert.strictEqual(contentContext.getDeepScanPromise(), null, 'the first scan must release its scan lock');
+        await syncConversations();
+        assert.strictEqual(calls, 2, 'a completed scan must allow a subsequent fresh pagination request');
     } finally {
         release();
         defaultGeminiProvider.listConversations = originalList;
