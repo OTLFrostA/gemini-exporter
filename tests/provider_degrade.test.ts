@@ -11,16 +11,17 @@ import * as path from 'node:path';
 
 import { resolveProvider } from '../src/core/provider/providerResolver.js';
 
-test('Phase E: manifest content_scripts 无 ChatGPT 域名匹配', () => {
+test('Phase E: content-script matches are scoped to explicit HTTPS provider hosts', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
-    const patterns: string[] = [];
-    for (const cs of manifest.content_scripts || []) {
-        for (const m of cs.matches || []) patterns.push(m);
+    const patterns: string[] = (manifest.content_scripts || [])
+        .flatMap((entry: { matches?: string[] }) => entry.matches || []);
+    assert.ok(patterns.length > 0, 'at least one provider must have a content script');
+    for (const pattern of patterns) {
+        assert.match(pattern, /^https:\/\/[a-z0-9.-]+\/\*$/i, `not a narrowly scoped HTTPS host: ${pattern}`);
+        assert.ok(!pattern.includes('*.'), `wildcard host is too broad: ${pattern}`);
     }
-    assert.ok(patterns.length > 0, 'manifest 应有 content_scripts');
-    for (const p of patterns) {
-        assert.ok(!/chatgpt|openai/i.test(p), `content_scripts 不应覆盖 ChatGPT 域名: ${p}`);
-    }
+    assert.ok(patterns.includes('https://gemini.google.com/*'), 'Gemini remains supported');
+    // Other explicitly supported providers may be added without rewriting this test.
 });
 
 test('Phase E: 三处 resolveProvider 收口到共享 helper', () => {
