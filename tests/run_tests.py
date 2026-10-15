@@ -539,46 +539,64 @@ def test_scenario_pool_pipeline():
     scripts_dir = os.path.join(BASE_DIR, "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from manage_scenario_pool import validate_pool, get_pool_status, consume_scenarios, topup_scenarios, DEFAULT_POOL_PATH
+    from manage_scenario_pool import validate_pool, consume_scenarios, topup_scenarios
 
-    # 1. Validate the default 20-scenario pool
-    ok, errs, status = validate_pool(DEFAULT_POOL_PATH, strict_count=True)
-    assert ok, f"Scenario pool validation failed: {errs}"
-    assert status["count"] == 20, f"Expected 20 scenarios, got {status['count']}"
-    assert status["has_imagen"] >= 2, f"Expected >= 2 imagen scenarios, got {status['has_imagen']}"
-    assert len(status["domains"]) >= 10, f"Expected >= 10 domains, got {len(status['domains'])}"
+    # Use an isolated corpus: Tier 2 may legitimately leave the real pool below 20/20.
+    scenarios = [
+        {
+            "id": f"unit_scenario_{i:02d}",
+            "title": f"Unit Scenario {i}",
+            "domain": f"unit_domain_{i % 10}",
+            "features": ["imagen", "creative"] if i < 2 else ["code"],
+            "turns": [f"prompt {i} turn 1", f"prompt {i} turn 2"],
+        }
+        for i in range(20)
+    ]
 
-    # 2. Dry-run consume
-    selected, pool_after = consume_scenarios(DEFAULT_POOL_PATH, count=2, dry_run=True, require_imagen=True)
-    assert len(selected) == 2, "Dry-run consume should return 2 scenarios"
-    assert any("imagen" in s.get("features", []) for s in selected), "One of the consumed scenarios must have 'imagen' feature"
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        pool_path = os.path.join(tmp_dir, "pool.json")
+        archive_path = os.path.join(tmp_dir, "archive.json")
+        with open(pool_path, "w", encoding="utf-8") as f:
+            json.dump(scenarios, f, ensure_ascii=False)
 
-    # 3. Temp file consume and topup round-trip
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f_pool:
-        json.dump(status["scenarios"][:], f_pool, ensure_ascii=False)
-        pool_tmp = f_pool.name
-    with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f_arch:
-        json.dump([], f_arch)
-        arch_tmp = f_arch.name
+        # Validate capacity and diversity without reading the real consumed.json.
+        ok, errs, status = validate_pool(pool_path, strict_count=True)
+        assert ok, f"Scenario pool validation failed: {errs}"
+        assert status["count"] == 20
+        assert status["has_imagen"] >= 2
+        assert len(status["domains"]) >= 10
 
-    try:
-        consumed, remaining = consume_scenarios(pool_tmp, count=2, archive_path=arch_tmp, dry_run=False, require_imagen=True)
-        assert len(consumed) == 2
+        # Dry-run selection must leave the fixture and archive untouched.
+        selected, pool_after = consume_scenarios(pool_path, count=2, dry_run=True, require_imagen=True)
+        assert len(selected) == 2
+        assert len(pool_after) == 18
+        assert any("imagen" in s.get("features", []) for s in selected)
+        with open(pool_path, "r", encoding="utf-8") as f:
+            assert len(json.load(f)) == 20
+        assert not os.path.exists(archive_path)
+
+        # Consume, archive, and top up entirely within the temporary directory.
+        consumed, remaining = consume_scenarios(
+            pool_path, count=2, archive_path=archive_path, dry_run=False, require_imagen=True
+        )
+        assert [s["id"] for s in consumed] == [s["id"] for s in selected]
         assert len(remaining) == 18
+        with open(pool_path, "r", encoding="utf-8") as f:
+            assert len(json.load(f)) == 18
+        with open(archive_path, "r", encoding="utf-8") as f:
+            archived = json.load(f)
+        assert len(archived) == 2
+        assert all("consumed_at" in item for item in archived)
 
-        with open(arch_tmp, "r", encoding="utf-8") as f:
-            arch_data = json.load(f)
-        assert len(arch_data) == 2
-        assert "consumed_at" in arch_data[0]
+        ok, errs, _ = validate_pool(pool_path, strict_count=True)
+        assert not ok and any("水位不足" in err for err in errs)
 
-        # Top up with the consumed items back to 20
-        added, restored_pool = topup_scenarios(consumed, pool_path=pool_tmp)
+        added, restored_pool = topup_scenarios(consumed, pool_path=pool_path)
         assert len(added) == 2
         assert len(restored_pool) == 20
-    finally:
-        for p in [pool_tmp, arch_tmp]:
-            if os.path.isfile(p):
-                os.remove(p)
+        ok, errs, restored_status = validate_pool(pool_path, strict_count=True)
+        assert ok, f"Restored scenario pool validation failed: {errs}"
+        assert restored_status["count"] == 20
 
     print("  ✓ Scenario pool pipeline, 20-scenario diversity, consume, archive & top-up verified")
 
