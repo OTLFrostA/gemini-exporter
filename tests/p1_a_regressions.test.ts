@@ -44,7 +44,10 @@ test('P1-005: empty postMessage token must not replace the stored token (source 
 test('P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers', () => {
     const calls: string[] = [];
     const handlers = new Set<(message: any, sender: any, response: (value: any) => void) => unknown>();
-    const restoreWindow = replaceGlobal('window', { __gemExporterCleanups: [] });
+    const restoreWindow = replaceGlobal('window', {
+        __gemExporterCleanups: [],
+        addEventListener: () => {} // BadgeView registers a resize listener at module evaluation.
+    });
     const restoreChrome = replaceGlobal('chrome', { runtime: {
         onMessage: {
             addListener: (fn: any) => handlers.add(fn),
