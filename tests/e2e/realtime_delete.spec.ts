@@ -47,7 +47,7 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
         <head><title>Gemini Live Chat</title></head>
         <body>
           <div id="app">Gemini Mock Chat Window</div>
-          <button id="btnDeleteChat" onclick="fetch('/_/BardChatUi/data/batchexecute?rpcids=GzXR5e', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: 'f.req=' + encodeURIComponent('[[[\x22GzXR5e\x22,\x22[null, \\\x22c_8888abcd1234ef01\\\x22]\x22,null,\x22generic\x22]]]') })">Delete Conversation</button>
+          
         </body>
         </html>`
       });
@@ -79,6 +79,7 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
     // 4. No refresh: mark cloud deletion and retain all local archive rows.
     await expect(optionsPage.locator('#list .item')).toHaveCount(3);
     await expect(optionsPage.locator(`#list .item[data-chat-id="${targetId}"] .cloud-status`)).toBeVisible();
+    await expect(optionsPage.locator(`#list .item[data-chat-id="${targetId}"] .cloud-status`)).toContainText(/Cloud deleted|云端已删除/);
     await expect(optionsPage.locator('#list .item[data-chat-id="keep_chat_1111"]')).toBeVisible();
     await expect(optionsPage.locator('#list .item[data-chat-id="keep_chat_2222"]')).toBeVisible();
 
@@ -96,6 +97,7 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
 
     expect(storageState.list.find((c: any) => c.id === targetId)?.cloudAvailability).toBe('deleted');
     expect(storageState.list.length).toBe(3);
+    expect(storageState.count).toBe(3);
     // Host migration completion must not destroy the retained native body.
     await expect.poll(async () => optionsPage.evaluate(async () => {
       const state = await chrome.storage.local.get(['gemini_domain_host_migration_v2:https://gemini.google.com']);
