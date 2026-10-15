@@ -17,5 +17,12 @@ test('nested resource references are checked before composition; unavailable byt
     const diagnostics: string[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic(d) { diagnostics.push(d.code); } });
     assert.equal(diagnostics.filter(code => code === 'TYPST_V8_IMAGE_MISSING').length, 1);
-    assert.ok(JSON.stringify(pdf).includes('Nested figure'));
+    const list = pdf.messages[0]?.blocks[0];
+    assert.ok(list && list.type === 'list', 'nested content must remain a list');
+    const quote = list.items[0]?.blocks[0];
+    assert.ok(quote && quote.type === 'quote', 'the list must retain its quote');
+    const placeholder = quote.blocks[0];
+    assert.ok(placeholder && placeholder.type === 'unknown', 'unavailable nested image must stay visible');
+    assert.equal(placeholder.sourceType, 'missing-image');
+    assert.equal(placeholder.fallback, 'Nested figure');
 });
