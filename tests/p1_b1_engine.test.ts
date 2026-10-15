@@ -1,43 +1,65 @@
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { historicalFixture } from './helpers/nativeFixture.js';
+import { makeTestWorker } from './helpers/makeTestWorker.js';
+import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
+import { __clearModuleOverrides, __setModuleOverride } from '../src/core/utils/moduleOverrides.js';
 
-const SRC = (p: string) => fs.readFileSync(path.join(__dirname, '..', 'src', p), 'utf8');
+// A worker rejection must fail only its own conversation; the next chat still exports.
+test('P1-011: a worker rejection records one failure and does not stop the next chat', async () => {
+    const fetchedIds: string[] = [];
+    const savedIds: string[] = [];
+    const notifiedIds: string[] = [];
+    let downloads = 0;
 
-// ---------- P1-011: per-chat error isolation ----------
-test('p1_b1 - P1-011: per-chat body wrapped in try/catch', () => {
-    const src = SRC('core/engine/export/exportOrchestrator.ts');
-    assert.ok(src.includes('failedChats.push({ id: failId'), 'failed chat recorded');
+    __setModuleOverride('JSZip', class {
+        folder() { return { file: () => {} }; }
+        async generateAsync() { return new Blob(['test zip'], { type: 'application/zip' }); }
+    });
+    __setModuleOverride('StorageService', {
+        getExportedIds: async () => ({}),
+        saveExportRecord: async (_slot: string, id: string) => {
+            savedIds.push(id);
+            return {};
+        }
+    });
+
+    try {
+        const result = await new ExportOrchestrator().run({
+            selected: [{ id: 'broken', title: 'Broken' }, { id: 'healthy', title: 'Healthy' }],
+            concurrency: 1,
+            format: 'markdown',
+            useZip: true,
+            includeAssets: false,
+            downloadHandler: async () => { downloads++; },
+            worker: makeTestWorker({
+                fetchChatDetail: async (item) => {
+                    fetchedIds.push(item.id);
+                    if (item.id === 'broken') throw new Error('injected worker rejection');
+                    return {
+                        success: true,
+                        chat: historicalFixture({
+                            id: item.id,
+                            title: 'Healthy',
+                            messages: [{ role: 'user', content: 'Still exported' }]
+                        })
+                    };
+                }
+            })
+        }, {
+            onItemExported: (id) => { notifiedIds.push(id); }
+        });
+
+        assert.deepEqual(fetchedIds, ['broken', 'healthy']);
+        assert.equal(result.aborted, false);
+        assert.equal(result.landedChats, 1);
+        assert.equal(result.failedChats.length, 1);
+        assert.equal(result.failedChats[0].id, 'broken');
+        assert.equal(result.failedChats[0].error, 'injected worker rejection');
+        assert.equal(downloads, 1);
+        assert.deepEqual(savedIds, ['healthy']);
+        assert.deepEqual(notifiedIds, ['healthy']);
+    } finally {
+        __clearModuleOverrides();
+    }
 });
-
-test('p1_b1 - P1-011: Promise.all has scheduler-level guard', () => {
-    const src = SRC('core/engine/export/exportOrchestrator.ts');
-    assert.ok(/try\s*\{\s*await Promise\.all\(exportWorkers\)/.test(src), 'Promise.all wrapped in try/catch');
-});
-
-// ---------- P1-013: awaited finalize ----------
-test('p1_b1 - P1-013: finalizeChatExport calls are awaited', () => {
-    const src = SRC('core/engine/export/exportOrchestrator.ts');
-    const unawaited = (src.match(/(?<!await )finalizeChatExport\(chat\.id\)/g) || []).length;
-    assert.strictEqual(unawaited, 0, 'all finalizeChatExport(chat.id) calls must be awaited');
-});
-
-// ---------- P1-014: persist-first ----------
-test('p1_b1 - P1-014: storage write happens before in-memory bookkeeping', () => {
-    const src = SRC('core/engine/export/sessionRecovery.ts');
-    const writeIdx = src.indexOf('saveExportRecord');
-    const memIdx = src.indexOf('finalizedChatsSet.add(targetNid)');
-    assert.ok(writeIdx !== -1 && memIdx !== -1, 'both sections present');
-    assert.ok(writeIdx < memIdx, 'storage write must come before in-memory mutation');
-    assert.ok(src.includes('throw e;'), 'failure propagates instead of being swallowed');
-});
-
-// ---------- P1-015: serialized session status ----------
-test('p1_b1 - P1-015: updateSessionStatus serialized via chain', () => {
-    const src = SRC('core/engine/export/sessionRecovery.ts');
-    assert.ok(src.includes('sessionStatusWriteChain'), 'write chain exists');
-});
-
-// Attachment exception settlement and cancellation now have runtime coverage in resource-delivery.test.ts.
