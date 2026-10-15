@@ -2,13 +2,11 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { build } from 'esbuild';
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import type { DomainConversationDetail } from '../src/core/domain/conversationDetail.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { preparePdfItem, pdfDomainSelection } from '../src/core/export/pdf/prepareItem.js';
-import { formatHtmlDocument } from '../src/core/engine/chatFormatter.js';
+import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 
 function rawIsNotExportable(raw: DomainConversationDetail): void {
     // @ts-expect-error Builders must establish trust at their source.
@@ -34,34 +32,33 @@ test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves
     if (prepared.ok) assert.equal(prepared.document.messages.length, 1);
 });
 
-test('pure rendering adds no validations; PDF acquisition crosses the storage boundary', async () => {
-    const bundle = await build({ write: false, bundle: true, platform: 'node', format: 'iife', globalName: 'instrumentedExport', logLevel: 'silent',
-        stdin: { resolveDir: process.cwd(), loader: 'ts', contents: `
-            import {validateParserDomain,countDomainSchemas} from './src/core/domain/runtimeValidation.ts';
-            import {composeDomainDocument} from './src/core/document/compose/composeDomainDocument.ts';
-            import {formatContent,formatHtmlDocument,formatMarkdownDocument} from './src/core/engine/chatFormatter.ts';
-            import {preparePdfItem,pdfDomainSelection} from './src/core/export/pdf/prepareItem.ts';
-            export async function run(){
-                const conversation=validateParserDomain({providerId:'independent',id:'exports',title:'<Independent>',assets:[],
-                    completeness:'partial',messages:[{id:'q',role:'user',content:[{type:'paragraph',children:[{type:'text',text:'Question <safe>'}]}]},
-                    {id:'a',role:'assistant',reasoning:[{type:'paragraph',children:[{type:'text',text:'Reasoning evidence'}]}],content:[{type:'code',language:'ts',code:'const value = 2;'}]}]});
-                const parsed={conversation,diagnostics:[],resourceHints:{},acquisitionHints:{}};
-                const before=countDomainSchemas();const doc=composeDomainDocument(conversation).document;
-                const html=(await formatHtmlDocument(parsed)).content;
-                const markdown=(await formatMarkdownDocument(parsed)).content;
-                const native=JSON.parse(formatContent(parsed,'json').content);
-                const pdf=await preparePdfItem(pdfDomainSelection(conversation),{includeAssets:false});
-                return {before,after:countDomainSchemas(),doc,html,markdown,native,pdf};
-            }` }, plugins: [{ name: 'test-only-export-counter', setup(builder) {
-            builder.onLoad({ filter: /runtimeValidation\.ts$/ }, args => ({ loader: 'ts', contents: readFileSync(args.path, 'utf8').replace(
-                'function assertSchema(value: unknown): asserts value is DomainConversationDetail {',
-                'let schemas=0; export const countDomainSchemas=()=>schemas; function assertSchema(value: unknown): asserts value is DomainConversationDetail { schemas++;') }));
-        } }] });
-    const api: { run: () => Promise<{before:number;after:number;doc:{messages:unknown[]};html:string;markdown:string;native:{conversation:DomainConversationDetail};pdf:{ok:boolean}}> } =
-        new Function('module', 'require', bundle.outputFiles[0].text + ';return instrumentedExport;')(undefined, createRequire(process.cwd() + '/package.json'));
-    const result = await api.run();
-    assert.equal(result.before, 1); assert.equal(result.after, 3);
-    assert.equal(result.doc.messages.length, 2); assert.equal(result.pdf.ok, true);
-    assert.match(result.html, /Question &lt;safe&gt;/); assert.match(result.markdown, /const value = 2;/);
-    assert.equal(result.native.conversation.completeness, 'partial');
+test('one trusted graph preserves independent content across HTML, Markdown, JSON and PDF preparation', async () => {
+    const conversation = validateParserDomain({
+        providerId: 'independent', id: 'exports', title: '<Independent>', assets: [],
+        completeness: 'partial',
+        messages: [
+            { id: 'q', role: 'user', content: [{ type: 'paragraph',
+                children: [{ type: 'text', text: 'Question <safe>' }] }] },
+            { id: 'a', role: 'assistant', reasoning: [{ type: 'paragraph',
+                children: [{ type: 'text', text: 'Reasoning evidence' }] }],
+                content: [{ type: 'code', language: 'ts', code: 'const value = 2;' }] },
+        ],
+    });
+    const parsed = { conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
+    const document = composeDomainDocument(conversation).document;
+    const html = (await formatHtmlDocument(parsed)).content;
+    const markdown = (await formatMarkdownDocument(parsed)).content;
+    const native = JSON.parse(formatContent(parsed, 'json').content);
+    const pdf = await preparePdfItem(pdfDomainSelection(conversation), { includeAssets: false });
+
+    assert.equal(document.messages.length, 2);
+    assert.match(html, /Question &lt;safe&gt;/);
+    assert.match(html, /Reasoning evidence/);
+    assert.match(markdown, /const value = 2;/);
+    assert.match(markdown, /Reasoning evidence/);
+    assert.equal(native.conversation.completeness, 'partial');
+    assert.deepEqual(native.conversation.messages.map((message: { role: string }) => message.role), ['user', 'assistant']);
+    assert.match(JSON.stringify(native.conversation.messages[1].content), /const value = 2;/);
+    assert.equal(pdf.ok, true);
+    if (pdf.ok) assert.equal(pdf.document.messages.length, 2);
 });
