@@ -29,11 +29,10 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await expect(modal).toBeHidden();
 
     // Verify storage recorded has_completed_takeout_prompt = true
-    const isPromptCompleted = await page.evaluate(async () => {
+    await expect.poll(async () => page.evaluate(async () => {
       const data = await chrome.storage.local.get('has_completed_takeout_prompt');
       return !!data.has_completed_takeout_prompt;
-    });
-    expect(isPromptCompleted).toBe(true);
+    })).toBe(true);
 
     // Verify subsequent showTakeoutLimitPrompt call without force is suppressed
     await page.evaluate(async () => {
@@ -168,6 +167,10 @@ test.describe('E2E: Google 600-Chat Limit Takeout Suggestion Prompt', () => {
     await expect(modal).toBeVisible(); // Prove the prompt is eligible before adding Takeout data.
     await page.click('#btnTakeoutLimitClose');
     await expect(modal).toBeHidden();
+    await expect.poll(async () => page.evaluate(async () => {
+      const data = await chrome.storage.local.get('has_completed_takeout_prompt');
+      return !!data.has_completed_takeout_prompt;
+    })).toBe(true);
 
     await page.evaluate(async () => {
       // The baseline close button records completion. Clear it so the only
