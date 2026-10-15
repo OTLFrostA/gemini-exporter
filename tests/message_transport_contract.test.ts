@@ -72,6 +72,9 @@ test('scan validation rejects malformed fields while preserving valid diagnostic
         { success: true, diagnostics: { hitGoogleLimit: 'false' } }]) {
         assert.equal(isScanResponse(bad), false);
     }
+    for (const diagnostics of [null, { hitGoogleLimit: 'bad' }, { stopReason: 4 }]) {
+        assert.equal(isScanResponse({ success: true, count: 0, diagnostics }), true);
+    }
     assert.equal(isScanResponse({ success: true, count: 0 }), true);
     assert.equal(isScanResponse({ success: true, total: 0 }), true);
     assert.equal(isScanResponse({ success: false, error: 'HTTP 429' }), true);
@@ -117,7 +120,8 @@ test('scan consumer never completes malformed replies and always releases its ru
             } finally { restoreChrome(); }
         }
         for (const validSuccess of [
-            { success: true, count: 2, diagnostics: { hitGoogleLimit: true } },
+            { success: true, count: 2, hitGoogleLimit: true, diagnostics: { hitGoogleLimit: false } },
+            { success: true, count: 2, hitGoogleLimit: false, diagnostics: { hitGoogleLimit: true } },
             { success: true, count: 0 },
             { success: true, total: 0 }
         ] as ScanResponse[]) {
@@ -128,6 +132,7 @@ test('scan consumer never completes malformed replies and always releases its ru
                 const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) =>
                     startSync('u0', { onFinished: resolve, onError: reject }));
                 assert.equal(result.res, validSuccess);
+                assert.equal(result.hitGoogleLimit, !!validSuccess.hitGoogleLimit);
                 assert.equal(result.count, validSuccess.count || validSuccess.total || 0);
                 assert.equal(isScanning(), false);
             } finally { restoreChrome(); }

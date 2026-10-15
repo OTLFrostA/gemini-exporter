@@ -67,8 +67,8 @@ import type {
     TextInline,
 } from '../../../domain/content/inline.js';
 import type { JsonValue } from '../../../utils/jsonTypes.js';
-import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
-import type { SourceRef } from '../../../domain/content/sourceRef.js';
+import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
+import type { SourceRef } from '../../../diagnostics/diagnostic.js';
 /** Provider-neutral parsing hooks; asset ownership stays with the caller. */
 export interface MarkdownParseContext {
     diagnostics: Diagnostic[];

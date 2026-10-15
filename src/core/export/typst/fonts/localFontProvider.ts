@@ -1,5 +1,6 @@
 // Resolves CJK and Latin fonts from the OS via window.queryLocalFonts() to avoid
 // bundling multi-megabyte CJK font files in the extension package.
+import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 
 export interface LocalFontEntry {
     readonly family: string;
@@ -17,15 +18,9 @@ export interface ResolvedLocalFont {
     getBytes(): Promise<Uint8Array>;
 }
 
-export interface FontProviderDiagnostic {
-    severity: 'info' | 'warning' | 'error';
-    code: string;
-    message: string;
-}
-
 export interface LocalFontResolution {
     readonly fonts: readonly ResolvedLocalFont[];
-    readonly diagnostics: readonly FontProviderDiagnostic[];
+    readonly diagnostics: readonly Diagnostic[];
     readonly fallbackChain: readonly string[];
     readonly localFontsAvailable: boolean;
 }
@@ -311,7 +306,7 @@ export async function resolveLocalFonts(request: LocalFontRequest = {}): Promise
         };
     }
 
-    const diagnostics: FontProviderDiagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
     const fonts: ResolvedLocalFont[] = [];
     const claimedEntries = new Set<number>();
 

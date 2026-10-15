@@ -9,8 +9,8 @@ import type { LocalFontResolution } from '../../typst/fonts/localFontProvider.js
 import type { IPdfCompiler } from '../pdfCompiler.js';
 import type { IExportWriter } from '../../../engine/writers/writerInterface.js';
 
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
-export type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic as RenderDiagnostic } from '../../../diagnostics/diagnostic.js';
+export type { Diagnostic as RenderDiagnostic } from '../../../diagnostics/diagnostic.js';
 
 export type PipelineStageName = 'resources' | 'payload' | 'compile' | 'deliver';
 

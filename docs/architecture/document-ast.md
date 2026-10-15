@@ -103,7 +103,7 @@ Parser diagnostics, source references and JSON value types live in content/utili
 
 ## Diagnostics and fixture contracts
 
-`DocumentDiagnostic` lives in `core/diagnostics/documentDiagnostic.ts`. Parsing, preparation and rendering return diagnostics beside their result or emit them through callbacks; neither Domain nor Document AST carries them.
+`Diagnostic` lives in `core/diagnostics/diagnostic.ts`. Parsing, preparation and rendering return diagnostics beside their result or emit them through callbacks; neither Domain nor Document AST carries them.
 
 File badges use explicit media-type/kind mappings (PDF, DOCX, XLSX, PPTX and other common formats). Unknown types fall back to FILE/IMAGE/AUDIO/VIDEO. Filenames never determine the badge.
 

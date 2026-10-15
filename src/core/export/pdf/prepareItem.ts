@@ -25,11 +25,10 @@ import type { TakeoutExportSource } from '../../../types/ui.js';
 import type { TakeoutEngineModule, TakeoutResourceLookup } from '../../engine/takeoutEngine.js';
 import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../document/ast/resourceReferences.js';
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
 import type { DocumentAst } from '../../document/ast/ast.js';
 import type { PreparedResources } from '../assets/preparedResources.js';
 import { preparePdfResources } from './prepareResources.js';
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic as RenderDiagnostic } from '../../diagnostics/diagnostic.js';
 
 declare global {
     interface Window {
@@ -66,15 +65,6 @@ type PdfTakeoutEngine =
     | TakeoutEngineModule
     | AssetPipelineTakeoutEngine
     | PdfTakeoutFallbackEngine;
-
-export function toRenderDiagnostic(d: DocumentDiagnostic): RenderDiagnostic {
-    return {
-        severity: d.severity,
-        code: d.code,
-        message: d.message,
-        path: d.path,
-    };
-}
 
 export function hasUsableMessages(value: NativeConversationInput): boolean {
     return isResourceConversationParseResult(value) && value.conversation.messages.length > 0;

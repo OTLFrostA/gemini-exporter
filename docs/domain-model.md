@@ -17,7 +17,7 @@ Production conversation detail inputs now follow raw source â†’ native parser â†
 interface ConversationParseContext { providerId: string }
 interface ConversationParseResult {
   conversation: DomainConversationDetail;
-  diagnostics: DocumentDiagnostic[];
+  diagnostics: Diagnostic[];
 }
 ```
 

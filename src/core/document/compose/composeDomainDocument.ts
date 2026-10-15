@@ -3,13 +3,13 @@ import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import { collectReferencedAssetIds } from '../../domain/content/collectAssetReferences.js';
 import { selectDisplayDate } from './displayDate.js';
 import { contentComposer } from './composeContent.js';
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { DocumentAst } from '../ast/ast.js';
 
 export interface DomainCompositionOptions { documentLanguage?: string; sourceVersion?: number }
 
 /** Domain facts -> one format-neutral presentation tree. No resource acquisition or raw parsing. */
-export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: DocumentDiagnostic[] } {
+export function composeDomainDocument(conversation: TrustedDomain, options: DomainCompositionOptions = {}): { document: DocumentAst; diagnostics: Diagnostic[] } {
     const assets = new Map(conversation.assets.map(asset => [asset.id, asset]));
     let citationNumber = 0;
     const messages = conversation.messages.map((message, index) => {

@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { TypstConversationRenderPayload } from '../../renderers/typst/transport.js';
 
 /** Prepared output bytes, never a semantic Asset or source conversation. */
@@ -15,7 +15,7 @@ export interface TypstRenderPayload {
 }
 export interface PdfCompileResult {
     pdfBytes: Uint8Array;
-    diagnostics: DocumentDiagnostic[];
+    diagnostics: Diagnostic[];
 }
 export interface IPdfCompiler {
     readonly name: string;

@@ -61,10 +61,16 @@ function pdfPipelineBoundary(domain: DomainConversationDetail): void {
 void pdfPipelineBoundary;
 
 // @ts-expect-error Diagnostic types live in the independent diagnostics module.
-import type { DocumentDiagnostic } from '../src/core/document/ast/ast.js';
-void (null as unknown as DocumentDiagnostic);
+import type { Diagnostic } from '../src/core/document/ast/ast.js';
+void (null as unknown as Diagnostic);
 
 import type { MarkdownRenderOptions } from '../src/core/renderers/shared/renderOptions.js';
 // @ts-expect-error Renderer options cannot supply metadata that bypasses Document AST.
 const metadataBypass: MarkdownRenderOptions = { frontMatter: [{ key: 'title', value: 'stale' }] };
 void metadataBypass;
+
+
+import type { ResolveExportRecordStatusOptions } from '../src/core/engine/export/exportCompletion.js';
+// @ts-expect-error Diagnostic descriptions are reporting data, not export-integrity evidence.
+const diagnosticStatusInput: ResolveExportRecordStatusOptions = { evidence: { schemaDrift: ['warning'] } };
+void diagnosticStatusInput;

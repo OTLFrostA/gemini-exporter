@@ -1,5 +1,4 @@
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
-import type { DocumentDiagnostic as TypstAdapterDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic as TypstAdapterDiagnostic } from '../../../diagnostics/diagnostic.js';
 import { renderDocumentTypst } from '../../../renderers/typst/renderTypst.js';
 import { convertMathWithMitex, initMitexWasm } from '../../../renderers/typst/mathConverter.js';
 import { getErrorMessage } from '../../../utils/messaging.js';
@@ -9,10 +8,6 @@ import {
     type StageContext,
     type StageFn,
 } from './types.js';
-
-function mapDiagnostic(d: TypstAdapterDiagnostic): RenderDiagnostic {
-    return { severity: d.severity, code: d.code, message: d.message, path: d.path };
-}
 
 export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = async (
     input: PayloadStageInput,
@@ -47,6 +42,6 @@ export const payloadStage: StageFn<PayloadStageInput, PayloadStageOutput> = asyn
         if (converted.diagnostic) mathDiagnostics.push(converted.diagnostic);
         return converted.typst;
     } });
-    const diagnostics = [...initDiagnostics, ...mathDiagnostics].map(mapDiagnostic);
+    const diagnostics = [...initDiagnostics, ...mathDiagnostics];
     return { output: { payload }, diagnostics };
 };

@@ -49,8 +49,6 @@
   "src/core/parsers/shared/resources/resourceAcquisitionHints.ts",
   "src/core/export/pdf/prepareResources.ts",
   "src/core/utils/jsonTypes.ts",
-  "src/core/domain/content/sourceRef.ts",
-  "src/core/diagnostics/contentDiagnostic.ts",
   "src/core/export/artifacts.ts",
   "src/core/domain/conversationDetail.ts",
   "src/core/domain/closure.ts",
@@ -60,7 +58,6 @@
   "src/core/document/compose/displayDate.ts",
   "src/core/export/assets/prepareDomainResources.ts",
   "src/core/export/exportDomainDocument.ts",
-  "src/core/diagnostics/documentDiagnostic.ts",
   "src/core/parsers/contracts.ts",
   "src/core/parsers/parseConversation.ts",
   "src/core/parsers/legacyStorage/conversationRecord.ts",
@@ -127,5 +124,6 @@
   "src/core/parsers/gemini/parseIndexObservation.ts",
   "src/core/storage/conversationIndexFromParsed.ts",
   "src/core/resources/geminiImageUrl.ts",
-  "src/core/parsers/shared/resources/c2paTimestamp.ts"
+  "src/core/parsers/shared/resources/c2paTimestamp.ts",
+  "src/core/diagnostics/diagnostic.ts"
 ]

@@ -133,7 +133,7 @@ test('list: token loops and max-page stops preserve fetched partial data and blo
 
 test('list: explicit Bard boundaries prompt Takeout while HTTP 429 remains a transient error', async () => {
     for (const last of [
-        { ...page([]), _debug: { error: 'BARD_ERROR_INFO' as const, bardError: '["BardErrorInfo",1096]', textLen: 0, rawPreview: '', topParsed: null } },
+        { ...page([]), failure: 'hit_google_limit' as const, _debug: { error: 'BARD_ERROR_INFO' as const, bardError: '["BardErrorInfo",1096]', textLen: 0, rawPreview: '', topParsed: null } },
         new Error('HTTP 429 Too Many Requests')
     ]) {
         const result = await getAllConversations(listClient([page(['one'], 'tC_more'), last]), { incremental: true });
@@ -214,7 +214,7 @@ test('completeness guard preserves legacy absence semantics and rejects each exp
     assert.equal(isPaginationExhaustive({}), true);
     assert.equal(isPaginationExhaustive(null), false);
     for (const evidence of [{ stoppedEarly: true }, { exhaustive: false }, { hitGoogleLimit: true },
-        { diagnostics: { hitGoogleLimit: true } }, { completionReason: 'future_incomplete_reason' }]) {
+        { completionReason: 'future_incomplete_reason' }]) {
         assert.equal(isPaginationExhaustive(evidence), false);
     }
     assert.equal(isPaginationExhaustive({ stoppedEarly: false, exhaustive: true, completionReason: 'natural_exhaustion' }), true);
@@ -245,7 +245,7 @@ test('detail: token loop and 20-page cap retain exact truncation reasons', async
 });
 
 test('list: first-page Bard limit returns an incomplete empty result; first-page HTTP limit rejects', async () => {
-    const limited = { ...page([]), _debug: { error: 'BARD_ERROR_INFO' as const,
+    const limited = { ...page([]), failure: 'hit_google_limit' as const, _debug: { error: 'BARD_ERROR_INFO' as const,
         bardError: '["BardErrorInfo",1096]', textLen: 0, rawPreview: '', topParsed: null } };
     const result = await getAllConversations(listClient([limited]));
     assert.equal(result.total, 0);
@@ -317,7 +317,7 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
 });
 
 test('list: an empty NO_INNER_STR parser result is incomplete', async () => {
-    const result = await getAllConversations(listClient([{ ...page([]), _debug: {
+    const result = await getAllConversations(listClient([{ ...page([]), failure: 'invalid_response', _debug: {
         error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'raw', topParsed: null
     } }]));
     assert.equal(result.exhaustive, false);
@@ -348,5 +348,31 @@ test('list: actual empty/malformed NO_INNER_STR responses cannot exhaust a parti
         assert.equal(result.stoppedEarly, true, text);
         assert.equal(result.total, 1);
         assert.equal(isPaginationExhaustive(result), false);
+    }
+});
+
+
+test('scan completeness ignores conflicting diagnostic reports', () => {
+    const complete = { exhaustive: true, completionReason: 'natural_exhaustion', hitGoogleLimit: false,
+        diagnostics: { hitGoogleLimit: true } };
+    assert.equal(isPaginationExhaustive(complete), true);
+    const limited = { exhaustive: false, completionReason: 'hit_google_limit', hitGoogleLimit: true,
+        diagnostics: { hitGoogleLimit: false } };
+    assert.equal(isPaginationExhaustive(limited), false);
+});
+
+test('list source outcomes survive cleared or contradictory parser diagnostics', async () => {
+    const limited = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', null, null, null, ['generic', 'BardErrorInfo: cursor expired']]]));
+    assert.equal(limited.failure, 'hit_google_limit');
+    const malformed = parseList('not JSON');
+    assert.equal(malformed.failure, 'invalid_response');
+    const healthy = parseList(JSON.stringify([['wrb.fr', 'MaZiqc', '[]']]));
+    for (const [input, expected] of [[healthy, 'natural_exhaustion'], [limited, 'hit_google_limit'], [malformed, 'error']] as const) {
+        for (const _debug of [undefined, limited._debug, malformed._debug]) {
+            const result = await getAllConversations(listClient([{ ...input, _debug }]));
+            assert.equal(result.completionReason, expected);
+            assert.equal(result.hitGoogleLimit, expected === 'hit_google_limit');
+            assert.equal(result.exhaustive, expected === 'natural_exhaustion');
+        }
     }
 });

@@ -1,3 +1,4 @@
+import { extractChatParseDrift } from '../src/core/engine/export/parseDrift.js';
 import { toJsonStandard } from '../src/core/engine/formatters/jsonFormatter.js';
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -105,4 +106,22 @@ test('JSON archives retain one saved body version outside Detail and partial cap
     assert.equal('sourceVersion' in archive, false);
     const partial = JSON.parse(toJsonStandard(detail([1700000000, 0], [1700000000, 0], true)));
     assert.equal('savedAt' in partial, false);
+});
+
+
+test('diagnostic deletion or spoofed diagnostic codes cannot change merged completeness or export status', () => {
+    const healthy = detail([1700000000, 0], [1700000005, 0]);
+    const rejected = { ...healthy, transport: { ...healthy.transport, turnsRejected: 1 } };
+    const mismatched = detail([1700000010, 0], [1700000005, 0]);
+    for (const [input, expected] of [[healthy, 'unknown'], [rejected, 'partial'], [mismatched, 'partial']] as const) {
+        const warnings = [{ severity: 'error' as const, code: 'GEMINI_TURNS_REJECTED', message: 'diagnostic only' },
+            { severity: 'error' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'diagnostic only' }];
+        const records = [[], warnings].map(diagnostics => {
+            const merged = mergeConversationPages([{ ...input, diagnostics }]);
+            assert.equal(merged.conversation.completeness, expected);
+            return buildExportCompletion({ conversation: merged.conversation, evidence: extractChatParseDrift(merged), exportedAt: 1900000000000 }).exportRecord;
+        });
+        assert.deepEqual(records[0], records[1]);
+        assert.equal(records[0].status, expected === 'partial' ? 'partial' : 'ok');
+    }
 });

@@ -6,6 +6,8 @@ export type ConversationListItem = DomainConversationIndex;
 export interface ListParseResult {
     conversations: ConversationListItem[];
     nextPageToken: string | null;
+    /** A source failure is a business result; _debug only explains it. */
+    failure?: 'hit_google_limit' | 'invalid_response';
     /** Decoded wire evidence; not a validated conversation model. */
     _raw?: unknown;
     _debug?: ListParseDiagnostics;
@@ -65,6 +67,7 @@ function extractListItemTimestamp(item: unknown): number | null {
                 return {
                     conversations: [],
                     nextPageToken: null,
+                    failure: bardError ? 'hit_google_limit' : 'invalid_response',
                     _debug: {
                         error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
                         bardError: bardError,
@@ -78,6 +81,7 @@ function extractListItemTimestamp(item: unknown): number | null {
                 return {
                     conversations: [],
                     nextPageToken: null,
+                    failure: 'invalid_response',
                     _raw: inner
                 };
             }

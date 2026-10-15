@@ -95,6 +95,17 @@ test('messageRouter: confirmed RPC deletion suppresses DOM and preserves deletio
     assert.equal(result.data._debug.isDeleted, true);
 }));
 
+test('messageRouter: DOM deletion uses the explicit outcome regardless of diagnostic evidence', async () => withProvider(async set => {
+    set(async () => { throw new Error('temporary failure'); });
+    for (const isDeleted of [false, true]) {
+        const { result } = await route({ id: 'detail123', error: 'source failure', isDeleted,
+            _debug: { isNotFound: !isDeleted, status: isDeleted ? 500 : 404 } });
+        assert.ok(result.success && '_empty' in result.data);
+        assert.equal(result.data.isDeleted, isDeleted);
+        assert.equal(result.data.isEmpty, !isDeleted);
+    }
+}));
+
 test('liveSave: provider and injected acquisition retain title/media/evidence and derive only missing time aliases', async () => withProvider(async set => {
     for (const injected of [false, true]) {
         const payload = detail(); let calledId = '';

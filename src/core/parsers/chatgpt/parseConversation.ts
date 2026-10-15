@@ -14,7 +14,7 @@ import type {
 } from '../../domain/conversationDetail.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
 import { validateParserDomain } from '../../domain/runtimeValidation.js';
-import type { Diagnostic } from '../../diagnostics/contentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { ResourceConversationParseResult } from '../parsingResult.js';
 import {
     parseMarkdownToBlocks,
@@ -243,12 +243,7 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
             url: `https://chatgpt.com/c/${conversation.id}`,
             messages,
         }),
-        diagnostics: contentDiagnostics.map((d) => ({
-            severity: d.severity,
-            code: d.code,
-            message: d.message,
-            path: d.path,
-        })),
+        diagnostics: contentDiagnostics,
         resourceHints: {},
         acquisitionHints: {},
     };

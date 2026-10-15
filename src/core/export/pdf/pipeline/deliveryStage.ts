@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic as RenderDiagnostic } from '../../../diagnostics/diagnostic.js';
 import { buildExportFileName } from '../../../utils/pathUtils.js';
 import type {
     ArtifactWriteReport,

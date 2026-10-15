@@ -115,7 +115,7 @@ export interface ScanResponse {
     total?: number;
     error?: string;
     hitGoogleLimit?: boolean;
-    diagnostics?: { hitGoogleLimit?: boolean; stopReason?: string };
+    diagnostics?: unknown;
 }
 export interface ScanCallbacks {
     onStart?: () => void;

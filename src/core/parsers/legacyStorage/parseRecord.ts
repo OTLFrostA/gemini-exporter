@@ -11,8 +11,7 @@ import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.j
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
 import type { ConversationParseContext } from '../contracts.js';
 import type { ResourceConversationParseResult } from '../parsingResult.js';
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
-import type { Diagnostic } from '../../diagnostics/contentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import { isObjectRecord } from '../../utils/messageResponses.js';
 import type {
     DomainCitation,
@@ -128,7 +127,7 @@ function legacyTitle(conversation: ConversationRecordInput) {
 /** Resolve provider media and whitelist message fields without mutating legacy input. */
 export function parseConversationRecord(conversation: ConversationRecordInput, options: ConversationRecordParseContext): ResourceConversationParseResult {
     if (typeof options.providerId !== 'string' || !options.providerId.trim()) throw new TypeError('Domain providerId must be a non-empty string');
-    const diagnostics: DocumentDiagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
     const parserDiagnostics: Diagnostic[] = [];
     const rawMessages = conversation.messages && conversation.messages.length > 0
         ? conversation.messages
@@ -174,5 +173,5 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         messages: resources.messages,
     };
     const sourceVersion = normalizeConversationTimes({ updatedAt: conversation.updatedAt }).updatedAt;
-    return { ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path }))] };
+    return { ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(domain), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints, diagnostics: [...diagnostics, ...parserDiagnostics] };
 }
