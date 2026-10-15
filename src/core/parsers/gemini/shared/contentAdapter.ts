@@ -7,6 +7,18 @@ import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
 import { preprocessGeminiMarkdown } from './markdownCompatibility.js';
 import { geminiStructuredToContent } from './structuredContentAdapter.js';
+import type { InlineNode } from '../../../domain/content/inline.js';
+
+/** Native RPC prompts are literal textbox contents, not model-authored Markdown. */
+export function parseGeminiPrompt(content: string): BlockNode[] {
+    if (!content) return [];
+    const children: InlineNode[] = [];
+    content.split(/\r\n|\r|\n/).forEach((text, index) => {
+        if (index) children.push({ type: 'lineBreak', kind: 'hard' });
+        if (text) children.push({ type: 'text', text });
+    });
+    return [{ type: 'paragraph', children }];
+}
 
 export function cleanGeminiBody(text: string): string {
     return stripInternalChipMarkdown(convertHtmlToMarkdown(text));

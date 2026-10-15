@@ -9,7 +9,7 @@ import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import { closeLegacyCitations } from '../../shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
-import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
+import { parseGeminiBody, parseGeminiPrompt, parseLegacyReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
@@ -49,7 +49,8 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
         return closeLegacyCitations({
             ...(typeof message.id === 'string' && message.id.trim() ? { id: message.id } : {}),
             role: message.role === 'model' ? 'assistant' : 'user',
-            content: parseGeminiBody(message.content, message.structuredContent, { diagnostics: contentDiagnostics, sourceRef }),
+            content: message.role === 'user' ? parseGeminiPrompt(message.content)
+                : parseGeminiBody(message.content, message.structuredContent, { diagnostics: contentDiagnostics, sourceRef }),
             ...(typeof message.timestamp === 'number' && Number.isFinite(message.timestamp) ? { timestamp: message.timestamp } : {}),
             ...(message.model ? { model: message.model } : {}),
             ...(reasoning !== undefined ? { reasoning } : {}),

@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 import sys
@@ -41,7 +42,8 @@ EVIDENCE = [{'prompt': 'Explain **pressure** and mass_balance.', 'response': REP
 def document(evidence=EVIDENCE, cid=CID):
     body = f'---\nid: "{cid}"\n---\n# Conversation\n'
     for t in evidence:
-        body += f"\n## 👤 You\n\n{t['prompt']}\n\n## 🤖 Assistant\n\n{t['response']}\n"
+        prompt = re.sub(r'([\\`*_\[\]#~$])', r'\\\1', t['prompt'])
+        body += f"\n## 👤 You\n\n{prompt}\n\n## 🤖 Assistant\n\n{t['response']}\n"
     return body
 
 
@@ -247,6 +249,14 @@ class DiskContentTests(unittest.TestCase):
         evidence = [{'prompt': EVIDENCE[0]['prompt'], 'response': '## 👤 You\n' + REPLY}]
         text = document().replace(REPLY, '```markdown\n## 👤 You\n```\n' + REPLY)
         self.assertTrue(assert_turn_content(text, evidence)[0])
+
+    def test_user_prompt_punctuation_and_escapes_are_required(self):
+        evidence = [{'prompt': r'Use f(\$)=1 and **literal** text.', 'response': REPLY}]
+        exported = document(evidence)
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        for changed in (exported.replace(r'\\\$', r'\$'), exported.replace('=1', '+1'),
+                        exported.replace(r'\*\*literal\*\*', 'literal')):
+            self.assertFalse(assert_turn_content(changed, evidence)[0])
 
     def test_hidden_thinking_content_is_excluded_from_authored_body(self):
         authored_response = '系统在受扰动后将沿极限环收敛，其李雅普诺夫指数满足严格负定。'
