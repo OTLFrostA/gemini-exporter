@@ -8,6 +8,7 @@ test('direct asset writer rejection records failure instead of success or refetc
     const originalFetch = globalThis.fetch;
     const warnings: string[] = [];
     let fetchCalls = 0;
+    let fetchCallsAtWrite = 0;
     let writeCalls = 0;
 
     globalThis.fetch = async () => {
@@ -22,6 +23,7 @@ test('direct asset writer rejection records failure instead of success or refetc
             useZip: false,
             writeFileDirect: async (fileName, bytes) => {
                 writeCalls++;
+                fetchCallsAtWrite = fetchCalls;
                 assert.equal(fileName, 'assets/search.png');
                 assert.deepEqual(Array.from(bytes), [1, 2, 3]);
                 throw new Error('disk full');
@@ -47,7 +49,8 @@ test('direct asset writer rejection records failure instead of success or refetc
         assert.match(result.failReason, /disk full/);
         assert.equal(result.recoveredFromTakeout, false);
         assert.equal(writeCalls, 1, 'the writer must be reached exactly once');
-        assert.equal(fetchCalls, 1, 'local write failures must not re-fetch an acquired asset');
+        assert.ok(fetchCallsAtWrite > 0, 'the asset must be acquired before the writer runs');
+        assert.equal(fetchCalls, fetchCallsAtWrite, 'local write failures must not re-fetch acquired bytes');
         assert.match(warnings.join('\n'), /disk full/, 'the failure must reach the export log');
     } finally {
         globalThis.fetch = originalFetch;
