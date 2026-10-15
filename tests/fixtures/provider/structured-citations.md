@@ -8,3 +8,5 @@ Captured Gemini RPC citation fixtures, 2026-10-15:
 Source attribution IDs resolve only inside their own candidate. A source annotation without an unambiguous table entry must reject adaptation, not drop attribution. Tests supply unrelated fallback Markdown so content assertions cannot pass through fallback.
 
 - `live-blockquote.json`: native blockquote at wire field 16, captured during the final live export audit. The independently rendered webpage uses `<blockquote><p><b>…</b></p></blockquote>` for this node. No account/transport metadata retained.
+
+- `live-combined-file-citations.json`: field 31 with `[cite: 1, 2]` and two ordered source records, captured from a real report. Generated filenames replaced with `first-diagram.jpg` and `second-diagram.jpg`; source metadata is not body prose.

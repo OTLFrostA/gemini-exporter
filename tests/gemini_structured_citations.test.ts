@@ -117,6 +117,33 @@ test('unbound file citations fail closed for callers without a native citation r
     assert.ok(JSON.stringify(parseGeminiBody(fallback, decodedFiles)).includes(fallback));
 });
 
+test('combined native file markers bind each number to its ordered source record', () => {
+    const raw = fixture('live-combined-file-citations');
+    const decoded = decodeGeminiStructuredPayload(raw);
+    assert.ok(decoded);
+    const message = successful(parse(raw));
+    assert.deepEqual(message.citations, [
+        { id: 'grounding-1', title: 'first-diagram.jpg' },
+        { id: 'grounding-2', title: 'second-diagram.jpg' },
+    ]);
+    assert.deepEqual(message.content, [{ type: 'paragraph', children: [
+        { type: 'citationRef', citationId: 'grounding-1', label: '[1]' },
+        { type: 'citationRef', citationId: 'grounding-2', label: '[2]' },
+    ] }]);
+    const inline = successful(parse({ children: [{ nodeType: 'paragraph', children: [
+        { nodeType: 18, text: 'Before ' }, ...decoded.children, { nodeType: 18, text: ' after.' },
+    ] }] }));
+    assert.equal(inline.content.length, 1);
+    assert.ok(!JSON.stringify(inline.content).includes('propagation of light'), 'quoted metadata must not become prose');
+    for (const marker of ['[cite: 1]', '[cite: 1, 1]', '[cite: 1, 0]', '[cite: 1, 2, 3]', '[cite: 1, unknown]']) {
+        const invalid = JSON.parse(JSON.stringify(raw)) as unknown[][][][];
+        const node = invalid[0][0][0] as unknown[];
+        const payload = node[31] as unknown[][][];
+        payload[0][0][0] = marker;
+        rejected(parse(invalid), 'decode_rejected');
+    }
+});
+
 test('standalone citation after display math is preserved after the equation', () => {
     const message = successful(parse({ children: [{ nodeType: 12, FTa: 'a=b' }, fileCitation] }));
     assert.equal(message.content[0].type, 'math');

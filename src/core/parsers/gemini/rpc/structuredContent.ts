@@ -83,10 +83,12 @@ export interface GeminiFileNode { nodeType: 24; id: string; title: string }
 /** Inline fragments share one paragraph; wire field 13 is not a line break. */
 export interface GeminiCompositeParagraph { nodeType: 'paragraph'; children: GeminiStructuredNode[] }
 export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string }
+export interface GeminiCitationGroup { nodeType: 'citationGroup'; children: GeminiFileCitation[] }
 
 export type GeminiStructuredNode =
     | GeminiCompositeParagraph
     | GeminiFileCitation
+    | GeminiCitationGroup
     | GeminiTextNode
     | GeminiMathBlockNode
     | GeminiCodeBlockNode
@@ -225,6 +227,16 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         const node = w as Record<string, unknown>;
         const nodeType = node.nodeType;
         switch (nodeType) {
+            case 'citationGroup': {
+                if (!Array.isArray(node.children) || !node.children.length) return null;
+                const children: GeminiFileCitation[] = [];
+                for (const child of node.children) {
+                    const decoded = decodeGeminiStructuredNode(child, issues);
+                    if (decoded?.nodeType !== 'citation') return null;
+                    children.push(decoded);
+                }
+                return { nodeType, children };
+            }
             case 'paragraph': {
                 if (!Array.isArray(node.children)) return null;
                 const children: GeminiStructuredNode[] = [];
@@ -356,18 +368,24 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
         if (!Array.isArray(citation) || citation.length !== 3
             || !Array.isArray(citation[0]) || citation[0].length !== 2 || citation[0][1] !== 0
             || typeof citation[0][0] !== 'string'
-            || !Array.isArray(citation[1]) || citation[1].length !== 1
+            || !Array.isArray(citation[1]) || !citation[1].length
             || !Array.isArray(citation[2]) || citation[2].length !== 2
             || typeof citation[2][0] !== 'string' || citation[2][1] !== 0) return null;
-        const match = /^\[cite:\s*(\d+)\]$/i.exec(citation[0][0]);
-        const source: unknown = citation[1][0];
-        const file: unknown = Array.isArray(source) && source[0] === null ? source[1] : undefined;
-        const metadata: unknown = Array.isArray(file) ? file[0] : undefined;
-        if (!match || !Number.isSafeInteger(Number(match[1])) || Number(match[1]) < 1
-            || !Array.isArray(file) || typeof file[6] !== 'string' || !file[6]
-            || !Array.isArray(metadata) || metadata[2] !== file[6]
-            || typeof metadata[11] !== 'string') return null;
-        return { nodeType: 'citation', number: Number(match[1]), title: file[6] };
+        const match = /^\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]$/i.exec(citation[0][0]);
+        if (!match) return null;
+        const numbers = match[1].split(',').map(Number);
+        if (numbers.length !== citation[1].length || new Set(numbers).size !== numbers.length
+            || numbers.some(number => !Number.isSafeInteger(number) || number < 1)) return null;
+        const children: GeminiFileCitation[] = [];
+        for (const [index, source] of citation[1].entries()) {
+            const file: unknown = Array.isArray(source) && source.length === 2 && source[0] === null ? source[1] : undefined;
+            const metadata: unknown = Array.isArray(file) ? file[0] : undefined;
+            if (!Array.isArray(file) || typeof file[6] !== 'string' || !file[6]
+                || !Array.isArray(metadata) || metadata[2] !== file[6]
+                || typeof metadata[11] !== 'string') return null;
+            children.push({ nodeType: 'citation', number: numbers[index], title: file[6] });
+        }
+        return children.length === 1 ? children[0] : { nodeType: 'citationGroup', children };
     }
 
     if (w[13] != null) {
