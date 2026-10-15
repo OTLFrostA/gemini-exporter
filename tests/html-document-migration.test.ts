@@ -79,7 +79,8 @@ function turnRoles(html: string): string[] {
 
 let newHtml: string;
 
-test('migration setup: production entry returns a valid HTML FormattedResult', async () => {
+// Build independent test evidence in a suite hook, not in a preceding test.
+test.before(async () => {
     const native = historicalFixture(chat);
     const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
     assert.strictEqual(res.ext, 'html');
@@ -146,6 +147,7 @@ test('migration: duplicate source message IDs preserve every message at export',
         ],
     };
     const result = await ChatFormatter.formatHtmlDocument(historicalFixture(dupChat));
+    assert.deepStrictEqual(turnRoles(result.content), ['user', 'model', 'user']);
     assert.equal(result.content.match(/first user prompt/g)?.length, 2);
     assert.ok(result.content.includes('model answer'));
 });
