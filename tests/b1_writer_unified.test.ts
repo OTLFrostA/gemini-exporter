@@ -12,7 +12,7 @@ const assert = require('node:assert');
 const { AssetPipeline } = require('../src/core/engine/assetPipeline.js');
 const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
 const { writeIndexAndMeta, writeDiagnostics } = require('../src/core/engine/export/sessionRecovery.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 
 // 记录每次 folder.file(path, content, opts) 的文件级 opts，用于断言压缩决策
 const capturedFileOpts: Record<string, any> = {};
@@ -20,7 +20,7 @@ function clearCaptured() {
     for (const k of Object.keys(capturedFileOpts)) delete capturedFileOpts[k];
 }
 
-__setModuleOverride('JSZip', class MockJSZip {
+class MockJSZip {
     files: Record<string, any> = {};
     folder(_name: string) {
         return {
@@ -33,10 +33,19 @@ __setModuleOverride('JSZip', class MockJSZip {
     async generateAsync(_opts?: any) {
         return new Blob(['mock-zip']);
     }
+}
+
+let previousJSZip: any;
+test.beforeEach(() => {
+    previousJSZip = __getModuleOverride('JSZip');
+    clearCaptured();
+    __setModuleOverride('JSZip', MockJSZip);
+});
+test.afterEach(() => {
+    __setModuleOverride('JSZip', previousJSZip);
 });
 
 test('B1 - 10 张 PNG 经 writer 落盘：totalBytes 含附件且 compression=STORE', async () => {
-    clearCaptured();
     const writer = new ZipWriter('test_export');
     const pngBytes = new Uint8Array(64 * 1024); // 每张 64KB
     const pipeline = new AssetPipeline({
@@ -110,6 +119,7 @@ test('B1 - takeout fallback 统一走 writer.writeFile', async () => {
     assert.strictEqual(res.ok, true, `takeout fallback should save, got failReason=${res.reason}`);
     assert.strictEqual(written.length, 1);
     assert.strictEqual(written[0][0], 'f.bin', 'takeout fallback must go through writer.writeFile');
+    assert.deepStrictEqual([...new Uint8Array(written[0][1])], [9, 9, 9], 'the fallback must write Takeout bytes, not a stub or empty payload');
 });
 
 test('B1 - writeIndexAndMeta 统一走 writer.writeFile', async () => {
@@ -144,6 +154,8 @@ test('B1 - writeDiagnostics 统一走 writer.writeFile', async () => {
     );
     const names = written.map(([p]) => p);
     assert.deepStrictEqual(names, ['_export_dev.log', '_export_errors.json', '_export_session_dev.json']);
+    const errors = written.find(([p]) => p === '_export_errors.json');
+    assert.deepStrictEqual(JSON.parse(String(errors?.[1])).failedChats, [{ id: 'c1' }], 'diagnostic JSON must retain the failed chat ID');
 });
 
 test('B1 - writeIndexAndMeta / writeDiagnostics 无 writer 时 fail-closed 抛错', async () => {
