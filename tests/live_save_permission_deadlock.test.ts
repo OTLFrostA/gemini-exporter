@@ -8,7 +8,6 @@ const {
 } = require('../src/background/liveSaveHandler.js');
 const idbStore = require('../src/core/storage/idbHandleStore.js');
 const liveStorage = require('../src/core/storage/liveStorageManager.js');
-const { StorageService } = require('../src/core/storage/storageService.js');
 const DirHandleController = require('../src/ui/controllers/dirHandleController.js');
 
 test('liveSavePermissionDeadlock - handleLiveSaveViaHandle returns permission_prompt_needed when handle queryPermission is prompt', async () => {
@@ -19,9 +18,13 @@ test('liveSavePermissionDeadlock - handleLiveSaveViaHandle returns permission_pr
     };
 
     const origGetStored = idbStore.getStoredDirHandle;
+    let permissionRequests = 0;
+    let directoryProbes = 0;
     idbStore.getStoredDirHandle = async () => ({
         name: 'MyVault',
-        queryPermission: async () => 'prompt' // degraded by browser restart
+        queryPermission: async () => 'prompt', // degraded by browser restart
+        requestPermission: async () => { permissionRequests++; return 'granted'; },
+        keys: async function* () { directoryProbes++; yield 'file.txt'; },
     });
 
     try {
@@ -36,6 +39,8 @@ test('liveSavePermissionDeadlock - handleLiveSaveViaHandle returns permission_pr
         assert.strictEqual(res.error, 'permission_prompt_needed');
         assert.ok(savedLiveConfig);
         assert.strictEqual(savedLiveConfig.dirError, 'permission_prompt_needed');
+        assert.strictEqual(permissionRequests, 0, 'background cannot request user activation');
+        assert.strictEqual(directoryProbes, 0, 'denied permission must prevent file access');
     } finally {
         idbStore.getStoredDirHandle = origGetStored;
         liveStorage.setLiveConfig = origSetLiveConfig;
@@ -45,6 +50,8 @@ test('liveSavePermissionDeadlock - handleLiveSaveViaHandle returns permission_pr
 test('liveSavePermissionDeadlock - dirHandleController preserves pending handle on prompt and enables reauthorization', async () => {
     let clearedHandle = false;
     let savedHandle: any = null;
+    let permissionRequests = 0;
+    const previousDirHandle = DirHandleController.getDirHandle();
 
     const origGetStored = idbStore.getStoredDirHandle;
     const origSaveStored = idbStore.saveStoredDirHandle;
@@ -54,6 +61,7 @@ test('liveSavePermissionDeadlock - dirHandleController preserves pending handle 
         name: 'Vault_Obsidian',
         queryPermission: async () => permissionState,
         requestPermission: async () => {
+            permissionRequests++;
             permissionState = 'granted';
             return 'granted';
         },
@@ -74,6 +82,7 @@ test('liveSavePermissionDeadlock - dirHandleController preserves pending handle 
         const restored = await DirHandleController.restoreSavedDirHandle();
         assert.strictEqual(restored, null, 'Cannot use handle directly when permission is prompt');
         assert.strictEqual(clearedHandle, false, 'Handle must NOT be wiped from IndexedDB when directory physically exists!');
+        assert.strictEqual(permissionRequests, 0, 'restoring state must not request permission outside a user gesture');
 
         // Step 2: pendingPermissionHandle is retained
         const pending = DirHandleController.getPendingPermissionHandle();
@@ -83,6 +92,9 @@ test('liveSavePermissionDeadlock - dirHandleController preserves pending handle 
         // Step 3: user triggers reauthorization via user click
         const reauthOk = await DirHandleController.reauthorizeDirHandle();
         assert.strictEqual(reauthOk, true, 'reauthorizeDirHandle must succeed when user grants permission');
+        assert.strictEqual(permissionRequests, 1, 'reauthorization should request permission exactly once');
+        assert.strictEqual(savedHandle, mockDegradedHandle, 'granted handle must be persisted, not only cached in memory');
+        assert.strictEqual(clearedHandle, false, 'granted handle must not have been cleared');
 
         // Step 4: handle is now active and pending is cleared
         const active = DirHandleController.getDirHandle();
@@ -90,6 +102,7 @@ test('liveSavePermissionDeadlock - dirHandleController preserves pending handle 
         assert.strictEqual(active.name, 'Vault_Obsidian');
         assert.strictEqual(DirHandleController.getPendingPermissionHandle(), null);
     } finally {
+        DirHandleController.setDirHandle(previousDirHandle);
         idbStore.getStoredDirHandle = origGetStored;
         idbStore.saveStoredDirHandle = origSaveStored;
     }
