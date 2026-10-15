@@ -2181,15 +2181,111 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/provider-chatgpt-tree.test.ts",
+      "domain": "provider",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "ChatGPT backend-api mapping evidence to Domain boundary: tree linearization, dialect markdown, reasoning/citations, asset downloads and optional-host access, verified live via 9222 debug profile",
+      "notes": "Unverified provider scaffold: parser owns Domain branding per trust boundary; adapter unregistered until a user grants optional hosts.",
+      "testCount": 17,
+      "tests": [
+        {
+          "name": "system and empty assistant turns are skipped, user turns kept in order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "consecutive assistant turns merge into one node",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "processChatGPTMapping walks from current_node to root",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPTProvider matches only chatgpt hostnames",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "ChatGPTProvider checkReadiness reports logged-out session",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "tool image nodes are kept and their sediment pointers collected",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "files/download helpers narrow payloads and encode bytes",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "fetchConversationDetail downloads image pointers into Domain assets",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "thinking walk attaches hidden reasoning to the following assistant node",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "dialect preprocessing shields code and normalizes math/citations",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "bodies parse to structured blocks and models stay per-message",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "repeated image pointers reuse one asset instead of breaking closure",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "citations dedupe by URL across tether and grouped references",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "uploaded non-image files recorded, images left to the image path",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "incremental refresh stops at first unchanged item and merges head",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "listConversations paginates until the reported total is reached",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "optional access helper never prompts and registers only on grant",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 41,
-    "totalTests": 339,
+    "totalSuites": 42,
+    "totalTests": 356,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 319,
+      "P2": 336,
       "P3": 2,
       "P4": 0
     }

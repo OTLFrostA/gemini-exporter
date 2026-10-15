@@ -16,6 +16,10 @@
     "https://lh3.google.com/*",
     "https://*.gstatic.com/*"
   ],
+  "optional_host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
