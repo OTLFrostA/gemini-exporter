@@ -4,7 +4,7 @@ import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailE
 import type { DomainCitation, DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
-import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
+import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import { closeLegacyCitations } from '../../shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import { parseGeminiBody, parseLegacyReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
@@ -83,7 +83,7 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
             ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
             ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),
             ...(versionMismatch ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_MISMATCH', message: 'Detail contains activity newer than its metadata version' }] : []),
-            ...contentDiagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),
+            ...contentDiagnostics,
         ],
         transport: {
             nextPageToken: evidence.nextPageToken,

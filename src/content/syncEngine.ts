@@ -412,7 +412,7 @@ export interface ProviderSyncResult {
 
 function scanStatus(all: GeminiProviderPageResult, verifiedIncrementalStop = false): ScanStatus {
     if (contentContext.isAborted() || all.completionReason === 'aborted') return 'aborted';
-    if (all.hitGoogleLimit || all.diagnostics?.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
+    if (all.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
     if (verifiedIncrementalStop && all.completionReason === 'unchanged_boundary') return 'up_to_date';
     if (all.exhaustive === true && all.completionReason === 'natural_exhaustion' && isPaginationExhaustive(all)) return 'complete';
     return 'error';
@@ -504,10 +504,11 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
 
         // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
         const diagnostics: GeminiPaginationDiagnostics = all?.diagnostics;
-        const hitGoogleLimit = !!(all?.hitGoogleLimit || diagnostics?.hitGoogleLimit);
+        const hitGoogleLimit = all.hitGoogleLimit || all.completionReason === 'hit_google_limit';
         if (all && diagnostics) {
             const setDiag = Storage?.setLastSyncDiagnostics || StorageService.setLastSyncDiagnostics;
-            await setDiag(diagnostics);
+            try { await setDiag(diagnostics); }
+            catch (error) { console.warn('[Gemini Exporter] Could not save sync diagnostics:', error); }
         }
 
         const finalStatus = scanStatus(all, verifiedIncrementalStop);
@@ -574,12 +575,12 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                 if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
             }
             return { count: mergedLen, diagnostics, hitGoogleLimit: isLimit, status,
-                ...(complete ? {} : { error: diagnostics.stopReason || status }) };
+                ...(complete ? {} : { error: all.completionReason || status }) };
         }
-        if (all && diagnostics) {
+        if (all) {
             const status = finalStatus;
             return { count: 0, diagnostics, hitGoogleLimit, status,
-                ...(['complete', 'up_to_date'].includes(status) ? {} : { error: diagnostics.stopReason || status }) };
+                ...(['complete', 'up_to_date'].includes(status) ? {} : { error: all.completionReason || status }) };
         }
     } catch (e: unknown) {
         if (coverageRun && !coverageFinished) {

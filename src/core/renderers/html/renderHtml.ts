@@ -4,7 +4,7 @@ import type { HtmlRenderOptions } from '../shared/renderOptions.js';
 import { visual } from '../shared/visualContract.js';
 import { GEM_HTML_CSS, GEM_HTML_SCRIPT, sanitizeUrl } from './htmlTemplate.js';
 import { renderMathHtml } from './htmlMath.js';
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { DisplayBlock, DisplayInline, DisplayMessage, DocumentAst, ResourceBindings, SourceGroup } from '../../document/ast/ast.js';
 
 const CANONICAL_EXTRA_CSS = `
@@ -146,14 +146,14 @@ const CHEVRON_SVG = '<svg class="gem-thought-chevron" viewBox="0 0 24 24" width=
 
 
 /** Pure backend: only the presentation tree and prepared resource bindings. */
-export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options: HtmlRenderOptions = {}): { html: string; diagnostics: DocumentDiagnostic[] } {
+export function renderDocumentHtml(document: DocumentAst, resources: ResourceBindings, options: HtmlRenderOptions = {}): { html: string; diagnostics: Diagnostic[] } {
     const locale = options.locale ?? 'zh';
     const strings = getRendererStrings(locale);
     const isEn = locale === 'en';
     const unavailableText = (kind: 'image' | 'file', label: string, inline = false) => `${isEn ? inline && kind === 'image' ? 'Image missing' : 'Attachment missing' : inline && kind === 'image' ? '图片缺失' : '附件缺失'} · ${label}`;
     const available = (id: string) => Boolean(resources[id] && sanitizeUrl(resources[id], true) !== '#');
     const missing = (id: string) => diagnostics.push({ severity: 'warning', code: 'HTML_ASSET_UNRESOLVED', message: `Resource ${id} has no prepared safe URL` });
-    const diagnostics: DocumentDiagnostic[] = [];
+    const diagnostics: Diagnostic[] = [];
     // The shared URL sanitizer already escapes the attribute value.
     const url = (value: string): string => sanitizeUrl(value, false);
     const resource = (id: string): string => {

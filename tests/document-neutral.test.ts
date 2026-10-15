@@ -66,7 +66,7 @@ test('neutral contract carries no units, output formats, UI controls or source-m
 test('prepared resource absence is reported by each backend without deleting the display reference', () => {
     const input = fixture(); input.messages[0].reasoning = undefined; input.messages[0].content = [{ type: 'paragraph', children: [{ type: 'image', assetId: 'image' }] }];
     const { document } = composeDomainDocument(validateParserDomain(input)), before = JSON.stringify(document);
-    const diagnostics: import('../src/core/diagnostics/documentDiagnostic.js').DocumentDiagnostic[] = [];
+    const diagnostics: import('../src/core/diagnostics/diagnostic.js').Diagnostic[] = [];
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
     const paragraph = pdf.messages[0].blocks[0]; if (paragraph.type !== 'paragraph') throw new Error('Expected paragraph');

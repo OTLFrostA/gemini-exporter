@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../../diagnostics/diagnostic.js';
 import type { PdfLayoutPolicy } from '../typst/transport.js';
 
 /** Output controls travel beside the document, not inside its JSON tree. */
@@ -19,5 +19,5 @@ export interface PdfRenderOptions extends RenderOptions {
     convertMath?: (source: string, display: boolean) => string | undefined;
     layout?: PdfLayoutPolicy;
     repeatTableHeader?: boolean;
-    onDiagnostic?: (diagnostic: DocumentDiagnostic) => void;
+    onDiagnostic?: (diagnostic: Diagnostic) => void;
 }

@@ -1,7 +1,7 @@
 import type { ExportRecord } from '../../../types/ui.js';
 import type { WriterFactoryOptions } from '../../engine/writers/writerInterface.js';
 import type { PreparePdfItemContext } from './prepareItem.js';
-import type { DocumentDiagnostic as RenderDiagnostic } from '../../diagnostics/documentDiagnostic.js';
+import type { Diagnostic as RenderDiagnostic } from '../../diagnostics/diagnostic.js';
 import type {
     ArtifactWriteReport,
 } from '../artifacts.js';
@@ -23,7 +23,6 @@ import {
     BUNDLED_MATH_FALLBACK,
     SYSTEM_FALLBACK,
     resolveLocalFonts,
-    type FontProviderDiagnostic,
     type LocalFontResolution,
 } from '../typst/fonts/localFontProvider.js';
 import type {
@@ -140,7 +139,6 @@ export {
     extractChatFromDetailResult,
     resolveFullChatDetail,
     preparePdfItem,
-    toRenderDiagnostic,
     type PreparedPdfItemResult,
     type PreparedPdfItemSuccess,
     type PreparedPdfItemFailure,
@@ -151,7 +149,7 @@ import { preparePdfItem, type PdfSelectedItem } from './prepareItem.js';
 export interface MountedRuntimeFonts {
     readonly mountedCount: number;
     readonly mountedNames: readonly string[];
-    readonly diagnostics: FontProviderDiagnostic[];
+    readonly diagnostics: RenderDiagnostic[];
     readonly effectiveFonts: LocalFontResolution;
 }
 
@@ -170,7 +168,7 @@ export async function mountRuntimeFonts(
     }
     const bytes: Uint8Array[] = [];
     const names: string[] = [];
-    const diagnostics: FontProviderDiagnostic[] = [];
+    const diagnostics: RenderDiagnostic[] = [];
     for (const font of resolution.fonts) {
         try {
             const data = await font.getBytes();

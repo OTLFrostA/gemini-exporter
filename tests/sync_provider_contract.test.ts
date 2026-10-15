@@ -43,6 +43,7 @@ interface Setup {
     abort?: boolean;
     slidingLimit?: number;
     failWrite?: boolean;
+    failDiagnostics?: boolean;
     language?: 'zh' | 'en';
     wirePages?: ListParseResult[];
     pinnedPages?: ListParseResult[];
@@ -82,7 +83,10 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
             return { list: records, written: !!result, changed: result?.changed || 0 };
         },
         async setLastSync() {}, async updateAccountSlot() {},
-        async setLastSyncDiagnostics(value: unknown) { trace.diagnostics.push(value); },
+        async setLastSyncDiagnostics(value: unknown) {
+            if (setup.failDiagnostics) throw new Error('Diagnostic sink unavailable');
+            trace.diagnostics.push(value);
+        },
         async setPendingTakeoutPrompt(value: typeof trace.prompts[number]) { trace.prompts.push(value); },
         async reconcileConversations(slot: string, items: GeminiProviderConversationItem[], options: { keepTakeout: boolean }) {
             trace.reconcileCalls++; trace.slots.push(slot);
@@ -221,11 +225,10 @@ test('sync provider: every incomplete reason preserves unseen historical cloud r
 });
 
 test('sync provider: explicit false completeness, Google evidence and cancellation veto reconciliation', async () => {
-    for (const cause of ['exhaustive', 'top-limit', 'diagnostic-limit', 'cancelled'] as const) {
+    for (const cause of ['exhaustive', 'top-limit', 'cancelled'] as const) {
         const input = page();
         if (cause === 'exhaustive') input.exhaustive = false;
         if (cause === 'top-limit') input.hitGoogleLimit = true;
-        if (cause === 'diagnostic-limit') input.diagnostics.hitGoogleLimit = true;
         const { trace, records } = await scan(input, { abort: cause === 'cancelled' });
         assert.equal(trace.reconcileCalls, 0, cause);
         assert.ok(records.some(c => c.id === 'chat_old'), cause);
@@ -245,7 +248,7 @@ test('sync provider: legacy timestamps cannot authorize an unverified overlap ea
     assert.ok(records.some(c => c.id === 'chat_old'));
 });
 
-test('sync provider: typed Google diagnostics preserve quota prompt and completion progress', async () => {
+test('sync provider: explicit Google limit outcome preserves quota prompt regardless of diagnostics', async () => {
     for (const nested of [false, true]) {
         const input = page('hit_google_limit');
         input.hitGoogleLimit = !nested;
@@ -273,7 +276,7 @@ test('sync provider: empty complete account retains the existing conservative no
 
 test('sync safety: real pagination edge results pass through adapter without reconciling unseen history', async () => {
     const abort = new Error('request aborted'); abort.name = 'AbortError';
-    const malformed: ListParseResult = { conversations: [], nextPageToken: null, _debug: { error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
+    const malformed: ListParseResult = { conversations: [], nextPageToken: null, failure: 'invalid_response', _debug: { error: 'NO_INNER_STR', bardError: null, textLen: 3, rawPreview: 'bad', topParsed: null } };
     for (const edge of ['negative-budget', 'empty-no-inner', 'partial-no-inner', 'partial-abort'] as const) {
         let calls = 0;
         const actual = await getAllConversations({ async getConversationList() {
@@ -315,7 +318,7 @@ test('sync safety: later pages with newer updates are saved even when the first 
 });
 
 test('sync safety: a limited first scan and retry never claim complete coverage', async () => {
-    const limited: ListParseResult = { conversations: [], nextPageToken: null,
+    const limited: ListParseResult = { conversations: [], nextPageToken: null, failure: 'hit_google_limit',
         _debug: { error: 'BARD_ERROR_INFO', bardError: 'limit', textLen: 0, rawPreview: '', topParsed: null } };
     for (let attempt = 0; attempt < 2; attempt++) {
         const { result, trace, records } = await scan(page(), { wirePages: [
@@ -352,4 +355,21 @@ test('sync covers pinned-only chats and persists a later-page rename with an unc
     assert.equal(records.find(record => record.id === 'chat_old')?.updatedAt, NOW - 1000);
     assert.ok(records.some(record => record.id === 'pinned_only'));
     assert.deepEqual(trace.checkpointWrites, [NOW]);
+});
+
+
+test('scan business outcomes ignore diagnostic limit flags and diagnostic persistence failure', async () => {
+    for (const reason of ['natural_exhaustion', 'hit_google_limit'] as const) {
+        const expected = reason === 'natural_exhaustion' ? 'complete' : 'partial_limit';
+        const input = page(reason);
+        input.diagnostics.hitGoogleLimit = !input.hitGoogleLimit;
+        const normal = await scan(input);
+        const unavailable = await scan(input, { failDiagnostics: true });
+        assert.equal(normal.result?.status, expected);
+        assert.equal(unavailable.result?.status, expected);
+        assert.deepEqual(normal.trace.checkpointWrites, unavailable.trace.checkpointWrites);
+        assert.deepEqual(normal.records, unavailable.records);
+        assert.equal(normal.trace.prompts.length, input.hitGoogleLimit ? 1 : 0);
+        assert.equal(unavailable.trace.prompts.length, normal.trace.prompts.length);
+    }
 });

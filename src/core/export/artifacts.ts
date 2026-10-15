@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from '../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 export interface CompanionResourcePlan {
     resourceIds: string[];
@@ -19,5 +19,5 @@ export interface ExportArtifact {
     companionResourceIds: string[];
     companionPlan?: CompanionResourcePlan;
     writeReport?: ArtifactWriteReport;
-    diagnostics?: DocumentDiagnostic[];
+    diagnostics?: Diagnostic[];
 }

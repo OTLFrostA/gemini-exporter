@@ -1,6 +1,6 @@
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainConversationDetail, DomainMessage } from '../../../domain/conversationDetail.js';
-import type { Diagnostic } from '../../../diagnostics/contentDiagnostic.js';
+import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import type { ResourceConversationParseResult } from '../../parsingResult.js';
 import { parseDomContent } from './content.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
@@ -87,6 +87,6 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
         completeness: 'partial',
         url: raw.url ?? `https://gemini.google.com/app/${id}`, messages: resources.messages, assets: resources.assets };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
-        diagnostics: diagnostics.map(d => ({ severity: d.severity, code: d.code, message: d.message, path: d.path })),
+        diagnostics,
         transport: { fallbackUsed, nodeCount: nodes.length, htmlLen: doc.documentElement?.outerHTML?.length ?? 0 } };
 }

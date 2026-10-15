@@ -1,4 +1,4 @@
-import type { DocumentDiagnostic } from '../diagnostics/documentDiagnostic.js';
+import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 /** A recoverable resource failure is separate from conversation/source facts. */
 export type ResourceResult<T> =
@@ -10,7 +10,7 @@ export interface ResourceDelivery { path: string }
 export function missingResource(resourceId: string, reason: string, code = 'RESOURCE_UNAVAILABLE'): ResourceFailure {
     return { ok: false, resourceId, reason, code };
 }
-export function resourceDiagnostics(results: readonly ResourceResult<unknown>[]): DocumentDiagnostic[] {
+export function resourceDiagnostics(results: readonly ResourceResult<unknown>[]): Diagnostic[] {
     return results.flatMap(result => result.ok ? [] : [{ severity: 'warning' as const,
         code: result.code, message: result.reason, path: `asset:${result.resourceId}` }]);
 }

@@ -91,6 +91,7 @@ test('the compatibility directory is retired and no production source imports it
     }
 });
 function forbidden(owner: string, target: string): boolean {
+    if (owner === 'diagnostics/diagnostic.ts') return target !== 'utils/jsonTypes.ts';
     if (owner.startsWith('domain/')) return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
     if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');
     if (owner.startsWith('document/compose/')) return !/^(domain\/|document\/|diagnostics\/|utils\/)/.test(target);

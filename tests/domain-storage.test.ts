@@ -7,7 +7,7 @@ import { __clearDomainMemory, saveDomainConversation, cacheDomainResource, getSt
 import { readStorageDomain } from '../src/core/storage/domain/validate.js';
 import { parseLegacyStorageConversation } from '../src/core/parsers/legacyStorage/parseConversation.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { migrateLegacyDomains } from '../src/core/storage/domain/migrateLegacy.js';
+import { DOMAIN_MIGRATION_REPORT_KEY, migrateLegacyDomains } from '../src/core/storage/domain/migrateLegacy.js';
 import { saveConversationDetail, __clearMemoryStore } from '../src/core/storage/conversationDetailStore.js';
 import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
 import { __setSchemaFrozenForTest } from '../src/core/storage/schemaState.js';
@@ -252,4 +252,23 @@ test('a partial capture fills an empty metadata placeholder without replacing ex
     fragment.conversation.completeness = 'partial';
     await saveDomainConversation('u0', fragment);
     assert.deepEqual((await getStoredDomain(identity))!.conversation.messages, full.conversation.messages);
+});
+
+
+test('migration report persistence failure does not reject an already migrated Domain', async () => {
+    const previous = globalThis.chrome;
+    const values: Record<string, unknown> = { gemini_schema_version: 1,
+        gemini_conversations: [indexFixture({ id: 'report_failure', title: 'Retained source' })] };
+    globalThis.chrome = { storage: { local: {
+        get: async () => structuredClone(values),
+        set: async (patch: Record<string, unknown>) => {
+            if (DOMAIN_MIGRATION_REPORT_KEY in patch) throw new Error('Diagnostic report storage unavailable');
+            Object.assign(values, patch);
+        },
+    } } } as unknown as typeof chrome;
+    try {
+        const report = await migrateLegacyDomains();
+        assert.equal(report.converted, 1);
+        assert.equal((await getStoredDomain(storageIdentity('gemini', 'u0', 'report_failure')))?.conversation.title, 'Retained source');
+    } finally { globalThis.chrome = previous; }
 });

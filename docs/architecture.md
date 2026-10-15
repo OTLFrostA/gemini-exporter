@@ -34,6 +34,8 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 导出完成只写交付记录，不再创建会话或更新标题、时间和消息数。HTML、Markdown、Typst/PDF 的正文与文档元数据均由 Document AST 提供；Markdown frontmatter 所需身份与 ISO 日期在 composer 内进入 AST。JSON 保持 Domain 语义存档契约，不改成展示 AST。
 
+诊断使用独立的 `diagnostics/diagnostic.ts` 契约，仅供日志、审计与问题报告。分页合并依据拒识数量和源版本事实判断完整性；列表 parser 以 `failure` 返回源失败，同步依据正式的完成原因与限流状态判断结果，不回读诊断码、`_debug` 或诊断副本。诊断持久化失败不阻断同步覆盖提交，导出状态与重试依据结构化完整性、资源交付结果及错误。
+
 文档导出的内部会话表示只有 Domain 和 Document AST 两层：
 
 ```text

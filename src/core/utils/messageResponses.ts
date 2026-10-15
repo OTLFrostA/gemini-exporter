@@ -22,9 +22,6 @@ export function isScanResponse(value: unknown): value is ScanResponse {
         !optionalNumber(value.count) || !optionalNumber(value.total) ||
         !optionalString(value.error) || !optionalBoolean(value.hitGoogleLimit)) return false;
     if (value.status !== undefined && !['complete', 'up_to_date', 'partial_limit', 'aborted', 'error'].includes(String(value.status))) return false;
-    const diagnostics = value.diagnostics;
-    if (diagnostics !== undefined && (!isObjectRecord(diagnostics) ||
-        !optionalBoolean(diagnostics.hitGoogleLimit) || !optionalString(diagnostics.stopReason))) return false;
     if (value.success) {
         const hasFiniteCount = typeof value.count === 'number' && Number.isFinite(value.count);
         const hasFiniteTotal = typeof value.total === 'number' && Number.isFinite(value.total);

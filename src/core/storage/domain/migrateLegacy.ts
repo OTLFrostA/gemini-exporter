@@ -71,7 +71,8 @@ export async function migrateLegacyDomains(): Promise<DomainMigrationReport> {
         if (!owners.has(id)) report.issues.push({ key: `idb:${id}`, code: 'LEGACY_ORPHAN_DETAIL', message: 'Original detail retained without guessing its account' });
     }
     const reportKey = needsDomainBroker() ? `${DOMAIN_MIGRATION_REPORT_KEY}:${location.origin}` : DOMAIN_MIGRATION_REPORT_KEY;
-    await chrome.storage.local.set({ [reportKey]: report });
+    try { await chrome.storage.local.set({ [reportKey]: report }); }
+    catch (error) { console.warn('[Gemini Exporter] Could not save migration diagnostics:', error); }
     return report;
 }
 
