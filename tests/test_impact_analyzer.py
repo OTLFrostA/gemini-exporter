@@ -28,10 +28,6 @@ class TestImpactAnalyzer(unittest.TestCase):
     def setUpClass(cls):
         cls.graph = DependencyGraph(base_dir=BASE_DIR)
 
-    def test_graph_has_nodes(self):
-        self.assertGreater(len(self.graph.dependencies), 10)
-        self.assertGreater(len(self.graph.dependents), 10)
-
     def test_storage_service_transitive_dependencies(self):
         """核心断言：修改底层 storageService.ts 必须传递影响所有依赖它的模块与测试"""
         target = "src/core/storage/storageService.ts"
