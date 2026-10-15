@@ -2,9 +2,7 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert';
 
-import * as GeminiUtils from '../src/core/utils/utils.js';
 import { __setModuleOverride, __getModuleOverride, __resolveModule } from '../src/core/utils/moduleOverrides.js';
-__setModuleOverride('GeminiUtils', GeminiUtils);
 
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
 import * as BatchWorker from '../src/core/engine/export/batchWorker.js';
@@ -12,7 +10,7 @@ import * as SessionRecovery from '../src/core/engine/export/sessionRecovery.js';
 import { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
 test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegate', async () => {
-    const origChrome = (global as any).chrome;
+    const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     delete (global as any).chrome;
 
 
@@ -50,16 +48,19 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
         assert.strictEqual(result.ok, true, 'Asset should be successfully marked as saved');
         assert.strictEqual(savedFiles.length, 1, 'Asset file must be written to zip folder');
         assert.strictEqual(savedFiles[0].name, 'asset.png');
+        assert.deepStrictEqual([...new Uint8Array(savedFiles[0].bytes)], [1, 2, 3, 4], 'saved asset bytes must match the delegate response');
 
     } finally {
-        (global as any).chrome = origChrome;
+        if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
+        else delete (global as any).chrome;
     }
 });
 
 test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via injected messageSender', async () => {
-    const origChrome = (global as any).chrome;
+    const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     delete (global as any).chrome;
     // Clear any TabService test override so the seam resolves to null
+    const previousTabService = __getModuleOverride('TabService');
     __setModuleOverride('TabService', undefined);
 
     try {
@@ -92,15 +93,17 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
         assert.ok(chat && 'conversation' in chat);
         assert.strictEqual(chat.conversation.index.title, 'Decoupled Remote Chat');
     } finally {
-        (global as any).chrome = origChrome;
-        __setModuleOverride('TabService', undefined);
+        if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
+        else delete (global as any).chrome;
+        __setModuleOverride('TabService', previousTabService);
     }
 });
 
 test('Decoupling 3: GeminiAPIClient respects standard AbortSignal without window.__gemExporterAborted', () => {
-    const origWindow = (global as any).window;
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const abortFlagDescriptor = Object.getOwnPropertyDescriptor(globalThis, '__gemExporterAborted');
     delete (global as any).window;
-    if ((globalThis as any).__gemExporterAborted) delete (globalThis as any).__gemExporterAborted;
+    delete (globalThis as any).__gemExporterAborted;
 
     try {
         const controller = new AbortController();
@@ -115,12 +118,15 @@ test('Decoupling 3: GeminiAPIClient respects standard AbortSignal without window
             'client.isAborted() must return true when AbortSignal triggers abort'
         );
     } finally {
-        (global as any).window = origWindow;
+        if (windowDescriptor) Object.defineProperty(globalThis, 'window', windowDescriptor);
+        else delete (global as any).window;
+        if (abortFlagDescriptor) Object.defineProperty(globalThis, '__gemExporterAborted', abortFlagDescriptor);
+        else delete (globalThis as any).__gemExporterAborted;
     }
 });
 
 test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter without chrome.storage', async () => {
-    const origChrome = (global as any).chrome;
+    const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     delete (global as any).chrome;
 
     try {
@@ -145,7 +151,8 @@ test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter witho
         assert.strictEqual(persistedRecord.id, '12345');
         assert.strictEqual(persistedRecord.slot, 'u0');
     } finally {
-        (global as any).chrome = origChrome;
+        if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
+        else delete (global as any).chrome;
     }
 });
 
@@ -158,7 +165,8 @@ test('Decoupling 5: moduleOverrides rejects overrides and ignores mocks in NODE_
         const resolved = __resolveModule('TestMockSeam', 'defaultFallback');
         assert.strictEqual(resolved, 'defaultFallback', 'Must resolve to fallback directly in production');
     } finally {
-        process.env.NODE_ENV = origEnv;
+        if (origEnv === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = origEnv;
     }
 });
 
