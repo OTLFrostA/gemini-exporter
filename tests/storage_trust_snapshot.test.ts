@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { readStoredAcquisitionHints } from '../src/core/storage/domain/transport.js';
-import { saveDomainRequest, saveDomainConversation, getStoredDomain, __clearDomainMemory, storageIdentity, storedParseResult } from '../src/core/storage/domain/domainStore.js';
+import { saveDomainRequest, saveDomainConversation, getStoredDomain, getDomainResource, __clearDomainMemory, storageIdentity, storedParseResult } from '../src/core/storage/domain/domainStore.js';
 
 test('storage acquisition context retains only verified fields and rejects malformed inputs', async () => {
     const hints = { asset: { url: 'source', resolvedUrl: 'derived', localName: 'export/path', candidates: ['original'] } };
@@ -60,18 +60,22 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
         assert.equal(stored.conversation.detail.messages[0].content[0].type, 'paragraph');
         assert.equal(JSON.stringify(stored.conversation.detail.messages).includes('Body'), true);
         assert.deepEqual(stored.acquisitionHints.asset.candidates, ['opaque:original']);
-        assert.deepEqual([...stored.resources[0].bytes], [1, 2, 3]);
+        const firstBytes = await getDomainResource(identity, 'asset');
+        assert.ok(firstBytes);
+        assert.deepEqual([...firstBytes], [1, 2, 3]);
 
         const adapted = storedParseResult(stored);
         adapted.conversation.index.title = 'Changed projection';
         adapted.acquisitionHints.asset.candidates![0] = 'changed';
-        stored.resources[0].bytes[0] = 88;
+        firstBytes[0] = 88;
 
         const reread = await getStoredDomain(identity);
         assert.ok(reread);
         assert.equal(reread.conversation.index.title, 'Original');
         assert.deepEqual(reread.acquisitionHints.asset.candidates, ['opaque:original']);
-        assert.deepEqual([...reread.resources[0].bytes], [1, 2, 3]);
+        const rereadBytes = await getDomainResource(identity, 'asset');
+        assert.ok(rereadBytes);
+        assert.deepEqual([...rereadBytes], [1, 2, 3]);
         assert.equal(JSON.stringify(reread.conversation.detail.messages).includes('Mutated source'), false);
     } finally { __clearDomainMemory(); }
 });
