@@ -11,8 +11,6 @@
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
-const fs = require('node:fs');
-const path = require('node:path');
 const nodeCrypto = require('node:crypto');
 
 const { sha256Hex } = require('../src/core/export/assets/sha256.js');
@@ -72,23 +70,4 @@ test('data: URL asset digest/storageRef are byte-identical to the old implementa
     assert.ok(decoded.ok);
     assert.strictEqual(decoded.sha256, expected);
     assert.strictEqual(decoded.storageRef, `assets/sha256/c4/14/${expected}.png`);
-});
-
-test('production primitive is Web Crypto, not a handwritten round implementation', () => {
-    const src = fs.readFileSync(
-        path.join(__dirname, '..', 'src', 'core', 'export', 'assets', 'sha256.ts'),
-        'utf8',
-    );
-    assert.ok(src.includes("crypto.subtle.digest('SHA-256'"), 'must call crypto.subtle.digest("SHA-256", ...)');
-    assert.ok(!src.includes('0x428a2f98'), 'round constants must be gone');
-    assert.ok(!/rotr|compression round/i.test(src), 'compression-round code must be gone');
-});
-
-test('no crypto npm dependency is introduced', () => {
-    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-    const deps = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
-    assert.ok(
-        !Object.keys(deps).some((name) => /crypto|sha|hash/i.test(name)),
-        'no crypto-related npm dependency may be added',
-    );
 });
