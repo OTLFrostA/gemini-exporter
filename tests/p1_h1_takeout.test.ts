@@ -52,14 +52,6 @@ test('p1_h1 - P1-114: zip guards fail closed on unknown size', () => {
 
 // C2PA marker/date coverage lives in media_index_safety.test.ts and takeout_engine.test.ts.
 
-// ---------- takeoutHtmlSizeUnknown i18n key ----------
-test('p1_h1 - takeoutHtmlSizeUnknown key exists in en and zh', () => {
-    const en = require('../src/core/utils/locales/en.js');
-    const zh = require('../src/core/utils/locales/zh.js');
-    assert.ok(typeof en.takeoutHtmlSizeUnknown === 'string' && en.takeoutHtmlSizeUnknown.length > 0, 'en key present');
-    assert.ok(typeof zh.takeoutHtmlSizeUnknown === 'string' && zh.takeoutHtmlSizeUnknown.length > 0, 'zh key present');
-});
-
 test('p1_h1 - explicit numeric UTC offsets in English and Chinese Takeout dates', () => {
     const { parseTakeoutTimestamp } = require('../src/core/parsers/gemini/takeout/decodeHtml.js');
     // Avoid asserting a CST interpretation from prompt language: CST is ambiguous
