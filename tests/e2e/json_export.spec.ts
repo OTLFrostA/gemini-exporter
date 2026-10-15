@@ -115,8 +115,12 @@ test.describe('Deep E2E: Standard JSON export', () => {
     expect(parsed.version).toBe(2);
     expect(parsed.conversation.providerId).toBe('gemini');
     expect(parsed.conversation.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant']);
-    expect(JSON.stringify(parsed.conversation.messages)).toContain('一致性哈希');
+    expect(JSON.stringify(parsed.conversation.messages[0].content))
+      .toContain('请解释一下分布式系统中的一致性哈希算法');
+    expect(JSON.stringify(parsed.conversation.messages[1].content))
+      .toContain('能够在节点增删时最小化数据迁移');
     expect(Array.isArray(parsed.conversation.messages[0].content)).toBe(true);
+    expect(Array.isArray(parsed.conversation.messages[1].content)).toBe(true);
     expect(parsed.transport).toBeUndefined();
 
     // 6. Verify Workbench UI updated

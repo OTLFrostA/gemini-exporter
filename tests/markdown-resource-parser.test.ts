@@ -64,7 +64,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
             assert.equal(result.status, 0, result.stderr);
             return JSON.parse(result.stdout) as string[];
         };
-        assert.equal(validate().length, 1);
+        assert.deepEqual(validate(), ['files/foo.pdf: missing or empty resource: files/foo.pdf']);
         mkdirSync(join(root, 'files'));
         writeFileSync(join(root, 'files/foo.pdf'), 'nonempty attachment');
         assert.deepEqual(validate(), []);
