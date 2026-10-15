@@ -125,5 +125,6 @@
   "src/core/storage/conversationIndexFromParsed.ts",
   "src/core/resources/geminiImageUrl.ts",
   "src/core/parsers/shared/resources/c2paTimestamp.ts",
-  "src/core/diagnostics/diagnostic.ts"
+  "src/core/diagnostics/diagnostic.ts",
+  "src/core/parsers/shared/markdown/mdastToContent.ts"
 ]

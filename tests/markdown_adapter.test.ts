@@ -637,6 +637,48 @@ test('unsupported blocks retain raw slices, visible values, image alt text and e
     assert.strictEqual(diagnostics.filter((d: any) => d.code === 'MDAST_UNKNOWN_BLOCK').length, 4);
 });
 
+test('unsupported inline fallback ignores malformed fields while preserving nested text and breaks', () => {
+    const { ctx, diagnostics, inlineAssets } = createTestContext();
+    const node = {
+        type: 'customInline',
+        value: { unexpected: 'not visible' },
+        children: [null, 7, false, { type: 'customLeaf', value: 42, alt: 'diagram' },
+            { type: 'break' }, { type: 'customLeaf', children: 'invalid', source: 'x^2' }],
+    };
+    const before = structuredClone(node);
+    assert.deepStrictEqual(adaptInlines([node], ctx), [
+        { type: 'text', text: 'diagram' },
+        { type: 'lineBreak', kind: 'soft' },
+        { type: 'text', text: 'x^2' },
+    ]);
+    assert.deepStrictEqual(node, before);
+    assert.deepStrictEqual(diagnostics[0].details, { nodeType: 'customInline' });
+    assert.strictEqual(inlineAssets.length, 0);
+});
+
+test('unsupported block fallback tolerates malformed descendants and positions without losing visible text', () => {
+    const { ctx, diagnostics, inlineAssets } = createTestContext();
+    const nodes = [
+        { type: 'widget', position: { start: null, end: { offset: 9 } }, children: [
+            null, 7, false, { type: 'paragraph', children: [
+                { type: 'text', value: 'see ' }, { type: 'image', value: 12, alt: 'diagram' },
+            ] }, { type: 'widget', value: { unexpected: true }, label: 'second paragraph' },
+        ] },
+        { type: 'widget', position: { start: { offset: '0' }, end: { offset: 9 } }, value: 'visible value' },
+        { type: 'widget', children: { unexpected: true } },
+    ];
+    const before = structuredClone(nodes);
+    const blocks = mdastRootToBlocks({ type: 'root', children: nodes }, ctx, 'raw slice');
+    assert.deepStrictEqual(blocks, [
+        { type: 'unknown', sourceType: 'widget', text: 'see diagram\nsecond paragraph' },
+        { type: 'unknown', sourceType: 'widget', text: 'visible value' },
+        { type: 'unknown', sourceType: 'widget', text: '[Unsupported block: widget]' },
+    ]);
+    assert.deepStrictEqual(nodes, before);
+    assert.strictEqual(diagnostics.filter((d: { code: string }) => d.code === 'MDAST_UNKNOWN_BLOCK').length, 3);
+    assert.strictEqual(inlineAssets.length, 0);
+});
+
 test('Unknown != Disappear: Unsupported block node collapses visible content to text and records diagnostic', () => {
     const { ctx, diagnostics } = createTestContext();
     const root: any = {
