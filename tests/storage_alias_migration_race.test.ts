@@ -5,7 +5,7 @@ const StorageService = require('../src/core/storage/storageService.js');
 
 test('export alias migration cannot overwrite a concurrent runtime export record', async () => {
     const originalChrome = (global as any).chrome;
-    const store: Record<string, any> = { exportedIds: { c_old: { status: 'ok' } } };
+    const store: Record<string, any> = { exportedIds: { c_old: { status: 'ok', exportedAt: 1700000000000 } } };
     let release!: () => void;
     let entered!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -28,11 +28,18 @@ test('export alias migration cannot overwrite a concurrent runtime export record
     try {
         const migration = StorageService.migrateExportAliases('u0');
         await started;
-        const save = StorageService.saveExportRecord('u0', 'new', { status: 'ok' });
+        const save = StorageService.saveExportRecord('u0', 'new', { status: 'partial', exportedAt: 1700000001000 });
         await new Promise(resolve => setImmediate(resolve));
         release();
-        await Promise.all([migration, save]);
-        assert.deepStrictEqual(Object.keys(store.exportedIds).sort(), ['new', 'old']);
+        const [migrated, saved] = await Promise.all([migration, save]);
+        assert.strictEqual(migrated, true, 'legacy alias needs to be migrated');
+        const expected = {
+            old: { status: 'ok', exportedAt: 1700000000000 },
+            new: { status: 'partial', exportedAt: 1700000001000 }
+        };
+        assert.deepStrictEqual(store.exportedIds, expected, 'migration must not erase the runtime write or old metadata');
+        assert.strictEqual(store.gemini_exported_u0, undefined, 'retired u0 alias must not be written back');
+        assert.deepStrictEqual(saved, expected, 'save must return the merged records, not a stale snapshot');
     } finally {
         release();
         (global as any).chrome = originalChrome;
