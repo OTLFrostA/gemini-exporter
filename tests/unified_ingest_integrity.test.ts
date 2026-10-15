@@ -16,7 +16,17 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
 const syncEngine = require('../src/content/syncEngine.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+
+let originalChromeDescriptor: PropertyDescriptor | undefined;
+test.beforeEach(() => {
+    originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+});
+test.afterEach(() => {
+    __clearModuleOverrides();
+    if (originalChromeDescriptor) Object.defineProperty(globalThis, 'chrome', originalChromeDescriptor);
+    else delete (global as any).chrome;
+});
 const { upsertConversations } = syncEngine;
 
 function listItem(id: string, tsMs: number, title: string, messagesLen = 3) {

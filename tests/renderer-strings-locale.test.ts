@@ -68,7 +68,7 @@ test('html uses the same string source', () => {
 });
 
 function roleMsg(role: string, extra: any = {}) {
-    return { id: `m-${role}-${Math.random().toString(36).slice(2, 8)}`, role, content: [], ...extra };
+    return { id: `m-${role}`, role, content: [], ...extra };
 }
 
 function firstNoteText(message: any) {
