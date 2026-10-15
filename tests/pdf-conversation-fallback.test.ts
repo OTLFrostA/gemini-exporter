@@ -10,32 +10,52 @@ const { resolveConversationData } = require('../src/core/engine/export/batchWork
 const store = require('../src/core/storage/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
-test('PDF successful empty online response recovers Takeout messages before normalization', async () => {
-    await catalogStorage.setNativeConversations('u0', [historicalFixture({ id: 'fallback', messages: [message('Recovered Takeout')] })]);
-    const result = await preparePdfItem({ id: 'fallback' }, {
-        includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ messages: [] })] }),
-        takeoutEngine: { getTakeoutOfflineChat: () => historicalFixture({ id: 'fallback', messages: [message('Recovered Takeout')] }) },
-    });
-    assert.equal(result.ok, true);
-    assert.match(JSON.stringify(result.document), /Recovered Takeout/);
+test('PDF successful empty online response selects Takeout rather than reporting a cache fallback', async () => {
+    const id = 'pdf-takeout-044', slot = 'u440';
+    const takeout = historicalFixture({ id, messages: [message('Recovered Takeout')] });
+    let takeoutReads = 0;
+    await catalogStorage.setNativeConversations(slot, [takeout]);
+    try {
+        const result = await preparePdfItem({ id }, {
+            currentSlot: slot,
+            includeAssets: false,
+            fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ id, messages: [] })] }),
+            takeoutEngine: {
+                getTakeoutOfflineChat: (requestedId: string, requestedSlot?: string | null) => {
+                    assert.equal(requestedId, id);
+                    assert.equal(requestedSlot, slot);
+                    takeoutReads++;
+                    return takeout;
+                },
+            },
+        });
+        assert.equal(takeoutReads, 1, 'empty online results must actually consult the Takeout source');
+        assert.equal(result.ok, true);
+        assert.match(JSON.stringify(result.document), /Recovered Takeout/);
+        assert.equal(result.usedLocalSnapshot, false, 'Takeout recovery must not be mislabeled as a local snapshot');
+    } finally { store.__clearDomainMemory(); }
 });
 
-test('shared acquisition prefers online and uses cache only after unusable Takeout', async () => {
+test('shared acquisition prefers valid online input and uses local cache after unusable Takeout', async () => {
+    const id = 'pdf-cache-044', slot = 'u441';
     let calls = 0;
-    const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id: 'fallback', messages: [] }); } };
-    const online = historicalFixture({ id: 'fallback', messages: [message('online')] });
-    assert.equal((await resolveConversationData(online, 'fallback', null, takeout)).result, online);
-    assert.equal(calls, 0);
-    await catalogStorage.setNativeConversations('u0', [historicalFixture({ id: 'fallback', messages: [message('cache')] })]);
+    const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id, messages: [] }); } };
+    const online = historicalFixture({ id, messages: [message('online')] });
+    assert.equal((await resolveConversationData(online, id, null, takeout, slot)).result, online);
+    assert.equal(calls, 0, 'valid online input must not consult Takeout');
+    await catalogStorage.setNativeConversations(slot, [historicalFixture({ id, messages: [message('cache')] })]);
     try {
-        const recovered = await resolveConversationData({ messages: [] }, 'fallback', null, takeout);
+        const recovered = await resolveConversationData({ messages: [] }, id, null, takeout, slot);
+        assert.equal(calls, 1, 'unusable source must attempt Takeout before local cache');
+        assert.equal(recovered.source, 'local_snapshot');
         assert.match(JSON.stringify(recovered.result.conversation.detail.messages), /cache/);
-        const pdf = await preparePdfItem({ id: 'fallback' }, {
-            includeAssets: false, takeoutEngine: takeout,
+        const pdf = await preparePdfItem({ id }, {
+            currentSlot: slot, includeAssets: false, takeoutEngine: takeout,
             fetchChatDetail: async () => ({ success: false, error: 'offline' }),
         });
+        assert.equal(calls, 2);
         assert.equal(pdf.ok, true);
+        assert.equal(pdf.usedLocalSnapshot, true, 'cached PDF export must retain its provenance');
         assert.match(JSON.stringify(pdf.document), /cache/);
     } finally { store.__clearDomainMemory(); }
 });
@@ -73,26 +93,24 @@ test('metadata-only selected item triggers detail fetch and prepares PDF documen
     assert.equal(result.id, 'meta-only');
 });
 
-test('extractChatFromDetailResult and preparePdfItem: results[0] wins over chat', async () => {
-    const fromResults = { id: 'r1', messages: [message('winner from results')] };
-    const fromChat = { id: 'c1', messages: [message('loser from chat')] };
-    const fallback = { id: 'f1', messages: [message('loser from fallback')] };
+test('detail extraction prefers the native results envelope over a competing native chat', async () => {
+    const id = 'pdf-precedence-044';
+    const fromResults = historicalFixture({ id, messages: [message('winner from results')] });
+    const fromChat = historicalFixture({ id, messages: [message('loser from chat')] });
 
     const extracted = extractChatFromDetailResult(
-        { success: true, results: [historicalFixture(fromResults)], chat: fromChat },
-        'norm-id',
-        fallback,
+        { success: true, results: [fromResults], chat: fromChat }, id,
     );
-    assert.equal(extracted.conversation.index.id, 'r1');
+    assert.equal(extracted, fromResults, 'both candidates must be valid native payloads');
     assert.match(JSON.stringify(extracted.conversation.detail.messages), /winner from results/);
+    assert.equal(
+        extractChatFromDetailResult({ success: true, results: [{ id, messages: [] }], chat: fromChat }, id),
+        null, 'a malformed results envelope must not silently switch to a different representation'
+    );
 
-    const result = await preparePdfItem({ id: 'precedence' }, {
-        includeAssets: false,
-        fetchChatDetail: async () => ({
-            success: true,
-            results: [historicalFixture(fromResults)],
-            chat: fromChat,
-        }),
+    const result = await preparePdfItem({ id }, {
+        currentSlot: 'u442', includeAssets: false,
+        fetchChatDetail: async () => ({ success: true, results: [fromResults], chat: fromChat }),
     });
     assert.equal(result.ok, true);
     assert.match(JSON.stringify(result.document), /winner from results/);
@@ -101,6 +119,7 @@ test('extractChatFromDetailResult and preparePdfItem: results[0] wins over chat'
 
 test('acquisition reports provenance beside the result and never mutates parser objects', async () => {
     const parsed = historicalFixture({ id: 'provenance', messages: [message('source')] });
+    const original = structuredClone(parsed);
     Object.freeze(parsed);
     const unspecified = await resolveConversationData(parsed, 'provenance');
     assert.equal(unspecified.result, parsed);
@@ -121,4 +140,5 @@ test('acquisition reports provenance beside the result and never mutates parser 
         assert.equal(explicit.usedLocalSnapshot, true);
     } finally { store.__clearDomainMemory(); }
     assert.equal('resolvedSource' in parsed, false);
+    assert.deepEqual(parsed, original, 'acquisition and rendering must not modify the supplied parser result');
 });

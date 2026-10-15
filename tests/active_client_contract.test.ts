@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import type { ActiveClientContract } from '../src/content/contentContext.js';
-import { ContentContext } from '../src/content/contentContext.js';
+import { ContentContext, contentContext } from '../src/content/contentContext.js';
+import { runCleanups } from '../src/content/cleanupRegistry.js';
 import { init as initMessageRouter } from '../src/content/messageRouter.js';
 
 // --------------------------------------------------------------------------
@@ -28,122 +29,131 @@ const _compileTimeCheck = () => {
 void _compileTimeCheck;
 
 // --------------------------------------------------------------------------
-// 2. Runtime regression:
+// 2. Runtime regression: the mock Chrome listener and window must be scoped
+// to each test; mutating the host globals at module import polluted other tests.
 // --------------------------------------------------------------------------
+type MessageListener = (msg: any, sender: any, respond: (response: any) => void) => unknown;
+type Dispatch = (msg: any) => Promise<any>;
 
-const listeners: Array<(msg: any, sender: any, sendResponse: any) => any> = [];
-if (typeof (global as any).chrome === 'undefined') {
-    (global as any).chrome = {
+async function withMessageRouter<T>(
+    execute: (dispatch: Dispatch, mockWindow: any) => Promise<T>,
+    deps: Parameters<typeof initMessageRouter>[0] = {},
+): Promise<T> {
+    const g = globalThis as any;
+    const originalChrome = Object.getOwnPropertyDescriptor(g, 'chrome');
+    const originalWindow = Object.getOwnPropertyDescriptor(g, 'window');
+    const activeClient = contentContext.getActiveClient();
+    const wasAborted = contentContext.isAborted();
+    const listeners = new Set<MessageListener>();
+    const mockWindow = { __gemExporterCleanups: [] as Array<() => void> } as any;
+    const mockChrome = {
         runtime: {
-            onMessage: { addListener: (fn: any) => { listeners.push(fn); } },
+            onMessage: {
+                addListener: (fn: MessageListener) => { listeners.add(fn); },
+                removeListener: (fn: MessageListener) => { listeners.delete(fn); },
+            },
             lastError: null,
             sendMessage: (_msg: any, _cb?: any) => {},
         },
     };
-} else if (!(global as any).chrome.runtime) {
-    (global as any).chrome.runtime = {
-        onMessage: { addListener: (fn: any) => { listeners.push(fn); } },
-        lastError: null,
-        sendMessage: (_msg: any, _cb?: any) => {},
-    };
-}
+    Object.defineProperty(g, 'chrome', { value: mockChrome, writable: true, configurable: true });
+    Object.defineProperty(g, 'window', { value: mockWindow, writable: true, configurable: true });
 
-function dispatchMessage(msg: any): Promise<any> {
-    return new Promise((resolve) => {
-        const listener = listeners[listeners.length - 1];
-        if (!listener) throw new Error('No message listener registered');
-        listener(msg, {}, (res: any) => {
-            resolve(res);
+    try {
+        contentContext.setActiveClient(null);
+        contentContext.setAborted(false);
+        initMessageRouter(deps);
+        assert.equal(listeners.size, 1, 'test must exercise the actual registered router');
+        const dispatch: Dispatch = (msg) => new Promise((resolve, reject) => {
+            const listener = [...listeners][0];
+            if (!listener) return reject(new Error('No message listener registered'));
+            try { listener(msg, {}, resolve); }
+            catch (error) { reject(error); }
         });
-    });
+        return await execute(dispatch, mockWindow);
+    } finally {
+        runCleanups();
+        contentContext.setActiveClient(activeClient);
+        contentContext.setAborted(wasAborted);
+        if (originalWindow) Object.defineProperty(g, 'window', originalWindow);
+        else delete g.window;
+        if (originalChrome) Object.defineProperty(g, 'chrome', originalChrome);
+        else delete g.chrome;
+    }
 }
 
 test('ActiveClient contract - ContentContext.abort behavior with and without abort()', () => {
     const ctx = new ContentContext();
 
-    // Case A: client has abort() -> abort() is called
-    let clientAbortCalled = false;
+    let clientAbortCalled = 0;
     const clientWithAbort: ActiveClientContract = {
-        abort: () => { clientAbortCalled = true; }
+        abort: () => { clientAbortCalled++; },
     };
     ctx.setActiveClient(clientWithAbort);
     ctx.abort();
-    assert.strictEqual(clientAbortCalled, true, 'client.abort() should be called');
+    assert.strictEqual(clientAbortCalled, 1, 'client.abort() should be invoked once');
     assert.strictEqual(ctx.isAborted(), true);
 
-    // Case B: client does NOT have abort() -> does not throw
     const ctx2 = new ContentContext();
     ctx2.setActiveClient(clientWithoutAbort);
-    assert.doesNotThrow(() => {
-        ctx2.abort();
-    }, 'ContentContext.abort() should not throw when client has no abort method');
+    assert.doesNotThrow(() => ctx2.abort());
     assert.strictEqual(ctx2.isAborted(), true);
 
-    // Case C: client.abort() throws -> exception caught cleanly (best-effort)
     const ctx3 = new ContentContext();
-    const failingClient: ActiveClientContract = {
-        abort: () => { throw new Error('Abort failure'); }
-    };
-    ctx3.setActiveClient(failingClient);
-    assert.doesNotThrow(() => {
-        ctx3.abort();
-    }, 'ContentContext.abort() should catch client.abort() errors');
+    ctx3.setActiveClient({ abort: () => { throw new Error('Abort failure'); } });
+    assert.doesNotThrow(() => ctx3.abort(), 'ContentContext.abort() is best-effort');
+    assert.strictEqual(ctx3.isAborted(), true, 'abort state must survive an exception in client.abort()');
 });
 
-test('ActiveClient contract - messageRouter stopDeepScan invokes abort() when present and succeeds when absent', async () => {
-    listeners.length = 0;
-    initMessageRouter({});
+test('ActiveClient contract - messageRouter stopDeepScan and abortSync handle optional and throwing abort', async () => {
+    await withMessageRouter(async (dispatch, mockWindow) => {
+        let abortCalls = 0;
+        mockWindow.__gemExporterActiveClient = { abort: () => { abortCalls++; } };
+        const res1 = await dispatch({ action: 'stopDeepScan' });
+        assert.strictEqual(res1.ok, true);
+        assert.strictEqual(res1.aborted, true);
+        assert.strictEqual(abortCalls, 1, 'the window client must actually receive abort');
+        assert.strictEqual(contentContext.isAborted(), true);
 
-    if (typeof (global as any).window === 'undefined') {
-        (global as any).window = {};
-    }
+        contentContext.setAborted(false);
+        mockWindow.__gemExporterActiveClient = clientWithoutAbort;
+        const res2 = await dispatch({ action: 'stopDeepScan' });
+        assert.strictEqual(res2.ok, true);
+        assert.strictEqual(res2.aborted, true);
+        assert.strictEqual(contentContext.isAborted(), true);
 
-    // Case 1: window.__gemExporterActiveClient has abort()
-    let abortInvoked = false;
-    (global as any).window.__gemExporterActiveClient = {
-        abort: () => { abortInvoked = true; }
-    };
-    const res1 = await dispatchMessage({ action: 'stopDeepScan' });
-    assert.strictEqual(res1.ok, true);
-    assert.strictEqual(res1.aborted, true);
-    assert.strictEqual(abortInvoked, true, 'window.__gemExporterActiveClient.abort() should be called');
-
-    // Case 2: window.__gemExporterActiveClient does NOT have abort()
-    (global as any).window.__gemExporterActiveClient = clientWithoutAbort;
-    const res2 = await dispatchMessage({ action: 'stopDeepScan' });
-    assert.strictEqual(res2.ok, true);
-    assert.strictEqual(res2.aborted, true);
-
-    // Case 3: window.__gemExporterActiveClient abort() throws
-    (global as any).window.__gemExporterActiveClient = {
-        abort: () => { throw new Error('Simulated abort crash'); }
-    };
-    const res3 = await dispatchMessage({ action: 'abortSync' });
-    assert.strictEqual(res3.ok, true);
-    assert.strictEqual(res3.aborted, true);
-
-    // Cleanup
-    delete (global as any).window.__gemExporterActiveClient;
+        contentContext.setAborted(false);
+        mockWindow.__gemExporterActiveClient = { abort: () => { throw new Error('Simulated abort crash'); } };
+        const res3 = await dispatch({ action: 'abortSync' });
+        assert.strictEqual(res3.ok, true);
+        assert.strictEqual(res3.aborted, true);
+        assert.strictEqual(contentContext.isAborted(), true);
+    });
 });
 
-test('scan failures and cancellation return an explicit terminal status through the message router', async () => {
-    const { SyncEngine } = require('../src/content/syncEngine.js');
-    const { contentContext } = require('../src/content/contentContext.js');
-    const original = SyncEngine.syncConversations;
-    try {
+test('scan failures, limit, cancellation and completion return an explicit router status', async () => {
+    let mode = 'complete';
+    const syncEngine = {
+        syncConversations: async () => {
+            contentContext.setAborted(mode === 'aborted');
+            if (mode === 'complete' || mode === 'up_to_date') return { status: mode, count: 3 };
+            throw new Error(mode === 'partial_limit' ? 'HTTP 429 rate limit' : 'Injected failure');
+        },
+    };
+    await withMessageRouter(async (dispatch) => {
+        for (const status of ['complete', 'up_to_date']) {
+            mode = status;
+            const response = await dispatch({ action: 'deepScan' });
+            assert.strictEqual(response.success, true);
+            assert.strictEqual(response.status, status);
+            assert.strictEqual(response.count, 3);
+        }
         for (const status of ['error', 'aborted', 'partial_limit']) {
-            listeners.length = 0;
-            SyncEngine.syncConversations = async () => {
-                contentContext.setAborted(status === 'aborted');
-                throw new Error(status === 'partial_limit' ? 'HTTP 429 rate limit' : 'Injected failure');
-            };
-            initMessageRouter({});
-            const response = await dispatchMessage({ action: 'deepScan' });
+            mode = status;
+            const response = await dispatch({ action: 'deepScan' });
             assert.strictEqual(response.success, false);
             assert.strictEqual(response.status, status);
+            assert.strictEqual(response.hitGoogleLimit, status === 'partial_limit');
         }
-    } finally {
-        SyncEngine.syncConversations = original;
-        contentContext.setAborted(false);
-    }
+    }, { syncEngine: syncEngine as never });
 });
