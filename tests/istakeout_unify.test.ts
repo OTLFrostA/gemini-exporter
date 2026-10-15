@@ -1,111 +1,66 @@
-import { indexFixture } from './helpers/indexFixture.js';
-/**
- * isTakeout 四条件判断统一回归测试。
- *
- * 背景："这条记录是 takeout 数据吗"这个 keep 守卫曾在四处各写一份内联判断，
- * 其中两处带 `titles.takeout && !titles.rpc && !titles.dom` 守卫
- * （conversationsStore.reconcileWithCloud、storageService.reconcileConversations），
- * 另两处是宽口径（两处 hasTakeoutData）。"混血"记录（titles 同时携带
- * takeout 与 rpc）在宽口径站点被判为 takeout，却在带守卫的 reconciliation
- * 路径被判为非 takeout —— 同一份数据，一边认为该保留、一边把它删掉。
- *
- * 修复：四处统一调用 src/core/utils/titleUtils.ts 的共享 helper
- * isTakeoutConversation（宽口径语义），删除语义其他部分不动。
- *
- * 运行：node -r tests/ts_register.js --test tests/istakeout_unify.test.ts
- */
-export {};
-const test = require('node:test');
-const assert = require('node:assert');
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { indexStorage } from './helpers/indexStorage.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
+import { isTakeoutConversation } from '../src/core/utils/titleUtils.js';
+import ConversationsStore from '../src/ui/state/conversationsStore.js';
+import { StorageService } from '../src/core/storage/storageService.js';
 
-// Mock chrome.storage.local（storageService 需要）
-const mockStorage: Record<string, any> = {};
-(global as any).chrome = {
-    storage: {
-        local: {
-            get: async (keys: any) => {
-                if (keys === null) return { ...mockStorage };
-                if (typeof keys === 'string') keys = [keys];
-                const res: Record<string, any> = {};
-                for (const k of keys) {
-                    if (k in mockStorage) res[k] = mockStorage[k];
-                }
-                return res;
-            },
-            set: async (obj: any) => { Object.assign(mockStorage, obj); },
-            remove: async (keys: any) => {
-                if (typeof keys === 'string') keys = [keys];
-                for (const k of keys) delete mockStorage[k];
-            }
-        }
-    }
-};
-
-const ConversationsStore = require('../src/ui/state/conversationsStore.js');
-const StorageService = require('../src/core/storage/storageService.js');
-
-// "混血"记录：titles 同时携带 takeout 与 rpc（宽口径判 true，旧守卫版判 false）
-const hybrid = () => ({ id: 'c_hybrid1', title: 'Hybrid', titles: { takeout: 'Takeout Title', rpc: 'RPC Title' } });
-const pureTakeout = () => ({ id: 'c_takeout1', title: 'Pure Takeout', source: 'takeout' });
-const pureOnline = () => ({ id: 'c_online1', title: 'Pure Online', titles: { rpc: 'RPC Title' } });
-
-const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
-
-function withStubStorage() {
-    const prev = __getModuleOverride('StorageService');
-    __setModuleOverride('StorageService', {
-        reconcileConversations: async () => ({ kept: 0, removed: 0, removedIds: [] }),
+// The current Domain contract records import history independently of title provenance.
+// A later RPC title must not erase a prior Takeout import.
+function index(id: string, hasTakeoutImport: boolean, titleSource: 'rpc' | 'takeout' = 'rpc'): DomainConversationIndex {
+    return restoreConversationIndex({
+        providerId: 'gemini', id, title: `Conversation ${id}`, titleSource,
+        cloudAvailability: 'available', hasTakeoutImport,
     });
-    return () => { __setModuleOverride('StorageService', prev); };
 }
 
-test('store: reconcileWithCloud 保留 takeout+rpc 混血记录（与 hasTakeoutData 一致）', async () => {
-    const restore = withStubStorage();
+const cases = () => [
+    index('mixed', true, 'rpc'),       // Takeout history, title superseded by RPC.
+    index('takeout', true, 'takeout'), // Takeout title and import history.
+    index('active', false, 'rpc'),
+    index('stale', false, 'rpc'),
+];
+
+test('UI/cloud reconciliation retains imported conversations after an RPC title update', async () => {
+    const env = indexStorage();
+    const previousSlot = ConversationsStore.getCurrentSlot();
+    const previousList = ConversationsStore.getConversations();
     try {
-        ConversationsStore.setConversations(([hybrid(), pureTakeout(), pureOnline()]).map(indexFixture));
-        await ConversationsStore.reconcileWithCloud([], { keepTakeout: true });
-        const ids = ConversationsStore.getConversations().map((c: any) => c.id);
-        assert.ok(ids.includes('hybrid1'), '混血记录应被保留（宽口径语义）');
-        assert.ok(ids.includes('takeout1'), '纯 takeout 记录应被保留');
-        assert.ok(!ids.includes('online1'), '纯在线记录不在云端列表时应被移除（对照组）');
-    } finally { restore(); }
+        const originals = cases();
+        await StorageService.setConversations('u45', originals);
+        ConversationsStore.setCurrentSlot('u45');
+        ConversationsStore.setConversations(originals);
+
+        const result = await ConversationsStore.reconcileWithCloud([{ id: 'active' }], { keepTakeout: true });
+        assert.deepEqual(new Set(ConversationsStore.getConversations().map(c => c.id)),
+            new Set(['mixed', 'takeout', 'active']));
+        assert.deepEqual(new Set((await StorageService.getConversations('u45')).map(c => c.id)),
+            new Set(['mixed', 'takeout', 'active']), 'UI and persisted reconciliation must agree');
+        assert.deepEqual(result.removedIds, ['stale']);
+        assert.equal(result.kept, 3);
+        assert.equal(ConversationsStore.hasTakeoutData(), true);
+    } finally {
+        ConversationsStore.setConversations(previousList);
+        ConversationsStore.setCurrentSlot(previousSlot);
+        env.restore();
+    }
 });
 
-test('store: hasTakeoutData 对混血记录返回 true', () => {
-    ConversationsStore.setConversations(([hybrid()]).map(indexFixture));
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true);
+test('persistent reconciliation with keepTakeout=false may explicitly drop absent imported chats', async () => {
+    const env = indexStorage();
+    try {
+        await StorageService.setConversations('u45', cases());
+        const result = await StorageService.reconcileConversations('u45', [{ id: 'active' }], { keepTakeout: false });
+        assert.deepEqual(new Set(result.removedIds), new Set(['mixed', 'takeout', 'stale']));
+        assert.equal(result.kept, 1);
+        assert.deepEqual((await StorageService.getConversations('u45')).map(c => c.id), ['active']);
+    } finally { env.restore(); }
 });
 
-test('storage: reconcileConversations 保留 takeout+rpc 混血记录', async () => {
-    await StorageService.setConversations('u0', ([hybrid(), pureTakeout(), pureOnline()]).map(indexFixture));
-    const res = await StorageService.reconcileConversations('u0', [], { keepTakeout: true });
-    assert.ok(!res.removedIds.includes('hybrid1'), '混血记录不应出现在 removedIds（宽口径语义）');
-    const list = await StorageService.getConversations('u0');
-    const ids = list.map((c: any) => (c.id || '').replace(/^c_/, ''));
-    assert.ok(ids.includes('hybrid1'), '混血记录应被保留');
-    assert.ok(ids.includes('takeout1'), '纯 takeout 记录应被保留');
-    assert.ok(!ids.includes('online1'), '纯在线记录应被移除（对照组）');
-});
-
-test('helper: isTakeoutConversation 宽口径语义', () => {
-    const { isTakeoutConversation } = require('../src/core/utils/titleUtils.js');
-    assert.strictEqual(typeof isTakeoutConversation, 'function', 'titleUtils 应导出 isTakeoutConversation');
-    assert.strictEqual(isTakeoutConversation(indexFixture(hybrid())), true, 'takeout+rpc 混血 → true');
-    assert.strictEqual(isTakeoutConversation(indexFixture(pureTakeout())), true, 'source=takeout → true');
-    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', titleSource: 'takeout' })), true, 'titleSource=takeout → true');
-    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', isTakeoutOnly: true })), true, 'isTakeoutOnly → true');
-    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', titles: { takeout: 'T' } })), true, 'titles.takeout → true');
-    assert.strictEqual(isTakeoutConversation(indexFixture(pureOnline())), false, '纯在线 → false');
-    assert.strictEqual(isTakeoutConversation(indexFixture({ id: 'x', title: 'plain' })), false, '普通记录 → false');
-    assert.strictEqual(isTakeoutConversation(null), false, 'null → false');
-    assert.strictEqual(isTakeoutConversation(undefined), false, 'undefined → false');
-});
-
-test('facade: utils CJS 出口 re-export isTakeoutConversation', () => {
-    // 注意：utils.ts 底部有 `module.exports = GeminiUtils`，所以 CJS require
-    // 拿到的就是 GeminiUtils 对象本身（这正是上一轮踩过的坑：CJS 实际出口）。
-    const utils = require('../src/core/utils/utils.js');
-    assert.strictEqual(typeof utils.isTakeoutConversation, 'function', 'utils CJS 出口应带 isTakeoutConversation');
-    assert.strictEqual(utils.isTakeoutConversation(indexFixture(hybrid())), true);
-    assert.strictEqual(utils.isTakeoutConversation(indexFixture(pureOnline())), false);
+test('Takeout status depends on import history, not title provenance', () => {
+    assert.equal(isTakeoutConversation(index('mixed', true, 'rpc')), true);
+    assert.equal(isTakeoutConversation(index('takeout', true, 'takeout')), true);
+    assert.equal(isTakeoutConversation(index('active', false, 'rpc')), false);
+    assert.equal(isTakeoutConversation(null), false);
 });
