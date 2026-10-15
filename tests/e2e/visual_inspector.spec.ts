@@ -2,7 +2,14 @@ import { test, expect } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
 
-test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', () => {
+// Scope of this suite: DOM geometry (bounding boxes, collision, truncation),
+// occlusion, and physical hit-testing (elementFromPoint must land on the
+// intended element or one of its descendants). Screenshots saved under
+// tests/output/visual_audit/ are diagnostic artifacts only — this suite does
+// NOT pixel-compare them against baselines, and an existence assertion on a
+// screenshot only proves the artifact was written. Pixel-level visual
+// regression belongs to the Tier 3 visual playground, not here.
+test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', () => {
   const outputDir = path.resolve(__dirname, '../../tests/output/visual_audit');
 
   test.beforeAll(() => {
@@ -35,7 +42,8 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
         await expect(popover).toContainText(/only supports Markdown|只支持 Markdown/);
       }
 
-      // 1. Capture visual snapshot
+      // 1. Capture a diagnostic screenshot artifact. The existence assertion
+      // only proves the artifact was written; it is not a pixel comparison.
       const screenshotPath = path.join(outputDir, `tour_step_${stepIdx + 1}.png`);
       await page.screenshot({ path: screenshotPath });
       expect(fs.existsSync(screenshotPath)).toBe(true);
@@ -75,18 +83,19 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       expect(nextBtnBox).not.toBeNull();
 
       if (nextBtnBox) {
-        const hitTestTag = await page.evaluate(() => {
+        const hitInsideButton = await page.evaluate(() => {
           const btn = document.querySelector('#tourNextBtn');
-          if (!btn) return null;
+          if (!btn) return false;
           const r = btn.getBoundingClientRect();
           const clickX = r.left + r.width / 2;
           const clickY = r.top + r.height / 2;
           const hit = document.elementFromPoint(clickX, clickY);
-          return hit ? hit.tagName.toLowerCase() + (hit.id ? '#' + hit.id : '') : null;
+          return !!hit && (hit === btn || btn.contains(hit));
         });
 
-        // Must hit the button itself or text/span inside it
-        expect(hitTestTag).toMatch(/^(button#tournextbtn|span|div)/i);
+        // The element at the button's center must be the button itself or one
+        // of its descendants; an unrelated overlay covering it fails here.
+        expect(hitInsideButton).toBe(true);
 
         // Advance to next step
         if (stepIdx < 6) {
@@ -240,12 +249,15 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     }
 
     // Hit-test on background area (e.g. at 50, 50 where header/sidebar would normally be)
-    const backgroundHit = await page.evaluate(() => {
+    const backgroundHitInsideModal = await page.evaluate(() => {
+      const modalEl = document.getElementById('takeoutLimitModal');
+      if (!modalEl) return false;
       const hit = document.elementFromPoint(50, 50);
-      return hit ? hit.id || hit.className : 'null';
+      return !!hit && (hit === modalEl || modalEl.contains(hit));
     });
-    // Click must hit modal container/overlay, NOT underlying buttons
-    expect(backgroundHit).toMatch(/modal|overlay|container/i);
+    // Click must land on the modal or one of its descendants, NOT on any
+    // underlying element that merely carries a modal-ish id/class name.
+    expect(backgroundHitInsideModal).toBe(true);
 
     // Capture modal snapshot
     const modalPic = path.join(outputDir, 'modal_visual_backdrop.png');
@@ -302,7 +314,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     expect(fs.existsSync(fullPagePic)).toBe(true);
   });
 
-  test('should visually audit real-time conversation promotion to list top upon continuation with physical hit-testing', async ({ context, extensionId }) => {
+  test('should audit real-time conversation promotion to list top upon continuation with physical hit-testing', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -360,13 +372,16 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     if (box) {
       const cx = box.x + box.width / 2;
       const cy = box.y + box.height / 2;
-      const hitElementTag = await page.evaluate(({ x, y }) => {
+      const hitInsideTopItem = await page.evaluate(({ x, y }) => {
+        const item = document.querySelector('#list .item');
+        if (!item) return false;
         const hit = document.elementFromPoint(x, y);
-        return hit ? hit.tagName.toLowerCase() + (hit.className ? '.' + String(hit.className).split(' ')[0] : '') : null;
+        return !!hit && (hit === item || item.contains(hit));
       }, { x: cx, y: cy });
 
-      expect(hitElementTag).not.toBeNull();
-      expect(hitElementTag).toMatch(/^(div|label|span|input)/i);
+      // 中心点命中的必须是首位元素本身或其子元素；被无关元素遮挡即失败，
+      // 不再接受任意 div/label/span/input 标签蒙混过关。
+      expect(hitInsideTopItem).toBe(true);
     }
 
     const screenshotPath = path.join(outputDir, 'continued_chat_promoted.png');
@@ -374,7 +389,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     expect(fs.existsSync(screenshotPath)).toBe(true);
   });
 
-  test('should visually audit real-time cloud deletion status with local archive retention without layout breakage', async ({ context, extensionId }) => {
+  test('should audit real-time cloud deletion status with local archive retention without layout breakage', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -449,7 +464,7 @@ test.describe('Visual Inspection & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     expect(fs.existsSync(pruneScreenshot)).toBe(true);
   });
 
-  test('should visually audit Takeout import initial prefix and authoritative RPC title upgrade', async ({ context, extensionId }) => {
+  test('should audit Takeout import initial prefix and authoritative RPC title upgrade', async ({ context, extensionId }) => {
     const page = await context.newPage();
     await page.setViewportSize({ width: 1280, height: 800 });
 
