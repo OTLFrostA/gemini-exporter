@@ -180,7 +180,7 @@ test.describe('Export Workflow & State Update', () => {
 
     // Assert no empty ZIP appeared even after the completion UI settled.
     expect(await unexpectedDownload).toBe(false);
-    const stored = await page.evaluate(async () => chrome.storage.local.get('exportedIds'));
+    const stored = await page.evaluate(async () => chrome.storage.local.get('exportedIds')) as { exportedIds: Record<string, { exportedAt: number }> };
     expect(Object.keys(stored.exportedIds || {})).toEqual(['exp_chat_skip_001']);
     expect(stored.exportedIds['exp_chat_skip_001'].exportedAt).toBe(1700000000000);
   });
