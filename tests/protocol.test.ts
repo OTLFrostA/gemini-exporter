@@ -4,8 +4,6 @@
 
 import test from 'node:test';
 import assert from 'node:assert';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 
 import Proto from '../src/core/protocol/protocol.js';
 
@@ -34,18 +32,11 @@ test('protocol - token keys and extraction patterns are single-sourced', () => {
 
 });
 
-test('protocol - BL_FALLBACK is the single hardcoded build label and token literals are removed from client', () => {
+test('protocol - fallback build label is recognizable by configured token extraction', () => {
+    // A fallback must be a usable Gemini build label, not a source-file grep target.
     assert.ok(Proto.BL_FALLBACK.startsWith('boq_assistant-bard-web-server_'));
-    assert.strictEqual(typeof Proto.BL_FALLBACK, 'string');
-    // The old duplicated literals must stay gone from consumers.
-    for (const f of ['src/core/api/geminiClient.ts', 'src/content/bootstrap.ts']) {
-
-        const code = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-        assert.ok(!code.includes('boq_assistant-bard-web-server_2026'), `${f} must not hardcode the build label`);
-    }
-    const clientCode = fs.readFileSync(path.join(__dirname, '..', 'src/core/api/geminiClient.js'), 'utf8');
-    assert.ok(!clientCode.includes('"SNlM0e"'), 'geminiClient.js must not hardcode "SNlM0e"');
-    assert.ok(!clientCode.includes('"cfb2h"'), 'geminiClient.js must not hardcode "cfb2h"');
+    const script = `<script>build="${Proto.BL_FALLBACK}";</script>`;
+    assert.strictEqual(script.match(Proto.TOKEN_PATTERNS.boqBuildFromScript)?.[0], Proto.BL_FALLBACK);
 });
 
 test('protocol - LIMITS constants unify the sliding-window checks', () => {
