@@ -131,7 +131,10 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                             }
                         }
                         const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        await persistNativeConversation(targetSlot, native);
+                        await persistNativeConversation(targetSlot, {
+                            ...native,
+                            conversation: { ...detailRes, id: nid }
+                        });
 
                         if (isRealTitle(title, nid)) {
                             await upsertConversations([{

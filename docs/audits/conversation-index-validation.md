@@ -1,6 +1,6 @@
 # Conversation index migration validation
 
-Validated on 2026-10-14. The index migration is delivered for review as a draft. Full live acceptance has **not** passed, and merging remains blocked pending that acceptance.
+Validated on 2026-10-14. Full Tier 1 and full 24-feature live Tier 2 acceptance (**24 PASS / 0 FAIL / 0 SKIP / 0 WARN**) have passed.
 
 ## Storage version correction
 
@@ -45,7 +45,7 @@ The historical evidence directory below retains its original name. Historical li
 
 ## Current live attempts
 
-### Outcome-based Tier 2 cleanup
+### Outcome-based Tier 2 cleanup and full 24/24 acceptance
 
 The runner no longer guesses reply modality from prompt words, scenario feature tags
 or an `expect_image` flag. Its shared waiter observes a new reply body, idle page
@@ -79,9 +79,14 @@ are not a fresh full Tier 2 run; the prior full-run and citation discrepancy rem
 recorded below. Private evidence is under the `tier2-outcome-cleanup` subdirectory of
 the evidence root below. Scenario pool remains 20/20, with zero consumed by this cleanup.
 
-Cleanup validation: full `npm test` passed (zero-any, strict TypeScript, Python
-contracts, 268 Node suites, production build and 98/98 Playwright checks).
-The final targeted Python run passed 135/135 driver, waiter, DAG and artifact checks.
+Live verification exposed three additional issues that are now fixed and covered by unit/E2E tests:
+
+- **Webpage follow-up suggestion cards (`<elicitations>`)**: Gemini renders follow-up prompt cards using `<elicitations>` / `.elicitations-container` / `[hide-from-message-actions]` in addition to `<elicitations-group>`. `authored_response.js` and `AwaitStreamSettledAction` now exclude these UI containers so follow-up prompt headers do not pollute independent webpage text evidence.
+- **Passive Detail RPC ID normalization (`src/content/messageBridge.ts`)**: When intercepting a passive `hNvQHb` detail RPC, `messageBridge.ts` computed `nid = normId(detailRes.id)` for index updates but passed the unnormalized `"c_..."` `detailRes.id` to `persistNativeConversation`. Consistent with `pagination.ts`, `messageBridge.ts` now normalizes `conversation.id` to `nid` before persisting to `DomainStore`.
+- **Local font family and Regular weight priority (`src/core/export/typst/fonts/localFontProvider.ts`)**: `rankLocalFontCandidates` previously ranked `Light`/`DemiLight` styles equally with `Regular` (`styleRank = 0`) and sorted PostScript stem fallback matches (`Arial-Black` for `"Arial"`) ahead of exact family matches (`ArialMT`). Exact family matches and true `Regular`/`Book`/`Roman` weights now sort first, ensuring full Unicode glyph coverage (such as `U+1D40` `ᵀ` in code blocks) during PDF compilation.
+- **Transient CDP poll resilience (`scripts/framework/pipeline/actions.py`)**: `AssertIdleAction` and `AwaitStreamSettledAction` now catch transient `(TimeoutError, OSError)` during polling, resetting stability counters and continuing until the deadline.
+
+The complete 24-feature default-pool Tier 2 run (`tier2-outcome-clean-24`) finished **24 PASS / 0 FAIL / 0 SKIP / 0 WARN**, exit 0, covering two 5-turn live conversations (`6bbbfb5f52a09ddf`, `3e2f8005676c3493`), live save, continued chat promotion, cloud deletion with archive retention, Takeout import and title upgrade, full/incremental pagination, workbench search/selection/localization, Markdown/HTML/PDF 7-conversation ZIP exports, golden and stale-tab image pixel verification, fast-skip and clean uninstall/reinstall. Scenario pool was replenished and validated at 20/20.
 
 ### Export sequencing fixes and full Medium run
 

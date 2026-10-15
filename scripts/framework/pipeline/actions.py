@@ -67,13 +67,16 @@ class AssertIdleAction(AtomicAction):
     def execute(self, ctx: Any, cdp: Any) -> ActionResult:
         start = time.time()
         while time.time() - start < self.max_wait:
-            busy = cdp.eval(f"""
-            (() => {{
-                const stopBtn = document.querySelector('{self.stop_btn_selector}');
-                const isStreaming = !!document.querySelector('{self.streaming_indicators_selector}');
-                return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
-            }})()
-            """)
+            try:
+                busy = cdp.eval(f"""
+                (() => {{
+                    const stopBtn = document.querySelector('{self.stop_btn_selector}');
+                    const isStreaming = !!document.querySelector('{self.streaming_indicators_selector}');
+                    return !!(stopBtn && stopBtn.offsetWidth > 0) || isStreaming;
+                }})()
+                """)
+            except (TimeoutError, OSError):
+                busy = True
             if not busy:
                 return ActionResult(True, "页面处于完全空闲状态")
             time.sleep(1.0)
@@ -448,28 +451,33 @@ class AwaitStreamSettledAction(AtomicAction):
         previous, stable = None, 0
         cfg = self.config
         while time.monotonic() < deadline:
-            state = cdp.eval(f"""
-            (() => {{
-                const stop = document.querySelector('{cfg.stop_btn_selector}');
-                const editor = document.querySelector('{cfg.editor_selector}');
-                const models = [...document.querySelectorAll('{cfg.model_response_selector}')];
-                const last = models.at(-1);
-                const originalBody = last?.querySelector('{cfg.model_response_body_selector}');
-                const body = originalBody?.cloneNode(true);
-                body?.querySelectorAll('thought-container, thought-box, .thought-container, .thought-wrapper, .model-thought, [data-thought]').forEach(el => el.remove());
-                body?.querySelectorAll('button').forEach(el => {{ if (!el.querySelector('img')) el.remove(); }});
-                const content = body?.innerHTML || '';
-                return {{
-                    newReply: models.length > (window.__tier2ReplyCountBeforeSend ?? 0),
-                    busy: !!(stop && stop.offsetWidth > 0) || !!document.querySelector('{cfg.streaming_indicators_selector}'),
-                    editorReady: !!editor && !(editor.textContent || '').trim(),
-                    hasContent: !!body?.textContent.trim() || !!body?.querySelector('img, video, audio'),
-                    content,
-                    error: document.querySelector('{cfg.retry_btn_selector}') ? 'Page shows a retry control'
-                        : document.querySelector('{cfg.toast_selector}')?.textContent.trim() || null
-                }};
-            }})()
-            """) or {}
+            try:
+                state = cdp.eval(f"""
+                (() => {{
+                    const stop = document.querySelector('{cfg.stop_btn_selector}');
+                    const editor = document.querySelector('{cfg.editor_selector}');
+                    const models = [...document.querySelectorAll('{cfg.model_response_selector}')];
+                    const last = models.at(-1);
+                    const originalBody = last?.querySelector('{cfg.model_response_body_selector}');
+                    const body = originalBody?.cloneNode(true);
+                    body?.querySelectorAll('follow-up, elicitations, elicitations-group, .elicitations-container, [hide-from-message-actions], mini-app, thought-container, thought-box, .thought-container, .thought-wrapper, .model-thought, [data-thought]').forEach(el => el.remove());
+                    body?.querySelectorAll('button').forEach(el => {{ if (!el.querySelector('img')) el.remove(); }});
+                    const content = body?.innerHTML || '';
+                    return {{
+                        newReply: models.length > (window.__tier2ReplyCountBeforeSend ?? 0),
+                        busy: !!(stop && stop.offsetWidth > 0) || !!document.querySelector('{cfg.streaming_indicators_selector}'),
+                        editorReady: !!editor && !(editor.textContent || '').trim(),
+                        hasContent: !!body?.textContent.trim() || !!body?.querySelector('img, video, audio'),
+                        content,
+                        error: document.querySelector('{cfg.retry_btn_selector}') ? 'Page shows a retry control'
+                            : document.querySelector('{cfg.toast_selector}')?.textContent.trim() || null
+                    }};
+                }})()
+                """) or {}
+            except (TimeoutError, OSError):
+                previous, stable = None, 0
+                time.sleep(1.0)
+                continue
             if state.get('error'):
                 return ActionResult(False, state['error'])
             ready = (state.get('newReply') and not state.get('busy') and state.get('editorReady')

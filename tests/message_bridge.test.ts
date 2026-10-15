@@ -297,3 +297,23 @@ test('messageBridge rejects malformed raw protocol fields before parser or strea
     }
     assert.strictEqual(touches, 0);
 });
+
+test('messageBridge normalizes detail conversation id before persisting to DomainStore', async () => {
+    const { __clearDomainMemory, getStoredDomain, storageIdentity } = require('../src/core/storage/domain/domainStore.js');
+    __clearDomainMemory();
+    const turn = [['c_1bd028d5c5b0c0e2', 'r_1'], [1788374200, 0], [['Prompt text']], [['rc_1', [['Answer text']]]]];
+    const text = ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Chat Title'])]]);
+    const api = MessageBridge.init({
+        getAccountSlot: () => 'u0',
+        upsertConversations: async () => 1
+    });
+    await api.handleWindowMessage({
+        data: {
+            type: 'GEMINI_NETWORK_BATCHEXECUTE',
+            payload: { text, slot: 'u0' }
+        }
+    });
+    const stored = await getStoredDomain(storageIdentity('gemini', 'u0', '1bd028d5c5b0c0e2'));
+    assert.ok(stored);
+    assert.strictEqual(stored.conversation.id, '1bd028d5c5b0c0e2');
+});
