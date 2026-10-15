@@ -291,7 +291,7 @@ test('e2e-disk: batch ZIP of 3 conversations lands a real ZIP with 3 parseable P
         const result = await exporter.run(
             {
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
-                conversations,
+                conversations: conversations.map(indexFixture),
                 fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: true,
                 writer,

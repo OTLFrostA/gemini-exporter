@@ -5,7 +5,7 @@ import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
 import { saveDomainConversation, getStoredDomain, storageIdentity } from '../src/core/storage/domain/domainStore.js';
-import { conversationParseResult, createConversationRepository } from '../src/core/storage/conversationRepository.js';
+import { createConversationRepository } from '../src/core/storage/conversationRepository.js';
 import { resolveChat } from '../src/core/engine/export/batchWorker.js';
 import { buildExportCompletion, completeConversationExport } from '../src/core/engine/export/exportCompletion.js';
 import { finalizeChatExport } from '../src/core/engine/export/sessionRecovery.js';
@@ -35,15 +35,14 @@ test('index-only, absent, empty saved body and incomplete body remain distinct w
         const writes = env.writes();
         const metadataOnly = await repository.getConversation('chat');
         assert.ok(metadataOnly); assert.equal(Object.hasOwn(metadataOnly, 'detail'), false);
-        assert.equal(conversationParseResult((await repository.getStoredConversation('chat'))!), null);
         assert.equal(env.writes(), writes);
         await saveDomainConversation('u0', historicalFixture({ id: 'chat', messages: [] }));
         const empty = await repository.getConversation('chat');
         assert.deepEqual(empty?.detail?.messages, []);
         const partial = parsed(); partial.conversation.completeness = 'partial';
         await saveDomainConversation('u0', partial);
-        const capture = await repository.getStoredConversation('chat');
-        assert.equal(capture?.conversation.detail?.completeness, 'partial');
+        const capture = await repository.getConversation('chat');
+        assert.equal(capture?.detail?.completeness, 'partial');
         assert.equal(capture?.capture?.savedAt, undefined);
     } finally { env.restore(); }
 });
@@ -57,18 +56,20 @@ test('index owns every metadata field while capture retains the actual older bod
         const repository = storage.conversationRepository(scope);
         const before = await getStoredDomain(storageIdentity('gemini', 'u0', 'chat'));
         const writes = env.writes();
-        const stored = await repository.getStoredConversation('c_chat');
-        assert.ok(stored?.conversation.detail);
-        assert.deepEqual(Object.keys(stored.conversation.detail).sort(), ['assets', 'completeness', 'messages']);
-        assert.equal(stored.conversation.index.updatedAt, 200);
+        const stored = await repository.getConversation('c_chat');
+        assert.ok(stored?.detail);
+        assert.deepEqual(Object.keys(stored.detail).sort(), ['assets', 'completeness', 'messages']);
+        assert.equal(stored.index.updatedAt, 200);
         assert.equal(stored.capture?.savedAt, 100);
-        const projected = conversationParseResult(stored)!;
+        const resolved = await resolveChat(undefined, { id: 'chat' }, stored.index, null, 'u0');
+        assert.equal(resolved.isError, false);
+        if (resolved.isError) return;
+        const projected = resolved.chat;
         assert.equal(projected.conversation.title, 'Renamed');
         assert.equal(projected.conversation.createdAt, 50);
         assert.equal(projected.conversation.url, 'https://gemini.google.com/u/1/app/chat');
         assert.equal(projected.sourceVersion, 100);
         assert.equal('updatedAt' in projected.conversation, false);
-        const resolved = await resolveChat(projected, { id: 'chat' }, stored.conversation.index, null, 'u0', undefined, undefined, { source: 'local_snapshot' });
         assert.equal(resolved.isError, false);
         if (!resolved.isError) {
             assert.equal(resolved.chat.conversation.title, 'Renamed');
@@ -79,8 +80,8 @@ test('index owns every metadata field while capture retains the actual older bod
         }
         assert.equal(env.writes(), writes);
         assert.deepEqual(await getStoredDomain(storageIdentity('gemini', 'u0', 'chat')), before);
-        stored.conversation.detail.messages.length = 0;
-        stored.conversation.index.title = 'Caller mutation';
+        stored.detail.messages.length = 0;
+        stored.index.title = 'Caller mutation';
         assert.equal((await repository.getConversation('chat'))?.detail?.messages.length, 2);
         assert.equal((await repository.getConversationIndex('chat'))?.title, 'Renamed');
     } finally { env.restore(); }
@@ -110,8 +111,10 @@ test('a rename after preparation survives direct and staged cached export comple
     const env = indexStorage();
     try {
         await storage.setNativeConversations('u0', [parsed()]);
-        const old = await storage.getConversationWithDetail('u0', 'chat');
-        assert.ok(old);
+        const resolved = await resolveChat(undefined, { id: 'chat' }, undefined, null, 'u0');
+        assert.equal(resolved.isError, false);
+        if (resolved.isError) return;
+        const old = resolved.chat;
         await storage.updateConversation('u0', 'chat', { title: 'Rename during export', titleSource: 'rpc', updatedAt: 200 });
         const input = { conversation: old.conversation, chatTime: old.sourceVersion, usedLocalSnapshot: true };
         await completeConversationExport(storage, 'u0', input, { skipConversationUpdate: false });
@@ -148,7 +151,6 @@ test('bound scope isolates accounts/providers, rejects unsupported slots and ign
         assert.equal(await repository.getConversation('orphan'), null);
         assert.ok(await getStoredDomain(storageIdentity('gemini', 'u0', 'orphan')));
         const writes = env.writes();
-        assert.equal(await repository.getStoredConversation('orphan'), null);
         assert.equal(await repository.getConversationIndex('orphan'), null);
         assert.equal(env.writes(), writes);
     } finally { env.restore(); }

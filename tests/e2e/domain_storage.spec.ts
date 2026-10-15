@@ -377,13 +377,13 @@ test('partial native imports retain indexes and aligned source versions through 
     const restored = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'storageProbe');
         return { indexes: await api.StorageService.getConversations('u0'),
-            detail: await api.StorageService.getConversationWithDetail('u0', 'chat') };
+            detail: await api.StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation('chat') };
     });
     expect(restored.indexes.map((row: { id: string }) => row.id)).toEqual(['chat', 'retained']);
     expect(restored.indexes[0]).toMatchObject({ title: 'RPC metadata', updatedAt: 999999, cloudAvailability: 'deleted' });
-    expect(restored.detail.sourceVersion).toBe(999999);
-    expect(restored.detail.conversation).not.toHaveProperty('updatedAt');
-    expect(restored.detail.conversation.messages[0].content[0].children[0].text).toBe('Body retained on disk');
+    expect(restored.detail.capture.savedAt).toBe(999999);
+    expect(restored.detail.detail).not.toHaveProperty('updatedAt');
+    expect(restored.detail.detail.messages[0].content[0].children[0].text).toBe('Body retained on disk');
 });
 
 test('saved source version survives reload and stays behind a newer Index until the body is refreshed', async ({ page }) => {
@@ -430,7 +430,7 @@ test('scoped aggregate survives reload with one metadata authority and the actua
             completeness: 'unknown', createdAt: 90, url: 'https://gemini.google.com/app/gateway',
             assets: [], messages: [{ role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Saved body' }] }] }] },
             acquisitionHints: {}, resourceHints: {}, diagnostics: [] };
-        await api.StorageService.saveConversation('u0', parsed);
+        await api.StorageService.setNativeConversations('u0', [parsed]);
         await api.StorageService.updateConversation('u0', 'gateway', { title: 'Renamed', titleSource: 'rpc', createdAt: 50,
             updatedAt: 200, url: 'https://gemini.google.com/u/0/app/gateway', cloudAvailability: 'deleted' });
         await api.StorageService.setConversations('u1', [api.indexFixture({ id: 'gateway', title: 'Other account' })]);
@@ -443,18 +443,15 @@ test('scoped aggregate survives reload with one metadata authority and the actua
         const before = await api.getStoredDomain(identity);
         const chromeBefore = await chrome.storage.local.get(null);
         const aggregate = await repository.getConversation('c_gateway');
-        const stored = await repository.getStoredConversation('gateway');
-        const legacy = await api.StorageService.getConversationWithDetail('u0', 'gateway');
         const other = await api.StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u1' }).getConversation('gateway');
         return { before, after: await api.getStoredDomain(identity), chromeBefore, chromeAfter: await chrome.storage.local.get(null),
-            aggregate, stored, legacy, other, absent: await repository.getConversation('missing') };
+            aggregate, other, absent: await repository.getConversation('missing') };
     });
     expect(read.aggregate.index).toMatchObject({ title: 'Renamed', createdAt: 50, updatedAt: 200, cloudAvailability: 'deleted' });
     expect(Object.keys(read.aggregate.detail).sort()).toEqual(['assets', 'completeness', 'messages']);
     expect(read.aggregate.detail.messages[0].content[0].children[0].text).toBe('Saved body');
-    expect(read.stored.capture.savedAt).toBe(100);
-    expect(read.legacy.sourceVersion).toBe(100);
-    expect(read.legacy.conversation).toMatchObject({ title: 'Renamed', createdAt: 50, url: 'https://gemini.google.com/u/0/app/gateway' });
+    expect(read.aggregate.capture.savedAt).toBe(100);
+    expect(read.aggregate.index).toMatchObject({ title: 'Renamed', createdAt: 50, url: 'https://gemini.google.com/u/0/app/gateway' });
     expect(read.before.conversation.title).toBe('Old title');
     expect(read.after).toEqual(read.before);
     expect(read.chromeAfter).toEqual(read.chromeBefore);

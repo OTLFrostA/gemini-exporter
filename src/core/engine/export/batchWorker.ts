@@ -1,7 +1,6 @@
 import { indexFromParsed } from '../../compatibility/index/parseIndex.js';
 import { mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { StorageService } from '../../storage/storageService.js';
-import { conversationParseResult } from '../../storage/conversationRepository.js';
 import { selectConversationBody, withConversationMetadata } from '../../domain/runtimeValidation.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import { requestNativeDetail, requestNativeBatch, type NativeBatchReply } from '../../utils/nativeDetailTransport.js';
@@ -25,15 +24,19 @@ export type WorkerChat = ResourceConversationParseResult;
 export type WorkerChatResolveInput = NativeConversationInput;
 export type WorkerMessageAttachment = AssetPipelineItem;
 export type ResolveChatResult = {
-    isError: false; chat: ResourceConversationParseResult; source: ResolvedConversationSource; listTitle: string;
+    isError: false; chat: ResourceConversationParseResult; source: ResolvedConversationSource;
     isConfirmedDeleted: false; errMsg: null; convsNeedSave: boolean;
 } | { isError: true; displayTitle: string; isConfirmedDeleted: boolean; errMsg: string; convsNeedSave: false };
 interface ResolveChatOptions { messageSender?: MessageSenderFunction | null; source?: ResolvedConversationSource }
 interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 async function readSavedConversation(slot: string, id: string): Promise<ResourceConversationParseResult | null> {
-    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getStoredConversation(id);
-    return stored ? conversationParseResult(stored) : null;
+    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getConversation(id);
+    if (!stored?.detail) return null;
+    if (!stored.capture) throw new TypeError('Saved body is missing capture evidence');
+    return { conversation: withConversationMetadata(stored.detail, stored.index),
+        ...(stored.capture.savedAt !== undefined ? { sourceVersion: stored.capture.savedAt } : {}), diagnostics: [], resourceHints: {},
+        acquisitionHints: stored.capture.acquisitionHints };
 }
 function resolveRuntimeSender(): MessageSenderFunction | null {
     if (typeof chrome !== 'undefined' && chrome.runtime && typeof chrome.runtime.sendMessage === 'function') {
@@ -225,7 +228,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         if (!cached) onTitleUpdated(id, merged.title, merged.titleSource);
     }
     return { isError: false, chat: { ...result, conversation: withConversationMetadata(selectConversationBody(domain), merged) }, source: dataSource,
-        listTitle: merged.title, isConfirmedDeleted: false, errMsg: null, convsNeedSave: !cached && changed };
+        isConfirmedDeleted: false, errMsg: null, convsNeedSave: !cached && changed };
 }
 export const isWorkerChat = isResourceConversationParseResult;
 export function formatDebugInfo(debug: unknown): string {

@@ -91,8 +91,8 @@ test('P1-10a: 遗留胖会话在启动迁移中被 slim 并 offload 到 IDB', as
         assert.strictEqual(res.ok, true);
         const list = m.localStore['gemini_conversations'];
         assert.ok(!Array.isArray((list[0] as any).messages), '读回的列表应已 slim');
-        const body = await StorageService.getConversationWithDetail('u0', 'fat1');
-        assert.equal(body.conversation.messages.length, 1);
+        const body = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation('fat1');
+        assert.equal(body.detail.messages.length, 1);
     } finally { m.restore(); }
 });
 

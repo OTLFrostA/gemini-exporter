@@ -824,8 +824,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const planned = await planExportResources(resolvedRes.chat);
                         let exportResult = planned.result;
                         const chat = exportResult.conversation;
-                        const listTitle = resolvedRes.listTitle;
-                        chat.title = listTitle;
+                        const listTitle = chat.title;
                         const chatId = chat.id;
 
                         const actualMsgCount = chat.messages.length;

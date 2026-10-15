@@ -230,7 +230,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
     const runPromise = exporter.run(
         {
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
-            conversations: convs, fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: convs.map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             compiler: slowCompiler,
@@ -366,7 +366,7 @@ test('zip: success records are committed only after delivery, in item order (§1
     const result = await exporter.run(
         {
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
-            conversations: convs, fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: convs.map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {
@@ -549,7 +549,7 @@ test('abort marks unfinished items as failed/retryable instead of silently dropp
     const runPromise = exporter.run(
         {
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
-            conversations: convs, fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: convs.map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: slowCompiler,
@@ -648,7 +648,8 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                 });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (scenario === 'snapshot' || scenario === 'deleted') await catalogStorage.setNativeConversations('u0', [parsed]);
+            if (['snapshot', 'deleted', 'cache-response'].includes(scenario)) await catalogStorage.setNativeConversations('u0', [parsed]);
+            if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
             const records: Array<{ status: string }> = [];
             try {
                 const result = await new PdfExporter(new StubPdfCompiler()).run({

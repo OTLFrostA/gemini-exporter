@@ -35,7 +35,7 @@ names rather than silently falling back to the first account.
 
 ## Saved body evidence and existing exporters
 
-`getStoredConversation(id)` returns `{ conversation, capture? }`. A capture contains
+`getConversation(id)` returns `{ index, detail?, capture? }`. A capture contains
 the saved record's `revision`, optional `savedAt` and resource acquisition hints.
 These are persistence evidence, not Domain conversation metadata. Index activity
 may be newer than `capture.savedAt`; readers never replace the latter with Index
@@ -44,12 +44,9 @@ activity or a local clock. A body with no provable version keeps it unknown.
 Index is required for every saved-conversation read, including export. A retained
 body without an Index is ignored; detail never reconstructs or replaces an Index.
 
-`conversationParseResult` is the one compatibility adapter for existing renderers.
-It reconstructs the existing parser/storage snapshot shape using metadata only
-from the aggregate index and `sourceVersion` only from the actual capture's savedAt.
-An absent Index URL/creation time remains absent; stale body fields cannot leak back
-through a fallback. `getConversationWithDetail` delegates to the same repository
-and adapter and is deprecated for new callers.
+Batch export and PDF share the same conversation resolution and metadata projection.
+The exporter converts the selected body to the renderer input once, using Index
+metadata and the actual capture version. PDF does not choose a title independently.
 
 The old `DomainConversationDetail` snapshot shape remains the parser/storage wire
 contract during upstream migration; this change does not change persisted schemas.
@@ -66,10 +63,9 @@ along with title/source before formatting.
 
 ## Writes and consistency
 
-Acquisition persistence publishes the body before its Index under the existing
-conversation lock (`saveConversation`). Existing acquisition producers and Takeout
-imports retain their explicit catalog publication after raw parsing/resource persistence;
-`persistNativeConversation` is the acquisition storage primitive for that path.
+Acquisition producers and Takeout imports retain their explicit catalog publication
+after raw parsing/resource persistence; `persistNativeConversation` is the acquisition
+storage primitive for that path.
 Index metadata comes from the incoming observation, independently of the storage
 policy choosing which body to retain. A rejected short/partial body therefore cannot
 substitute an older selected body's title for a new metadata observation.
