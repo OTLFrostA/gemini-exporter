@@ -29,4 +29,8 @@ test('unrecognized execution extension layouts fall back rather than inventing s
         assert.equal(decodeGeminiStructuredNode([{ '39': event }]), null);
     }
     assert.deepEqual(decodeGeminiStructuredNode([{ 'attachment': [] }]), { nodeType: 0 });
+    const visible = parseGeminiBody('Visible provider reply', { children: [{ nodeType: 999 }] });
+    assert.ok(visible.some(block => block.type === 'paragraph' && block.children.some(node =>
+        node.type === 'text' && node.text === 'Visible provider reply')),
+    'unknown structured extension must not replace the raw visible response');
 });
