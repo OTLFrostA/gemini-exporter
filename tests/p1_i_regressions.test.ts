@@ -104,9 +104,7 @@ const acceptedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = {
     cid: 'c_1', reason: 'turn_complete', mockMode: true
 };
 // @ts-expect-error: unknown payload fields must be rejected by the public type.
-const rejectedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = {
-    cid: 'c_1', arbitraryField: 'not allowed'
-};
+const rejectedLiveSaveTrigger: GeminiLiveSaveTriggerPayload = { cid: 'c_1', arbitraryField: 'not allowed' };
 void acceptedLiveSaveTrigger;
 void rejectedLiveSaveTrigger;
 
