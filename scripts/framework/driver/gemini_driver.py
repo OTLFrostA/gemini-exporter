@@ -37,8 +37,7 @@ class GeminiChatSession:
         self,
         prompt: Union[str, Dict[str, Any]],
         max_wait: int = 300,
-        file_attachment: Optional[str] = None,
-        expect_image: Optional[bool] = None
+        file_attachment: Optional[str] = None
     ) -> TurnResult:
         """
         Send a conversational prompt to this session, waiting deterministically for stream settlement.
@@ -58,17 +57,8 @@ class GeminiChatSession:
             self.driver.upload_file(file_attachment)
             time.sleep(1.0)
 
-        p_lower = prompt_text.lower()
-        is_image_turn = (
-            ("生成" in prompt_text and "图" in prompt_text) or
-            any(kw in p_lower for kw in ["画", "生图", "图片", "image", "draw", "imagen", "photo", "picture", "illustration"])
-        )
-        if expect_image is not None:
-            is_image_turn = expect_image
-        wait_timeout = max(max_wait, 240) if is_image_turn else max_wait
-
         # 通过 Driver 单飞原子流水线发帖 (受网关速率控制与主动熔断保护)
-        ok, msg = self.driver.execute_turn_pipeline(prompt_text, max_wait=wait_timeout, is_image=is_image_turn)
+        ok, msg = self.driver.execute_turn_pipeline(prompt_text, max_wait=max_wait)
         duration = time.time() - t0
 
         if not ok:
@@ -88,7 +78,7 @@ class GeminiChatSession:
             self.chat_id = curr_id
 
         # 通过 Driver 提取最新回复文本与生图实体
-        turn_res = self.driver.extract_turn_result(prompt_text, duration=duration, is_image=is_image_turn)
+        turn_res = self.driver.extract_turn_result(prompt_text, duration=duration)
         turn_res.chat_id = self.chat_id
         self.turns.append(turn_res)
         return turn_res
@@ -324,8 +314,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
     def execute_turn_pipeline(
         self,
         prompt_text: str,
-        max_wait: int = 300,
-        is_image: bool = False
+        max_wait: int = 300
     ) -> Tuple[bool, str]:
         """通过单飞串行流水线执行发帖，全程受安全网关监控与主动熔断保护"""
         from scripts.framework.pipeline.executor import SerialActionExecutor
@@ -338,7 +327,6 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 driver=self,
                 prompt_text=p_text,
                 max_wait=max_wait,
-                is_image=is_image,
                 cooldown_seconds=0.0
             )
             if result.success:
@@ -447,50 +435,15 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             "wait_ready": CDPActions.wait_for_gemini_ready,
         }
 
-    def prepare_turn_environment(self, is_image: bool = False) -> bool:
-        """
-        发帖前环境准备：
-        1. 确保模型为 3.8 Flash + Medium
-        2. 挂载网络流式完成事件监听器
-        """
+    def prepare_turn_environment(self) -> bool:
+        """Verify the selected model; page completion is observed independently of the extension."""
         self.ensure_model(target_model="3.8 Flash", target_thinking=True, force_menu_check=False)
-        self.cdp.eval("""
-        (() => {
-            window.__testStreamState = {
-                started: false,
-                completed: false,
-                convId: null,
-                startedAt: 0,
-                completedAt: 0
-            };
-            if (!window.__testStreamListenerAttached) {
-                window.addEventListener('message', (e) => {
-                    if (!e.data || typeof e.data !== 'object') return;
-                    if (e.data.type === 'GEMINI_STREAM_GENERATE_START') {
-                        window.__testStreamState.started = true;
-                        window.__testStreamState.startedAt = Date.now();
-                        if (e.data.payload && e.data.payload.id) {
-                            window.__testStreamState.convId = e.data.payload.id;
-                        }
-                    } else if (e.data.type === 'GEMINI_STREAM_GENERATE_COMPLETE') {
-                        window.__testStreamState.completed = true;
-                        window.__testStreamState.completedAt = Date.now();
-                        if (e.data.payload && e.data.payload.id) {
-                            window.__testStreamState.convId = e.data.payload.id;
-                        }
-                    }
-                });
-                window.__testStreamListenerAttached = true;
-            }
-        })()
-        """)
         return True
 
     def build_turn_pipeline(
         self,
         prompt_text: str,
         max_wait: int = 300,
-        is_image: bool = False,
         cooldown_seconds: float = 6.0
     ) -> List[Any]:
         """构建 Gemini 平台的单轮发帖原子动作序列"""
@@ -501,12 +454,11 @@ class GeminiPlatformDriver(ChatPlatformDriver):
             AwaitStreamSettledAction,
             HumanCooldownAction
         )
-        turn_start_time = time.time()
         pipeline = [
             AssertIdleAction(max_wait=45),
             StagePromptAction(prompt_text),
             SingleClickSendAction(),
-            AwaitStreamSettledAction(timeout=max_wait, require_image=is_image, turn_start_time=turn_start_time)
+            AwaitStreamSettledAction(timeout=max_wait)
         ]
         if cooldown_seconds > 0:
             pipeline.append(HumanCooldownAction(seconds=cooldown_seconds))
@@ -515,8 +467,7 @@ class GeminiPlatformDriver(ChatPlatformDriver):
     def extract_turn_result(
         self,
         prompt_text: str,
-        duration: float,
-        is_image: bool = False
+        duration: float
     ) -> TurnResult:
         """从页面 DOM 提取 Gemini 最新回复文本与生图实体"""
         resp_data = self.cdp.eval(f"""
@@ -540,20 +491,6 @@ class GeminiPlatformDriver(ChatPlatformDriver):
         """) or {}
 
         has_images = bool(resp_data.get("hasImages", False))
-        if is_image and not has_images:
-            for _ in range(5):
-                time.sleep(2.0)
-                img_check = self.cdp.eval(f"""
-                (() => {{
-                    const models = Array.from(document.querySelectorAll('{GeminiSelectors.MODEL_RESPONSE}'));
-                    const root = models.length > 0 ? models[models.length - 1] : document;
-                    const imgs = root.querySelectorAll('{GeminiSelectors.IMAGES}');
-                    return imgs.length > 0;
-                }})()
-                """)
-                if img_check:
-                    has_images = True
-                    break
 
         curr_id = self.get_current_chat_id()
         return TurnResult(
@@ -612,6 +549,18 @@ class GeminiPlatformDriver(ChatPlatformDriver):
                 stable = stable + 1 if snapshot == previous else 1
                 previous = snapshot
                 if stable >= 3:
+                    if any(turn.get('has_images') for turn in turns):
+                        from scripts.framework.image_evidence import capture_webpage_images
+                        try:
+                            images = capture_webpage_images(self.cdp, chat_id)
+                            for index, turn in enumerate(turns):
+                                turn['images'] = [image for image in images if image['turn'] == index]
+                        except (ValueError, OSError, RuntimeError, KeyError) as exc:
+                            # Still perform the export. Missing comparison evidence fails
+                            # artifact acceptance, rather than blocking generation upstream.
+                            for turn in turns:
+                                if turn.get('has_images'):
+                                    turn['image_evidence_error'] = str(exc)
                     return turns
             else:
                 previous, stable = None, 0

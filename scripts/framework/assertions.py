@@ -606,7 +606,8 @@ class CDPAssertions:
         target_chat_ids: Optional[List[str]] = None,
         min_mtime: Optional[float] = None,
         turn_evidence: Optional[Dict[str, List[Dict[str, Any]]]] = None,
-        baselines: Optional[Dict[str, str]] = None
+        baselines: Optional[Dict[str, str]] = None,
+        image_cdp=None
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
         断言真实磁盘的自动实时导出目录。
@@ -695,12 +696,16 @@ class CDPAssertions:
                         resource_errors = validate_archive_resources(check_dir, os.path.relpath(mf[3], check_dir), text)
                         if resource_errors:
                             return False, f"{cid} 资源引用无效: {resource_errors}", summary
-                        for turn, message in zip((turn_evidence or {}).get(cid, []), markdown_messages(text)[1::2]):
-                            if turn.get('has_images'):
-                                refs = resource_references(message['content'])
-                                entities = [find_archive_resource(check_dir, os.path.relpath(mf[3], check_dir), ref) for ref in refs]
-                                if not any(entities):
-                                    return False, f"{cid} 图片回复没有有效的归档实体", summary
+                        evidence = (turn_evidence or {}).get(cid, [])
+                        if any(turn.get('has_images') for turn in evidence):
+                            if image_cdp is None:
+                                return False, f"{cid} 缺少图片解码器，无法验证导出画面", summary
+                            from .image_evidence import assert_markdown_images
+                            try:
+                                summary.setdefault('image_errors', {})[cid] = assert_markdown_images(
+                                    image_cdp, check_dir, os.path.relpath(mf[3], check_dir), text, evidence)
+                            except (ValueError, OSError, RuntimeError) as exc:
+                                return False, f"{cid} 图片与网页不一致: {exc}", summary
                         before = (baselines or {}).get(cid)
                         if before is not None:
                             old_messages, new_messages = markdown_messages(before), markdown_messages(text)

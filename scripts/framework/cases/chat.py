@@ -63,8 +63,6 @@ class ChatGenerationCase(FeatureTestCase):
             except RuntimeError as e:
                 return False, f"模型检查不满足: {e}", None
 
-            imagen_found = False
-
             scenarios = ctx.ensure_scenarios()
             for chat_idx in range(min(2, len(scenarios))):
                 sc = scenarios[chat_idx]
@@ -117,22 +115,13 @@ description: "Dynamically created test attachment to verify multi-format user up
                         p_text = f"{p_text}\n\n（我附带上传了一个测试参考文件 {rnd_fname}，请阅读并确认收到该文件）"
                         print(f"         📁 现场生成随机多格式测试文件: {rnd_fname} (大小: {len(f_bytes)} bytes, SHA256: {f_sha256[:12]}...)")
 
-                    # Scenarios declare image turns; references to an earlier illustration
-                    # must not demand a newly generated image in a text-only answer.
-                    image_turns = sc.get('image_turns', [1] if 'imagen' in sc.get('features', []) else [])
-                    turn_res = session.send_turn(p_text, max_wait=300, file_attachment=current_attachment,
-                                                 expect_image=turn_no in image_turns)
+                    turn_res = session.send_turn(p_text, max_wait=300, file_attachment=current_attachment)
                     if not turn_res.success:
                         return False, f"会话 {chat_idx + 1} 轮次 {turn_no} 失败 (Fail-Fast 熔断安全停机): {turn_res.error}", None
                     ctx.record_turn(record, turn_res)
 
                     if turn_res.chat_id:
                         ctx.tracker.track(turn_res.chat_id)
-                    if turn_res.has_images and 'imagen' in sc.get('features', []):
-                        imagen_found = True
-                        ctx.shared_data["imagen_chat_id"] = turn_res.chat_id
-                        print("         🎨 AI Imagen 多模态生图实体已在页面渲染落地！")
-
                     time.sleep(ctx.delay)
 
                 # Freeze final visible answers independently, before any export.
@@ -188,31 +177,7 @@ description: "Dynamically created test attachment to verify multi-format user up
                     except Exception as live_setup_err:
                         return False, f"实时落盘开启失败: {live_setup_err}", None
 
-            ctx.shared_data["imagen_found"] = imagen_found
             verify_activity_sync(ctx, baseline, [r['chat_id'] for r in ctx.chat_records], 'new_chat_incremental_sync')
             return True, "2 次会话全部轮次正常生成落地", {"chat_records": ctx.chat_records}
         finally:
             cdp_gemini.close()
-
-
-
-class ImagenMultimodalCase(FeatureTestCase):
-    def __init__(self):
-        super().__init__(
-            feature_id="feat_imagen_multimodal",
-            domain=FeatureDomain.PAGE_CHAT,
-            name="AI Imagen 生图与附件落地",
-            description="包含生图指令的 Prompt 触发，网页成功渲染高分辨率生成图像",
-            critical=True,
-            prerequisites=["feat_chat_generation"]
-        )
-
-    def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        if not any('imagen' in sc.get('features', []) for sc in ctx.scenarios[:2]):
-            return False, "缺少必测 Imagen 场景，不能免除生图断言", None
-        if ctx.shared_data.get("imagen_found"):
-            cid = ctx.shared_data.get('imagen_chat_id')
-            records = [r for r in ctx.chat_records if r.get('chat_id') == cid]
-            if records and any(t.get('has_images') for t in records[0].get('turn_evidence', [])):
-                return True, "Imagen 场景的实际回复图片渲染落地", {'chat_id': cid}
-        return False, "预期 Imagen 场景没有绑定到实际回复的生图证据", None

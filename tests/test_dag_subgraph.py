@@ -60,9 +60,9 @@ class TestDAGSubgraphPruning(unittest.TestCase):
             position["feat_takeout_zip_import"],
             position["feat_search_filter_by_keyword"]
         )
-        # Chat generation 必须在 multimodal 和 continued chat 以及 live save 之前
+        # Image acceptance consumes a physical ZIP; live save consumes generated chats.
         self.assertLess(
-            position["feat_chat_generation"],
+            position["feat_zip_export_download"],
             position["feat_imagen_multimodal"]
         )
         self.assertLess(
@@ -107,9 +107,10 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         ancestors = set(self.dag.get_ancestors(["feat_search_filter_by_keyword"]))
         self.assertEqual(ancestors, {"feat_search_filter_by_keyword", "feat_takeout_zip_import"})
 
-        # 多模态生图只依赖 Chat 生成
+        # Image acceptance needs golden export data, with no live generation.
         ancestors_img = set(self.dag.get_ancestors(["feat_imagen_multimodal"]))
-        self.assertEqual(ancestors_img, {"feat_imagen_multimodal", "feat_chat_generation"})
+        self.assertEqual(ancestors_img, {"feat_imagen_multimodal"} | set(self.dag.get_ancestors(["feat_zip_export_download"])))
+        self.assertNotIn("feat_chat_generation", ancestors_img)
 
     def test_fast_skip_does_not_run_without_complete_live_batch(self):
         ctx = TestContext()
@@ -199,16 +200,15 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.assertFalse(r_to.needs_gemini)
         self.assertFalse(r_to.needs_live_scenarios)
 
-        # 仅测导出：域内含失效标签页用例，其真实前提是 Imagen 活体验证会话，
-        # 因此需要 Gemini 与实时场景（此前仅在运行时失败，现在调度层即诚实声明）
+        # Fast-skip in the export domain still consumes a complete live batch.
         r_exp = FrameworkRunner(domain="export")
         self.assertTrue(r_exp.needs_gemini)
         self.assertTrue(r_exp.needs_live_scenarios)
 
-        # 测多模态或聊天：必须需要 Gemini 和场景池
+        # Golden images need the webpage as independent evidence, without live prompts.
         r_chat = FrameworkRunner(target_features="feat_imagen_multimodal")
         self.assertTrue(r_chat.needs_gemini)
-        self.assertTrue(r_chat.needs_live_scenarios)
+        self.assertFalse(r_chat.needs_live_scenarios)
 
         # 全量默认运行：必须需要 Gemini 和场景池
         r_full = FrameworkRunner()
@@ -304,7 +304,9 @@ class TestExportFormatDecoupling(unittest.TestCase):
         self.assertNotIn("feat_multimodal_spec_assertion", fast_skip_ancestors)
         stale_ancestors = set(dag.get_ancestors(["feat_stale_tab_image_export"]))
         self.assertEqual(stale_ancestors, {
-            "feat_stale_tab_image_export", "feat_imagen_multimodal", "feat_chat_generation"})
+            "feat_stale_tab_image_export", "feat_imagen_multimodal"}
+            | set(dag.get_ancestors(["feat_zip_export_download"])))
+        self.assertNotIn("feat_chat_generation", stale_ancestors)
 
     def run_with_injected_results(self, failing):
         dag = FrameworkRunner._assemble_dag()

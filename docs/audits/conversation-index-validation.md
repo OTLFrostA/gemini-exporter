@@ -45,6 +45,44 @@ The historical evidence directory below retains its original name. Historical li
 
 ## Current live attempts
 
+### Outcome-based Tier 2 cleanup
+
+The runner no longer guesses reply modality from prompt words, scenario feature tags
+or an `expect_image` flag. Its shared waiter observes a new reply body, idle page
+controls and stable content. It neither waits for extension interception events nor
+interprets error-like prose as a test failure. Retry controls and page alerts still
+fail explicitly. Image loading and content acceptance belong to artifact assertions.
+
+The image feature now consumes the physical Markdown ZIP for the fixed golden image
+conversation, independently reads its webpage pictures, and checks reply-by-reply
+image references, actual decodable asset files, counts and picture identity. The
+stale-tab route reuses the same golden evidence. Live replies are free to contain text
+or images; actual live images are checked against live-save files and the combined ZIP.
+No newly generated image is required to satisfy golden image coverage.
+If live webpage image evidence cannot be collected, the runner records that error,
+still performs the export, and fails its artifact check for missing comparison evidence.
+
+Image comparison decodes to RGB, uses high-quality resampling to 64 by 64, and requires
+aspect ratios within 1% and normalized RMS channel error at most 3%. This tolerates
+preview/original resolution and JPEG compression differences; it is a picture similarity
+check, not byte identity. Loaded blob images are sampled from their decoded DOM element,
+so a URL revoked after display need not be fetched again. Remote images use the browser
+resource cache. Missing webpage pixels, invalid bytes, remote-only archive references,
+wrong pictures, wrong turns, missing/extra pictures and mismatched chat IDs fail closed.
+
+Read-only live replay compared the golden webpage preview (1024 by 559) with the
+previously downloaded physical original (1408 by 768): normalized RMS error **0.02201**,
+PASS under the unchanged 0.03 limit. The original image-only timeout conversation
+`10bf81a87a36506c` settled with the new waiter in **4.03 seconds**, with two actual model
+replies and an image in the last reply. No new prompt was sent. These targeted replays
+are not a fresh full Tier 2 run; the prior full-run and citation discrepancy remain
+recorded below. Private evidence is under the `tier2-outcome-cleanup` subdirectory of
+the evidence root below. Scenario pool remains 20/20, with zero consumed by this cleanup.
+
+Cleanup validation: full `npm test` passed (zero-any, strict TypeScript, Python
+contracts, 268 Node suites, production build and 98/98 Playwright checks).
+The final targeted Python run passed 135/135 driver, waiter, DAG and artifact checks.
+
 ### Export sequencing fixes and full Medium run
 
 The outer Options export session now holds the workbench controls and `aria-busy`
@@ -62,18 +100,20 @@ while withholding the six-target fast-skip check. HTML and PDF remain independen
 Mixed fast-skip selection also requires the unexported target to have canonical Index
 `cloudAvailability: available`; the deleted ephemeral test archive is not a cloud-fetch
 candidate. Missing store evidence or nonavailable target evidence fails preparation.
-Scenario turns explicitly declare whether a new image is required (Imagen scenarios
-default to the first turn), so a later textual reference to an illustration does not
-require another image. Real first-turn image verification remains mandatory.
+That implementation still classified replies by expected modality; the cleanup below
+removes that contract and validates images on physical exports instead.
 
 The **final-script full Medium run** (including available-target selection) completed
 **15 PASS / 1 FAIL / 8 dependent SKIP / 0 WARN**, exit 1. Conversation
 `10bf81a87a36506c` generated the required first-turn image, but its second submitted
-prompt yielded no authored response within 300 seconds. Two user-query nodes existed,
-the editor was empty, and the second model node contained only "Gemini said". The
+prompt produced an image-only response that the text-only wait branch ignored for
+300 seconds. Its DOM contained a loaded `generated-image` with a blob image URL;
+the visible text was only "Gemini said". Two user-query nodes existed and the editor
+was empty. The
 snapshot had no Stop button, streaming DOM or error alert, and no captured stream
-completion event. This establishes the timeout conditions, not the underlying server
-or interception cause. The runner continued all independent stages without filters.
+completion event. The waiter required stable text in that branch and ignored the
+actual image. Why Gemini returned an image and why no stream event was captured
+remain unknown. The runner continued all independent stages without filters.
 
 PDF passed with five physical PDFs in a 609,026-byte ZIP (6.9s); HTML and Markdown
 historical archives also passed. Natural passive Coverage, full/incremental pagination,

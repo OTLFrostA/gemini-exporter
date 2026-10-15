@@ -186,7 +186,8 @@ Gemini Exporter maintains rigorous quality gates through a 3-tier testing archit
 - **Tier 2: Live Chrome Debug Staging (`npm run test:tier2`)**:
   - Connects to real Chrome on port 9222 with real account interactions.
   - Employs a dynamic 20-scenario multimodal test pool (`scripts/test_scenario_pool.json`).
-  - Enforces physical ZIP download and bit-level content & image assertions (`export_spec_asserter.py`).
+  - Waits for new replies to become idle and stable, independent of prompt keywords and expected reply types.
+  - Validates physical exports against webpage evidence. Golden image conversations cover image export: each reply's image references must resolve to decodable files matching the webpage picture, allowing preview/original size and compression differences. Actual images in live replies receive the same check on live-save files.
 - **Tier 3: Pure Visual Agent & Autonomous QA (`python3 scripts/test_visual_agent.py --playground` / `python3 scripts/test_visual_agent.py --api`)**:
   - Two-pathway pure visual exploration (context-free Subagent Playground or Custom AI Vision API) using pure screenshot perception (zero DOM leakage) and hardware-level mouse/keyboard actions.
   - Produces structured UX scorecards and HTML visual audit reports (`tests/output/visual_audit/`).

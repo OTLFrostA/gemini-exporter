@@ -19,7 +19,7 @@ from scripts.framework.assertions import (
 )
 from scripts.framework.actions import CDPActions
 from scripts.framework.cases.base import TestContext, DAGRunner, FeatureTestCase
-from scripts.framework.cases.chat import ImagenMultimodalCase
+from scripts.framework.cases.export import ImagenMultimodalCase
 from scripts.framework.cases.export import (
     LiveSaveNewChatCase, HtmlExportDownloadCase, PdfExportDownloadCase,
     FastSkipExportedCase, select_format_targets,
@@ -30,6 +30,7 @@ from scripts.framework.driver.platform_driver import TurnResult
 from scripts.framework.driver.gemini_driver import GeminiPlatformDriver
 from scripts.framework.features import FeatureDomain, FeatureRegistry, TestStatus
 from scripts.framework.scenario_provider import OnlineScenarioProvider
+from scripts.framework.image_evidence import assert_image_files, assert_zip_images, image_pixels, capture_webpage_images
 
 CID = '0123456789abcdef'
 OTHER = 'abcdef0123456789'
@@ -91,6 +92,15 @@ class SettledEvidenceTests(unittest.TestCase):
         cdp = MagicMock(); state = self.state(); state['chat_id'] = OTHER; cdp.eval.return_value = state
         with self.assertRaises(RuntimeError):
             GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
+
+    def test_image_capture_failure_is_deferred_to_artifact_acceptance(self):
+        state = self.state(); state['turns'][0].update(response='', has_images=True)
+        cdp = MagicMock(); cdp.eval.return_value = state
+        with patch('scripts.framework.driver.gemini_driver.time.sleep'), \
+             patch('scripts.framework.image_evidence.capture_webpage_images', side_effect=ValueError('image unavailable')):
+            turns = GeminiPlatformDriver(cdp).settled_conversation_evidence(CID, ['Explain pressure.'])
+        self.assertEqual(turns[0]['image_evidence_error'], 'image unavailable')
+        self.assertTrue(turns[0]['has_images'])
 
     def test_missing_turns_changed_prompts_and_empty_answers_cannot_settle(self):
         for change in ('missing', 'prompt', 'empty'):
@@ -162,7 +172,7 @@ class DiskContentTests(unittest.TestCase):
         self.assertFalse(self.check(image))
         (self.root / 'assets').mkdir()
         (self.root / 'assets/diagram.png').write_bytes(b'nonempty image bytes')
-        self.assertTrue(self.check(image))
+        self.assertFalse(self.check(image))  # Nonempty bytes cannot prove a matching image.
         self.md.write_text(self.md.read_text() + '\nFabricated extra answer text.\n')
         self.assertFalse(self.check(image))
         self.md.write_text(document(image).replace('## 🤖 Assistant\n\n', '## 🤖 Assistant\n\n![Image](assets/diagram.png)'))
@@ -463,7 +473,8 @@ value = 2 ** 3
         self.assertFalse(self.check(evidence))  # metadata normalization cannot hide a missing asset
         (self.root/'assets').mkdir()
         (self.root/'assets/diagram.png').write_bytes(b'nonempty image bytes')
-        self.assertTrue(self.check(evidence))
+        self.assertTrue(assert_turn_content(exported, evidence)[0])
+        self.assertFalse(self.check(evidence))  # Text normalization cannot waive image comparison.
         for changed in (exported.replace('a=1', 'a=2'), exported.replace("result = r'\\\\[2ex]'", "result = r'\\\\[4ex]'"),
                         exported.replace('Conclusion', '')):
             self.assertFalse(assert_turn_content(changed, evidence)[0])
@@ -809,6 +820,108 @@ class ScanAndImportTests(unittest.TestCase):
                 self.assertTrue(TakeoutZipImportCase().execute(ctx)[0])
 
 
+class ImageOutcomeTests(unittest.TestCase):
+    def pixels(self, value=100, width=1024, height=512):
+        return {'width': width, 'height': height, 'pixels': [value] * (64 * 64 * 3)}
+
+    def test_loaded_blob_is_read_from_displayed_element_without_refetch(self):
+        cdp = MagicMock()
+        cdp.eval.side_effect = [{'chatId': CID, 'images': [{'turn': 1, 'src': 'blob:revoked', 'loaded': True}]}, self.pixels()]
+        result = capture_webpage_images(cdp, CID)
+        self.assertEqual(result, [dict(turn=1, **self.pixels())])
+        self.assertNotIn('fetch(', cdp.eval.call_args.args[0])
+
+    def test_remote_pixels_come_from_browser_resource_cache(self):
+        cdp = MagicMock()
+        cdp.eval.return_value = {'chatId': CID, 'images': [{'turn': 0, 'src': 'https://example.com/image.jpg', 'loaded': True}]}
+        cdp.call.side_effect = [{}, {'result': {'frameTree': {'frame': {'id': 'frame'}}}},
+                                {'result': {'base64Encoded': True, 'content': base64.b64encode(b'cached image').decode()}}]
+        with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels()) as decode:
+            self.assertEqual(capture_webpage_images(cdp, CID)[0]['turn'], 0)
+        decode.assert_called_once_with(cdp, b'cached image', 'application/octet-stream')
+
+    def test_other_chat_or_unloaded_image_cannot_supply_pixel_evidence(self):
+        for chat_id, loaded in ((OTHER, True), (CID, False)):
+            cdp = MagicMock(); cdp.eval.return_value = {
+                'chatId': chat_id, 'images': [{'turn': 0, 'src': 'blob:image', 'loaded': loaded}]}
+            with patch('scripts.framework.image_evidence.time.monotonic', side_effect=[0, 0, 2]), \
+                 patch('scripts.framework.image_evidence.time.sleep'):
+                with self.assertRaises(ValueError): capture_webpage_images(cdp, CID, timeout=1)
+            self.assertEqual(cdp.call.call_count, 1)  # Page.enable only; never decode foreign/incomplete images.
+
+    def test_preview_and_original_may_differ_in_size_and_compression(self):
+        with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels(101, 2048, 1024)):
+            errors = assert_image_files(None, [self.pixels()], [('image.jpg', b'original')])
+        self.assertLess(errors[0], .01)
+
+    def test_wrong_picture_or_aspect_ratio_and_missing_extra_images_fail(self):
+        for actual, entries in ((self.pixels(200), [('a.png', b'wrong')]),
+                                (self.pixels(100, 500, 500), [('a.png', b'wrong')]),
+                                (self.pixels(), []),
+                                (self.pixels(), [('a.png', b'one'), ('b.png', b'extra')])):
+            with self.subTest(entries=entries), patch('scripts.framework.image_evidence.image_pixels', return_value=actual):
+                with self.assertRaises(ValueError):
+                    assert_image_files(None, [self.pixels()], entries)
+
+    def test_same_file_cannot_satisfy_two_different_web_images(self):
+        with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels(100)):
+            with self.assertRaises(ValueError):
+                assert_image_files(None, [self.pixels(100), self.pixels(200)],
+                                   [('a.png', b'duplicate'), ('b.png', b'duplicate')])
+
+    def test_image_order_matches_webpage_order(self):
+        with patch('scripts.framework.image_evidence.image_pixels', side_effect=[self.pixels(200), self.pixels(100)]):
+            with self.assertRaises(ValueError):
+                assert_image_files(None, [self.pixels(100), self.pixels(200)],
+                                   [('second.png', b'second'), ('first.png', b'first')])
+
+    def test_corrupt_or_undecodable_image_fails(self):
+        cdp = MagicMock(); cdp.eval.return_value = None
+        with self.assertRaises(ValueError): image_pixels(cdp, b'not an image', 'image/png')
+
+    def archive_check(self, body, evidence, asset=True, cid=CID):
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / 'export.zip'
+            with zipfile.ZipFile(archive, 'w') as zf:
+                zf.writestr(f'gemini_export/Chat_{CID[-6:]}.md', document(body, cid))
+                if asset: zf.writestr('gemini_export/assets/image.png', b'physical bytes')
+            with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels()):
+                return assert_zip_images(None, archive, CID, evidence)
+
+    def test_physical_zip_requires_per_turn_image_references_files_and_identity(self):
+        body = [{'prompt': 'One', 'response': '![Image](assets/image.png)'}]
+        evidence = [{'images': [self.pixels()]}]
+        self.assertEqual(self.archive_check(body, evidence), [0])
+        for changed, asset, cid in (([{'prompt': 'One', 'response': '[File](assets/image.png)'}], True, CID),
+                                    (body, False, CID), (body, True, OTHER),
+                                    ([{'prompt': 'One', 'response': '![Image](https://example.com/a.png)'}], True, CID)):
+            with self.subTest(changed=changed, asset=asset, cid=cid):
+                with self.assertRaises((ValueError, KeyError)):
+                    self.archive_check(changed, evidence, asset, cid)
+
+    def test_image_in_wrong_reply_or_missing_reply_is_rejected(self):
+        body = [{'prompt': 'One', 'response': 'No image'},
+                {'prompt': 'Two', 'response': '![Image](assets/image.png)'}]
+        evidence = [{'images': [self.pixels()]}, {'images': []}]
+        with self.assertRaises(ValueError): self.archive_check(body, evidence)
+        with self.assertRaises(ValueError): self.archive_check(body[:1], evidence)
+
+    def test_live_disk_images_require_independent_pixels_and_decoder(self):
+        evidence = [{'prompt': 'One', 'response': '', 'has_images': True, 'images': [self.pixels()]}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); (root/'assets').mkdir()
+            (root/'assets/image.png').write_bytes(b'physical bytes')
+            (root/f'Chat_{CID[-6:]}.md').write_text(document([{'prompt': 'One', 'response': '![Image](assets/image.png)'}]))
+            def check(turns, decoder):
+                return CDPAssertions.assert_real_disk_live_save(directory, [CID], turn_evidence={CID: turns}, image_cdp=decoder)[0]
+            with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels()):
+                self.assertTrue(check(evidence, MagicMock()))
+                self.assertFalse(check(evidence, None))
+                self.assertFalse(check([{**evidence[0], 'images': []}], MagicMock()))
+            with patch('scripts.framework.image_evidence.image_pixels', return_value=self.pixels(200)):
+                self.assertFalse(check(evidence, MagicMock()))
+
+
 class CoverageTests(unittest.TestCase):
     def test_missing_required_scenario_is_not_consumed_as_generic(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -823,15 +936,11 @@ class CoverageTests(unittest.TestCase):
             finally:
                 OnlineScenarioProvider.reset()
 
-    def test_custom_dataset_and_imagen_case_require_real_image_scenario(self):
+    def test_scenarios_need_no_forced_modality_and_page_images_cannot_pass_export(self):
         ctx = TestContext(dataset=[{'turns': ['one', 'two']}, {'turns': ['one', 'two']}])
-        with self.assertRaises(RuntimeError): ctx.ensure_scenarios()
-        self.assertFalse(ImagenMultimodalCase().execute(ctx)[0])
-        ctx.scenarios[0]['features'] = ['imagen']
-        self.assertFalse(ImagenMultimodalCase().execute(ctx)[0])
-        ctx.shared_data.update(imagen_found=True, imagen_chat_id=CID)
+        self.assertEqual(len(ctx.ensure_scenarios()), 2)
         ctx.chat_records = [{'chat_id': CID, 'turn_evidence': [{'has_images': True}]}]
-        self.assertTrue(ImagenMultimodalCase().execute(ctx)[0])
+        self.assertFalse(ImagenMultimodalCase().execute(ctx)[0])
 
     def test_actual_turn_identity_is_bound_to_context(self):
         ctx = TestContext()
