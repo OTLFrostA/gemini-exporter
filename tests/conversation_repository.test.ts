@@ -124,7 +124,7 @@ test('a rename after preparation survives direct and staged cached export comple
     } finally { env.restore(); }
 });
 
-test('bound scope isolates accounts/providers, rejects unsupported slots and leaves orphan bodies unpublished', async () => {
+test('bound scope isolates accounts/providers, rejects unsupported slots and ignores bodies without an index', async () => {
     const env = indexStorage();
     try {
         const mutableScope = { ...scope };
@@ -148,10 +148,7 @@ test('bound scope isolates accounts/providers, rejects unsupported slots and lea
         assert.equal(await repository.getConversation('orphan'), null);
         assert.ok(await getStoredDomain(storageIdentity('gemini', 'u0', 'orphan')));
         const writes = env.writes();
-        const recovered = await repository.recoverStoredConversation('orphan');
-        assert.equal(recovered?.indexOrigin, 'recovered');
-        assert.equal(recovered?.conversation.index.cloudAvailability, 'unknown');
-        assert.equal(recovered?.capture?.savedAt, 100);
+        assert.equal(await repository.getStoredConversation('orphan'), null);
         assert.equal(await repository.getConversationIndex('orphan'), null);
         assert.equal(env.writes(), writes);
     } finally { env.restore(); }

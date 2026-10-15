@@ -41,14 +41,8 @@ These are persistence evidence, not Domain conversation metadata. Index activity
 may be newer than `capture.savedAt`; readers never replace the latter with Index
 activity or a local clock. A body with no provable version keeps it unknown.
 
-The storage result also identifies `indexOrigin: 'catalog' | 'recovered'`.
-`recoverStoredConversation(id)` is an explicit archive recovery operation used by
-export. It prefers the catalog, but when only a durable body survives it reconstructs
-an ephemeral index from that snapshot's source facts, with unknown cloud availability.
-It never publishes that index or promotes cached metadata over an existing index.
-Ordinary `getConversation`, `getConversationIndex` and `getStoredConversation` still
-report an absent catalog entry as `null`. This preserves export of retained bodies
-when catalog/deletion writes failed, without making normal reads repair storage.
+Index is required for every saved-conversation read, including export. A retained
+body without an Index is ignored; detail never reconstructs or replaces an Index.
 
 `conversationParseResult` is the one compatibility adapter for existing renderers.
 It reconstructs the existing parser/storage snapshot shape using metadata only
@@ -60,7 +54,7 @@ and adapter and is deprecated for new callers.
 The old `DomainConversationDetail` snapshot shape remains the parser/storage wire
 contract during upstream migration; this change does not change persisted schemas.
 Its historical metadata is not an application read authority. Low-level
-`getDomainConversationResult` remains for migration/recovery and storage verification;
+`getDomainConversationResult` remains an internal persistence primitive for storage verification;
 production cached export reads use the scoped repository instead. Direct online
 and Takeout parser outputs are acquisition observations, not saved-conversation reads.
 
@@ -85,8 +79,7 @@ lock used by catalog writes/removal. Web-origin and extension-origin contexts do
 share a Web Lock; this is not a global cross-origin transaction.
 Each body is a committed IndexedDB record including its own version. Chrome storage
 and IndexedDB are still two physical stores: this is not a cross-store ACID snapshot.
-A failed catalog publication can leave an orphan body for explicit recovery/retry;
-reads never promote it. Low-level body operations remain internal storage/migration
+A failed catalog publication can leave an orphan body; reads ignore it. Low-level body operations remain internal storage/migration
 primitives and do not acquire the catalog lock recursively.
 
 Bulk index listing continues to use `getConversations` for the UI/sync inventory;

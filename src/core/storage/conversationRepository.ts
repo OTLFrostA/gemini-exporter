@@ -5,13 +5,11 @@ import type { ResourceConversationParseResult } from '../parsers/parsingResult.j
 import type { ResourceAcquisitionHints } from '../parsers/shared/resources/resourceAcquisitionHints.js';
 import type { DomainStorageIdentity, TrustedDomainStorageRecord } from './domain/contracts.js';
 import { domainStorageKey, storageIdentity } from './domain/domainStore.js';
-import { indexFromParsed } from '../compatibility/index/parseIndex.js';
 
 export interface ConversationScope { readonly providerId: string; readonly accountSlot: string }
 
 /** Persistence evidence accompanies the aggregate; it never becomes source metadata. */
 export interface StoredConversation {
-    indexOrigin: 'catalog' | 'recovered';
     conversation: Omit<DomainConversation, 'detail'> & { detail?: TrustedDomainBody };
     capture?: { revision: string; savedAt?: number; acquisitionHints: ResourceAcquisitionHints };
 }
@@ -21,8 +19,6 @@ export interface ConversationRepository {
     getConversation(id: string): Promise<DomainConversation | null>;
     getConversationIndex(id: string): Promise<DomainConversationIndex | null>;
     getStoredConversation(id: string): Promise<StoredConversation | null>;
-    /** Explicit archive recovery for a selected orphan body; never publishes its reconstructed index. */
-    recoverStoredConversation(id: string): Promise<StoredConversation | null>;
 }
 
 interface ReadPorts {
@@ -50,29 +46,25 @@ export function createConversationRepository(scope: ConversationScope, ports: Re
         if (matches.length > 1) throw new TypeError('Duplicate conversation identity');
         return matches.length ? restoreConversationIndex(matches[0]) : null;
     };
-    const readStored = (id: string, recover: boolean): Promise<StoredConversation | null> => ports.readConsistently(async () => {
+    const getStoredConversation = (id: string): Promise<StoredConversation | null> => ports.readConsistently(async () => {
         const identity = identityFor(id);
-        let index = await readIndex(identity);
-        if (!index && !recover) return null;
+        const index = await readIndex(identity);
+        if (!index) return null;
         const stored = await ports.readBody(identity);
-        if (!stored) return index ? { indexOrigin: 'catalog', conversation: { index } } : null;
+        if (!stored) return { conversation: { index } };
         if (stored.key !== domainStorageKey(identity) || domainStorageKey(stored.identity) !== stored.key
             || stored.conversation.providerId !== identity.providerId
             || storageIdentity(identity.providerId, identity.accountSlot, stored.conversation.id).conversationId !== identity.conversationId) {
             throw new TypeError('Conversation body identity mismatch');
         }
-        const indexOrigin = index ? 'catalog' : 'recovered';
-        if (!index) index = indexFromParsed({ conversation: stored.conversation, diagnostics: [], sourceVersion: stored.savedAt }, 'snapshot');
-        return structuredClone({ indexOrigin, conversation: { index, detail: selectConversationBody(stored.conversation) },
+        return structuredClone({ conversation: { index, detail: selectConversationBody(stored.conversation) },
             capture: { revision: stored.revision, acquisitionHints: stored.acquisitionHints,
             ...(stored.savedAt !== undefined ? { savedAt: stored.savedAt } : {}) } });
     });
-    const getStoredConversation = (id: string) => readStored(id, false);
     return Object.freeze({ scope: boundScope,
         getConversationIndex: (id: string) => ports.readConsistently(() => readIndex(identityFor(id))),
         getConversation: async (id: string) => (await getStoredConversation(id))?.conversation ?? null,
         getStoredConversation,
-        recoverStoredConversation: (id: string) => readStored(id, true),
     });
 }
 

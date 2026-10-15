@@ -32,9 +32,7 @@ interface ResolveChatOptions { messageSender?: MessageSenderFunction | null; sou
 interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 async function readSavedConversation(slot: string, id: string): Promise<ResourceConversationParseResult | null> {
-    // Export is an explicit request to recover the selected archive, even if a
-    // previous catalog write failed. Ordinary repository reads never do this.
-    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: slot }).recoverStoredConversation(id);
+    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getStoredConversation(id);
     return stored ? conversationParseResult(stored) : null;
 }
 function resolveRuntimeSender(): MessageSenderFunction | null {
@@ -212,8 +210,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
     const domain = result.conversation;
     const cached = dataSource === 'local_snapshot';
     const repository = cached ? StorageService.conversationRepository({ providerId: domain.providerId, accountSlot: slot }) : null;
-    const canonical = repository ? await repository.getConversationIndex(id)
-        ?? (await repository.recoverStoredConversation(id))?.conversation.index : null;
+    const canonical = repository ? await repository.getConversationIndex(id) : null;
     if (cached && !canonical) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued', convsNeedSave: false };
     const observation = indexFromParsed(result, dataSource === 'takeout' ? 'takeout' : dataSource === 'local_snapshot' ? 'snapshot' : 'detail');

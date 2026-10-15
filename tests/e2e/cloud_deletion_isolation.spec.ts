@@ -89,6 +89,7 @@ test.beforeAll(async () => {
                     listAvailability: list[0]?.cloudAvailability,
                     persistedList: await StorageService.getConversations('u0'),
                     records: await StorageService.getExportedIds('u0'),
+                    savedConversation: await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation(id),
                     conversation: source.conversation, assetId: cached.id };
             } finally {
                 provider.fetchConversationDetail = originalFetch;
@@ -123,9 +124,22 @@ for (const scenario of scenarios) {
         }));
         await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
         await page.evaluate(bundle);
-        const download = page.waitForEvent('download');
+        const download = scenario.noList ? null : page.waitForEvent('download');
         const observed = await page.evaluate(scenario => Reflect.get(globalThis, 'deletionProbe').run(scenario), scenario);
-        const archive = await download;
+        if (scenario.noList) {
+            // Detail alone is not a conversation: absent Index blocks archive export.
+            expect(observed.savedConversation).toBeNull();
+            expect(observed.result.landedChats).toBe(0);
+            expect(observed.result.failedChats).toHaveLength(1);
+            expect(observed.result.failedChats[0].isDeleted).toBe(true);
+            expect(observed.records['deletion-isolation']).toBeUndefined();
+            expect(observed.persistedList).toEqual([]);
+            expect(observed.remoteCalls).toBe(0);
+            expect(assetRequests).toEqual([]);
+            expect(observed.writeFailures).toBe(2);
+            return;
+        }
+        const archive = await download!;
         const archivePath = testInfo.outputPath('deletion-isolation.zip');
         await archive.saveAs(archivePath);
         const zip = await JSZip.loadAsync(readFileSync(archivePath));
