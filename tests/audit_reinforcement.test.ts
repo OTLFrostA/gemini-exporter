@@ -29,6 +29,7 @@ test('storageService rejects fat metadata without changing stored indexes', asyn
 // 2. Takeout MediaIndex Strict Slot Isolation Verification
 test('mediaIndex: strict slot isolation prevents cross-account data corruption', () => {
     const MediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
+    try {
 
     // Commit takeout data for Slot u0
     MediaIndex.commitTakeoutData('u0', {
@@ -63,8 +64,10 @@ test('mediaIndex: strict slot isolation prevents cross-account data corruption',
     assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u1', 'u1'), null);
     assert.strictEqual(MediaIndex.getTakeoutOfflineChat('chat_u0', 'u0')?.title, 'Slot 0 Chat');
 
-    // Clean up
-    MediaIndex.clearTakeoutData('u0');
+    } finally {
+        MediaIndex.clearTakeoutData('u1');
+        MediaIndex.clearTakeoutData('u0');
+    }
 });
 
 // 3. Pagination Token Loop Guard Verification
@@ -92,28 +95,4 @@ test('pagination: getAllConversations detects token loop and terminates safely',
     assert.ok(result.diagnostics.stopReason.includes('Token Loop'), 'stopReason must mention Token Loop');
     assert.strictEqual(result.stoppedEarly, true, 'Token loop must set stoppedEarly to true');
     assert.strictEqual(result.exhaustive, false, 'Token loop must set exhaustive to false');
-});
-
-test('pagination D1: non-exhaustive token-loop result prevents reconcileConversations and preserves missing local chats', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
-
-    let callCount = 0;
-    const mockClient = {
-        getConversationList: async () => {
-            callCount++;
-            return listFixture(([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture), 'looping_token');
-        }
-    };
-
-    const paginationResult = await Pagination.getAllConversations(mockClient, 2000);
-    assert.strictEqual(paginationResult.stoppedEarly, true);
-    assert.strictEqual(paginationResult.exhaustive, false);
-
-    // Simulate syncEngine's isFullExhaustive gate
-    const effectiveForceFull = true;
-    const hitLimit = !!(paginationResult.hitGoogleLimit || paginationResult.diagnostics?.hitGoogleLimit);
-    const isAborted = false;
-    const isFullExhaustive = effectiveForceFull && !paginationResult.stoppedEarly && !isAborted && !hitLimit && (paginationResult.exhaustive !== false);
-
-    assert.strictEqual(isFullExhaustive, false, 'isFullExhaustive must be false when pagination loop stopped early');
 });
