@@ -10,6 +10,9 @@ const {
     buildDiagnosticSnapshot
 } = require('../src/core/diagnostics/diagnosticSnapshot.js');
 
+// The flight recorder is a singleton; audited tests must leave no sensitive fixtures behind.
+test.afterEach(() => FlightRecorder.clear());
+
 test('flightRecorder: records events and automatically sanitizes sensitive fields', () => {
     FlightRecorder.clear();
     assert.strictEqual(FlightRecorder.getEntries().length, 0);
@@ -21,7 +24,8 @@ test('flightRecorder: records events and automatically sanitizes sensitive field
         authHeader: 'Bearer eyJhbGciOi...',
         apiKey: 'secret-key-1234',
         password: 'my-password',
-        normalKey: 'visible-data'
+        normalKey: 'visible-data',
+        nested: { password: 'nested-private', label: 'visible-label' }
     });
 
     const entries = FlightRecorder.getEntries();
@@ -38,6 +42,7 @@ test('flightRecorder: records events and automatically sanitizes sensitive field
     assert.strictEqual(entries[1].details.apiKey, '[REDACTED]');
     assert.strictEqual(entries[1].details.password, '[REDACTED]');
     assert.strictEqual(entries[1].details.normalKey, 'visible-data');
+    assert.deepStrictEqual(entries[1].details.nested, { password: '[REDACTED]', label: 'visible-label' });
 
     // Verify in-memory buffer itself is eagerly redacted (zero raw sensitive tokens in memory)
     assert.strictEqual((FlightRecorder as any)._events[1].details.SNlM0e, '[REDACTED]', 'Internal in-memory event must be eagerly redacted');
@@ -87,7 +92,7 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
         'chat_002': { exportedAt: new Date(t0 + 5000).toISOString(), chatTime: t0, messageCount: 2, status: 'ok' }
     };
 
-    const origChrome = (globalThis as any).chrome;
+    const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         (globalThis as any).chrome = {
             storage: {
@@ -121,6 +126,8 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
         assert.strictEqual(item1.id, 'chat_001');
         assert.ok(!item1.maskedTitle.includes('Private Discussion on Project X'), 'Title must be desensitized');
         assert.ok(item1.maskedTitle.includes('Pr***'));
+        assert.ok(!JSON.stringify(snapshot).includes('Private Discussion on Project X'),
+            'diagnostic output must not contain the raw private title');
         assert.strictEqual(item1.derivedState.state, 'exported_ok');
         assert.strictEqual(item1.derivedState.needsIncrementalExport, false);
 
@@ -137,6 +144,7 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
         assert.ok(Array.isArray(snapshot.workbenchLogs));
         assert.strictEqual(snapshot.workbenchLogs!.length, 1);
     } finally {
-        (globalThis as any).chrome = origChrome;
+        if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
+        else delete (globalThis as any).chrome;
     }
 });

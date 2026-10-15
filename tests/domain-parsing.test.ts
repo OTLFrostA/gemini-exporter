@@ -80,16 +80,26 @@ test('Domain completeness is validated and copied independently from input evide
     assert.equal(parse({ completeness: { status: 'partial', reason: 42 as never } }).conversation.detail.quality.status, 'partial');
 });
 
-test('conversation timestamps cannot lose meaning during JSON serialization', () => {
-    for (const timestamp of [NaN, Infinity, -Infinity, '123', undefined]) {
-        const { conversation } = parse({ timestamp });
-        assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
-        assert.deepEqual(JSON.parse(JSON.stringify(conversation)), conversation);
+test('legacy parser preserves source updatedAt but never treats local timestamp as source version', () => {
+    for (const timestamp of [NaN, Infinity, -Infinity, '123', undefined, 1700000000123]) {
+        const parsed = parse({ timestamp });
+        assert.equal(parsed.conversation.index.updatedAt, undefined,
+            'a legacy observation timestamp does not establish source activity');
+        assert.equal(parsed.sourceVersion, undefined);
+        assert.equal(Object.hasOwn(parsed.conversation, 'timestamp'), false);
+        assert.deepEqual(JSON.parse(JSON.stringify(parsed.conversation)), parsed.conversation);
     }
-    for (const timestamp of [0, -1000, 1700000000123]) {
-        const { conversation } = parse({ timestamp });
-        assert.equal(Reflect.get(conversation, 'updatedAt'), undefined);
-        assert.equal(Object.hasOwn(conversation, 'timestamp'), false);
+    for (const updatedAt of [0, -1000, 1700000000123, '123']) {
+        const parsed = parse({ updatedAt });
+        const expected = Number(updatedAt);
+        assert.equal(parsed.conversation.index.updatedAt, expected);
+        assert.equal(parsed.sourceVersion, expected);
+        assert.deepEqual(JSON.parse(JSON.stringify(parsed.conversation)), parsed.conversation);
+    }
+    for (const updatedAt of [NaN, Infinity, -Infinity, undefined]) {
+        const parsed = parse({ updatedAt });
+        assert.equal(parsed.conversation.index.updatedAt, undefined);
+        assert.equal(parsed.sourceVersion, undefined);
     }
 });
 
