@@ -12,6 +12,7 @@ import { composeDomainDocument } from '../src/core/document/compose/composeDomai
 import { TypstSandboxCompiler } from '../src/core/export/typst/typstSandboxCompiler.js';
 import { RealWasmSandboxHost, repoRoot } from './helpers/realWasmSandbox.js';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
+import type { TypstConversationRenderPayload } from '../src/core/renderers/typst/transport.js';
 
 const ctx = { signal: new AbortController().signal, log() {}, reportProgress() {} };
 const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
