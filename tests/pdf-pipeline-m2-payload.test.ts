@@ -28,7 +28,7 @@ function message(id: string, role: string, blocks: any[]): any {
     return { id, role, blocks };
 }
 
-function documentWith(messages: any[], _resources: any[] = []): any {
+function documentWith(messages: any[]): any {
     return { schemaVersion: 2, header: { title: 'T', providerLabel: 'gemini', messageCount: messages.length },
         messages: messages.map(message => ({ ...message, type: 'message', variant: message.role === 'user' ? 'bubble' : 'flow', label: message.role === 'user' ? 'you' : 'assistant' })) };
 }
@@ -73,7 +73,7 @@ test('convertible math carries the Typst body with no diagnostic', async () => {
     );
     const mathNodes = output.payload.messages[0].blocks.filter((b: any) => b.type === 'math');
     assert.strictEqual(mathNodes.length, 1);
-    assert.strictEqual(mathNodes[0].typst, 'frac(a ,b )');
+    assert.match(mathNodes[0].typst, /^frac\(\s*a\s*,\s*b\s*\)$/, 'Typst must preserve fraction operands without freezing whitespace');
     assert.deepStrictEqual(diagnostics, []);
 });
 
@@ -92,9 +92,7 @@ test('consumes document messages in source order', async () => {
 
 test('asset paths come from the resource pathMap without re-resolution', async () => {
     const m1 = message('m1', 'user', [{ type: 'image', resourceId: 'img1', alt: 'pic' }]);
-    const document = documentWith([m1], [
-        { id: 'img1', kind: 'image', status: 'available', mimeType: 'image/png', name: 'x.png' },
-    ]);
+    const document = documentWith([m1]);
     const pathMap = new Map([['img1', 'assets/sha256/ab/x.png']]);
     const { output, diagnostics } = await payloadStage(
         { document, pathMap, locale: 'en' },
