@@ -1,7 +1,6 @@
 import { resourceValue } from './helpers/resources.js';
 import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /** Original data URI facts are parsed into Domain; decoded bytes belong to PreparedResources. */
 export {};
 const test = require('node:test');
@@ -38,7 +37,7 @@ test('original base64 PNG facts survive JSON; preparation produces the real cont
     assert.equal(result.pathMap.get(asset.id), PNG_REF);
     assert.equal(resourceValue<ResourceBytes>(result.resources.get(asset.id)).mediaType, 'image/png');
     assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(result.resources.get(asset.id)).bytes), Buffer.from(PNG_B64, 'base64'));
-    assert.equal(result.mounts[0].bytes.length, 70);
+    assert.deepEqual(Buffer.from(result.mounts[0].bytes), Buffer.from(PNG_B64, 'base64'), 'mounted bytes must equal the original PNG');
     assert.deepEqual(result.diagnostics, []);
     assert.deepEqual(JSON.parse(JSON.stringify(result.domain)), result.domain);
     for (const field of ['storageRef', 'status', 'sha256']) assert.ok(!(field in asset));
