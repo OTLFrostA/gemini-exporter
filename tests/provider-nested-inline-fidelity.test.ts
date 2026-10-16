@@ -1,5 +1,4 @@
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-nested-inline-fidelity.test.ts
  * Tier 1 unit tests for HTML export fidelity & nested inline Markdown semantics.
@@ -37,11 +36,9 @@ test('Fidelity 1: Table cell bold renders as <strong> and does not leak **', asy
 
     const table = msg.content.find((b: any) => b.type === 'table');
     assert.ok(table?.type === 'table');
-    assert.ok(table, 'table block found');
     const cellChildren = table.rows[0].cells[0].children;
     assert.strictEqual(cellChildren.length, 1);
     assert.strictEqual(cellChildren[0].type, 'strong');
-    assert.ok(cellChildren[0]?.type === 'strong');
     assert.strictEqual(cellChildren[0].children[0].text, 'bold text');
 
     // HTML assertions
@@ -55,15 +52,12 @@ test('Fidelity 2: Table cell HTML break <br> renders as lineBreak and does not l
 
     const table = msg.content.find((b: any) => b.type === 'table');
     assert.ok(table?.type === 'table');
-    assert.ok(table, 'table block found');
     const cellChildren = table.rows[0].cells[1].children;
 
     // Check Domain content structure
     assert.strictEqual(cellChildren[0].type, 'strong');
-    assert.ok(cellChildren[0]?.type === 'strong');
     assert.strictEqual(cellChildren[0].children[0].text, '确定状态');
     assert.strictEqual(cellChildren[1].type, 'lineBreak');
-    assert.ok(cellChildren[1]?.type === 'lineBreak');
     assert.strictEqual(cellChildren[1].kind, 'hard');
 
     // HTML assertions
@@ -78,7 +72,6 @@ test('Fidelity 3: Mixed inline semantics (**State**<br>`code` and *italic*) rend
 
     const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
-    assert.ok(p?.type === 'paragraph');
     const types = p.children.map((c: any) => c.type);
     assert.deepStrictEqual(types, ['strong', 'lineBreak', 'inlineCode', 'text', 'emphasis']);
 
@@ -100,15 +93,12 @@ test('Fidelity 4: Emphasis wrapping code spans and math spans preserves nesting 
 
     const p = msg.content[0];
     assert.strictEqual(p.type, 'paragraph');
-    assert.ok(p?.type === 'paragraph');
 
     // First node is strong
     assert.strictEqual(p.children[0].type, 'strong');
-    assert.ok(p.children[0]?.type === 'strong');
     const strongChildren = p.children[0].children;
     assert.strictEqual(strongChildren[0].text, 'bold ');
     assert.strictEqual(strongChildren[1].type, 'inlineCode');
-    assert.ok(strongChildren[1]?.type === 'inlineCode');
     assert.strictEqual(strongChildren[1].code, 'code');
     assert.strictEqual(strongChildren[2].text, ' bold');
 
@@ -129,24 +119,23 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
     const p = msg.content[0];
     // First: strong containing link
     assert.strictEqual(p.children[0].type, 'strong');
-    assert.ok(p.children[0]?.type === 'strong');
     const link1 = p.children[0].children[0];
     assert.strictEqual(link1.type, 'link');
-    assert.ok(link1?.type === 'link');
     assert.strictEqual(link1.href, 'https://example.com/1');
 
     // Second: link containing strong
     assert.strictEqual(p.children[2].type, 'link');
-    assert.ok(p.children[2]?.type === 'link');
     assert.strictEqual(p.children[2].href, 'https://example.com/2');
     assert.strictEqual(p.children[2].children[0].type, 'strong');
-    assert.ok(p.children[2].children[0]?.type === 'strong');
     assert.strictEqual(p.children[2].children[0].children[0].text, 'nested bold');
 
     // HTML assertions
     assert.ok(html.includes('<strong><a href="https://example.com/1"'), 'HTML renders strong wrapping <a>');
-    assert.ok(html.includes('<a href="https://example.com/2" target="_blank" rel="noopener noreferrer" class="gem-link"><strong>nested bold</strong></a>'),
-        'HTML renders <a> wrapping <strong>');
+    const nestedLinkHtml = html.match(/<a\\b[^>]*><strong>nested bold<\\/strong><\\/a>/)?.[0];
+    assert.ok(nestedLinkHtml, 'HTML renders link wrapping emphasis');
+    assert.ok(nestedLinkHtml.includes('href="https://example.com/2"'));
+    assert.ok(nestedLinkHtml.includes('target="_blank"'));
+    assert.ok(nestedLinkHtml.includes('rel="noopener noreferrer"'));
     assert.ok(!html.includes('**['), 'HTML does not leak **[');
     assert.ok(!html.includes('[**'), 'HTML does not leak [**');
 });
@@ -161,4 +150,13 @@ test('Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in 
 
     assert.ok(html.includes('line1<br>line2<br>line3<br>line4'), 'HTML renders clean <br> tags');
     assert.ok(!html.includes('&lt;br'), 'HTML does not leak escaped &lt;br');
+    // These forms are also valid inside Markdown table cells, not only paragraphs.
+    for (const variant of ['<br>', '<br/>', '<br />']) {
+        const tableMarkdown = `| Text |\\n| :--- |\\n| first${variant}second |\\n`;
+        const { msg: tableMsg, html: tableHtml } = await normAndRender(tableMarkdown);
+        const table = tableMsg.content.find((block: any) => block.type === 'table');
+        assert.ok(table, `table parsed with ${variant}`);
+        assert.deepStrictEqual(table.rows[0].cells[0].children.map((node: any) => node.type), ['text', 'lineBreak', 'text']);
+        assert.ok(tableHtml.includes('first<br>second'), `table renders actual break for ${variant}`);
+    }
 });
