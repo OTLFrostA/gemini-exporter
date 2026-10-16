@@ -113,7 +113,7 @@ test('a complete current scan replaces a disjoint old interval without stopping 
     round = 1;
     await options.click('#btnSyncAll');
     await expect.poll(async () => (await read())?.streams.recent.range?.head.time).toBe(1700000150000);
-    expect(await read()).toMatchObject({ historyComplete: true, lastStatus: 'complete', activeRunId: null });
+    await expect.poll(read).toMatchObject({ historyComplete: true, lastStatus: 'complete', activeRunId: null });
     expect((await read()).streams.recent.range!.tail.time).toBe(1700000120000);
     expect(requests[1]).toEqual(['pinned', 'head', 'tC_fresh']);
     await expect(options.locator('#list .item')).toHaveCount(6);

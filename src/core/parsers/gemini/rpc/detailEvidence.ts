@@ -1,3 +1,4 @@
+import type { GeminiSourceAttribution } from './sourceAttributions.js';
 import type { ImageAttachment, DocLink } from './sourceAttachments.js';
 import type { Citation, TitleResult } from './extractors.js';
 import type { GeminiStructuredDocument, GeminiStructuredExtraction } from './structuredContent.js';
@@ -51,6 +52,7 @@ export interface GeminiMessageEvidence {
     turnId?: string;
     thoughts?: string;
     citations?: Citation[];
+    sourceAttributions?: GeminiSourceAttribution[];
     images?: Array<ImageAttachment & { type: string; isImage?: boolean; generation?: SourceGeneratedMediaIdentity }>;
     documents?: GeminiDocumentEvidence[];
     attachments?: GeminiAttachmentEvidence[];

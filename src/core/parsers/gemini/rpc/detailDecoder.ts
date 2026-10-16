@@ -1,3 +1,4 @@
+import { extractSourceAttributions } from './sourceAttributions.js';
 import { findListConversationMetadata } from './listMetadata.js';
 import { extractGeneratedFiles } from './generatedFiles.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
@@ -434,6 +435,7 @@ function parseCandidateResponse(
 
     const thoughts = extractThoughts(candidateBlock);
     const citations = extractCitations(candidateBlock);
+    const sourceAttributions = extractSourceAttributions(cand);
     const groundingCitationMarkers = extractGroundingCitationMarkers(cand || candidateBlock);
 
     if (responseText) {
@@ -522,6 +524,7 @@ function parseCandidateResponse(
         messageCount: 1,
         ...(structuredContent ? { structuredContent } : {}),
         structuredExtraction,
+        ...(sourceAttributions.length ? { sourceAttributions } : {}),
         ...(groundingCitationMarkers.length ? { groundingCitationMarkers } : {})
     };
 }

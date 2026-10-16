@@ -246,6 +246,23 @@ function dictionaryValue(dictionary: string, key: string): string {
     return '';
 }
 
+function structureChildren(element: PdfObject, page: string | null): Array<{ ref?: number; key?: string }> {
+    const kids = dictionaryValue(element.dict, '/K');
+    const tokens = /<<[\s\S]*?>>|(\d+)\s+0\s+R|(\d+)/g;
+    const values: Array<{ ref?: number; key?: string }> = [];
+    let token: RegExpExecArray | null;
+    while ((token = tokens.exec(kids)) !== null) {
+        if (token[1]) values.push({ ref: Number(token[1]) });
+        else if (token[2] && page) values.push({ key: `${page}:${token[2]}` });
+        else if (token[0].startsWith('<<')) {
+            const targetPage = /\/Pg\s+(\d+)\s+0\s+R/.exec(token[0])?.[1] ?? page;
+            const mcid = /\/MCID\s+(\d+)/.exec(token[0])?.[1];
+            if (targetPage && mcid) values.push({ key: `${targetPage}:${mcid}` });
+        }
+    }
+    return values;
+}
+
 export interface PdfContentRun { kind: 'text' | 'math' | 'code'; text: string; group: number | null }
 
 export interface ExtractedPdf {
@@ -266,26 +283,27 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
     const contentKinds = new Map<string, { kind: 'text' | 'math' | 'code' | 'label'; group: number | null }>();
     for (const obj of objs.values()) {
         if (!/\/Type\s*\/StructElem/.test(obj.dict)) continue;
-        const pageRef = /^(\d+)\s+0\s+R/.exec(dictionaryValue(obj.dict, '/Pg'));
-        const rawKids = dictionaryValue(obj.dict, '/K');
-        const kids = /^\[([\s\S]*)\]$/.exec(rawKids);
-        if (!pageRef || !kids || /\d+\s+0\s+R/.test(kids[1])) continue;
+        let page: string | null = null;
         let parent: PdfObject | undefined = obj;
         let kind: 'text' | 'math' | 'code' | 'label' = 'text';
         let group: number | null = null;
         const visited = new Set<number>();
         while (parent && !visited.has(parent.num)) {
             visited.add(parent.num);
+            page ??= /^(\d+)\s+0\s+R/.exec(dictionaryValue(parent.dict, '/Pg'))?.[1] ?? null;
             const role = /\/S\s*\/(\w+)/.exec(parent.dict)?.[1];
-            if (role === 'Formula' || role === 'Code' || role === 'Lbl') {
+            if (group === null && (role === 'Formula' || role === 'Code' || role === 'Lbl')) {
                 kind = role === 'Formula' ? 'math' : role === 'Code' ? 'code' : 'label';
                 group = parent.num;
-                break;
             }
             const ref = /\/P\s+(\d+)\s+0\s+R/.exec(parent.dict);
             parent = ref ? objs.get(Number(ref[1])) : undefined;
         }
-        for (const mcid of kids[1].match(/\d+/g) ?? []) contentKinds.set(`${pageRef[1]}:${mcid}`, { kind, group });
+        // A single formula/code span can use integer MCIDs on its first page
+        // and explicit MCR dictionaries on later pages. Page refs are not MCIDs.
+        for (const child of structureChildren(obj, page)) {
+            if (child.key) contentKinds.set(child.key, { kind, group });
+        }
     }
     const contentRuns: PdfContentRun[] = [];
     const markedText = new Map<string, string>();
@@ -443,22 +461,6 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
         if (last && last.kind === kind && last.group === group) last.text += text;
         else logicalRuns.push({ kind, group, text });
     };
-    const children = (element: PdfObject, page: string | null): Array<{ ref?: number; key?: string }> => {
-        const kids = dictionaryValue(element.dict, '/K');
-        const tokens = /<<[\s\S]*?>>|(\d+)\s+0\s+R|(\d+)/g;
-        const values: Array<{ ref?: number; key?: string }> = [];
-        let token: RegExpExecArray | null;
-        while ((token = tokens.exec(kids)) !== null) {
-            if (token[1]) values.push({ ref: Number(token[1]) });
-            else if (token[2] && page) values.push({ key: `${page}:${token[2]}` });
-            else if (token[0].startsWith('<<')) {
-                const targetPage = /\/Pg\s+(\d+)\s+0\s+R/.exec(token[0])?.[1] ?? page;
-                const mcid = /\/MCID\s+(\d+)/.exec(token[0])?.[1];
-                if (targetPage && mcid) values.push({ key: `${targetPage}:${mcid}` });
-            }
-        }
-        return values;
-    };
     const metadata = (element: PdfObject, page: string | null, kind: PdfContentRun['kind'], group: number | null) => {
         const role = /\/S\s*\/(\w+)/.exec(element.dict)?.[1];
         return { role, page: /^(\d+)\s+0\s+R/.exec(dictionaryValue(element.dict, '/Pg'))?.[1] ?? page,
@@ -471,7 +473,7 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
         const ancestors = new Set(path); ancestors.add(num);
         const meta = metadata(element, page, kind, group);
         if (meta.role === 'Lbl') return;
-        for (const child of children(element, meta.page)) {
+        for (const child of structureChildren(element, meta.page)) {
             if (child.ref) collect(child.ref, meta.page, meta.kind, meta.group, owned, ancestors);
             else if (child.key) owned.set(child.key, { kind: meta.kind, group: meta.group });
         }
@@ -494,7 +496,7 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
             return;
         }
         const ancestors = new Set(path); ancestors.add(num);
-        for (const child of children(element, meta.page)) {
+        for (const child of structureChildren(element, meta.page)) {
             if (child.ref) visit(child.ref, meta.page, meta.kind, meta.group, ancestors);
             else if (child.key) appendLogical(markedText.get(child.key) ?? '', meta.kind, meta.group);
         }

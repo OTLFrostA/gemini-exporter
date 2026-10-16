@@ -4,7 +4,8 @@ import { extractImageEvidence } from "./sourceAttachments.js";
 export interface GeminiAnnotation {
     start: number;
     end: number;
-    type: number;
+    type: number | 'source';
+    sourceIds?: string[];
     url?: string;
 }
 
@@ -79,7 +80,15 @@ export interface GeminiAttachmentNode {
 
 export interface GeminiFileNode { nodeType: 24; id: string; title: string }
 
+/** Inline fragments share one paragraph; wire field 13 is not a line break. */
+export interface GeminiCompositeParagraph { nodeType: 'paragraph'; children: GeminiStructuredNode[] }
+export interface GeminiFileCitation { nodeType: 'citation'; number: number; title: string }
+export interface GeminiCitationGroup { nodeType: 'citationGroup'; children: GeminiFileCitation[] }
+
 export type GeminiStructuredNode =
+    | GeminiCompositeParagraph
+    | GeminiFileCitation
+    | GeminiCitationGroup
     | GeminiTextNode
     | GeminiMathBlockNode
     | GeminiCodeBlockNode
@@ -122,6 +131,11 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
         const start = d.start;
         const end = d.end;
         const type = d.type;
+        if (typeof start === 'number' && typeof end === 'number' && type === 'source'
+            && Array.isArray(d.sourceIds) && d.sourceIds.length > 0
+            && d.sourceIds.every(id => typeof id === 'string' && /^spp_[\w-]+$/.test(id))) {
+            return { start, end, type, sourceIds: [...d.sourceIds] };
+        }
         if (typeof start === "number" && typeof end === "number" && typeof type === "number") {
             // Supported inline annotation types:
             // 0: strong (bold)
@@ -148,6 +162,14 @@ function decodeAnnotation(wa: unknown): GeminiAnnotation | null {
     if (typeof start !== "number" || typeof end !== "number") return null;
 
     const style = Array.isArray(wa[2]) ? wa[2] : [];
+    const attribution: unknown = style[3];
+    if (Array.isArray(attribution) && attribution.length === 2 && attribution[0] === null
+        && Array.isArray(attribution[1]) && attribution[1].length > 0
+        && attribution[1].every(id => typeof id === 'string' && /^spp_[\w-]+$/.test(id))
+        && style.every((value, index) => value == null || index === 3)) {
+        return { start, end, type: 'source', sourceIds: [...attribution[1]] };
+    }
+    if (attribution != null) return null;
     let t: number | null = null;
     let url: string | undefined;
 
@@ -204,8 +226,30 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     if (typeof w === "object" && !Array.isArray(w)) {
         const node = w as Record<string, unknown>;
         const nodeType = node.nodeType;
-        if (typeof nodeType !== "number") return null;
         switch (nodeType) {
+            case 'citationGroup': {
+                if (!Array.isArray(node.children) || !node.children.length) return null;
+                const children: GeminiFileCitation[] = [];
+                for (const child of node.children) {
+                    const decoded = decodeGeminiStructuredNode(child, issues);
+                    if (decoded?.nodeType !== 'citation') return null;
+                    children.push(decoded);
+                }
+                return { nodeType, children };
+            }
+            case 'paragraph': {
+                if (!Array.isArray(node.children)) return null;
+                const children: GeminiStructuredNode[] = [];
+                for (const child of node.children) {
+                    const decoded = decodeGeminiStructuredNode(child, issues);
+                    if (!decoded) return null;
+                    children.push(decoded);
+                }
+                return { nodeType, children };
+            }
+            case 'citation':
+                return Number.isSafeInteger(node.number) && (node.number as number) > 0 && typeof node.title === 'string' && node.title
+                    ? { nodeType, number: node.number as number, title: node.title } : null;
             case 18: {
                 if (typeof node.text !== "string") return null;
                 let annotations: GeminiAnnotation[] | undefined;
@@ -315,6 +359,48 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     }
     if (!Array.isArray(w)) return null;
 
+    // Captured file citation. The quote is source metadata, never visible body text.
+    if (w[31] != null) {
+        const payload: unknown = w[31];
+        if (!w.every((value, index) => value == null || index === 31)
+            || !Array.isArray(payload) || payload.length !== 1) return null;
+        const citation: unknown = payload[0];
+        if (!Array.isArray(citation) || citation.length !== 3
+            || !Array.isArray(citation[0]) || citation[0].length !== 2 || citation[0][1] !== 0
+            || typeof citation[0][0] !== 'string'
+            || !Array.isArray(citation[1]) || !citation[1].length
+            || !Array.isArray(citation[2]) || citation[2].length !== 2
+            || typeof citation[2][0] !== 'string' || citation[2][1] !== 0) return null;
+        const match = /^\[cite:\s*(\d+(?:\s*,\s*\d+)*)\]$/i.exec(citation[0][0]);
+        if (!match) return null;
+        const numbers = match[1].split(',').map(Number);
+        if (numbers.length !== citation[1].length || new Set(numbers).size !== numbers.length
+            || numbers.some(number => !Number.isSafeInteger(number) || number < 1)) return null;
+        const children: GeminiFileCitation[] = [];
+        for (const [index, source] of citation[1].entries()) {
+            const file: unknown = Array.isArray(source) && source.length === 2 && source[0] === null ? source[1] : undefined;
+            const metadata: unknown = Array.isArray(file) ? file[0] : undefined;
+            if (!Array.isArray(file) || typeof file[6] !== 'string' || !file[6]
+                || !Array.isArray(metadata) || metadata[2] !== file[6]
+                || typeof metadata[11] !== 'string') return null;
+            children.push({ nodeType: 'citation', number: numbers[index], title: file[6] });
+        }
+        return children.length === 1 ? children[0] : { nodeType: 'citationGroup', children };
+    }
+
+    if (w[13] != null) {
+        const payload: unknown = w[13];
+        if (!w.every((value, index) => value == null || index === 13)
+            || !Array.isArray(payload) || payload.length !== 1 || !Array.isArray(payload[0]) || !payload[0].length) return null;
+        const children: GeminiStructuredNode[] = [];
+        for (const raw of payload[0]) {
+            const child = decodeGeminiStructuredNode(raw, issues);
+            if (!child) return null;
+            children.push(child);
+        }
+        return { nodeType: 'paragraph', children };
+    }
+
     // Field 34: Display Math
     if (w.length > 34 && w[34] !== null && w[34] !== undefined) {
         const mathPayload = w[34];
@@ -340,6 +426,21 @@ function decodeStructuredNode(w: unknown, issues?: DecodeIssues): GeminiStructur
     // Field 19: Thematic break
     if (w.length > 19 && w[19] !== null && w[19] !== undefined) {
         return { nodeType: 19 };
+    }
+
+    // Captured native blockquote (field 16); field 15 is a legacy encoding.
+    if (w[16] != null) {
+        const payload: unknown = w[16];
+        if (!w.every((value, index) => value == null || index === 16)
+            || !Array.isArray(payload) || payload.length !== 1
+            || !Array.isArray(payload[0]) || !payload[0].length) return null;
+        const children: GeminiStructuredNode[] = [];
+        for (const raw of payload[0]) {
+            const child = decodeGeminiStructuredNode(raw, issues);
+            if (!child) return null;
+            children.push(child);
+        }
+        return { nodeType: 15, children };
     }
 
     // Field 15: Blockquote

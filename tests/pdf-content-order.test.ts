@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 
-function fixture(): Buffer {
+function fixture(atomic?: 'Formula' | 'Code'): Buffer {
     const stream = (text: string) => `<< /Length ${Buffer.byteLength(text)} >>\nstream\n${text}\nendstream`;
     const span = (mcid: number, text: string) => `/Span << /MCID ${mcid} >> BDC BT /F1 10 Tf (${text}) Tj ET EMC\n`;
     const objects = new Map<number, string>([
@@ -26,6 +26,14 @@ function fixture(): Buffer {
         [22, '<< /Type /StructElem /S /P /P 21 0 R /Pg 5 0 R /K [3] >>'],
         [30, '<< /Type /StructTreeRoot /K [10 0 R] >>'],
     ]);
+    if (atomic) {
+        for (const id of [12, 13, 14, 15, 21, 22]) objects.delete(id);
+        objects.set(6, stream(span(0, 'first')));
+        objects.set(7, stream(span(0, 'second') + span(1, 'tail')));
+        objects.set(10, '<< /Type /StructElem /S /Document /P 30 0 R /K [16 0 R 20 0 R] >>');
+        objects.set(16, `<< /Type /StructElem /S /${atomic} /P 10 0 R /Pg 4 0 R /K [0 << /Type /MCR /MCID 0 /Pg 5 0 R >>] >>`);
+        objects.set(20, '<< /Type /StructElem /S /P /P 10 0 R /Pg 5 0 R /K [1] >>');
+    }
     let text = '%PDF-1.7\n';
     const offsets = new Map<number, number>();
     for (const [number, body] of objects) { offsets.set(number, Buffer.byteLength(text)); text += `${number} 0 obj\n${body}\nendobj\n`; }
@@ -49,3 +57,14 @@ test('independent PDF extraction preserves complete prose/code and logical pagin
     assert.ok(!pdf.contentRuns.some(run => run.text === '1'), 'semantic content excludes tagged footer');
 });
 
+
+for (const role of ['Formula', 'Code'] as const) {
+    test(`independent PDF extraction keeps ${role} classification across explicit page references`, () => {
+        const pdf = extractPdfText(fixture(role));
+        assert.equal(pdf.pageCount, 2);
+        assert.deepEqual(pdf.contentRuns, [
+            { kind: role === 'Formula' ? 'math' : 'code', group: 16, text: 'firstsecond' },
+            { kind: 'text', group: null, text: 'tail' },
+        ]);
+    });
+}
