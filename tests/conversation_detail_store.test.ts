@@ -8,13 +8,11 @@ const {
     removeConversationDetails,
     hasConversationDetail,
     clearAllDetails,
-    ConversationDetailStore,
     __clearMemoryStore
 } = require('../src/core/storage/conversationDetailStore.js');
 
-test.beforeEach(() => {
-    __clearMemoryStore();
-});
+test.beforeEach(() => { __clearMemoryStore(); });
+test.afterEach(() => { __clearMemoryStore(); });
 
 test('conversation_detail_store - save and get single conversation detail', async () => {
     const detail = {
@@ -93,6 +91,7 @@ test('conversation_detail_store - saveConversationDetail monotonic length guard 
     });
     let d = await getConversationDetail('chat_mono_1');
     assert.strictEqual(d?.messages.length, 4);
+    const savedAtBeforeShort = d?.savedAt;
 
     // 2. 尝试用更短的 2 条消息覆盖 —— 必须被单调保护拦截（不覆盖现有 4 条）
     const resShort = await saveConversationDetail('chat_mono_1', {
@@ -102,6 +101,9 @@ test('conversation_detail_store - saveConversationDetail monotonic length guard 
     assert.strictEqual(resShort, true);
     d = await getConversationDetail('chat_mono_1');
     assert.strictEqual(d?.messages.length, 4, '更短的消息内容不得截断已保存的长内容');
+    assert.strictEqual(d?.messages[3].content, 'text 3');
+    assert.strictEqual(d?.updatedAt, 1000, '被拒绝的短正文不能推进来源更新时间');
+    assert.strictEqual(d?.savedAt, savedAtBeforeShort, '被拒绝的短正文不能重置持久化时间');
 
     // 3. 用更长的 6 条消息更新 —— 正常升级覆盖
     const resLong = await saveConversationDetail('chat_mono_1', {
@@ -111,6 +113,7 @@ test('conversation_detail_store - saveConversationDetail monotonic length guard 
     assert.strictEqual(resLong, true);
     d = await getConversationDetail('chat_mono_1');
     assert.strictEqual(d?.messages.length, 6, '更长的消息内容应正常升级保存');
+    assert.strictEqual(d?.updatedAt, 1100);
 });
 
 test('conversation_detail_store - saveConversationDetailsBatch monotonic guard & intra-batch dedup', async () => {
@@ -118,17 +121,20 @@ test('conversation_detail_store - saveConversationDetailsBatch monotonic guard &
 
     // 1. 批次保存 3 条
     await saveConversationDetailsBatch([
-        { id: 'chat_batch_1', messages: mkMsgs(3) }
+        { id: 'chat_batch_1', messages: mkMsgs(3), updatedAt: 1000 }
     ]);
     let d = await getConversationDetail('chat_batch_1');
     assert.strictEqual(d?.messages.length, 3);
+    const batchSavedAt = d?.savedAt;
 
     // 2. 批次试图用 1 条截断
     await saveConversationDetailsBatch([
-        { id: 'chat_batch_1', messages: mkMsgs(1) }
+        { id: 'chat_batch_1', messages: mkMsgs(1), updatedAt: 1050 }
     ]);
     d = await getConversationDetail('chat_batch_1');
     assert.strictEqual(d?.messages.length, 3, '批次写入不得截断已存在长内容');
+    assert.strictEqual(d?.updatedAt, 1000);
+    assert.strictEqual(d?.savedAt, batchSavedAt);
 
     // 3. 同一批次内重复 ID 按最完整者胜出（无论出现顺序）
     await saveConversationDetailsBatch([
@@ -138,6 +144,14 @@ test('conversation_detail_store - saveConversationDetailsBatch monotonic guard &
     ]);
     d = await getConversationDetail('chat_batch_intra');
     assert.strictEqual(d?.messages.length, 5, '同批次重复项必须保留最长正文');
+
+    // 最完整的记录也可能首先到达，后续短记录不应覆盖它。
+    await saveConversationDetailsBatch([
+        { id: 'chat_batch_first', messages: mkMsgs(5) },
+        { id: 'chat_batch_first', messages: mkMsgs(1) },
+        { id: 'chat_batch_first', messages: mkMsgs(2) }
+    ]);
+    assert.strictEqual((await getConversationDetail('chat_batch_first'))?.messages.length, 5);
 });
 
 test('conversation_detail_store - mock IndexedDB monotonic detail preservation', async () => {
@@ -187,7 +201,7 @@ test('conversation_detail_store - mock IndexedDB monotonic detail preservation',
         }
     };
 
-    const origIdb = (global as any).indexedDB;
+    const origIdbDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
     (global as any).indexedDB = mockIdb;
 
     try {
@@ -202,6 +216,8 @@ test('conversation_detail_store - mock IndexedDB monotonic detail preservation',
         const store = memoryStores['conversation_details'];
         assert.ok(store);
         assert.strictEqual(store.get('idb_chat_1')?.messages?.length, 5);
+        const persistedBeforeShort = await getConversationDetail('idb_chat_1');
+        assert.strictEqual(persistedBeforeShort?.updatedAt, 1000);
 
         // 2. 尝试用 2 条消息在 IDB 中覆盖 —— 应被单调保护拦截
         await saveConversationDetail('idb_chat_1', {
@@ -209,6 +225,10 @@ test('conversation_detail_store - mock IndexedDB monotonic detail preservation',
             updatedAt: 1050
         });
         assert.strictEqual(store.get('idb_chat_1')?.messages?.length, 5, 'IDB 写入不得截断已保存的 5 条消息');
+        const preserved = await getConversationDetail('idb_chat_1');
+        assert.strictEqual(preserved?.messages[4].content, 'text 4');
+        assert.strictEqual(preserved?.updatedAt, 1000);
+        assert.strictEqual(preserved?.savedAt, persistedBeforeShort?.savedAt);
 
         // 3. 批次写入测试：包含 1 个截断尝试与 1 个新会话
         await saveConversationDetailsBatch([
@@ -217,8 +237,11 @@ test('conversation_detail_store - mock IndexedDB monotonic detail preservation',
         ]);
         assert.strictEqual(store.get('idb_chat_1')?.messages?.length, 5, '批次写入不得截断现有长记录');
         assert.strictEqual(store.get('idb_chat_2')?.messages?.length, 3, '新记录应正常写入 IDB');
+        assert.strictEqual((await getConversationDetail('idb_chat_1'))?.updatedAt, 1000);
+        assert.strictEqual((await getConversationDetail('idb_chat_2'))?.messages.length, 3);
     } finally {
-        (global as any).indexedDB = origIdb;
+        if (origIdbDescriptor) Object.defineProperty(globalThis, 'indexedDB', origIdbDescriptor);
+        else delete (global as any).indexedDB;
     }
 });
 
