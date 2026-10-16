@@ -2,7 +2,20 @@ export {};
 // tests/feature_walkthrough.test.ts - Unit tests for Two-Track Walkthrough and Feature Releases Architecture
 const test = require('node:test');
 const assert = require('node:assert');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+const globalDescriptors = (['chrome', 'document', 'window'] as const).map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const);
+
+test.after(async () => {
+    try {
+        if (TourGuide.isActive()) await TourGuide.dismissFeatureSpotlight();
+    } finally {
+        __clearModuleOverrides();
+        for (const [name, descriptor] of globalDescriptors) {
+            if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+            else delete (globalThis as any)[name];
+        }
+    }
+});
 
 // Mock browser environment
 let mockStorage: Record<string, any> = {};
@@ -28,6 +41,7 @@ let mockStorage: Record<string, any> = {};
 };
 
 const mockElements = new Map<string, any>();
+let nextElementId = 0;
 function createMockElement(id: string, tagName: string = 'div') {
     const listeners: Record<string, ((...args: any[]) => void)[]> = {};
     const el: any = {
@@ -88,7 +102,7 @@ function createMockElement(id: string, tagName: string = 'div') {
     getElementById: (id: string) => mockElements.get(id) || null,
     querySelector: (sel: string) => null,
     querySelectorAll: (sel: string) => [],
-    createElement: (tag: string) => createMockElement(`dyn_${Math.random()}`, tag),
+    createElement: (tag: string) => createMockElement(`dyn_${++nextElementId}`, tag),
     body: {
         appendChild: () => {},
         removeChild: () => {},

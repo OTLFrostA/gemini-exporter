@@ -11,8 +11,14 @@ test('index title authority survives weaker observations and adopts same-tier re
     for (const [strong, weak] of [['rpc', 'dom'], ['api-detail', 'takeout'], ['dom', 'sniff'], ['takeout', 'legacy']]) {
         const a = indexFixture({ id: 'title-order', title: 'Authority', titleSource: strong });
         const b = indexFixture({ id: a.id, title: 'Fallback', titleSource: weak });
-        for (const [old, incoming] of [[a, b], [b, a]]) assert.equal(mergeConversation(old, incoming).merged.title, 'Authority');
-        assert.equal(mergeConversation(a, { ...a, title: 'Renamed authority' }).merged.title, 'Renamed authority');
+        for (const [old, incoming] of [[a, b], [b, a]]) {
+            const result = mergeConversation(old, incoming).merged;
+            assert.equal(result.title, 'Authority');
+            assert.equal(result.titleSource, strong, 'the surviving title and authority source must stay consistent');
+        }
+        const renamed = mergeConversation(a, { ...a, title: 'Renamed authority' }).merged;
+        assert.equal(renamed.title, 'Renamed authority');
+        assert.equal(renamed.titleSource, strong);
     }
 });
 test('placeholder and malformed provenance are handled before index merging', () => {
