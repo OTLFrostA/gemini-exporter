@@ -65,12 +65,9 @@ type Contracts = [
     Assert<Equal<string extends ChatMessage['role'] ? true : false, false>>,
     Assert<Equal<((msg: { action: string }) => Promise<unknown>) extends TabServiceModule['sendToGeminiTab'] ? true : false, false>>
 ];
-const contracts: Contracts = [
-    true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true, true,
-    true, true, true, true, true, true, true, true, true
-];
+// Assert<> constraints are checked by tsc, not by runtime truthiness.
+// Keep the tuple exported so the type-only contract stays inspectable.
+export type SharedTypeFoundationContracts = Contracts;
 
 // Both parser reports and locally synthesized Takeout/export reports cross this shared seam.
 const reportMessage: ChatMessage = {
@@ -91,15 +88,10 @@ const callbacks: UIExportCallbacks = {
 function clearDirectory(controller: DirHandleControllerContract): void { controller.setDirHandle(null); }
 void clearDirectory;
 void callbacks;
+void live;
+void slots;
 
-test('shared type foundations keep internal shapes and opaque transport boundaries', () => {
-    assert.ok(contracts.every(Boolean));
-    assert.equal(live.messages[0].documents?.[0].contentMarkdown, '# Report');
-    assert.equal(slots.u0.count, 1);
-});
-
-
-test('completed session banner preserves missing/zero and positive failed-count behavior', () => {
+test('completed session banner distinguishes failed exports from successful sessions', () => {
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
     const banner = { style: { display: '', borderColor: '', background: '' } };
     const bannerText = { innerHTML: '' };
@@ -113,13 +105,33 @@ test('completed session banner preserves missing/zero and positive failed-count 
         }
     } });
     try {
+        const state: Array<{ message: string; border: string; background: string }> = [];
         for (const failedCount of [undefined, 0, 2]) {
             renderExportBanner({ status: 'completed', total: 3, current: 3,
                 updatedAt: Date.now(), failedCount }, 'u0', false);
-            assert.equal(banner.style.borderColor, failedCount === 2 ? '#f59e0b' : '#10b981');
-            assert.equal(banner.style.background, failedCount === 2 ? '#221c12' : '#0e231b');
-            assert.equal(resume.style.display, 'none');
+            assert.equal(banner.style.display, 'flex', 'fresh completed sessions remain visible');
+            assert.equal(resume.style.display, 'none', 'a completed run must not offer resume');
+            state.push({ message: bannerText.innerHTML, border: banner.style.borderColor,
+                background: banner.style.background });
         }
+        assert.equal(state[0].message, state[1].message,
+            'a missing failure count must behave exactly like zero failures');
+        assert.notEqual(state[1].message, state[2].message,
+            'a partial completion must explain its failed items');
+        assert.match(state[2].message, /2/, 'the actual failed count must be displayed');
+        assert.notEqual(state[0].border, state[2].border,
+            'partial and fully successful sessions need distinct visual statuses');
+        assert.notEqual(state[0].background, state[2].background);
+
+        renderExportBanner({ status: 'completed', total: 3, current: 3,
+            updatedAt: Date.now() - 3600000, failedCount: 2 }, 'u0', false);
+        assert.equal(banner.style.display, 'none', 'stale completion must not keep showing');
+        renderExportBanner({ status: 'completed', total: 3, current: 3,
+            updatedAt: Date.now(), failedCount: 2, slot: 'u1' }, 'u0', false);
+        assert.equal(banner.style.display, 'none', 'another account session must not leak into this tab');
+        renderExportBanner({ status: 'completed', total: 3, current: 3,
+            updatedAt: Date.now() }, 'u0', true);
+        assert.equal(banner.style.display, 'none', 'a running export hides prior completion');
     } finally {
         if (previous) Object.defineProperty(globalThis, 'document', previous);
         else Reflect.deleteProperty(globalThis, 'document');
