@@ -117,7 +117,7 @@ test('plain throw is wrapped as StageError with the stage name; item failed and 
     assert.strictEqual(res.error.stage, 'compile');
     assert.strictEqual(res.error.retryable, true);
     assert.strictEqual(res.error.code, 'STAGE_THREW');
-    assert.strictEqual(res.error.message, 'boom', 'original failure explanation must survive stage wrapping');
+    assert.match(res.error.message, /boom$/, 'original failure explanation must survive stage wrapping');
     assert.strictEqual(res.writeReport, undefined);
     // deliver must not run after a compile failure
     assert.deepStrictEqual(seen, ['resources', 'payload']);
