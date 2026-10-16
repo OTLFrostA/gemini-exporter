@@ -152,7 +152,7 @@ test('Fidelity 7: Various break variants (<br>, <br/>, <br />) are supported in 
     assert.ok(!html.includes('&lt;br'), 'HTML does not leak escaped &lt;br');
     // These forms are also valid inside Markdown table cells, not only paragraphs.
     for (const variant of ['<br>', '<br/>', '<br />']) {
-        const tableMarkdown = `| Text |\\n| :--- |\\n| first${variant}second |\\n`;
+        const tableMarkdown = `| Text |\n| :--- |\n| first${variant}second |\n`;
         const { msg: tableMsg, html: tableHtml } = await normAndRender(tableMarkdown);
         const table = tableMsg.content.find((block: any) => block.type === 'table');
         assert.ok(table, `table parsed with ${variant}`);
