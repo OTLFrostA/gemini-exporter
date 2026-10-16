@@ -2,6 +2,7 @@
 export interface AccountFact {
     id: string;
     providerId: string;
+    /** Deterministic Provider identity key: a subject or a canonical tuple, interpreted by its adapter. */
     providerAccountId: string;
     email?: string;
     displayName?: string;

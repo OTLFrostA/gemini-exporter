@@ -133,6 +133,7 @@
   "src/core/parsers/shared/parseIndexMetadata.ts",
   "src/core/domain/accountRegistry.ts",
   "src/core/provider/gemini/accountObservation.ts",
+  "src/core/provider/chatgpt/accountObservation.ts",
   "src/core/storage/accountRegistryStore.ts",
   "src/background/accountRegistryHandler.ts",
   "src/content/accountContext.ts",

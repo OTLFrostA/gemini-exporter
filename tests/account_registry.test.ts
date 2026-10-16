@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readAccountFact, readAccountObservation, readAccountRegistry, resolveAccount } from '../src/core/domain/accountRegistry.js';
 import { geminiAccountObservation } from '../src/core/provider/gemini/accountObservation.js';
+import { chatgptAccountObservation } from '../src/core/provider/chatgpt/accountObservation.js';
 import { getAccountContext, resolveCurrentAccount } from '../src/content/accountContext.js';
 
 const alice = { id: 'a0000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
@@ -36,6 +37,36 @@ test('Gemini adapter maps Gaia into a provider-neutral observation without runti
     assert.deepEqual(geminiAccountObservation({ gaiaId: ' 101 ', email: ' ALICE@EXAMPLE.COM ', name: ' Alice ' }), {
         providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com', displayName: 'Alice'
     });
+});
+test('ChatGPT tuple isolates login users and workspaces while email stays mutable profile data', () => {
+    const session = { user: { id: 'user-a', email: ' ALICE@EXAMPLE.COM ', name: ' Alice ' },
+        account: { id: 'workspace-a' }, accessToken: 'must-not-persist', sessionToken: 'must-not-persist' };
+    const observation = chatgptAccountObservation(session);
+    assert.deepEqual(observation, { providerId: 'chatgpt', providerAccountId: '["user-a","workspace-a"]',
+        email: 'alice@example.com', displayName: 'Alice' });
+    if (!observation) throw new Error('Expected identified ChatGPT session');
+    const account = { ...observation, id: alice.id };
+    const changed = chatgptAccountObservation({ ...session, user: { ...session.user, email: 'new@example.com' } });
+    if (!changed) throw new Error('Expected identified ChatGPT session');
+    assert.deepEqual(resolveAccount([account], changed), { resolution: 'existing', account: { ...account, email: 'new@example.com' } });
+    for (const other of [
+        { ...session, account: { id: 'workspace-b' } },
+        { ...session, user: { ...session.user, id: 'user-b' } },
+    ]) {
+        const next = chatgptAccountObservation(other);
+        if (!next) throw new Error('Expected identified ChatGPT session');
+        assert.equal(resolveAccount([account], next).resolution, 'create');
+    }
+    for (const invalid of [null, {}, { user: session.user }, { account: session.account },
+        { user: { id: ' ' }, account: session.account }, { user: session.user, account: { id: 'default' } },
+        { user: [], account: session.account }, { user: { id: 123 }, account: session.account }]) {
+        assert.equal(chatgptAccountObservation(invalid), null);
+    }
+    assert.deepEqual(chatgptAccountObservation({ user: { id: 'user-a' }, account: session.account }), {
+        providerId: 'chatgpt', providerAccountId: observation.providerAccountId
+    });
+    assert.notEqual(chatgptAccountObservation({ user: { id: 'a:b' }, account: { id: 'c' } })?.providerAccountId,
+        chatgptAccountObservation({ user: { id: 'a' }, account: { id: 'b:c' } })?.providerAccountId);
 });
 
 async function runtimeFixture(run: (state: { email: string; slot: string; subject: string | undefined; calls: unknown[]; reply: (message: unknown) => Promise<unknown> }) => Promise<void>) {
