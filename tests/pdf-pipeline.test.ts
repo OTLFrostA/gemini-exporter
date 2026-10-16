@@ -116,12 +116,14 @@ test('plain throw is wrapped as StageError with the stage name; item failed and 
     assert.strictEqual(res.status, 'failed');
     assert.strictEqual(res.error.stage, 'compile');
     assert.strictEqual(res.error.retryable, true);
+    assert.strictEqual(res.error.code, 'STAGE_THREW');
+    assert.strictEqual(res.error.message, 'boom', 'original failure explanation must survive stage wrapping');
     assert.strictEqual(res.writeReport, undefined);
     // deliver must not run after a compile failure
     assert.deepStrictEqual(seen, ['resources', 'payload']);
 });
 
-test('StageError passes through untouched', async () => {
+test('StageError classification and message survive the pipeline boundary', async () => {
     const seen: string[] = [];
     const stages = fakeStages(seen, {
         resources: async () => {
@@ -134,6 +136,9 @@ test('StageError passes through untouched', async () => {
     assert.strictEqual(res.error.stage, 'resources');
     assert.strictEqual(res.error.code, 'NO_BYTES');
     assert.strictEqual(res.error.retryable, false);
+    assert.strictEqual(res.error.message, 'no bytes');
+    assert.deepStrictEqual(seen, [], 'a failed resources stage never starts the remaining pipeline');
+    assert.strictEqual(res.writeReport, undefined);
 });
 
 test('StageError diagnostics are preserved on failure, exactly once', async () => {
