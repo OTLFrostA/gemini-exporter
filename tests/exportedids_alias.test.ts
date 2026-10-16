@@ -14,10 +14,8 @@ const { finalizeChatExport } = require('../src/core/engine/export/sessionRecover
 const { normId } = require('../src/core/utils/pathUtils.js');
 const { exportedIdsKey } = require('../src/core/utils/constants.js');
 const ConversationsStore = require('../src/ui/state/conversationsStore.js');
-
-const lookup = (map: Record<string, any>, id: string) => {
-    return map[normId(id)] || null;
-};
+const { StorageService } = require('../src/core/storage/storageService.js');
+const { indexStorage } = require('./helpers/indexStorage.js');
 
 async function runFinalize(targetId: string) {
     const nid = normId(targetId);
@@ -79,24 +77,57 @@ test('finalizeChatExport admits one concurrent finalization per conversation', a
     assert.strictEqual(callbacks, 1);
 });
 
-test('exportedIds alias - canonical write stays readable via every historical alias', async () => {
-    const { exportedIds, rec } = await runFinalize('c_abc123');
-    for (const alias of ['c_abc123', 'abc123', 'c_abc123']) {
-        assert.strictEqual(lookup(exportedIds, alias), rec, `lookup via ${alias}`);
+test('exportedIds alias - real StorageService writes one key and UI resolves both ID forms', async () => {
+    const environment = indexStorage();
+    const previous = ConversationsStore.getExportedIds();
+    try {
+        const record = { exportedAt: '2026-09-16T00:00:00.000Z', title: 'Saved', status: 'ok' };
+        await StorageService.saveExportRecord('u1', 'c_abc123', record);
+        const physical = environment.local['gemini_exported_u1'] as Record<string, any>;
+        assert.deepStrictEqual(Object.keys(physical), ['abc123'],
+            'persistence must store exactly one canonical key, not the three legacy aliases');
+
+        const stored = await StorageService.getExportedIds('u1');
+        assert.deepStrictEqual(Object.keys(stored), ['abc123']);
+        assert.deepStrictEqual(stored.abc123, record);
+        ConversationsStore.setExportedIds(stored);
+        for (const alias of ['abc123', 'c_abc123']) {
+            assert.deepStrictEqual(ConversationsStore.getExportedRecord(alias), record,
+                `UI must resolve a stored record through ${alias}`);
+        }
+    } finally {
+        ConversationsStore.setExportedIds(previous);
+        environment.restore();
     }
 });
 
-test('exportedIds alias - legacy alias-only map still resolves (no migration needed)', () => {
-    const rec = { exportedAt: '2026-01-01T00:00:00.000Z' };
-    // Simulates a map persisted by the old triple-alias writers.
-    const legacy: Record<string, any> = { 'c_xyz789': rec, 'xyz789': rec };
-    assert.strictEqual(lookup(legacy, 'xyz789'), rec);
-    assert.strictEqual(lookup(legacy, 'c_xyz789'), rec);
+test('exportedIds alias - legacy alias-only storage is normalized on read without migration', async () => {
+    const record = { exportedAt: '2026-01-01T00:00:00.000Z' };
+    const environment = indexStorage({ gemini_exported_u1: { c_xyz789: record } });
+    const previous = ConversationsStore.getExportedIds();
+    try {
+        const records = await StorageService.getExportedIds('u1');
+        assert.deepStrictEqual(Object.keys(records), ['xyz789'],
+            'legacy-only storage must be readable without a canonical sibling');
+        assert.deepStrictEqual(records.xyz789, record);
+        assert.equal(environment.writes(), 0, 'reads should not rewrite an old record to normalize aliases');
+        assert.deepStrictEqual(Object.keys(environment.local.gemini_exported_u1 as object), ['c_xyz789'],
+            'the raw legacy map stays intact until an explicit persistence operation');
 
-    ConversationsStore.setExportedIds(legacy);
-    assert.strictEqual(ConversationsStore.getExportedRecord('xyz789'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('c_xyz789'), rec);
-    assert.strictEqual(ConversationsStore.getExportedRecord('nope'), null);
+        ConversationsStore.setExportedIds(records);
+        for (const alias of ['xyz789', 'c_xyz789']) {
+            assert.deepStrictEqual(ConversationsStore.getExportedRecord(alias), record);
+        }
+
+        const newer = { exportedAt: '2026-02-01T00:00:00.000Z' };
+        environment.local.gemini_exported_u1 = { c_xyz789: record, xyz789: newer };
+        const conflict = await StorageService.getExportedIds('u1');
+        assert.deepStrictEqual(conflict, { xyz789: newer },
+            'an authoritative canonical record must win over a stale legacy alias');
+    } finally {
+        ConversationsStore.setExportedIds(previous);
+        environment.restore();
+    }
 });
 
 test('exportedIdsKey - canonical key computation and slot fallback', () => {
