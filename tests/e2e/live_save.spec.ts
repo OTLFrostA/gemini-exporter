@@ -173,6 +173,8 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
 
       return {
         writtenFiles: Object.keys(written),
+        markdownContent: written[`gemini_export/${fileName}`],
+        assetBytes: Array.from(written[`gemini_export/assets/${cid6}_t1_img1.png`] || []),
         fileName,
         cid6
       };
@@ -182,6 +184,8 @@ test.describe('E2E: Live Auto-Save Controls & In-Page Persistence Flow', () => {
     expect(result.fileName).toBe('Quantum Computing_abcdef.md');
     expect(result.writtenFiles).toContain('gemini_export/Quantum Computing_abcdef.md');
     expect(result.writtenFiles).toContain('gemini_export/assets/abcdef_t1_img1.png');
+    expect(result.markdownContent).toBe('# Quantum Computing\n\nContent');
+    expect(result.assetBytes).toEqual([1, 2, 3]);
 
     await optionsPage.close();
   });
