@@ -13,6 +13,7 @@
  */
 
 import { inlineMathMarkdown } from '../../../utils/markdownMath.js';
+import { LATEX_COMPAT_RULES } from '../../../utils/latexCompatibility.js';
 
 export interface CompatRuleMetadata {
     /** Unique rule identifier, e.g. 'GM-MD-001' or 'GM-TEX-001' */
@@ -36,6 +37,25 @@ export interface TexCompatRule extends CompatRuleMetadata {
     readonly domain: 'tex';
     readonly transform: (source: string) => string;
 }
+
+export const GM_TEX_003_BAR_ALIASES: TexCompatRule = Object.freeze({
+    id: 'GM-TEX-003', domain: 'tex',
+    evidence: 'tests/fixtures/provider/math/gm_tex_003_evidence.json',
+    observedAt: '2026-10-16T03:16:18Z',
+    description: 'Native Gemini expands norm/absolute bar tokens to Vert{}/vert{} while raw Markdown retains escaped norm bars/raw absolute bars. Normalize only these exact aliases in parsed math; keep single and double bars distinct.',
+    transform: (source: string): string => source.replace(/(\\+)(Vert|vert)\{\}/g, (literal, slashes: string, command: string) =>
+        slashes.length % 2 === 0 ? literal : slashes.slice(0, -1) + (command === 'Vert' ? '\\|' : '|')),
+});
+
+export const normalizeGeminiTexAliases = GM_TEX_003_BAR_ALIASES.transform;
+
+/** Contextual MDAST adaptation, rather than source rewriting. */
+export const GM_MD_004_LINE_START_DISPLAY = Object.freeze({
+    id: 'GM-MD-004', domain: 'markdown',
+    evidence: 'tests/fixtures/provider/math/gm_md_004_evidence.md',
+    observedAt: '2026-10-16T03:16:18Z',
+    description: 'Live Gemini renders a $$ formula on its own line as a separate display block even without a blank line before it. Split its parsed paragraph, retaining preceding/following prose and list ownership; delimiters sharing a line with prose stay inline.',
+});
 
 /**
  * Normalizes multiline display-math fences ($$) where LaTeX environment keywords
@@ -291,4 +311,5 @@ export function preprocessGeminiMarkdown(source: string): string {
 }
 
 
-export { MATHSCR_COMPAT_RULE as GM_TEX_001_SCR_NORMALIZATION, LATEX_COMPAT_RULES as GEMINI_TEX_COMPAT_RULES, preprocessLatex as preprocessGeminiLatex } from '../../../utils/latexCompatibility.js';
+export { MATHSCR_COMPAT_RULE as GM_TEX_001_SCR_NORMALIZATION, preprocessLatex as preprocessGeminiLatex } from '../../../utils/latexCompatibility.js';
+export const GEMINI_TEX_COMPAT_RULES: readonly TexCompatRule[] = Object.freeze([...LATEX_COMPAT_RULES, GM_TEX_003_BAR_ALIASES]);

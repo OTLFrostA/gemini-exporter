@@ -32,6 +32,8 @@ const protocolCode = fs.readFileSync(path.join(__dirname, '..', 'src', 'core', '
 function makeContext() {
     const ctx: Record<string, any> = {
         console: { log: () => {}, warn: () => {}, debug: () => {} },
+        crypto: require('node:crypto').webcrypto,
+        setTimeout, clearTimeout, queueMicrotask,
         URL,
         chrome: {
             runtime: { id: 'test-extension' },
@@ -96,6 +98,22 @@ function makeContext() {
     ctx.localStorage = { getItem: () => null, setItem: () => {} };
     ctx.sessionStorage = { getItem: () => null, setItem: () => {} };
     vm.createContext(ctx);
+    // This storage-focused fixture has no Gaia. Model the real MAIN-world
+    // response so identity discovery completes before credential assertions.
+    vm.runInContext(`
+        const accountListeners = new Set();
+        window.addEventListener = (type, listener) => { if (type === 'message') accountListeners.add(listener); };
+        window.removeEventListener = (type, listener) => { if (type === 'message') accountListeners.delete(listener); };
+        window.postMessage = message => {
+            if (message.type !== 'GEMINI_ACCOUNT_REQUESTED') return;
+            queueMicrotask(() => {
+                const event = { source: window, origin: location.origin, data: {
+                    type: 'GEMINI_ACCOUNT_OBSERVED', payload: { requestId: message.payload.requestId, slot: 'u0', observation: null }
+                } };
+                for (const listener of [...accountListeners]) listener(event);
+            });
+        };
+    `, ctx);
     return ctx;
 }
 

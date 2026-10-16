@@ -1,161 +1,5 @@
 [
   {
-    "id": "materials_binary_phase_diagram_lever_rule",
-    "title": "Binary phase equilibria: tie lines and lever-rule verification",
-    "domain": "materials_science_binary_phase_equilibria",
-    "features": [
-      "imagen",
-      "multimodal",
-      "math",
-      "latex",
-      "code",
-      "tables"
-    ],
-    "turns": [
-      "Generate an original educational image of a fictional isomorphous binary alloy phase diagram. Include temperature and composition axes, liquidus and solidus curves, a two-phase region and one horizontal tie line. Mark all values as synthetic and do not claim that the diagram represents a real alloy.",
-      "Define a simple synthetic liquidus and solidus model with explicit units and monotonicity assumptions. Derive the lever rule from component mass conservation in LaTeX, explaining the difference between mass and mole fractions.",
-      "Write complete runnable standard-library Python computing phase fractions for an admissible tie line. Validate phase endpoint ordering and bulk composition, and add assertions for pure phase boundaries, conservation residuals and rejected extrapolation.",
-      "Use a Markdown table comparing several synthetic temperatures and bulk compositions. Report tie-line endpoints, phase fractions and conservation residuals. Explain why the phase compositions vary with temperature while the bulk composition remains fixed.",
-      "Write a detailed reproducibility report connecting the illustrative diagram and the numerical model. Discuss equilibrium assumptions, diffusion kinetics, metastability, sampling errors, inconsistent thermodynamic data and why an educational image does not substitute for measured phase boundaries. Include a Chinese-English glossary."
-    ]
-  },
-  {
-    "id": "automata_epsilon_nfa_subset_construction",
-    "title": "Finite automata: epsilon closure and independently verified determinization",
-    "domain": "formal_languages_automata_determinization",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Construct a small epsilon-NFA over a two-symbol alphabet with both epsilon cycles and nondeterministic transitions. Define its accepted language and epsilon-closure semantics in LaTeX, including empty-input acceptance.",
-      "Derive subset construction step by step and show all reachable DFA states for the example. Specify the dead state, accepting-state rule and deterministic state naming, with a Markdown transition table.",
-      "Write complete runnable standard-library Python implementing epsilon closure, NFA simulation and reachable-subset DFA construction. Validate state references and alphabet labels; include executable tests for epsilon cycles, empty input, missing transitions and unreachable states.",
-      "Implement a separate bounded exhaustive language-equivalence oracle and compare the NFA and DFA on every word up to a chosen length. Report state counts, accepted word counts and counterexample traces in Markdown tables, distinguishing bounded tests from a general proof.",
-      "Write a long verification report proving the reachable-subset invariant by induction. Analyze worst-case state explosion, memoization choices and reproducibility, then explain how a product-automaton search can establish equivalence beyond bounded enumeration. Include complete deterministic code and limitations."
-    ]
-  },
-  {
-    "id": "signal_processing_fir_window_frequency_audit",
-    "domain": "signal_processing_discrete_fir_filter",
-    "title": "FIR filters: convolution, windowed design and frequency-response verification",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define discrete convolution and the frequency response of a finite impulse response filter using LaTeX. Work through a short real-valued signal and explicitly distinguish linear and circular convolution.",
-      "Derive a windowed-sinc low-pass FIR design with an odd number of coefficients. Explain symmetry, group delay, cutoff conventions and the removable singularity at the center tap; state every normalization assumption.",
-      "Write complete runnable Python using only the standard library to compute the coefficients, direct convolution and a discrete frequency-response grid. Include impulse, constant-input, symmetry and DC-gain assertions with numerical tolerances.",
-      "Compare rectangular, Hann, Hamming and Blackman windows in a Markdown table with measured or qualified tradeoffs rather than invented exact constants. Include an English and Chinese glossary and explain transition-width versus attenuation choices.",
-      "Produce a reproducible validation report on a two-tone signal with a deterministic seed. Include equations, code, an ASCII response diagram and a Markdown table of passband and stopband errors; separate finite-grid measurements from guaranteed bounds."
-    ]
-  },
-  {
-    "id": "numerical_qr_householder_least_squares_audit",
-    "domain": "numerical_linear_algebra_qr_least_squares",
-    "title": "Least squares: Householder QR, conditioning and residual certificates",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define an overdetermined real least-squares problem using LaTeX and derive its projection and residual orthogonality conditions. Use a small exactly specified full-rank example with rational entries.",
-      "Derive a numerically stable Householder reflector with an explicit sign convention and explain the zero-vector case. Work through one elimination step and track both the matrix and right-hand side.",
-      "Provide complete runnable Python standard-library code for thin QR and least-squares solution, avoiding explicit normal-equation inversion. Add tests for reconstruction, orthogonality and residual orthogonality.",
-      "Construct a nearly dependent two-column example and explain conditioning versus backward stability. Derive why normal equations can square the condition number without claiming that QR removes intrinsic ill-conditioning.",
-      "Compare classical Gram-Schmidt, modified Gram-Schmidt, Householder QR and normal equations in a Markdown table covering computational cost, storage and failure modes. Include English and Chinese terminology.",
-      "Extend the audit to detect rank deficiency conservatively. Explain what unpivoted QR can and cannot certify, give reproducible examples, and distinguish a numerical threshold from an exact rank proof.",
-      "Design deterministic tests for zero columns, repeated columns, extreme scales and perturbed observations. Give runnable code and a results table computed from those test definitions, marking any unexecuted outputs explicitly.",
-      "Write a methods report with all assumptions, stopping tolerances, dimensional conventions and reproducibility instructions. Include a compact pseudocode algorithm, a LaTeX error certificate and a table separating mathematical guarantees from empirical diagnostics."
-    ]
-  },
-  {
-    "id": "acoustics_waveguide_helmholtz_cutoff_modes",
-    "domain": "acoustics_duct_waveguide_modes",
-    "title": "Acoustic waveguides: Helmholtz modes, cutoff frequencies and impedance termination",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate the two-dimensional time-harmonic Helmholtz equation for a rigid-walled rectangular acoustic duct using LaTeX. Derive the transverse eigenfunctions, axial propagation constants and cutoff frequencies for the lowest modes.",
-      "Distinguish propagating and evanescent modes above and below cutoff. Derive the complex acoustic impedance and time-averaged axial power flow for a single mode with explicit physical units.",
-      "Write complete runnable Python using only the standard library to compute modal cutoffs, axial wavenumbers and pressure profiles across a discrete grid, including assertions for orthogonality and evanescent decay.",
-      "Compare plane-wave propagation, higher-order propagating modes and evanescent cutoff modes in a Markdown table covering phase velocity, group velocity, attenuation and energy transport. Include an English and Chinese glossary.",
-      "Design a reproducible multi-mode reflection and transmission audit for a duct termination with finite wall admittance. Provide equations, runnable verification tests and a Markdown summary table separating exact modal identities from truncation error."
-    ]
-  },
-  {
-    "id": "cryptography_shamir_secret_sharing_finite_fields",
-    "domain": "cryptography_threshold_secret_sharing",
-    "title": "Threshold cryptography: Shamir secret sharing, Lagrange interpolation and cheater detection",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a (k, n) threshold secret-sharing scheme over a prime finite field GF(p) using LaTeX. State the correctness and information-theoretic privacy conditions for k-1 shares with a concrete small prime example.",
-      "Derive Lagrange basis polynomials in modular arithmetic and show how evaluation at zero reconstructs the secret without recovering all polynomial coefficients. Explain why arithmetic over the reals fails to provide perfect secrecy.",
-      "Provide complete runnable Python standard-library code for finite-field inversion, share generation and threshold reconstruction, with deterministic tests for valid subsets, insufficient shares and distinct evaluation points.",
-      "Compare additive secret sharing, Shamir polynomial sharing and verifiable secret sharing in a Markdown table across communication overhead, threshold flexibility, algebraic assumptions and fault tolerance. Include English and Chinese terminology.",
-      "Construct a reproducible audit for corrupted share detection using redundant evaluations and syndrome checks. Include LaTeX proof sketches, runnable test cases and a results table distinguishing detectable tampering from forged shares."
-    ]
-  },
-  {
-    "id": "thermodynamics_chemical_equilibrium_gibbs_stoichiometry",
-    "domain": "chemical_thermodynamics_reaction_equilibria",
-    "title": "Reaction thermodynamics: Gibbs free energy minimization, extent of reaction and equilibrium constants",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate the reaction extent and stoichiometric conservation laws for a closed ideal-gas mixture using LaTeX. Derive the chemical affinity and the Gibbs free energy minimization condition at constant temperature and pressure.",
-      "Derive the relationship between the standard Gibbs free energy change, the dimensionless equilibrium constant and reaction quotient. Work through a concrete reversible gas-phase dissociation example as a function of total pressure.",
-      "Write complete runnable Python using only the standard library to solve for the equilibrium reaction extent via bisection and Newton steps, including assertions for elemental mass balance, positivity of mole fractions and vanishing chemical affinity.",
-      "Compare stoichiometric extent-of-reaction solvers, Lagrange-multiplier elemental-potential minimization and linearized van 't Hoff approximations in a Markdown table covering numerical conditioning, constraints and applicability. Include an English and Chinese glossary.",
-      "Design a reproducible sensitivity audit for coupled reactions under temperature and inert-diluent perturbations. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact thermodynamic identities from ideal-gas assumptions."
-    ]
-  },
-  {
-    "id": "coding_theory_hamming_syndrome_decoding_cosets",
-    "domain": "coding_theory_linear_block_codes",
-    "title": "Linear block codes: parity-check matrices, syndrome decoding and standard-array coset leaders",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a binary [n, k, d] linear block code over GF(2) using generator and parity-check matrices in LaTeX. Prove the orthogonality relation between codewords and parity checks using a concrete [7, 4, 3] Hamming code example.",
-      "Derive syndrome decoding and standard-array coset decomposition. Show why single-bit errors map bijectively to nonzero syndromes in a [7, 4, 3] Hamming code and analyze what happens when a weight-two error occurs.",
-      "Provide complete runnable Python standard-library code for GF(2) encoding, syndrome calculation, single-error correction and extended SECDED parity checking, with exhaustive tests over all 1-bit and 2-bit error patterns.",
-      "Compare repetition codes, [7, 4, 3] Hamming codes, extended [8, 4, 4] SECDED codes and CRC error-detection codes in a Markdown table across code rate, minimum distance, correction capability and syndrome complexity. Include English and Chinese terminology.",
-      "Construct a reproducible channel-error audit comparing uncoded transmission, Hamming correction and SECDED detection+retransmission across bit-flip probabilities. Include LaTeX frame-error equations, runnable tests and a Markdown results table."
-    ]
-  },
-  {
     "id": "fluid_mechanics_pipe_network_hardy_cross_conservation",
     "domain": "fluid_mechanics_hydraulic_pipe_networks",
     "title": "Hydraulic pipe networks: nodal mass balance, Darcy-Weisbach head loss and Hardy-Cross loop corrections",
@@ -395,6 +239,176 @@
       "Use a Markdown table reporting candidates, active constraints, objective values and maximum KKT residuals for several synthetic perturbations. Separate true infeasibility from numerical singularity.",
       "Investigate a nearly parallel pair of constraints and a nearly singular Hessian. Report sensitivity under controlled perturbations, define the conditioning diagnostic and explain why a small objective error alone does not prove coordinate accuracy.",
       "Write a detailed reproducibility report containing the model, full code, geometric oracle and certificates. Discuss degeneracy, redundant constraints, nonconvex counterexamples, scaling and the limits of tiny active-set enumeration. Include a Chinese-English terminology table."
+    ]
+  },
+  {
+    "id": "botany_phyllotaxis_golden_angle_point_pattern",
+    "title": "Phyllotaxis: golden-angle geometry and reproducible spatial statistics",
+    "domain": "botany_phyllotaxis_spatial_statistics",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational illustration comparing three synthetic seed-head point patterns produced with a golden-angle rotation and two nearby rational rotations. Label all patterns as mathematical simulations, distinguish radial growth from rotation, and do not claim that the illustration is a measured botanical specimen.",
+      "Define a deterministic polar-coordinate phyllotaxis model with an explicit area-per-seed convention. Derive the golden angle and its relation to the golden ratio in LaTeX, explaining what is a geometric definition versus a biological hypothesis.",
+      "Write complete runnable standard-library Python generating Cartesian points and measuring nearest-neighbor distances for all three rotations. Include deterministic tests for the origin, radial monotonicity, equal parameter reuse and invariance under global rotation with numerical tolerances.",
+      "Provide a Markdown table comparing minimum and mean nearest-neighbor distances, boundary sensitivity and numerical cost. Separate computed quantities from illustrative numbers and include an English-Chinese glossary of botanical and geometric terminology.",
+      "Write a reproducibility report on finite-sample bias, alternative radial laws and why an attractive seed-head image is insufficient evidence of optimal packing or a mechanism of plant development. Include executable code, explicit assumptions and a falsifiable experiment design."
+    ]
+  },
+  {
+    "id": "queueing_mm1_event_simulation_stationarity_audit",
+    "title": "Queueing systems: event simulation, stationary laws and finite-run error",
+    "domain": "queueing_theory_event_driven_stationarity",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define an M/M/1 queue with arrival rate lambda and service rate mu, including units, independence assumptions and the stability condition. Derive its stationary probabilities using balance equations in LaTeX.",
+      "Derive expected queue length, system size and sojourn time, then explain Little's law and which quantities include a customer in service. Use an explicitly specified synthetic stable parameter pair.",
+      "Write complete runnable standard-library Python implementing event-driven queue simulation with a seeded random generator. Track occupancy as a time integral, event ties and per-customer waiting times without using time-stepping approximations.",
+      "Add executable tests for empty-system initialization, zero waiting for an arrival to an idle server, occupancy nonnegativity and conservation of arrivals, departures and remaining customers. Explain why lambda equal to or greater than mu is rejected for stationary comparisons.",
+      "Compare theoretical stationary values and finite-run estimates in a Markdown table, marking unexecuted numerical results explicitly. Explain why the average of event-sampled occupancies differs from a time-weighted average.",
+      "Implement warm-up removal and independent replications. Discuss autocorrelation, confidence intervals and why one long run or a fixed seed cannot prove unbiasedness; provide the full reproducible analysis code.",
+      "Analyze heavy-traffic behavior as lambda approaches mu with explicit assumptions. Include a Chinese-English glossary, a table of failure modes and a deterministic trace example that can be checked by hand.",
+      "Produce a detailed verification report distinguishing exact queueing identities, simulation diagnostics and empirical uncertainty. Include complete code, event-state pseudocode, dimensional checks and limitations of the exponential-service model."
+    ]
+  },
+  {
+    "id": "computational_geometry_bezier_subdivision_curvature",
+    "domain": "computational_geometry_bezier_curves",
+    "title": "Bezier curves: de Casteljau subdivision, curvature and numerical certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a cubic Bezier curve with four explicit two-dimensional control points using LaTeX. Derive the Bernstein representation, endpoint tangents and convex hull property with clear parameter conventions.",
+      "Derive de Casteljau subdivision at an arbitrary parameter and work through a rational numerical example. Explain how the left and right control polygons reproduce the original curve exactly.",
+      "Write runnable Python using only the standard library to evaluate and subdivide curves. Include assertions for endpoint interpolation, subdivision agreement, affine invariance and stable behavior near the parameter endpoints.",
+      "Derive signed curvature and explain zero-speed degeneracy. Compare uniform parameter sampling, chord-length refinement and control-polygon flatness in a Markdown table; include an English and Chinese terminology glossary.",
+      "Produce a reproducible adaptive flattening audit with an ASCII control-polygon diagram, executable tests, equations and a Markdown error table. Distinguish a proven geometric tolerance from a sampled estimate and report unresolved degeneracies explicitly."
+    ]
+  },
+  {
+    "id": "information_theory_arithmetic_coding_integer_intervals",
+    "domain": "information_theory_arithmetic_coding",
+    "title": "Arithmetic coding: integer intervals, renormalization and round-trip verification",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define arithmetic coding for a small fixed symbol alphabet using LaTeX. Specify half-open interval conventions, cumulative frequencies and an explicit short message including an end-of-stream symbol.",
+      "Work through exact rational interval updates and compare the resulting information bound with Huffman coding in a Markdown table. Explain why message length or a termination symbol must be communicated.",
+      "Derive a finite-precision integer interval implementation with explicit inclusive endpoints. Explain each rounding rule and identify the minimum total-frequency constraints needed to prevent empty subintervals.",
+      "Derive E1, E2 and E3 renormalization with pending underflow bits. Give pseudocode for encoder and decoder state transitions and trace a concrete sequence exercising each condition.",
+      "Provide complete runnable Python standard-library encoder and decoder code. Include exact round-trip assertions for the empty payload, repeated symbols, all symbols and deterministic random messages.",
+      "Extend the model to adaptive frequencies with deterministic rescaling. Explain how encoder and decoder stay synchronized and add executable tests around every rescale boundary.",
+      "Design malformed-input and truncation tests, distinguishing detection guarantees from cases requiring an external checksum. Compare fixed and adaptive models using a table of bit lengths computed from defined test data, marking unexecuted results explicitly.",
+      "Write a reproducibility report with equations, an ASCII interval diagram, Python commands and an English-Chinese glossary. Separate mathematical coding bounds, finite-precision overhead and empirical compression measurements."
+    ]
+  },
+  {
+    "id": "structural_mechanics_planar_truss_stiffness_energy",
+    "domain": "structural_mechanics_truss_stiffness",
+    "title": "Planar trusses: stiffness assembly, rigid modes and energy verification",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate a labeled engineering diagram of a triangular planar truss with three joints, pin and roller supports, and an oblique joint load. Then define a concrete geometry, axial rigidity, load vector and units in a Markdown table; distinguish diagram annotations from the exact numerical model.",
+      "Derive the local axial element stiffness and its transformation into global coordinates in LaTeX. Explain the sign convention, symmetry, rigid translations and rotation, and why an unsupported assembly is singular.",
+      "Assemble the supported global stiffness matrix for the specified triangle, eliminate constrained degrees of freedom, and solve for displacements and reactions with sufficient intermediate matrices to reproduce the calculation.",
+      "Provide complete Python standard-library code implementing stiffness assembly and a small pivoted linear solver. Include checks for equilibrium, symmetry, axial force recovery, and equality of external work and twice the strain energy.",
+      "Compare the baseline with one altered member rigidity in a Markdown table. Discuss conditioning, mechanisms, unit consistency and the boundary between linear truss assumptions and bending or geometric nonlinearity; show reproducible residual and energy checks."
+    ]
+  },
+  {
+    "id": "control_theory_kalman_joseph_covariance_innovations",
+    "domain": "control_theory_state_estimation",
+    "title": "Kalman filtering: Joseph covariance, missing observations and innovation checks",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a discrete constant-velocity tracking model with a position sensor. Specify state, units, sampling interval, transition and observation matrices, initial covariance, and the distinction between continuous acceleration spectral density and per-step acceleration variance.",
+      "Derive the predicted mean and covariance, innovation covariance, gain, and corrected mean from Gaussian conditioning. Present all dimensions and a concrete one-step numerical example using LaTeX matrices.",
+      "Derive the Joseph covariance update and compare it with the abbreviated update. Explain numerical symmetry, positive semidefiniteness, and the assumptions under which the two forms are algebraically equivalent.",
+      "Provide complete Python standard-library code for a two-state filter, including small matrix operations and deterministic simulated observations. Compute both covariance forms and check their numerical agreement and state dimensions.",
+      "Extend the implementation to missing observations and variable sampling intervals. Derive the corresponding process covariance and demonstrate that a missing observation performs prediction only rather than a fabricated zero-valued measurement.",
+      "Derive normalized innovation squared and explain what it can and cannot diagnose under finite samples, model mismatch and correlated noise. Produce a Markdown table of innovations, innovation variances and consistency statistics for a reproducible short sequence.",
+      "Construct executable counterexamples for zero or negative sensor variance, singular innovation covariance and asymmetric initial covariance. Describe explicit input rejection and demonstrate that no invalid inverse or silent covariance repair is used.",
+      "Summarize numerical verification in a Markdown table: maximum symmetry residual, minimum covariance determinant, estimation errors and missing-observation behavior. Explain why consistency tests alone do not prove physical model correctness and give complete reproduction instructions."
+    ]
+  },
+  {
+    "id": "crystallography_reciprocal_lattice_bragg_powder_indexing",
+    "domain": "crystallography_diffraction_reciprocal_space",
+    "title": "Crystal diffraction: reciprocal lattices, Bragg conditions and powder peak indexing",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an educational diagram comparing a cubic crystal lattice with its reciprocal lattice and an Ewald sphere. Explain in English and Chinese which geometric objects represent planes, reciprocal vectors and elastic scattering, distinguishing the schematic from measurable diffraction data.",
+      "Derive reciprocal basis vectors and the LaTeX relation between lattice-plane spacing, Miller indices and Bragg diffraction angle. Work through a cubic lattice example with explicit wavelength and units; distinguish primitive, body-centered and face-centered extinction conditions.",
+      "Write complete runnable Python using only the standard library to enumerate unique powder diffraction peaks for simple, body-centered and face-centered cubic crystals. Include assertions for extinction rules, degeneracies and the Bragg sine domain.",
+      "Compare peak positions, multiplicities, systematic absences and lattice-parameter uncertainty in a Markdown table for three concrete cubic crystal candidates. Explain why relative intensity cannot be inferred from peak multiplicity alone.",
+      "Design a reproducible inverse indexing audit using synthetic noisy peak angles. Provide LaTeX residual and uncertainty equations, runnable lattice-parameter estimation tests and a Markdown report distinguishing identifiable lattice geometry from unknown structure factors."
+    ]
+  },
+  {
+    "id": "compiler_ll1_nullable_first_follow_predictive_parser",
+    "domain": "compiler_theory_predictive_parsing",
+    "title": "Predictive parsing: nullable, FIRST/FOLLOW fixed points and LL(1) conflict certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a context-free expression grammar with nullable productions and explicit end-of-input. Use LaTeX to state the least-fixed-point equations for nullable, FIRST and FOLLOW, and explain the roles of epsilon and the input sentinel.",
+      "Compute nullable and FIRST step by step for a concrete expression grammar after eliminating immediate left recursion. Present every iteration in a Markdown table and prove finite termination from monotonicity.",
+      "Derive FOLLOW propagation constraints and construct the full LL(1) prediction table, including epsilon productions. Show a deterministic conflict certificate for a deliberately ambiguous grammar.",
+      "Write complete runnable Python standard-library code that computes nullable, FIRST and FOLLOW by worklist iteration and constructs an LL(1) table. Include tests for indirect nullability, cycles, unreachable productions and a conflicting cell.",
+      "Extend the Python program with a table-driven predictive parser that produces a parse trace for a parenthesized arithmetic expression. Show stack, remaining input and chosen production in a Markdown table.",
+      "Design negative tests for missing operands, unmatched parentheses, trailing tokens and a valid empty production. State the exact rejection point and prove that successful parses consume the entire input.",
+      "Compare LL(1), recursive descent with backtracking, Pratt parsing and LR(1) in a Markdown table covering grammar restrictions, lookahead, conflict diagnosis and error recovery. Include an English and Chinese terminology glossary.",
+      "Build a reproducible grammar-transformation audit: enumerate short token strings and compare acceptance before and after left-recursion elimination and factoring. Provide runnable tests, LaTeX language-equivalence claims with explicit bounds and a Markdown summary separating bounded evidence from a general proof."
     ]
   }
 ]

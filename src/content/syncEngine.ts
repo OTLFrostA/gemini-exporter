@@ -28,6 +28,7 @@ import { resolveProvider } from '../core/provider/providerResolver.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
 import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
+import { resolveCurrentAccount } from './accountContext.js';
 import { isPaginationExhaustive } from '../core/api/client/pagination.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
@@ -199,7 +200,7 @@ export async function ingestPageObservation(page: PageObservation<GeminiProvider
     runId?: string): Promise<RpcListIngestResult> {
     const Storage = getStorage();
     const canCommit = () => (typeof location === 'undefined' || getAccountSlot() === slot)
-        && (page.accountId === null || sniffUserProfileFromDom()?.accountId === page.accountId)
+        && (page.accountId === null || sniffUserProfileFromDom()?.identityKey === page.accountId)
         && (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
         && (runId === undefined || !contentContext.isAborted());
     if (!canCommit()) throw new Error('Page observation belongs to a stale account or cancelled request');
@@ -292,12 +293,12 @@ function persistConversationBatch(incomingItems: readonly unknown[], source: str
 
             await Storage.setLastSync(slot, Date.now(), mergedLength);
             const profile = sniffUserProfileFromDom();
+            await resolveCurrentAccount();
             const slotUpdate: Record<string, any> = {
                 slot,
                 count: mergedLength,
                 lastSync: new Date().toISOString()
             };
-            if (profile?.accountId) slotUpdate.accountId = profile.accountId;
             if (profile?.email) slotUpdate.email = profile.email;
             if (profile?.name) slotUpdate.name = profile.name;
             if (profile?.gaiaId) slotUpdate.gaiaId = profile.gaiaId;
@@ -397,7 +398,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         contentContext.setActiveClient(provider);
         contentContext.setAborted(false);
 
-        const accountId = sniffUserProfileFromDom()?.accountId ?? null;
+        const accountId = sniffUserProfileFromDom()?.identityKey ?? null;
         coverageRun = await Storage.beginScanCoverage(slot, accountId);
         const runId = coverageRun.runId;
         const effectiveMaxPages = options?.maxPages || 2000;
@@ -412,7 +413,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
             maxPages: effectiveMaxPages,
             includePinned: true,
             onPageBatch: async (batch, info) => {
-                if (getAccountSlot() !== slot || (accountId !== null && sniffUserProfileFromDom()?.accountId !== accountId)) {
+                if (getAccountSlot() !== slot || (accountId !== null && sniffUserProfileFromDom()?.identityKey !== accountId)) {
                     throw new Error('Account changed during sync; retry in the current account');
                 }
                 if (contentContext.isAborted()) throw new Error('Sync aborted');
@@ -429,7 +430,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
                     if (page.requestCursor === null) recentHead = page;
                     if (incremental && previousRecent && recentHead && await Storage.hasScanCoverageOverlap(slot, runId, recentHead, previousRecent,
                         () => !contentContext.isAborted() && getAccountSlot() === slot
-                            && (accountId === null || sniffUserProfileFromDom()?.accountId === accountId))) {
+                            && (accountId === null || sniffUserProfileFromDom()?.identityKey === accountId))) {
                         verifiedIncrementalStop = true;
                         return { shouldStop: true, reason: 'Connected to verified activity coverage' };
                     }
@@ -477,7 +478,7 @@ export async function syncConversations(options?: { maxPages?: number }): Promis
         } : null;
         if (!await Storage.finishScanCoverage(slot, runId, finalStatus, baseline, all.items.map(item => item.id),
             () => !contentContext.isAborted() && getAccountSlot() === slot
-                && (accountId === null || sniffUserProfileFromDom()?.accountId === accountId))) {
+                && (accountId === null || sniffUserProfileFromDom()?.identityKey === accountId))) {
             throw new Error('Sync was superseded or local history was cleared; retry');
         }
         coverageFinished = true;

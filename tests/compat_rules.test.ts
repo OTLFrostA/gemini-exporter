@@ -18,6 +18,7 @@ const {
     GM_MD_001_FENCE_NORMALIZATION,
     preprocessGeminiMarkdown,
     preprocessGeminiLatex,
+    GM_MD_004_LINE_START_DISPLAY,
 } = require('../src/core/parsers/gemini/shared/markdownCompatibility.js');
 
 test('Compatibility Rules: every admitted rule has immutable, unique provenance evidence', () => {
@@ -25,7 +26,7 @@ test('Compatibility Rules: every admitted rule has immutable, unique provenance 
     assert.ok(Object.isFrozen(GEMINI_TEX_COMPAT_RULES));
     assert.ok(GEMINI_MARKDOWN_COMPAT_RULES.includes(GM_MD_001_FENCE_NORMALIZATION));
 
-    const all = [...GEMINI_MARKDOWN_COMPAT_RULES, ...GEMINI_TEX_COMPAT_RULES];
+    const all = [...GEMINI_MARKDOWN_COMPAT_RULES, ...GEMINI_TEX_COMPAT_RULES, GM_MD_004_LINE_START_DISPLAY];
     assert.strictEqual(new Set(all.map(rule => rule.id)).size, all.length, 'rule IDs must be unique across registries');
     for (const rule of all) {
         assert.match(rule.id, /^GM-(MD|TEX)-\d{3}$/);

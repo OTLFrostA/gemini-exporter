@@ -17,6 +17,8 @@ export const MESSAGE_ACTIONS = {
     STOP_DEEP_SCAN: 'stopDeepScan',
     EXPORT_PROGRESS: 'exportProgress',
     PING: 'ping',
+    GET_ACCOUNT_CONTEXT: 'getAccountContext',
+    ACCOUNT_REGISTRY: 'accountRegistry',
     OPEN_GEMINI_PAGE: 'openGeminiPage',
     RELOAD_GEMINI_TAB: 'reloadGeminiTab',
     LIVE_SAVE_VIA_HANDLE: 'liveSaveViaHandle',

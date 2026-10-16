@@ -33,10 +33,20 @@ class InpageBadgeCase(FeatureTestCase):
     def execute(self, ctx: TestContext) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         cdp = ctx.connect_gemini()
         try:
-            has_badge = cdp.eval(f"""!!document.querySelector('{GeminiSelectors.INPAGE_EXPORT_BADGE}')""")
-            if has_badge:
-                return True, "页面端悬浮徽标正常渲染", None
-            return False, "未检测到悬浮徽标 DOM 节点 (#geminiExportBadge)", None
+            # Extension reinstall reloads Gemini asynchronously. Observe the
+            # product's injection result, including document_start replacement;
+            # a fixed delay before this case does not establish readiness.
+            deadline = time.monotonic() + 30
+            while True:
+                try:
+                    if cdp.eval(f"""!!document.querySelector('{GeminiSelectors.INPAGE_EXPORT_BADGE}')"""):
+                        return True, "页面端悬浮徽标正常渲染", None
+                except RuntimeError:
+                    # Navigation may replace the execution context mid-poll.
+                    pass
+                if time.monotonic() >= deadline:
+                    return False, "等待 30 秒仍未检测到悬浮徽标 DOM 节点 (#geminiExportBadge)", None
+                time.sleep(0.25)
         finally:
             cdp.close()
 

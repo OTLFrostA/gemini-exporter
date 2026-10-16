@@ -63,7 +63,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     assert.ok(profile1);
     assert.strictEqual(profile1?.email, 'alice@example.com');
     assert.strictEqual(profile1?.name, 'Alice Wonderland');
-    assert.strictEqual(profile1?.accountId, 'alice@example.com');
+    assert.strictEqual(profile1?.identityKey, 'alice@example.com');
 
     // B: DOM element with data-email attribute
     const mockDoc2 = {
@@ -81,15 +81,15 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     const profile2 = sniffUserProfileFromDom(mockDoc2);
     assert.ok(profile2);
     assert.strictEqual(profile2?.email, 'bob@corp.com');
-    assert.strictEqual(profile2?.name, 'bob');
-    assert.strictEqual(profile2?.accountId, 'bob@corp.com');
+    assert.strictEqual(profile2?.name, undefined);
+    assert.strictEqual(profile2?.identityKey, 'bob@corp.com');
 
     // C: Gaia ID from window._WIZ_global_data
     const mockDoc3 = {
         querySelectorAll: () => [],
         defaultView: {
             _WIZ_global_data: {
-                oTI7oc: '10987654321'
+                qDCSke: '10987654321'
             }
         }
     } as any;
@@ -97,7 +97,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     const profile3 = sniffUserProfileFromDom(mockDoc3);
     assert.ok(profile3);
     assert.strictEqual(profile3?.gaiaId, '10987654321');
-    assert.strictEqual(profile3?.accountId, '10987654321');
+    assert.strictEqual(profile3?.identityKey, '10987654321');
     assert.strictEqual(profile3?.email, undefined);
 
     // D: Empty doc returns null
@@ -328,5 +328,25 @@ test('credentialManager - concurrent resolveCred calls serialize safely without 
         assert.strictEqual(maxActiveOps, 1, 'Concurrent resolveCred calls must be serialized (maxActiveOps === 1)');
     } finally {
         (global as any).chrome = origChrome;
+    }
+});
+
+test('accountSniffer - current Gemini Wiz tuple wins over another account DOM label', () => {
+    const doc = {
+        querySelectorAll: () => [{ getAttribute: (key: string) => key === 'aria-label' ? 'Google Account: Other (other@example.com)' : null }],
+        defaultView: { WIZ_global_data: { qDCSke: '109876543210987654321', oPEP7c: 'ACTIVE@EXAMPLE.COM' } }
+    } as unknown as Document;
+    const profile = sniffUserProfileFromDom(doc);
+    assert.equal(profile?.gaiaId, '109876543210987654321');
+    assert.equal(profile?.email, 'active@example.com');
+    assert.equal(profile?.name, undefined);
+    assert.equal(profile?.identityKey, 'active@example.com');
+    assert.equal('accountId' in (profile || {}), false);
+});
+
+test('accountSniffer - obsolete or malformed Wiz fields do not become provider account IDs', () => {
+    for (const wiz of [{ oTI7oc: '10987654321' }, { qDCSke: 'not-a-gaia-id' }, { qDCSke: 10987654321 }]) {
+        const doc = { querySelectorAll: () => [], defaultView: { WIZ_global_data: wiz } } as unknown as Document;
+        assert.equal(sniffUserProfileFromDom(doc), null);
     }
 });

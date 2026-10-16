@@ -247,6 +247,26 @@ class TestDAGSubgraphPruning(unittest.TestCase):
                 if dependent:
                     self.assertEqual(ctx.registry.get_result('target').status, TestStatus.SKIP)
 
+    def test_explicit_audit_warning_completes_but_cannot_mask_failed_execution(self):
+        for completed in (True, False):
+            dag = DAGRunner()
+            audit = DummyTestCase('audit', FeatureDomain.EXPORT_DISK, critical=False)
+            audit.execute = MagicMock(return_value=(completed, 'audit differences', {'different': 1}))
+            audit.success_status = MagicMock(return_value=TestStatus.WARN)
+            dag.register(audit)
+            downstream = DummyTestCase('downstream', FeatureDomain.EXPORT_DISK, prereqs=['audit'])
+            dag.register(downstream)
+            ctx = TestContext()
+            with patch('sys.stdout', new=io.StringIO()):
+                self.assertEqual(dag.run(ctx, target_ids=['downstream']), completed)
+            self.assertEqual(ctx.registry.get_result('audit').status,
+                             TestStatus.WARN if completed else TestStatus.FAIL)
+            self.assertEqual(downstream.executed, completed)
+            self.assertEqual(ctx.registry.get_result('downstream').status,
+                             TestStatus.PASS if completed else TestStatus.SKIP)
+            if completed:
+                self.assertIn('⚠️ WARN', ctx.registry.generate_matrix_report())
+
     def test_noncritical_missing_dependency_skip_fails_full_run(self):
         dag = DAGRunner()
         dag.register(DummyTestCase('target', FeatureDomain.WORKBENCH,

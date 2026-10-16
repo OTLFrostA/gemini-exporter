@@ -29,7 +29,7 @@ test('raw RPC code keeps consecutive blank lines through Domain and Markdown exp
     const { conversation } = native(rpc([[turn('Show the program', 1700000000, [['rc_answer', [[answer]]]])]]));
     const block = conversation.detail.messages[1].content.find(node => node.type === 'code');
     assert.ok(block?.type === 'code');
-    assert.equal(block.code, code);
+    assert.equal(block.code, code + '\n', 'preserve the source newline immediately before the closing fence');
     const markdown = renderDocumentMarkdown(composeDomainDocument(conversation).document, {});
     assert.ok(markdown.includes(`\`\`\`python\n${code}\n\`\`\``));
 });

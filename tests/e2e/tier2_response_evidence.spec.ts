@@ -3,6 +3,22 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync('scripts/framework/driver/authored_response.js', 'utf8');
 
+test('Canvas preview error UI is excluded while the attachment title and identical authored prose survive', async ({ page }) => {
+    // Minimal structure from live c_431c4a7cf71308c4: the preview error is
+    // application chrome absent from the native reply's attachment link.
+    const literal = 'Something went wrong. There was a problem when running your code.';
+    await page.setContent(`<model-response id="answer"><model-response-content><p>Introduction.</p><immersive-entry-chip><a>Thermodynamic Analysis of Chemical Equilibrium</a><inline-preview><code-error-card><div class="error-container"><div class="error-info"><strong>Something went wrong</strong><div>There was a problem when running your code.</div></div><button>Fix error</button></div></code-error-card></inline-preview></immersive-entry-chip><p>${literal}</p><p>Conclusion.</p></model-response-content></model-response>`);
+    const before = await page.locator('#answer').innerHTML();
+    const evidence = await page.evaluate(source => {
+        const extract = new Function('return (\n' + source + '\n)')();
+        return extract(document.querySelector('#answer')) as { text: string; pdfSegments: {kind: string; text: string}[] };
+    }, source);
+    const expected = 'Introduction.Thermodynamic Analysis of Chemical Equilibrium' + literal + 'Conclusion.';
+    expect(evidence.text).toBe(expected);
+    expect(evidence.pdfSegments.map(segment => segment.text).join('')).toBe(expected);
+    expect(await page.locator('#answer').innerHTML()).toBe(before);
+});
+
 test('live evidence preserves source math and final code while excluding collapsed execution and UI', async ({ page }) => {
     await page.setContent(`<model-response id="answer"><h5>Gemini said</h5><model-response-content><div class="markdown-main-panel">
         <div class="code-block-decoration">Python<button>Copy code</button></div>

@@ -9,7 +9,7 @@ import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisiti
 import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { normId } from '../../utils/pathUtils.js';
 import { readStorageDomain } from './validate.js';
-import { DOMAIN_DB_NAME, DOMAIN_DB_VERSION, DOMAIN_STORAGE_VERSION, DOMAIN_CONTRACT_VERSION, type DomainStorageIdentity, type DomainStorageRecord, type TrustedDomainStorageRecord, type StoredDomainResource } from './contracts.js';
+import { ACCOUNT_STORE, DOMAIN_DB_NAME, DOMAIN_DB_VERSION, DOMAIN_STORAGE_VERSION, DOMAIN_CONTRACT_VERSION, type DomainStorageIdentity, type DomainStorageRecord, type TrustedDomainStorageRecord, type StoredDomainResource } from './contracts.js';
 
 const CURRENT = 'conversations';
 const BACKUP = 'legacy_imports';
@@ -67,6 +67,7 @@ export function openDomainDB(): Promise<IDBDatabase> {
         const request = indexedDB.open(DOMAIN_DB_NAME, DOMAIN_DB_VERSION);
         request.onupgradeneeded = () => {
             const db = request.result;
+            if (!db.objectStoreNames.contains(ACCOUNT_STORE)) db.createObjectStore(ACCOUNT_STORE, { keyPath: 'id' });
             if (!db.objectStoreNames.contains(REMOVED)) db.createObjectStore(REMOVED, { keyPath: 'key' });
             if (!db.objectStoreNames.contains(BYTE_CACHE)) db.createObjectStore(BYTE_CACHE, { keyPath: 'key' }).createIndex('conversation', 'conversationKey');
             if (!db.objectStoreNames.contains(BACKUP)) db.createObjectStore(BACKUP, { keyPath: 'key' });

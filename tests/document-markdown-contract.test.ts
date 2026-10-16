@@ -14,6 +14,13 @@ function domainFixture(blocks: any[], extra: any = {}): DomainConversationWithDe
 }
 const render = (blocks: any[], extra: any = {}) => renderDocumentMarkdown(composeDomainDocument(domainFixture(blocks, extra)).document, extra.resources ?? {});
 
+test('Markdown code serialization preserves existing final newlines without adding a blank line', () => {
+    for (const source of ['run()', 'run()\n', 'run()\n\n']) {
+        const expected = '```python\n' + source + (source.endsWith('\n') ? '' : '\n') + '```';
+        assert.ok(render([{ type: 'code', language: 'python', code: source }]).includes(expected));
+    }
+});
+
 test('Markdown export envelope uses Domain metadata and omits absent optional fields', async () => {
     const b = domainFixture([]); Object.assign(b.index, { url: 'https://example.com/chat', createdAt: Date.parse('2026-01-01T00:00:00Z') });
     const md = await exportDomainMarkdown({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-01-02T00:00:00Z') } });

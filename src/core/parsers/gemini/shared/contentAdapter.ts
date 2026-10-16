@@ -5,19 +5,20 @@ import type { ResourceEvidence as ResourceEvidence } from '../../shared/resource
 import { extractImageEvidence } from '../rpc/sourceAttachments.js';
 import { convertHtmlToMarkdown } from '../../shared/html/htmlToMarkdown.js';
 import { stripInternalChipMarkdown } from '../../../utils/chipUtils.js';
-import { preprocessGeminiMarkdown } from './markdownCompatibility.js';
+import { preprocessGeminiMarkdown, normalizeGeminiTexAliases } from './markdownCompatibility.js';
 import { geminiStructuredToContent, type GeminiSourceCitations } from './structuredContentAdapter.js';
 import type { InlineNode } from '../../../domain/content/inline.js';
 import { normalizeTextUnderscores } from '../../../utils/latexCompatibility.js';
 
 /** Work only on parsed math nodes; code, user prose and file names stay literal. */
 function normalizeGeminiMath(blocks: BlockNode[]): BlockNode[] {
+    const math = (source: string): string => normalizeGeminiTexAliases(normalizeTextUnderscores(source));
     const inlines = (nodes: InlineNode[]): void => nodes.forEach(node => {
-        if (node.type === 'inlineMath') node.source = normalizeTextUnderscores(node.source);
+        if (node.type === 'inlineMath') node.source = math(node.source);
         else if ('children' in node) inlines(node.children);
     });
     const visit = (nodes: BlockNode[]): void => nodes.forEach(node => {
-        if (node.type === 'math') node.source = normalizeTextUnderscores(node.source);
+        if (node.type === 'math') node.source = math(node.source);
         else if ('children' in node) inlines(node.children);
         else if (node.type === 'quote') visit(node.blocks);
         else if (node.type === 'list') node.items.forEach(item => visit(item.blocks));
@@ -68,7 +69,11 @@ export function parseGeminiBody(
             sourceRef: context.sourceRef, details: { reason: 'adapter_rejected' },
         });
     }
-    if (typeof content === 'string') return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', context));
+    // GM-MD-004: display fences without blank lines; fenced code preserves its
+    // physical final newline just as the native code string does.
+    if (typeof content === 'string') return normalizeGeminiMath(parseMarkdownToBlocks(preprocessGeminiMarkdown(cleaned), '', {
+        ...context, lineStartDisplayMath: true, preserveCodeFenceFinalNewline: true,
+    }));
     if (content === undefined || content === null) return [];
     const visible = formatUnknownPayload(content);
     context.diagnostics.push({

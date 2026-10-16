@@ -5,6 +5,7 @@ import { readStoredObject, type StoredObject } from '../core/storage/storageComp
 import type { ContentConversationDetail, DomDetailDebug, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import { SyncEngine } from './syncEngine.js';
+import { resolveCurrentAccount } from './accountContext.js';
 import { DomScraper } from './domScraper.js';
 import { AssetFetcher } from './assetFetcher.js';
 import { contentContext } from './contentContext.js';
@@ -74,6 +75,11 @@ export function init({
             try { sendResponse(response); } catch { /* port may be gone */ }
         };
         try {
+        if (msg.action === 'getAccountContext') {
+            void resolveCurrentAccount().then(accountContext => respond({ ok: true, accountContext }))
+                .catch((error: unknown) => respond({ ok: false, accountContext: null, error: getErrorMessage(error) }));
+            return true;
+        }
         if (msg.action === 'ping') {
             const ver = getExtensionVersion();
             respond({

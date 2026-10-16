@@ -1236,7 +1236,7 @@ class GeminiDualParseTests(unittest.TestCase):
         ctx.output_dir = '/tmp/dual-fixture'
         ctx.worktree_root = '/tmp/repo'
         ctx.shared_data = {'gemini_dual_capture': {'expected': [CID], 'missingNative': []}}
-        counts = {'assistant': 1, 'match': 1, 'different': 0, 'structuredUnavailable': 0}
+        counts = {'assistant': 1, 'match': 1, 'different': 0, 'structuredUnavailable': 0, 'errors': 0, 'incomplete': 0}
         summary = {'counts': counts, 'results': [{'conversationId': 'c_' + OTHER}]}
         with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(True, summary)):
             self.assertFalse(case.execute(ctx)[0])
@@ -1245,6 +1245,19 @@ class GeminiDualParseTests(unittest.TestCase):
             self.assertTrue(case.execute(ctx)[0])
         with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(False, summary)):
             self.assertFalse(case.execute(ctx)[0])
+        counts.update(match=0, different=1)
+        from scripts.framework.features import TestStatus
+        with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(False, summary)):
+            completed, message, details = case.execute(ctx)
+            self.assertTrue(completed)
+            self.assertIn('不阻断', message)
+            self.assertEqual(case.success_status(details), TestStatus.WARN)
+        for defect in ('structuredUnavailable', 'errors', 'incomplete'):
+            with self.subTest(defect=defect):
+                counts[defect] = 1
+                with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(False, summary)):
+                    self.assertFalse(case.execute(ctx)[0])
+                counts[defect] = 0
 
 
 if __name__ == '__main__':

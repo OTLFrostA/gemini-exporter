@@ -85,7 +85,8 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
                 const fence = '`'.repeat(Math.max(2, ...(node.code.match(/`+/g) ?? []).map((run) => run.length)) + 1);
                 const label = codeHeader(node, 'markdown');
                 const language = (node.language ?? '').replace(/[\r\n`]/g, '');
-                return `${label ? `**${escapeText(label)}**\n\n` : ''}${fence}${language}\n${node.code}\n${fence}`;
+                const end = node.code.endsWith('\n') ? '' : '\n';
+                return `${label ? `**${escapeText(label)}**\n\n` : ''}${fence}${language}\n${node.code}${end}${fence}`;
             }
             case 'math': return `$$\n${node.source}\n$$`;
             case 'table': {

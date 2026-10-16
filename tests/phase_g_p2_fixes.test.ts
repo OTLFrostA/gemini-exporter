@@ -156,7 +156,18 @@ test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值'
     };
     const listeners: Record<string, Function[]> = {};
     const mockWindow: any = {
-        addEventListener: (t: string, f: Function) => { (listeners[t] = listeners[t] || []).push(f); }
+        addEventListener: (t: string, f: Function) => { (listeners[t] = listeners[t] || []).push(f); },
+        removeEventListener: (t: string, f: Function) => { listeners[t] = (listeners[t] || []).filter(listener => listener !== f); },
+        // No Gaia in this fixture: answer the new MAIN-world query explicitly.
+        postMessage: (message: any) => {
+            if (message.type !== 'GEMINI_ACCOUNT_REQUESTED') return;
+            queueMicrotask(() => {
+                const event = { source: mockWindow, origin: 'https://gemini.google.com', data: {
+                    type: 'GEMINI_ACCOUNT_OBSERVED', payload: { requestId: message.payload.requestId, slot: 'u0', observation: null }
+                } };
+                for (const listener of [...(listeners.message || [])]) listener(event);
+            });
+        }
     };
     (globalThis as any).window = mockWindow;
     (globalThis as any).document = {
