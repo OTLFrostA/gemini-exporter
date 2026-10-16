@@ -44,9 +44,14 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
     const mockDetailInner = JSON.stringify([
       turns,
       null, // This fixture is a terminal detail page.
-      "瞬态热激波与热膨胀物理机制"
+      null
     ]);
-    const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
+    const mockRpcResponse = `)]}'\n\n${JSON.stringify([
+      ['wrb.fr', 'hNvQHb', mockDetailInner],
+      ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+        ['c_html_exp_001', '瞬态热激波与热膨胀物理机制'],
+      ]])],
+    ])}`;
 
     await geminiPage.route('**/batchexecute*', async (route) => {
       await route.fulfill({

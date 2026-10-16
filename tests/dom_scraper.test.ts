@@ -24,6 +24,7 @@ interface MockNode {
     compareDocumentPosition?: (other: MockNode) => number;
     click?: () => void;
     clicked?: boolean;
+    closest?: (selector: string) => MockNode | null;
 }
 
 function createMockElement(tag: string, attrs: Record<string, string> = {}, text = '', children: MockNode[] = []): MockNode {
@@ -40,6 +41,7 @@ function createMockElement(tag: string, attrs: Record<string, string> = {}, text
     Object.defineProperty(el, 'childNodes', { get: () => [...(el.textContent ? [{ nodeType: 3, textContent: el.textContent }] : []), ...(el.children || [])] });
     Object.defineProperty(el, 'innerHTML', { get: () => (el.textContent || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + (el.children || []).map(child => `<${child.tagName.toLowerCase()}${Object.entries(child.attributes || {}).map(([key, value]) => ` ${key}="${value}"`).join('')}>${child.innerHTML || ''}</${child.tagName.toLowerCase()}>`).join('') });
     el.getAttribute = (name: string) => el.attributes?.[name] ?? null;
+    el.closest = () => null;
 
     el.querySelector = (selector: string): MockNode | null => {
         const all = el.querySelectorAll!(selector);
@@ -133,7 +135,8 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
     ]);
 
     const titleEl = createMockElement('title', {}, '量子力学与量子纠缠探讨 - Google Gemini');
-    const root = createMockElement('html', {}, '', [titleEl, userQuery, modelResp]);
+    const heading = createMockElement('h1', { 'data-test-id': 'conversation-title' }, '量子力学与量子纠缠探讨');
+    const root = createMockElement('html', {}, '', [titleEl, heading, userQuery, modelResp]);
 
     const mockDoc: any = {
         title: '量子力学与量子纠缠探讨 - Google Gemini',

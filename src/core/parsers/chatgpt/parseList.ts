@@ -1,4 +1,5 @@
-import { restoreConversationIndex, type DomainConversationIndex } from '../../domain/conversationIndex.js';
+import type { DomainConversationIndex } from '../../domain/conversationIndex.js';
+import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 import { chatGPTTimestamp } from './timestamp.js';
 
 export interface ChatGPTListParseResult {
@@ -26,7 +27,7 @@ export function parseChatGPTList(value: unknown): ChatGPTListParseResult {
         const title = typeof item.title === 'string' ? item.title.trim() : '';
         const createdAt = chatGPTTimestamp(item.create_time);
         const updatedAt = chatGPTTimestamp(item.update_time);
-        return restoreConversationIndex({ providerId: 'chatgpt', id, title, titleSource: title ? 'provider' : 'default',
+        return parseIndexMetadata({ providerId: 'chatgpt', id, title, titleSource: title ? 'provider' : 'default',
             cloudAvailability: 'available', hasTakeoutImport: false, url: `https://chatgpt.com/c/${encodeURIComponent(id)}`,
             ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) });
     });

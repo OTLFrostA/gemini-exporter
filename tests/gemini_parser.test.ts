@@ -156,8 +156,8 @@ test('gemini_parser - decodeGeminiDetail with hNvQHb only falls back gracefully'
 
     const parsed = decodeGeminiDetail(rawText, 'fallback_123');
     assert.strictEqual(parsed.id.replace(/^c_/, ''), 'fallback_123');
-    assert.strictEqual(parsed.title, 'Rust WebAssembly 开发实战');
-    assert.strictEqual(parsed.titleSource, 'rpc');
+    assert.strictEqual(parsed.title, '如何用Rust写WebAssembly插件');
+    assert.strictEqual(parsed.titleSource, 'sniff', 'uncharacterized detail scalars cannot establish RPC title authority');
     assert.strictEqual(parsed.messages.length, 2);
 });
 

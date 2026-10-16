@@ -19,7 +19,10 @@ export function mediaSources(options: { noTime?: boolean; noPrompt?: boolean; mu
         options.noTime && i === 9 ? null : [(mediaTime / 1000) + (i === 9 ? 0 : i - 20), 123000000],
         options.noPrompt && i === 9 ? null : [[i === 9 ? mediaPrompt : `Online question ${i}`]],
         [[`rc_answer-${i}`, [[`Complete online answer ${i}`], ...(i === 9 ? images : [])]]]]);
-    const online = parseGeminiRpcConversation(`)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([turns, null, 'Complete online body'])]])}`,
+    const online = parseGeminiRpcConversation(`)]}'\n\n${JSON.stringify([
+        ['wrb.fr', 'hNvQHb', JSON.stringify([turns, null, null, []])],
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [[`c_${mediaChatId}`, 'Complete online body']]])],
+    ])}`,
         { providerId: 'gemini', targetConvId: mediaChatId });
     const activity = (prompt: string, time: number, answer: string, count?: number) =>
         `<div class="outer-cell"><a href="https://gemini.google.com/app/c_${mediaChatId}">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted ${prompt}<br>${new Date(time).toISOString()}<br>${answer}</div>${count ? `${count} generated image${count > 1 ? 's' : ''}` : ''}</div>`;

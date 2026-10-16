@@ -194,8 +194,10 @@ for (const format of ['html', 'markdown', 'json']) test(`popup ${format} single-
     await page.goto(`chrome-extension://${extensionId}/src/ui/popup/popup.html`);
     await expect(page.locator('#currentChatTitle')).toHaveText('Resource boundary');
     await page.click(`#formatTabs .tab-btn[data-value="${format}"]`);
+    await expect(page.locator(`#formatTabs .tab-btn[data-value="${format}"]`)).toHaveClass(/active/);
     const pending = page.waitForEvent('download'); await page.click('#btnCurrent');
     const download = await pending, file = await download.path();
+    expect(download.suggestedFilename()).toMatch(new RegExp(`\\.${format === 'markdown' ? 'md' : format}$`));
     if (!file) throw new Error('Single-file export was not delivered');
     const body = await readFile(file, 'utf8');
     expect(body).toContain('Body survives'); expect(body).not.toContain('assets/never-delivered.png');

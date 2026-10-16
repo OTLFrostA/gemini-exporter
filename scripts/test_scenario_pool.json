@@ -1,43 +1,5 @@
 [
   {
-    "id": "fluid_mechanics_pipe_network_hardy_cross_conservation",
-    "domain": "fluid_mechanics_hydraulic_pipe_networks",
-    "title": "Hydraulic pipe networks: nodal mass balance, Darcy-Weisbach head loss and Hardy-Cross loop corrections",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate steady incompressible flow in a looped pipe network using LaTeX. State the nodal continuity equations, loop head-loss compatibility conditions and the Darcy-Weisbach resistance law for a concrete two-loop network.",
-      "Derive the Newton-Raphson Hardy-Cross loop-flow correction formula and explain why the signed quadratic resistance derivative remains strictly positive for non-zero flows.",
-      "Write complete runnable Python using only the standard library to solve a two-loop hydraulic network via Hardy-Cross iterations, with assertions for nodal conservation, loop head-loss closure and monotonic residual reduction.",
-      "Compare Hardy-Cross loop methods, nodal-head Newton solvers and linear-theory methods in a Markdown table covering Jacobian structure, initial-guess requirements and convergence rate. Include an English and Chinese glossary.",
-      "Design a reproducible hydraulic verification report under demand perturbations and valve throttling. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact conservation invariants from empirical friction correlations."
-    ]
-  },
-  {
-    "id": "celestial_mechanics_kepler_anomaly_symplectic_integrators",
-    "domain": "celestial_mechanics_orbital_dynamics",
-    "title": "Orbital mechanics: Kepler equation, eccentric anomaly and symplectic Störmer-Verlet integration",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive Kepler's equation relating mean anomaly, eccentric anomaly and true anomaly for an elliptical orbit using LaTeX. Prove uniqueness of the root for eccentricity in [0, 1) and work through a concrete bound-orbit example.",
-      "Compare fixed-point iteration and Newton-Raphson root finding for Kepler's equation, and derive the second-order symplectic Störmer-Verlet (leapfrog) scheme for the planar two-body Hamiltonian.",
-      "Provide complete runnable Python standard-library code for solving Kepler's equation and integrating a planar elliptical orbit with both explicit Euler and symplectic leapfrog, asserting bounded energy and exact angular-momentum conservation for leapfrog.",
-      "Compare analytical Kepler propagation, symplectic leapfrog, classical fourth-order Runge-Kutta and explicit Euler in a Markdown table across phase-space volume preservation, secular energy drift and per-step cost. Include English and Chinese terminology.",
-      "Construct a reproducible multi-orbit numerical audit across eccentricities. Include LaTeX invariant equations, runnable tests and a Markdown results table comparing energy and angular-momentum errors over ten orbital periods."
-    ]
-  },
-  {
     "id": "heat_transfer_transient_slab_fourier_biot",
     "domain": "heat_transfer_transient_conduction",
     "title": "Transient heat conduction: Biot number, Fourier series eigenmodes and Crank-Nicolson stability",
@@ -409,6 +371,51 @@
       "Design negative tests for missing operands, unmatched parentheses, trailing tokens and a valid empty production. State the exact rejection point and prove that successful parses consume the entire input.",
       "Compare LL(1), recursive descent with backtracking, Pratt parsing and LR(1) in a Markdown table covering grammar restrictions, lookahead, conflict diagnosis and error recovery. Include an English and Chinese terminology glossary.",
       "Build a reproducible grammar-transformation audit: enumerate short token strings and compare acceptance before and after left-recursion elimination and factoring. Provide runnable tests, LaTeX language-equivalence claims with explicit bounds and a Markdown summary separating bounded evidence from a general proof."
+    ]
+  },
+  {
+    "id": "pharmacokinetics_two_compartment_dosing_mass_balance",
+    "domain": "pharmacokinetics_compartmental_dosing",
+    "title": "Two-compartment pharmacokinetics: dose schedules, mass balance and terminal half-life",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational diagram of a two-compartment pharmacokinetic model with central and peripheral compartments, bidirectional transfer arrows, an intravenous dose input and elimination from the central compartment. Label all rate constants and state that the example is a mathematical model, not clinical dosing guidance.",
+      "Derive the linear two-compartment mass-balance equations in LaTeX. For an explicitly chosen parameter set, calculate the two decay eigenvalues, the terminal half-life and the steady state under constant infusion, keeping amounts and concentrations distinct.",
+      "Write complete runnable standard-library Python that propagates the two-compartment model with a matrix exponential and instantaneous bolus events. Verify positivity, mass balance including eliminated drug, and convergence to the analytical constant-infusion steady state.",
+      "Compare a single bolus, repeated boluses and constant infusion in a Markdown table covering peak-trough behavior, total administered amount and model assumptions. Provide English and Chinese terminology and distinguish exact linear-model properties from physiological approximations.",
+      "Build a reproducible audit across sampling intervals and transfer-rate ratios. Include LaTeX equations, executable assertions and a Markdown results table. Explain how sparse terminal-phase measurements can fail to identify all individual rate constants even when a terminal half-life is estimable."
+    ]
+  },
+  {
+    "id": "electrochemistry_nernst_cell_charge_energy_audit",
+    "domain": "electrochemistry_galvanic_cell_thermodynamics",
+    "title": "Galvanic cells: Nernst potentials, charge balance and reversible work",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an original educational diagram of a zinc-copper galvanic cell showing electrodes, electrolyte compartments, a salt bridge and an external load. Clearly distinguish electron flow in the wire from ion transport in solution and include a legend.",
+      "Write the half-reactions and overall cell reaction in LaTeX. Derive the reaction quotient and the Nernst equation using dimensionless activities, and calculate the reversible voltage for one explicitly specified temperature and concentration pair.",
+      "Derive the relationship between Gibbs free energy, cell voltage and transferred charge. Explain the sign conventions for galvanic operation and how open-circuit equilibrium potential differs from loaded terminal voltage.",
+      "Provide complete runnable standard-library Python calculating cell potential over a logarithmic activity-ratio sweep. Assert agreement with the standard-state voltage, the correct logarithmic slope and invariance of the result when reaction coefficients and transferred electron count are scaled together.",
+      "Compare ideal activities, activity-coefficient corrections, ohmic loss and activation polarization in a Markdown table. State the measurements needed to separate thermodynamic voltage from kinetic and transport effects.",
+      "Integrate reversible electrical work for a finite idealized batch with changing reaction extent. Use LaTeX to derive the integral, write numerical quadrature code and compare it with an independently derived Gibbs-energy change for the same initial and final compositions.",
+      "Create a boundary-case audit near equal activities, very dilute solutions and depleted reactants. Give executable checks that reject nonpositive activities and label results that leave the ideal-solution approximation rather than silently accepting them.",
+      "Assemble a reproducible report with equations, an English and Chinese glossary, runnable tests and a Markdown numerical summary table. Separate exact charge and stoichiometric constraints from assumptions about activities, reversibility and the pictured cell geometry."
     ]
   }
 ]

@@ -23,7 +23,7 @@ export interface TitleResolution {
 
 export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
 
-export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['rpc', 'api-detail', 'dom', 'takeout', 'openai', 'sniff', 'legacy', 'default'];
+export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['user', 'rpc', 'api-detail', 'dom', 'provider', 'takeout', 'openai', 'sniff', 'derived', 'legacy', 'default'];
 
 export const TITLE_TIER_RANK = Object.fromEntries(TITLE_SOURCE_PRIORITY.map(source => [source, TITLE_AUTHORITY_RANK[source]]));
 

@@ -186,7 +186,8 @@ test('production RPC client parses raw responses without invoking the legacy det
     try {
         const { GeminiAPIClient } = require('../src/core/api/geminiClient.js') as typeof import('../src/core/api/geminiClient.js');
         const detail = await new GeminiAPIClient().fetchConversationPage('native', null, 'u0');
-        assert.equal(detail.conversation.index.title, 'Native title');
+        assert.equal(detail.conversation.index.title, 'Question');
+        assert.equal(detail.conversation.index.titleSource, 'sniff', 'native detail scalars do not prove a provider title');
         assert.equal(detail.conversation.detail.messages.length, 2);
         assert.equal(Reflect.get(detail.conversation.detail.messages[0], 'provenance'), undefined);
     } finally { credentials.resolveCred = originalCred; transport.postBatchexecute = originalPost; }

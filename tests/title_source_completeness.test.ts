@@ -11,8 +11,9 @@ test('canonical title authority gives every declared source a numeric rank', () 
     assert.equal(titleAuthorityRank('unknown'), TITLE_AUTHORITY_RANK.default);
 });
 
-test('compatibility title priority is a unique, ranked subset of canonical authority', () => {
+test('compatibility title priority covers every canonical source exactly once in rank order', () => {
     assert.equal(new Set(TITLE_SOURCE_PRIORITY).size, TITLE_SOURCE_PRIORITY.length);
+    assert.deepEqual([...TITLE_SOURCE_PRIORITY].sort(), Object.keys(TITLE_AUTHORITY_RANK).sort());
     for (const source of TITLE_SOURCE_PRIORITY) {
         assert.equal(TITLE_TIER_RANK[source], TITLE_AUTHORITY_RANK[source]);
     }

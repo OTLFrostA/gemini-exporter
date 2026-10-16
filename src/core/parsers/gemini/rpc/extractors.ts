@@ -46,8 +46,6 @@ export interface JspbInnerSchema {
     TURNS_OR_LIST_PRIMARY: number;
     /** Secondary index (fallback) for conversation list */
     LIST_SECONDARY: number;
-    /** Candidate indices for conversation title (scanned in order) */
-    TITLE_CANDIDATES: number[];
     /** Candidate indices for conversation ID */
     CONV_ID_CANDIDATES: number[];
     /** Candidate indices for next-page token (scanned in order) */
@@ -203,7 +201,6 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         INNER: {
             TURNS_OR_LIST_PRIMARY: 0,   // inner[0]: turns array (detail) or list items primary
             LIST_SECONDARY: 1,          // inner[1]: list items secondary candidate (fallback)
-            TITLE_CANDIDATES: [2, 1],   // Scanned in order for string title
             CONV_ID_CANDIDATES: [0, 1], // Scanned for "c_..." conversation ID
             NEXT_TOKEN_CANDIDATES: [1, 2, 3], // Scanned for "tC..." pagination token
             METADATA_ONLY_LIST: 2       // inner[2]: list-format metadata-only row
@@ -647,33 +644,8 @@ import { payloadToMs, extractCandidateValue, extractWithScan } from "./payload.j
         return s;
     }
 
-    function extractConversationTitle(inner: unknown, turns?: unknown[]): TitleResult {
-        if (Array.isArray(inner)) {
-            const sanitizeIfTitle = (val: unknown): string | null => {
-                if (typeof val === "string" && val.length > 0 && !val.startsWith("c_") && !val.startsWith("tC") && !val.startsWith("rc_")) {
-                    const clean = cleanTitle(val);
-                    if (isRealTitle(clean)) return clean;
-                }
-                return null;
-            };
-
-            const candidateTitle = extractCandidateValue(inner, GEMINI_JSPB_SCHEMA.INNER.TITLE_CANDIDATES, sanitizeIfTitle);
-            if (candidateTitle) return { title: candidateTitle, source: "rpc" };
-
-            const primary = inner[GEMINI_JSPB_SCHEMA.INNER.TURNS_OR_LIST_PRIMARY];
-            if (Array.isArray(primary) && typeof primary[1] === "string") {
-                const clean = cleanTitle(primary[1]);
-                if (isRealTitle(clean)) return { title: clean, source: "rpc" };
-            }
-
-            const first6Indices = Array.from({ length: Math.min(inner.length, 6) }, (_, i) => i);
-            const broadTitle = extractCandidateValue(
-                inner,
-                first6Indices,
-                val => (typeof val === "string" && val.length >= 2 ? sanitizeIfTitle(val) : null)
-            );
-            if (broadTitle) return { title: broadTitle, source: "rpc" };
-        }
+    /** Detail has no characterized title scalar. Only list metadata can establish RPC authority. */
+    function extractConversationTitle(_inner: unknown, turns?: unknown[]): TitleResult {
         if (Array.isArray(turns)) {
             for (let t of turns) {
                 const t2 = Array.isArray(t) ? t[2] : undefined;

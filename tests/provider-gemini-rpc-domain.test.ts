@@ -37,7 +37,8 @@ test('raw RPC code keeps consecutive blank lines through Domain and Markdown exp
 test('raw RPC input constructs Domain content, reasoning and citations directly', () => {
     const body = [['**Answer** [1]'], ['THOUGHT', 'Check **facts**'], ['https://example.test/source', 'Source']];
     const result = native(rpc([[turn('Question', 1700000000, [['rc_answer', body]])], null, 'Authored title']));
-    assert.equal(result.conversation.index.title, 'Authored title');
+    assert.equal(result.conversation.index.title, 'Question');
+    assert.equal(result.conversation.index.titleSource, 'sniff', 'an uncharacterized RPC scalar is not title evidence');
     assert.deepEqual(result.conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
     const answer = result.conversation.detail.messages[1];
     assert.ok(answer.content[0].type === 'paragraph');

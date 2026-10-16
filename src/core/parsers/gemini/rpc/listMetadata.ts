@@ -1,5 +1,5 @@
 import { GeminiProtocol } from '../../../protocol/protocol.js';
-import { normId, cleanTitle, isRealTitle } from './extractors.js';
+import { GEMINI_JSPB_SCHEMA, normId, cleanTitle, isRealTitle } from './extractors.js';
 import { extractInnerPayload } from './payload.js';
 import { extractListItemTimestamp } from './parseList.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../../../domain/conversationIndex.js';
@@ -24,3 +24,14 @@ export function findListConversationMetadata(top: unknown, targetId: string): Do
     return undefined;
 }
 
+/** A characterized metadata-only detail page uses list rows at inner[2], not arbitrary scalars. */
+export function findMetadataOnlyConversation(inner: unknown, targetId?: string): { id: string; title: string } | undefined {
+    if (!Array.isArray(inner) || inner[0] !== null || inner[1] !== null) return undefined;
+    const rows: unknown = inner[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST];
+    if (!Array.isArray(rows)) return undefined;
+    const matches = rows.filter((row: unknown): row is [string, string, ...unknown[]] =>
+        Array.isArray(row) && typeof row[0] === 'string' && row[0].startsWith('c_')
+        && typeof row[1] === 'string' && (!targetId || normId(row[0]) === normId(targetId)));
+    if (matches.length !== 1) return undefined;
+    return { id: matches[0][0], title: cleanTitle(matches[0][1]) };
+}
