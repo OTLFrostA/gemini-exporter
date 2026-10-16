@@ -5,7 +5,7 @@ const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
 
 test('liveStorageManager - default configuration structure', () => {
     const def = LiveStorageManager.DEFAULT_LIVE_CONFIG;
-    assert.strictEqual(def.enabledDb, undefined);
+    assert.strictEqual(Object.hasOwn(def, 'enabledDb'), false, 'retired enabledDb must be absent');
     assert.strictEqual(def.enabledDisk, false);
     assert.strictEqual(def.format, 'markdown');
     assert.strictEqual(def.includeAssets, true);
@@ -74,7 +74,7 @@ test('liveStorageManager - IDB mock, config persistence and dir handle delegatio
         }
     };
 
-    const origIdb = (global as any).indexedDB;
+    const originalIdb = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
     (global as any).indexedDB = mockIdb;
 
     // Helper to simulate IDB transaction completion
@@ -108,8 +108,12 @@ test('liveStorageManager - IDB mock, config persistence and dir handle delegatio
         const retrievedHandle = await LiveStorageManager.getLiveDirHandle();
         assert.ok(retrievedHandle);
         assert.strictEqual(retrievedHandle.name, 'MyNotes');
+        assert.strictEqual(await LiveStorageManager.clearLiveDirHandle(), true);
+        assert.strictEqual(memoryStores.handles.size, 0, 'clear must remove the stored handle, not just memory cache');
+        assert.strictEqual(await LiveStorageManager.getLiveDirHandle(), null);
     } finally {
-        (global as any).indexedDB = origIdb;
+        if (originalIdb) Object.defineProperty(globalThis, 'indexedDB', originalIdb);
+        else delete (global as any).indexedDB;
     }
 });
 
@@ -122,7 +126,7 @@ test('liveStorageManager - chrome.storage.local takes precedence over IDB as can
         }
     };
 
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     (global as any).chrome = {
         storage: {
             local: {
@@ -150,7 +154,8 @@ test('liveStorageManager - chrome.storage.local takes precedence over IDB as can
         await LiveStorageManager.setLiveConfig({ dirName: 'Updated_SSoT' });
         assert.strictEqual(storageMap.live_save_config.dirName, 'Updated_SSoT');
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });
 
@@ -159,7 +164,7 @@ test('non-Markdown formats suppress live save config and both write routes', asy
     const { handleLiveSaveViaHandle } = require('../src/background/liveSaveHandler.js');
     const { writeLiveSaveMarkdown } = require('../src/core/engine/liveSaveWriter.js');
     const { saveFormat } = require('../src/core/storage/formatStore.js');
-    const originalChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     const data: Record<string, any> = {};
     (global as any).chrome = { storage: { local: {
         get: async () => ({ ...data }),
@@ -190,6 +195,7 @@ test('non-Markdown formats suppress live save config and both write routes', asy
         await Promise.all([saveFormat('html'), saveFormat('markdown')]);
         assert.strictEqual(data[STORAGE_KEYS.FORMAT], 'markdown');
     } finally {
-        (global as any).chrome = originalChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });
