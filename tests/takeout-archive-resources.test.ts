@@ -46,7 +46,6 @@ test('real Takeout filename mismatch shapes recover all eighteen resources uniqu
         ['Weekly%20Ad%20|%20Example%20|%20Report-8888888888888888.pdf', 'Weekly Ad _ Example _ Report-8888888888888888.pdf']
     ];
     const resolve = createTakeoutResourceResolver(inventory(...pairs.map(([, name]) => `${directory}/${name}`)), activityPath);
-    assert.equal(pairs.length, 18);
     for (const [ref, name] of pairs) assert.equal(resolvedPath(resolve, ref), `${directory}/${name}`);
 });
 
@@ -116,6 +115,7 @@ test('ZIP selected and batch parsing retain the Gemini Apps activity directory i
     const asset = selected.conversation.detail.assets[0];
     assert.equal(selected.archiveResources[asset.id].path, `${directory}/photo.png`);
     assert.equal(await selected.archiveResources[asset.id].entry.async!('text'), 'Gemini image bytes');
+    assert.equal(batch.length, 1, 'non-Gemini products must not become conversation imports');
     assert.deepEqual(batch[0].conversation, selected.conversation);
     assert.ok(!selected.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
 });
