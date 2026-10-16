@@ -274,6 +274,7 @@ class DAGRunner:
 
     def run(self, ctx: TestContext, target_ids: Optional[List[str]] = None) -> bool:
         """按拓扑顺序调度执行用例（支持目标子图剪枝）"""
+        nonblocking_statuses = (TestStatus.PASS, TestStatus.WARN)
         # 同步特性至 registry
         for case in self.cases.values():
             ctx.registry.register(case.to_feature())
@@ -300,7 +301,7 @@ class DAGRunner:
             failed_prereq = None
             for prereq in case.prerequisites:
                 res = ctx.registry.get_result(prereq)
-                if not res or res.status != TestStatus.PASS:
+                if not res or res.status not in nonblocking_statuses:
                     failed_prereq = prereq
                     break
 
@@ -351,7 +352,7 @@ class DAGRunner:
         all_passed = True
         for case in ordered_cases:
             res = ctx.registry.get_result(case.feature_id)
-            if not res or res.status not in (TestStatus.PASS, TestStatus.WARN):
+            if not res or res.status not in nonblocking_statuses:
                 all_passed = False
                 status_str = res.status.value if res else "未执行"
                 print(f"❌ 计划特性 [{case.feature_id}] ({case.name}) 未通过 (状态: {status_str})！")

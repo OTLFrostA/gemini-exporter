@@ -254,11 +254,16 @@ class TestDAGSubgraphPruning(unittest.TestCase):
             audit.execute = MagicMock(return_value=(completed, 'audit differences', {'different': 1}))
             audit.success_status = MagicMock(return_value=TestStatus.WARN)
             dag.register(audit)
+            downstream = DummyTestCase('downstream', FeatureDomain.EXPORT_DISK, prereqs=['audit'])
+            dag.register(downstream)
             ctx = TestContext()
             with patch('sys.stdout', new=io.StringIO()):
-                self.assertEqual(dag.run(ctx, target_ids=['audit']), completed)
+                self.assertEqual(dag.run(ctx, target_ids=['downstream']), completed)
             self.assertEqual(ctx.registry.get_result('audit').status,
                              TestStatus.WARN if completed else TestStatus.FAIL)
+            self.assertEqual(downstream.executed, completed)
+            self.assertEqual(ctx.registry.get_result('downstream').status,
+                             TestStatus.PASS if completed else TestStatus.SKIP)
             if completed:
                 self.assertIn('⚠️ WARN', ctx.registry.generate_matrix_report())
 

@@ -169,7 +169,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     }
 }
 
-function createHookSandbox() {
+function createHookSandbox(sniffProfile?: typeof import('../src/content/accountSniffer.js').sniffUserProfileFromDom) {
     const hookCode = fs.readFileSync(path.join(SRC, 'content', 'hookCredentials.js'), 'utf8');
     const protocolCode = fs.readFileSync(path.join(SRC, 'core', 'protocol', 'protocol.js'), 'utf8');
 
@@ -185,14 +185,19 @@ function createHookSandbox() {
             return { text: async () => win.__nextResponseText };
         }
     });
+    class MockXhr {
+        open(_method: string, _url: string): void {}
+        send(_body?: string): void {}
+        addEventListener(): void {}
+    }
     const sandbox: any = {
         window: win,
         location: { origin: 'https://gemini.google.com', href: 'https://gemini.google.com/app', pathname: '/app' },
         document: { querySelectorAll: () => [], addEventListener: () => {} },
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         setTimeout: () => 0,
-        URLSearchParams, Request,
-        sniffUserProfileFromDom: require('../src/content/accountSniffer.js').sniffUserProfileFromDom,
+        URLSearchParams, Request, XMLHttpRequest: MockXhr,
+        sniffUserProfileFromDom: sniffProfile ?? require('../src/content/accountSniffer.js').sniffUserProfileFromDom,
         geminiAccountObservation: require('../src/core/provider/gemini/accountObservation.js').geminiAccountObservation,
         readGeminiListRequest: require('../src/core/parsers/gemini/rpc/listRequest.js').readGeminiListRequest
     };
@@ -203,8 +208,35 @@ function createHookSandbox() {
     // Request-interception assertions start after the independent initial
     // account-discovery announcement (including a missing-Gaia observation).
     posted.length = 0;
-    return { posted, win };
+    return { posted, win, Xhr: MockXhr };
 }
+
+test('hookCredentials - unrelated fetch and XHR traffic does not rescan account profiles', async () => {
+    let scans = 0;
+    const { posted, win, Xhr } = createHookSandbox(() => {
+        scans++;
+        return { gaiaId: '10000000001', email: 'alice@example.com' };
+    });
+    const initialScans = scans;
+    assert.ok(initialScans > 0, 'startup discovery still runs independently of traffic');
+    for (let i = 0; i < 20; i++) {
+        await win.fetch(new Request(`https://gemini.google.com/assets/chunk-${i}.js`));
+        const xhr = new Xhr();
+        xhr.open('POST', 'https://gemini.google.com/telemetry');
+        xhr.send('event=sample');
+    }
+    assert.equal(scans, initialScans, 'ordinary requests must add no account DOM scans');
+    await win.fetch('https://gemini.google.com/batchexecute?at=token&f.sid=fetch-sid');
+    assert.ok(scans > initialScans, 'batchexecute still refreshes the account');
+    const afterFetch = scans;
+    const xhr = new Xhr();
+    xhr.open('POST', 'https://gemini.google.com/batchexecute?at=token&f.sid=xhr-sid');
+    xhr.send();
+    assert.ok(scans > afterFetch, 'batchexecute XHR still refreshes the account');
+    const credentials = posted.filter(p => p.msg.type === 'GEMINI_CREDENTIALS');
+    assert.deepEqual(credentials.map(p => p.msg.payload.sid), ['fetch-sid', 'xhr-sid']);
+    assert.ok(credentials.every(p => p.msg.payload.accountObservation.providerAccountId === '10000000001'));
+});
 
 // ============================================================================
 // Section 1: Behavioral Locks & End-to-End Export Finalize

@@ -82,10 +82,10 @@ declare global {
 
     function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
         try {
-            publishAccount();
             if (!url) return;
             const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;
+            publishAccount();
             let atMatch: RegExpMatchArray | [unknown, string] | null = u.match(/[?&]at=([^&]+)/);
             if (!atMatch && typeof body === 'string') {
                 atMatch = body.match(/at=([^&]+)/);
