@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () => {
-  test('should update chat title in storage & workbench during export, and restore session banner on reload', async ({ context, extensionId }) => {
+  test('interrupted export session banner survives reload, switches locale and dismisses its checkpoint', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
@@ -55,6 +55,9 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     // 3. Reload options workbench (user refreshed the page)
     await optionsPage.reload();
     await optionsPage.waitForLoadState('domcontentloaded');
+    // This is a persisted interrupted-session fixture, not a real export/rename.
+    // The original conversation title must survive the banner's progress label.
+    await expect(optionsPage.locator('[data-chat-id="chat_session_test_1"]')).toContainText('Takeout Prompt 临时问题');
 
     // 4. Verify Export Session Recovery Banner is rendered in Chinese
     const banner = optionsPage.locator('#exportSessionBanner');
@@ -145,86 +148,91 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     await geminiPage.goto('https://gemini.google.com/app');
     await geminiPage.waitForLoadState('domcontentloaded');
 
-    // 2. Open Workbench Options page
-    const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await optionsPage.waitForLoadState('domcontentloaded');
+    try {
+      // 2. Open Workbench Options page
+      const optionsPage = await context.newPage();
+      await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+      await optionsPage.waitForLoadState('domcontentloaded');
 
-    // Seed test conversation
-    await optionsPage.evaluate(async () => {
-      const convs = [
-        { id: 'chat_delay_001', title: '待导出延迟测试会话', timestamp: 1700000000000 },
-        ...Array.from({ length: 40 }, (_, i) => ({
-          id: `chat_scroll_${i}`, title: `滚动测试会话 ${i}`, timestamp: 1699999999999 - i
-        }))
-      ];
-      await chrome.storage.local.set({
-        gemini_conversations: (convs).map(canonicalIndexFixture),
-        exportedIds: {}
-      });
-      if (typeof window.__workbenchLoadStore === 'function') {
-        await window.__workbenchLoadStore(true);
-      }
-    });
-
-    await optionsPage.click('#btnSelectNone');
-    await optionsPage.locator('[data-chat-id="chat_delay_001"] input[type=checkbox]').check();
-    await expect(optionsPage.locator('#list input[type=checkbox]:checked')).toHaveCount(1);
-
-    // 3. Trigger real export via clicking #btnExport to naturally enter running state
-    await optionsPage.click('#btnExport');
-
-    const banner = optionsPage.locator('#exportSessionBanner');
-    await expect(banner).not.toBeVisible();
-
-    const btnScan = optionsPage.locator('#btnSyncAll');
-    const btnExport = optionsPage.locator('#btnExport');
-
-    // Buttons must be naturally disabled while ExportEngine is active
-    await expect(btnScan).toBeDisabled();
-    await expect(btnExport).toBeDisabled();
-
-    const list = optionsPage.locator('#list');
-    await expect(list.locator('input[type=checkbox]').first()).toBeDisabled();
-    await list.locator('.chat-title').nth(1).click();
-    await expect(list.locator('input[type=checkbox]:checked')).toHaveCount(1);
-    await list.hover();
-    await optionsPage.mouse.wheel(0, 450);
-    await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
-
-    // 4. Trigger loadStore while export is running
-    await optionsPage.evaluate(async () => {
-      await chrome.storage.local.set({
-        gemini_last_export_session: {
-          status: 'running',
-          slot: 'u0',
-          total: 10,
-          current: 3,
-          updatedAt: Date.now()
+      // Seed test conversation
+      await optionsPage.evaluate(async () => {
+        const convs = [
+          { id: 'chat_delay_001', title: '待导出延迟测试会话', timestamp: 1700000000000 },
+          ...Array.from({ length: 40 }, (_, i) => ({
+            id: `chat_scroll_${i}`, title: `滚动测试会话 ${i}`, timestamp: 1699999999999 - i
+          }))
+        ];
+        await chrome.storage.local.set({
+          gemini_conversations: (convs).map(canonicalIndexFixture),
+          exportedIds: {}
+        });
+        if (typeof window.__workbenchLoadStore === 'function') {
+          await window.__workbenchLoadStore(true);
         }
       });
-      if (typeof window.__workbenchLoadStore === 'function') {
-        await window.__workbenchLoadStore(true);
-      }
-    });
 
-    // Banner MUST remain hidden while export is running
-    await expect(banner).not.toBeVisible();
+      await optionsPage.click('#btnSelectNone');
+      await optionsPage.locator('[data-chat-id="chat_delay_001"] input[type=checkbox]').check();
+      await expect(optionsPage.locator('#list input[type=checkbox]:checked')).toHaveCount(1);
 
-    // A render during export must preserve the selection lock.
-    await expect(list.locator('input[type=checkbox]').first()).toBeDisabled();
-    const checkedAfterRender = await list.locator('input[type=checkbox]:checked').count();
-    await list.locator('.chat-title').first().click();
-    await expect(list.locator('input[type=checkbox]:checked')).toHaveCount(checkedAfterRender);
+      // 3. Trigger real export via clicking #btnExport to naturally enter running state
+      await optionsPage.click('#btnExport');
 
-    // 5. Unblock network gate so export completes cleanly without hanging context teardown
-    const downloadPromise = optionsPage.waitForEvent('download', { timeout: 15000 }).catch(() => null);
-    resolveRoute();
-    await downloadPromise;
+      const banner = optionsPage.locator('#exportSessionBanner');
+      await expect(banner).not.toBeVisible();
 
-    // Export completes, naturally re-enabling all action buttons
-    await expect(btnScan).toBeEnabled({ timeout: 10000 });
-    await expect(btnExport).toBeEnabled();
-    await expect(list.locator('input[type=checkbox]').first()).toBeEnabled();
+      const btnScan = optionsPage.locator('#btnSyncAll');
+      const btnExport = optionsPage.locator('#btnExport');
+
+      // Buttons must be naturally disabled while ExportEngine is active
+      await expect(btnScan).toBeDisabled();
+      await expect(btnExport).toBeDisabled();
+
+      const list = optionsPage.locator('#list');
+      await expect(list.locator('input[type=checkbox]').first()).toBeDisabled();
+      await list.locator('.chat-title').nth(1).click();
+      await expect(list.locator('input[type=checkbox]:checked')).toHaveCount(1);
+      await list.hover();
+      await optionsPage.mouse.wheel(0, 450);
+      await expect.poll(() => list.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+
+      // 4. Trigger loadStore while export is running
+      await optionsPage.evaluate(async () => {
+        await chrome.storage.local.set({
+          gemini_last_export_session: {
+            status: 'running',
+            slot: 'u0',
+            total: 10,
+            current: 3,
+            updatedAt: Date.now()
+          }
+        });
+        if (typeof window.__workbenchLoadStore === 'function') {
+          await window.__workbenchLoadStore(true);
+        }
+      });
+
+      // Banner MUST remain hidden while export is running
+      await expect(banner).not.toBeVisible();
+
+      // A render during export must preserve the selection lock.
+      await expect(list.locator('input[type=checkbox]').first()).toBeDisabled();
+      const checkedAfterRender = await list.locator('input[type=checkbox]:checked').count();
+      await list.locator('.chat-title').first().click();
+      await expect(list.locator('input[type=checkbox]:checked')).toHaveCount(checkedAfterRender);
+
+      // 5. Unblock network gate so export completes cleanly without hanging context teardown
+      const downloadPromise = optionsPage.waitForEvent('download', { timeout: 15000 }).catch(() => null);
+      resolveRoute();
+      await downloadPromise;
+
+      // Export completes, naturally re-enabling all action buttons
+      await expect(btnScan).toBeEnabled({ timeout: 10000 });
+      await expect(btnExport).toBeEnabled();
+      await expect(list.locator('input[type=checkbox]').first()).toBeEnabled();
+    } finally {
+      // Never strand the pending batchexecute route on an earlier assertion failure.
+      resolveRoute();
+    }
   });
 });
