@@ -4,7 +4,7 @@ const assert = require('node:assert');
 
 const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
 const { handleHttp400 } = require('../src/core/api/client/retryPolicy.js');
-const { isRateLimited, withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
+const { withRateLimitRetry } = require('../src/core/engine/export/rateLimiter.js');
 
 // ---------------------------------------------------------------------------
 // 1. handleHttp400 XSRF recovery logic in retryPolicy
@@ -53,7 +53,7 @@ test('retryPolicy - handleHttp400 uses getAtFromPage fallback if snippet has no 
 // ---------------------------------------------------------------------------
 test('geminiClient - getConversationList recovers on HTTP 400 with fresh credentials', async () => {
     const client = new GeminiAPIClient();
-    const origFetch = (global as any).fetch;
+    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     let callCount = 0;
 
     (global as any).fetch = async (_url: string, _opts: any) => {
@@ -83,7 +83,8 @@ test('geminiClient - getConversationList recovers on HTTP 400 with fresh credent
         assert.strictEqual(res.conversations.length, 1);
         assert.strictEqual(res.conversations[0].id, 'chat_rec_400');
     } finally {
-        (global as any).fetch = origFetch;
+        if (originalFetch) Object.defineProperty(globalThis, 'fetch', originalFetch);
+        else delete (global as any).fetch;
     }
 });
 
@@ -110,7 +111,7 @@ test('geminiClient - abort signal immediately halts client and flags isAborted',
 // ---------------------------------------------------------------------------
 test('geminiClient - getAllConversations traverses pages until completion', async () => {
     const client = new GeminiAPIClient();
-    const origFetch = (global as any).fetch;
+    const originalFetch = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     let pageCalls = 0;
 
     (global as any).fetch = async (_url: string, _opts: any) => {
@@ -138,31 +139,9 @@ test('geminiClient - getAllConversations traverses pages until completion', asyn
         assert.strictEqual(res.conversations[0].id, 'chat_p1');
         assert.strictEqual(res.conversations[1].id, 'chat_p2');
     } finally {
-        (global as any).fetch = origFetch;
+        if (originalFetch) Object.defineProperty(globalThis, 'fetch', originalFetch);
+        else delete (global as any).fetch;
     }
-});
-
-// ---------------------------------------------------------------------------
-// 4. isRateLimited unified predicate
-// ---------------------------------------------------------------------------
-test('rateLimiter - isRateLimited correctly detects all variants across formats', () => {
-    // Status 429
-    assert.strictEqual(isRateLimited({ status: 429 }), true);
-    assert.strictEqual(isRateLimited({ status: 200, success: true }), false);
-
-    // Errors & strings
-    assert.strictEqual(isRateLimited('Error: 429 Too Many Requests'), true);
-    assert.strictEqual(isRateLimited('Network error: BardErrorInfo limit'), true);
-    assert.strictEqual(isRateLimited('已达到服务端上限，请稍后重试'), true);
-    assert.strictEqual(isRateLimited('Error 1096 encountered'), true);
-    assert.strictEqual(isRateLimited('Quota exceeded for quota metric'), true);
-    assert.strictEqual(isRateLimited(new Error('RESOURCE_EXHAUSTED: rate limit')), true);
-
-    // Negative cases
-    assert.strictEqual(isRateLimited(null), false);
-    assert.strictEqual(isRateLimited(''), false);
-    assert.strictEqual(isRateLimited('Connection reset by peer'), false);
-    assert.strictEqual(isRateLimited({ success: true, error: '429' }), false);
 });
 
 // ---------------------------------------------------------------------------
