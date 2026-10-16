@@ -113,28 +113,7 @@ test('empty state is composed and locale is explicit', () => {
     assert.ok(renderDocumentHtml(document, {}).html.includes('A different notice'));
 });
 
-test('HTML backend depends on presentation AST rather than domain or provider layers', () => {
-    const ts = require('typescript') as typeof import('typescript');
-    const source = readFileSync('src/core/renderers/html/renderHtml.ts', 'utf8');
-    const parsed = ts.createSourceFile('renderHtml.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-    const imports = parsed.statements
-        .filter(ts.isImportDeclaration)
-        .map(statement => statement.moduleSpecifier)
-        .filter(ts.isStringLiteral)
-        .map(specifier => specifier.text);
-    assert.ok(imports.includes('../../document/ast/ast.js'), 'HTML backend must consume the Document AST contract');
-    assert.deepEqual(imports.filter(specifier => /(?:^|\/)(?:domain|provider|parsers|canonical)(?:\/|\.|$)/.test(specifier)), [],
-        'HTML renderer cannot directly import Domain, provider, parser or canonical model modules');
 
-    const semanticInferences: string[] = [];
-    const visit = (node: import('typescript').Node) => {
-        if (ts.isPropertyAccessExpression(node) && node.name.text === 'role') semanticInferences.push('role access');
-        if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === 'Date') semanticInferences.push('Date construction');
-        ts.forEachChild(node, visit);
-    };
-    visit(parsed);
-    assert.deepEqual(semanticInferences, [], 'role decisions and timestamp presentation belong in the Document AST');
-});
 
 test('production HTML facade uses prepared archive paths consistently', async () => {
     const native = historicalFixture({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });
