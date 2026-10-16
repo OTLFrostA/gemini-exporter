@@ -1,43 +1,5 @@
 [
   {
-    "id": "thermodynamics_chemical_equilibrium_gibbs_stoichiometry",
-    "domain": "chemical_thermodynamics_reaction_equilibria",
-    "title": "Reaction thermodynamics: Gibbs free energy minimization, extent of reaction and equilibrium constants",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate the reaction extent and stoichiometric conservation laws for a closed ideal-gas mixture using LaTeX. Derive the chemical affinity and the Gibbs free energy minimization condition at constant temperature and pressure.",
-      "Derive the relationship between the standard Gibbs free energy change, the dimensionless equilibrium constant and reaction quotient. Work through a concrete reversible gas-phase dissociation example as a function of total pressure.",
-      "Write complete runnable Python using only the standard library to solve for the equilibrium reaction extent via bisection and Newton steps, including assertions for elemental mass balance, positivity of mole fractions and vanishing chemical affinity.",
-      "Compare stoichiometric extent-of-reaction solvers, Lagrange-multiplier elemental-potential minimization and linearized van 't Hoff approximations in a Markdown table covering numerical conditioning, constraints and applicability. Include an English and Chinese glossary.",
-      "Design a reproducible sensitivity audit for coupled reactions under temperature and inert-diluent perturbations. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact thermodynamic identities from ideal-gas assumptions."
-    ]
-  },
-  {
-    "id": "coding_theory_hamming_syndrome_decoding_cosets",
-    "domain": "coding_theory_linear_block_codes",
-    "title": "Linear block codes: parity-check matrices, syndrome decoding and standard-array coset leaders",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a binary [n, k, d] linear block code over GF(2) using generator and parity-check matrices in LaTeX. Prove the orthogonality relation between codewords and parity checks using a concrete [7, 4, 3] Hamming code example.",
-      "Derive syndrome decoding and standard-array coset decomposition. Show why single-bit errors map bijectively to nonzero syndromes in a [7, 4, 3] Hamming code and analyze what happens when a weight-two error occurs.",
-      "Provide complete runnable Python standard-library code for GF(2) encoding, syndrome calculation, single-error correction and extended SECDED parity checking, with exhaustive tests over all 1-bit and 2-bit error patterns.",
-      "Compare repetition codes, [7, 4, 3] Hamming codes, extended [8, 4, 4] SECDED codes and CRC error-detection codes in a Markdown table across code rate, minimum distance, correction capability and syndrome complexity. Include English and Chinese terminology.",
-      "Construct a reproducible channel-error audit comparing uncoded transmission, Hamming correction and SECDED detection+retransmission across bit-flip probabilities. Include LaTeX frame-error equations, runnable tests and a Markdown results table."
-    ]
-  },
-  {
     "id": "fluid_mechanics_pipe_network_hardy_cross_conservation",
     "domain": "fluid_mechanics_hydraulic_pipe_networks",
     "title": "Hydraulic pipe networks: nodal mass balance, Darcy-Weisbach head loss and Hardy-Cross loop corrections",
@@ -404,6 +366,49 @@
       "Derive normalized innovation squared and explain what it can and cannot diagnose under finite samples, model mismatch and correlated noise. Produce a Markdown table of innovations, innovation variances and consistency statistics for a reproducible short sequence.",
       "Construct executable counterexamples for zero or negative sensor variance, singular innovation covariance and asymmetric initial covariance. Describe explicit input rejection and demonstrate that no invalid inverse or silent covariance repair is used.",
       "Summarize numerical verification in a Markdown table: maximum symmetry residual, minimum covariance determinant, estimation errors and missing-observation behavior. Explain why consistency tests alone do not prove physical model correctness and give complete reproduction instructions."
+    ]
+  },
+  {
+    "id": "crystallography_reciprocal_lattice_bragg_powder_indexing",
+    "domain": "crystallography_diffraction_reciprocal_space",
+    "title": "Crystal diffraction: reciprocal lattices, Bragg conditions and powder peak indexing",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate an educational diagram comparing a cubic crystal lattice with its reciprocal lattice and an Ewald sphere. Explain in English and Chinese which geometric objects represent planes, reciprocal vectors and elastic scattering, distinguishing the schematic from measurable diffraction data.",
+      "Derive reciprocal basis vectors and the LaTeX relation between lattice-plane spacing, Miller indices and Bragg diffraction angle. Work through a cubic lattice example with explicit wavelength and units; distinguish primitive, body-centered and face-centered extinction conditions.",
+      "Write complete runnable Python using only the standard library to enumerate unique powder diffraction peaks for simple, body-centered and face-centered cubic crystals. Include assertions for extinction rules, degeneracies and the Bragg sine domain.",
+      "Compare peak positions, multiplicities, systematic absences and lattice-parameter uncertainty in a Markdown table for three concrete cubic crystal candidates. Explain why relative intensity cannot be inferred from peak multiplicity alone.",
+      "Design a reproducible inverse indexing audit using synthetic noisy peak angles. Provide LaTeX residual and uncertainty equations, runnable lattice-parameter estimation tests and a Markdown report distinguishing identifiable lattice geometry from unknown structure factors."
+    ]
+  },
+  {
+    "id": "compiler_ll1_nullable_first_follow_predictive_parser",
+    "domain": "compiler_theory_predictive_parsing",
+    "title": "Predictive parsing: nullable, FIRST/FOLLOW fixed points and LL(1) conflict certificates",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a context-free expression grammar with nullable productions and explicit end-of-input. Use LaTeX to state the least-fixed-point equations for nullable, FIRST and FOLLOW, and explain the roles of epsilon and the input sentinel.",
+      "Compute nullable and FIRST step by step for a concrete expression grammar after eliminating immediate left recursion. Present every iteration in a Markdown table and prove finite termination from monotonicity.",
+      "Derive FOLLOW propagation constraints and construct the full LL(1) prediction table, including epsilon productions. Show a deterministic conflict certificate for a deliberately ambiguous grammar.",
+      "Write complete runnable Python standard-library code that computes nullable, FIRST and FOLLOW by worklist iteration and constructs an LL(1) table. Include tests for indirect nullability, cycles, unreachable productions and a conflicting cell.",
+      "Extend the Python program with a table-driven predictive parser that produces a parse trace for a parenthesized arithmetic expression. Show stack, remaining input and chosen production in a Markdown table.",
+      "Design negative tests for missing operands, unmatched parentheses, trailing tokens and a valid empty production. State the exact rejection point and prove that successful parses consume the entire input.",
+      "Compare LL(1), recursive descent with backtracking, Pratt parsing and LR(1) in a Markdown table covering grammar restrictions, lookahead, conflict diagnosis and error recovery. Include an English and Chinese terminology glossary.",
+      "Build a reproducible grammar-transformation audit: enumerate short token strings and compare acceptance before and after left-recursion elimination and factoring. Provide runnable tests, LaTeX language-equivalence claims with explicit bounds and a Markdown summary separating bounded evidence from a general proof."
     ]
   }
 ]
