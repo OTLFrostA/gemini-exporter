@@ -31,7 +31,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>量子纠缠物理原理深度解析 - Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>量子纠缠物理原理深度解析 - Google Gemini</title>
         </head>
         <body>
           <h1 data-test-id="conversation-title">量子纠缠物理原理深度解析</h1>
@@ -73,7 +73,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
             "tC_token_xyz",
             "量子纠缠物理原理深度解析"
           ]))}]]`,
-          slot: 'u0'
+          slot: 'u0', requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000001' }
         }
       }, location.origin);
     });
@@ -131,7 +131,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>微服务与分布式事务设计 - Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>微服务与分布式事务设计 - Google Gemini</title>
         </head>
         <body>
           <h1 data-test-id="conversation-title">微服务与分布式事务设计 - Google Gemini</h1>
@@ -191,7 +191,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>Google Gemini</title>
         </head>
         <body>
           <div class="loading-spinner">Loading...</div>
@@ -225,7 +225,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
         body: `<!DOCTYPE html>
         <html>
         <head>
-          <title>测试对话 - Google Gemini</title>
+          <script>window._WIZ_global_data={qDCSke:'10000000001'}</script><title>测试对话 - Google Gemini</title>
         </head>
         <body style="width: 1000px; height: 800px;">
           <h1 data-test-id="conversation-title">测试对话</h1>

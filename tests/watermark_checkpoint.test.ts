@@ -29,7 +29,7 @@ async function fixture(run: (data: Record<string, unknown>) => Promise<void>) {
 }
 const baseline = { headTimestamp: 1700000000000, conversationCount: 2 };
 const observation = (streamId = 'recent', keys = [{ id: 'abcdef123', time: 1700000000000 }], requestCursor: string | null = null, nextCursor: string | null = null) => ({
-    providerId: 'gemini', accountId: 'account-a', streamId, keys, items: [], requestKnown: true,
+    providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001', streamId, keys, items: [], requestKnown: true,
     requestedAt: Date.now() + 1, requestCursor, nextCursor, valid: true, ordered: streamId === 'recent'
 });
 async function observe(runId: string, page = observation(), slot = 'u0') {
@@ -39,21 +39,21 @@ async function observe(runId: string, page = observation(), slot = 'u0') {
 
 test('legacy versions 1 and 2 cannot certify stream coverage or initialize the new watermark', async () => fixture(async data => {
     for (const version of [1, 2]) {
-        data.gemini_scan_coverage = { version, revision: 10, accountId: 'account-a', complete: true, baseline, lastStatus: 'complete', activeRunId: null };
+        data.gemini_scan_coverage = { version, revision: 10, accountId: '10000000-0000-4000-8000-000000000001', complete: true, baseline, lastStatus: 'complete', activeRunId: null };
         assert.equal(await StorageService.getScanCoverage('u0'), null);
-        const run = await StorageService.beginScanCoverage('u0', 'account-a');
+        const run = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
         assert.equal(run.previous, null);
         const current = await StorageService.getScanCoverage('u0');
-        assert.equal(current?.version, 3); assert.equal(current?.initialized, false); assert.equal(current?.historyComplete, false);
+        assert.equal(current?.version, 4); assert.equal(current?.initialized, false); assert.equal(current?.historyComplete, false);
     }
 }));
 
 test('a previous complete history cannot certify a broken current cursor chain', async () => fixture(async () => {
-    const first = await StorageService.beginScanCoverage('u0', 'account-a');
+    const first = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     await observe(first.runId, observation('pinned', []));
     await observe(first.runId);
     await StorageService.finishScanCoverage('u0', first.runId, 'complete', baseline);
-    const second = await StorageService.beginScanCoverage('u0', 'account-a');
+    const second = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     const head = observation('recent', [{ id: 'duplicate', time: 1800000000000 }], null, 'next');
     await observe(second.runId, head);
     await observe(second.runId, observation('recent', head.keys, 'next'));
@@ -63,19 +63,19 @@ test('a previous complete history cannot certify a broken current cursor chain',
 test('partial first scans initialize from fully persisted trusted pages, while a first-page failure remains uninitialized', async () => fixture(async () => {
     for (const status of ['partial_limit', 'aborted', 'error'] as const) {
         await StorageService.clearConversations('u0');
-        const first = await StorageService.beginScanCoverage('u0', 'account-a');
+        const first = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
         await StorageService.finishScanCoverage('u0', first.runId, status);
         assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, false);
-        const saved = await StorageService.beginScanCoverage('u0', 'account-a');
+        const saved = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
         assert.equal(await observe(saved.runId, observation('recent', undefined, 'not-the-head', 'next')), true);
         await StorageService.finishScanCoverage('u0', saved.runId, status);
         const current = await StorageService.getScanCoverage('u0');
         assert.equal(current?.initialized, true); assert.equal(current?.historyComplete, false); assert.equal(current?.baseline, null);
-        assert.equal((await StorageService.beginScanCoverage('u0', 'account-a')).previous?.initialized, true);
+        assert.equal((await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001')).previous?.initialized, true);
     }
 }));
 test('natural exhaustion requires both independent streams; empty accounts have no client-clock ordering key', async () => fixture(async () => {
-    const run = await StorageService.beginScanCoverage('u0', 'account-a');
+    const run = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     await observe(run.runId, observation('pinned', []));
     assert.equal((await StorageService.getScanCoverage('u0'))?.historyComplete, false);
     await observe(run.runId, observation('recent', []));
@@ -85,11 +85,11 @@ test('natural exhaustion requires both independent streams; empty accounts have 
     assert.equal(current?.streams.recent.range, null); assert.equal(current?.streams.pinned.range, null);
 }));
 test('cache writes and Takeout-compatible ingestion cannot advance RPC coverage; frozen baselines remain immutable', async () => fixture(async () => {
-    const run = await StorageService.beginScanCoverage('u0', 'account-a');
+    const run = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     await observe(run.runId);
     await observe(run.runId, observation('pinned', []));
     await StorageService.finishScanCoverage('u0', run.runId, 'complete', baseline);
-    const next = await StorageService.beginScanCoverage('u0', 'account-a');
+    const next = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     const frozen = structuredClone(next.previous);
     const before = structuredClone(await StorageService.getScanCoverage('u0'));
     await ingestRpcList([indexFixture({ id: 'newabcdef123', title: 'Sniffed', titleSource: 'rpc', titles: { rpc: 'Sniffed' },
@@ -98,35 +98,34 @@ test('cache writes and Takeout-compatible ingestion cannot advance RPC coverage;
     assert.deepEqual(next.previous, frozen);
 }));
 test('newer active runs, account changes and clearing reject old commits including late passive responses', async () => fixture(async data => {
-    const older = await StorageService.beginScanCoverage('u0', 'account-a');
+    const older = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     const context = (await StorageService.getScanCoverage('u0'))!;
-    const newer = await StorageService.beginScanCoverage('u0', 'account-a');
+    const newer = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     const before = structuredClone(data);
     assert.equal(await StorageService.recordPageCoverage('u0', observation(), context, true, ['recent', 'pinned'], older.runId), false);
     assert.equal(await StorageService.finishScanCoverage('u0', older.runId, 'complete', baseline), false);
     assert.deepEqual(data, before);
     assert.equal(await observe(newer.runId), true);
-    const switched = await StorageService.beginScanCoverage('u0', 'account-b');
+    const switched = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000002');
     assert.equal(switched.previous, null);
     assert.equal(await StorageService.recordPageCoverage('u0', observation(), context, true, ['recent', 'pinned']), false);
     await StorageService.clearConversations('u0');
     assert.equal(await StorageService.getScanCoverage('u0'), null);
     assert.equal(await StorageService.finishScanCoverage('u0', switched.runId, 'complete', baseline), false);
-    const afterClear = await StorageService.preparePageCoverage('u0', 'account-a');
+    const afterClear = await StorageService.preparePageCoverage('u0', '10000000-0000-4000-8000-000000000001');
     assert.equal(await StorageService.recordPageCoverage('u0', { ...observation(), requestedAt: afterClear.resetAt - 1 }, afterClear, true, ['recent', 'pinned']), false);
     assert.equal(data.gemini_scan_checkpoint, undefined);
 }));
 test('unknown identities and invalid evidence cannot initialize coverage; cancellation guards also run under the write lock', async () => fixture(async data => {
-    const run = await StorageService.beginScanCoverage('u0', 'account-a');
+    const run = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     const context = (await StorageService.getScanCoverage('u0'))!;
     const before = structuredClone(data);
     assert.equal(await StorageService.recordPageCoverage('u0', observation(), context, true, ['recent', 'pinned'], run.runId, () => false), false);
     assert.deepEqual(data, before);
     await observe(run.runId, { ...observation(), requestKnown: false });
     assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, false);
-    const unknown = await StorageService.beginScanCoverage('u0', null);
-    assert.equal(unknown.previous, null);
-    await assert.rejects(StorageService.finishScanCoverage('u0', unknown.runId, 'complete', baseline), /durable complete coverage/);
+    await assert.rejects(StorageService.beginScanCoverage('u0', null), /Registry account UUID/);
+    await assert.rejects(StorageService.beginScanCoverage('u0', 'email@example.com'), /Registry account UUID/);
     assert.equal((await StorageService.getScanCoverage('u0'))?.initialized, false);
     for (const value of [123, {}, { version: 1 }, { version: 2 }, { version: 3 }]) assert.equal(readScanCoverage(value), null);
 }));
@@ -140,7 +139,7 @@ test('completed or incremental scan absence never changes archives, other accoun
     data.domainBodies = { absent: { messages: ['Saved answer'], assets: [1, 2, 3] } };
     const untouched = structuredClone(data);
     for (const status of ['complete', 'up_to_date', 'partial_limit'] as const) {
-        const run = await StorageService.beginScanCoverage('u0', 'account-a');
+        const run = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
         await observe(run.runId, observation('pinned', []));
         await observe(run.runId);
         await StorageService.finishScanCoverage('u0', run.runId, status, baseline, ['only-visible']);
@@ -149,7 +148,7 @@ test('completed or incremental scan absence never changes archives, other accoun
 }));
 
 test('terminal status cannot disagree with persisted stream coverage or ordering invalidation', async () => fixture(async () => {
-    const run = await StorageService.beginScanCoverage('u0', 'account-a');
+    const run = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000001');
     await observe(run.runId, observation('pinned', []));
     await assert.rejects(StorageService.finishScanCoverage('u0', run.runId, 'complete', baseline), /durable complete coverage/);
     await observe(run.runId, { ...observation(), ordered: false });

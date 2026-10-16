@@ -270,6 +270,7 @@ async function resolveCredInner(
     targetSidOrSlot?: string | null,
     overrides?: { at?: string; bl?: string | null; accountSlot?: string } | null
 ): Promise<GeminiCredentials> {
+    if (targetSidOrSlot?.includes('@')) throw new TypeError('Email is not a credential routing identity');
     const map = await loadCredMap();
     let vals = Object.values(map).filter(isStoredCredential);
     const pageAt = getAtFromPage();
@@ -279,7 +280,6 @@ async function resolveCredInner(
 
     const isSlotParam = targetSidOrSlot && (
         /^u\d+$/i.test(targetSidOrSlot) ||
-        targetSidOrSlot.includes('@') ||
         targetSidOrSlot === 'default'
     );
     const targetSid = (!isSlotParam && targetSidOrSlot && map[targetSidOrSlot]) ? targetSidOrSlot : null;

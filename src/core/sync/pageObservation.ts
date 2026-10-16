@@ -1,7 +1,7 @@
 /** Provider-neutral evidence, independent of acquisition trigger and storage layout. */
 export interface PageObservation<T> {
     providerId: string;
-    /** Existing sync source fingerprint (not a Registry UUID); coverage migration is separate. */
+    /** Local Registry UUID; null means unverified and cannot authorize ingestion or coverage. */
     accountId: string | null;
     streamId: string;
     items: T[];

@@ -1,3 +1,4 @@
+import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
@@ -672,6 +673,8 @@ test('audit fix: tabService strictly isolates non-u0 slots without silent cross-
 });
 
 test('network RPC lists from another account slot are rejected at the shared ingestion boundary', async () => {
+    const runtime = accountRuntime();
+    try {
     const bridge = require('../src/content/messageBridge.js');
     let receivedSlot = '';
     const api = bridge.init({
@@ -682,10 +685,11 @@ test('network RPC lists from another account slot are rejected at the shared ing
         }
     });
     const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_slot_isolation', 'Title']]])]]);
-    await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u1' } } });
+    await api.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, requestAccountObservation: ACCOUNT_OBSERVATION, slot: 'u1' } } });
     assert.strictEqual(receivedSlot, '', 'a stale u1 response must not reach the active u0 observer');
-    await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u0' } } });
+    await api.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, requestAccountObservation: ACCOUNT_OBSERVATION, slot: 'u0' } } });
     assert.strictEqual(receivedSlot, 'u0');
+    } finally { runtime.restore(); }
 });
 
 // ============================================================================

@@ -1,3 +1,4 @@
+import type { AccountObservation } from '../core/domain/accountRegistry.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import { geminiAccountObservation } from '../core/provider/gemini/accountObservation.js';
 import { readGeminiListRequest } from '../core/parsers/gemini/rpc/listRequest.js';
@@ -260,19 +261,26 @@ declare global {
         }
     }
 
-    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown, body?: unknown, truncated = false, requestedAt = 0, requestAccountId: string | null = null): void {
+    // Capture before native send. A request for another slot has no verified current-page identity.
+    function captureRequestAccount(url: string | URL | Request | null | undefined): AccountObservation | null {
+        if (!toUrlString(url).includes('batchexecute') || getSlotFromUrl(url) !== getSlotFromUrl(location.href)) return null;
+        return geminiAccountObservation(sniffUserProfileFromDom());
+    }
+
+    function broadcastBatchexecute(url: string | URL | Request | null | undefined, text: unknown, body?: unknown, truncated = false, requestedAt = 0, requestAccountObservation: AccountObservation | null = null, capturedSlot?: string): void {
         try {
             // wrb.fr is the outer wrapper of EVERY batchexecute response, so it must
             // not take part in this test — including it makes the filter always pass
             // and relays every response body (up to 3MB) across worlds. Only the
             // payloads the ISOLATED side actually parses (list / detail) are relayed.
             if (typeof text !== 'string' || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
-            const slot = getSlotFromUrl(url);
+            const slot = capturedSlot;
+            if (!slot) return;
             const payload: GeminiNetworkBatchexecutePayload = {
                 text: text.slice(0, 3000000), // Protect against memory spikes
                 listRequest: readGeminiListRequest(body),
                 requestedAt,
-                requestAccountId,
+                requestAccountObservation,
                 truncated: truncated || text.length > 3000000,
                 slot,
                 url: toUrlString(url)
@@ -342,7 +350,8 @@ declare global {
             init?: RequestInit
         ): Promise<Response> {
             const requestedAt = Date.now();
-            const requestAccountId = toUrlString(input).includes('batchexecute') ? sniffUserProfileFromDom()?.identityKey ?? null : null;
+            const requestAccountObservation = captureRequestAccount(input);
+            const requestSlot = getSlotFromUrl(input);
             let requestBody: unknown;
             if (typeof Request !== 'undefined' && input instanceof Request) {
                 requestBody = input.body;
@@ -375,7 +384,7 @@ declare global {
                     readCappedText(cloned).then(async ({ text: txt, truncated }) => {
                         try {
                             detectDeletedConversation(input, body, txt);
-                            broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt, requestAccountId);
+                            broadcastBatchexecute(input, txt, await capturedBody, truncated || !response.ok, requestedAt, requestAccountObservation, requestSlot);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }
@@ -428,7 +437,8 @@ declare global {
                 const url = this.__hookUrl;
                 const body = args[0];
                 const requestedAt = Date.now();
-                const requestAccountId = toUrlString(url).includes('batchexecute') ? sniffUserProfileFromDom()?.identityKey ?? null : null;
+                const requestAccountObservation = captureRequestAccount(url);
+                const requestSlot = getSlotFromUrl(url);
                 captureFromUrl(url, body);
 
                 const u = toUrlString(url);
@@ -436,7 +446,7 @@ declare global {
                     this.addEventListener('load', () => {
                         try {
                             detectDeletedConversation(url, body, this.responseText);
-                            broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt, requestAccountId);
+                            broadcastBatchexecute(url, this.responseText, body, this.status < 200 || this.status >= 300, requestedAt, requestAccountObservation, requestSlot);
                         } catch (e) {
                             if (isDev()) console.debug('[GemExporter:hook]', e);
                         }

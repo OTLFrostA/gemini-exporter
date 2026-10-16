@@ -1,3 +1,4 @@
+import { isAccountId } from '../domain/accountRegistry.js';
 import { selectConversationBody, withConversationMetadata } from '../domain/runtimeValidation.js';
 import type { StoredDomainResource } from './domain/contracts.js';
 import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
@@ -248,14 +249,16 @@ async function setConversations(slot: string | null | undefined, list: readonly 
 }
 /** Accept parsed external evidence before any consumer composes or renders it. */
 async function ingestConversation(slot: string, parsed: ResourceConversationParseResult,
-    resources: readonly StoredDomainResource[] = [], source: 'detail' | 'takeout' | 'snapshot' = 'detail'): Promise<ResourceConversationParseResult> {
+    resources: readonly StoredDomainResource[] = [], source: 'detail' | 'takeout' | 'snapshot' = 'detail', canCommit?: () => boolean): Promise<ResourceConversationParseResult> {
     return withConversationLock(async () => {
-        const stored = await saveDomainConversation(normSlot(slot), parsed, resources);
+        if (canCommit?.() === false) throw new Error('Account changed before detail ingestion');
+        const stored = await saveDomainConversation(normSlot(slot), parsed, resources, false, canCommit);
         const list = await getConversations(slot);
         const incoming = indexFromParsed(parsed, source);
         const position = list.findIndex(row => row.providerId === incoming.providerId && row.id === incoming.id);
         const index = mergeConversationIndex(position < 0 ? undefined : list[position], incoming);
         if (position < 0) list.push(index); else list[position] = index;
+        if (canCommit?.() === false) throw new Error('Account changed before index ingestion');
         await _setConversationsRaw(slot, list);
         const accepted = storedParseResult(stored);
         return { ...parsed, ...accepted, sourceVersion: accepted.sourceVersion, diagnostics: parsed.diagnostics, resourceHints: parsed.resourceHints,
@@ -675,15 +678,16 @@ const pageSessions = new Map<string, CoverageSession>();
 const pageSessionKey = (slot: string, coverage: ScanCoverage, streamId: string) =>
     JSON.stringify([slot, coverage.generation, coverage.providerId, coverage.accountId, streamId]);
 
-async function preparePageCoverage(slot: string, accountId: string | null, providerId = 'gemini', resetUnknown = false): Promise<ScanCoverage> {
+async function preparePageCoverage(slot: string, accountId: string | null, providerId = 'gemini'): Promise<ScanCoverage> {
+    if (!isAccountId(accountId)) throw new TypeError('Coverage requires a Registry account UUID');
     return withConversationLock(async () => {
         await assertSchemaWritable();
         const current = await getScanCoverage(slot);
-        if (!resetUnknown && current && current.accountId === accountId && current.providerId === providerId) return current;
+        if (current && current.accountId === accountId && current.providerId === providerId) return current;
         const { coverageKey } = getStorageKeys(slot);
         const raw = (await chrome.storage.local.get<Record<string, unknown>>([coverageKey]))[coverageKey];
         const resetAt = current?.resetAt ?? (isObjectRecord(raw) && typeof raw.resetAt === 'number' ? raw.resetAt : 0);
-        const next: ScanCoverage = { version: 3, providerId, revision: current?.revision ?? 1, generation: crypto.randomUUID(),
+        const next: ScanCoverage = { version: 4, providerId, revision: current?.revision ?? 1, generation: crypto.randomUUID(),
             resetAt, accountId, initialized: false, historyComplete: false, streams: {}, complete: false,
             baseline: null, lastStatus: null, activeRunId: null };
         await chrome.storage.local.set({ [coverageKey]: next });
@@ -725,7 +729,7 @@ async function hasScanCoverageOverlap<T>(slot: string, runId: string, head: Page
     previous: StreamCoverage, canCommit?: () => boolean): Promise<boolean> {
     return withConversationLock(async () => {
         const current = await getScanCoverage(slot);
-        if (!current || current.activeRunId !== runId || current.accountId === null
+        if (!current || current.activeRunId !== runId
             || current.accountId !== head.accountId || current.providerId !== head.providerId
             || head.requestedAt <= current.resetAt || canCommit?.() === false) return false;
         return pageSessions.get(pageSessionKey(slot, current, head.streamId))?.connects(previous, head) ?? false;
@@ -734,7 +738,7 @@ async function hasScanCoverageOverlap<T>(slot: string, runId: string, head: Page
 
 /** Freeze the previous coverage and invalidate older active runs under the cross-tab lock. */
 async function beginScanCoverage(slot: string, accountId: string | null): Promise<ScanCoverageRun> {
-    const prepared = await preparePageCoverage(slot, accountId, 'gemini', accountId === null);
+    const prepared = await preparePageCoverage(slot, accountId, 'gemini');
     return withConversationLock(async () => {
         await assertSchemaWritable();
         const previous = await getScanCoverage(slot);
@@ -742,7 +746,7 @@ async function beginScanCoverage(slot: string, accountId: string | null): Promis
         const runId = crypto.randomUUID();
         const coverage = { ...previous, revision: previous.revision + (previous.activeRunId || previous.lastStatus ? 1 : 0), activeRunId: runId };
         await chrome.storage.local.set({ [getStorageKeys(slot).coverageKey]: coverage });
-        return { runId, previous: accountId !== null && (previous.initialized || previous.lastStatus !== null) ? previous : null };
+        return { runId, previous: (previous.initialized || previous.lastStatus !== null) ? previous : null };
     });
 }
 

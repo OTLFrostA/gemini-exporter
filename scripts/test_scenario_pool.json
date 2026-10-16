@@ -1,43 +1,5 @@
 [
   {
-    "id": "fluid_mechanics_pipe_network_hardy_cross_conservation",
-    "domain": "fluid_mechanics_hydraulic_pipe_networks",
-    "title": "Hydraulic pipe networks: nodal mass balance, Darcy-Weisbach head loss and Hardy-Cross loop corrections",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate steady incompressible flow in a looped pipe network using LaTeX. State the nodal continuity equations, loop head-loss compatibility conditions and the Darcy-Weisbach resistance law for a concrete two-loop network.",
-      "Derive the Newton-Raphson Hardy-Cross loop-flow correction formula and explain why the signed quadratic resistance derivative remains strictly positive for non-zero flows.",
-      "Write complete runnable Python using only the standard library to solve a two-loop hydraulic network via Hardy-Cross iterations, with assertions for nodal conservation, loop head-loss closure and monotonic residual reduction.",
-      "Compare Hardy-Cross loop methods, nodal-head Newton solvers and linear-theory methods in a Markdown table covering Jacobian structure, initial-guess requirements and convergence rate. Include an English and Chinese glossary.",
-      "Design a reproducible hydraulic verification report under demand perturbations and valve throttling. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating exact conservation invariants from empirical friction correlations."
-    ]
-  },
-  {
-    "id": "celestial_mechanics_kepler_anomaly_symplectic_integrators",
-    "domain": "celestial_mechanics_orbital_dynamics",
-    "title": "Orbital mechanics: Kepler equation, eccentric anomaly and symplectic Störmer-Verlet integration",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Derive Kepler's equation relating mean anomaly, eccentric anomaly and true anomaly for an elliptical orbit using LaTeX. Prove uniqueness of the root for eccentricity in [0, 1) and work through a concrete bound-orbit example.",
-      "Compare fixed-point iteration and Newton-Raphson root finding for Kepler's equation, and derive the second-order symplectic Störmer-Verlet (leapfrog) scheme for the planar two-body Hamiltonian.",
-      "Provide complete runnable Python standard-library code for solving Kepler's equation and integrating a planar elliptical orbit with both explicit Euler and symplectic leapfrog, asserting bounded energy and exact angular-momentum conservation for leapfrog.",
-      "Compare analytical Kepler propagation, symplectic leapfrog, classical fourth-order Runge-Kutta and explicit Euler in a Markdown table across phase-space volume preservation, secular energy drift and per-step cost. Include English and Chinese terminology.",
-      "Construct a reproducible multi-orbit numerical audit across eccentricities. Include LaTeX invariant equations, runnable tests and a Markdown results table comparing energy and angular-momentum errors over ten orbital periods."
-    ]
-  },
-  {
     "id": "heat_transfer_transient_slab_fourier_biot",
     "domain": "heat_transfer_transient_conduction",
     "title": "Transient heat conduction: Biot number, Fourier series eigenmodes and Crank-Nicolson stability",
@@ -409,6 +371,47 @@
       "Design negative tests for missing operands, unmatched parentheses, trailing tokens and a valid empty production. State the exact rejection point and prove that successful parses consume the entire input.",
       "Compare LL(1), recursive descent with backtracking, Pratt parsing and LR(1) in a Markdown table covering grammar restrictions, lookahead, conflict diagnosis and error recovery. Include an English and Chinese terminology glossary.",
       "Build a reproducible grammar-transformation audit: enumerate short token strings and compare acceptance before and after left-recursion elimination and factoring. Provide runnable tests, LaTeX language-equivalence claims with explicit bounds and a Markdown summary separating bounded evidence from a general proof."
+    ]
+  },
+  {
+    "id": "coding_theory_hamming_syndrome_single_error_correction",
+    "domain": "coding_theory_linear_block_codes",
+    "title": "Hamming codes: binary parity checks, syndrome decoding and exhaustive verification",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Construct a Hamming (7,4) code over GF(2). Show explicit generator and parity-check matrices in LaTeX, state bit order conventions, and verify their orthogonality.",
+      "Derive syndrome decoding for every possible single-bit error using your chosen matrices. Work through one encoded message and one corrupted codeword with all intermediate vectors.",
+      "Write complete runnable standard-library Python that encodes all 16 messages and exhaustively corrects all seven possible single-bit flips. Include assertions for parity checks and round-trip decoding.",
+      "Compare Hamming (7,4), extended Hamming (8,4) and triple repetition in a Markdown table: rates, minimum distance, detection and correction capabilities. Explain the meaning of SECDED in English and Chinese.",
+      "Design an adversarial verification report including zero-error, single-error, double-error and invalid-input cases. Distinguish a decoder returning some codeword from proving it recovered the transmitted message, with equations and executable tests."
+    ]
+  },
+  {
+    "id": "numerical_pde_finite_volume_upwind_mass_cfl",
+    "domain": "numerical_pde_conservative_transport",
+    "title": "Conservative transport: finite-volume fluxes, CFL stability and periodic mass audits",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Formulate one-dimensional linear advection on a periodic interval using conservative finite volumes. Specify cell averages, boundary indexing and numerical fluxes with LaTeX equations.",
+      "Derive the first-order upwind update for positive and negative speeds. Explain the CFL bound through positivity of update weights and show exact discrete mass conservation.",
+      "Give a small numeric worked example with four periodic cells, both velocity signs and a nontrivial Courant number. Present cell values, fluxes and before/after total mass in a Markdown table.",
+      "Write runnable standard-library Python implementing periodic upwind transport. Include tests for constant-state preservation, mass conservation and nonnegativity under the stated CFL condition.",
+      "Compare upwind, Lax-Wendroff and limited MUSCL reconstruction in a Markdown table covering order, diffusion, oscillations and boundary handling. Include an English/Chinese terminology glossary.",
+      "Derive a grid-refinement experiment against a smooth translated sine wave. Specify the final-time alignment, error norms and observed-order calculation in LaTeX.",
+      "Extend the verification script to run several grids and print a Markdown convergence table. Add a discontinuous pulse case, keeping smooth convergence claims separate from discontinuous behavior.",
+      "Design a failure audit using an excessive time step and a deliberately incorrect periodic flux index. Show which invariants detect each defect and explain the limits of conservation as a correctness test."
     ]
   }
 ]

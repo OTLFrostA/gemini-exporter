@@ -1,3 +1,4 @@
+import { accountRuntime } from './helpers/accountRuntime.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
@@ -68,6 +69,8 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         decisions: [] as (PaginationStopDecision | void)[], options: null as GeminiProviderListOptions | null
     };
     const store = {
+        async preparePageCoverage() { return {}; },
+        async recordPageCoverage() { return true; },
         async getConversations(slot: string) { trace.slots.push(slot); return records; },
         async beginScanCoverage(slot: string) { trace.slots.push(slot); return { runId: 'fixture-run', previous: null }; },
         async isScanCoverageCurrent(slot: string) { trace.slots.push(slot); return true; },
@@ -142,6 +145,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         runtime: { sendMessage: async (message: unknown) => { trace.progress.push(message); } },
         storage: { local: { get: async () => ({}) } }
     } });
+    const account = accountRuntime();
     __setModuleOverride('StorageService', store);
     if (setup.slidingLimit) __setModuleOverride('GeminiProtocol', { ...GeminiProtocol, LIMITS: { ...GeminiProtocol.LIMITS, SLIDING_WINDOW: setup.slidingLimit } });
     ProviderRegistry.register(provider);
@@ -153,6 +157,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
         assert.equal(contentContext.getActiveClient(), null);
         return { result, trace, records };
     } finally {
+        account.restore();
         if (original) ProviderRegistry.register(original);
         else ProviderRegistry.unregister('gemini');
         __clearModuleOverrides(); contentContext.setAborted(false); contentContext.setLanguage(originalLanguage);
@@ -244,7 +249,7 @@ test('sync provider: legacy timestamps cannot authorize an unverified overlap ea
     assert.equal(trace.options?.incremental, false);
     assert.equal(trace.options?.includePinned, true);
     assert.equal(trace.options?.maxPages, 4);
-    assert.equal(trace.options?.targetSid, null);
+    assert.equal(trace.options?.targetSid, 'u2');
     assert.deepEqual(trace.checkpointWrites, []);
     assert.ok(records.some(c => c.id === 'chat_old'));
 });

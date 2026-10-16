@@ -14,6 +14,9 @@ export type AccountResolution =
 
 const fields = ['providerId', 'providerAccountId', 'email', 'displayName'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+export function isAccountId(value: unknown): value is string {
+    return typeof value === 'string' && uuid.test(value);
+}
 function object(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid account fact');
     return value as Record<string, unknown>;
@@ -32,7 +35,7 @@ export function readAccountObservation(value: unknown): AccountObservation {
 }
 export function readAccountFact(value: unknown): AccountFact {
     const { id, ...observation } = object(value);
-    if (typeof id !== 'string' || !uuid.test(id)) throw new TypeError('Invalid local account UUID');
+    if (!isAccountId(id)) throw new TypeError('Invalid local account UUID');
     return { id, ...readAccountObservation(observation) };
 }
 export function readAccountRegistry(value: unknown): AccountFact[] {

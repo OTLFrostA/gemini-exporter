@@ -59,7 +59,7 @@ export async function resolveCurrentAccount(observed?: AccountObservation | null
         const fresh = await requestObservation(capturedSlot);
         if (capturedSlot !== slotNow()) return null;
         // A newer unsolicited observation supersedes this query's reply.
-        if (before !== generation) return getAccountContext();
+        if (before !== generation) return pending ? pending.result : getAccountContext();
         return resolveCurrentAccount(fresh, capturedSlot);
     }
     if (observed === null) { invalidateAccountContext(); return null; }
@@ -90,4 +90,18 @@ export async function resolveCurrentAccount(observed?: AccountObservation | null
     pending = { signature, result };
     try { return await result; }
     finally { if (pending?.result === result) pending = null; }
+}
+
+/** Refresh the active source, then attribute a captured request without changing its owner. */
+export async function resolveRequestAccount(value: unknown, slot: string): Promise<AccountContext | null> {
+    if (value == null || slot !== slotNow()) return null;
+    const observation = readAccountObservation(value);
+    const current = await resolveCurrentAccount(undefined, slot);
+    return current && matchesCurrentAccount(observation) ? current : null;
+}
+
+/** Synchronous commit guard after the asynchronous source/Registry resolution. */
+export function isCurrentAccount(context: AccountContext): boolean {
+    const current = getAccountContext();
+    return current?.accountId === context.accountId && current.providerId === context.providerId && current.slot === context.slot;
 }

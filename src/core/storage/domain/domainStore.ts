@@ -176,12 +176,14 @@ function currentRecord(selected: TrustedDomainStorageRecord, updates: readonly B
         resourceDigests: Object.fromEntries(updates.map(row => [row.assetId, { sourceUri: row.sourceUri, ...(row.sha256 ? { sha256: row.sha256 } : {}),
             ...(row.sourcePath !== undefined ? { sourcePath: row.sourcePath } : {}) }])) };
 }
-export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources?: readonly StoredDomainResource[], migration?: false): Promise<TrustedDomainStorageRecord>;
-export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean): Promise<TrustedDomainStorageRecord | null>;
-export async function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = [], migration = false): Promise<TrustedDomainStorageRecord | null> {
+export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources?: readonly StoredDomainResource[], migration?: false, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord>;
+export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null>;
+export async function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = [], migration = false, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null> {
+    if (canCommit?.() === false) throw new Error('Account changed before Domain submission');
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
+    if (canCommit?.() === false) throw new Error('Account changed before Domain submission');
     if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountSlot, parsed: { sourceVersion: parsed.sourceVersion, conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checkedBindings(decodeDomainRecord(value), value.conversation); }
-    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion);
+    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion, canCommit);
 }
 
 /** Authenticated Broker save input is still raw; establish trust at the write snapshot boundary. */
@@ -193,7 +195,7 @@ export async function saveDomainRequest(accountSlot: string, parsed: { conversat
 }
 
 async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDomain, sourceHints: ResourceAcquisitionHints,
-    resources: readonly StoredDomainResource[], migration: boolean, sourceVersion?: unknown): Promise<TrustedDomainStorageRecord | null> {
+    resources: readonly StoredDomainResource[], migration: boolean, sourceVersion?: unknown, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null> {
     if (sourceVersion !== undefined && (typeof sourceVersion !== 'number' || !Number.isFinite(sourceVersion))) throw new TypeError('Invalid source conversation version');
     const identity = storageIdentity(conversation.index.providerId, accountSlot, conversation.index.id);
     // Export paths, diagnostics, pagination and runtime ZIP handles are deliberately excluded.
@@ -204,7 +206,9 @@ async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDoma
     const savedAt = migration ? undefined : savedConversationVersion(conversation, sourceVersion);
     const incoming = checkedBindings({ key: domainStorageKey(identity), storageVersion: DOMAIN_STORAGE_VERSION, domainVersion: DOMAIN_CONTRACT_VERSION, identity, origin: migration ? 'legacy-storage' : 'source', revision: crypto.randomUUID(), ...(savedAt !== undefined ? { savedAt } : {}), conversation, acquisitionHints, resources: resources.map(r => ({ ...r })) }, conversation);
     const hashes = new Map(await Promise.all(incoming.resources.map(async resource => [resource.assetId, await sha256Hex(resource.bytes)] as const)));
+    if (canCommit?.() === false) throw new Error('Account changed before Domain commit');
     const choose = (existing: TrustedDomainStorageRecord | null): TrustedDomainStorageRecord => {
+        if (canCommit?.() === false) throw new Error('Account changed before Domain commit');
         const changedResources = incoming.resources.some(r => hashes.get(r.assetId) !== existing?.resourceDigests?.[r.assetId]?.sha256
             || r.sourcePath !== existing?.resourceDigests?.[r.assetId]?.sourcePath);
         const selected = existing && sameContent(existing, incoming) && !changedResources ? existing
@@ -252,6 +256,7 @@ async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDoma
                                 const keys = new Set(cacheKeys.result.map(String));
                                 const updates = resourceUpdates(selected, existing, incoming, keys, hashes);
                                 const complete = () => {
+                                    if (canCommit?.() === false) throw new Error('Account changed before Domain commit');
                                     const reachable = new Set(updates.filter(row => !row.from || row.bytes).map(row => row.key));
                                     for (const key of keys) if (!reachable.has(key)) byteCache.delete(key);
                                     for (const row of updates) if (row.bytes) byteCache.put({ key: row.key, conversationKey: incoming.key,

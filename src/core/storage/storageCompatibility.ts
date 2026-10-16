@@ -18,7 +18,6 @@ export interface StoredAccountSlot extends StoredObject {
     email?: string;
     name?: string;
     slot?: string;
-    accountId?: string;
     gaiaId?: string;
     count?: number;
     lastSync?: number | string;
@@ -30,7 +29,7 @@ type IncompatibleFields<Model, Keys extends keyof Model> = {
     [Key in Keys]-?: StoredObject & { [Field in Key]-?: Exclude<StoredValue, Model[Field]> }
 }[Keys];
 type ExportKeys = 'format' | 'exportedAt' | 'title' | 'messageCount' | 'files' | 'status' | 'hasFailedAssets';
-type SlotKeys = 'email' | 'name' | 'slot' | 'accountId' | 'gaiaId' | 'count' | 'lastSync';
+type SlotKeys = 'email' | 'name' | 'slot' | 'gaiaId' | 'count' | 'lastSync';
 type LegacyStoredExportRecord = IncompatibleFields<StoredExportRecord, ExportKeys>;
 type LegacyStoredAccountSlot = IncompatibleFields<StoredAccountSlot, SlotKeys>;
 export type StoredExportRecordMap = Record<string, StoredExportRecord | LegacyStoredExportRecord | StoredPrimitive | StoredValue[]>;
@@ -95,7 +94,7 @@ export function readStoredExportMap(value: unknown): StoredExportRecordMap {
     return value;
 }
 function isStoredAccountSlot(value: unknown): value is StoredAccountSlot {
-    return isRecordContainer(value) && optionalStrings(value, ['email', 'name', 'slot', 'accountId', 'gaiaId'])
+    return isRecordContainer(value) && optionalStrings(value, ['email', 'name', 'slot', 'gaiaId'])
         && optionalNumber(value.count)
         && (value.lastSync === undefined || typeof value.lastSync === 'string' || typeof value.lastSync === 'number');
 }

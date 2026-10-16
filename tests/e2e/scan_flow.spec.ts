@@ -14,7 +14,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_scan',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_scan',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
@@ -84,7 +84,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     }) as Record<string, any>;
     const convs = (storageData.gemini_conversations || []) as any[];
     expect(convs.length).toBe(4);
-    expect(storageData.gemini_scan_coverage).toMatchObject({ version: 3, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
+    expect(storageData.gemini_scan_coverage).toMatchObject({ version: 4, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
       activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
     const oldChat = convs.find((c: any) => c.id === 'scan_001');
     expect(oldChat.title).toBe('量子计算与超导量子比特');

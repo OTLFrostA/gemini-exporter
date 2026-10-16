@@ -1,6 +1,6 @@
 import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
-import { sniffUserProfileFromDom } from './accountSniffer.js';
+import { resolveRequestAccount, isCurrentAccount } from './accountContext.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { ingestConversation } from '../core/storage/storageService.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
@@ -20,7 +20,7 @@ export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 
 export interface MessageBridgeDeps {
     ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
-    ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string) => Promise<RpcListIngestResult>;
+    ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string, requestedAt?: number, canCommit?: () => boolean) => Promise<RpcListIngestResult>;
     upsertConversations?: (items: MessageBridgeConversationInput[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
@@ -77,10 +77,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
     } = _deps;
 
     if (raw.type === CrossWorldEvents.NETWORK_BATCHEXECUTE) {
-        const text = field('text'), truncated = field('truncated'), requestedAt = field('requestedAt'), requestAccountId = field('requestAccountId');
+        const text = field('text'), truncated = field('truncated'), requestedAt = field('requestedAt');
         if (typeof text !== 'string' || !text || (truncated !== undefined && typeof truncated !== 'boolean')
-            || (requestedAt !== undefined && (typeof requestedAt !== 'number' || !Number.isFinite(requestedAt)))
-            || (requestAccountId !== undefined && requestAccountId !== null && typeof requestAccountId !== 'string')) return;
+            || (requestedAt !== undefined && (typeof requestedAt !== 'number' || !Number.isFinite(requestedAt)))) return;
         const request = field('listRequest');
         let listRequest: import('../core/parsers/gemini/rpc/listRequest.js').GeminiListRequestContext | null = null;
         if (request !== undefined && request !== null) {
@@ -92,20 +91,22 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         try {
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
             if (!Proto) return;
+            const targetSlot = slot === 'default' ? 'u0' : slot;
+            if (!targetSlot || getAccountSlot && targetSlot !== getAccountSlot()) return;
+            const account = await resolveRequestAccount(field('requestAccountObservation'), targetSlot);
+            if (!account) return;
+            const canCommit = () => isCurrentAccount(account);
 
             if (text.includes(Proto.RPCS.LIST)) {
                 try {
                     const listRes = parseList(text);
                     if (listRes && listRes.conversations) {
-                        const targetSlot = slot === 'default' ? 'u0' : slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        const currentAccountId = sniffUserProfileFromDom()?.identityKey ?? null;
-                        if (getAccountSlot && targetSlot !== getAccountSlot()) return;
-                        if (requestAccountId != null && requestAccountId !== currentAccountId) return;
+                        if (!canCommit()) return;
                         if (_deps.ingestPageObservation) {
                             await _deps.ingestPageObservation(geminiListObservation(listRes, listRequest ?? null,
-                                requestAccountId ?? null, truncated, requestedAt), targetSlot);
+                                account.accountId, truncated, requestedAt), targetSlot);
                         } else if (_deps.ingestRpcList) {
-                            await _deps.ingestRpcList(listRes.conversations, targetSlot);
+                            await _deps.ingestRpcList(listRes.conversations, targetSlot, requestedAt, canCommit);
                         }
                     }
                 } catch (e) {
@@ -118,8 +119,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const native = parseGeminiRpcConversation(text, { providerId: 'gemini' });
                     const detailRes = native.conversation;
                     if (detailRes && detailRes.index.id) {
-                        const targetSlot = slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        await ingestConversation(targetSlot, native);
+                        if (!canCommit()) return;
+                        await ingestConversation(targetSlot, native, [], 'detail', canCommit);
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[MessageBridge] parseDetail err', e);

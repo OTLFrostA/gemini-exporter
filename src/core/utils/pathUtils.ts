@@ -58,16 +58,6 @@ export function isGeminiUrl(urlStr?: string | null): boolean {
     }
 }
 
-export interface AccountProfile {
-    slot: string;
-    accountId: string;
-    email?: string;
-    name?: string;
-    gaiaId?: string;
-    lastSync?: string;
-    count?: number;
-}
-
 export function detectSlotFromUrl(urlOrPath?: string | null): string {
     if (!urlOrPath || typeof urlOrPath !== 'string') return 'u0';
     try {

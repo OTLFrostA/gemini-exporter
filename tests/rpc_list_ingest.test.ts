@@ -1,3 +1,4 @@
+import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ingestRpcList, markConfirmedDeleted } from '../src/content/syncEngine.js';
@@ -26,7 +27,9 @@ async function fixture(run: (state: { records: Conversation[]; fail: boolean; wr
         async getScanCheckpoint() { return 1700000000000; },
         async setScanCheckpoint() { state.checkpoints++; }
     });
+    const runtime = accountRuntime('u2');
     try { await run(state); } finally {
+        runtime.restore();
         __clearModuleOverrides();
         if (previous) Object.defineProperty(globalThis, 'chrome', previous);
         else Reflect.deleteProperty(globalThis, 'chrome');
@@ -35,7 +38,7 @@ async function fixture(run: (state: { records: Conversation[]; fail: boolean; wr
 
 test('RPC lists from the bridge and scanner persist identical titles, time, source and availability', async () => fixture(async state => {
     const bridge = init({ ingestRpcList, getAccountSlot: () => 'u2' });
-    await bridge.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2' } } } as MessageEvent);
+    await bridge.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2', requestAccountObservation: ACCOUNT_OBSERVATION } } } as MessageEvent);
     const sniffed = structuredClone(state.records);
     assert.equal(sniffed[0].title, 'Server title');
     assert.equal(sniffed[0].titleSource, 'rpc');
@@ -65,7 +68,7 @@ test('scanner sees storage failures; bridge catches them at its event boundary a
     state.fail = true;
     await assert.rejects(ingestRpcList(batch(), 'u2'), /disk failed/);
     const bridge = init({ ingestRpcList });
-    await bridge.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2' } } } as MessageEvent);
+    await bridge.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2', requestAccountObservation: ACCOUNT_OBSERVATION } } } as MessageEvent);
     assert.equal(state.writes, 0);
     assert.equal(state.checkpoints, 0);
     state.fail = false;

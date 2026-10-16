@@ -57,7 +57,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
             const p = event.data?.payload;
             if (event.data?.type === 'GEMINI_NETWORK_BATCHEXECUTE' && p?.listRequest?.streamId === 'recent') {
                 window.__tier2PassivePages.push({ ...p.listRequest, requestedAt: p.requestedAt,
-                    accountId: p.requestAccountId, truncated: p.truncated });
+                    accountObservation: p.requestAccountObservation, truncated: p.truncated });
             }
         });
     """})
@@ -77,7 +77,19 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         observations = []
         while time.monotonic() < deadline:
             passive = read_sync_state(cdp_opt)
-            observations = cdp_gemini.eval('window.__tier2PassivePages || []') or []
+            raw_observations = cdp_gemini.eval('window.__tier2PassivePages || []') or []
+            # Resolve captured Provider evidence through the actual Registry, not email/slot.
+            accounts = cdp_opt.eval("""(async () => {
+                const result = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list', providerId: 'gemini' });
+                if (!result.ok) throw new Error(result.error);
+                return result.value.map(a => ({ id: a.id, providerId: a.providerId, providerAccountId: a.providerAccountId }));
+            })()""", await_promise=True) or []
+            observations = []
+            for item in raw_observations:
+                identity = item.pop('accountObservation', None) or {}
+                account = next((a for a in accounts if a['providerId'] == identity.get('providerId')
+                                and a['providerAccountId'] == identity.get('providerAccountId')), None)
+                observations.append({**item, 'accountId': account['id'] if account else None})
             ok, message = assert_passive_coverage(empty, passive, observations)
             if ok:
                 break

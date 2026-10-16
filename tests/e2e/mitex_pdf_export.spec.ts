@@ -208,7 +208,7 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           <head>
             <script>
               window._WIZ_global_data = {
-                SNlM0e: 'mock_token_mitex_123',
+                qDCSke: '10000000001', SNlM0e: 'mock_token_mitex_123',
                 cfb2h: 'boq_assistant-bard-web-server_20260928.01_p1'
               };
             </script>

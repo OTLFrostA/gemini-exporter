@@ -1,3 +1,4 @@
+import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
@@ -290,9 +291,9 @@ test('messageBridge rejects malformed raw protocol fields before parser or strea
         ingestPageObservation: async () => { touches++; return { merged: 0 }; }
     });
     for (const payload of [{ text: 123 }, { text: 'MaZiqc', slot: {} }, { text: 'MaZiqc', requestedAt: Infinity },
-        { text: 'MaZiqc', truncated: 'no' }, { text: 'MaZiqc', requestAccountId: 1 },
+        { text: 'MaZiqc', truncated: 'no' }, { text: 'MaZiqc', requestAccountObservation: 1 },
         { text: 'MaZiqc', listRequest: { streamId: 'forged', requestCursor: null } }]) {
-        await api.handleWindowMessage({ data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload } });
+        await api.handleWindowMessage({ origin: typeof location === 'undefined' ? undefined : location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload } });
     }
     for (const type of ['GEMINI_STREAM_GENERATE_START', 'GEMINI_STREAM_GENERATE_COMPLETE']) {
         await api.handleWindowMessage({ data: { type, payload: { id: {}, slot: 'u0' } } });
@@ -302,6 +303,8 @@ test('messageBridge rejects malformed raw protocol fields before parser or strea
 });
 
 test('messageBridge normalizes detail conversation id before persisting to DomainStore', async () => {
+    const runtime = accountRuntime();
+    try {
     const { __clearDomainMemory, getStoredDomain, storageIdentity } = require('../src/core/storage/domain/domainStore.js');
     __clearDomainMemory();
     const turn = [['c_1bd028d5c5b0c0e2', 'r_1'], [1788374200, 0], [['Prompt text']], [['rc_1', [['Answer text']]]]];
@@ -311,12 +314,14 @@ test('messageBridge normalizes detail conversation id before persisting to Domai
         upsertConversations: async () => 1
     });
     await api.handleWindowMessage({
+        origin: location.origin,
         data: {
             type: 'GEMINI_NETWORK_BATCHEXECUTE',
-            payload: { text, slot: 'u0' }
+            payload: { text, slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
     const stored = await getStoredDomain(storageIdentity('gemini', 'u0', '1bd028d5c5b0c0e2'));
     assert.ok(stored);
     assert.strictEqual(stored.conversation.index.id, '1bd028d5c5b0c0e2');
+    } finally { runtime.restore(); }
 });

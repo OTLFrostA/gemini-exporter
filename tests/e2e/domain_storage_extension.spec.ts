@@ -34,7 +34,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
     });
     const source = await context.newPage();
     await source.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `
-        <title>Cross origin - Gemini</title><script>window._WIZ_global_data = { SNlM0e: 'mock-at', cfb2h: 'mock-bl' };</script>
+        <title>Cross origin - Gemini</title><script>window._WIZ_global_data = { qDCSke: '10000000001', SNlM0e: 'mock-at', cfb2h: 'mock-bl' };</script>
         <user-query><div class="query-text"><p>Persist this question</p></div></user-query>
         <model-response data-model-name="Cross origin model"><div class="markdown"><p><strong>Persist this answer</strong></p></div></model-response>
     ` }));

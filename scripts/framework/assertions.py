@@ -139,12 +139,16 @@ def assert_scan_result(evidence: Dict[str, Any], allow_incremental_attempt=False
     return True, f"全量扫描自然耗尽: {diag.get('totalPagesFetched')} 页, {diag.get('totalConversations')} 会话"
 
 
+def is_account_uuid(value):
+    return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', value) is not None
+
+
 def assert_full_scan_coverage(evidence, coverage, allow_incremental_attempt=False):
     ok, message = assert_scan_result(evidence, allow_incremental_attempt)
     if not ok:
         return False, message
-    if (coverage.get('version') != 3 or coverage.get('providerId') != 'gemini'
-            or not coverage.get('accountId') or not coverage.get('generation')
+    if (coverage.get('version') != 4 or coverage.get('providerId') != 'gemini'
+            or not is_account_uuid(coverage.get('accountId')) or not coverage.get('generation')
             or coverage.get('initialized') is not True or coverage.get('historyComplete') is not True
             or coverage.get('complete') is not True or coverage.get('activeRunId') is not None
             or coverage.get('lastStatus') != 'complete'
@@ -169,7 +173,7 @@ def assert_incremental_scan_result(evidence, before, after):
         return False, f"Incremental scan lacks real successful closure: {evidence}"
     for record in (before, after):
         recent = record.get('streams', {}).get('recent', {})
-        if (record.get('version') != 3 or not record.get('accountId')
+        if (record.get('version') != 4 or not is_account_uuid(record.get('accountId'))
                 or record.get('providerId') != 'gemini' or record.get('initialized') is not True
                 or recent.get('initialized') is not True or not recent.get('range')
                 or recent.get('orderingInvalidated') is True):
@@ -209,8 +213,8 @@ def assert_passive_coverage(before, after, observations):
     recent = coverage.get('streams', {}).get('recent', {})
     span = recent.get('range') or {}
     rows = {row.get('id') for row in after.get('rows', [])}
-    if (before.get('coverage') is not None or coverage.get('version') != 3
-            or coverage.get('providerId') != 'gemini' or not coverage.get('accountId')
+    if (before.get('coverage') is not None or coverage.get('version') != 4
+            or coverage.get('providerId') != 'gemini' or not is_account_uuid(coverage.get('accountId'))
             or coverage.get('initialized') is not True or recent.get('initialized') is not True
             or coverage.get('activeRunId') is not None or coverage.get('lastStatus') is not None
             or not span or span.get('head', {}).get('time', 0) < span.get('tail', {}).get('time', 0)

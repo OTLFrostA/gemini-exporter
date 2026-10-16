@@ -63,7 +63,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     assert.ok(profile1);
     assert.strictEqual(profile1?.email, 'alice@example.com');
     assert.strictEqual(profile1?.name, 'Alice Wonderland');
-    assert.strictEqual(profile1?.identityKey, 'alice@example.com');
+    assert.strictEqual(profile1?.email, 'alice@example.com');
 
     // B: DOM element with data-email attribute
     const mockDoc2 = {
@@ -82,7 +82,7 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     assert.ok(profile2);
     assert.strictEqual(profile2?.email, 'bob@corp.com');
     assert.strictEqual(profile2?.name, undefined);
-    assert.strictEqual(profile2?.identityKey, 'bob@corp.com');
+    assert.strictEqual(profile2?.email, 'bob@corp.com');
 
     // C: Gaia ID from window._WIZ_global_data
     const mockDoc3 = {
@@ -97,7 +97,6 @@ test('accountSniffer - sniffUserProfileFromDom DOM and global context', () => {
     const profile3 = sniffUserProfileFromDom(mockDoc3);
     assert.ok(profile3);
     assert.strictEqual(profile3?.gaiaId, '10987654321');
-    assert.strictEqual(profile3?.identityKey, '10987654321');
     assert.strictEqual(profile3?.email, undefined);
 
     // D: Empty doc returns null
@@ -340,7 +339,7 @@ test('accountSniffer - current Gemini Wiz tuple wins over another account DOM la
     assert.equal(profile?.gaiaId, '109876543210987654321');
     assert.equal(profile?.email, 'active@example.com');
     assert.equal(profile?.name, undefined);
-    assert.equal(profile?.identityKey, 'active@example.com');
+    assert.equal(profile?.email, 'active@example.com');
     assert.equal('accountId' in (profile || {}), false);
 });
 

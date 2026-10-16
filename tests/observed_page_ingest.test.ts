@@ -1,3 +1,4 @@
+import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { isStoredObject } from '../src/core/storage/storageCompatibility.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +9,7 @@ import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { geminiListObservation } from '../src/core/provider/gemini/listObservation.js';
 import { contentContext } from '../src/content/contentContext.js';
 import { __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
-const account = 'sync@example.com';
+const account = ACCOUNT_UUID;
 const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [
     ['c_abcdef123', 'Newest', null, null, null, [1700000020, 0]],
     ['c_abcdef456', 'Older', null, null, null, [1700000010, 0]]
@@ -35,7 +36,9 @@ async function fixture(run: (state: { data: Record<string, unknown>; fail: boole
         querySelectorAll: () => [{ getAttribute: (name: string) => name === 'data-email' ? account : null }]
     } });
     __clearModuleOverrides(); contentContext.setAborted(false);
+    const runtime = accountRuntime();
     try { await run(state); } finally {
+        runtime.restore();
         contentContext.setAborted(false);
         for (const [name, descriptor] of descriptors) {
             if (descriptor) Object.defineProperty(globalThis, name, descriptor);
@@ -55,7 +58,7 @@ test('production bridge and active observer persist identical stream coverage af
         } else {
             const bridge = init({ ingestPageObservation, getAccountSlot: () => 'u0' });
             await bridge.handleWindowMessage({ origin: 'https://gemini.google.com', data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {
-                text, slot: 'u0', listRequest: request, requestedAt, requestAccountId: account
+                text, slot: 'u0', listRequest: request, requestedAt, requestAccountObservation: ACCOUNT_OBSERVATION
             } } } as MessageEvent);
         }
         const coverage = await StorageService.getScanCoverage('u0');
@@ -106,7 +109,7 @@ test('real list parsing persists unordered rows and complete coverage without au
 test('responses captured under a different identity and cancelled passive requests cannot write coverage', async () => fixture(async () => {
     const bridge = init({ ingestPageObservation, getAccountSlot: () => 'u0' });
     await bridge.handleWindowMessage({ origin: 'https://gemini.google.com', data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {
-        text, slot: 'u0', listRequest: request, requestedAt: Date.now() + 1, requestAccountId: 'previous@example.com'
+        text, slot: 'u0', listRequest: request, requestedAt: Date.now() + 1, requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000002' }
     } } } as MessageEvent);
     assert.equal(await StorageService.getScanCoverage('u0'), null);
     contentContext.abort();
@@ -136,13 +139,13 @@ test('active and passive persisted pages share cursor evidence and overlap uses 
     const isolated = observed([95, 85], 'tC_unrelated', 'tC_unread', 'isolated');
     await bridge.handleWindowMessage({ origin: 'https://gemini.google.com', data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {
         text: isolated.wire, slot: 'u0', listRequest: { streamId: 'recent', requestCursor: 'tC_unrelated' },
-        requestedAt: isolated.page.requestedAt, requestAccountId: account
+        requestedAt: isolated.page.requestedAt, requestAccountObservation: ACCOUNT_OBSERVATION
     } } } as MessageEvent);
     assert.equal(await StorageService.hasScanCoverageOverlap('u0', run.runId, head.page, frozen), false);
     const middle = observed([105, 95], 'tC_middle', 'tC_tail');
     await bridge.handleWindowMessage({ origin: 'https://gemini.google.com', data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {
         text: middle.wire, slot: 'u0', listRequest: { streamId: 'recent', requestCursor: 'tC_middle' },
-        requestedAt: middle.page.requestedAt, requestAccountId: account
+        requestedAt: middle.page.requestedAt, requestAccountObservation: ACCOUNT_OBSERVATION
     } } } as MessageEvent);
     const tail = observed([85, 65], 'tC_tail', 'tC_unread_tail');
     await ingestPageObservation(tail.page, 'u0', run.runId);
@@ -155,7 +158,7 @@ test('active and passive persisted pages share cursor evidence and overlap uses 
     assert.equal(await StorageService.hasScanCoverageOverlap('u0', run.runId, head.page, frozen, () => false), false);
     await StorageService.beginScanCoverage('u0', account);
     assert.equal(await StorageService.hasScanCoverageOverlap('u0', run.runId, head.page, frozen), false);
-    const switched = await StorageService.beginScanCoverage('u0', 'other@example.com');
+    const switched = await StorageService.beginScanCoverage('u0', '10000000-0000-4000-8000-000000000002');
     assert.equal(await StorageService.hasScanCoverageOverlap('u0', switched.runId, head.page, frozen), false);
     assert.equal((await StorageService.getScanCoverage('u0'))!.initialized, false);
 }));
@@ -216,4 +219,29 @@ test('late passive heads persist normally without severing an active full scan, 
     await StorageService.finishScanCoverage('u0', run.runId, 'complete', { conversationCount: 4, headTimestamp: head.page.keys[0].time });
     await ingestPageObservation(passive.page, 'u0');
     assert.equal((await StorageService.getScanCoverage('u0'))!.streams.recent.range!.head.time, passive.page.keys[0].time);
+}));
+
+
+test('a null or non-UUID page identity cannot write rows or initialize coverage', async () => fixture(async () => {
+    for (const id of [null, 'profile@example.com', '10000000001']) {
+        await assert.rejects(ingestPageObservation(geminiListObservation(parseList(text), request, id, false, Date.now() + 1), 'u0'), /Registry account UUID/);
+    }
+    assert.deepEqual(await StorageService.getConversations('u0'), []);
+    assert.equal(await StorageService.getScanCoverage('u0'), null);
+}));
+
+test('missing request identity cannot enter either passive list or detail ingestion', async () => fixture(async () => {
+    const bridge = init({ ingestPageObservation, getAccountSlot: () => 'u0' });
+    const detail = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([
+        [[[['c_unverified123', 'r_turn'], [1700000000, 0], [['Question']], [['rc_turn', [['Answer']]]]]]], null, 'Source title'
+    ])]]);
+    for (const response of [text, detail]) {
+        for (const requestAccountObservation of [undefined, null, { providerId: 'gemini', email: 'profile@example.com' }]) {
+            await bridge.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: {
+                text: response, slot: 'u0', listRequest: request, requestedAt: Date.now() + 1, requestAccountObservation
+            } } } as MessageEvent);
+        }
+    }
+    assert.deepEqual(await StorageService.getConversations('u0'), []);
+    assert.equal(await StorageService.getScanCoverage('u0'), null);
 }));

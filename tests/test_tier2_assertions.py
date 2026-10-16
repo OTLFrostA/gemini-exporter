@@ -594,7 +594,7 @@ class ScanAndImportTests(unittest.TestCase):
         diag = evidence['response']['diagnostics']
         diag['incremental'] = True
         diag['stopReason'] = 'Connected to verified activity coverage'
-        coverage = {'version': 3, 'providerId': 'gemini', 'accountId': 'a', 'generation': 'g',
+        coverage = {'version': 4, 'providerId': 'gemini', 'accountId': '10000000-0000-4000-8000-000000000001', 'generation': 'g',
                     'initialized': True, 'historyComplete': False, 'activeRunId': None, 'lastStatus': 'up_to_date',
                     'streams': {'recent': {'initialized': True, 'range': {'head': {'id': 'h', 'time': 100}, 'tail': {'id': 't', 'time': 10}}}}}
         self.assertTrue(assert_incremental_scan_result(evidence, coverage, copy.deepcopy(coverage))[0])
@@ -610,7 +610,7 @@ class ScanAndImportTests(unittest.TestCase):
         self.assertFalse(assert_incremental_scan_result(evidence, coverage, coverage)[0])
 
     def activity_fixture(self):
-        coverage = {'version': 3, 'providerId': 'gemini', 'accountId': 'a', 'generation': 'g',
+        coverage = {'version': 4, 'providerId': 'gemini', 'accountId': '10000000-0000-4000-8000-000000000001', 'generation': 'g',
                     'initialized': True, 'historyComplete': True, 'activeRunId': None, 'lastStatus': 'up_to_date',
                     'streams': {'recent': {'initialized': True, 'range': {
                         'head': {'id': CID, 'time': 100}, 'tail': {'id': 'tail', 'time': 10}}}}}
@@ -653,7 +653,7 @@ class ScanAndImportTests(unittest.TestCase):
         baseline, _, _, _ = self.activity_fixture()
         after = copy.deepcopy(baseline['state'])
         after['coverage']['lastStatus'] = None
-        pages = [{'streamId': 'recent', 'accountId': 'a', 'requestedAt': 1, 'truncated': False}]
+        pages = [{'streamId': 'recent', 'accountId': '10000000-0000-4000-8000-000000000001', 'requestedAt': 1, 'truncated': False}]
         self.assertTrue(assert_passive_coverage({'coverage': None}, after, pages)[0])
         for changes in ({'accountId': 'other'}, {'requestedAt': 0}, {'truncated': True}, {'streamId': 'pinned'}):
             with self.subTest(changes=changes):

@@ -23,8 +23,8 @@ export interface GeminiNetworkBatchexecutePayload {
     listRequest?: GeminiListRequestContext | null;
     truncated?: boolean;
     requestedAt?: number;
-    /** Source fingerprint captured before the request, not a local Registry UUID. */
-    requestAccountId?: string | null;
+    /** Immutable Provider evidence captured at send time; ISOLATED resolves the Registry UUID. */
+    requestAccountObservation: AccountObservation | null;
     text: string;
     slot: string;
     url: string;

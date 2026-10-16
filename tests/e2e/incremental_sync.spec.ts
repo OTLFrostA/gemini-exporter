@@ -4,7 +4,7 @@ import { test, expect } from './fixtures';
 
 test('partial accessible history initializes activity coverage and later sync closes without fetching its older tail', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Sync (increment@example.com)">Account</button>` }));
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Sync (increment@example.com)">Account</button>` }));
     let round = 0;
     const requests: string[][] = [[], [], []];
     const row = (id: string, time: number) => ['c_' + id, id, null, null, null, [1700000000 + time, 0]];
@@ -58,7 +58,7 @@ test('partial accessible history initializes activity coverage and later sync cl
 
 test('a naturally observed non-head page initializes coverage and later sync connects through the intervening pages', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Sync (passive@example.com)">Account</button>` }));
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Sync (passive@example.com)">Account</button>` }));
     const requests: string[] = [];
     await gemini.route('**/batchexecute*', async route => {
         const args = JSON.parse(JSON.parse(new URLSearchParams(route.request().postData() || '').get('f.req')!)[0][0][1]);
@@ -89,7 +89,7 @@ test('a naturally observed non-head page initializes coverage and later sync con
 
 test('a complete current scan replaces a disjoint old interval without stopping against its own writes', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Rebuild (rebuild@example.com)">Account</button>` }));
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Rebuild (rebuild@example.com)">Account</button>` }));
     let round = 0;
     const requests: string[][] = [[], []];
     await gemini.route('**/batchexecute*', async route => {
@@ -121,7 +121,7 @@ test('a complete current scan replaces a disjoint old interval without stopping 
 
 test('passive evidence arriving during the active head request fills the shared chain against the frozen baseline', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
-    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Shared (shared@example.com)">Account</button>` }));
+    await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Shared (shared@example.com)">Account</button>` }));
     const requests: string[] = [];
     let releaseHead!: () => void;
     const headReady = new Promise<void>(resolve => { releaseHead = resolve; });
@@ -139,14 +139,19 @@ test('passive evidence arriving during the active head request fills the shared 
     await gemini.goto('https://gemini.google.com/app');
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    const binding = await options.evaluate(async () => {
+        const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        return chrome.tabs.sendMessage(tabs[0].id!, { action: 'getAccountContext' });
+    });
+    expect(binding.accountContext?.accountId).toMatch(/^[0-9a-f-]{36}$/);
     // Persisted interval from a prior extension session: no in-memory page chain.
-    await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_scan_coverage: { version: 3, providerId: 'gemini', revision: 1, generation: 'shared-generation',
-            resetAt: 0, accountId: 'shared@example.com', initialized: true, historyComplete: false, complete: false,
+    await options.evaluate(async (accountId) => {
+        await chrome.storage.local.set({ gemini_scan_coverage: { version: 4, providerId: 'gemini', revision: 1, generation: 'shared-generation',
+            resetAt: 0, accountId, initialized: true, historyComplete: false, complete: false,
             streams: { recent: { initialized: true, historyComplete: false,
                 range: { head: { id: 'old100', time: 1700000100000 }, tail: { id: 'old70', time: 1700000070000 } } } },
             baseline: null, activeRunId: null, lastStatus: 'partial_limit' } });
-    });
+    }, binding.accountContext.accountId);
     const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage }>('gemini_scan_coverage')).gemini_scan_coverage);
     try {
         await options.click('#btnSyncAll');
@@ -168,7 +173,7 @@ test('passive evidence arriving during the active head request fills the shared 
 for (const inversion of ['within-page', 'cross-page'] as const) {
     test(`timestamp ${inversion} inversion exhausts history and later ordered pages cannot revive early stop`, async ({ context, extensionId }) => {
         const gemini = await context.newPage();
-        await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Order (order@example.com)">Account</button>` }));
+        await gemini.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<script>window._WIZ_global_data={qDCSke: '10000000001', SNlM0e:'test',cfb2h:'test'}</script><button aria-label="Google Account: Order (order@example.com)">Account</button>` }));
         let round = 0;
         const requests: string[][] = [[], [], []];
         await gemini.route('**/batchexecute*', async route => {

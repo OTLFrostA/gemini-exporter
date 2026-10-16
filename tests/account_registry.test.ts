@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { accountRuntime, ACCOUNT_UUID } from './helpers/accountRuntime.js';
 import assert from 'node:assert/strict';
 import { readAccountFact, readAccountObservation, readAccountRegistry, resolveAccount } from '../src/core/domain/accountRegistry.js';
 import { geminiAccountObservation } from '../src/core/provider/gemini/accountObservation.js';
@@ -155,4 +156,12 @@ test('storage errors and mismatched replies do not leave the old UUID bound', as
     state.reply = async () => { throw new Error('disk failed'); };
     await assert.rejects(resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' }), /disk failed/);
     assert.equal(getAccountContext(), null);
+}));
+
+test('concurrent fresh queries await one committed Registry binding', async () => runtimeFixture(async () => {
+    const runtime = accountRuntime();
+    try {
+        const contexts = await Promise.all([resolveCurrentAccount(), resolveCurrentAccount(), resolveCurrentAccount()]);
+        assert.deepEqual(contexts.map(context => context?.accountId), [ACCOUNT_UUID, ACCOUNT_UUID, ACCOUNT_UUID]);
+    } finally { runtime.restore(); }
 }));

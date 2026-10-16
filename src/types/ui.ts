@@ -21,8 +21,6 @@ export interface ExportRecord {
 /** Profile fields written by content bootstrap and synchronization. */
 export interface AccountSlotInfo {
     slot?: string;
-    /** Legacy email/subject/slot field; new identities live in AccountRegistry, bindings in Runtime. */
-    accountId?: string;
     gaiaId?: string;
     name?: string;
     email?: string;

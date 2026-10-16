@@ -18,7 +18,7 @@ test.describe('Deep E2E: Real Export to HTML & Full Fidelity Verification', () =
         <head>
           <script>
             window._WIZ_global_data = {
-              SNlM0e: 'mock_at_token_html_123',
+              qDCSke: '10000000001', SNlM0e: 'mock_at_token_html_123',
               cfb2h: 'boq_assistant-bard-web-server_20260802.09_p1'
             };
           </script>
