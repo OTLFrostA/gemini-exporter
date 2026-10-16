@@ -131,7 +131,7 @@ test('Fidelity 5: Emphasis wrapping links and links wrapping emphasis', async ()
 
     // HTML assertions
     assert.ok(html.includes('<strong><a href="https://example.com/1"'), 'HTML renders strong wrapping <a>');
-    const nestedLinkHtml = html.match(/<a\\b[^>]*><strong>nested bold<\\/strong><\\/a>/)?.[0];
+    const nestedLinkHtml = html.match(/<a\b[^>]*><strong>nested bold<\/strong><\/a>/)?.[0];
     assert.ok(nestedLinkHtml, 'HTML renders link wrapping emphasis');
     assert.ok(nestedLinkHtml.includes('href="https://example.com/2"'));
     assert.ok(nestedLinkHtml.includes('target="_blank"'));
