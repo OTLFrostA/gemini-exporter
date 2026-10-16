@@ -84,7 +84,8 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
       return await chrome.storage.local.get(['gemini_last_export_session', 'gemini_conversations']);
     });
     expect(sessionData.gemini_last_export_session).toBeUndefined();
-    const originalIndex = sessionData.gemini_conversations.find((item: { id: string }) => item.id === 'chat_session_test_1');
+    const savedIndex = sessionData.gemini_conversations as Array<{ id: string; title: string; titleSource: string }>;
+    const originalIndex = savedIndex.find(item => item.id === 'chat_session_test_1');
     expect(originalIndex?.title).toBe('Takeout Prompt 临时问题');
     expect(originalIndex?.titleSource).toBe('takeout');
   });
