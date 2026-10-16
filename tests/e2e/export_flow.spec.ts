@@ -1,4 +1,8 @@
 import { test, expect } from './fixtures';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
 test.describe('Export Workflow & State Update', () => {
   test('should trigger batch export, update progress, and mark conversations as exported', async ({ context, extensionId }) => {
@@ -79,7 +83,9 @@ test.describe('Export Workflow & State Update', () => {
     const item = page.locator('[data-chat-id="exp_chat_001"]');
     await expect(item).toBeVisible();
 
-    // 3. Select all items
+    // 3. Select the exact format; do not rely on whichever format was last saved.
+    await page.selectOption('#format', 'markdown');
+    await page.locator('#includeZip').check();
     await page.click('#btnSelectAll');
     await expect(page.locator('#list input[type=checkbox]:checked')).toHaveCount(1);
 
@@ -88,18 +94,28 @@ test.describe('Export Workflow & State Update', () => {
     await page.click('#btnExport');
 
     const download = await downloadPromise;
-    expect(download).toBeTruthy();
+    const zipPath = await download.path();
+    expect(zipPath).toBeTruthy();
+    const zip = await JSZip.loadAsync(fs.readFileSync(zipPath!));
+    const markdownNames = Object.keys(zip.files).filter(name => name.endsWith('.md') && !zip.files[name].dir);
+    expect(markdownNames).toHaveLength(1);
+    const markdown = await zip.files[markdownNames[0]].async('text');
+    expect(markdown).toContain('请概述深度学习神经网络的实践要点');
+    expect(markdown).toContain('数据预处理');
+    expect(markdown).toContain('模型架构设计');
 
-    // 5. Verify Exported Badge is rendered on the conversation item
-    await expect(item.locator('.badge')).toBeVisible();
-    await expect(item.locator('.badge')).toContainText(/已导出|Exported/);
+    // 5. Verify the *exported* badge rather than any unrelated status badge.
+    await expect(item.locator('.badge-exported')).toContainText(/已导出|Exported/);
 
     // 6. Verify Storage contains valid export record persisted by ExportEngine
     const storageData = await page.evaluate(async () => {
       return await chrome.storage.local.get(['exportedIds']);
     }) as Record<string, any>;
-    expect(storageData.exportedIds['exp_chat_001']).toBeTruthy();
-    expect(storageData.exportedIds['exp_chat_001'].title).toBe('深度学习神经网络实践');
+    const record = storageData.exportedIds['exp_chat_001'];
+    expect(record).toBeTruthy();
+    expect(record.title).toBe('深度学习神经网络实践');
+    expect(record.format).toBe('markdown');
+    expect(record.status).toBe('ok');
   });
 
   test('should fast-skip already exported items without generating empty zip', async ({ context, extensionId }) => {
@@ -147,13 +163,13 @@ test.describe('Export Workflow & State Update', () => {
       await zipCheckbox.check();
     }
 
-    // Listen to download event to assert NO download occurs
-    let downloadTriggered = false;
-    page.on('download', () => {
-      downloadTriggered = true;
-    });
-
-    // Click Export
+    // Listen BEFORE the click and keep the window open after completion. A
+    // synchronous flag checked immediately after a UI update misses late ZIPs.
+    const unexpectedDownload = page.waitForEvent('download', { timeout: 1500 })
+      .then(() => true, error => {
+        if (String(error).includes('Timeout')) return false;
+        throw error;
+      });
     await page.click('#btnExport');
 
     // Verify fast-skip log and notification in progress area
@@ -162,8 +178,11 @@ test.describe('Export Workflow & State Update', () => {
     // Verify export button becomes active again quickly (not stuck in disabled state)
     await expect(page.locator('#btnExport')).toBeEnabled();
 
-    // Assert that no empty zip download was triggered
-    expect(downloadTriggered).toBe(false);
+    // Assert no empty ZIP appeared even after the completion UI settled.
+    expect(await unexpectedDownload).toBe(false);
+    const stored = await page.evaluate(async () => chrome.storage.local.get('exportedIds')) as { exportedIds: Record<string, { exportedAt: number }> };
+    expect(Object.keys(stored.exportedIds || {})).toEqual(['exp_chat_skip_001']);
+    expect(stored.exportedIds['exp_chat_skip_001'].exportedAt).toBe(1700000000000);
   });
 
   test('should clear exported records via #btnClearExported, re-select chats, and not toggle #skipExported', async ({ context, extensionId }) => {

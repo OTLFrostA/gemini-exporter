@@ -95,6 +95,16 @@ class TestFrameworkEnvironment(unittest.TestCase):
         mock_reinstall.assert_called_once_with(port=9222, repo_path=self.env.repo_path)
 
     @patch("scripts.framework.environment.get_tabs")
+    @patch("scripts.framework.environment.CDPActions.reinstall_extension", return_value=None)
+    def test_failed_reinstall_aborts_before_opening_tabs(self, mock_reinstall, mock_get_tabs):
+        with self.assertRaisesRegex(RuntimeError, "扩展安装失败"):
+            self.env.init_environment(reinstall=True, target_pages=("gemini", "options"),
+                                      active_target="options", setup_download=False)
+        self.assertIsNone(self.env.ext_id, "a failed reinstall must not report an active extension")
+        mock_reinstall.assert_called_once()
+        mock_get_tabs.assert_not_called()
+
+    @patch("scripts.framework.environment.get_tabs")
     def test_tab_discovery(self, mock_get_tabs):
         mock_get_tabs.return_value = [
             {"type": "webview", "url": "https://gemini.google.com/glic?hl=zh-CN", "webSocketDebuggerUrl": "ws://mock/glic"},
@@ -165,6 +175,8 @@ class TestFrameworkEnvironment(unittest.TestCase):
         set_override = next(c for c in mock_cdp.calls if c["method"] == "Emulation.setDeviceMetricsOverride")
         self.assertEqual(set_override["params"]["width"], 1920)
         self.assertEqual(set_override["params"]["height"], 1080)
+        self.assertEqual(set_override["params"]["deviceScaleFactor"], 1)
+        self.assertEqual(set_override["params"]["mobile"], False)
 
         # clear viewport
         self.env.clear_viewport(mock_cdp)
@@ -180,11 +192,28 @@ class TestFrameworkEnvironment(unittest.TestCase):
         page_cdp = MockCDP()
         self.env.setup_download_behavior(output_dir=self.temp_dir, cdp=page_cdp)
 
-        browser_methods = [c["method"] for c in mock_browser_cdp.calls]
-        self.assertIn("Browser.setDownloadBehavior", browser_methods)
+        browser_calls = [c for c in mock_browser_cdp.calls if c["method"] == "Browser.setDownloadBehavior"]
+        self.assertEqual(browser_calls, [{
+            "method": "Browser.setDownloadBehavior",
+            "params": {"behavior": "allow", "downloadPath": self.temp_dir, "eventsEnabled": True},
+        }])
 
-        page_methods = [c["method"] for c in page_cdp.calls]
-        self.assertIn("Page.setDownloadBehavior", page_methods)
+        page_calls = [c for c in page_cdp.calls if c["method"] == "Page.setDownloadBehavior"]
+        self.assertEqual(page_calls, [{
+            "method": "Page.setDownloadBehavior",
+            "params": {"behavior": "allow", "downloadPath": self.temp_dir},
+        }])
+
+    @patch("scripts.framework.environment.get_browser_ws_url", return_value=None)
+    def test_download_configuration_uses_page_transport_when_browser_websocket_is_unavailable(self, mock_browser_ws):
+        page = MockCDP()
+        self.env.setup_download_behavior(cdp=page)
+        self.assertEqual(self.env.browser_cdp, None)
+        self.assertEqual(
+            [call["params"]["downloadPath"] for call in page.calls if call["method"] == "Page.setDownloadBehavior"],
+            [self.temp_dir],
+        )
+        self.assertGreaterEqual(mock_browser_ws.call_count, 1, 'browser discovery must have been attempted')
 
     @patch("scripts.framework.environment.CDPActions.reinstall_extension")
     @patch("scripts.framework.environment.get_tabs")
@@ -211,8 +240,18 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertEqual(ctx.ext_id, "pipeline_ext_id")
         self.assertIsNotNone(ctx.gemini_tab)
         self.assertIsNotNone(ctx.options_tab)
-        self.assertIsNotNone(ctx.active_tab)
-        mock_reinstall.assert_called_once()
+        self.assertEqual(ctx.active_tab, ctx.options_tab, "active_target=options must select this extension's workbench")
+        self.assertIs(ctx.active_cdp, mock_cdp)
+        self.assertTrue(any("location.reload()" in expr for expr in mock_cdp.evals),
+                        "reinstall+reload_gemini must execute a real CDP reload")
+        viewport = [call["params"] for call in mock_cdp.calls
+                    if call["method"] == "Emulation.setDeviceMetricsOverride"]
+        self.assertEqual(viewport, [{
+            "width": 1280, "height": 800, "deviceScaleFactor": 1, "mobile": False,
+        }])
+        self.assertFalse(any("DownloadBehavior" in call["method"] for call in mock_cdp.calls),
+                         "setup_download=False must not configure download behavior")
+        mock_reinstall.assert_called_once_with(port=9222, repo_path=self.env.repo_path)
 
     def test_teardown_cleans_viewport_and_closes_connection(self):
         mock_cdp = MockCDP()
