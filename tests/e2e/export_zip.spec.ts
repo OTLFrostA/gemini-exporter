@@ -45,9 +45,14 @@ test.describe('Deep E2E: Real Export to ZIP & Markdown Content Verification', ()
     const mockDetailInner = JSON.stringify([
       turns,
       null, // This fixture is a terminal detail page.
-      "深度学习反向传播算法详解"
+      null
     ]);
-    const mockRpcResponse = `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(mockDetailInner)}]]`;
+    const mockRpcResponse = `)]}'\n\n${JSON.stringify([
+      ['wrb.fr', 'hNvQHb', mockDetailInner],
+      ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [
+        ['c_real_exp_001', '深度学习反向传播算法详解'],
+      ]])],
+    ])}`;
 
     await geminiPage.route('**/batchexecute*', async (route) => {
       await route.fulfill({

@@ -29,6 +29,11 @@ export function titleAuthorityRank(source: string | null | undefined): number {
     return source && isTitleSource(source) ? TITLE_AUTHORITY_RANK[source] : TITLE_AUTHORITY_RANK.default;
 }
 
+/** Evidence threshold only; this does not establish title finality or freshness. */
+export function hasProviderTitleEvidence(index: { title: string; titleSource: TitleSource }): boolean {
+    return Boolean(index.title) && TITLE_AUTHORITY_RANK[index.titleSource] >= TITLE_AUTHORITY_RANK.rpc;
+}
+
 function pickWinner(candidates: TitleCandidate[]): TitleCandidate | undefined {
     let winner: TitleCandidate | undefined;
     for (const c of candidates) {

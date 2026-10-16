@@ -1,5 +1,5 @@
 import { contentQuality } from '../../../domain/quality.js';
-import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
+import { parseGeminiDomIndex } from './parseIndex.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
@@ -82,12 +82,8 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
         groups.push({ input: { attachments } });
     }
     const resources = closeDomainResources('gemini', messages, groups, { sourceReferences: true });
-    const title = (doc.title ?? doc.querySelector('title')?.textContent ?? '').trim().replace(/\s*[-–|]\s*(?:Google\s+)?Gemini$/i, '').trim();
-    const authoredTitle = title && !/^(?:Google\s+)?(?:Gemini|Bard)$/i.test(title);
     const conversation = {
-        index: parseIndexMetadata({ providerId: 'gemini', id, title: authoredTitle ? title : '',
-            titleSource: authoredTitle ? 'dom' : 'default', messageCount: resources.messages.length,
-            url: raw.url ?? `https://gemini.google.com/app/${id}` }),
+        index: { ...parseGeminiDomIndex(doc, id), messageCount: resources.messages.length },
         detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), messages: resources.messages, assets: resources.assets },
     };
     return { conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,

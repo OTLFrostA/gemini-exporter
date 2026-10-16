@@ -1,3 +1,4 @@
+import { hasProviderTitleEvidence } from '../core/domain/titleAuthority.js';
 import { ingestConversation } from '../core/storage/storageService.js';
 import { parseGeminiIndexObservation, type GeminiIndexObservationSource } from '../core/parsers/gemini/parseIndexObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../core/domain/conversationIndex.js';
@@ -98,9 +99,8 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const Storage = getStorage();
             const existing = Storage ? await Storage.getConversations(slot) : [];
             const found = existing.find(c => c.id === activeId);
-            const hasResolvedTitle = found && found.title !== ''
-                && found.titleSource !== 'sniff' && found.titleSource !== 'default';
-            if (!options?.force && hasResolvedTitle && found.updatedAt !== undefined) {
+            const hasStrongTitleEvidence = found && hasProviderTitleEvidence(found);
+            if (!options?.force && hasStrongTitleEvidence && found.updatedAt !== undefined) {
                 return;
             }
 

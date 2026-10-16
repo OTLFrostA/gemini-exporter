@@ -124,9 +124,8 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const dates = selected.flatMap(activity => activity.timestamp === null ? [] : [activity.timestamp]);
     const updatedAt = dates.length ? Math.max(...dates) : null;
     const titleEvent = selected.find(a => a.hasExplicitPrompt && a.promptText)
-        ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()))
-        ?? selected.find(a => a.promptText);
-    const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
+        ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()));
+    const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || '';
     const conversation = {
         index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,

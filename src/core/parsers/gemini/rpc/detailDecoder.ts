@@ -1,5 +1,5 @@
 import { extractSourceAttributions } from './sourceAttributions.js';
-import { findListConversationMetadata } from './listMetadata.js';
+import { findListConversationMetadata, findMetadataOnlyConversation } from './listMetadata.js';
 import { extractGeneratedFiles } from './generatedFiles.js';
 import type { GeminiDetailEvidence, GeminiMessageEvidence, GeminiDocumentEvidence, GeminiAttachmentEvidence, GeminiDetailDebugEvidence } from './detailEvidence.js';
 import type { GeminiUtilsModule } from "../../../utils/utils.js";
@@ -568,14 +568,9 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             isDevMode
         );
 
-        const metadataRow = !turns.length && inner[0] === null && inner[1] === null
-            ? inner[GEMINI_JSPB_SCHEMA.INNER.METADATA_ONLY_LIST]?.[0] : undefined;
-        const metadataConversation = Array.isArray(metadataRow)
-            && typeof metadataRow[0] === 'string' && metadataRow[0].startsWith('c_')
-            && typeof metadataRow[1] === 'string' && metadataRow[1].trim()
-            ? { id: metadataRow[0], title: cleanTitle(metadataRow[1]) } : undefined;
+        const metadataConversation = !turns.length ? findMetadataOnlyConversation(inner, targetConvId) : undefined;
 
-        let convId = extractConversationId(inner, turns);
+        let convId = metadataConversation?.id ?? extractConversationId(inner, turns);
         if (convId === "c_unknown" && targetConvId) convId = targetConvId;
 
         const allMsgs: GeminiMessageEvidence[] = [];

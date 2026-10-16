@@ -28,18 +28,23 @@ test('active detail fetch retries unresolved or undated titles, but skips timest
             { id: 'generic_title_01', title: 'Gemini', titleSource: 'default', timestamp: 1700000000000 },
             { id: 'sniff_title_01', title: 'Initial question', titleSource: 'sniff', timestamp: 1700000000000 },
             { id: 'resolved_title_01', title: 'A resolved conversation title', titleSource: 'rpc', timestamp: 1700000000000 },
+            ...['dom', 'takeout', 'provider', 'derived', 'legacy'].map(source => ({ id: `${source}_title_01`, title: 'Fallback title', titleSource: source, updatedAt: 1700000000000 })),
+            { id: 'user_title_01', title: 'User title', titleSource: 'user', updatedAt: 1700000000000 },
+            { id: 'api_detail_01', title: 'API title', titleSource: 'api-detail', updatedAt: 1700000000000 },
             { id: 'undated_rpc_01', title: 'RPC title without server time', titleSource: 'rpc' }
         ]).map(indexFixture) });
 
-        for (const id of ['generic_title_01', 'sniff_title_01', 'resolved_title_01', 'undated_rpc_01']) {
+        for (const id of ['generic_title_01', 'sniff_title_01', 'resolved_title_01', 'undated_rpc_01', 'user_title_01', 'api_detail_01',
+            ...['dom', 'takeout', 'provider', 'derived', 'legacy'].map(source => `${source}_title_01`)]) {
             scheduleActiveChatDetailFetch(id);
         }
         scheduleActiveChatDetailFetch('generic_title_01'); // duplicate before dispatch
 
         t.mock.timers.tick(200);
         await new Promise<void>(resolve => setImmediate(resolve));
-        assert.deepEqual(fetched.slice().sort(), ['generic_title_01', 'sniff_title_01', 'undated_rpc_01'],
-            'default/sniff and undated RPC titles need refresh; timestamped RPC titles do not');
+        assert.deepEqual(fetched.slice().sort(), ['generic_title_01', 'sniff_title_01', 'undated_rpc_01',
+            ...['dom', 'takeout', 'provider', 'derived', 'legacy'].map(source => `${source}_title_01`)].sort(),
+            'fallback evidence cannot suppress refresh; user/RPC/API evidence retains the existing time guard');
 
         // Force bypasses the resolved-title guard; an in-flight ID remains deduplicated otherwise.
         scheduleActiveChatDetailFetch('resolved_title_01', { force: true });

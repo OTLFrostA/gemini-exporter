@@ -92,12 +92,12 @@ test.describe('E2E: Canonical Title Authority', () => {
       window.postMessage({
         type: 'GEMINI_NETWORK_BATCHEXECUTE',
         payload: {
-          text: `)]}'\n\n[["wrb.fr","hNvQHb",${JSON.stringify(JSON.stringify([
-            [["c_arbitration_chat_999", "turn_1", [null, null, ["提问内容"]]]],
-            "tC_token_abc",
-            "官方服务端RPC最终权威标题"
+          text: `)]}'\n\n[["wrb.fr","MaZiqc",${JSON.stringify(JSON.stringify([
+            null, null,
+            [["c_arbitration_chat_999", "官方服务端RPC最终权威标题", null, null, null, [1700000000, 0]]]
           ]))}]]`,
-          slot: 'u0'
+          slot: 'u0',
+          requestedAt: Date.now()
         }
       }, location.origin);
     });

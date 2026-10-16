@@ -73,7 +73,7 @@ export function mergeConversationIndex(old: DomainConversationIndex | undefined,
         ...(incoming.url ?? old.url ? { url: incoming.url ?? old.url } : {}), ...(messageCount !== undefined ? { messageCount } : {}) };
 }
 
-/** One activity time drives ordering and freshness. Creation alone is not an update version. */
+/** Known source activity drives ordering; it is neither a title version nor proof of saved Detail freshness. */
 export function indexActivityTime(index: Pick<DomainConversationIndex, 'updatedAt'>): number | undefined {
     return index.updatedAt;
 }

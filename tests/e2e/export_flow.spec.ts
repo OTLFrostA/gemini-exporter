@@ -109,11 +109,14 @@ test.describe('Export Workflow & State Update', () => {
 
     // 6. Verify Storage contains valid export record persisted by ExportEngine
     const storageData = await page.evaluate(async () => {
-      return await chrome.storage.local.get(['exportedIds']);
+      return await chrome.storage.local.get(['exportedIds', 'gemini_conversations']);
     }) as Record<string, any>;
     const record = storageData.exportedIds['exp_chat_001'];
     expect(record).toBeTruthy();
-    expect(record.title).toBe('深度学习神经网络实践');
+    expect(record.title).toBe('请概述深度学习神经网络的实践要点');
+    const canonical = storageData.gemini_conversations.find((row: { id: string }) => row.id === 'exp_chat_001');
+    expect(canonical.title).toBe(record.title);
+    expect(canonical.titleSource).toBe('sniff');
     expect(record.format).toBe('markdown');
     expect(record.status).toBe('ok');
   });

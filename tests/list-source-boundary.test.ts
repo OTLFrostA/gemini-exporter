@@ -82,7 +82,7 @@ test('Gemini parser rejects incomplete row coverage and unknown layouts as exhau
 });
 
 test('DOM metadata preserves title precedence and keeps UI labels and observation clocks out of Domain', () => {
-    const header = { textContent: 'Header title' };
+    const header = { textContent: 'Header title', closest: () => null };
     const sidebar = { textContent: 'Google Gemini', href: 'https://gemini.google.com/app/boundary123',
         querySelector: () => null };
     const query = { textContent: 'First user question' };
