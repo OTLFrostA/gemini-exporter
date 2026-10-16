@@ -196,7 +196,7 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
     const mathNodeAlpha = cellAlpha.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\alpha'));
     assert.ok(mathNodeAlpha?.type === 'inlineMath');
     assert.ok(mathNodeAlpha, 'InlineMath node found in table cell');
-    assert.strictEqual(mathNodeAlpha.source, String.raw`\vert{}\alpha\vert{}^2`);
+    assert.strictEqual(mathNodeAlpha.source, String.raw`|\alpha|^2`);
 
     // Case C-psi
     const convPsi = {
@@ -224,12 +224,12 @@ test('#705 Divergence Case: Table + Math Pipe (|alpha|^2 and ||psi>) cell count 
         assert.strictEqual(tableBlockPsi.rows[r].cells.length, 3, `Row ${r} must have 3 cells`);
     }
 
-    // Verify cell r1c2 contains \\Vert{}\\psi\\rangle math intact
+    // GM-TEX-003 retains double norm bars, distinct from the absolute bars above.
     const cellPsi = tableBlockPsi.rows[0].cells[2];
-    const mathNodePsi = cellPsi.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\Vert{}\\psi'));
+    const mathNodePsi = cellPsi.children.find((c: any) => c.type === 'inlineMath' && c.source.includes('\\|\\psi'));
     assert.ok(mathNodePsi?.type === 'inlineMath');
     assert.ok(mathNodePsi, 'InlineMath node found in table cell for psi');
-    assert.ok(mathNodePsi.source.includes(String.raw`\Vert{}\psi\rangle`), 'Math source contains \\Vert{}\\psi\\rangle');
+    assert.ok(mathNodePsi.source.includes(String.raw`\|\psi\rangle`), 'Math source retains double bars and the ket closing delimiter');
 });
 
 test('Real Tier 2 probe data: full documents validate cleanly against Domain closure', async () => {

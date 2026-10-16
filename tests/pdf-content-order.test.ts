@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extractPdfText } from './helpers/pdfTextExtract.js';
 
-function fixture(atomic?: 'Formula' | 'Code'): Buffer {
+function fixture(atomic?: 'Formula' | 'Code' | 'matrix'): Buffer {
     const stream = (text: string) => `<< /Length ${Buffer.byteLength(text)} >>\nstream\n${text}\nendstream`;
     const span = (mcid: number, text: string) => `/Span << /MCID ${mcid} >> BDC BT /F1 10 Tf (${text}) Tj ET EMC\n`;
     const objects = new Map<number, string>([
@@ -26,7 +26,13 @@ function fixture(atomic?: 'Formula' | 'Code'): Buffer {
         [22, '<< /Type /StructElem /S /P /P 21 0 R /Pg 5 0 R /K [3] >>'],
         [30, '<< /Type /StructTreeRoot /K [10 0 R] >>'],
     ]);
-    if (atomic) {
+    if (atomic === 'matrix') {
+        // Live Typst array/cases output: Formula > Table > TD > Formula.
+        // Cell formulas belong to the single outer authored expression.
+        objects.set(10, '<< /Type /StructElem /S /Document /P 30 0 R /K [11 0 R 23 0 R 20 0 R 21 0 R] >>');
+        objects.set(23, '<< /Type /StructElem /S /Formula /P 10 0 R /K [12 0 R] >>');
+        objects.set(12, '<< /Type /StructElem /S /Table /P 23 0 R /K [13 0 R] >>');
+    } else if (atomic) {
         for (const id of [12, 13, 14, 15, 21, 22]) objects.delete(id);
         objects.set(6, stream(span(0, 'first')));
         objects.set(7, stream(span(0, 'second') + span(1, 'tail')));
@@ -43,6 +49,16 @@ function fixture(atomic?: 'Formula' | 'Code'): Buffer {
     text += `trailer\n<< /Size 31 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
     return Buffer.from(text);
 }
+
+test('nested tagged matrix cells count as one formula and retain every cell across pages', () => {
+    const pdf = extractPdfText(fixture('matrix'));
+    assert.deepEqual(pdf.contentRuns, [
+        { kind: 'text', group: null, text: 'Question.First sentence.Middle sentence.Final sentence.' },
+        { kind: 'math', group: 23, text: 'AlphaBetaxendAendB' },
+        { kind: 'text', group: null, text: 'Answer tail.' },
+        { kind: 'code', group: 21, text: 'if x < 3: print(x)' },
+    ]);
+});
 
 test('independent PDF extraction preserves complete prose/code and logical paginated cell order', () => {
     const pdf = extractPdfText(fixture());

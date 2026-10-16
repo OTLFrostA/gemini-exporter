@@ -1,43 +1,5 @@
 [
   {
-    "id": "acoustics_waveguide_helmholtz_cutoff_modes",
-    "domain": "acoustics_duct_waveguide_modes",
-    "title": "Acoustic waveguides: Helmholtz modes, cutoff frequencies and impedance termination",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate the two-dimensional time-harmonic Helmholtz equation for a rigid-walled rectangular acoustic duct using LaTeX. Derive the transverse eigenfunctions, axial propagation constants and cutoff frequencies for the lowest modes.",
-      "Distinguish propagating and evanescent modes above and below cutoff. Derive the complex acoustic impedance and time-averaged axial power flow for a single mode with explicit physical units.",
-      "Write complete runnable Python using only the standard library to compute modal cutoffs, axial wavenumbers and pressure profiles across a discrete grid, including assertions for orthogonality and evanescent decay.",
-      "Compare plane-wave propagation, higher-order propagating modes and evanescent cutoff modes in a Markdown table covering phase velocity, group velocity, attenuation and energy transport. Include an English and Chinese glossary.",
-      "Design a reproducible multi-mode reflection and transmission audit for a duct termination with finite wall admittance. Provide equations, runnable verification tests and a Markdown summary table separating exact modal identities from truncation error."
-    ]
-  },
-  {
-    "id": "cryptography_shamir_secret_sharing_finite_fields",
-    "domain": "cryptography_threshold_secret_sharing",
-    "title": "Threshold cryptography: Shamir secret sharing, Lagrange interpolation and cheater detection",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define a (k, n) threshold secret-sharing scheme over a prime finite field GF(p) using LaTeX. State the correctness and information-theoretic privacy conditions for k-1 shares with a concrete small prime example.",
-      "Derive Lagrange basis polynomials in modular arithmetic and show how evaluation at zero reconstructs the secret without recovering all polynomial coefficients. Explain why arithmetic over the reals fails to provide perfect secrecy.",
-      "Provide complete runnable Python standard-library code for finite-field inversion, share generation and threshold reconstruction, with deterministic tests for valid subsets, insufficient shares and distinct evaluation points.",
-      "Compare additive secret sharing, Shamir polynomial sharing and verifiable secret sharing in a Markdown table across communication overhead, threshold flexibility, algebraic assumptions and fault tolerance. Include English and Chinese terminology.",
-      "Construct a reproducible audit for corrupted share detection using redundant evaluations and syndrome checks. Include LaTeX proof sketches, runnable test cases and a results table distinguishing detectable tampering from forged shares."
-    ]
-  },
-  {
     "id": "thermodynamics_chemical_equilibrium_gibbs_stoichiometry",
     "domain": "chemical_thermodynamics_reaction_equilibria",
     "title": "Reaction thermodynamics: Gibbs free energy minimization, extent of reaction and equilibrium constants",
@@ -399,6 +361,49 @@
       "Extend the model to adaptive frequencies with deterministic rescaling. Explain how encoder and decoder stay synchronized and add executable tests around every rescale boundary.",
       "Design malformed-input and truncation tests, distinguishing detection guarantees from cases requiring an external checksum. Compare fixed and adaptive models using a table of bit lengths computed from defined test data, marking unexecuted results explicitly.",
       "Write a reproducibility report with equations, an ASCII interval diagram, Python commands and an English-Chinese glossary. Separate mathematical coding bounds, finite-precision overhead and empirical compression measurements."
+    ]
+  },
+  {
+    "id": "structural_mechanics_planar_truss_stiffness_energy",
+    "domain": "structural_mechanics_truss_stiffness",
+    "title": "Planar trusses: stiffness assembly, rigid modes and energy verification",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Generate a labeled engineering diagram of a triangular planar truss with three joints, pin and roller supports, and an oblique joint load. Then define a concrete geometry, axial rigidity, load vector and units in a Markdown table; distinguish diagram annotations from the exact numerical model.",
+      "Derive the local axial element stiffness and its transformation into global coordinates in LaTeX. Explain the sign convention, symmetry, rigid translations and rotation, and why an unsupported assembly is singular.",
+      "Assemble the supported global stiffness matrix for the specified triangle, eliminate constrained degrees of freedom, and solve for displacements and reactions with sufficient intermediate matrices to reproduce the calculation.",
+      "Provide complete Python standard-library code implementing stiffness assembly and a small pivoted linear solver. Include checks for equilibrium, symmetry, axial force recovery, and equality of external work and twice the strain energy.",
+      "Compare the baseline with one altered member rigidity in a Markdown table. Discuss conditioning, mechanisms, unit consistency and the boundary between linear truss assumptions and bending or geometric nonlinearity; show reproducible residual and energy checks."
+    ]
+  },
+  {
+    "id": "control_theory_kalman_joseph_covariance_innovations",
+    "domain": "control_theory_state_estimation",
+    "title": "Kalman filtering: Joseph covariance, missing observations and innovation checks",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Define a discrete constant-velocity tracking model with a position sensor. Specify state, units, sampling interval, transition and observation matrices, initial covariance, and the distinction between continuous acceleration spectral density and per-step acceleration variance.",
+      "Derive the predicted mean and covariance, innovation covariance, gain, and corrected mean from Gaussian conditioning. Present all dimensions and a concrete one-step numerical example using LaTeX matrices.",
+      "Derive the Joseph covariance update and compare it with the abbreviated update. Explain numerical symmetry, positive semidefiniteness, and the assumptions under which the two forms are algebraically equivalent.",
+      "Provide complete Python standard-library code for a two-state filter, including small matrix operations and deterministic simulated observations. Compute both covariance forms and check their numerical agreement and state dimensions.",
+      "Extend the implementation to missing observations and variable sampling intervals. Derive the corresponding process covariance and demonstrate that a missing observation performs prediction only rather than a fabricated zero-valued measurement.",
+      "Derive normalized innovation squared and explain what it can and cannot diagnose under finite samples, model mismatch and correlated noise. Produce a Markdown table of innovations, innovation variances and consistency statistics for a reproducible short sequence.",
+      "Construct executable counterexamples for zero or negative sensor variance, singular innovation covariance and asymmetric initial covariance. Describe explicit input rejection and demonstrate that no invalid inverse or silent covariance repair is used.",
+      "Summarize numerical verification in a Markdown table: maximum symmetry residual, minimum covariance determinant, estimation errors and missing-observation behavior. Explain why consistency tests alone do not prove physical model correctness and give complete reproduction instructions."
     ]
   }
 ]

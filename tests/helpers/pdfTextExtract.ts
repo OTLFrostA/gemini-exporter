@@ -292,7 +292,9 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
             visited.add(parent.num);
             page ??= /^(\d+)\s+0\s+R/.exec(dictionaryValue(parent.dict, '/Pg'))?.[1] ?? null;
             const role = /\/S\s*\/(\w+)/.exec(parent.dict)?.[1];
-            if (group === null && (role === 'Formula' || role === 'Code' || role === 'Lbl')) {
+            // A formula may contain a tagged table and nested Formula cells.
+            // Its outer Formula is one authored expression, including all cells.
+            if (role === 'Formula' || role === 'Code' || role === 'Lbl') {
                 kind = role === 'Formula' ? 'math' : role === 'Code' ? 'code' : 'label';
                 group = parent.num;
             }
@@ -464,8 +466,8 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
     const metadata = (element: PdfObject, page: string | null, kind: PdfContentRun['kind'], group: number | null) => {
         const role = /\/S\s*\/(\w+)/.exec(element.dict)?.[1];
         return { role, page: /^(\d+)\s+0\s+R/.exec(dictionaryValue(element.dict, '/Pg'))?.[1] ?? page,
-            kind: role === 'Formula' ? 'math' as const : role === 'Code' ? 'code' as const : kind,
-            group: role === 'Formula' || role === 'Code' ? element.num : group };
+            kind: group === null ? (role === 'Formula' ? 'math' as const : role === 'Code' ? 'code' as const : kind) : kind,
+            group: group === null && (role === 'Formula' || role === 'Code') ? element.num : group };
     };
     const collect = (num: number, page: string | null, kind: PdfContentRun['kind'], group: number | null, owned: Map<string, { kind: PdfContentRun['kind']; group: number | null }>, path: Set<number>): void => {
         const element = objs.get(num);
@@ -501,7 +503,20 @@ export function extractPdfText(pdfBytes: Uint8Array): ExtractedPdf {
             else if (child.key) appendLogical(markedText.get(child.key) ?? '', meta.kind, meta.group);
         }
     };
-    const tables = [...objs.values()].filter(obj => /\/Type\s*\/StructElem/.test(obj.dict) && /\/S\s*\/Table\b/.test(obj.dict));
+    const tables = [...objs.values()].filter(obj => {
+        if (!/\/Type\s*\/StructElem/.test(obj.dict) || !/\/S\s*\/Table\b/.test(obj.dict)) return false;
+        let parent = obj;
+        const visited = new Set<number>();
+        while (!visited.has(parent.num)) {
+            visited.add(parent.num);
+            const ref = /\/P\s+(\d+)\s+0\s+R/.exec(parent.dict);
+            const next = ref ? objs.get(Number(ref[1])) : undefined;
+            if (!next) break;
+            if (/\/S\s*\/(?:Formula|Code)\b/.test(next.dict)) return false;
+            parent = next;
+        }
+        return true;
+    });
     const tableKeys = new Map<string, number>();
     const tableRuns = new Map<number, PdfContentRun[]>();
     for (const table of tables) {

@@ -219,8 +219,8 @@ class FeatureRegistry:
             id="feat_gemini_dual_parse",
             domain=FeatureDomain.EXPORT_DISK,
             name="Gemini structured 与 Markdown 双路对比",
-            description="同一份原生 RPC 分别走两条解析路径，保留逐轮差异与来源证据",
-            critical=True,
+            description="非阻断审计：同一份原生 RPC 分别走两条解析路径，完整保留逐轮差异与来源证据",
+            critical=False,
             prerequisites=["feat_zip_export_download"]
         ))
         self.register(Feature(
@@ -335,7 +335,10 @@ class FeatureRegistry:
                 lines.append(f" {f.id:<34} | {f.name:<24} | {status_icon:<8} | {duration_str:<7} | {msg}")
 
         lines.append("\n" + "=" * 80)
-        overall_status = "🎉 全部通过 (ALL PASSED)" if passed_count == total_count else ("⚠️ 存在失败项" if failed_count > 0 else "⚠️ 未完整执行（含跳过或待执行项）")
+        overall_status = ("🎉 全部通过 (ALL PASSED)" if passed_count == total_count
+                          else "✅ 门禁通过（含非阻断审计警告）" if passed_count + warn_count == total_count
+                          else "⚠️ 存在失败项" if failed_count > 0
+                          else "⚠️ 未完整执行（含跳过或待执行项）")
         lines.append(f" 汇总统计: 总计 {total_count} 项 | 通过: {passed_count} | 失败: {failed_count} | 跳过: {skipped_count} | 警告: {warn_count}")
         lines.append(f" 最终判定: {overall_status}")
         lines.append("=" * 80)

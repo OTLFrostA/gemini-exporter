@@ -17,6 +17,7 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from scripts.framework.environment import TestEnvironment, EnvironmentContext
+from scripts.framework.cases.chat import InpageBadgeCase
 
 
 from scripts.framework.assertions import CDPAssertions
@@ -259,6 +260,29 @@ class TestFrameworkEnvironment(unittest.TestCase):
         self.assertTrue(mock_cdp.closed)
         methods = [c["method"] for c in mock_cdp.calls]
         self.assertIn("Emulation.clearDeviceMetricsOverride", methods)
+
+
+class InpageBadgeTests(unittest.TestCase):
+    @patch('scripts.framework.cases.chat.time.sleep')
+    @patch('scripts.framework.cases.chat.time.monotonic', side_effect=[0, 0, 1])
+    def test_waits_for_badge_instead_of_failing_during_reload(self, clock, sleep):
+        ctx = MagicMock()
+        cdp = ctx.connect_gemini.return_value
+        cdp.eval.side_effect = [None, False, True]
+        self.assertTrue(InpageBadgeCase().execute(ctx)[0])
+        self.assertEqual(cdp.eval.call_count, 3)
+        cdp.close.assert_called_once()
+        self.assertTrue(all('document.querySelector' in call.args[0] for call in cdp.eval.call_args_list))
+
+    @patch('scripts.framework.cases.chat.time.sleep')
+    @patch('scripts.framework.cases.chat.time.monotonic', side_effect=[0, 0, 30])
+    def test_missing_badge_still_fails_at_deadline(self, clock, sleep):
+        ctx = MagicMock()
+        ctx.connect_gemini.return_value.eval.return_value = False
+        result = InpageBadgeCase().execute(ctx)
+        self.assertFalse(result[0])
+        self.assertIn('30', result[1])
+        ctx.connect_gemini.return_value.close.assert_called_once()
 
 
 if __name__ == "__main__":

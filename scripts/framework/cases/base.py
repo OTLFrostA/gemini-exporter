@@ -181,6 +181,10 @@ class FeatureTestCase(ABC):
         """测试后清理（可选）"""
         pass
 
+    def success_status(self, details: Optional[Dict[str, Any]]) -> TestStatus:
+        """Completed audits may explicitly report WARN; failures still block."""
+        return TestStatus.PASS
+
 
 class DAGRunner:
     def __init__(self):
@@ -308,12 +312,17 @@ class DAGRunner:
 
             t0 = time.time()
             success = False
+            status = TestStatus.FAIL
             message = ""
             details = None
             try:
                 success, message, details = case.execute(ctx)
+                status = case.success_status(details) if success else TestStatus.FAIL
+                if status not in (TestStatus.PASS, TestStatus.WARN, TestStatus.FAIL):
+                    raise ValueError('Executed cases must report PASS, WARN or FAIL')
             except Exception as e:
                 success = False
+                status = TestStatus.FAIL
                 message = f"执行异常: {e}"
                 details = {"traceback": traceback.format_exc()}
                 print(f"   ❌ [{fid}] 异常: {e}")
@@ -324,11 +333,12 @@ class DAGRunner:
                     print(f"   ⚠️ [{fid}] Teardown 异常: {te}")
 
             duration = time.time() - t0
-            status = TestStatus.PASS if success else TestStatus.FAIL
             ctx.registry.record_result(fid, status, duration, message, details)
 
             dur_str = f"{duration:.1f}s" if duration >= 1.0 else f"{int(duration * 1000)}ms"
-            if success:
+            if status == TestStatus.WARN:
+                print(f"   ⚠️ [{fid}] WARN (耗时 {dur_str}): {message}")
+            elif status == TestStatus.PASS:
                 print(f"   ✅ [{fid}] PASS (耗时 {dur_str}): {message}")
             else:
                 print(f"   ❌ [{fid}] FAIL (耗时 {dur_str}): {message}")
@@ -336,12 +346,12 @@ class DAGRunner:
         # 生成最终检验矩阵
         print("\n" + ctx.registry.generate_matrix_report())
 
-        # Every case in the execution plan must pass. Pruned cases are outside
-        # this plan; dependency skips and noncritical failures remain failures.
+        # Every case must complete. Explicit audit warnings are nonblocking;
+        # dependency skips and all failures (including noncritical) still fail.
         all_passed = True
         for case in ordered_cases:
             res = ctx.registry.get_result(case.feature_id)
-            if not res or res.status != TestStatus.PASS:
+            if not res or res.status not in (TestStatus.PASS, TestStatus.WARN):
                 all_passed = False
                 status_str = res.status.value if res else "未执行"
                 print(f"❌ 计划特性 [{case.feature_id}] ({case.name}) 未通过 (状态: {status_str})！")

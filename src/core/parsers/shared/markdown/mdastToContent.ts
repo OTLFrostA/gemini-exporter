@@ -41,6 +41,10 @@ export interface MarkdownParseContext {
     /** Structural location in the shared semantic body. */
     path?: string;
     definitions?: Map<string, { url: string; title?: string }>;
+    /** Provider dialect: $$ on its own line remains display math beside prose. */
+    lineStartDisplayMath?: boolean;
+    /** Retain the physical line ending before a fenced code closing marker. */
+    preserveCodeFenceFinalNewline?: boolean;
 }
 
 function imageInline(ref: string, alt: string, title: string | undefined, ctx: MarkdownParseContext): ImageInline {
@@ -390,6 +394,31 @@ export function adaptBlockNode(
             const mathBlock = tryExtractDisplayMathParagraph(node, ctx, rawMarkdown);
             if (mathBlock) return [mathBlock];
 
+            if (ctx.lineStartDisplayMath) {
+                const blocks: BlockNode[] = [];
+                let pending: PhrasingContent[] = [];
+                const flush = (): void => {
+                    if (pending.some(child => child.type !== 'text' || child.value.trim())) {
+                        blocks.push({ type: 'paragraph', children: adaptInlines(pending, ctx) });
+                    }
+                    pending = [];
+                };
+                for (const child of node.children) {
+                    const at = child.position?.start.offset;
+                    const end = child.position?.end.offset;
+                    const line = at === undefined ? '' : rawMarkdown.slice(rawMarkdown.lastIndexOf('\n', at - 1) + 1, at);
+                    const nextLine = end === undefined ? -1 : rawMarkdown.indexOf('\n', end);
+                    const tail = end === undefined ? null : rawMarkdown.slice(end, nextLine < 0 ? undefined : nextLine);
+                    if (child.type === 'inlineMath' && at !== undefined && tail !== null && /^[ \t]*$/.test(tail) && /^[ \t>]*$/.test(line)
+                        && rawMarkdown.slice(at, at + 2) === '$$') {
+                        flush();
+                        blocks.push({ type: 'math', source: child.value });
+                    } else pending.push(child);
+                }
+                flush();
+                return blocks;
+            }
+
             const children = adaptInlines(node.children, ctx);
             if (children.length === 0) return [];
             return [{
@@ -444,9 +473,15 @@ export function adaptBlockNode(
         }
 
         case 'code': {
+            const start = node.position?.start.offset;
+            const end = node.position?.end.offset;
+            const raw = start === undefined || end === undefined ? '' : rawMarkdown.slice(start, end);
+            const opening = /^[ \t]*(`{3,}|~{3,})/.exec(raw)?.[1];
+            const closing = opening && raw.indexOf('\n') < raw.lastIndexOf('\n')
+                && new RegExp(`\\n[ \\t>]*${opening[0]}{${opening.length},}[ \\t]*$`).test(raw);
             return [{
                 type: 'code',
-                code: node.value,
+                code: node.value + (ctx.preserveCodeFenceFinalNewline && closing ? '\n' : ''),
                 ...(node.lang ? { language: node.lang } : {}),
                 ...(node.meta ? { meta: node.meta } : {}),
             }];

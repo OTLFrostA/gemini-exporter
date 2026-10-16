@@ -54,6 +54,11 @@ class PdfEvidenceTests(unittest.TestCase):
         ev = copy.deepcopy(EVIDENCE); ev[1].pop('pdf_segments')
         self.assertFalse(assert_pdf_turn_content(INFO, ev)[0])
 
+    def test_duplicate_formula_is_not_hidden_by_grouping(self):
+        info = copy.deepcopy(INFO)
+        info['contentRuns'].insert(2, dict(info['contentRuns'][1], group=99))
+        self.assertFalse(assert_pdf_turn_content(info, EVIDENCE)[0])
+
     def test_duplicate_previous_reply_is_not_a_valid_next_reply(self):
         info = copy.deepcopy(INFO)
         info['contentRuns'] = info['contentRuns'][:1]
