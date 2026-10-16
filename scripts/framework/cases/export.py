@@ -7,6 +7,7 @@ import re
 import subprocess
 from typing import Tuple, Optional, Dict, Any
 
+from scripts.framework.gemini_dual_parse import install_capture, finish_capture
 from scripts.framework.image_evidence import capture_webpage_images, assert_zip_images
 from scripts.framework.archive_resources import validate_archive_resources
 from scripts.framework.cases.base import FeatureTestCase, TestContext
@@ -286,7 +287,13 @@ class ZipExportDownloadCase(FeatureTestCase):
             if len(check_res['matched']) < expected_min_checked:
                 return False, f"工作台勾选数不足: {check_res}", check_res
 
-            downloaded_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=60)
+            # Observe the same native replies used by this actual export, without another fetch.
+            install_capture(cdp_opt)
+            try:
+                downloaded_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=60)
+            finally:
+                ctx.shared_data['gemini_dual_capture'] = finish_capture(
+                    cdp_opt, os.path.join(ctx.output_dir, 'gemini_dual_parse', 'native'), check_res['matched'])
             if downloaded_zip and os.path.isfile(downloaded_zip) and os.path.getsize(downloaded_zip) > 0:
                 ctx.shared_data["downloaded_zip"] = downloaded_zip
                 size = os.path.getsize(downloaded_zip)

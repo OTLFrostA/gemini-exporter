@@ -45,13 +45,14 @@ class TestDAGSubgraphPruning(unittest.TestCase):
         self.dag = FrameworkRunner._assemble_dag()
 
     def test_dag_registration_and_count(self):
-        """验证 24 项特性全部成功注册进 DAG"""
-        self.assertEqual(len(self.dag.cases), 24)
+        """验证 25 项特性全部成功注册进 DAG"""
+        self.assertEqual(len(self.dag.cases), 25)
+        self.assertIn('feat_gemini_dual_parse', self.dag.cases)
 
     def test_topological_sort_order(self):
         """验证拓扑排序：所有前置依赖必须在其依赖者之前执行"""
         order = self.dag.get_execution_order()
-        self.assertEqual(len(order), 24)
+        self.assertEqual(len(order), 25)
 
         position = {case.feature_id: idx for idx, case in enumerate(order)}
 
@@ -225,7 +226,7 @@ class TestDAGSubgraphPruning(unittest.TestCase):
                     case.teardown = MagicMock()
                 with patch('sys.stdout', new=io.StringIO()):
                     self.assertEqual(dag.run(ctx), failed is None)
-                self.assertEqual(len(dag.cases), 24)
+                self.assertEqual(len(dag.cases), 25)
                 if failed:
                     self.assertFalse(dag.cases[failed].critical)
                     self.assertEqual(ctx.registry.get_result(failed).status, TestStatus.FAIL)

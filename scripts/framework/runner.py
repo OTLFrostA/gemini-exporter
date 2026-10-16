@@ -17,6 +17,7 @@ from .features import FeatureDomain, FeatureRegistry, TestStatus
 from .actions import CDPActions
 from .assertions import CDPAssertions
 from scripts.framework.cases import (
+    GeminiDualParseCase,
     TestContext,
     DAGRunner,
     TourGuideCase,
@@ -167,6 +168,7 @@ class FrameworkRunner:
         dag.register(SelectionControlsCase())
         dag.register(LanguageToggleCase())
         dag.register(ZipExportDownloadCase())
+        dag.register(GeminiDualParseCase())
         dag.register(MultimodalSpecCase())
         dag.register(FastSkipExportedCase())
         dag.register(HtmlExportDownloadCase())
