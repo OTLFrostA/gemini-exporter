@@ -83,7 +83,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
         title: 'Martian Astronaut Cat Drinking Coffee',
         messages: [
             {
-                id: 'u1',
+                id: '10000000-0000-4000-8000-000000000002',
                 role: 'user',
                 content: 'Generate an image of an astronaut cat on Mars.',
             },
@@ -110,7 +110,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     const fetchedUrls: string[] = [];
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             fetchAsset: async (req: any) => {
                 fetchedUrls.push(typeof req === 'string' ? req : req.url);
@@ -120,7 +120,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
                     dataBase64: PNG_B64,
                 };
             },
-        },
+        }) },
     );
 
     assert.strictEqual(prepared.ok, true, 'preparePdfItem must succeed');
@@ -211,7 +211,7 @@ test('1b. Remote URL-only attachment and standalone Markdown remote image: conte
 
     const exporter = new PdfExporter(compiler as any);
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: rawChat.id, title: rawChat.title }],
             conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
@@ -224,7 +224,7 @@ test('1b. Remote URL-only attachment and standalone Markdown remote image: conte
                     PNG_BYTES.byteOffset + PNG_BYTES.byteLength,
                 ),
             }),
-        },
+        }) },
         {},
     );
 
@@ -253,7 +253,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
         title: 'Takeout Fallback Conversation',
         messages: [
             {
-                id: 'u1',
+                id: '10000000-0000-4000-8000-000000000002',
                 role: 'user',
                 content: 'Draw a diagram.',
             },
@@ -285,7 +285,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
 
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
@@ -293,7 +293,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
                 success: false,
                 error: 'HTTP 403 Forbidden',
             }),
-        },
+        }) },
     );
 
     assert.strictEqual(prepared.ok, true);
@@ -339,10 +339,10 @@ test('2b. PDF does not invent ownership for detached Takeout media', async () =>
         { role: 'model', content: 'Here is your astronaut cat:' },
     ] });
     let acquired = 0;
-    const prepared = await preparePdfItem(input, { takeoutEngine: {
+    const prepared = await preparePdfItem(input, { accountId: '10000000-0000-4000-8000-000000000001', ...({ takeoutEngine: {
         getTakeoutMediaForChat: () => [{ filename: 'detached.png', isGenerated: true }],
         getTakeoutFallbackMedia: async () => { acquired++; return PNG_BYTES; },
-    } });
+    } }) });
     assert.equal(prepared.ok, true);
     assert.equal(prepared.resources.size, 0);
     assert.equal(acquired, 0);
@@ -378,7 +378,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
 
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
@@ -386,7 +386,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
                 success: false,
                 error: 'HTTP 404 Not Found',
             }),
-        },
+        }) },
     );
 
     assert.strictEqual(prepared.ok, true, 'preparePdfItem must not crash when image acquisition fails');
@@ -423,7 +423,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const writer = makeFakeWriter();
     const exporter = new PdfExporter(new StubPdfCompiler());
     const runRes = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: rawChat.id, title: rawChat.title }],
             conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
@@ -431,7 +431,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({ success: false, error: 'HTTP 404 Not Found' }),
-        },
+        }) },
         {},
     );
     assert.strictEqual(runRes.succeeded, 1, 'PDF export still succeeds with missing-image fallback');
@@ -467,7 +467,7 @@ test('4. Abort during asset acquisition stops immediately and writes no files', 
     const fetchStarted = new Promise<void>((r) => { fetchStartedResolve = r; });
 
     const runPromise = exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: rawChat.id, title: rawChat.title }],
             conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
@@ -477,7 +477,7 @@ test('4. Abort during asset acquisition stops immediately and writes no files', 
                 await new Promise((r) => setTimeout(r, 500));
                 return { ok: true, mime: 'image/png', dataBase64: PNG_B64 };
             },
-        },
+        }) },
         {},
     );
 
@@ -497,7 +497,7 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
         title: 'Martian Cat Real WASM Compile',
         messages: [
             {
-                id: 'u1',
+                id: '10000000-0000-4000-8000-000000000002',
                 role: 'user',
                 content: 'Render an astronaut cat on Mars.',
             },
@@ -528,7 +528,7 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
     try {
         const exporter = new PdfExporter(compiler);
         const result = await exporter.run(
-            {
+            { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: [{ id: rawChat.id, title: rawChat.title }],
                 conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
@@ -538,7 +538,7 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
                     mime: 'image/png',
                     dataBase64: PNG_B64,
                 }),
-            },
+            }) },
             {},
         );
 
@@ -563,7 +563,7 @@ test('PDF preparation preserves messages with duplicate source IDs', async () =>
     const chat = { id: 'duplicate', title: 'Duplicate', messages: [
         { id: 'same', role: 'user', content: 'one' }, { id: 'same', role: 'model', content: 'two' },
     ] };
-    const result = await preparePdfItem(historicalFixture(chat));
+    const result = await preparePdfItem(historicalFixture(chat), { accountId: '10000000-0000-4000-8000-000000000001' });
     assert.ok(result.ok);
     assert.deepEqual(result.document.messages.map((message: { id?: string }) => message.id), ['msg-0', 'msg-1']);
     assert.equal(result.document.messages.length, 2);
@@ -572,7 +572,7 @@ test('PDF preparation preserves messages with duplicate source IDs', async () =>
 test('PDF preparation preserves nonfatal normalization diagnostics', async () => {
     const result = await preparePdfItem(historicalFixture({ id: 'warning', title: 'Warning', messages: [
         { id: 'valid', role: 'unrecognized', content: 'visible' },
-    ] }));
+    ] }), { accountId: '10000000-0000-4000-8000-000000000001' });
     assert.strictEqual(result.ok, true);
     assert.ok(result.diagnostics.some((d: any) => d.code === 'UNKNOWN_ROLE'));
 });
@@ -609,9 +609,9 @@ test('hydrated image bytes and image classification do not mutate the original i
         },
     };
 
-    const result = await preparePdfItem(historicalFixture(origChat), {
+    const result = await preparePdfItem(historicalFixture(origChat), { accountId: '10000000-0000-4000-8000-000000000001', ...({
         assetPipeline: fakePipeline,
-    });
+    }) });
 
     assert.strictEqual(result.ok, true);
     assert.strictEqual(acquireCalls, 1);
@@ -642,9 +642,9 @@ test('references to one Domain asset acquire once and share the prepared resourc
         },
     };
 
-    const result = await preparePdfItem(historicalFixture(chat), {
+    const result = await preparePdfItem(historicalFixture(chat), { accountId: '10000000-0000-4000-8000-000000000001', ...({
         assetPipeline: fakePipeline,
-    });
+    }) });
 
     assert.strictEqual(result.ok, true);
     assert.strictEqual(acquireCalls, 1, 'acquireAssetBytes must be called only once for one Domain asset ID');
@@ -678,9 +678,9 @@ test('inline bytes skip acquisition', async () => {
         },
     };
 
-    const result = await preparePdfItem(historicalFixture(chat), {
+    const result = await preparePdfItem(historicalFixture(chat), { accountId: '10000000-0000-4000-8000-000000000001', ...({
         assetPipeline: fakePipeline,
-    });
+    }) });
 
     assert.strictEqual(result.ok, true);
     assert.strictEqual(acquireCalls, 0, 'acquireAssetBytes must NOT be called when inline bytes exist');
@@ -712,9 +712,9 @@ test('acquisition keeps the legacy destination hint while source URI controls gr
         },
     };
 
-    const result = await preparePdfItem(historicalFixture(chat), {
+    const result = await preparePdfItem(historicalFixture(chat), { accountId: '10000000-0000-4000-8000-000000000001', ...({
         assetPipeline: fakePipeline,
-    });
+    }) });
 
     assert.strictEqual(result.ok, true);
     assert.strictEqual(capturedItem?.localName, 'assets/key_local.png');

@@ -1,3 +1,4 @@
+import { isAccountId } from '../../domain/accountRegistry.js';
 import { savedConversationVersion } from '../../domain/conversationVersion.js';
 import { restoreConversationIndex, mergeConversationIndex } from '../../domain/conversationIndex.js';
 import { sha256Hex } from '../../export/assets/sha256.js';
@@ -22,13 +23,13 @@ const backupMemory = new Map<string, unknown>();
 export function __getLegacyBackupForTest(key: string): unknown { return structuredClone(backupMemory.get(key)); }
 export function __clearDomainMemory(): void { memory.clear(); byteMemory.clear(); removedMemory.clear(); backupMemory.clear(); }
 
-export function storageIdentity(providerId: string, accountSlot: string, conversationId: string): DomainStorageIdentity {
-    if (!providerId.trim() || !accountSlot.trim() || !conversationId.trim()) throw new TypeError('Invalid Domain storage identity');
-    return { providerId, accountSlot: providerId === 'gemini' && accountSlot === 'default' ? 'u0' : accountSlot, conversationId: providerId === 'gemini' ? normId(conversationId) : conversationId };
+export function storageIdentity(providerId: string, accountId: string, conversationId: string): DomainStorageIdentity {
+    if (!providerId.trim() || !isAccountId(accountId) || !conversationId.trim()) throw new TypeError('Invalid Domain storage identity');
+    return { providerId, accountId, conversationId: providerId === 'gemini' ? normId(conversationId) : conversationId };
 }
 export function domainStorageKey(identity: DomainStorageIdentity): string {
-    const valid = storageIdentity(identity.providerId, identity.accountSlot, identity.conversationId);
-    return JSON.stringify([valid.providerId, valid.accountSlot, valid.conversationId]);
+    const valid = storageIdentity(identity.providerId, identity.accountId, identity.conversationId);
+    return JSON.stringify([valid.providerId, valid.accountId, valid.conversationId]);
 }
 function checked(record: DomainStorageRecord): TrustedDomainStorageRecord {
     checkedEnvelope(record);
@@ -176,28 +177,28 @@ function currentRecord(selected: TrustedDomainStorageRecord, updates: readonly B
         resourceDigests: Object.fromEntries(updates.map(row => [row.assetId, { sourceUri: row.sourceUri, ...(row.sha256 ? { sha256: row.sha256 } : {}),
             ...(row.sourcePath !== undefined ? { sourcePath: row.sourcePath } : {}) }])) };
 }
-export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources?: readonly StoredDomainResource[], migration?: false, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord>;
-export function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null>;
-export async function saveDomainConversation(accountSlot: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = [], migration = false, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null> {
+export function saveDomainConversation(accountId: string, parsed: ResourceConversationParseResult, resources?: readonly StoredDomainResource[], migration?: false, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord>;
+export function saveDomainConversation(accountId: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[], migration: boolean, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null>;
+export async function saveDomainConversation(accountId: string, parsed: ResourceConversationParseResult, resources: readonly StoredDomainResource[] = [], migration = false, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null> {
     if (canCommit?.() === false) throw new Error('Account changed before Domain submission');
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
     if (canCommit?.() === false) throw new Error('Account changed before Domain submission');
-    if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountSlot, parsed: { sourceVersion: parsed.sourceVersion, conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checkedBindings(decodeDomainRecord(value), value.conversation); }
-    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion, canCommit);
+    if (needsDomainBroker()) { const value = await callDomainBroker('save', { accountId, parsed: { sourceVersion: parsed.sourceVersion, conversation: parsed.conversation, acquisitionHints: parsed.acquisitionHints, resourceHints: {}, diagnostics: [] }, resources: resources.map(r => ({ ...r, bytes: encodeBytes(r.bytes) })), migration }); return value === null ? null : checkedBindings(decodeDomainRecord(value), value.conversation); }
+    return saveDomainSnapshot(accountId, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion, canCommit);
 }
 
 /** Authenticated Broker save input is still raw; establish trust at the write snapshot boundary. */
-export async function saveDomainRequest(accountSlot: string, parsed: { conversation: unknown; acquisitionHints: ResourceAcquisitionHints; sourceVersion?: unknown },
+export async function saveDomainRequest(accountId: string, parsed: { conversation: unknown; acquisitionHints: ResourceAcquisitionHints; sourceVersion?: unknown },
     resources: readonly StoredDomainResource[] = [], migration = false): Promise<TrustedDomainStorageRecord | null> {
     if (typeof chrome !== 'undefined') await assertSchemaWritable();
     if (needsDomainBroker()) throw new TypeError('Raw Domain save requests require extension-origin storage');
-    return saveDomainSnapshot(accountSlot, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion);
+    return saveDomainSnapshot(accountId, readStorageDomain(parsed.conversation), parsed.acquisitionHints, resources, migration, parsed.sourceVersion);
 }
 
-async function saveDomainSnapshot(accountSlot: string, conversation: TrustedDomain, sourceHints: ResourceAcquisitionHints,
+async function saveDomainSnapshot(accountId: string, conversation: TrustedDomain, sourceHints: ResourceAcquisitionHints,
     resources: readonly StoredDomainResource[], migration: boolean, sourceVersion?: unknown, canCommit?: () => boolean): Promise<TrustedDomainStorageRecord | null> {
     if (sourceVersion !== undefined && (typeof sourceVersion !== 'number' || !Number.isFinite(sourceVersion))) throw new TypeError('Invalid source conversation version');
-    const identity = storageIdentity(conversation.index.providerId, accountSlot, conversation.index.id);
+    const identity = storageIdentity(conversation.index.providerId, accountId, conversation.index.id);
     // Export paths, diagnostics, pagination and runtime ZIP handles are deliberately excluded.
     const acquisitionHints = Object.fromEntries(Object.entries(sourceHints).map(([assetId, hint]) => [assetId, {
         ...(hint.url ? { url: hint.url } : {}), ...(hint.sourceUrl ? { sourceUrl: hint.sourceUrl } : {}), ...(hint.src ? { src: hint.src } : {}),

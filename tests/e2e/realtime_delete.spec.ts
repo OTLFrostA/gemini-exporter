@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
   test('should mark confirmed cloud deletion and retain local body and export records in real time', async ({ context, extensionId }) => {
@@ -16,11 +21,11 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
 
     await optionsPage.evaluate(async (convs) => {
       await chrome.storage.local.set({
-        gemini_conversations: (convs).map(canonicalIndexFixture),
-        gemini_conversations_count_u0: convs.length,
-        exportedIds: { [convs[0].id]: { status: 'ok', exportedAt: 1700000000000 } }
+        ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+        ['last_count_10000000-0000-4000-8000-000000000001']: convs.length,
+        ['exported_10000000-0000-4000-8000-000000000001']: { [convs[0].id]: { status: 'ok', exportedAt: 1700000000000 } }
       });
-      const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountSlot: 'u0', parsed: {
+      const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountId: '10000000-0000-4000-8000-000000000001', parsed: {
         sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: convs[0].id, title: convs[0].title }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Durable archived body' }] }] }] } },
         acquisitionHints: {}, resourceHints: {}, diagnostics: []
       } } });
@@ -44,7 +49,7 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
         contentType: 'text/html; charset=utf-8',
         body: `<!DOCTYPE html>
         <html>
-        <head><title>Gemini Live Chat</title></head>
+        <head><title>Gemini Live Chat</title><script>window._WIZ_global_data={qDCSke:'10000000001'};</script></head>
         <body>
           <div id="app">Gemini Mock Chat Window</div>
           
@@ -86,10 +91,10 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
     // 5. Durable metadata, body and export tracking must remain.
     const storageState = await optionsPage.evaluate(async () => {
       return new Promise<{ list: any[]; count: number }>((resolve) => {
-        chrome.storage.local.get(['gemini_conversations', 'gemini_conversations_count_u0'], (data: any) => {
+        chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001', 'last_count_10000000-0000-4000-8000-000000000001'], (data: any) => {
           resolve({
-            list: (data && data.gemini_conversations) || [],
-            count: (data && data.gemini_conversations_count_u0) || 0
+            list: (data && data['conversations_10000000-0000-4000-8000-000000000001']) || [],
+            count: (data && data['last_count_10000000-0000-4000-8000-000000000001']) || 0
           });
         });
       });
@@ -98,17 +103,12 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
     expect(storageState.list.find((c: any) => c.id === targetId)?.cloudAvailability).toBe('deleted');
     expect(storageState.list.length).toBe(3);
     expect(storageState.count).toBe(3);
-    // Host migration completion must not destroy the retained native body.
-    await expect.poll(async () => optionsPage.evaluate(async () => {
-      const state = await chrome.storage.local.get(['gemini_domain_host_migration_v2:https://gemini.google.com']);
-      return state['gemini_domain_host_migration_v2:https://gemini.google.com'];
-    })).toBe(2);
     const deletedDomain = await optionsPage.evaluate(async (conversationId) => {
-      return chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountSlot: 'u0', conversationId } } });
+      return chrome.runtime.sendMessage({ action: 'domainStorage', command: 'get', payload: { identity: { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001', conversationId } } });
     }, targetId);
     expect(deletedDomain.ok).toBe(true);
     expect(JSON.stringify(deletedDomain.value.conversation)).toContain('Durable archived body');
-    const exported = await optionsPage.evaluate(async () => (await chrome.storage.local.get('exportedIds')).exportedIds as Record<string, unknown>);
+    const exported = await optionsPage.evaluate(async () => (await chrome.storage.local.get('exported_10000000-0000-4000-8000-000000000001'))['exported_10000000-0000-4000-8000-000000000001'] as Record<string, unknown>);
     expect(exported[targetId]).toMatchObject({ status: 'ok', exportedAt: 1700000000000 });
 
     expect(storageState.list.map((c: any) => c.id)).toEqual(

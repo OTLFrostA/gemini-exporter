@@ -37,6 +37,7 @@ function hasAssetTabId(tab: AssetTabCandidate | null | undefined): tab is AssetT
 }
 
 export interface TabAssetRequestExtra {
+    accountId?: string;
     fileName?: string;
     candidates?: string[];
 }
@@ -68,7 +69,7 @@ export interface AssetPipelineTakeoutEngine {
 }
 
 export interface AssetPipelineOptions {
-    currentSlot?: string;
+    accountId?: string;
     useZip?: boolean;
     writer?: IExportWriter | null;
     writeFileDirect?: (path: string, content: Uint8Array) => Promise<void>;
@@ -91,7 +92,7 @@ export interface AssetPipelineClass {
 }
 
 export interface AssetPipelineInstance {
-    currentSlot: string;
+    accountId: string;
     useZip: boolean;
 
     writer: IExportWriter | null;
@@ -227,6 +228,7 @@ function sendTabAssetRequest(
 
         chrome.tabs.sendMessage(tabId, {
             action: 'downloadAssetDirect',
+            accountId: extra?.accountId,
             url,
             referer: `https://gemini.google.com/app/${chatId}`,
             preferBuffer,
@@ -243,7 +245,7 @@ function sendTabAssetRequest(
 }
 
 class AssetPipeline implements AssetPipelineInstance {
-    currentSlot: string;
+    accountId: string;
     useZip: boolean;
     writer: IExportWriter | null;
     writeFileDirect: ((path: string, content: Uint8Array) => Promise<void>) | null;
@@ -257,7 +259,7 @@ class AssetPipeline implements AssetPipelineInstance {
     static sanitizeZipPath = sanitizeZipPath;
 
     constructor(options: AssetPipelineOptions = {}) {
-        this.currentSlot = options.currentSlot || 'u0';
+        this.accountId = options.accountId || '';
         this.useZip = options.useZip !== false;
         this.writer = options.writer || null;
         this.writeFileDirect = options.writeFileDirect || null;
@@ -306,12 +308,13 @@ class AssetPipeline implements AssetPipelineInstance {
 
         const extensionFailure = r?.error;
         const extra: TabAssetRequestExtra = {
+            accountId: this.accountId,
             fileName: item.fileName || item.title,
             candidates: item.candidates
         };
         const chatId = chat.id;
         const requestFromTab = async (preferBuffer: boolean): Promise<AssetDownloadResponse | null> => {
-            const tab = this.getGeminiTab ? await this.getGeminiTab(this.currentSlot) : null;
+            const tab = this.getGeminiTab ? await this.getGeminiTab(this.accountId) : null;
             let response: AssetDownloadResponse | null = (hasAssetTabId(tab) && targetUrl && typeof chrome !== 'undefined' && chrome.tabs)
                 ? await sendTabAssetRequest(tab.id, targetUrl, chatId, preferBuffer, timeoutMs, 'tabs.sendMessage timed out', signal, extra)
                 : null;
@@ -325,7 +328,7 @@ class AssetPipeline implements AssetPipelineInstance {
                         referer: `https://gemini.google.com/app/${chatId}`,
                         preferBuffer,
                         ...extra
-                    }, this.currentSlot, timeoutMs);
+                    }, this.accountId, timeoutMs);
                     response = normalizeDownloadResponse(raw);
                 } catch (e) {
                     response = { success: false, error: getErrorMessage(e) };
@@ -340,7 +343,7 @@ class AssetPipeline implements AssetPipelineInstance {
                 referer: `https://gemini.google.com/app/${chatId}`,
                 preferBuffer: true,
                 timeoutMs,
-                slot: this.currentSlot,
+                slot: this.accountId,
                 chat,
                 item,
                 signal,
@@ -408,7 +411,7 @@ class AssetPipeline implements AssetPipelineInstance {
         const canAttemptRemote = !opts.localOnly && Boolean(targetUrl && (this.fetchAssetDelegate || isRemoteTarget));
 
         signal?.throwIfAborted();
-        const stored = await getDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId);
+        const stored = await getDomainResource(storageIdentity('gemini', this.accountId, chat.id), item.assetId);
         signal?.throwIfAborted();
         if (stored?.byteLength) return { ok: true, resourceId: item.assetId, value: { bytes: stored, name: localName } };
 
@@ -422,7 +425,7 @@ class AssetPipeline implements AssetPipelineInstance {
                     const extracted = this.extractDownloadPayload(item.assetId, r, isImage);
                     if (extracted.ok) {
                         if (sourceUrl || url || src) {
-                            try { await cacheDomainResource(storageIdentity('gemini', this.currentSlot, chat.id), item.assetId, sourceUrl || url || src || '', extracted.value.bytes); }
+                            try { await cacheDomainResource(storageIdentity('gemini', this.accountId, chat.id), item.assetId, sourceUrl || url || src || '', extracted.value.bytes); }
                             catch (error) { this.onLog(`[${chat.title || chat.id}] Resource downloaded but durable cache write failed: ${getErrorMessage(error)}`, 'warn'); }
                         }
                         signal?.throwIfAborted();
@@ -451,7 +454,7 @@ class AssetPipeline implements AssetPipelineInstance {
                     assetId: item.assetId,
                     sourceUri: sourceUrl ?? url ?? src,
                     generation: item.generation,
-                }, this.currentSlot);
+                }, this.accountId);
                 if (offlineBin && offlineBin.length > 0) {
                     signal?.throwIfAborted();
                     this.logTakeoutRecovery(chat, localName, isImage);

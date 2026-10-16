@@ -1,3 +1,5 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
 import { indexFixture } from './helpers/indexFixture.js';
 /**
  * 统一数据摄入与 Fail-Closed 完整性防护测试套件
@@ -93,9 +95,7 @@ function mockStorageContext() {
     };
 
     (global as any).chrome = {
-        runtime: {
-            sendMessage: () => {}
-        }
+        runtime: globalThis.chrome.runtime
     };
     __setModuleOverride('StorageService', mockStorage);
 

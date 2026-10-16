@@ -1,3 +1,5 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
 import test from 'node:test';
 import assert from 'node:assert';
 
@@ -141,7 +143,7 @@ for (const failure of ['HTTP 401', 'HTTP 403', 'HTTP 429', 'request timeout', 'p
                 storage: { updateConversation: async () => { marked = true; }, removeConversation: async () => { removed = true; } },
                 scraper: { contentFetchChatDetail: async () => ({ id: 'auth_failure', error: failure, isDeleted: false }) }
             });
-            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: 'u1' });
+            const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: '10000000-0000-4000-8000-000000000002' });
             assert.equal(responses[0].data.isDeleted, false);
             assert.equal(marked, false);
             assert.equal(removed, false);
@@ -171,7 +173,8 @@ for (const failure of ['memory', 'ui-throw', 'ui-reject']) {
         const order: string[] = [];
         provider.fetchConversationDetail = async () => { throw new Error('HTTP 404'); };
         console.warn = (...args: unknown[]) => { warnings.push(args); };
-        Reflect.set(chrome.runtime, 'sendMessage', () => {
+        Reflect.set(chrome.runtime, 'sendMessage', (message: {action:string}) => {
+            if (message.action === 'accountRegistry') return Reflect.apply(originalSend, chrome.runtime, [message]);
             order.push('ui');
             if (failure === 'ui-throw') throw new Error('UI unavailable');
             if (failure === 'ui-reject') return Promise.reject(new Error('UI unavailable'));

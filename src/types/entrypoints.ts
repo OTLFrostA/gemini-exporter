@@ -4,7 +4,7 @@ export interface BackgroundMessage {
     action: MessageAction;
     id?: string;
     conversationId?: string;
-    accountSlot?: string;
+    accountId?: string;
     ids?: (string | { id: string; title?: string; url?: string })[];
     format?: string;
     skipExported?: boolean;

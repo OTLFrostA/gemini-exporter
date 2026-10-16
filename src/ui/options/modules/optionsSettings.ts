@@ -26,7 +26,7 @@ let __clearLog: (() => void) | null = null;
 let __renderLog: (() => void) | null = null;
 let __updateZipUi: (() => void) | null = null;
 let __checkExportSession: (() => Promise<void> | void) | null = null;
-let __updateAccountSlotSelector: (() => void) | null = null;
+let __updateAccountSelector: (() => void) | null = null;
 let __getSearchFilter: () => string = () => '';
 let __getChatFilterType: () => string = () => {
     const sel = $('chatFilterSelect') as HTMLSelectElement | null;
@@ -58,7 +58,7 @@ export async function handleLangChange(targetLang: 'zh' | 'en'): Promise<void> {
         Progress.reset();
     }
 
-    if (__updateAccountSlotSelector) __updateAccountSlotSelector();
+    if (__updateAccountSelector) __updateAccountSelector();
     const convs = Store ? Store.getConversations() : [];
     const expMap = Store ? Store.getExportedIds() : {};
     if (List) {
@@ -89,14 +89,14 @@ export async function handleDevChange(devOn: boolean): Promise<void> {
 export async function exportDiagnostics(): Promise<void> {
     try {
         const Store = getStore();
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const slot = Store ? Store.getCurrentAccountId() : '';
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
         const LogView = getLogView();
         const logs = typeof LogView?.getBuffer === 'function' ? LogView.getBuffer() : [];
 
         const snapshot = await buildDiagnosticSnapshot({
-            slot,
+            accountId: slot,
             conversations: convs,
             exportedIds: expMap,
             workbenchLogs: logs
@@ -171,7 +171,7 @@ function bindStorageCleanup(): void {
     $('btnClearExported')?.addEventListener('click', async (e?: Event) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const slot = Store ? Store.getCurrentAccountId() : '';
         if (Store) await Store.clearExported(slot);
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
@@ -212,7 +212,7 @@ function bindStorageCleanup(): void {
         }
 
         resetClearBtn();
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const slot = Store ? Store.getCurrentAccountId() : '';
         if (Store) await Store.clearAll(slot);
         const convs = Store ? Store.getConversations() : [];
         const expMap = Store ? Store.getExportedIds() : {};
@@ -324,7 +324,7 @@ export async function init({
     renderLog: renderFn,
     updateZipUi: zipFn,
     checkExportSession: expSessFn,
-    updateAccountSlotSelector: slotSelFn,
+    updateAccountSelector: slotSelFn,
     getSearchFilter: filterFn,
     getChatFilterType: filterTypeFn
 }: OptionsSettingsOptions = {}): Promise<void> {
@@ -333,7 +333,7 @@ export async function init({
     __renderLog = renderFn || null;
     __updateZipUi = zipFn || null;
     __checkExportSession = expSessFn || null;
-    __updateAccountSlotSelector = slotSelFn || null;
+    __updateAccountSelector = slotSelFn || null;
     if (filterFn) __getSearchFilter = filterFn;
     if (filterTypeFn) __getChatFilterType = filterTypeFn;
 
@@ -519,7 +519,7 @@ export async function initLiveSaveSettings(): Promise<void> {
                 }
                 updateLiveSaveFormatAvailability();
             }
-            if (area === 'local' && (changes.exportedIds || Object.keys(changes).some(k => k.startsWith('gemini_exported_') || k.startsWith('gemini_conversations')))) {
+            if (area === 'local' && (Object.keys(changes).some(k => k.startsWith('exported_') || k.startsWith('conversations_')))) {
                 const exportCtrl = getExportCtrl();
                 if (exportCtrl && typeof exportCtrl.isRunning === 'function' && exportCtrl.isRunning()) {
                     return;

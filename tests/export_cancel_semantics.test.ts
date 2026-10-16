@@ -81,6 +81,7 @@ function collectLogs() {
 
 function baseOptions(overrides: any = {}) {
     return {
+        accountId: '10000000-0000-4000-8000-000000000001',
         selected: [
             { id: 'chat-cancel-1', title: 'Cancel Chat 1' },
             { id: 'chat-cancel-2', title: 'Cancel Chat 2' }
@@ -167,11 +168,11 @@ test('cancel semantics - permission revoked: one real failure recorded, still no
         })
     });
 
-    const result = await orchestrator.run(baseOptions({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...(baseOptions({
         selected: [{ id: 'chat-revoked-1', title: 'Revoked Chat' }],
         worker,
         downloadHandler: async (_blob: Blob, _name: string) => { downloadCalls++; }
-    }), { onLog });
+    })) }, { onLog });
 
     assert.strictEqual(result.aborted, true);
     assert.strictEqual(result.failedChats.length, 1, 'permission revocation is a real failure');
@@ -210,11 +211,11 @@ test('cancel semantics - rate-limit backoff is abortable (no 30s stall on cancel
     });
 
     const startedAt = Date.now();
-    const result = await orchestrator.run(baseOptions({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...(baseOptions({
         selected: [{ id: 'chat-backoff-1', title: 'Backoff Chat' }],
         worker,
         downloadHandler: async (_blob: Blob, _name: string) => { downloadCalls++; }
-    }), { onLog });
+    })) }, { onLog });
     const elapsed = Date.now() - startedAt;
 
     assert.ok(elapsed < 15000, `backoff must be interrupted by cancel (took ${elapsed}ms)`);
@@ -229,7 +230,7 @@ test('ZIP delivery makes cancellation during Storage await ineffective; next run
     const { __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
     const previousChrome = Reflect.get(globalThis, 'chrome');
     const memory: Record<string, unknown> = {};
-    const { expKey } = Storage.getStorageKeys('u0');
+    const { expKey } = Storage.getStorageKeys('10000000-0000-4000-8000-000000000001');
     let releaseWrite = () => {};
     let startedWrite = () => {};
     const paused = new Promise<void>(resolve => { startedWrite = resolve; });
@@ -276,7 +277,7 @@ test('ZIP delivery makes cancellation during Storage await ineffective; next run
         assert.equal(result.landedChats, 2);
         assert.equal(result.exportedCount, 2);
         assert.equal(downloads, 1);
-        assert.deepEqual(Object.keys(await Storage.getExportedIds('u0')).sort(), ['chat-cancel-1', 'chat-cancel-2']);
+        assert.deepEqual(Object.keys(await Storage.getExportedIds('10000000-0000-4000-8000-000000000001')).sort(), ['chat-cancel-1', 'chat-cancel-2']);
         assert.equal(notified.length, 2);
         assert.equal((await SessionStore.getSession()).status, 'completed');
         assert.equal(cancellations, 0);

@@ -23,11 +23,11 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
     const item = parseGeminiIndexObservation({ id: 'abcdef123', title: 'A', titleSource: 'rpc',
         updatedAt: 1700000000000 }, 'rpc-list');
     try {
-        await ingestRpcList([item], 'u0');
-        await ingestRpcList([{ ...item, updatedAt: item.updatedAt! - 1000 }], 'u0');
+        await ingestRpcList([item], '10000000-0000-4000-8000-000000000001');
+        await ingestRpcList([{ ...item, updatedAt: item.updatedAt! - 1000 }], '10000000-0000-4000-8000-000000000001');
         assert.equal(records.length, 1, 'an older repeated capture must not create a second chat');
         assert.equal(records[0].updatedAt, item.updatedAt, 'an older capture must not regress updatedAt');
-        await ingestRpcList([{ ...item }], 'u0');
+        await ingestRpcList([{ ...item }], '10000000-0000-4000-8000-000000000001');
         assert.equal(records.length, 1);
         assert.equal(records[0].updatedAt, item.updatedAt);
         assert.equal(records[0].cloudAvailability, 'available');

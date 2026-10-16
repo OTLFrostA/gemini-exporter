@@ -1,167 +1,142 @@
-import test from 'node:test';
-import { accountRuntime, ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readAccountFact, readAccountObservation, readAccountRegistry, resolveAccount } from '../src/core/domain/accountRegistry.js';
+import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/core/domain/accountRegistry.js';
 import { geminiAccountObservation } from '../src/core/provider/gemini/accountObservation.js';
 import { chatgptAccountObservation } from '../src/core/provider/chatgpt/accountObservation.js';
-import { getAccountContext, resolveCurrentAccount, invalidateAccountContext, matchesCurrentAccount } from '../src/content/accountContext.js';
+import { resolveCurrentAccount, resolveRequestAccount, getAccountContext, invalidateAccountContext } from '../src/content/accountContext.js';
+import { accountRuntime, ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+const alice = { id: ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
 
-const alice = { id: 'a0000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
-const bob = { ...alice, id: 'b0000000-0000-4000-8000-000000000002', providerAccountId: '102' };
-
-test('Registry reuses UUID by provider subject, preserves missing hints and isolates providers', () => {
-    const before = structuredClone(alice);
-    assert.deepEqual(resolveAccount([alice], { providerId: 'gemini', providerAccountId: '101' }), { resolution: 'existing', account: alice });
-    const renamed = resolveAccount([alice], { providerId: 'gemini', providerAccountId: '101', email: 'new@example.com' });
-    assert.equal(renamed.resolution, 'existing');
-    if (renamed.resolution === 'existing') { assert.equal(renamed.account.id, alice.id); assert.equal(renamed.account.email, 'new@example.com'); }
-    assert.equal(resolveAccount([alice], { providerId: 'claude', providerAccountId: '101', email: alice.email }).resolution, 'create');
-    assert.equal(resolveAccount([alice], { providerId: 'gemini', providerAccountId: '102', email: alice.email }).resolution, 'create');
-    assert.deepEqual(alice, before);
+test('matching preserves UUID and missing profile fields; mutable email is not identity', () => {
+    assert.deepEqual(findAccount([alice], 'gemini', '101'), alice);
+    assert.deepEqual(findAccount([alice], 'gemini', '101', 'new@example.com'), { ...alice, email: 'new@example.com' });
+    assert.equal(findAccount([alice], 'claude', '101', alice.email), null);
+    assert.equal(findAccount([alice], 'gemini', '102', alice.email), null);
+    assert.equal(alice.email, 'alice@example.com');
 });
-test('missing remote identity is not admitted and duplicate identities fail closed', () => {
-    assert.throws(() => readAccountObservation({ providerId: 'gemini', email: alice.email }));
-    assert.equal(geminiAccountObservation({ email: alice.email }), null);
-    assert.throws(() => resolveAccount([alice, { ...alice, id: bob.id }], alice), /Duplicate/);
-});
-test('physical schema rejects slots, scan fields, malformed UUIDs and duplicate identities', () => {
-    assert.deepEqual(readAccountFact(alice), alice);
-    for (const patch of [{ id: 'u0' }, { id: alice.email }, { slot: 'u0' }, { count: 1 }, { lastSync: 'today' }, { email: null }, { displayName: '' }]) {
-        assert.throws(() => readAccountFact({ ...alice, ...patch }), TypeError);
+test('only Account is durable; UUID, identity, extra fields and duplicates are validated', () => {
+    assert.deepEqual(readAccount(alice), alice);
+    for (const patch of [{ id: 'u0' }, { id: alice.email }, { slot: 'u0' }, { count: 1 }, { email: null }, { displayName: '' }]) {
+        assert.throws(() => readAccount({ ...alice, ...patch }), TypeError);
     }
     assert.throws(() => readAccountRegistry([alice, alice]), /Duplicate/);
-    assert.throws(() => readAccountRegistry([alice, { ...alice, id: bob.id }]), /Duplicate/);
-    assert.deepEqual(readAccountRegistry([alice, bob]).length, 2);
-    assert.throws(() => readAccountObservation({ providerId: 'gemini', slot: 'u0' }));
+    assert.throws(() => readAccountRegistry([alice, { ...alice, id: OTHER_ACCOUNT_UUID }]), /Duplicate/);
+    assert.throws(() => readAccountParameters({ providerId: 'gemini', email: alice.email }));
 });
-test('Gemini adapter maps Gaia into a provider-neutral observation without runtime fields', () => {
+test('default is a normal UUID account with a provider-local reserved key and no borrowed profile', () => {
+    const fallback = { id: OTHER_ACCOUNT_UUID, providerId: 'gemini', providerAccountId: 'default' };
+    assert.deepEqual(readAccount({ ...fallback, email: alice.email, displayName: 'Unverified' }), fallback);
+    assert.deepEqual(findAccount([fallback], 'gemini', 'default', alice.email), fallback);
+    assert.equal(findAccount([fallback], 'chatgpt', 'default'), null);
+    assert.equal(findAccount([fallback], 'gemini', alice.providerAccountId), null);
+});
+test('Gemini requires Gaia and normalizes only its verified profile', () => {
+    assert.equal(geminiAccountObservation({ email: alice.email }), null);
     assert.deepEqual(geminiAccountObservation({ gaiaId: ' 101 ', email: ' ALICE@EXAMPLE.COM ', name: ' Alice ' }), {
-        providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com', displayName: 'Alice'
+        providerId: 'gemini', providerAccountId: '101', email: alice.email, displayName: 'Alice'
     });
 });
-test('ChatGPT tuple isolates login users and workspaces while email stays mutable profile data', () => {
-    const session = { user: { id: 'user-a', email: ' ALICE@EXAMPLE.COM ', name: ' Alice ' },
-        account: { id: 'workspace-a' }, accessToken: 'must-not-persist', sessionToken: 'must-not-persist' };
-    const observation = chatgptAccountObservation(session);
-    assert.deepEqual(observation, { providerId: 'chatgpt', providerAccountId: '["user-a","workspace-a"]',
-        email: 'alice@example.com', displayName: 'Alice' });
-    if (!observation) throw new Error('Expected identified ChatGPT session');
-    const account = { ...observation, id: alice.id };
-    const changed = chatgptAccountObservation({ ...session, user: { ...session.user, email: 'new@example.com' } });
-    if (!changed) throw new Error('Expected identified ChatGPT session');
-    assert.deepEqual(resolveAccount([account], changed), { resolution: 'existing', account: { ...account, email: 'new@example.com' } });
-    for (const other of [
-        { ...session, account: { id: 'workspace-b' } },
-        { ...session, user: { ...session.user, id: 'user-b' } },
-    ]) {
-        const next = chatgptAccountObservation(other);
-        if (!next) throw new Error('Expected identified ChatGPT session');
-        assert.equal(resolveAccount([account], next).resolution, 'create');
+test('ChatGPT user/workspace tuple isolates subjects and keeps email mutable', () => {
+    const session = { user: { id: 'user-a', email: ' ALICE@EXAMPLE.COM ', name: ' Alice ' }, account: { id: 'workspace-a' }, accessToken: 'never-persist' };
+    const parameters = chatgptAccountObservation(session)!;
+    assert.deepEqual(parameters, { providerId: 'chatgpt', providerAccountId: '["user-a","workspace-a"]', email: alice.email, displayName: 'Alice' });
+    const account = { ...parameters, id: ACCOUNT_UUID };
+    assert.equal(findAccount([account], 'chatgpt', parameters.providerAccountId, 'new@example.com')?.id, ACCOUNT_UUID);
+    for (const other of [{ ...session, account: { id: 'workspace-b' } }, { ...session, user: { id: 'user-b' } }]) {
+        assert.notEqual(chatgptAccountObservation(other)?.providerAccountId, parameters.providerAccountId);
     }
-    for (const invalid of [null, {}, { user: session.user }, { account: session.account },
-        { user: { id: ' ' }, account: session.account }, { user: session.user, account: { id: 'default' } },
-        { user: [], account: session.account }, { user: { id: 123 }, account: session.account }]) {
-        assert.equal(chatgptAccountObservation(invalid), null);
-    }
-    assert.deepEqual(chatgptAccountObservation({ user: { id: 'user-a' }, account: session.account }), {
-        providerId: 'chatgpt', providerAccountId: observation.providerAccountId
-    });
+    for (const invalid of [null, {}, { user: session.user }, { user: session.user, account: { id: 'default' } }]) assert.equal(chatgptAccountObservation(invalid), null);
     assert.notEqual(chatgptAccountObservation({ user: { id: 'a:b' }, account: { id: 'c' } })?.providerAccountId,
         chatgptAccountObservation({ user: { id: 'a' }, account: { id: 'b:c' } })?.providerAccountId);
 });
-
-async function runtimeFixture(run: (state: { email: string; slot: string; subject: string | undefined; calls: unknown[]; reply: (message: unknown) => Promise<unknown> }) => Promise<void>) {
-    const names = ['chrome', 'document', 'location'] as const;
-    const old = names.map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)] as const);
-    const state = { email: 'runtime@example.com', slot: 'u0', subject: undefined as string | undefined, calls: [] as unknown[],
-        reply: async (_message: unknown): Promise<unknown> => ({ ok: true, value: { resolution: 'existing', account: alice } }) };
-    Object.defineProperty(globalThis, 'location', { configurable: true, get: () => ({ href: `https://gemini.google.com/u/${state.slot.slice(1)}/app` }) });
-    Object.defineProperty(globalThis, 'document', { configurable: true, value: {
-        querySelectorAll: () => [{ getAttribute: (name: string) => name === 'data-email' ? state.email : null }],
-        get defaultView() { return { _WIZ_global_data: { qDCSke: state.subject } }; }
-    } });
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async (message: unknown) => { state.calls.push(message); return state.reply(message); } } } });
-    invalidateAccountContext();
-    try { await run(state); } finally {
-        invalidateAccountContext();
-        for (const [name, descriptor] of old) {
-            if (descriptor) Object.defineProperty(globalThis, name, descriptor); else Reflect.deleteProperty(globalThis, name);
-        }
-    }
-}
-test('upper identity path receives UUID from Registry; hints and slots never manufacture one', async () => runtimeFixture(async state => {
-    assert.equal(await resolveCurrentAccount(), null);
-    assert.equal(state.calls.length, 0);
-    const context = await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' });
-    assert.deepEqual(context, { providerId: 'gemini', accountId: alice.id, slot: 'u0' });
-    assert.equal(await resolveCurrentAccount(undefined, 'u1'), null);
-    assert.equal(getAccountContext()?.accountId, alice.id);
-    assert.deepEqual(state.calls[0], { action: 'accountRegistry', command: 'observe', observation: { providerId: 'gemini', providerAccountId: '101' } });
-    state.slot = 'u1';
-    assert.equal(getAccountContext(), null);
-    assert.equal((await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' }))?.accountId, alice.id);
-    state.email = 'switched@example.com';
-    assert.equal(getAccountContext()?.accountId, alice.id, 'DOM email is not stable identity evidence');
-}));
-test('same Gaia keeps UUID visible during profile update and deduplicates identical observations', async () => runtimeFixture(async state => {
-    const observation = { providerId: 'gemini', providerAccountId: '101', email: alice.email };
-    await resolveCurrentAccount(observation);
-    const calls = state.calls.length;
-    await resolveCurrentAccount({ ...observation });
-    assert.equal(state.calls.length, calls);
-    let finish!: (value: unknown) => void;
-    state.reply = () => new Promise(resolve => { finish = resolve; });
-    const update = resolveCurrentAccount({ ...observation, email: 'changed@example.com' });
-    const duplicate = resolveCurrentAccount({ ...observation, email: 'changed@example.com' });
-    assert.equal(state.calls.length, calls + 1);
-    assert.equal(getAccountContext()?.accountId, alice.id);
-    assert.equal(matchesCurrentAccount({ ...observation, providerAccountId: '102' }), false);
-    finish({ ok: true, value: { resolution: 'existing', account: { ...alice, email: 'changed@example.com' } } });
-    assert.equal((await update)?.accountId, alice.id);
-    assert.equal((await duplicate)?.accountId, alice.id);
-}));
-test('loss of stable observation clears cached identity even with unchanged email and slot', async () => runtimeFixture(async () => {
-    await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' });
-    assert.equal(await resolveCurrentAccount(null), null);
-    assert.equal(getAccountContext(), null);
-}));
-test('a failed same-Gaia profile update remains retryable and does not hide the committed UUID', async () => runtimeFixture(async state => {
-    const observation = { providerId: 'gemini', providerAccountId: '101' };
-    await resolveCurrentAccount(observation);
-    state.reply = async () => { throw new Error('disk failed'); };
-    await assert.rejects(resolveCurrentAccount({ ...observation, email: 'changed@example.com' }), /disk failed/);
-    assert.equal(getAccountContext()?.accountId, alice.id);
-    const calls = state.calls.length;
-    state.reply = async () => ({ ok: true, value: { resolution: 'existing', account: alice } });
-    await resolveCurrentAccount({ ...observation, email: 'changed@example.com' });
-    assert.equal(state.calls.length, calls + 1);
-    assert.equal(await resolveCurrentAccount(), null, 'an unavailable MAIN bridge cannot return a stale cached account');
-}));
-test('delayed registration does not restore a switched account or supersede a newer binding', async () => runtimeFixture(async state => {
-    let finish: (value: unknown) => void = () => { throw new Error('No pending response'); };
-    state.reply = () => new Promise(resolve => { finish = resolve; });
-    const pending = resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' });
-    state.email = 'next@example.com';
-    state.reply = async () => ({ ok: true, value: { resolution: 'existing', account: bob } });
-    assert.equal((await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '102' }))?.accountId, bob.id);
-    finish({ ok: true, value: { resolution: 'created', account: alice } });
-    assert.equal(await pending, null);
-    assert.equal(getAccountContext()?.accountId, bob.id);
-}));
-test('storage errors and mismatched replies do not leave the old UUID bound', async () => runtimeFixture(async state => {
-    await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' });
-    state.reply = async () => ({ ok: true, value: { resolution: 'existing', account: alice } });
-    await assert.rejects(resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '102' }), /mismatch/);
-    assert.equal(getAccountContext(), null);
-    state.reply = async () => { throw new Error('disk failed'); };
-    await assert.rejects(resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' }), /disk failed/);
-    assert.equal(getAccountContext(), null);
-}));
-
-test('concurrent fresh queries await one committed Registry binding', async () => runtimeFixture(async () => {
+test('concurrent discovery binds UUID; absent identity selects default and rediscovery never promotes it', async () => {
     const runtime = accountRuntime();
     try {
         const contexts = await Promise.all([resolveCurrentAccount(), resolveCurrentAccount(), resolveCurrentAccount()]);
         assert.deepEqual(contexts.map(context => context?.accountId), [ACCOUNT_UUID, ACCOUNT_UUID, ACCOUNT_UUID]);
+        runtime.state.observation = null;
+        const fallback = await resolveCurrentAccount();
+        assert.ok(fallback); assert.notEqual(fallback.accountId, ACCOUNT_UUID);
+        runtime.state.observation = { ...ACCOUNT_OBSERVATION };
+        assert.equal((await resolveCurrentAccount())?.accountId, ACCOUNT_UUID);
+        assert.equal(fallback.accountId, '10000000-0000-4000-8000-000000000003');
     } finally { runtime.restore(); }
-}));
+});
+test('late response keeps the captured account after a same-slot switch; unknown stays default', async () => {
+    const runtime = accountRuntime();
+    try {
+        await resolveCurrentAccount();
+        runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
+        assert.equal((await resolveCurrentAccount())?.accountId, OTHER_ACCOUNT_UUID);
+        assert.equal((await resolveRequestAccount(ACCOUNT_OBSERVATION, 'u0'))?.accountId, ACCOUNT_UUID);
+        assert.equal(getAccountContext()?.accountId, OTHER_ACCOUNT_UUID);
+        assert.equal((await resolveRequestAccount(null, 'u0'))?.accountId, '10000000-0000-4000-8000-000000000003');
+        assert.equal(await resolveRequestAccount(undefined, 'u0'), null);
+    } finally { runtime.restore(); }
+});
+test('failed persistence cannot acknowledge a new binding', async () => {
+    const runtime = accountRuntime(); const original = chrome.runtime.sendMessage;
+    try {
+        chrome.runtime.sendMessage = (async () => { throw new Error('disk failed'); }) as typeof original;
+        await assert.rejects(resolveCurrentAccount(), /disk failed/);
+        assert.equal(getAccountContext(), null);
+        invalidateAccountContext();
+    } finally { chrome.runtime.sendMessage = original; runtime.restore(); }
+});
+
+test('same-account profile updates retain the committed binding and coalesce identical writes', async () => {
+    const runtime = accountRuntime(); const original = chrome.runtime.sendMessage;
+    try {
+        await resolveCurrentAccount(ACCOUNT_OBSERVATION);
+        let release!: () => void, calls = 0;
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        chrome.runtime.sendMessage = (async message => {
+            calls++;
+            await gate;
+            return Reflect.apply(original, chrome.runtime, [message]);
+        }) as typeof original;
+        const changed = {...ACCOUNT_OBSERVATION, email:'changed@example.com'};
+        const first = resolveCurrentAccount(changed);
+        const second = resolveCurrentAccount(changed);
+        assert.equal(getAccountContext()?.accountId, ACCOUNT_UUID);
+        assert.equal(calls, 1);
+        release();
+        assert.deepEqual((await Promise.all([first,second])).map(value => value?.accountId), [ACCOUNT_UUID,ACCOUNT_UUID]);
+    } finally {chrome.runtime.sendMessage = original; runtime.restore();}
+});
+test('a failed profile update leaves the committed UUID usable and the new profile retryable', async () => {
+    const runtime = accountRuntime(); const original = chrome.runtime.sendMessage;
+    try {
+        await resolveCurrentAccount(ACCOUNT_OBSERVATION);
+        const changed = {...ACCOUNT_OBSERVATION, email:'retry@example.com'};
+        chrome.runtime.sendMessage = (async () => { throw new Error('quota'); }) as typeof original;
+        await assert.rejects(resolveCurrentAccount(changed), /quota/);
+        assert.equal(getAccountContext()?.accountId, ACCOUNT_UUID);
+        chrome.runtime.sendMessage = original;
+        assert.equal((await resolveCurrentAccount(changed))?.accountId, ACCOUNT_UUID);
+    } finally {chrome.runtime.sendMessage = original; runtime.restore();}
+});
+test('a delayed registration cannot restore a superseded current-tab binding', async () => {
+    const runtime = accountRuntime(); const original = chrome.runtime.sendMessage;
+    let release!: () => void;
+    try {
+        const gate = new Promise<void>(resolve => {release = resolve;});
+        chrome.runtime.sendMessage = (async (message: {providerAccountId?: string}) => {
+            if(message.providerAccountId === ACCOUNT_OBSERVATION.providerAccountId) await gate;
+            return Reflect.apply(original, chrome.runtime, [message]);
+        }) as typeof original;
+        const old = resolveCurrentAccount(ACCOUNT_OBSERVATION);
+        assert.equal((await resolveCurrentAccount({providerId:'gemini',providerAccountId:'other-gaia'}))?.accountId, OTHER_ACCOUNT_UUID);
+        release();
+        assert.equal(await old, null);
+        assert.equal(getAccountContext()?.accountId, OTHER_ACCOUNT_UUID);
+    } finally {release?.(); chrome.runtime.sendMessage = original; runtime.restore();}
+});
+test('mismatched committed identities never bind a UUID to the current tab', async () => {
+    const runtime = accountRuntime(); const original = chrome.runtime.sendMessage;
+    try {
+        chrome.runtime.sendMessage = (async () => ({ok:true,value:{...alice,providerAccountId:'unexpected'}})) as typeof original;
+        await assert.rejects(resolveCurrentAccount(ACCOUNT_OBSERVATION), /identity mismatch/);
+        assert.equal(getAccountContext(), null);
+    } finally {chrome.runtime.sendMessage = original; runtime.restore();}
+});

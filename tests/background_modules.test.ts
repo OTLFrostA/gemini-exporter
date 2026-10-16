@@ -258,7 +258,7 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
             ]
         };
 
-        const res = await handleLiveSaveViaHandle(payload, 'u0');
+        const res = await handleLiveSaveViaHandle(payload, '10000000-0000-4000-8000-000000000001');
         // Phase A (P1-2): 空附件不再静默跳过 —— ok=false + failedAssets 累积，
         // 主 md 照常落盘，导出记录标 partial 保证下次增量重试。
         assert.strictEqual(res.ok, false, '附件失败后 ok 应为 false，不再静默标成功');

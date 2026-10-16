@@ -58,18 +58,18 @@ test('takeout_engine - prevents cross-chat media hijacking for generic image nam
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     TakeoutEngine.clearTakeoutData();
-    await TakeoutEngine.parseTakeoutZip(zipBuffer);
+    await TakeoutEngine.parseTakeoutZip(zipBuffer, null, '10000000-0000-4000-8000-000000000001');
 
     // Chat B owns image_01.png -> should find it
-    const mediaB = await TakeoutEngine.getTakeoutFallbackMedia('chat_B_123456', { assetId: '', sourceUri: 'image_01.png' });
+    const mediaB = await TakeoutEngine.getTakeoutFallbackMedia('chat_B_123456', { assetId: '', sourceUri: 'image_01.png' }, '10000000-0000-4000-8000-000000000001');
     assert.ok(mediaB && mediaB.length > 0, 'Chat B should retrieve its own image');
 
     // Chat A does NOT own image_01.png -> generic name should NOT be hijacked from globalMedia!
-    const mediaA = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', { assetId: '', sourceUri: 'image_01.png' });
+    const mediaA = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', { assetId: '', sourceUri: 'image_01.png' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(mediaA, null, 'Chat A must NOT hijack Chat B image with generic name');
 
     // Another generic attempt 'image.png'
-    const mediaAGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', { assetId: '', sourceUri: 'image.png' });
+    const mediaAGeneric = await TakeoutEngine.getTakeoutFallbackMedia('chat_A_123456', { assetId: '', sourceUri: 'image.png' }, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(mediaAGeneric, null, 'Chat A must NOT match image.png against Chat B image');
 });
 
@@ -80,13 +80,13 @@ test('takeout_engine - clearTakeoutData thoroughly cleans slot and global caches
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
     TakeoutEngine.clearTakeoutData();
-    await TakeoutEngine.parseTakeoutZip(zipBuffer, null, 'u1');
+    await TakeoutEngine.parseTakeoutZip(zipBuffer, null, '10000000-0000-4000-8000-000000000002');
 
-    const chatBefore = TakeoutEngine.getTakeoutOfflineChat('chat_slot_123', 'u1');
+    const chatBefore = TakeoutEngine.getTakeoutOfflineChat('chat_slot_123', '10000000-0000-4000-8000-000000000002');
     assert.ok(chatBefore, 'Should exist before clear');
 
-    TakeoutEngine.clearTakeoutData('u1');
-    const chatAfter = TakeoutEngine.getTakeoutOfflineChat('chat_slot_123', 'u1');
+    TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000002');
+    const chatAfter = TakeoutEngine.getTakeoutOfflineChat('chat_slot_123', '10000000-0000-4000-8000-000000000002');
     assert.strictEqual(chatAfter, null, 'Should be cleared after clearTakeoutData');
 });
 

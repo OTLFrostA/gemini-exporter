@@ -266,7 +266,7 @@ export async function completeConversationExport(
         } catch { /* callback errors must not abort export completion */ }
     } else {
         throw new Error(
-            `[completeConversationExport] storageAdapter must implement finalizeConversationExport or saveExportRecord for conversation ${completion.targetId} (slot ${slot || 'u0'})`
+            `[completeConversationExport] storageAdapter must implement finalizeConversationExport or saveExportRecord for conversation ${completion.targetId} (slot ${slot || ''})`
         );
     }
 

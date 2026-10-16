@@ -60,8 +60,8 @@ test('restored Domain detects heuristic reports and unavailable images without p
             { id: 'report', kind: 'file', document: { id: 'original-report', contentMarkdown: '# Deep Research\n\nComplete retained body' } },
             { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } },
         ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'], generation: { mediaKind: 'image', outputCount: 1 } }] } });
-        await saveDomainConversation('account', { conversation, acquisitionHints: {}, resourceHints: {}, diagnostics: [] });
-        const stored = await getStoredDomain(storageIdentity('custom', 'account', conversation.index.id));
+        await saveDomainConversation('10000000-0000-4000-8000-000000000001', { conversation, acquisitionHints: {}, resourceHints: {}, diagnostics: [] });
+        const stored = await getStoredDomain(storageIdentity('custom', '10000000-0000-4000-8000-000000000001', conversation.index.id));
         assert.ok(stored);
         const restored = storedParseResult(stored);
         assert.deepEqual(restored.conversation.detail.quality.heuristicDocumentIds, ['report']);

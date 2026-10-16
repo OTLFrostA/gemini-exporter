@@ -57,15 +57,15 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     const globals = ['document', 'location', 'chrome', 'localStorage'] as const;
     const descriptors = globals.map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const);
     let records: Conversation[] = ([
-        { id: 'chat_old', title: 'Old server chat', timestamp: NOW - 1000, accountSlot: 'u2' },
-        { id: 'chat_archive', title: 'Takeout archive', timestamp: NOW - 2000, isTakeoutOnly: true, accountSlot: 'u2' }
+        { id: 'chat_old', title: 'Old server chat', timestamp: NOW - 1000, accountSlot: '10000000-0000-4000-8000-000000000003' },
+        { id: 'chat_archive', title: 'Takeout archive', timestamp: NOW - 2000, isTakeoutOnly: true, accountSlot: '10000000-0000-4000-8000-000000000003' }
     ]).map(indexFixture);
     const initialCheckpoint = setup.checkpoint === undefined ? null : setup.checkpoint;
     let checkpoint = initialCheckpoint;
     const trace = {
         reconcileCalls: 0, slots: [] as string[], checkpointWrites: [] as number[], badgeTexts: [] as string[],
         diagnostics: [] as unknown[], progress: [] as unknown[],
-        prompts: [] as { slot: string; count: number; hitGoogleLimit: boolean; timestamp: number }[],
+        prompts: [] as { accountId: string; count: number; hitGoogleLimit: boolean; timestamp: number }[],
         decisions: [] as (PaginationStopDecision | void)[], options: null as GeminiProviderListOptions | null
     };
     const store = {
@@ -208,7 +208,7 @@ test('sync provider: complete cloud data preserves unseen local archives and Tak
     assert.equal(visible?.createdAt, undefined);
     assert.equal(visible?.titleSource, 'rpc');
     assert.equal(visible?.titleSource, 'rpc');
-    assert.ok(trace.slots.every(slot => slot === 'u2'));
+    assert.ok(trace.slots.every(slot => slot === '10000000-0000-4000-8000-000000000001'));
     assert.deepEqual(trace.checkpointWrites, [NOW]);
     assert.strictEqual(result?.diagnostics, input.diagnostics);
 });
@@ -262,7 +262,7 @@ test('sync provider: explicit Google limit outcome preserves quota prompt regard
         const { result, trace } = await scan(input);
         assert.equal(result?.hitGoogleLimit, true);
         assert.strictEqual(result?.diagnostics, input.diagnostics);
-        assert.equal(trace.prompts[0].slot, 'u2');
+        assert.equal(trace.prompts[0].accountId, '10000000-0000-4000-8000-000000000001');
         assert.equal(trace.prompts[0].hitGoogleLimit, true);
         assert.ok(trace.progress.some(message => typeof message === 'object' && message !== null && 'hitGoogleLimit' in message && message.hitGoogleLimit === true));
     }

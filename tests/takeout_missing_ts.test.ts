@@ -23,7 +23,7 @@ test('untimed Takeout ZIP yields no activity version and cannot replace server t
     try {
         const zip = new (global as any).JSZip();
         zip.file('Takeout/Gemini/MyActivity.html', htmlNoTimestamp);
-        const parsed = await TakeoutEngine.parseTakeoutZip(await zip.generateAsync({ type: 'nodebuffer' }));
+        const parsed = await TakeoutEngine.parseTakeoutZip(await zip.generateAsync({ type: 'nodebuffer' }), null, '10000000-0000-4000-8000-000000000001');
         assert.equal(parsed.conversations.length, 1);
         const takeout = parsed.conversations[0];
 

@@ -317,8 +317,8 @@ class CDPAssertions:
         order_info = cdp_opt.eval(f"""
         (() => {{
             return new Promise((resolve) => {{
-                chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                    const convs = data.gemini_conversations || [];
+                chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
+                    const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
                     const c1 = convs.find(c => c.id === '{promoted_chat_id}' || c.id === 'c_{promoted_chat_id}');
                     const c2 = convs.find(c => c.id === '{older_chat_id}' || c.id === 'c_{older_chat_id}');
                     const domItems = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
@@ -424,8 +424,8 @@ class CDPAssertions:
             check = cdp_opt.eval(f"""
             (() => {{
                 return new Promise((resolve) => {{
-                    chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                        const convs = data.gemini_conversations || [];
+                    chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
+                        const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
                         const inStorage = convs.some(c => c.id === '{deleted_chat_id}' || c.id === 'c_{clean_id}' || c.id === '{clean_id}');
                         const inDom = !!document.querySelector('{pruned_sel}');
                         resolve({{
@@ -473,8 +473,8 @@ class CDPAssertions:
         status = cdp_opt.eval(f"""
         (() => {{
             return new Promise((resolve) => {{
-                chrome.storage.local.get(['gemini_conversations'], (data) => {{
-                    const convs = data.gemini_conversations || [];
+                chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
+                    const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
                     const checkList = {json.dumps(check_ids)};
                     const matched = convs.filter(c => checkList.some(cid => c.id === cid || c.id === 'c_' + cid));
                     resolve({{

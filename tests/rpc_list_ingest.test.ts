@@ -1,4 +1,4 @@
-import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ingestRpcList, markConfirmedDeleted } from '../src/content/syncEngine.js';
@@ -17,7 +17,7 @@ async function fixture(run: (state: { records: Conversation[]; fail: boolean; wr
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
     __setModuleOverride('StorageService', {
         async transactConversations(slot: string, apply: (items: Conversation[]) => { list: Conversation[]; changed: number } | null) {
-            assert.equal(slot, 'u2');
+            assert.equal(slot, ACCOUNT_UUID);
             if (state.fail) throw new Error('disk failed');
             const result = apply(state.records);
             if (result) { state.records = result.list; state.writes++; }
@@ -45,7 +45,7 @@ test('RPC lists from the bridge and scanner persist identical titles, time, sour
     assert.equal(sniffed[0].updatedAt, 1700000000000, 'server-authored activity must survive ingest');
     assert.equal('source' in sniffed[0], false);
     assert.equal(sniffed[0].cloudAvailability, 'available');
-    await ingestRpcList(batch(), 'u2');
+    await ingestRpcList(batch(), ACCOUNT_UUID);
     assert.deepEqual(state.records, sniffed);
     assert.equal(state.checkpoints, 0);
 }));
@@ -54,11 +54,11 @@ test('RPC receipts reject invalid/stale observations and acknowledge fresh autho
     state.records.push(indexFixture({ id: 'deleted123456', title: 'Archived', timestamp: 1690000000000, cloudAvailability: 'deleted' }));
     const good = batch()[0];
     const items = [good, { ...good, id: 'c_unknown' }, { ...good, id: 'deleted123456' }];
-    markConfirmedDeleted('u2', 'deleted123456');
-    const stale = await ingestRpcList(items, 'u2', 0);
+    markConfirmedDeleted(ACCOUNT_UUID, 'deleted123456');
+    const stale = await ingestRpcList(items, ACCOUNT_UUID, 0);
     assert.deepEqual(stale, { count: 2, accepted: 1, rejected: 2, persisted: 1 });
     assert.equal(state.records.find(item => item.id === 'deleted123456')?.title, 'Archived');
-    const fresh = await ingestRpcList(items, 'u2', Date.now() + 1000);
+    const fresh = await ingestRpcList(items, ACCOUNT_UUID, Date.now() + 1000);
     assert.deepEqual(fresh, { count: 2, accepted: 2, rejected: 1, persisted: 2 });
     assert.equal(state.records.find(item => item.id === 'deleted123456')?.cloudAvailability, 'available');
     assert.equal(state.records.find(item => item.id === 'deleted123456')?.title, 'Server title');
@@ -66,11 +66,11 @@ test('RPC receipts reject invalid/stale observations and acknowledge fresh autho
 
 test('scanner sees storage failures; bridge catches them at its event boundary and a retry commits', async () => fixture(async state => {
     state.fail = true;
-    await assert.rejects(ingestRpcList(batch(), 'u2'), /disk failed/);
+    await assert.rejects(ingestRpcList(batch(), ACCOUNT_UUID), /disk failed/);
     const bridge = init({ ingestRpcList });
     await bridge.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2', requestAccountObservation: ACCOUNT_OBSERVATION } } } as MessageEvent);
     assert.equal(state.writes, 0);
     assert.equal(state.checkpoints, 0);
     state.fail = false;
-    assert.equal((await ingestRpcList(batch(), 'u2')).persisted, 1);
+    assert.equal((await ingestRpcList(batch(), ACCOUNT_UUID)).persisted, 1);
 }));

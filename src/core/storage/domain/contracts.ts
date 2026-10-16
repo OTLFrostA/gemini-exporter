@@ -9,7 +9,7 @@ export const DOMAIN_DB_VERSION = 3;
 export const ACCOUNT_STORE = 'accounts';
 
 /** Storage identity includes the account; provider IDs and conversation IDs are opaque. */
-export interface DomainStorageIdentity { providerId: string; accountSlot: string; conversationId: string }
+export interface DomainStorageIdentity { providerId: string; accountId: string; conversationId: string }
 /** Acquired/archive bytes are durable acquisition context, never semantic Domain fields. */
 export interface StoredDomainResource { assetId: string; bytes: Uint8Array; sourcePath?: string }
 export interface DomainStorageRecord {

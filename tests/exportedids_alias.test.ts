@@ -82,12 +82,12 @@ test('exportedIds alias - real StorageService writes one key and UI resolves bot
     const previous = ConversationsStore.getExportedIds();
     try {
         const record = { exportedAt: '2026-09-16T00:00:00.000Z', title: 'Saved', status: 'ok' };
-        await StorageService.saveExportRecord('u1', 'c_abc123', record);
-        const physical = environment.local['gemini_exported_u1'] as Record<string, any>;
+        await StorageService.saveExportRecord('10000000-0000-4000-8000-000000000002', 'c_abc123', record);
+        const physical = environment.local['exported_10000000-0000-4000-8000-000000000002'] as Record<string, any>;
         assert.deepStrictEqual(Object.keys(physical), ['abc123'],
             'persistence must store exactly one canonical key, not the three legacy aliases');
 
-        const stored = await StorageService.getExportedIds('u1');
+        const stored = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(Object.keys(stored), ['abc123']);
         assert.deepStrictEqual(stored.abc123, record);
         ConversationsStore.setExportedIds(stored);
@@ -103,15 +103,15 @@ test('exportedIds alias - real StorageService writes one key and UI resolves bot
 
 test('exportedIds alias - legacy alias-only storage is normalized on read without migration', async () => {
     const record = { exportedAt: '2026-01-01T00:00:00.000Z' };
-    const environment = indexStorage({ gemini_exported_u1: { c_xyz789: record } });
+    const environment = indexStorage({ ['exported_10000000-0000-4000-8000-000000000002']: { c_xyz789: record } });
     const previous = ConversationsStore.getExportedIds();
     try {
-        const records = await StorageService.getExportedIds('u1');
+        const records = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(Object.keys(records), ['xyz789'],
             'legacy-only storage must be readable without a canonical sibling');
         assert.deepStrictEqual(records.xyz789, record);
         assert.equal(environment.writes(), 0, 'reads should not rewrite an old record to normalize aliases');
-        assert.deepStrictEqual(Object.keys(environment.local.gemini_exported_u1 as object), ['c_xyz789'],
+        assert.deepStrictEqual(Object.keys(environment.local['exported_10000000-0000-4000-8000-000000000002'] as object), ['c_xyz789'],
             'the raw legacy map stays intact until an explicit persistence operation');
 
         ConversationsStore.setExportedIds(records);
@@ -120,8 +120,8 @@ test('exportedIds alias - legacy alias-only storage is normalized on read withou
         }
 
         const newer = { exportedAt: '2026-02-01T00:00:00.000Z' };
-        environment.local.gemini_exported_u1 = { c_xyz789: record, xyz789: newer };
-        const conflict = await StorageService.getExportedIds('u1');
+        environment.local['exported_10000000-0000-4000-8000-000000000002'] = { c_xyz789: record, xyz789: newer };
+        const conflict = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(conflict, { xyz789: newer },
             'an authoritative canonical record must win over a stale legacy alias');
     } finally {
@@ -130,14 +130,10 @@ test('exportedIds alias - legacy alias-only storage is normalized on read withou
     }
 });
 
-test('exportedIdsKey - canonical key computation and slot fallback', () => {
-    assert.strictEqual(exportedIdsKey('u0'), 'exportedIds');
-    assert.strictEqual(exportedIdsKey('u1'), 'gemini_exported_u1');
-    assert.strictEqual(exportedIdsKey('u2'), 'gemini_exported_u2');
-    assert.strictEqual(exportedIdsKey(null), 'exportedIds');
-    assert.strictEqual(exportedIdsKey(undefined), 'exportedIds');
-    assert.strictEqual(exportedIdsKey(''), 'exportedIds');
-    assert.strictEqual(exportedIdsKey(), 'exportedIds');
+test('exportedIdsKey partitions UUIDs without a global fallback', () => {
+    const id = '10000000-0000-4000-8000-000000000001';
+    assert.equal(exportedIdsKey(id), `exported_${id}`);
+    for (const value of [null, undefined, '', 'u0', 'default']) assert.throws(() => exportedIdsKey(value));
 });
 
 test('exportedIds - finalizeChatExport persists export record with partial status when assets fail', async () => {

@@ -1,6 +1,6 @@
 import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
-import { resolveRequestAccount, isCurrentAccount } from './accountContext.js';
+import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
 import type { PageObservation } from '../core/sync/pageObservation.js';
 import { ingestConversation } from '../core/storage/storageService.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
@@ -91,11 +91,11 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         try {
             const Proto = (_deps && _deps.protocol) || GeminiProtocol;
             if (!Proto) return;
-            const targetSlot = slot === 'default' ? 'u0' : slot;
-            if (!targetSlot || getAccountSlot && targetSlot !== getAccountSlot()) return;
+            const targetSlot = slot;
+            if (!targetSlot) return;
             const account = await resolveRequestAccount(field('requestAccountObservation'), targetSlot);
             if (!account) return;
-            const canCommit = () => isCurrentAccount(account);
+            const canCommit = () => true;
 
             if (text.includes(Proto.RPCS.LIST)) {
                 try {
@@ -104,9 +104,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         if (!canCommit()) return;
                         if (_deps.ingestPageObservation) {
                             await _deps.ingestPageObservation(geminiListObservation(listRes, listRequest ?? null,
-                                account.accountId, truncated, requestedAt), targetSlot);
+                                account.accountId, truncated, requestedAt), account.accountId);
                         } else if (_deps.ingestRpcList) {
-                            await _deps.ingestRpcList(listRes.conversations, targetSlot, requestedAt, canCommit);
+                            await _deps.ingestRpcList(listRes.conversations, account.accountId, requestedAt, canCommit);
                         }
                     }
                 } catch (e) {
@@ -120,7 +120,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const detailRes = native.conversation;
                     if (detailRes && detailRes.index.id) {
                         if (!canCommit()) return;
-                        await ingestConversation(targetSlot, native, [], 'detail', canCommit);
+                        await ingestConversation(account.accountId, native, [], 'detail', canCommit);
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[MessageBridge] parseDetail err', e);
@@ -137,16 +137,18 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         if (id && isValidConvId) {
             const cleanId = id.trim();
             try {
-                // Route verification through the account of this content tab,
-                // never through a slot supplied by page-world JavaScript.
-                const targetSlot = (getAccountSlot ? getAccountSlot() : 'u0') || 'u0';
+                // Verify against the request's captured UUID even if this tab has switched.
+                // The background still requires authoritative detail confirmation.
+                const account = await resolveRequestAccount(field('requestAccountObservation'), slot || 'u0');
+                if (!account) return;
+                const targetAccountId = account.accountId;
                 // Page-world postMessage is untrusted. The detail route only
                 // marks cloud unavailability after authoritative confirmation; local archives remain.
                 if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
                     for (const delayMs of [0, 500, 1500]) {
                         if (delayMs) await new Promise(resolve => setTimeout(resolve, delayMs));
                         try {
-                            const result = await chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: cleanId, accountSlot: targetSlot });
+                            const result = await chrome.runtime.sendMessage({ action: 'fetchChat', conversationId: cleanId, accountId: targetAccountId });
                             if (result?.data?.isDeleted === true) break;
                         } catch (err) {
                             if (contentContext.isDevMode()) console.debug('[MessageBridge] delete verification attempt failed', err);
@@ -158,6 +160,14 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
             }
         }
         return;
+    }
+
+    let streamAccountId: string | undefined;
+    if (raw.type === CrossWorldEvents.STREAM_START || raw.type === CrossWorldEvents.STREAM_COMPLETE) {
+        const captured = await resolveRequestAccount(field('requestAccountObservation'), slot || (getAccountSlot ? getAccountSlot() : 'u0'));
+        const current = await resolveCurrentAccount();
+        if (!captured || !current || captured.accountId !== current.accountId || captured.slot !== current.slot) return;
+        streamAccountId = captured.accountId;
     }
 
     if (raw.type === CrossWorldEvents.STREAM_START) {
@@ -184,7 +194,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         sidebarIndex: 0
-                    }], 'stream-start', true, targetSlot);
+                    }], 'stream-start', true, streamAccountId);
                 }
             } catch (err) {
                 if (contentContext.isDevMode()) console.debug('[MessageBridge] stream start touch err', err);
@@ -226,7 +236,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                             item.titleSource = sourceTier;
                         }
                     }
-                    await upsertConversations([item], 'stream-complete', true, targetSlot);
+                    await upsertConversations([item], 'stream-complete', true, streamAccountId);
                 }
             } catch (err) {
                 if (contentContext.isDevMode()) console.debug('[MessageBridge] stream complete touch err', err);

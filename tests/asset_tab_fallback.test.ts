@@ -1,3 +1,4 @@
+import { bindTabAccounts } from './helpers/tabAccounts.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import AssetPipeline from '../src/core/engine/assetPipeline.js';
@@ -16,6 +17,7 @@ test('asset download retries another Gemini tab when the selected tab has no con
                 { id: 22, url: 'https://gemini.google.com/app/current', active: false }
             ],
             sendMessage(tabId: number, message: any, callback: (response?: any) => void) {
+                assert.equal(message.accountId, '10000000-0000-4000-8000-000000000001');
                 sent.push({ tabId, preferBuffer: message.preferBuffer === true });
                 if (tabId === 11) {
                     runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
@@ -30,9 +32,10 @@ test('asset download retries another Gemini tab when the selected tab has no con
         }
     };
 
+    bindTabAccounts({11:'10000000-0000-4000-8000-000000000001',22:'10000000-0000-4000-8000-000000000001'});
     try {
         const pipeline = new AssetPipeline({
-            currentSlot: 'u0',
+            accountId: '10000000-0000-4000-8000-000000000001',
             getGeminiTab: TabService.getGeminiTab,
             sendToGeminiTab: TabService.sendToGeminiTab,
             writer: { writeFile: async (name: string, content: unknown, options?: { base64?: boolean }) => {

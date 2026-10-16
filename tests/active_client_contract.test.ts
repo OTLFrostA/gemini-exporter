@@ -1,3 +1,4 @@
+import { accountRuntime } from './helpers/accountRuntime.js';
 import test from 'node:test';
 import assert from 'node:assert';
 import type { ActiveClientContract } from '../src/content/contentContext.js';
@@ -59,6 +60,7 @@ async function withMessageRouter<T>(
     Object.defineProperty(g, 'chrome', { value: mockChrome, writable: true, configurable: true });
     Object.defineProperty(g, 'window', { value: mockWindow, writable: true, configurable: true });
 
+    const runtime = accountRuntime();
     try {
         contentContext.setActiveClient(null);
         contentContext.setAborted(false);
@@ -70,9 +72,10 @@ async function withMessageRouter<T>(
             try { listener(msg, {}, resolve); }
             catch (error) { reject(error); }
         });
-        return await execute(dispatch, mockWindow);
+        return await execute(dispatch, window);
     } finally {
         runCleanups();
+        runtime.restore();
         contentContext.setActiveClient(activeClient);
         contentContext.setAborted(wasAborted);
         if (originalWindow) Object.defineProperty(g, 'window', originalWindow);

@@ -19,7 +19,7 @@ for (const layout of ['messages', 'turns'] as const) {
             ...(layout === 'messages' ? { messages: [message] } : { turns: [{ messages: [message] }] }),
         };
         const snapshot = structuredClone(raw);
-        const result = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
+        const result = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
         assert.equal(result.ok, true);
         assert.equal(result.resources.size, 1);
         const node = result.document.messages[0];

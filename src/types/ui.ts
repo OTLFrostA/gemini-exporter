@@ -1,3 +1,4 @@
+import type { Account } from '../core/domain/accountRegistry.js';
 import type { TakeoutResourceLookup } from '../core/engine/takeoutEngine.js';
 import type { ResourceConversationParseResult } from '../core/parsers/parsingResult.js';
 import type { Attachment, DomainConversationIndex, GeneratedMediaIdentity } from './conversation.js';
@@ -18,21 +19,11 @@ export interface ExportRecord {
 }
 
 
-/** Profile fields written by content bootstrap and synchronization. */
-export interface AccountSlotInfo {
-    slot?: string;
-    gaiaId?: string;
-    name?: string;
-    email?: string;
-    count?: number;
-    lastSync?: string;
-}
-export type AccountSlots = Record<string, AccountSlotInfo>;
 export interface ReconcileOptions { keepTakeout?: boolean; }
 
 export interface ExportSession {
     status?: string;
-    slot?: string;
+    accountId?: string;
     total?: number;
     current?: number;
     failedCount?: number;
@@ -72,7 +63,7 @@ export interface UIExportOptions {
     selected: Array<string | Pick<DomainConversationIndex, 'id'> & Partial<DomainConversationIndex>>;
     format?: string;
     useZip?: boolean;
-    currentSlot?: string;
+    accountId?: string;
     dirHandle?: DirectoryHandle | null;
     skip?: boolean;
     includeIndex?: boolean;
@@ -149,17 +140,17 @@ export interface IConversationsStore {
     setConversations: (list: DomainConversationIndex[]) => void;
     getExportedIds: () => Record<string, ExportRecord>;
     setExportedIds: (map: Record<string, ExportRecord>) => void;
-    getCurrentSlot: () => string;
-    setCurrentSlot: (slot: string) => void;
-    getAccountSlots: () => AccountSlots;
-    setAccountSlots: (map: AccountSlots) => void;
+    getCurrentAccountId: () => string;
+    setCurrentAccountId: (slot: string) => void;
+    getAccounts: () => Account[];
+    setAccounts: (list: Account[]) => void;
     getExportedRecord: (id: string | null | undefined) => ExportRecord | null;
     getSignature: (list?: DomainConversationIndex[]) => string;
     loadStore: (slotOverride?: string) => Promise<{
         conversations: DomainConversationIndex[];
         exportedIds: Record<string, ExportRecord>;
-        slot: string;
-        accountSlots: AccountSlots;
+        accountId: string;
+        accounts: Account[];
     }>;
     getLastSync: (slot?: string) => Promise<{ timestamp: number | null; count: number }>;
     saveConversations: (slot: string, list: DomainConversationIndex[]) => Promise<void>;
@@ -190,11 +181,11 @@ export interface IListView {
 }
 
 export interface IAccountView {
-    render: (accountSlots: AccountSlots, currentSlot: string) => void;
+    render: (accounts: Account[], accountId: string) => void;
 }
 
 export interface IDialogView {
-    renderExportBanner: (session: ExportSession | null | undefined, currentSlot: string, isRunning: boolean) => void;
+    renderExportBanner: (session: ExportSession | null | undefined, accountId: string, isRunning: boolean) => void;
     dismissExportBanner: () => void;
     showDirectWritePrompt: (count: number, onConfirmFolder: () => void, onContinueZip: () => void) => void;
     hideDirectWritePrompt: () => void;
@@ -305,7 +296,7 @@ export interface OptionsSettingsOptions {
     renderLog?: () => void;
     updateZipUi?: () => void;
     checkExportSession?: () => Promise<void> | void;
-    updateAccountSlotSelector?: () => void;
+    updateAccountSelector?: () => void;
     getSearchFilter?: () => string;
     getChatFilterType?: () => string;
 }

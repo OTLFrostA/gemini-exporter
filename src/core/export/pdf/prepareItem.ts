@@ -77,12 +77,12 @@ export function extractChatFromDetailResult(res: FetchChatDetailResult, _id: str
     return isResourceConversationParseResult(value) ? value : null;
 }
 export async function resolveFullChatDetail(args: {
-    id: string; title: string; index: number; total: number; currentSlot: string; skip: boolean;
+    id: string; title: string; index: number; total: number; accountId: string; skip: boolean;
     signal: AbortSignal; fetchChatDetail: typeof BatchWorker.fetchChatDetail; onLog: (message: string, level?: string) => void;
 }): Promise<{ ok: true; chat: ResourceConversationParseResult; source: ResolvedConversationSource } | { ok: false; error: string }> {
     try {
         const response = await args.fetchChatDetail({ id: args.id, title: args.title }, args.index, args.total,
-            args.currentSlot, args.skip, 'pdf', args.signal);
+            args.accountId, args.skip, 'pdf', args.signal);
         if (!isObjectRecord(response) || !response.success) return { ok: false, error: isObjectRecord(response) && typeof response.error === 'string' ? response.error : 'Detail fetch failed' };
         const chat = extractChatFromDetailResult(response, args.id);
         if (!chat) return { ok: false, error: 'Detail acquisition did not return native Domain' };
@@ -122,7 +122,7 @@ export interface PreparePdfItemContext {
     fetchChatDetail?: typeof BatchWorker.fetchChatDetail;
     index?: number;
     total?: number;
-    currentSlot?: string;
+    accountId?: string;
     skip?: boolean;
     signal?: AbortSignal;
     onLog?: (msg: string, level?: string) => void;
@@ -180,7 +180,7 @@ function resolvePdfAssetPipeline(context: PreparePdfItemContext): {
         : undefined);
 
     const pipeline = new AssetPipelineClass({
-        currentSlot: context.currentSlot,
+        accountId: context.accountId,
         useZip: false,
         takeoutEngine,
         getGeminiTab,
@@ -209,19 +209,19 @@ async function prepareNativePdfItem(
     let title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.index.title) || id;
     const signal = context.signal ?? new AbortController().signal;
     const onLog = context.onLog ?? (() => {});
-    const currentSlot = context.currentSlot ?? 'u0';
+    const accountId = context.accountId ?? '';
     const diagnostics: RenderDiagnostic[] = [];
     let parsed = nativeSelected;
     let dataSource = context.source ?? 'unspecified';
     if (!parsed?.conversation.detail.messages.length && context.fetchChatDetail) {
         const fetched = await resolveFullChatDetail({ id, title, index: context.index ?? 0, total: context.total ?? 1,
-            currentSlot, skip: context.skip ?? false, signal, fetchChatDetail: context.fetchChatDetail, onLog });
+            accountId, skip: context.skip ?? false, signal, fetchChatDetail: context.fetchChatDetail, onLog });
         if (fetched.ok) { parsed = fetched.chat; dataSource = fetched.source; }
         else onLog(fetched.error, 'warn');
     }
     const resolved = await resolveChat(parsed, { id, title }, listItem,
         context.takeoutEngine && 'getTakeoutOfflineChat' in context.takeoutEngine ? context.takeoutEngine : null,
-        currentSlot, undefined, onLog, { source: dataSource });
+        accountId, undefined, onLog, { source: dataSource });
     if (signal.aborted) return { ok: false, id, title, error: 'aborted', diagnostics };
     if (resolved.isError) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] ${resolved.errMsg}`, diagnostics };
     parsed = resolved.chat;
@@ -244,7 +244,7 @@ async function prepareNativePdfItem(
     }
     const { pipeline, maxRetries } = context.includeAssets === false
         ? { pipeline: null, maxRetries: undefined }
-        : resolvePdfAssetPipeline({ ...context, currentSlot, onLog });
+        : resolvePdfAssetPipeline({ ...context, accountId, onLog });
 
     const pipelineChat: AssetPipelineChat = { id: parsed.conversation.index.id, title };
     const imageIds = collectDocumentResources(document).imageIds;

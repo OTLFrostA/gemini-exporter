@@ -291,7 +291,7 @@ async function finalizeChatExport(targetId: string, context: FinalizeChatExportC
         exportedIds,
         Storage,
         storageAdapter = Storage,
-        slot = 'u0',
+        slot = '',
         onItemExported = (() => {})
     } = context;
 

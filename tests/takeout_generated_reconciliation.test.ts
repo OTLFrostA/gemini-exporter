@@ -40,7 +40,7 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
     };
     const previousJSZip: unknown = Reflect.get(globalThis, 'JSZip');
     Reflect.set(globalThis, 'JSZip', JSZip);
-    const slot = 'ambiguous-generated-zip';
+    const slot = '10000000-0000-4000-8000-000000000001';
     try {
         const zip = new JSZip();
         const chatId = 'abcd1234abcd1234';

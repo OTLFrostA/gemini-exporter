@@ -1,10 +1,9 @@
+import { getAccount, listAccounts, getOrCreateAccount } from '../api/accountRegistry.js';
 import { isAccountId } from '../domain/accountRegistry.js';
 import { selectConversationBody, withConversationMetadata } from '../domain/runtimeValidation.js';
 import type { StoredDomainResource } from './domain/contracts.js';
-import { parseLegacyStorageConversation } from '../parsers/legacyStorage/parseConversation.js';
 import { deduplicateConversations } from '../utils/mergeUtils.js';
 import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
-import { parseLegacyConversationIndex } from '../parsers/legacyStorage/parseIndex.js';
 import { indexFromParsed } from './conversationIndexFromParsed.js';
 import { CoverageSession, emptyStream, type StreamCoverage } from '../sync/streamCoverage.js';
 import type { PageObservation } from '../sync/pageObservation.js';
@@ -12,18 +11,16 @@ import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type Sc
 import type { ScanStatus } from '../../types/ui.js';
 import { assertSchemaWritable } from './schemaState.js';
 import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
-import { backupLegacyValue, storedParseResult, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
+import { storedParseResult, saveDomainConversation, removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
 import { createConversationRepository, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
 import {
-    readStoredValue, type StoredObject, readStoredObject, readStoredExportMap, readStoredSlotMap,
+    readStoredValue, type StoredObject, readStoredObject, readStoredExportMap,
     type StoredExportRecordMap,
-    type StoredAccountSlotMap, type StoredSyncStatus,
+    type StoredSyncStatus,
 } from './storageCompatibility.js';
 import type {
     DomainConversationIndex,
     ExportRecord,
-    AccountSlotInfo,
-    AccountSlots,
     ReconcileOptions
 } from "../../types/index.js";
 import { normId } from "../utils/pathUtils.js";
@@ -60,7 +57,7 @@ import {
 } from './userPreferences.js';
 
 export interface StorageKeys {
-    slot: string;
+    accountId: string;
     convKey: string;
     expKey: string;
     syncKey: string;
@@ -87,23 +84,17 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
 
-function normSlot(slot?: string | null): string {
-    if (!slot || slot === 'default' || slot === 'u0') return 'u0';
-    const m = String(slot).match(/u(\d+)/i);
-    return m ? ('u' + m[1]) : 'u0';
+function requireAccountId(accountId?: string | null): string {
+    if (!isAccountId(accountId)) throw new TypeError('Storage requires a Registry account UUID');
+    return accountId;
 }
 
-function getStorageKeys(slot?: string | null): StorageKeys {
-    const s = normSlot(slot);
-    return {
-        slot: s,
-        convKey: s === 'u0' ? 'gemini_conversations' : `gemini_conversations_${s}`,
-        expKey: s === 'u0' ? 'exportedIds' : `gemini_exported_${s}`,
-        syncKey: s === 'u0' ? 'gemini_last_sync' : `gemini_last_sync_${s}`,
-        countKey: s === 'u0' ? 'gemini_last_count' : `gemini_last_count_${s}`,
-        coverageKey: s === 'u0' ? STORAGE_KEYS.SCAN_COVERAGE : `${STORAGE_KEYS.SCAN_COVERAGE}_${s}`,
-        checkpointKey: s === 'u0' ? 'gemini_scan_checkpoint' : `gemini_scan_checkpoint_${s}`
-    };
+function getStorageKeys(accountId?: string | null): StorageKeys {
+    const id = requireAccountId(accountId);
+    return { accountId: id,
+        convKey: `conversations_${id}`, expKey: `exported_${id}`,
+        syncKey: `last_sync_${id}`, countKey: `last_count_${id}`,
+        coverageKey: `scan_coverage_${id}`, checkpointKey: `scan_checkpoint_${id}` };
 }
 
 async function getConversations(slot?: string | null): Promise<DomainConversationIndex[]> {
@@ -118,69 +109,12 @@ async function getConversations(slot?: string | null): Promise<DomainConversatio
     return indexes;
 }
 
-/** Startup-only conversion. Backups commit before slimming any legacy metadata. */
-export async function migrateConversationIndexes(): Promise<void> {
-    await withConversationLock(async () => {
-        const all = await chrome.storage.local.get<Record<string, unknown>>(null);
-        const containers = Object.entries(all).filter(([key]) => key === 'gemini_conversations' || /^gemini_conversations_u\d+$/.test(key));
-        const issues: Array<{ key: string; code: string; message: string }> = [];
-        const bySlot = new Map<string, DomainConversationIndex[]>();
-        // Preserve malformed containers as well as rejected rows; never lose recovery evidence.
-        for (const [key, value] of containers) await backupLegacyValue(`index-v2:${key}`, value);
-        for (const [key, value] of containers) {
-            const slot = key === 'gemini_conversations' ? 'u0' : normSlot(key.slice('gemini_conversations_'.length));
-            const list = bySlot.get(slot) ?? [];
-            bySlot.set(slot, list);
-            if (!Array.isArray(value)) {
-                issues.push({ key, code: 'INVALID_CONTAINER', message: 'Original index container retained in migration backup' });
-                continue;
-            }
-            for (const [position, row] of value.entries()) {
-                let index: DomainConversationIndex;
-                try {
-                    try { index = restoreConversationIndex(row); }
-                    catch { index = parseLegacyConversationIndex(row); }
-                } catch (error) {
-                    if (!(error instanceof TypeError)) throw error;
-                    issues.push({ key: `${key}[${position}]`, code: 'INVALID_ROW', message: error.message });
-                    continue;
-                }
-                if (isObjectRecord(row) && (Array.isArray(row.messages) || Array.isArray(row.turns))) {
-                    let parsed: ResourceConversationParseResult | undefined;
-                    try { parsed = parseLegacyStorageConversation({ metadata: row }, { providerId: index.providerId }); }
-                    catch (error) {
-                        if (!(error instanceof TypeError)) throw error;
-                        issues.push({ key: `${key}[${position}]`, code: 'INVALID_BODY', message: error.message });
-                    }
-                    if (parsed) await saveDomainConversation(slot, parsed, [], true);
-                }
-                const body = await getStoredDomain(storageIdentity(index.providerId, slot, index.id));
-                if (body && (body.conversation.detail.messages.length > 0 || body.conversation.detail.quality.status === 'complete')) {
-                    index.messageCount = Math.max(index.messageCount ?? 0, body.conversation.detail.messages.length);
-                }
-                list.push(index);
-            }
-        }
-
-        for (const [slot, rows] of bySlot) {
-            const { processed } = deduplicateConversations(rows);
-            await _setConversationsRaw(slot, processed);
-        }
-        // Alias removal happens only after the canonical list and report are durable.
-        const reportKey = 'gemini_index_migration_v2';
-        const oldReport = all[reportKey];
-        const previousIssues = isObjectRecord(oldReport) && Array.isArray(oldReport.issues) ? oldReport.issues : [];
-        await chrome.storage.local.set({ [reportKey]: { issues: [...new Map([...previousIssues, ...issues].map(issue => [JSON.stringify(issue), issue])).values()] } });
-        if ('gemini_conversations_u0' in all) await chrome.storage.local.remove('gemini_conversations_u0');
-    });
-}
-
 let _convChain: Promise<void> = Promise.resolve();
 
 // Cross-tab write serialization.
 //
 // Every Gemini tab runs its own content-script JS context, so the in-memory
-// promise chains below (_convChain / _slotChain / _saveRecordChain) only
+// promise chains below (_convChain / _saveRecordChain) only
 // serialize writes *within* one tab. chrome.storage.local is shared across
 // tabs, so two tabs could still interleave read-modify-write cycles: both
 // read the same stale snapshot, then the later write silently discards the
@@ -191,8 +125,8 @@ let _convChain: Promise<void> = Promise.resolve();
 // chain to a truly global mutex. The lock is taken *inside* the in-memory
 // chain, so a tab only holds the global lock while its own critical section
 // runs — never while waiting behind its own queued work. Lock order is
-// unchanged (conv -> slot, conv -> save-record; no path takes them in
-// reverse), and Web Locks are never nested for the same name.
+// unchanged (conv -> save-record; no path takes them in reverse), and
+// Web Locks are never nested for the same name.
 //
 // When Web Locks is unavailable (very old Chrome, non-window test envs)
 // the in-memory chain remains as the fallback, preserving the previous
@@ -227,14 +161,6 @@ function withConversationLock<T>(fn: () => Promise<T>): Promise<T> {
     return p;
 }
 
-let _slotChain: Promise<void> = Promise.resolve();
-function withSlotLock<T>(fn: () => Promise<T>): Promise<T> {
-    const run = () => withCrossTabLock('account-slot', fn);
-    const p = _slotChain.then(run, run);
-    _slotChain = p.then(() => {}, () => {});
-    return p;
-}
-
 /** Canonical index writes never inspect or persist conversation bodies. */
 async function _setConversationsRaw(slot: string | null | undefined, list: readonly DomainConversationIndex[]): Promise<DomainConversationIndex[]> {
     await assertSchemaWritable();
@@ -252,7 +178,7 @@ async function ingestConversation(slot: string, parsed: ResourceConversationPars
     resources: readonly StoredDomainResource[] = [], source: 'detail' | 'takeout' | 'snapshot' = 'detail', canCommit?: () => boolean): Promise<ResourceConversationParseResult> {
     return withConversationLock(async () => {
         if (canCommit?.() === false) throw new Error('Account changed before detail ingestion');
-        const stored = await saveDomainConversation(normSlot(slot), parsed, resources, false, canCommit);
+        const stored = await saveDomainConversation(requireAccountId(slot), parsed, resources, false, canCommit);
         const list = await getConversations(slot);
         const incoming = indexFromParsed(parsed, source);
         const position = list.findIndex(row => row.providerId === incoming.providerId && row.id === incoming.id);
@@ -269,7 +195,7 @@ async function ingestConversation(slot: string, parsed: ResourceConversationPars
 
 /** Upsert a partial native import; unrelated indexes and stronger metadata remain intact. */
 async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
-    for (const parsed of list) await ingestConversation(normSlot(slot), parsed, [], 'snapshot');
+    for (const parsed of list) await ingestConversation(requireAccountId(slot), parsed, [], 'snapshot');
 }
 
 // Atomic read-merge-write for the conversation list.
@@ -320,7 +246,7 @@ async function updateConversation(
 // Durable intent outlives list metadata and every partial cleanup. These helpers
 // run under the conversation lock; retire IDs only after all stores commit.
 function pendingDeletionKey(slot: string | null | undefined): string {
-    return `gemini_pending_deletions_${normSlot(slot)}`;
+    return `gemini_pending_deletions_${requireAccountId(slot)}`;
 }
 
 async function pendingDeletions(slot: string | null | undefined): Promise<string[]> {
@@ -333,8 +259,9 @@ async function pendingDeletions(slot: string | null | undefined): Promise<string
 }
 
 async function finishConversationDeletions(slot: string | null | undefined, ids: string[], pending: string[]): Promise<void> {
-    for (const id of ids) await removeStoredDomain(storageIdentity('gemini', normSlot(slot), id));
-    await removeConversationDetails(ids);
+    const account = await getAccount(requireAccountId(slot));
+    if (!account) throw new Error('Account does not exist');
+    for (const id of ids) await removeStoredDomain(storageIdentity(account.providerId, account.id, id));
     await removeExportRecords(slot, ids);
     const completed = new Set(ids);
     await chrome.storage.local.set({ [pendingDeletionKey(slot)]: pending.filter(id => !completed.has(id)) });
@@ -352,7 +279,7 @@ async function removeConversation(slot: string | null | undefined, conversationI
         const filtered = list.filter(c => c.id !== targetId);
         const { convKey, countKey } = getStorageKeys(slot);
         await chrome.storage.local.set({ [convKey]: filtered, [countKey]: filtered.length });
-        await updateAccountSlot(slot, { count: filtered.length });
+
         // An absent list entry is not proof that its body or export records are gone.
         await finishConversationDeletions(slot, [targetId], pending);
         return filtered.length !== list.length;
@@ -377,7 +304,7 @@ async function clearConversations(slot?: string | null): Promise<void> {
         };
         await chrome.storage.local.set(toSet);
         await chrome.storage.local.remove([checkpointKey]);
-        await updateAccountSlot(slot, { count: 0 });
+
     });
 }
 
@@ -422,7 +349,7 @@ async function reconcileConversations(
                 [convKey]: kept,
                 [countKey]: kept.length
             });
-            await updateAccountSlot(slot, { count: kept.length });
+
             await finishConversationDeletions(slot, deletionIds, deletionIds);
         }
 
@@ -443,16 +370,6 @@ async function getExportedIds(slot?: string | null): Promise<StoredExportRecordM
         : {};
     collapseExportAliases(records);
     return records;
-}
-
-async function setExportedIds(slot: string | null | undefined, map: StoredExportRecordMap): Promise<void> {
-    const { expKey, slot: s } = getStorageKeys(slot);
-    const canonical = normalizeExportRecordKeys(map);
-    const updates: Record<string, unknown> = { [expKey]: canonical || {} };
-    if (s === 'u0') {
-        updates['exportedIds'] = canonical || {};
-    }
-    await chrome.storage.local.set(updates);
 }
 
 function canonicalExportKey(id: string | number | null | undefined): string {
@@ -480,39 +397,12 @@ function collapseExportAliases(map: StoredExportRecordMap): void {
     }
 }
 
-async function migrateExportAliases(slot: string | null | undefined): Promise<boolean> {
-    return enqueueSaveRecordChain(async () => {
-        const { expKey, slot: s } = getStorageKeys(slot);
-        const readKeys = s === 'u0' ? ['exportedIds', 'gemini_exported_u0'] : [expKey];
-        const data = await chrome.storage.local.get<Record<string, unknown>>(readKeys);
-        const merged: StoredExportRecordMap = {};
-        for (const k of readKeys) {
-            const m = data[k];
-            if (isObjectRecord(m)) {
-                Object.assign(merged, readStoredExportMap(m));
-            }
-        }
-        const before = Object.keys(merged);
-        const hasLegacyU0 = s === 'u0' && Boolean(data['gemini_exported_u0']);
-        if (!before.length && !hasLegacyU0) return false;
-        const canonical = normalizeExportRecordKeys(merged);
-        const after = Object.keys(canonical);
-        const changed = after.length !== before.length || !before.every(k => after.includes(k)) || hasLegacyU0;
-        if (!changed) return false;
-        await setExportedIds(slot, canonical);
-        if (hasLegacyU0 && typeof chrome.storage.local.remove === 'function') {
-            await chrome.storage.local.remove(['gemini_exported_u0']);
-        }
-        return true;
-    });
-}
-
 let _saveRecordChain: Promise<void> = Promise.resolve();
 function enqueueSaveRecordChain<T>(fn: () => Promise<T>): Promise<T> {
     const run = () => withCrossTabLock('export-records', fn);
-    const p = _saveRecordChain.then(run, run);
-    _saveRecordChain = p.then(() => undefined, () => undefined);
-    return p;
+    const result = _saveRecordChain.then(run, run);
+    _saveRecordChain = result.then(() => undefined, () => undefined);
+    return result;
 }
 
 async function saveExportRecord<T = unknown>(
@@ -545,7 +435,7 @@ async function finalizeConversationExport<T = ExportRecord>(
     const selfDelegate: StorageFinalizeDelegate | null = typeof StorageService !== 'undefined' ? StorageService : null;
     const doSaveRecord = selfDelegate?.saveExportRecord || saveExportRecord;
 
-    // 1. Serialized record write to exportedIds SSoT
+    // 1. Serialized record write to the account-scoped export records
     await doSaveRecord(slot, targetId, record);
 
     // 3. Trigger callback if provided
@@ -563,7 +453,7 @@ async function saveExportRecordsBatch<T = unknown>(
     records: Record<string, T>
 ): Promise<StoredExportRecordMap> {
     return enqueueSaveRecordChain(async () => {
-        const { expKey, slot: s } = getStorageKeys(slot);
+        const { expKey } = getStorageKeys(slot);
         const data = await chrome.storage.local.get<Record<string, unknown>>([expKey]);
         const raw = data[expKey];
         const cur: StoredExportRecordMap = (typeof raw === 'object' && raw !== null)
@@ -572,9 +462,6 @@ async function saveExportRecordsBatch<T = unknown>(
         collapseExportAliases(cur);
         Object.assign(cur, normalizeExportRecordKeys(readStoredExportMap(records)));
         const updates: Record<string, unknown> = { [expKey]: cur };
-        if (s === 'u0') {
-            updates['exportedIds'] = cur;
-        }
         await chrome.storage.local.set(updates);
         return cur;
     });
@@ -594,11 +481,9 @@ async function removeExportRecords(slot: string | null | undefined, ids: string[
         }
     }
     if (aliasKeys.size === 0) return 0;
-    const { expKey, slot: s } = getStorageKeys(slot);
+    const { expKey } = getStorageKeys(slot);
     return enqueueSaveRecordChain(async () => {
-        const sweepGlobal = s !== 'u0';
-        const readKeys = sweepGlobal ? [expKey, 'exportedIds'] : [expKey];
-        const data = await chrome.storage.local.get<Record<string, unknown>>(readKeys);
+        const data = await chrome.storage.local.get<Record<string, unknown>>([expKey]);
         const rawOwn = data[expKey];
         const ownMap: Record<string, unknown> = isObjectRecord(rawOwn) ? { ...rawOwn } : {};
         // Keys this slot owns among the doomed ids — used to conservatively
@@ -615,29 +500,7 @@ async function removeExportRecords(slot: string | null | undefined, ids: string[
             removed++;
         }
         const updates: Record<string, unknown> = { [expKey]: ownMap };
-        if (sweepGlobal) {
-            const rawGlobal = data['exportedIds'];
-            const g: Record<string, unknown> | null = isObjectRecord(rawGlobal) ? { ...rawGlobal } : null;
-            if (g) {
-                let gRemoved = 0;
-                const ownedNids = new Set<string>();
-                for (const k of ownedBefore) {
-                    const nk = normId(k);
-                    if (nk) ownedNids.add(nk);
-                }
-                for (const mk of Object.keys(g)) {
-                    const nmk = normId(mk);
-                    if ((nmk && ownedNids.has(nmk)) || ownedBefore.has(mk)) {
-                        delete g[mk];
-                        gRemoved++;
-                    }
-                }
-                if (gRemoved > 0) updates['exportedIds'] = g;
-            }
-        }
-        if (removed > 0 || (sweepGlobal && updates['exportedIds'])) {
-            await chrome.storage.local.set(updates);
-        }
+        if (removed > 0) await chrome.storage.local.set(updates);
         return removed;
     });
 }
@@ -679,7 +542,7 @@ const pageSessionKey = (slot: string, coverage: ScanCoverage, streamId: string) 
     JSON.stringify([slot, coverage.generation, coverage.providerId, coverage.accountId, streamId]);
 
 async function preparePageCoverage(slot: string, accountId: string | null, providerId = 'gemini'): Promise<ScanCoverage> {
-    if (!isAccountId(accountId)) throw new TypeError('Coverage requires a Registry account UUID');
+    if (!isAccountId(accountId) || slot !== accountId) throw new TypeError('Coverage requires its Registry account UUID');
     return withConversationLock(async () => {
         await assertSchemaWritable();
         const current = await getScanCoverage(slot);
@@ -779,39 +642,6 @@ async function finishScanCoverage(slot: string, runId: string, status: ScanStatu
     });
 }
 
-async function getAccountSlots(): Promise<StoredAccountSlotMap> {
-    const data = await chrome.storage.local.get<Record<string, unknown>>([STORAGE_KEYS.ACCOUNT_SLOTS]);
-    const raw = data[STORAGE_KEYS.ACCOUNT_SLOTS];
-    return isObjectRecord(raw) ? readStoredSlotMap(raw) : {};
-}
-
-async function setAccountSlots(map: AccountSlots | Record<string, unknown>): Promise<void> {
-    await chrome.storage.local.set({ [STORAGE_KEYS.ACCOUNT_SLOTS]: map || {} });
-}
-
-async function updateAccountSlot(
-    slot: string | null | undefined,
-    info: Partial<AccountSlotInfo> | Record<string, unknown> | null | undefined
-): Promise<StoredAccountSlotMap> {
-    return withSlotLock(async () => {
-        const s = normSlot(slot);
-        const map: StoredAccountSlotMap = await getAccountSlots();
-        const cleanInfo: StoredObject = {};
-        if (isObjectRecord(info)) {
-            for (const [k, v] of Object.entries(info)) {
-                if (v !== undefined) {
-                    cleanInfo[k] = readStoredValue(v);
-                }
-            }
-        }
-        const existingSlot = isObjectRecord(map[s]) ? readStoredObject(map[s]) : {};
-        const nextSlot = { ...existingSlot, ...cleanInfo };
-        map[s] = readStoredSlotMap({ [s]: nextSlot })[s];
-        await setAccountSlots(map);
-        return map;
-    });
-}
-
 async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
     try {
@@ -819,11 +649,12 @@ async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
     } catch (e) { console.warn("[GemExporter:storage] Storage operation failed:", e); }
 }
 
-async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
+async function hasTakeoutData(slot?: string | null): Promise<boolean> {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return false;
     try {
         const data = await chrome.storage.local.get<Record<string, unknown>>([STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]);
         if (data && data[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT]) return true;
+        if (!slot) return false;
         const convs = await getConversations(slot);
         return (convs || []).some(c => c && c.hasTakeoutImport);
     } catch {
@@ -832,19 +663,16 @@ async function hasTakeoutData(slot: string | null = 'u0'): Promise<boolean> {
 }
 
 function conversationRepository(scope: ConversationScope): ConversationRepository {
-    // This backend partitions catalogs by Chrome account slots. Do not silently map
-    // an unsupported scope to u0 using the historical normSlot convenience helper.
-    const slot = scope.providerId === 'gemini' && scope.accountSlot === 'default' ? 'u0' : scope.accountSlot;
-    if (!/^u\d+$/.test(slot)) throw new TypeError('Unsupported conversation account slot');
-    return createConversationRepository({ ...scope, accountSlot: slot }, {
-        readIndexes: () => getConversations(slot), readBody: getStoredDomain, readConsistently: withConversationLock,
+    const accountId = requireAccountId(scope.accountId);
+    return createConversationRepository({ ...scope, accountId }, {
+        readIndexes: () => getConversations(accountId), readBody: getStoredDomain, readConsistently: withConversationLock,
     });
 }
 
 export {
+    getAccount, listAccounts, getOrCreateAccount,
     conversationRepository,
     ingestConversation,
-    normSlot,
     normId,
     getStorageKeys,
     getConversations,
@@ -857,14 +685,10 @@ export {
     clearAllDetails,
     reconcileConversations,
     getExportedIds,
-    // P1-3 follow-up: setExportedIds / setAccountSlots 已从公开 surface 彻底移除
-    // （interface + 默认对象都不再声明）。函数本体仍保留在模块闭包内供
-    // saveExportRecordsBatch（锁内回写）与内部 slot 更新使用，不得再对外暴露。
     saveExportRecord,
     finalizeConversationExport,
     saveExportRecordsBatch,
     removeExportRecords,
-    migrateExportAliases,
     getLastSync,
     setLastSync,
     getScanCoverage,
@@ -874,8 +698,6 @@ export {
     beginScanCoverage,
     isScanCoverageCurrent,
     finishScanCoverage,
-    getAccountSlots,
-    updateAccountSlot,
     getDevMode,
     setDevMode,
     isTourCompleted,
@@ -899,9 +721,9 @@ export {
 };
 
 export const StorageService = {
+    getAccount, listAccounts, getOrCreateAccount,
     conversationRepository,
     ingestConversation,
-    normSlot,
     normId,
     getStorageKeys,
     getConversations,
@@ -918,7 +740,6 @@ export const StorageService = {
     finalizeConversationExport,
     saveExportRecordsBatch,
     removeExportRecords,
-    migrateExportAliases,
     getLastSync,
     setLastSync,
     getScanCoverage,
@@ -928,8 +749,6 @@ export const StorageService = {
     beginScanCoverage,
     isScanCoverageCurrent,
     finishScanCoverage,
-    getAccountSlots,
-    updateAccountSlot,
     getDevMode,
     setDevMode,
     isTourCompleted,

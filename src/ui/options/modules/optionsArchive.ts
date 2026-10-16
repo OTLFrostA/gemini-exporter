@@ -6,7 +6,7 @@ let dismissed = '';
 /** One non-blocking summary, scoped to the visible account. Closing always retains data. */
 export async function renderArchiveNotice(conversations: DomainConversationIndex[], slot: string, reload: () => Promise<void>): Promise<void> {
     const card = document.getElementById('archiveNotice');
-    if (!card || getStore()?.getCurrentSlot() !== slot) return;
+    if (!card || getStore()?.getCurrentAccountId() !== slot) return;
     const affected = conversations.filter(c => c.cloudAvailability === 'deleted');
     const signature = slot + affected.map(c => `${c.id}:${c.cloudAvailability}`).sort().join('|');
     if (!affected.length || signature === dismissed) {
@@ -25,7 +25,7 @@ export async function renderArchiveNotice(conversations: DomainConversationIndex
     };
     button('archiveDismiss', () => { dismissed = signature; card.hidden = true; });
     button('archiveCleanLocal', async () => {
-        if (getStore()?.getCurrentSlot() !== slot || !window.confirm(t('archiveCleanConfirm', affected.length))) return;
+        if (getStore()?.getCurrentAccountId() !== slot || !window.confirm(t('archiveCleanConfirm', affected.length))) return;
         for (const conversation of affected) await getStorage().removeConversation(slot, conversation.id);
         await reload();
     });

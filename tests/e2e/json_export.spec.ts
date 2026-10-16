@@ -1,6 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
@@ -71,8 +76,8 @@ test.describe('Deep E2E: Standard JSON export', () => {
         { id: 'json_exp_001', title: '分布式一致性哈希算法详解', timestamp: 1700000000000 }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (convs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -127,9 +132,9 @@ test.describe('Deep E2E: Standard JSON export', () => {
     await expect(optionsPage.locator('[data-chat-id="json_exp_001"] .badge')).toContainText(/已导出|Exported/);
 
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['exportedIds']);
+      return await chrome.storage.local.get(['exported_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    expect(storageData.exportedIds['json_exp_001']).toBeTruthy();
-    expect(storageData.exportedIds['json_exp_001'].format).toBe(format);
+    expect(storageData['exported_10000000-0000-4000-8000-000000000001']['json_exp_001']).toBeTruthy();
+    expect(storageData['exported_10000000-0000-4000-8000-000000000001']['json_exp_001'].format).toBe(format);
   });
 });

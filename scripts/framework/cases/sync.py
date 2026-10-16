@@ -9,11 +9,11 @@ from scripts.framework.assertions import assert_full_scan_coverage, assert_passi
 
 def read_sync_state(cdp):
     return cdp.eval("""(async () => {
-        const slot = window.ConversationsStore.getCurrentSlot() || 'u0';
-        const suffix = slot === 'u0' ? '' : '_' + slot;
-        const coverageKey = 'gemini_scan_coverage' + suffix;
-        const convKey = 'gemini_conversations' + suffix;
-        const expKey = slot === 'u0' ? 'exportedIds' : 'gemini_exported_' + slot;
+        const slot = window.ConversationsStore.getCurrentAccountId();
+        if (!slot) throw new Error('No Registry account selected');
+        const coverageKey = 'scan_coverage_' + slot;
+        const convKey = 'conversations_' + slot;
+        const expKey = 'exported_' + slot;
         const data = await chrome.storage.local.get([coverageKey, convKey, expKey]);
         return { slot, coverage: data[coverageKey] || null,
             rows: (data[convKey] || []).map(c => ({ id: c.id,
@@ -30,8 +30,8 @@ def save_sync_evidence(ctx, name, evidence):
 
 def reset_only_coverage(cdp):
     cdp.eval("""(async () => {
-        const slot = window.ConversationsStore.getCurrentSlot() || 'u0';
-        await chrome.storage.local.remove('gemini_scan_coverage' + (slot === 'u0' ? '' : '_' + slot));
+        const slot = window.ConversationsStore.getCurrentAccountId();
+        await chrome.storage.local.remove('scan_coverage_' + slot);
     })()""", await_promise=True)
 
 
@@ -45,6 +45,35 @@ def wait_for_prior_scan(cdp, timeout=330):
             return
         time.sleep(0.5)
     raise RuntimeError('Prior onboarding scan did not settle before passive coverage reset')
+
+
+def select_source_account(cdp_opt, cdp_gemini=None, source_tab_id=None):
+    """Choose the source tab's actual Registry UUID through the normal UI contract."""
+    source_url = cdp_gemini.eval('location.href') if cdp_gemini else None
+    tab_match = f't.id === {int(source_tab_id)}' if source_tab_id is not None else 't.url === ' + json.dumps(source_url)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        selected = cdp_opt.eval("""(async () => {
+            const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+            const tab = tabs.find(t => %s);
+            if (tab?.id == null) return false;
+            const binding = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+            const id = binding?.ok && binding.accountContext?.accountId;
+            if (!id) return false;
+            const result = await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'get', accountId: id });
+            if (!result.ok || result.value?.providerId !== 'gemini' || result.value.providerAccountId === 'default') return false;
+            await window.__workbenchLoadStore(true);
+            const selector = document.querySelector('#accountIdSelect');
+            if (!selector || !Array.from(selector.options).some(option => option.value === id)) return false;
+            selector.value = id;
+            selector.dispatchEvent(new Event('change', { bubbles: true }));
+            await window.__workbenchLoadStore(true);
+            return window.ConversationsStore.getCurrentAccountId() === id;
+        })()""" % tab_match, await_promise=True)
+        if selected:
+            return
+        time.sleep(0.5)
+    raise RuntimeError('Could not select the source tab Registry account')
 
 
 def prepare_activity_baseline(ctx, cdp_gemini):
@@ -66,6 +95,7 @@ def prepare_activity_baseline(ctx, cdp_gemini):
         cdp_opt.close()
         raise RuntimeError('Could not install passive RPC evidence listener: ' + str(observer))
     try:
+        select_source_account(cdp_opt, cdp_gemini)
         wait_for_prior_scan(cdp_opt)
         reset_only_coverage(cdp_opt)
         empty = read_sync_state(cdp_opt)

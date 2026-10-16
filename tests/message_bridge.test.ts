@@ -1,7 +1,8 @@
-import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
+import { accountRuntime, useAccountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
+useAccountRuntime();
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 
@@ -11,6 +12,10 @@ const MessageBridge = require('../src/content/messageBridge.js');
 const paginationMod = require('../src/core/api/client/pagination.js');
 const retryPolicyMod = require('../src/core/api/client/retryPolicy.js');
 const rpcClientMod = require('../src/core/api/client/rpcClient.js');
+
+async function sendBridge(api: any, event: any) {
+    return api.handleWindowMessage(event && { origin: typeof location === 'undefined' ? undefined : location.origin, ...event });
+}
 
 test('messageBridge - init returns API with handleWindowMessage', () => {
     const api = MessageBridge.init();
@@ -22,8 +27,8 @@ test('messageBridge - ignores falsy or non-object events', async () => {
     const api = MessageBridge.init({
         upsertConversations: async () => { upsertCalled = true; }
     });
-    await api.handleWindowMessage(null);
-    await api.handleWindowMessage({});
+    await sendBridge(api, null);
+    await sendBridge(api, {});
     assert.strictEqual(upsertCalled, false, 'should ignore invalid event data');
 });
 
@@ -32,6 +37,7 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
     let verification: any = null;
     const oldChrome = (global as any).chrome;
     (global as any).chrome = { ...globalThis.chrome, runtime: { sendMessage: async (msg: any) => { verification = msg; return { data: { isDeleted: true } }; } } };
+    const runtime = accountRuntime();
     try {
     const api = MessageBridge.init({
         Storage: {
@@ -44,17 +50,17 @@ test('messageBridge - handles GEMINI_CONVERSATION_DELETED', async () => {
         getAccountSlot: () => 'u0'
     });
 
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         origin: typeof location !== 'undefined' ? location.origin : undefined,
         data: {
             type: 'GEMINI_CONVERSATION_DELETED',
-            payload: { id: 'c_test_del', slot: 'u0' }
+            payload: { id: 'c_test_del', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
 
     assert.strictEqual(removedId, null, 'untrusted page event must not remove storage directly');
-    assert.deepStrictEqual(verification, { action: 'fetchChat', conversationId: 'c_test_del', accountSlot: 'u0' });
-    } finally { (global as any).chrome = oldChrome; }
+    assert.deepStrictEqual(verification, { action: 'fetchChat', conversationId: 'c_test_del', accountId: ACCOUNT_UUID });
+    } finally { runtime.restore(); (global as any).chrome = oldChrome; }
 });
 
 test('messageBridge retries a deletion verification until the server confirms it', async () => {
@@ -65,29 +71,33 @@ test('messageBridge retries a deletion verification until the server confirms it
         requests.push(msg);
         return { success: true, data: { isDeleted: requests.length >= 2 } };
     } } };
+    const runtime = accountRuntime();
     try {
         const api = MessageBridge.init({
             Storage: { removeConversation: async () => { removed = true; } },
             getAccountSlot: () => 'u0',
         });
-        await api.handleWindowMessage({
-            data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id: 'c_retry', slot: 'u9' } },
+        await sendBridge(api, {
+            data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id: 'c_retry', slot: 'u9', requestAccountObservation: ACCOUNT_OBSERVATION } },
         });
         assert.strictEqual(requests.length, 2, 'a transient still-visible response needs another server check');
-        assert.ok(requests.every((msg: any) => msg.action === 'fetchChat' && msg.accountSlot === 'u0'));
+        assert.ok(requests.every((msg: any) => msg.action === 'fetchChat' && msg.accountId === ACCOUNT_UUID));
         assert.strictEqual(removed, false, 'the page message must never prune storage itself');
-    } finally { (global as any).chrome = oldChrome; }
+    } finally { runtime.restore(); (global as any).chrome = oldChrome; }
 });
 
 test('messageBridge - rejects forged postMessage from foreign source', async () => {
     let forgedRemovedId: any = null;
-    const fakeWindow = { name: 'top-window' };
+    let fakeWindow: any = { name: 'top-window' };
+    let runtime: ReturnType<typeof accountRuntime> | undefined;
     const oldWindow = (global as any).window;
     const oldChrome = (global as any).chrome;
     const requests: any[] = [];
     try {
         (global as any).window = fakeWindow;
         (global as any).chrome = { ...globalThis.chrome, runtime: { sendMessage: async (msg: any) => { requests.push(msg); return { data: { isDeleted: true } }; } } };
+        runtime = accountRuntime();
+        fakeWindow = window;
         const api = MessageBridge.init({
             Storage: {
                 removeConversation: async (_slot: any, id: any) => {
@@ -99,27 +109,28 @@ test('messageBridge - rejects forged postMessage from foreign source', async () 
         });
 
         // Foreign source rejected
-        await api.handleWindowMessage({
+        await sendBridge(api, {
             source: { name: 'iframe-window' },
             data: {
                 type: 'GEMINI_CONVERSATION_DELETED',
-                payload: { id: 'c_forged_del', slot: 'u0' }
+                payload: { id: 'c_forged_del', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
             }
         });
         assert.strictEqual(forgedRemovedId, null, 'should reject postMessage from foreign source');
         assert.strictEqual(requests.length, 0);
 
         // Window source accepted
-        await api.handleWindowMessage({
+        await sendBridge(api, {
             source: fakeWindow,
             data: {
                 type: 'GEMINI_CONVERSATION_DELETED',
-                payload: { id: 'c_valid_del', slot: 'u0' }
+                payload: { id: 'c_valid_del', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
             }
         });
         assert.strictEqual(forgedRemovedId, null, 'same-window page message must not delete directly');
         assert.strictEqual(requests[0].conversationId, 'c_valid_del');
     } finally {
+        runtime?.restore();
         (global as any).window = oldWindow;
         (global as any).chrome = oldChrome;
     }
@@ -132,7 +143,7 @@ test('page postMessage cannot request a live save in mock mode', async () => {
     coordinator.LiveSaveCoordinator.executeLiveSave = async () => { calls++; return true; };
     try {
         const api = MessageBridge.init({ getAccountSlot: () => 'u0' });
-        await api.handleWindowMessage({
+        await sendBridge(api, {
             origin: typeof location !== 'undefined' ? location.origin : undefined,
             data: { type: 'GEMINI_LIVE_SAVE_TRIGGER', payload: { cid: 'c_abc', mockMode: true } }
         });
@@ -194,18 +205,18 @@ test('messageBridge - handles GEMINI_STREAM_GENERATE_START and GEMINI_STREAM_GEN
         onStreamComplete: (cid: any, slot: any) => { completedId = cid; completedSlot = slot; }
     });
 
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         data: {
             type: 'GEMINI_STREAM_GENERATE_START',
-            payload: { id: 'c_abc123', slot: 'u0' }
+            payload: { id: 'c_abc123', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
     assert.strictEqual(startedId, 'c_abc123');
 
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         data: {
             type: 'GEMINI_STREAM_GENERATE_COMPLETE',
-            payload: { id: 'c_abc123', slot: 'u0' }
+            payload: { id: 'c_abc123', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
     assert.strictEqual(completedId, 'c_abc123');
@@ -221,28 +232,28 @@ test('messageBridge - touches active conversation and updates timestamp on strea
         }
     });
 
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         data: {
             type: 'GEMINI_STREAM_GENERATE_START',
-            payload: { id: 'c_active_old_chat', slot: 'u1' }
+            payload: { id: 'c_active_old_chat', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
 
     assert.strictEqual(touchedCalls.length, 1);
     assert.strictEqual(touchedCalls[0].cid, 'active_old_chat');
-    assert.strictEqual(touchedCalls[0].slot, 'u1');
+    assert.strictEqual(touchedCalls[0].slot, 'u0');
     assert.strictEqual(touchedCalls[0].options?.source, 'stream-start');
 
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         data: {
             type: 'GEMINI_STREAM_GENERATE_COMPLETE',
-            payload: { id: 'c_active_old_chat', slot: 'u1' }
+            payload: { id: 'c_active_old_chat', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
 
     assert.strictEqual(touchedCalls.length, 2);
     assert.strictEqual(touchedCalls[1].cid, 'active_old_chat');
-    assert.strictEqual(touchedCalls[1].slot, 'u1');
+    assert.strictEqual(touchedCalls[1].slot, 'u0');
     assert.strictEqual(touchedCalls[1].options?.source, 'stream-complete');
 });
 
@@ -263,10 +274,10 @@ test('messageBridge - fallback to upsertConversations without client timestamp w
         extractActiveChatTitle: (_id: string) => ({ title: 'Updated In-Page Title', source: 'dom' })
     });
 
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         data: {
             type: 'GEMINI_STREAM_GENERATE_COMPLETE',
-            payload: { id: 'c_active_fallback', slot: 'u0' }
+            payload: { id: 'c_active_fallback', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
 
@@ -281,7 +292,7 @@ test('messageBridge - fallback to upsertConversations without client timestamp w
     assert.strictEqual(upsertedItems[0].timestamp, undefined, 'timestamp must not be client-stamped');
     assert.strictEqual(upsertedSource, 'stream-complete');
     assert.strictEqual(upsertedForceWrite, true, 'forceWrite must be true to ensure persistence');
-    assert.strictEqual(upsertedSlot, 'u0');
+    assert.strictEqual(upsertedSlot, ACCOUNT_UUID);
 });
 
 test('messageBridge rejects malformed raw protocol fields before parser or stream handlers', async () => {
@@ -293,11 +304,11 @@ test('messageBridge rejects malformed raw protocol fields before parser or strea
     for (const payload of [{ text: 123 }, { text: 'MaZiqc', slot: {} }, { text: 'MaZiqc', requestedAt: Infinity },
         { text: 'MaZiqc', truncated: 'no' }, { text: 'MaZiqc', requestAccountObservation: 1 },
         { text: 'MaZiqc', listRequest: { streamId: 'forged', requestCursor: null } }]) {
-        await api.handleWindowMessage({ origin: typeof location === 'undefined' ? undefined : location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload } });
+        await sendBridge(api, { origin: typeof location === 'undefined' ? undefined : location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload } });
     }
     for (const type of ['GEMINI_STREAM_GENERATE_START', 'GEMINI_STREAM_GENERATE_COMPLETE']) {
-        await api.handleWindowMessage({ data: { type, payload: { id: {}, slot: 'u0' } } });
-        await api.handleWindowMessage({ data: { type, payload: { id: 'valid', slot: 1 } } });
+        await sendBridge(api, { data: { type, payload: { id: {}, slot: 'u0' } } });
+        await sendBridge(api, { data: { type, payload: { id: 'valid', slot: 1 } } });
     }
     assert.strictEqual(touches, 0);
 });
@@ -313,15 +324,35 @@ test('messageBridge normalizes detail conversation id before persisting to Domai
         getAccountSlot: () => 'u0',
         upsertConversations: async () => 1
     });
-    await api.handleWindowMessage({
+    await sendBridge(api, {
         origin: location.origin,
         data: {
             type: 'GEMINI_NETWORK_BATCHEXECUTE',
             payload: { text, slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
-    const stored = await getStoredDomain(storageIdentity('gemini', 'u0', '1bd028d5c5b0c0e2'));
+    const stored = await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', '1bd028d5c5b0c0e2'));
     assert.ok(stored);
     assert.strictEqual(stored.conversation.index.id, '1bd028d5c5b0c0e2');
     } finally { runtime.restore(); }
+});
+
+test('deletion verification retains the captured request account after the page switches', async () => {
+    const previousChrome = globalThis.chrome;
+    const requests: unknown[] = [];
+    globalThis.chrome = { ...previousChrome, runtime: { sendMessage: async (message: unknown) => {
+        requests.push(message); return { data: { isDeleted: true } };
+    } } } as typeof chrome;
+    const runtime = accountRuntime();
+    try {
+        runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
+        const api = MessageBridge.init();
+        await sendBridge(api, { data: { type: 'GEMINI_CONVERSATION_DELETED', payload: {
+            id: 'captured_deletion', slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION
+        } } });
+        assert.deepStrictEqual(requests, [{ action: 'fetchChat', conversationId: 'captured_deletion', accountId: ACCOUNT_UUID }]);
+        requests.length = 0;
+        await sendBridge(api, { data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id: 'missing_capture', slot: 'u0' } } });
+        assert.strictEqual(requests.length, 0);
+    } finally { runtime.restore(); globalThis.chrome = previousChrome; }
 });

@@ -1,6 +1,11 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 // Scope of this suite: DOM geometry (bounding boxes, collision, truncation),
 // occlusion, and physical hit-testing (elementFromPoint must land on the
@@ -331,7 +336,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     ];
 
     await page.evaluate(async (convs) => {
-      await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
+      await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -344,15 +349,15 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     // 模拟老会话 historical_old_111 发帖并收到 STREAM_COMPLETE，时间戳跃升置顶
     await page.evaluate(async () => {
       return new Promise((resolve) => {
-        chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
-          const convs = data.gemini_conversations || [];
+        chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001'], async (data: any) => {
+          const convs = data['conversations_10000000-0000-4000-8000-000000000001'] || [];
           const target = convs.find((c: any) => c.id === 'historical_old_111');
           if (target) {
             const bumpedTime = Date.now() + 50000;
             target.updatedAt = bumpedTime;
             target.timestamp = bumpedTime;
             convs.sort((a: any, b: any) => ((b.updatedAt || b.timestamp || 0) - (a.updatedAt || a.timestamp || 0)));
-            await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
+            await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
             chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'stream-complete' });
             if (typeof (window as any).__workbenchLoadStore === 'function') {
               await (window as any).__workbenchLoadStore(true);
@@ -406,7 +411,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     ];
 
     await page.evaluate(async (convs) => {
-      await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
+      await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -423,10 +428,10 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     // 模拟触发实时删除广播
     await page.evaluate(async () => {
       return new Promise((resolve) => {
-        chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
-          let convs = data.gemini_conversations || [];
+        chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001'], async (data: any) => {
+          let convs = data['conversations_10000000-0000-4000-8000-000000000001'] || [];
           convs = convs.map((c: any) => c.id === 'del_eph_9999' ? { ...c, cloudAvailability: 'deleted' } : c);
-          await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
+          await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
           chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'delete-event' });
           if (typeof (window as any).__workbenchLoadStore === 'function') {
             await (window as any).__workbenchLoadStore(true);
@@ -483,7 +488,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     };
 
     await page.evaluate(async (c) => {
-      await chrome.storage.local.set({ gemini_conversations: ([c]).map(canonicalIndexFixture) });
+      await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: ([c]).map(canonicalIndexFixture) });
       if (typeof (window as any).__workbenchLoadStore === 'function') {
         await (window as any).__workbenchLoadStore(true);
       }
@@ -494,8 +499,8 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
     // 模拟在线 RPC 权威晋级升级
     await page.evaluate(async () => {
       return new Promise((resolve) => {
-        chrome.storage.local.get(['gemini_conversations'], async (data: any) => {
-          const convs = data.gemini_conversations || [];
+        chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001'], async (data: any) => {
+          const convs = data['conversations_10000000-0000-4000-8000-000000000001'] || [];
           const chat = convs.find((c: any) => c.id === '1bd028d5c5b0c0e2');
           if (chat) {
             chat.title = '火星宇航员猫咪（AI 生成图片 Imagen）';
@@ -504,7 +509,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
               takeout: '火星宇航员猫咪（离线提问前缀）',
               rpc: '火星宇航员猫咪（AI 生成图片 Imagen）'
             };
-            await chrome.storage.local.set({ gemini_conversations: (convs).map(canonicalIndexFixture) });
+            await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
             chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'rpc-deep-scan' });
             if (typeof (window as any).__workbenchLoadStore === 'function') {
               await (window as any).__workbenchLoadStore(true);

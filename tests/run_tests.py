@@ -475,25 +475,12 @@ def test_content_badge_flicker_prevention():
     assert "existing.isConnected" in combined_js or "isConnected" in combined_js, "badgeView/content.js ensureBadge should check isConnected"
     print("  ✓ Content badge flicker prevention verified")
 
-def test_exported_history_and_slot_fallback():
-    storage_ts = os.path.join(BASE_DIR, "src/core/storage/storageService.ts")
-    storage_js = storage_ts if os.path.isfile(storage_ts) else os.path.join(BASE_DIR, "src/core/storage/storageService.js")
-    with open(storage_js, "r", encoding="utf-8") as f:
-        code = f.read()
-    assert re.search(r"updates(\['exportedIds'\]|\.exportedIds)\s*=", code), "saveExportRecordsBatch should maintain global exportedIds"
-
-    migration_ts = os.path.join(BASE_DIR, "src/core/storage/schemaMigration.ts")
-    with open(migration_ts, "r", encoding="utf-8") as f:
-        mig_code = f.read()
-    assert "migrateConversationIndexes" in mig_code and "gemini_conversations_u0" in code, "schemaMigration should handle legacy gemini_conversations_u0"
-    assert "migrateExportAliases" in mig_code, "schemaMigration should run migrateExportAliases"
-
-    store_ts = os.path.join(BASE_DIR, "src/ui/state/conversationsStore.ts")
-    store_js = store_ts if os.path.isfile(store_ts) else os.path.join(BASE_DIR, "src/ui/state/conversationsStore.js")
-    with open(store_js, "r", encoding="utf-8") as f:
-        store_code = f.read()
-    assert re.search(r"for\s*\(\s*(?:const|let|var)?\s*\w+\s+of\s+candidates\s*\)", store_code) or "candidates" in store_code, "conversationsStore should smartly fall back to slot with conversations"
-    print("  ✓ Exported history preservation & slot fallback verified")
+def test_account_uuid_storage_boundary():
+    with open(os.path.join(BASE_DIR, "src/core/storage/storageService.ts"), encoding="utf-8") as f:
+        storage = f.read()
+    assert "gemini_account_slots" not in storage, "Storage must not maintain a second account registry"
+    assert "gemini_exported_u0" not in storage, "Current storage must not read legacy slot aliases"
+    print("  ✓ UUID storage boundary verified")
 
 def test_custom_dataset_loading():
     import tempfile
@@ -802,7 +789,7 @@ def test_stage1_architecture_ssot_and_state_isolation():
     takeout_path = takeout_ts if os.path.isfile(takeout_ts) else os.path.join(BASE_DIR, "src/core/engine/takeoutEngine.js")
     with open(takeout_path, "r", encoding="utf-8") as f:
         takeout_code = f.read()
-    assert "__slotTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
+    assert "__accountTakeouts" in takeout_code and "Map" in takeout_code, "takeoutEngine must isolate takeout dictionaries per account slot"
     assert "getStore" in takeout_code, "takeoutEngine must route through getStore(slot)"
 
     # 3. Verify SSoT compareConversations in syncEngine.ts and options.js
@@ -836,7 +823,7 @@ def test_storage_keys_and_constants_ssot():
     required_keys = [
         "FORMAT", "ZIP", "DEV_MODE", "LANG", "PENDING_TAKEOUT_PROMPT",
         "SUPPRESS_DIRECT_WRITE_PROMPT", "CREDENTIALS_MAP", "CREDENTIALS",
-        "ACCOUNT_SLOTS", "LAST_SYNC_DIAGNOSTICS", "LAST_EXPORT_SESSION",
+        "LAST_SYNC_DIAGNOSTICS", "LAST_EXPORT_SESSION",
         "LIVE_SAVE_CONFIG", "HAS_COMPLETED_TOUR", "LAST_SEEN_FEATURE_VERSION",
         "BADGE_POS", "HAS_COMPLETED_TAKEOUT_PROMPT", "HAS_IMPORTED_TAKEOUT"
     ]
@@ -1091,7 +1078,7 @@ def run_all():
                 if any(x in f for f in affected for x in ["badgeView", "content.css", "pageObserver", "syncEngine"]):
                     test_content_badge_flicker_prevention()
                 if any(x in f for f in affected for x in ["storageService", "conversationsStore"]):
-                    test_exported_history_and_slot_fallback()
+                    test_account_uuid_storage_boundary()
                 if any("test_live_chat_and_export.py" in f for f in affected):
                     test_custom_dataset_loading()
                 if any("scenario" in f for f in affected):
@@ -1136,7 +1123,7 @@ def run_all():
     test_html_includes()
     test_i18n_keys()
     test_content_badge_flicker_prevention()
-    test_exported_history_and_slot_fallback()
+    test_account_uuid_storage_boundary()
     test_custom_dataset_loading()
     test_scenario_pool_pipeline()
     test_online_scenario_provider_and_lifecycle_tracker()

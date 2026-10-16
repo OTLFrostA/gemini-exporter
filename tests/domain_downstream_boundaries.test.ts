@@ -1,3 +1,5 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildDiagnosticSnapshot } from '../src/core/diagnostics/diagnosticSnapshot.js';

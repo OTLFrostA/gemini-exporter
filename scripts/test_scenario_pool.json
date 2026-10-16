@@ -1,43 +1,5 @@
 [
   {
-    "id": "heat_transfer_transient_slab_fourier_biot",
-    "domain": "heat_transfer_transient_conduction",
-    "title": "Transient heat conduction: Biot number, Fourier series eigenmodes and Crank-Nicolson stability",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Formulate one-dimensional transient heat conduction in a plane wall with convective boundary conditions using LaTeX. Nondimensionalize the PDE and boundary conditions to define the Fourier and Biot numbers.",
-      "Derive the separation-of-variables eigenfunction expansion and the transcendental eigenvalue equation tan(lambda_n) = Bi / lambda_n. Explain the lumped-capacitance limit as Bi approaches zero.",
-      "Write complete runnable Python using only the standard library to solve for the first five eigenvalues by bisection and compare the analytical series against a Crank-Nicolson finite-difference solver, asserting energy balance and symmetry.",
-      "Compare lumped capacitance, one-term Fourier approximation, explicit FTCS and Crank-Nicolson schemes in a Markdown table across Biot-number validity, time-step stability and truncation order. Include an English and Chinese glossary.",
-      "Design a reproducible thermal verification report across Biot regimes. Provide LaTeX equations, runnable verification tests and a Markdown summary table separating analytical bounds from grid discretization error."
-    ]
-  },
-  {
-    "id": "graph_spectral_fiedler_cheeger_conductance",
-    "domain": "spectral_graph_theory_conductance",
-    "title": "Spectral graph theory: algebraic connectivity, Fiedler vectors and Cheeger conductance bounds",
-    "features": [
-      "math",
-      "latex",
-      "code",
-      "tables",
-      "algorithms"
-    ],
-    "turns": [
-      "Define the combinatorial and normalized graph Laplacians for an undirected weighted graph using LaTeX. Prove positive semidefiniteness via the quadratic form and interpret the multiplicity of the zero eigenvalue.",
-      "State the Rayleigh-Ritz characterization of the Fiedler eigenvalue (algebraic connectivity) and the Cheeger inequality relating cut conductance to the second smallest Laplacian eigenvalue.",
-      "Provide complete runnable Python standard-library code to construct graph Laplacians, compute the Fiedler vector via deflated power/inverse iteration on small graphs and evaluate sweep-cut conductance with exact assertions on path and barbell graphs.",
-      "Compare exhaustive min-cut enumeration, spectral sweep cuts, Kernighan-Lin refinement and max-flow min-cut in a Markdown table covering approximation guarantees, computational complexity and balanced-cut behavior. Include English and Chinese terminology.",
-      "Construct a reproducible graph-partitioning audit on synthetic bottleneck graphs. Include LaTeX proof sketches, runnable test cases and a Markdown results table comparing exact conductance against Cheeger lower and upper bounds."
-    ]
-  },
-  {
     "id": "acoustics_room_image_source_reverberation",
     "title": "Room acoustics: image sources and impulse response",
     "domain": "acoustics_room_image_sources",
@@ -412,6 +374,49 @@
       "Derive a grid-refinement experiment against a smooth translated sine wave. Specify the final-time alignment, error norms and observed-order calculation in LaTeX.",
       "Extend the verification script to run several grids and print a Markdown convergence table. Add a discontinuous pulse case, keeping smooth convergence claims separate from discontinuous behavior.",
       "Design a failure audit using an excessive time step and a deliberately incorrect periodic flux index. Show which invariants detect each defect and explain the limits of conservation as a correctness test."
+    ]
+  },
+  {
+    "id": "electrochemistry_randles_impedance_nyquist_validation",
+    "domain": "electrochemistry_impedance_spectroscopy",
+    "title": "Electrochemical impedance: Randles circuit, Nyquist geometry and parameter identifiability",
+    "features": [
+      "imagen",
+      "multimodal",
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "Derive the complex impedance of a Randles circuit containing solution resistance Rs in series with a parallel charge-transfer resistor Rct and double-layer capacitor Cdl. State frequency and sign conventions using LaTeX.",
+      "Generate a labeled educational image containing the equivalent circuit and a Nyquist plot with the high-frequency intercept, low-frequency intercept and characteristic angular frequency. Keep units and the negative imaginary axis explicit.",
+      "Write complete runnable Python using only the standard library to tabulate real and imaginary impedance over a logarithmic frequency grid. Assert both limits and the semicircle identity, and verify the peak frequency numerically.",
+      "Compare ideal Randles, a constant-phase element and a diffusion extension in a Markdown table. Distinguish observed curve features from identifiable parameters and include an English/Chinese glossary.",
+      "Build a reproducible validation report for synthetic noisy impedance data. Include LaTeX error measures, executable tests for units and limiting cases, a table of residual diagnostics, and explain when circuit fitting cannot identify a unique physical mechanism."
+    ]
+  },
+  {
+    "id": "bayesian_beta_binomial_sequential_calibration",
+    "domain": "statistical_inference_beta_binomial",
+    "title": "Bayesian sequential inference: beta-binomial updating, predictive calibration and stopping rules",
+    "features": [
+      "math",
+      "latex",
+      "code",
+      "tables",
+      "algorithms"
+    ],
+    "turns": [
+      "For Bernoulli observations with a Beta prior, derive the posterior and beta-binomial predictive distribution with LaTeX. Separate likelihood, prior, posterior and prediction.",
+      "Write runnable standard-library Python to update the posterior sequentially and calculate predictive probabilities in log space. Assert normalization, order independence and batch/sequential equivalence.",
+      "Derive posterior mean and variance and distinguish credible intervals from frequentist confidence intervals. Give a small worked example and a Markdown table of assumptions.",
+      "Implement a deterministic numerical calculation of equal-tailed credible bounds without third-party packages. Include endpoint handling and monotonicity tests against analytically tractable Beta cases.",
+      "Create a reproducible simulation comparing two fixed priors under several true probabilities. Report coverage and predictive calibration in Markdown tables; include English and Chinese descriptions.",
+      "Examine a posterior-threshold stopping rule. Explain how optional stopping changes a repeated-sampling evaluation and what the Bayesian likelihood principle does and does not establish.",
+      "Add sequential-versus-batch and probability-sum property checks, and show a counterexample where reusing an informative prior after every batch double counts evidence.",
+      "Consolidate a verification report with LaTeX derivations, complete runnable code, explicit random seeds and a Markdown results table. Separate Monte Carlo error from numerical integration error."
     ]
   }
 ]

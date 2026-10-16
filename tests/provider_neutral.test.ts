@@ -18,7 +18,7 @@ function makeGeminiClient() {
             id, title: 'DT', titleSource: 'api-detail', titles: { rpc: 'DT' },
             messages: [{ role: 'user', content: 'hi' }],
             createdAt: 1, chatTime: 1, timestamp: 1, updatedAt: 1,
-            url: 'u2', nextPageToken: null, attachmentCount: 0
+            url: '10000000-0000-4000-8000-000000000003', nextPageToken: null, attachmentCount: 0
         })
     };
 }
@@ -44,7 +44,7 @@ test('provider-neutral - GeminiProvider.listConversations maps to ProviderPageRe
 
 test('provider-neutral - GeminiProvider.fetchConversationDetail guarantees id/title/messages', async () => {
     const gp = new GeminiProvider(makeGeminiClient() as any);
-    const det = await gp.fetchConversationDetail('c9', { slot: 'u1' });
+    const det = await gp.fetchConversationDetail('c9', { slot: '10000000-0000-4000-8000-000000000002' });
     assert.strictEqual(det.id, 'c9');
     assert.strictEqual(det.title, 'DT');
     assert.strictEqual(det.messages.length, 1);
@@ -103,10 +103,10 @@ test('provider-neutral - detail keeps export evidence and targetSid precedence',
             return detail;
         }
     } as any);
-    const result = await gp.fetchConversationDetail(detail.id, { targetSid: 'u2', slot: 'u1' });
-    await gp.fetchConversationDetail(detail.id, { slot: 'u1' });
+    const result = await gp.fetchConversationDetail(detail.id, { targetSid: '10000000-0000-4000-8000-000000000003', slot: '10000000-0000-4000-8000-000000000002' });
+    await gp.fetchConversationDetail(detail.id, { slot: '10000000-0000-4000-8000-000000000002' });
     await gp.fetchConversationDetail(detail.id);
-    assert.deepStrictEqual(slots, ['u2', 'u1', null]);
+    assert.deepStrictEqual(slots, ['10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000002', null]);
     assert.deepStrictEqual(result, detail);
     assert.strictEqual(result.messages, messages);
     assert.strictEqual(result._raw, raw);

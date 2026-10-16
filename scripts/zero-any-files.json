@@ -87,7 +87,6 @@
   "src/core/storage/domain/contracts.ts",
   "src/core/storage/domain/validate.ts",
   "src/core/storage/domain/domainStore.ts",
-  "src/core/storage/domain/migrateLegacy.ts",
   "src/core/storage/domain/nativePersistence.ts",
   "src/core/parsers/legacyStorage/parseConversation.ts",
   "tests/domain-storage.test.ts",
@@ -137,5 +136,6 @@
   "src/core/storage/accountRegistryStore.ts",
   "src/background/accountRegistryHandler.ts",
   "src/content/accountContext.ts",
-  "tests/account_registry.test.ts"
+  "tests/account_registry.test.ts",
+  "src/core/api/accountRegistry.ts"
 ]

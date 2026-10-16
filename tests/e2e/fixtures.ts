@@ -57,3 +57,30 @@ export const test = base.extend<{
 
 export { expect };
 
+
+/** Seed explicit current-schema Accounts for UI fixtures that seed UUID partitions. */
+export async function seedRegistryAccounts(context: BrowserContext): Promise<void> {
+  const worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker');
+  const readiness = await context.newPage();
+  try {
+    await readiness.goto(`chrome-extension://${worker.url().split('/')[2]}/src/ui/options/options.html?notour=1`);
+    const reply = await readiness.evaluate(() => chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'list' }));
+    if (!reply?.ok) throw new Error(`Registry fixture initialization failed: ${reply?.error}`);
+  } finally { await readiness.close(); }
+  await worker.evaluate(async () => {
+    const open = indexedDB.open('gemini_exporter_domain');
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      open.onsuccess = () => resolve(open.result); open.onerror = () => reject(open.error);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('accounts', 'readwrite');
+        const store = tx.objectStore('accounts');
+        store.put({id:'10000000-0000-4000-8000-000000000001',providerId:'gemini',providerAccountId:'10000000001',displayName:'Fixture account'});
+        store.put({id:'10000000-0000-4000-8000-000000000002',providerId:'gemini',providerAccountId:'10000000002',displayName:'Other account'});
+        store.put({id:'10000000-0000-4000-8000-000000000003',providerId:'gemini',providerAccountId:'default'});
+        tx.oncomplete = () => resolve(); tx.onabort = () => reject(tx.error);
+      });
+    } finally {db.close();}
+  });
+}

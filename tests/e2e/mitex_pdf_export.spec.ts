@@ -15,12 +15,17 @@ import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js
  * 6. Zero remote requests occur during the entire flow.
  */
 
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
 import * as fs from 'fs';
 import * as path from 'path';
 import { composeDomainDocument } from '../../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentTypst } from '../../src/core/renderers/typst/renderTypst.js';
 import type { TypstConversationRenderPayload } from '../../src/core/renderers/typst/transport.js';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 const JSZip = require(path.resolve(__dirname, '../../lib/jszip.min.js'));
 
@@ -263,8 +268,8 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
           { id: 'mitex_pdf_001', title: english ? 'Gaussian integral derivation' : '高斯积分推导', timestamp: 1700000000000 },
         ];
         await chrome.storage.local.set({
-          gemini_conversations: (convs).map(canonicalIndexFixture),
-          exportedIds: {},
+          ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture),
+          ['exported_10000000-0000-4000-8000-000000000001']: {},
           has_completed_tour: true,
           last_seen_feature_version: '999.0.0',
         });

@@ -84,7 +84,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
         sendToGeminiTab({
             action: 'getConversationDetail',
             conversationId: msg.id || msg.conversationId
-        }, msg.accountSlot)
+        }, msg.accountId)
             .then(r => sendResponse(r == null
                 ? { ok: false, success: false, error: 'empty response from gemini tab' }
                 : r))
@@ -93,7 +93,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'fetchBatch') {
-        const slot = msg.accountSlot || 'u0';
+        const slot = msg.accountId || '';
         const ids = msg.ids;
         const format = msg.format;
         const skipExported = msg.skipExported;
@@ -137,14 +137,14 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'cancelExport') {
-        const slot = msg.accountSlot || 'u0';
+        const slot = msg.accountId || '';
         void setSlotAborted(slot, true);
         sendResponse({ ok: true, aborted: true });
         return true;
     }
 
     if (msg.action === 'abortSync') {
-        const slot = msg.accountSlot || 'u0';
+        const slot = msg.accountId || '';
         void setSlotAborted(slot, true);
         const abortMsg: AbortSyncMessage = { action: 'abortSync' };
         sendToGeminiTab(abortMsg, slot).catch(() => {});
@@ -171,7 +171,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
                     action: 'deepScan',
                     maxIter: msg.maxIter || 150
                 };
-                const res = await sendToGeminiTab(deepScanMsg, msg.accountSlot, timeoutMs);
+                const res = await sendToGeminiTab(deepScanMsg, msg.accountId, timeoutMs);
                 sendResponse(res);
             } catch (e: unknown) {
                 sendResponse({ success: false, status: 'error', error: getErrorMessage(e) });
@@ -183,7 +183,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     }
 
     if (msg.action === 'stopDeepScan') {
-        const slot = msg.accountSlot || 'u0';
+        const slot = msg.accountId || '';
         void setSlotAborted(slot, true);
         const stopMsg: StopDeepScanMessage = { action: 'stopDeepScan' };
         sendToGeminiTab(stopMsg, slot)
@@ -201,7 +201,7 @@ chrome.runtime.onMessage.addListener((msg: BackgroundMessage, sender: chrome.run
     if (msg.action === 'liveSaveViaHandle' && msg.payload) {
         (async () => {
             await ensureStorageReady();
-            return handleLiveSaveViaHandle(msg.payload, msg.accountSlot || 'u0');
+            return handleLiveSaveViaHandle(msg.payload, msg.accountId || '');
         })()
             .then(res => sendResponse(res))
             .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));

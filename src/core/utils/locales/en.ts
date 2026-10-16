@@ -124,7 +124,7 @@ const __enFactory = (): LocaleDictionary => {
             loadStoreFailed: "Failed to load conversation list: {0}",
             dirCancelled: "Directory setup cancelled: {0}",
             currentTabMissing: "No active Gemini tab found. Please open gemini.google.com first.",
-            defaultAccount: "Default Account (u0)",
+            defaultAccount: "Default Account",
             accountSlot: "Account",
             lastSync: "Last sync: {0} | Total: {1}",
             notSynced: "Not synced",
@@ -322,7 +322,7 @@ const __enFactory = (): LocaleDictionary => {
             untitledChat: "Untitled Chat",
             chatDeletedOrInaccessible: "Cloud conversation deleted or inaccessible",
             domReturnEmpty: "DOM returned empty content",
-            schemaFrozenWriteBlocked: "Storage schema is newer than this version supports. Reading is available, but writing is blocked to prevent data corruption. Please update the extension."
+            schemaFrozenWriteBlocked: "This storage schema is unsupported. Writing is blocked. Use a fresh profile with the current extension."
     };
 };
 export const en: LocaleDictionary = __enFactory();

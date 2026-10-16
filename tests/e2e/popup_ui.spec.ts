@@ -150,6 +150,7 @@ test('popup rejects malformed transport replies without download, releases guard
       id: 999, active: true, url: 'https://gemini.google.com/app/abcdef0123456789',
       title: 'Boundary regression - Gemini'
     }] });
+    Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true, accountContext: { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001', slot: 'u0' } }) });
     Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value:
       (message: { action?: unknown }, callback?: (reply: unknown) => void) => {
         callback?.(message.action === 'fetchChat' ? replies.shift() : { ok: true });
@@ -186,7 +187,8 @@ for (const format of ['html', 'markdown', 'json']) test(`popup ${format} single-
     await page.addInitScript(() => {
         Object.defineProperty(chrome.tabs, 'query', { configurable: true, value: async () => [{ id: 999, active: true,
             url: 'https://gemini.google.com/app/abcdef0123456789', title: 'Resource boundary - Gemini' }] });
-        Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value: (message: { action?: string }, callback: (value: unknown) => void) => callback(message.action === 'fetchChat' ? {
+        Object.defineProperty(chrome.tabs, 'sendMessage', { configurable: true, value: async () => ({ ok: true, accountContext: { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001', slot: 'u0' } }) });
+    Object.defineProperty(chrome.runtime, 'sendMessage', { configurable: true, value: (message: { action?: string }, callback: (value: unknown) => void) => callback(message.action === 'fetchChat' ? {
             success: true, domainEnvelopeVersion: 2, data: { diagnostics: [], acquisitionHints: {}, resourceHints: { image: { archivePath: 'assets/never-delivered.png' } },
                 conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'abcdef0123456789', title: 'Resource boundary' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'image', kind: 'image', name: 'photo.png', sourceUri: 'photo.png' }], messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Body survives' }] }, { type: 'image', assetId: 'image' }] }] } } },
         } : { ok: true }) });

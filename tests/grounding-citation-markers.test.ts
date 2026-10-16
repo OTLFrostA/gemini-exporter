@@ -135,7 +135,7 @@ test('ordinary user handwritten [cite: 1] is preserved as plain text', async () 
         timestamp: 1700000000000,
         messages: [
             {
-                id: 'u1',
+                id: '10000000-0000-4000-8000-000000000002',
                 role: 'user',
                 content: 'Can you explain what [cite: 1] means in academic papers?',
             },

@@ -30,7 +30,7 @@ test('PDF parser closes resources and reasoning; Domain and AST JSON round-trips
     const domain = structuredClone(parsed.conversation);
     const roundTrip = JSON.parse(JSON.stringify(domain)) as typeof domain;
     assert.deepEqual(composeDomainDocument(roundTrip), composeDomainDocument(domain));
-    const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
+    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
     assert.ok(prepared.ok);
     assert.deepEqual(prepared.document, composeDomainDocument({ index: { ...domain.index, url: `https://gemini.google.com/app/${domain.index.id}` }, detail: { ...domain.detail } }).document);
     assert.deepEqual(JSON.parse(JSON.stringify(prepared.document)), prepared.document);
@@ -59,11 +59,11 @@ test('PDF hydration cannot conflate two sources sharing an export destination', 
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/one' },
         { type: 'image', localName: 'assets/same.png', url: 'https://example.test/two' },
     ] }] };
-    const prepared = await preparePdfItem(historicalFixture(raw), { fetchAsset: async request => {
+    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ fetchAsset: async request => {
         const url = typeof request === 'string' ? request : request.url ?? '';
         urls.push(url);
         return { success: true, mime: 'image/png', dataBase64: url.endsWith('/one') ? png : secondPng };
-    } });
+    } }) });
     assert.ok(prepared.ok);
     assert.deepEqual(urls, ['https://example.test/one', 'https://example.test/two']);
     assert.equal(prepared.resources.size, 2);
@@ -82,7 +82,7 @@ test('PDF hydration cannot conflate two sources sharing an export destination', 
 
 test('PDF transport matches reference and real compiled pages contain source-authored text', async () => {
     const raw = fixture();
-    const prepared = await preparePdfItem(historicalFixture(raw), { includeAssets: false });
+    const prepared = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
     assert.ok(prepared.ok);
     const resolved = await resourceStage(prepared, ctx);
     const direct = await payloadStage({ document: prepared.document, pathMap: resolved.output.pathMap, locale: 'en' }, ctx);

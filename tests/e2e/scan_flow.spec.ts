@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
   test('should execute full GeminiClient scan, parse batchexecute list RPC, update progress, and populate workbench', async ({ context, extensionId }) => {
@@ -56,9 +61,9 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     // Ensure list is initially empty
     await optionsPage.evaluate(async () => {
       await chrome.storage.local.set({
-        gemini_conversations: ([]).map(canonicalIndexFixture),
-        gemini_scan_checkpoint: 9999999999999,
-        exportedIds: {}
+        ['conversations_10000000-0000-4000-8000-000000000001']: ([]).map(canonicalIndexFixture),
+        ['scan_checkpoint_10000000-0000-4000-8000-000000000001']: 9999999999999,
+        ['exported_10000000-0000-4000-8000-000000000001']: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {
         await window.__workbenchLoadStore(true);
@@ -80,11 +85,11 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
 
     // 5. Verify conversations are stored in storage
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations', 'gemini_scan_coverage']);
+      return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001', 'scan_coverage_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const convs = (storageData.gemini_conversations || []) as any[];
+    const convs = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []) as any[];
     expect(convs.length).toBe(4);
-    expect(storageData.gemini_scan_coverage).toMatchObject({ version: 4, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
+    expect(storageData['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ version: 4, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
       activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
     const oldChat = convs.find((c: any) => c.id === 'scan_001');
     expect(oldChat.title).toBe('量子计算与超导量子比特');
@@ -97,12 +102,12 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     await expect(listItems).toHaveCount(4);
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('改名后的老会话');
-    const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['gemini_scan_coverage', 'gemini_conversations']));
-    expect(repeated.gemini_scan_coverage).toMatchObject({
+    const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001']));
+    expect(repeated['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({
       complete: true, revision: 2, activeRunId: null,
       baseline: { headTimestamp: 1700000200000 },
     });
-    expect((repeated.gemini_conversations as any[]).find(c => c.id === 'scan_001').updatedAt,
+    expect((repeated['conversations_10000000-0000-4000-8000-000000000001'] as any[]).find(c => c.id === 'scan_001').updatedAt,
       'renaming an old chat must not advance its source activity version').toBe(oldChat.updatedAt);
     expect(requestedKinds).toEqual(['pinned', 'recent', 'pinned', 'recent']);
   });

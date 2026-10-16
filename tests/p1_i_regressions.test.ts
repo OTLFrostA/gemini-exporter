@@ -124,11 +124,11 @@ test('P1-088 - checkReadiness never passes the slot id off as the account name',
     // Runtime: stub credential resolution to force the ready:true branch.
     const credMgr = require('../src/core/api/client/credentialManager.js').default;
     const orig = credMgr.resolveCred;
-    credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: 'u0' });
+    credMgr.resolveCred = async () => ({ sid: 's', at: 'a', bl: 'b', accountSlot: '10000000-0000-4000-8000-000000000001' });
     try {
-        const readiness = await new GeminiProvider().checkReadiness({ accountSlot: 'u0' });
+        const readiness = await new GeminiProvider().checkReadiness({ accountSlot: '10000000-0000-4000-8000-000000000001' });
         assert.strictEqual(readiness.ready, true);
-        assert.strictEqual(readiness.accountSlot, 'u0');
+        assert.strictEqual(readiness.accountSlot, '10000000-0000-4000-8000-000000000001');
         assert.ok(
             readiness.accountName === undefined || readiness.accountName === null,
             `accountName must be absent/null, got: ${readiness.accountName}`

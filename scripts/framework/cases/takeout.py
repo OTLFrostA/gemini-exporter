@@ -110,11 +110,12 @@ class TakeoutZipImportCase(FeatureTestCase):
                 return False, "Takeout 资源索引读取字节与原始 ZIP 不一致", import_res
             stored = cdp_opt.eval(f"""
             (async () => {{
-                const slot = window.ConversationsStore.getCurrentSlot() || 'u0';
-                const summaries = (await chrome.storage.local.get(['gemini_conversations'])).gemini_conversations || [];
+                const slot = window.ConversationsStore.getCurrentAccountId();
+                const key = 'conversations_' + slot;
+                const summaries = (await chrome.storage.local.get(key))[key] || [];
                 const result = [];
                 for (const id of {json.dumps(expected_ids)}) {{
-                    const identity = {{ providerId: 'gemini', accountSlot: slot, conversationId: id }};
+                    const identity = {{ providerId: 'gemini', accountId: slot, conversationId: id }};
                     const record = await chrome.runtime.sendMessage({{ action: 'domainStorage', command: 'get', payload: {{ identity }} }});
                     const domain = record?.value?.conversation;
                     const resources = [];
@@ -160,7 +161,7 @@ class DeepScanPaginationCase(FeatureTestCase):
             # Initialize ONLY sync coverage for the first-scan fixture. Archives,
             # imported bodies, assets and export records remain intact. This keeps
             # the original full-pagination/title-upgrade assertions mandatory.
-            cdp_opt.eval("(async () => { await chrome.storage.local.remove('gemini_scan_coverage'); })()", await_promise=True)
+            cdp_opt.eval("(async () => { await chrome.storage.local.remove('scan_coverage_' + window.ConversationsStore.getCurrentAccountId()); })()", await_promise=True)
             evidence = CDPActions.trigger_deep_scan(cdp_opt, max_wait=330)
             scan_ok, message = assert_scan_result(evidence)
             if not scan_ok:
@@ -169,13 +170,14 @@ class DeepScanPaginationCase(FeatureTestCase):
             ids = [r['chat_id'] for r in ctx.chat_records if r.get('chat_id')]
             if ids:
                 known = cdp_opt.eval("""(async () => {
-                    const data = await chrome.storage.local.get(['gemini_conversations']);
-                    return (data.gemini_conversations || []).filter(c => c.titleSource === 'rpc' && c.title).map(c => c.id.replace(/^c_/, ''));
+                    const key = 'conversations_' + window.ConversationsStore.getCurrentAccountId();
+                    const data = await chrome.storage.local.get(key);
+                    return (data[key] || []).filter(c => c.titleSource === 'rpc' && c.title).map(c => c.id.replace(/^c_/, ''));
                 })()""", await_promise=True) or []
                 missing = [cid for cid in ids if cid.removeprefix('c_') not in known]
                 if missing:
                     return False, f"全量扫描结果缺少已知在线会话: {missing}", evidence
-            read_coverage = "(async () => (await chrome.storage.local.get('gemini_scan_coverage')).gemini_scan_coverage)()"
+            read_coverage = "(async () => (await chrome.storage.local.get('scan_coverage_' + window.ConversationsStore.getCurrentAccountId()))['scan_coverage_' + window.ConversationsStore.getCurrentAccountId()])()"
             before = cdp_opt.eval(read_coverage, await_promise=True) or {}
             complete_ok, message = assert_full_scan_coverage(evidence, before)
             if not complete_ok:

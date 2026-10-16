@@ -1,3 +1,5 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
@@ -24,7 +26,7 @@ function mockStorageContext() {
         getScanCheckpoint: async () => checkpoint,
         setScanCheckpoint: async (_s: any, ts: number | null) => { checkpoint = ts; }
     };
-    (global as any).chrome = { runtime: { sendMessage: () => {} } };
+    (global as any).chrome = { runtime: globalThis.chrome.runtime };
     __setModuleOverride('StorageService', mockStorage);
     return {
         seed: (items: any[]) => { savedList = items.map(indexFixture); },
@@ -53,7 +55,7 @@ test('touch preserves server timestamp on existing record', async () => {
     const SERVER_TS = 1700000000000;
     ctx.seed([serverItem('srv_chat_1', SERVER_TS)]);
 
-    await SyncEngine.touchActiveConversation('srv_chat_1', 'u0', { source: 'stream-complete' });
+    await SyncEngine.touchActiveConversation('srv_chat_1', '10000000-0000-4000-8000-000000000001', { source: 'stream-complete' });
 
     const rec = ctx.find('srv_chat_1');
     assert.ok(rec, 'record still exists');
@@ -65,7 +67,7 @@ test('touch preserves server timestamp on existing record', async () => {
 test('touch on unknown record creates entry without client timestamp', async () => {
     const ctx = mockStorageContext();
 
-    await SyncEngine.touchActiveConversation('brand_new_chat', 'u0', { source: 'stream-start' });
+    await SyncEngine.touchActiveConversation('brand_new_chat', '10000000-0000-4000-8000-000000000001', { source: 'stream-start' });
 
     const rec = ctx.find('brand_new_chat');
     assert.ok(rec, 'record created');
@@ -81,7 +83,7 @@ test('touch never moves the scan checkpoint', async () => {
     ctx.seed([serverItem('srv_chat_3', 1700000000000)]);
     ctx.setCheckpoint(CP);
 
-    await SyncEngine.touchActiveConversation('srv_chat_3', 'u0', { source: 'stream-complete' });
+    await SyncEngine.touchActiveConversation('srv_chat_3', '10000000-0000-4000-8000-000000000001', { source: 'stream-complete' });
 
     assert.strictEqual(ctx.getCheckpoint(), CP, 'checkpoint untouched by touch path');
 });

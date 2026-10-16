@@ -45,36 +45,36 @@ test('matching metadata owns the update version, while message dates remain mess
     assert.equal(list.updatedAt, undefined, 'creation/unknown wire slots cannot substitute for the update slot');
 });
 test('savedAt is the committed source version and cannot advance for rejected or partial captures', async () => {
-    const first = await saveDomainConversation('u0', detail([1700000000, 0], [1700000000, 0]));
+    const first = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0]));
     assert.equal(first.savedAt, 1700000000000);
     assert.equal('updatedAt' in first.conversation, false);
     assert.equal('sourceVersion' in first, false);
-    const repeated = await saveDomainConversation('u0', detail([1700000000, 0], [1700000000, 0]));
+    const repeated = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0]));
     assert.equal(repeated.savedAt, first.savedAt);
     assert.equal(repeated.revision, first.revision);
-    const newer = await saveDomainConversation('u0', detail([1700000005, 0], [1700000005, 0]));
+    const newer = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000005, 0], [1700000005, 0]));
     assert.equal(newer.savedAt, 1700000005000);
-    const rejected = await saveDomainConversation('u0', detail([1700000010, 0], [1700000010, 0], true));
+    const rejected = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000010, 0], [1700000010, 0], true));
     assert.equal(rejected.savedAt, newer.savedAt);
     assert.deepEqual(rejected.conversation.detail, newer.conversation.detail);
     assert.equal(rejected.conversation.index.updatedAt, 1700000010000);
-    const older = await saveDomainConversation('u0', detail([1700000000, 0], [1700000000, 0]));
+    const older = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0]));
     assert.equal(older.savedAt, newer.savedAt);
 });
 test('partial, unknown, metadata-only, conflicting and migrated bodies carry no saved source version', async () => {
-    const partial = await saveDomainConversation('u0', detail([1700000000, 0], [1700000000, 0], true, 'partial_chat'));
+    const partial = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], [1700000000, 0], true, 'partial_chat'));
     assert.equal(partial.savedAt, undefined);
-    const unknown = await saveDomainConversation('u0', detail([1700000000, 0], undefined, false, 'unknown_chat'));
+    const unknown = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000000, 0], undefined, false, 'unknown_chat'));
     assert.equal(unknown.savedAt, undefined);
-    const conflicting = await saveDomainConversation('u0', detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
+    const conflicting = await saveDomainConversation('10000000-0000-4000-8000-000000000001', detail([1700000005, 0], [1700000000, 0], false, 'conflicting_chat'));
     assert.equal(conflicting.conversation.detail.quality.status, 'partial');
     assert.equal(conflicting.savedAt, undefined);
     const metadata = parseGeminiRpcConversation(wire([['MaZiqc', [null, null, [['c_metadata_chat', 'Metadata only', null, null, null, [1700000000, 0]]]]]]), { providerId: 'gemini', targetConvId: 'metadata_chat' });
-    assert.equal((await saveDomainConversation('u0', metadata)).savedAt, undefined);
+    assert.equal((await saveDomainConversation('10000000-0000-4000-8000-000000000001', metadata)).savedAt, undefined);
     const legacy = parseLegacyStorageConversation({ metadata: { id: 'legacy_chat', title: 'Legacy', updatedAt: 1700000005000,
         messages: [{ role: 'user', content: 'Cached older body', timestamp: 1700000000000 }] } }, { providerId: 'gemini' });
     assert.equal(legacy.sourceVersion, undefined);
-    assert.equal((await saveDomainConversation('u0', legacy, [], true))?.savedAt, undefined);
+    assert.equal((await saveDomainConversation('10000000-0000-4000-8000-000000000001', legacy, [], true))?.savedAt, undefined);
 });
 test('a version change during pagination invalidates the saved version until a consistent refetch', async () => {
     const first = detail([1700000005, 0], [1700000005, 0], true);
@@ -82,9 +82,9 @@ test('a version change during pagination invalidates the saved version until a c
     const mixed = mergeConversationPages([first, changed]);
     assert.equal(mixed.conversation.detail.quality.status, 'partial');
     assert.ok(mixed.diagnostics.some(d => d.code === 'CONVERSATION_VERSION_CHANGED'));
-    assert.equal((await saveDomainConversation('u0', mixed)).savedAt, undefined);
+    assert.equal((await saveDomainConversation('10000000-0000-4000-8000-000000000001', mixed)).savedAt, undefined);
     const consistent = mergeConversationPages([first, detail([1700000000, 0], [1700000005, 0])]);
-    assert.equal((await saveDomainConversation('u0', consistent)).savedAt, 1700000005000);
+    assert.equal((await saveDomainConversation('10000000-0000-4000-8000-000000000001', consistent)).savedAt, 1700000005000);
 });
 test('export freshness compares source versions even with a newer Index and a far-ahead local clock', () => {
     const parsed = detail([1700000000, 0], [1700000000, 0]);

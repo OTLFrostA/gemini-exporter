@@ -1,3 +1,4 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
@@ -141,7 +142,7 @@ test('P2-3: 401 但 map 中无此 sid → 两条路径都是 no-op（不写不�
 test('P2-4: GEMINI_CREDENTIALS 消息的 p.bl 优先于旧值与页面抓取值', async () => {
     const store: Record<string, any> = {};
     (globalThis as any).chrome = {
-        runtime: { id: 'test-ext' },
+        runtime: { id: 'test-ext', sendMessage: async (message: any) => ({ok:true,value:{id:'10000000-0000-4000-8000-000000000003',providerId:message.providerId,providerAccountId:message.providerAccountId}}) },
         storage: {
             local: {
                 get: async (keys: string[]) => {

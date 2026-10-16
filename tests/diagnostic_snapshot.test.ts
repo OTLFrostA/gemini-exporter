@@ -1,3 +1,5 @@
+import { indexFixture } from './helpers/indexFixture.js';
+import { withRegistry } from './helpers/registryMock.js';
 // tests/diagnostic_snapshot.test.ts - Unit tests for Full Sanitized State Mirror and Flight Recorder
 export {};
 const test = require('node:test');
@@ -94,7 +96,7 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
 
     const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
-        (globalThis as any).chrome = {
+        (globalThis as any).chrome = withRegistry({
             storage: {
                 local: {
                     get: async () => ({
@@ -105,17 +107,17 @@ test('buildDiagnosticSnapshot: builds complete, sanitized state mirror without c
                     })
                 }
             }
-        };
+        });
 
         const snapshot = await buildDiagnosticSnapshot({
-            slot: 'u0',
-            conversations: mockConversations,
+            accountId: '10000000-0000-4000-8000-000000000001',
+            conversations: mockConversations.map(indexFixture),
             exportedIds: mockExportedIds,
             workbenchLogs: [{ time: '12:00:00', level: 'info', msg: 'Started export' }]
         });
 
         assert.strictEqual(snapshot.diagnosticVersion, '3.0.0');
-        assert.strictEqual(snapshot.environment.currentSlot, 'u0');
+        assert.strictEqual(snapshot.environment.accountId, '10000000-0000-4000-8000-000000000001');
         assert.strictEqual(snapshot.environment.isDevMode, true);
         assert.strictEqual(snapshot.storageOverview.totalConversations, 2);
         assert.strictEqual(snapshot.storageOverview.totalExportedRecords, 2);

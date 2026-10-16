@@ -29,7 +29,7 @@ export interface ExportOptions {
     selected: UIExportOptions['selected'];
     format?: string;
     useZip?: boolean;
-    currentSlot?: string;
+    accountId?: string;
     dirHandle?: UIExportOptions['dirHandle'];
     skip?: boolean;
     includeIndex?: boolean;
@@ -370,7 +370,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 selected = [],
                 format = 'markdown',
                 useZip = true,
-                currentSlot = 'u0',
+                accountId = '',
                 skip = false,
                 conversations = []
             } = options;
@@ -387,7 +387,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             this._abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const abortSignal = this._abortController ? this._abortController.signal : null;
 
-            const slot = currentSlot || 'u0';
+            const slot = accountId || '';
             // Phase A (P1-4): Storage 解析不再允许 null —— 静态 import 做 fallback，
             // 生产环境永远拿到真正的 StorageService；测试可用 __setModuleOverride 覆盖。
             // finalizeChatExport 只认 saveExportRecord 一条正式路径（fail-closed）。
@@ -457,7 +457,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
             if (recovery && recovery.updateSessionStatus) {
                 await recovery.updateSessionStatus({
                     status: 'running',
-                    slot,
+                    accountId: slot,
                     total: selected.length,
                     current: skippedItems.length,
                     format,
@@ -620,7 +620,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                 includeIndex = false,
                 includeAssets = true,
                 useZip = true,
-                currentSlot = 'u0',
+                accountId = '',
                 conversations = [],
                 exportedIds = {},
                 takeoutEngine = null
@@ -630,7 +630,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
 
             const AssetPipelineClass = getAssetPipelineClass();
             const assetPipeline: AssetPipelineInstance | null = AssetPipelineClass ? new AssetPipelineClass({
-                currentSlot,
+                accountId,
                 useZip,
                 writer,
                 writeFileDirect: async (path, bytes) => { await writeExportFile(path, bytes); },
@@ -751,7 +751,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         const I18n = getI18n();
 
                         while (retryCount <= maxRateLimitRetries && !this.aborted && !(abortSignal && abortSignal.aborted)) {
-                            rawRes = await worker.fetchChatDetail({ ...requestedItem, cloudAvailability: listC?.cloudAvailability }, currentIndex, totalChats, currentSlot, skip, format, abortSignal);
+                            rawRes = await worker.fetchChatDetail({ ...requestedItem, cloudAvailability: listC?.cloudAvailability }, currentIndex, totalChats, accountId, skip, format, abortSignal);
 
                             if (this.aborted || (abortSignal && abortSignal.aborted)) break;
                             if (rawRes && 'source' in rawRes && rawRes.source === 'local-cache') onLog(I18n?.t?.('archiveExportingSnapshot', requestedItem.title || nid) || `Exporting local snapshot: ${nid}`, 'warn');
@@ -800,7 +800,7 @@ export const isRealTitle = (title?: string | null, id?: string | number): boolea
                         if (!success) candidate = res && !res.success ? { error: res.error, _debug: res._debug, _raw: res._raw, rawResponse: res.rawResponse, retryAfterMs: res.retryAfterMs } : { error: 'unknown' };
                         const chatCandidate = candidate;
 
-                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, currentSlot, onTitleUpdated, onLog, { source: res && 'source' in res && res.source === 'local-cache' ? 'local_snapshot' : 'online' });
+                        const resolvedRes = await worker.resolveChat(chatCandidate, requestedItem, listC, takeoutEngine, accountId, onTitleUpdated, onLog, { source: res && 'source' in res && res.source === 'local-cache' ? 'local_snapshot' : 'online' });
 
                         if (resolvedRes.isError) {
                             const evidence: Record<string, unknown> = isObjectRecord(chatCandidate) ? chatCandidate : {};

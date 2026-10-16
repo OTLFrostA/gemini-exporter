@@ -63,7 +63,7 @@ test('C4-1: finalizeChatExport claims before first await, deduplicating concurre
         finalizedChatsSet,
         chatRecordsMap,
         storageAdapter: pausingAdapter,
-        slot: 'u0'
+        slot: '10000000-0000-4000-8000-000000000001'
     };
 
     // Launch first call: it claims before first await, then suspends in saveExportRecord
@@ -588,10 +588,11 @@ test('C4-11: bare and wrapped records retain identity and metadata in both maps 
         let callbacks = 0;
         const entry = wrapped ? { exportRecord: record, conversationUpdate: update } : record;
         const context: FinalizeChatExportContext = {
+            slot: '10000000-0000-4000-8000-000000000001',
             chatRecordsMap: new Map([['abc', entry]]), curIds, exportedIds,
             Storage: {
                 finalizeConversationExport: async (slot, id, received, options) => {
-                    assert.strictEqual(slot, 'u0');
+                    assert.strictEqual(slot, '10000000-0000-4000-8000-000000000001');
                     assert.strictEqual(id, 'c_abc');
                     assert.strictEqual(received, record);
                     assert.equal('conversationUpdate' in (options ?? {}), false);

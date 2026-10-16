@@ -48,7 +48,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { id: 'chat_direct_1' },
         0,
         1,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         false,
         'md',
         null,
@@ -70,7 +70,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { id: 'chat_direct_err' },
         0,
         1,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         false,
         'md',
         null,
@@ -89,7 +89,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { id: 'chat_direct_malformed' },
         0,
         1,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         false,
         'md',
         null,
@@ -117,7 +117,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         { id: 'chat_remote_1' },
         0,
         1,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         false,
         'md',
         null,
@@ -145,7 +145,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
         { id: 'chat_aborted_1' },
         0,
         1,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         false,
         'md',
         controller.signal,
@@ -164,7 +164,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
         { id: 'chat_aborted_2' },
         0,
         1,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         false,
         'md',
         liveController.signal,
@@ -178,18 +178,18 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
 
 test('C1 review: malformed raw replies are reportable failures rather than native results', async () => {
     const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
-    const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
+    const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
         tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 2, data: payload }) }
     });
     assert.equal(direct.success, false);
     assert.equal(direct.results, undefined);
-    const runtime = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
+    const runtime = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
         tabService: { sendToGeminiTab: async () => null },
         messageSender: (_msg: unknown, callback: (value: unknown) => void) => callback({ results: [payload], error: 0 })
     });
     assert.equal(runtime.success, false);
     assert.equal(runtime.results, undefined);
-    const error = await fetchChatDetail({ id: 'c_raw' }, 0, 1, 'u0', false, 'md', null, {
+    const error = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
         tabService: { sendToGeminiTab: async () => ({ error: { code: 403 } }) }
     });
     assert.equal(error.success, false);
@@ -197,7 +197,7 @@ test('C1 review: malformed raw replies are reportable failures rather than nativ
 });
 
 test('runtime detail recovery prefers native online, then native Takeout, then durable Domain', async () => {
-    const id = 'cascade_test'; const slot = 'u2';
+    const id = 'cascade_test'; const slot = '10000000-0000-4000-8000-000000000003';
     const make = (text: string) => historicalFixture({ id, title: text, messages: [{ role: 'model', content: text }] });
     const online = make('online'), offline = make('offline'), stored = make('stored'); let calls = 0;
     const takeout = { getTakeoutOfflineChat() { calls++; return offline; } };
@@ -216,10 +216,10 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
 test('native resolver retains unknown source blocks and arbitrates titles without reparsing', async () => {
     const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
     const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
-    const resolved = await resolveChat(native, { id: 'native-title' }, list);
+    const resolved = await resolveChat(native, { id: 'native-title' }, list, null, '10000000-0000-4000-8000-000000000001');
     assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.index.title, 'RPC title');
     assert.deepEqual(resolved.chat.conversation.detail.messages, native.conversation.detail.messages);
     assert.equal(resolved.chat.conversation.detail.messages[0].role, 'unknown');
-    const deleted = await resolveChat({ id: 'deleted-native', error: 'Conversation not found', isDeleted: true }, { id: 'deleted-native' });
+    const deleted = await resolveChat({ id: 'deleted-native', error: 'Conversation not found', isDeleted: true }, { id: 'deleted-native' }, null, null, '10000000-0000-4000-8000-000000000001');
     assert.equal(deleted.isConfirmedDeleted, true); assert.equal(deleted.chat, undefined);
 });

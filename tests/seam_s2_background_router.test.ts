@@ -1,3 +1,4 @@
+import { bindTabAccounts } from './helpers/tabAccounts.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import test from 'node:test';
 import assert from 'node:assert';
@@ -23,7 +24,7 @@ let tabResponder: ((_msg: any, cb: any) => void) | null = null;
     },
     storage: {
         local: {
-            get: async (_keys: any) => ({ gemini_schema_version: 1 }),
+            get: async (_keys: any) => ({ gemini_schema_version: 3 }),
             set: async (_obj: any) => {},
             remove: async (_keys: any) => {},
         },
@@ -59,6 +60,7 @@ let tabResponder: ((_msg: any, cb: any) => void) | null = null;
 const tabServiceMod: any = require('../src/core/utils/tabService.js');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
 
+bindTabAccounts({42:'10000000-0000-4000-8000-000000000001'});
 require('../src/background/background.ts');
 
 function lastListener() {
@@ -120,10 +122,10 @@ test('queued fetchBatch submitted before cancel must not restart after the in-fl
     const listener = lastListener();
     const responses: any[] = [];
     try {
-        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['first'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'fetchBatch', accountSlot: '10000000-0000-4000-8000-000000000001', ids: ['first'] }, {}, (r: any) => responses.push(r));
         while (detailCalls === 0) await new Promise(r => setTimeout(r, 5));
-        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['queued'] }, {}, (r: any) => responses.push(r));
-        listener({ action: 'cancelExport', accountSlot: 'u0' }, {}, () => {});
+        listener({ action: 'fetchBatch', accountSlot: '10000000-0000-4000-8000-000000000001', ids: ['queued'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'cancelExport', accountSlot: '10000000-0000-4000-8000-000000000001' }, {}, () => {});
         const deadline = Date.now() + 1000;
         while (responses.length < 2 && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
         assert.strictEqual(detailCalls, 1, 'queued pre-cancel batch must never contact the tab');
@@ -132,7 +134,7 @@ test('queued fetchBatch submitted before cancel must not restart after the in-fl
     } finally {
         if (releaseFirstDetail) releaseFirstDetail();
         tabResponder = null;
-        await setSlotAborted('u0', false);
+        await setSlotAborted('10000000-0000-4000-8000-000000000001', false);
         clearAllAborts();
     }
 });
@@ -152,9 +154,9 @@ test('same-slot batches do not overlap the shared abort controller in production
     const listener = lastListener();
     const responses: any[] = [];
     try {
-        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['first'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'fetchBatch', accountSlot: '10000000-0000-4000-8000-000000000001', ids: ['first'] }, {}, (r: any) => responses.push(r));
         while (detailCalls === 0) await new Promise(r => setTimeout(r, 5));
-        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['second'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'fetchBatch', accountSlot: '10000000-0000-4000-8000-000000000001', ids: ['second'] }, {}, (r: any) => responses.push(r));
         await new Promise(resolve => setImmediate(resolve));
         assert.strictEqual(detailCalls, 1);
         releaseFirst();
@@ -183,8 +185,8 @@ test('back-to-back batches submitted before the first starts both run without ca
     const listener = lastListener();
     const responses: any[] = [];
     try {
-        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['first'] }, {}, (r: any) => responses.push(r));
-        listener({ action: 'fetchBatch', accountSlot: 'u0', ids: ['second'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'fetchBatch', accountSlot: '10000000-0000-4000-8000-000000000001', ids: ['first'] }, {}, (r: any) => responses.push(r));
+        listener({ action: 'fetchBatch', accountSlot: '10000000-0000-4000-8000-000000000001', ids: ['second'] }, {}, (r: any) => responses.push(r));
         const deadline = Date.now() + 1000;
         while (responses.length < 2 && Date.now() < deadline) await new Promise(r => setTimeout(r, 5));
         assert.deepStrictEqual(sent, ['first', 'second']);

@@ -25,7 +25,7 @@ test('Decoupling 1: AssetPipeline runs without chrome.tabs via fetchAssetDelegat
 
         const delegateCalls: any[] = [];
         const pipeline = new AssetPipeline({
-            currentSlot: 'u0',
+            accountId: '10000000-0000-4000-8000-000000000001',
             useZip: true,
             writer: mockWriter,
             fetchAssetDelegate: async (req) => {
@@ -77,7 +77,7 @@ test('Decoupling 2: BatchWorker.fetchChatDetail runs without chrome.runtime via 
             { id: 'chat_999' } as any,
             0,
             1,
-            'u0',
+            '10000000-0000-4000-8000-000000000001',
             false,
             'md',
             null as any,
@@ -143,13 +143,13 @@ test('Decoupling 4: SessionRecovery.finalizeChatExport uses storageAdapter witho
         const finalized = await SessionRecovery.finalizeChatExport('12345', {
             chatRecordsMap: recordsMap,
             storageAdapter: mockStorageAdapter as any,
-            slot: 'u0'
+            slot: '10000000-0000-4000-8000-000000000001'
         } as any);
 
         assert.strictEqual(finalized, true);
         assert.ok(persistedRecord, 'Record must be saved via storageAdapter');
         assert.strictEqual(persistedRecord.id, '12345');
-        assert.strictEqual(persistedRecord.slot, 'u0');
+        assert.strictEqual(persistedRecord.slot, '10000000-0000-4000-8000-000000000001');
     } finally {
         if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
         else delete (global as any).chrome;

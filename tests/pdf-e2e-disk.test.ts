@@ -218,12 +218,12 @@ test('e2e-disk: single PDF export lands a real, parseable file on disk', async (
         const exporter = new PdfExporter(new TitleTextPdfCompiler() as any);
         const exported: any[] = [];
         const result = await exporter.run(
-            {
+            { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: [{ id: conv.id, title: conv.title }],
                 conversations: ([conv]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([conv]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
                 useZip: false,
                 writer,
-            },
+            }) },
             { onItemExported: (id: string, record: any) => exported.push({ id, record }) }
         );
 
@@ -291,7 +291,7 @@ test('e2e-disk: batch ZIP of 3 conversations lands a real ZIP with 3 parseable P
         let delivered: { blob: Blob; filename: string } | null = null;
         const exporter = new PdfExporter(new TitleTextPdfCompiler() as any);
         const result = await exporter.run(
-            {
+            { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
                 conversations: conversations.map(indexFixture),
                 fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
@@ -304,7 +304,7 @@ test('e2e-disk: batch ZIP of 3 conversations lands a real ZIP with 3 parseable P
                     fs.writeFileSync(path.join(tmp, filename), buf);
                     delivered = { blob, filename };
                 },
-            },
+            }) },
             {}
         );
 

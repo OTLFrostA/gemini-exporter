@@ -36,7 +36,7 @@ test('current extension reply preserves native identity; legacy and malformed en
 test('authenticated storage transport requires version and preserves resource bytes and Domain graph', async () => {
     __clearDomainMemory();
     const parsed = historicalFixture({ id: 'broker', messages: [{ role: 'user', content: 'Body' }] });
-    const record = await saveDomainConversation('u0', parsed);
+    const record = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed);
     assert.ok(record);
     const wire = encodeDomainRecord(record);
     assert.deepEqual(decodeDomainRecord(wire), record);

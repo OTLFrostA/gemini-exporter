@@ -7,7 +7,7 @@ const assert = require('node:assert');
 const TakeoutEngine = require('../src/core/engine/takeoutEngine.js');
 
 test('asset_dedup - ZIP import preserves exact image bytes and per-turn Domain ownership', async () => {
-    const slot = 'batch043-asset-ownership';
+    const slot = '10000000-0000-4000-8000-000000000001';
     const id = 'chat_multi_img_123';
     const g = globalThis as any;
     const originalJSZip = Object.getOwnPropertyDescriptor(g, 'JSZip');
@@ -88,7 +88,7 @@ test('asset_dedup - AssetPipeline preserves byteOffset and byteLength for sliced
         }
     };
 
-    const pipeline = new AssetPipeline({
+    const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         useZip: true,
         writer: mockWriter,
         fetchAssetDelegate: async () => {
@@ -100,7 +100,7 @@ test('asset_dedup - AssetPipeline preserves byteOffset and byteLength for sliced
                 mime: 'image/png'
             };
         }
-    });
+    }) });
 
     const item = { assetId: 'sliced', localName: 'assets/sliced.png', url: 'https://example.com/sliced.png' };
     const chat = { id: 'chat1', title: 'Test Chat' };

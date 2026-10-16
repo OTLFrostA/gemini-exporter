@@ -49,9 +49,9 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         { url: 'https://example.com/missing.png', fileName: 'missing.png' }
     ] }] });
     const [domain, takeout] = source.conversation.detail.assets;
-    await catalogStorage.setNativeConversations('u0', [source]);
-    await saveDomainConversation('u0', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
-    await catalogStorage.updateConversation('u0', 'deleted_local', { cloudAvailability: 'deleted' });
+    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
+    await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
+    await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', 'deleted_local', { cloudAvailability: 'deleted' });
     let requests = 0;
     const logs: string[] = [];
     __setModuleOverride('TabService', { sendToGeminiTab: async () => { requests++; return { success: false, error: 'unexpected request' }; } });
@@ -61,7 +61,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         } }); }
     });
     try {
-        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'deleted_local' }], currentSlot: 'u0',
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'deleted_local' }], accountId: '10000000-0000-4000-8000-000000000001',
             conversations: [indexFixture({ id: 'deleted_local', title: 'Deleted local', timestamp: 1, cloudAvailability: 'deleted' })], worker: BatchWorker,
             takeoutEngine: { getTakeoutOfflineChat: () => null, getTakeoutMediaForChat: () => [],
                 getTakeoutFallbackMedia: async (_id, lookup) => lookup.assetId === takeout.id ? new Uint8Array([4, 5, 6]) : null }
@@ -81,18 +81,18 @@ test('normal export fetches fresh cloud content first and falls back to a local 
     __clearDomainMemory();
     const local = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Stale snapshot' }] });
     const fresh = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Fresh cloud answer' }] });
-    await catalogStorage.setNativeConversations('u0', [local]);
+    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
     let calls = 0;
     try {
         for (const error of [null, 'HTTP 503', 'Malformed direct response envelope']) {
             __clearDomainMemory();
-            await catalogStorage.setNativeConversations('u0', [local]);
+            await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
             const { files } = exportMocks();
             __setModuleOverride('TabService', { sendToGeminiTab: async () => {
                 calls++; return error ? { success: false, error } : { success: true, domainEnvelopeVersion: 2, data: fresh };
             } });
             const logs: string[] = [];
-            const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], currentSlot: 'u0', includeAssets: false,
+            const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,
                 conversations: [indexFixture({ id: 'unlisted_local', title: 'Unlisted local', timestamp: 1 })], worker: BatchWorker
             }, { onLog: message => logs.push(message) });
             assert.equal(result.landedChats, 1);
@@ -111,7 +111,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
     const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', updatedAt: 1, messages: [{ role: 'user', content: 'Fresh cloud content' }] });
-    await catalogStorage.setNativeConversations('u0', [local]);
+    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
     let calls = 0;
     let available = false;
     const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
@@ -119,7 +119,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
         calls++; return available ? { success: true, domainEnvelopeVersion: 2, data: fresh } : { success: false, error: 'HTTP 503' };
     } });
     const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list],
-        currentSlot: 'u0', includeAssets: false, skip, worker: BatchWorker });
+        accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false, skip, worker: BatchWorker });
     const status = () => (records.retry_snapshot as { status: string }).status;
     try {
         await run(false);
@@ -132,7 +132,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
         assert.match(Object.values(files).filter(value => typeof value === 'string').join(' '), /Fresh cloud content/);
         assert.equal((await run(true)).skipped, 1); assert.equal(calls, 3);
         list.cloudAvailability = 'deleted';
-        await catalogStorage.updateConversation('u0', list.id, { cloudAvailability: 'deleted' });
+        await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', list.id, { cloudAvailability: 'deleted' });
         await run(false);
         assert.equal(status(), 'ok', 'known deleted local export remains complete');
         assert.equal(calls, 3);
@@ -145,7 +145,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     const { records } = exportMocks();
     const source = historicalFixture({ id: 'delete_write_failure', title: 'Delete write failure', messages: [{ role: 'model', content: 'Retained answer',
         images: [{ url: 'https://example.com/missing-deleted.png', fileName: 'missing.png' }] }] });
-    await catalogStorage.setNativeConversations('u0', [source]);
+    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
     let assetRequests = 0;
     let writes = 0;
     let memoryAtWrite: Conversation['cloudAvailability'] = 'unknown';
@@ -166,7 +166,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     });
     try {
         const logs: string[] = [];
-        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list], currentSlot: 'u0', worker: BatchWorker },
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list], accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker },
             { onLog: message => logs.push(message) });
         assert.equal(memoryAtWrite, 'deleted', 'memory must be restricted before any storage await');
         assert.equal(list.cloudAvailability, 'deleted');
@@ -175,7 +175,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
         assert.equal(result.landedChats, 1); assert.equal(result.failedAttachments.length, 1);
         assert.match(logs.join(' '), /Injected deleted marker write failure/);
         // Confirmed deletion is also restrictive when the caller has no list metadata.
-        const noList = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], currentSlot: 'u0', worker: BatchWorker });
+        const noList = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker });
         assert.equal(noList.landedChats, 1); assert.equal(noList.failedAttachments.length, 1);
         assert.equal(assetRequests, 0);
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
@@ -187,7 +187,7 @@ test('export completion warns for attachment-only and mixed failures in both lan
     const selected = [{ id: 'completion_test', title: 'Completion test', timestamp: 1 }];
     let result: UIExportResult = {};
     const logs: { message: string; level?: string }[] = [];
-    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => (selected).map(indexFixture), getExportedIds: () => ({}) });
+    __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001', getConversations: () => (selected).map(indexFixture), getExportedIds: () => ({}) });
     __setModuleOverride('ListView', { getSelectedIds: () => new Set(['completion_test']), setSelectedIds: () => {} });
     __setModuleOverride('FormatStore', { loadFormat: async () => ({ format: 'markdown' }) });
     __setModuleOverride('DirHandleController', { getDirHandle: () => null, restoreSavedDirHandle: async () => null });
@@ -239,7 +239,7 @@ test('sync UI never reaches success completion for partial_limit / aborted / err
         onMessage: { addListener: (callback: typeof listener) => { listener = callback; } }
     } } });
     __setModuleOverride('TabService', { getGeminiTab: async () => null });
-    __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => [] });
+    __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001', getConversations: () => [] });
     __setModuleOverride('ExportController', { isRunning: () => false });
     try {
         await OptionsSync.init({ loadStore: async () => { reloads++; }, log: () => {}, maybePromptTakeout: () => { prompts++; } });
@@ -272,10 +272,10 @@ test('a failed cloud fetch without a same-account body remains a failed export',
     __clearDomainMemory();
     const { records } = exportMocks();
     const foreign = historicalFixture({ id: 'missing_local', title: 'Other account', messages: [{ role: 'user', content: 'Private other-account answer' }] });
-    await saveDomainConversation('u1', foreign);
+    await saveDomainConversation('10000000-0000-4000-8000-000000000002', foreign);
     __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
     try {
-        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], currentSlot: 'u0', includeAssets: false,
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,
             conversations: [indexFixture({ id: 'missing_local', title: 'Unavailable', timestamp: 1 })], worker: BatchWorker });
         assert.equal(result.landedChats, 0);
         assert.equal(result.failedChats.length, 1);
@@ -289,14 +289,14 @@ test('batch export records the fetched body version rather than a newer Index ve
     const body = historicalFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000000000,
         messages: [{ role: 'user', content: 'Captured older body' }] });
     const index = indexFixture({ id: 'stale_body_version', title: 'Captured body', updatedAt: 1700000005000 });
-    await catalogStorage.setConversations('u0', [index]);
+    await catalogStorage.setConversations('10000000-0000-4000-8000-000000000001', [index]);
     let requests = 0;
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
         requests++; return { success: true, domainEnvelopeVersion: 2, data: body };
     } });
     try {
         const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: index.id }],
-            conversations: [index], currentSlot: 'u0', includeAssets: false, skip, worker: BatchWorker });
+            conversations: [index], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false, skip, worker: BatchWorker });
         assert.equal((await run(false)).landedChats, 1);
         assert.equal((records.stale_body_version as { chatTime: number }).chatTime, body.sourceVersion);
         assert.equal(index.updatedAt, 1700000005000);
@@ -320,7 +320,7 @@ test('export session holds UI lock until storage refresh settles, including refr
         const gate = new Promise<void>(resolve => { release = resolve; });
         const refreshStarted = new Promise<void>(resolve => { entered = resolve; });
         let calls = 0;
-        __setModuleOverride('ConversationsStore', { getCurrentSlot: () => 'u0', getConversations: () => selected, getExportedIds: () => ({}) });
+        __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001', getConversations: () => selected, getExportedIds: () => ({}) });
         __setModuleOverride('ListView', { getSelected: () => selected, getSelectedIds: () => new Set(['session-lock']), setSelectedIds: () => {} });
         __setModuleOverride('FormatStore', { loadFormat: async () => ({ format: 'markdown' }), getCurrentFormat: () => 'markdown' });
         __setModuleOverride('DirHandleController', { getDirHandle: () => null, restoreSavedDirHandle: async () => null });

@@ -21,7 +21,7 @@ test('storage acquisition context retains only verified fields and rejects malfo
     assert.equal(Object.getPrototypeOf(parsed), Object.prototype, 'untrusted keys must not alter the result prototype');
 
     await assert.rejects(
-        saveDomainRequest('u0', { conversation: { providerId: 'gemini' }, acquisitionHints: {} }),
+        saveDomainRequest('10000000-0000-4000-8000-000000000001', { conversation: { providerId: 'gemini' }, acquisitionHints: {} }),
         TypeError, 'raw unvalidated objects cannot cross the storage write boundary',
     );
 });
@@ -41,7 +41,7 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
         });
         const candidates = ['opaque:original'];
         const bytes = new Uint8Array([1, 2, 3]);
-        await saveDomainConversation('u0',
+        await saveDomainConversation('10000000-0000-4000-8000-000000000001',
             { conversation: original, acquisitionHints: { asset: { candidates } }, resourceHints: {}, diagnostics: [] },
             [{ assetId: 'asset', bytes }],
         );
@@ -53,7 +53,7 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
         candidates[0] = 'mutated';
         bytes[0] = 99;
 
-        const identity = storageIdentity('gemini', 'u0', 'trust-copy-case');
+        const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'trust-copy-case');
         const stored = await getStoredDomain(identity);
         assert.ok(stored);
         assert.equal(stored.conversation.index.title, 'Original');

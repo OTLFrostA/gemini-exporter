@@ -18,7 +18,7 @@ export interface LiveConversationRecord {
     updatedAt?: number;
     savedAt: number;
     turnCount: number;
-    accountSlot?: string;
+    accountId?: string;
     format?: string;
     hasImages?: boolean;
 }

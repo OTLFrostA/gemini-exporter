@@ -69,11 +69,13 @@ class StaleTabHistoryTests(unittest.TestCase):
         # If the row is still absent after sync, the original target assertion
         # must fail; the export action must never be used to fake success.
         cdp.eval.side_effect = [7, receivers, None, after_scan or receivers, False, None]
-        with patch('scripts.framework.cases.export.wait_for_prior_scan') as prior, \
+        with patch('scripts.framework.cases.export.select_source_account') as select, \
+             patch('scripts.framework.cases.export.wait_for_prior_scan') as prior, \
              patch('scripts.framework.cases.export.reset_only_coverage') as reset, \
              patch.object(CDPActions, 'trigger_deep_scan', return_value=scan) as sync, \
              patch.object(CDPActions, 'trigger_export_zip') as export:
             result = StaleTabImageExportCase().execute(ctx)
+            select.assert_called_once_with(cdp, source_tab_id=8)
             prior.assert_called_once_with(cdp)
             reset.assert_called_once_with(cdp)
             sync.assert_called_once_with(cdp)

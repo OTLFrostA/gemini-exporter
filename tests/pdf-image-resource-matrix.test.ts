@@ -170,9 +170,9 @@ test('svg sniff: xml declaration, comments, doctype and BOM still resolve', asyn
 
 test('svg sniff: unterminated prolog or duplicate xml declaration is refused', async () => {
     const cases: Array<[string, string]> = [
-        ['u1', '<!-- never closed <svg/>'],
-        ['u2', '<?xml version="1.0"'],
-        ['u3', '<?xml version="1.0"?><?xml version="1.0"?><svg/>'],
+        ['10000000-0000-4000-8000-000000000002', '<!-- never closed <svg/>'],
+        ['10000000-0000-4000-8000-000000000003', '<?xml version="1.0"'],
+        ['10000000-0000-4000-8000-000000000004', '<?xml version="1.0"?><?xml version="1.0"?><svg/>'],
     ];
     for (const [id, text] of cases) {
         const result = await mount({ [id]: { mediaType: 'image/svg+xml', name: 'v.svg', bytes: Buffer.from(text, 'utf8') } });

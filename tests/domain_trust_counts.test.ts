@@ -17,9 +17,9 @@ test('large provider-neutral graphs preserve complete/partial/unknown coverage a
         assert.equal(restoreDomainSnapshot(trusted).detail.messages.length, 1000);
         __clearDomainMemory();
         const bytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
-        await saveDomainConversation('opaque-account', { conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
+        await saveDomainConversation('10000000-0000-4000-8000-000000000001', { conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
         bytes[0] = 99;
-        const read = await getStoredDomain(storageIdentity('future-provider', 'opaque-account', builder.index.id));
+        const read = await getStoredDomain(storageIdentity('future-provider', '10000000-0000-4000-8000-000000000001', builder.index.id));
         assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
         assert.equal(read.conversation.detail.quality.status, status);
@@ -59,11 +59,11 @@ test('count actual Schema passes and Closure calls separately at every trust bou
                 await measure('Merge',()=>mergeConversationPages([rpc,rpc]));
                 await measure('Legacy',()=>parseLegacyStorageConversation({metadata:{id:'legacy',messageCount:2}},{providerId:'gemini'}));
                 if(takeout.length!==2)throw Error('Independent two-conversation fixture was not parsed');
-                await measure('WriteSnapshot',()=>saveDomainConversation('u0',takeout[0]));
-                const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','u0',takeout[0].conversation.index.id)));
+                await measure('WriteSnapshot',()=>saveDomainConversation('10000000-0000-4000-8000-000000000001',takeout[0]));
+                const record=await measure('ReadSnapshot',()=>getStoredDomain(storageIdentity('gemini','10000000-0000-4000-8000-000000000001',takeout[0].conversation.index.id)));
                 const parsed=await measure('AdaptRecord',()=>storedParseResult(record));
                 await measure('AuthenticatedTransport',async()=>{decodeDomainRecord(encodeDomainRecord(record));await requestNativeDetail(async()=>({success:true,domainEnvelopeVersion: 2,data:parsed}));await requestNativeBatch(async()=>({success:true,domainEnvelopeVersion: 2,results:[parsed]}));});
-                await measure('PdfAcceptance',async()=>{const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
+                await measure('PdfAcceptance',async()=>{const pdf=await preparePdfItem(pdfDomainSelection(parsed.conversation),{accountId:'10000000-0000-4000-8000-000000000001',includeAssets:false});if(!pdf.ok)throw Error(pdf.error);});
                 await measure('PureExport',async()=>{composeDomainDocument(parsed.conversation);formatContent(parsed,'json');await formatHtmlDocument(parsed);await formatMarkdownDocument(parsed);});
                 return rows;
             }` }, plugins: [{ name: 'test-only-actual-schema-closure-counters', setup(builder) {

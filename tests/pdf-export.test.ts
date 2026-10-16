@@ -128,12 +128,12 @@ test('success is only marked after the Writer actually wrote the file', async ()
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
             onLog: (msg: string, level?: string) => logs.push({ msg, level }),
@@ -162,12 +162,12 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
             onLog: (msg: string, level?: string) => logs.push({ msg, level }),
@@ -186,12 +186,12 @@ test('writer failure marks the item failed, never successful, and stays retryabl
     const retryWriter = makeFakeWriter();
     const retryExporter = new PdfExporter(new StubPdfCompiler());
     const retry = await retryExporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: result.failed[0].id, title: result.failed[0].title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer: retryWriter,
-        },
+        }) },
         {}
     );
     assert.strictEqual(retry.succeeded, 1, 'failed item is retryable');
@@ -205,12 +205,12 @@ test('one failed item does not block the rest of the batch', async () => {
     const writer = makeFakeWriter({ failOn: (name) => name.includes('bad-title-will-fail') });
     const exporter = new PdfExporter(new StubPdfCompiler());
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [bad, good1, good2].map((c) => ({ id: c.id, title: c.title })),
             conversations: ([bad, good1, good2]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([bad, good1, good2]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
-        },
+        }) },
         {}
     );
     assert.strictEqual(result.total, 3);
@@ -228,7 +228,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
     const progress: any[] = [];
     const convs = [1, 2, 3].map((n) => makeSample(`cancel-${n}`, `cancel ${n}`));
     const runPromise = exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
             conversations: convs.map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
@@ -237,7 +237,7 @@ test('cancel stops the batch: no further compiles, no writes, no finalize', asyn
             downloadHandler: async () => {
                 downloads++;
             },
-        },
+        }) },
         { onProgress: (p: any) => progress.push(p) }
     );
     // Cancel while the first compile is still in its artificial delay.
@@ -256,13 +256,13 @@ test('deterministic compile failure surfaces with diagnostics and stays retryabl
     const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: failing,
-        },
+        }) },
         { onLog: (msg: string, level?: string) => logs.push({ msg, level }) }
     );
     assert.strictEqual(result.succeeded, 0);
@@ -278,7 +278,7 @@ test('zip mode packages only after successful writes', async () => {
     const exported: Array<{ chatTime?: number; messageCount?: number }> = [];
     let downloaded: { name: string } | null = null;
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
@@ -286,7 +286,7 @@ test('zip mode packages only after successful writes', async () => {
             downloadHandler: async (_blob: Blob, filename: string) => {
                 downloaded = { name: filename };
             },
-        },
+        }) },
         { onItemExported: (_id: string, record: { chatTime?: number; messageCount?: number }) => exported.push(record) }
     );
     assert.strictEqual(result.succeeded, 1);
@@ -308,7 +308,7 @@ test('zip: generateBlob failure never reports success and commits no records (§
     const logs: any[] = [];
     let downloads = 0;
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
@@ -316,7 +316,7 @@ test('zip: generateBlob failure never reports success and commits no records (§
             downloadHandler: async () => {
                 downloads++;
             },
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
             onLog: (msg: string, level?: string) => logs.push({ msg, level }),
@@ -339,7 +339,7 @@ test('zip: downloadHandler failure never reports success and commits no records 
     const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
@@ -347,7 +347,7 @@ test('zip: downloadHandler failure never reports success and commits no records 
             downloadHandler: async () => {
                 throw new Error('boom: simulated download failure');
             },
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
         }
@@ -364,7 +364,7 @@ test('zip: success records are committed only after delivery, in item order (§1
     const events: string[] = [];
     const convs = [1, 2].map((n) => makeSample(`ord-${n}`, `ord ${n}`));
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
             conversations: convs.map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
@@ -372,7 +372,7 @@ test('zip: success records are committed only after delivery, in item order (§1
             downloadHandler: async () => {
                 events.push('delivered');
             },
-        },
+        }) },
         {
             onItemExported: (id: string) => events.push(`record:${id}`),
         }
@@ -392,13 +392,13 @@ test('zip: missing generateBlob on the writer fails closed, never reports succes
     const exporter = new PdfExporter(new StubPdfCompiler());
     const exported: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {},
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
         }
@@ -415,13 +415,13 @@ test('zip: missing downloadHandler fails closed, never counts staged as delivere
     const exported: any[] = [];
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             // NOTE: no downloadHandler — the ZIP could never reach the user.
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
             onLog: (msg: string, level?: string) => logs.push({ msg, level }),
@@ -440,12 +440,12 @@ test('§11: export-record persistence failure keeps the artifact successful but 
     const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
-        },
+        }) },
         {
             onItemExported: () => {
                 throw new Error('boom: simulated record-store failure');
@@ -466,13 +466,13 @@ test('§11 (zip): record failure during delivery commit keeps staged items deliv
     const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
             writer,
             downloadHandler: async () => {},
-        },
+        }) },
         {
             onItemExported: () => {
                 throw new Error('boom: simulated record-store failure');
@@ -504,13 +504,13 @@ test('warning diagnostics propagate to the visible log channel, not swallowed', 
     const exporter = new PdfExporter(new StubPdfCompiler());
     const logs: any[] = [];
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: warningCompiler,
-        },
+        }) },
         { onLog: (msg: string, level?: string) => logs.push({ msg, level }) }
     );
     assert.strictEqual(result.succeeded, 1);
@@ -525,13 +525,13 @@ test('result carries UI-contract aliases so failures are visible to the summary/
     const writer = makeFakeWriter();
     const exporter = new PdfExporter(new StubPdfCompiler());
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: sample.id, title: sample.title }],
             conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: failing,
-        },
+        }) },
         {}
     );
     assert.strictEqual(result.failed.length, 1);
@@ -547,13 +547,13 @@ test('abort marks unfinished items as failed/retryable instead of silently dropp
     const exporter = new PdfExporter(new StubPdfCompiler());
     const convs = [1, 2, 3].map((n) => makeSample(`abort-${n}`, `abort ${n}`));
     const runPromise = exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: convs.map((c) => ({ id: c.id, title: c.title })),
             conversations: convs.map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture((convs).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: false,
             writer,
             compiler: slowCompiler,
-        },
+        }) },
         {}
     );
     await new Promise((r) => setTimeout(r, 50));
@@ -588,7 +588,7 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
     const convSmall = makeSample('szSmall', 'small chat');
     const convBig = makeSample('szBig', 'big chat');
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [convSmall, convBig].map((c) => ({ id: c.id, title: c.title })),
             conversations: ([convSmall, convBig]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([convSmall, convBig]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
             useZip: true,
@@ -597,7 +597,7 @@ test('zip: per-item records carry each PDF\'s own size, never the ZIP size (#585
             downloadHandler: async (blob: Blob, filename: string) => {
                 delivered = { blob, filename };
             },
-        },
+        }) },
         {
             onItemExported: (id: string, record: any) => exported.push({ id, record }),
         }
@@ -650,17 +650,17 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                 } });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (['takeout', 'snapshot', 'deleted', 'cache-response'].includes(scenario)) await catalogStorage.setNativeConversations('u0', [parsed]);
-            if (scenario === 'deleted') await catalogStorage.updateConversation('u0', id, { cloudAvailability: 'deleted' });
+            if (['takeout', 'snapshot', 'deleted', 'cache-response'].includes(scenario)) await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
+            if (scenario === 'deleted') await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', id, { cloudAvailability: 'deleted' });
             const records: Array<{ status: string }> = [];
             try {
-                const result = await new PdfExporter(new StubPdfCompiler()).run({
+                const result = await new PdfExporter(new StubPdfCompiler()).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
                     selected: [{ id }], conversations: ([{ id, cloudAvailability: scenario === 'deleted' ? 'deleted' : 'unknown' }]).map(indexFixture),
                     useZip, writer: makeFakeWriter(), downloadHandler: async () => {}, includeAssets: false,
                     takeoutEngine: scenario === 'takeout' ? { getTakeoutOfflineChat: () => parsed } : null,
                     fetchChatDetail: async () => fallback ? { success: false, error: 'offline' }
                         : { success: true, results: [parsed], source: scenario === 'cache-response' ? 'local-cache' : 'online' },
-                }, { onItemExported: (_id: string, record: { status: string }) => records.push(record) });
+                }) }, { onItemExported: (_id: string, record: { status: string }) => records.push(record) });
                 if (scenario === 'empty') {
                     assert.equal(result.succeeded, 0);
                     assert.equal(records.length, 0);

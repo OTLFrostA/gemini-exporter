@@ -1,8 +1,8 @@
-let frozenMessage = () => "Storage schema is newer than this extension; writes are blocked";
+let frozenMessage = () => "Unsupported storage schema; writes are blocked";
 export function setSchemaFrozenMessage(factory: () => string): void { frozenMessage = factory; }
 
 export const SCHEMA_VERSION_KEY = "gemini_schema_version";
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export class SchemaFrozenError extends Error {
     constructor() {
@@ -43,12 +43,12 @@ export async function assertSchemaWritable(): Promise<void> {
         throw new SchemaFrozenError();
     }
     // Lazy cross-context check: contexts that never ran migrate() (content
-    // script, options page) still see a version stamped by a newer release.
+    // script, options page) still reject every unsupported stored version.
     try {
         if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
             const data = await chrome.storage.local.get<Record<string, unknown>>([SCHEMA_VERSION_KEY]);
             const v = data ? data[SCHEMA_VERSION_KEY] : undefined;
-            if (typeof v === "number" && v > CURRENT_SCHEMA_VERSION) {
+            if (v !== undefined && v !== CURRENT_SCHEMA_VERSION) {
                 _frozen = true;
                 warnSchemaFrozen();
                 throw new SchemaFrozenError();

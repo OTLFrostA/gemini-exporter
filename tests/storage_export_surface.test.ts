@@ -2,7 +2,7 @@
  * Phase A (P1-4) + P1-3 跟进修复的架构测试：存储出口收口。
  *
  * 契约：
- *   1. setExportedIds / setAccountSlots 彻底退出 storageService 公开 surface ——
+ *   1. setExportedIds / setAccounts 彻底退出 storageService 公开 surface ——
  *      不再是命名导出，也不在 StorageServiceModule interface 与默认 StorageService
  *      对象上声明。裸写原语不得成为公开 API，对外只走 saveExportRecord /
  *      saveExportRecordsBatch / removeExportRecords / updateAccountSlot
@@ -39,13 +39,13 @@ test('storageService: 裸写 setter 不再是命名导出', () => {
     const specifiers = blocks.flatMap(match => match[1].split(',')
         .map((name: string) => name.trim().split(/\s+as\s+/).pop()!.trim())
         .filter(Boolean));
-    assert.doesNotMatch(source, /\bexport\s+(?:(?:async|declare)\s+)*(?:function|const|let|var|class)\s+(?:setExportedIds|setAccountSlots|_setConversationsRaw)\b/,
+    assert.doesNotMatch(source, /\bexport\s+(?:(?:async|declare)\s+)*(?:function|const|let|var|class)\s+(?:setExportedIds|setAccounts|_setConversationsRaw)\b/,
         'raw setters must not be exposed through direct named declarations');
 
     assert.ok(!specifiers.includes('setExportedIds'),
         'setExportedIds 不得出现在命名导出中');
-    assert.ok(!specifiers.includes('setAccountSlots'),
-        'setAccountSlots 不得出现在命名导出中');
+    assert.ok(!specifiers.includes('setAccounts'),
+        'setAccounts 不得出现在命名导出中');
     assert.ok(!specifiers.includes('_setConversationsRaw'),
         '_setConversationsRaw 必须保持模块私有，不得导出');
 
@@ -63,8 +63,8 @@ test('storageService: 裸写 setter 不再是命名导出', () => {
     // 裸写原语彻底退出公开 surface：默认对象上也不再挂载
     assert.strictEqual(mod.StorageService.setExportedIds, undefined,
         'StorageService.setExportedIds 不得再挂载');
-    assert.strictEqual(mod.StorageService.setAccountSlots, undefined,
-        'StorageService.setAccountSlots 不得再挂载');
+    assert.strictEqual(mod.StorageService.setAccounts, undefined,
+        'StorageService.setAccounts 不得再挂载');
 });
 
 test('finalizeChatExport: storageAdapter 缺 saveExportRecord 即抛错', async () => {
@@ -81,7 +81,7 @@ test('finalizeChatExport: storageAdapter 缺 saveExportRecord 即抛错', async 
                 set: async () => {},
                 get: async () => ({})
             },
-            slot: 'u0'
+            slot: '10000000-0000-4000-8000-000000000001'
         } as any),
         /adapter must implement finalizeConversationExport or saveExportRecord/,
         '缺少必要接口的 adapter 必须抛错，不得静默降级'
@@ -102,11 +102,11 @@ test('finalizeChatExport: 正式路径 saveExportRecord 照常工作', async () 
                 saved = { slot, id, rec };
             }
         },
-        slot: 'u0'
+        slot: '10000000-0000-4000-8000-000000000001'
     } as any);
 
     assert.strictEqual(ok, true);
     assert.ok(saved, '应经 saveExportRecord 保存');
-    assert.strictEqual(saved.slot, 'u0');
+    assert.strictEqual(saved.slot, '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(saved.id, 'abc123');
 });

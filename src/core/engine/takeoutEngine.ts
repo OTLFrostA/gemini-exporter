@@ -17,7 +17,7 @@ import {
     extractC2PATimestamp,
     clearTakeoutData,
     getStore,
-    __slotTakeouts,
+    __accountTakeouts,
     type TakeoutStore,
     type TakeoutResourceLookup
 } from "../resources/takeout/mediaIndex.js";
@@ -36,7 +36,7 @@ export interface TakeoutEngineModule {
     parseTakeoutZip: typeof parseTakeoutZip;
     clearTakeoutData: typeof clearTakeoutData;
     getStore: typeof getStore;
-    __slotTakeouts: Map<string, TakeoutStore>;
+    __accountTakeouts: Map<string, TakeoutStore>;
 }
 
 export {
@@ -47,7 +47,7 @@ export {
     parseTakeoutZip,
     clearTakeoutData,
     getStore,
-    __slotTakeouts
+    __accountTakeouts
 };
 
 export const TakeoutEngine: TakeoutEngineModule = {
@@ -58,7 +58,7 @@ export const TakeoutEngine: TakeoutEngineModule = {
     parseTakeoutZip,
     clearTakeoutData,
     getStore,
-    __slotTakeouts
+    __accountTakeouts
 };
 
 export default TakeoutEngine;

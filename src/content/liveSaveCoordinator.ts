@@ -5,7 +5,7 @@ import { decodeDataUrlAsset } from '../core/export/assets/dataUrl.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { AIProvider } from "../core/provider/aiProvider.js";
 import { StorageService } from '../core/storage/storageService.js';
-import { detectSlotFromUrl } from '../core/utils/pathUtils.js';
+import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
 import { contentContext } from './contentContext.js';
 import { LiveStorageManager, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
 import { DomScraper } from './domScraper.js';
@@ -142,8 +142,15 @@ function isApplicationProvider(provider: AIProvider | null | undefined): provide
     return provider !== null && provider !== undefined && typeof provider.fetchConversationDetail === 'function' && provider.id === 'gemini';
 }
 
-export async function resolveConversationDetail(cid: string): Promise<ContentConversationDetail | null> {
+export async function resolveConversationDetail(cid: string, expectedAccountId?: string): Promise<ContentConversationDetail | null> {
     const nid = normId(cid);
+    const account = await resolveCurrentAccount();
+    if (!account || expectedAccountId && account.accountId !== expectedAccountId) return null;
+    const accept = async (detail: ContentConversationDetail) => {
+        const fresh = await resolveCurrentAccount();
+        if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during live save');
+        return ingestConversation(account.accountId, detail, [], 'detail', () => isCurrentAccount(account));
+    };
     // DI seam kept: an explicitly injected client class still uses the legacy
     // construction path. Default now resolves through the provider registry.
     const InjectedClass = typeof _deps.clientClass !== 'undefined' ? _deps.clientClass : null;
@@ -153,7 +160,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const detail = await new InjectedClass().getConversationDetail(nid);
             if (detail && Array.isArray(detail.conversation.detail.messages) && detail.conversation.detail.messages.length > 0) {
-                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
+                return await accept(detail);
             }
         } catch (e) {
             if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
@@ -162,7 +169,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const detail = await provider.fetchConversationDetail(nid);
             if (detail && Array.isArray(detail.conversation.detail.messages) && detail.conversation.detail.messages.length > 0) {
-                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), detail);
+                return await accept(detail);
             }
         } catch (e) {
             if (isDev()) console.debug('[LiveSaveCoordinator] RPC fetch detail fallback to DOM:', e);
@@ -175,7 +182,7 @@ export async function resolveConversationDetail(cid: string): Promise<ContentCon
         try {
             const docResult = Scraper.parseDoc(doc, nid);
             if (docResult && Array.isArray(docResult.conversation.detail.messages) && docResult.conversation.detail.messages.length > 0) {
-                return await ingestConversation(detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined), docResult);
+                return await accept(docResult);
             }
         } catch {
             /* intentional */
@@ -251,6 +258,9 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
     if (!cid) return false;
     const nid = normId(cid);
 
+    const captured = await resolveCurrentAccount();
+    if (!captured) return false;
+
     // Serialize live save operations to prevent I/O race conditions
     _saveQueue = _saveQueue.catch(() => false).then(async () => {
         try {
@@ -259,7 +269,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
 
             // In mockMode (e.g. headless/test environments without native filesystem handles), simulate live save feedback
             if (options.mockMode) {
-                const chat = await resolveConversationDetail(nid);
+                const chat = await resolveConversationDetail(nid, captured.accountId);
                 const rawTitle = chat?.conversation.index.title || (typeof document !== 'undefined' ? document.title : '') || 'Untitled';
                 const Utils = getUtils();
                 const safeTitle = Utils?.cleanTitle ? Utils.cleanTitle(rawTitle) : rawTitle.trim();
@@ -277,7 +287,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                 return false;
             }
 
-            const chat = await resolveConversationDetail(nid);
+            const chat = await resolveConversationDetail(nid, captured.accountId);
             if (!chat || !Array.isArray(chat.conversation.detail.messages) || chat.conversation.detail.messages.length === 0) {
                 if (isDev()) console.warn('[LiveSaveCoordinator] No messages extracted for', nid);
                 return false;
@@ -350,6 +360,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
                         const resp = await new Promise<LiveSaveResult | null>((resolve) => {
                             const message: LiveSaveViaHandleMessage = {
                                 action: 'liveSaveViaHandle',
+                                accountId: captured.accountId,
                                 payload: {
                                     chat: conversationChat,
                                     safeTitle,
@@ -401,7 +412,7 @@ export async function executeLiveSave(cid: string, reason = 'turn_complete', opt
             if (dirHandle) {
                 const now = Date.now();
                 const records = _deps.exportRecordStore || StorageService;
-                const slot = detectSlotFromUrl(typeof location !== 'undefined' ? location.href : undefined);
+                const slot = captured.accountId;
                 const doComplete = _deps.completeExport || completeConversationExport;
                 try {
                     await doComplete(

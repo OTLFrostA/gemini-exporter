@@ -185,7 +185,7 @@ test('syncController - startSync dispatches friendly message on connection error
         };
 
         await new Promise<void>((resolve) => {
-            SyncController.startSync('u0', {
+            SyncController.startSync('10000000-0000-4000-8000-000000000001', {
                 onLog: (msg: string, lvl: string) => {
                     loggedMsg = msg;
                     loggedLevel = lvl;

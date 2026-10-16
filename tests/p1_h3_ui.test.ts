@@ -101,7 +101,7 @@ test('P1-121: loadStore rejection reports an error through the UI log', async ()
     const previousLog = __getModuleOverride('LogView');
     const reported: Array<{ message: string; level: string }> = [];
     __setModuleOverride('ConversationsStore', {
-        getCurrentSlot: () => 'u0',
+        getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001',
         getConversations: () => [],
         loadStore: async () => { throw new Error('synthetic load failure'); }
     });

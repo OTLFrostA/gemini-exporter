@@ -27,7 +27,7 @@ test('P1-011: a worker rejection records one failure and does not stop the next 
     });
 
     try {
-        const result = await new ExportOrchestrator().run({
+        const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: 'broken', title: 'Broken' }, { id: 'healthy', title: 'Healthy' }],
             concurrency: 1,
             format: 'markdown',
@@ -48,7 +48,7 @@ test('P1-011: a worker rejection records one failure and does not stop the next 
                     };
                 }
             })
-        }, {
+        }) }, {
             onItemExported: (id) => { notifiedIds.push(id); }
         });
 

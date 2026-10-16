@@ -1,4 +1,4 @@
-import { parseLegacyConversationIndex } from '../parsers/legacyStorage/parseIndex.js';
+import { listAccounts } from '../api/accountRegistry.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
 import { normId } from '../utils/pathUtils.js';
@@ -40,13 +40,13 @@ export interface DiagnosticSnapshot {
         extensionVersion: string;
         userAgent?: string;
         platform?: string;
-        currentSlot: string;
+        accountId: string;
         isDevMode: boolean;
     };
     storageOverview: {
         totalConversations: number;
         totalExportedRecords: number;
-        accountSlots: string[];
+        accountIds: string[];
         hasTakeoutData: boolean;
         preferences: {
             format?: string;
@@ -102,7 +102,7 @@ export function explainStateDerivation(c: Readonly<Partial<DomainConversationInd
 }
 
 export interface BuildSnapshotOptions {
-    slot?: string | null;
+    accountId?: string | null;
     conversations?: readonly Readonly<DomainConversationIndex>[];
     exportedIds?: unknown;
     workbenchLogs?: readonly unknown[];
@@ -140,7 +140,7 @@ function readExportActivities(value: unknown, issues: string[]): ReadonlyMap<str
 }
 
 export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}): Promise<DiagnosticSnapshot> {
-    const slot = options.slot || 'u0';
+    const slot = options.accountId || '';
     let rawStorage: Record<string, unknown> = {};
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         try {
@@ -148,26 +148,23 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
         } catch {}
     }
 
-    const convKey = slot === 'u0' ? 'gemini_conversations' : `gemini_conversations_${slot}`;
-    const expKey = slot === 'u0' ? 'exportedIds' : `gemini_exported_${slot}`;
+    const convKey = `conversations_${slot}`;
+    const expKey = `exported_${slot}`;
 
     // Diagnostic recovery visibility: diagnostics may inspect unmigrated / corrupted raw storage to aid recovery from migration failures.
     const recoveryIssues: string[] = [];
-    const rawIndexes: unknown = options.conversations ?? rawStorage[convKey] ?? (slot === 'u0' ? rawStorage.gemini_conversations_u0 : []) ?? [];
+    const rawIndexes: unknown = options.conversations ?? rawStorage[convKey] ?? [];
     const convs: DomainConversationIndex[] = [];
     if (!Array.isArray(rawIndexes)) recoveryIssues.push('Invalid index container');
     else for (const [position, row] of rawIndexes.entries()) {
         try {
-            try { convs.push(restoreConversationIndex(row)); }
-            catch { convs.push(parseLegacyConversationIndex(row)); recoveryIssues.push(`Historical index at position ${position}`); }
+            convs.push(restoreConversationIndex(row));
         } catch { recoveryIssues.push(`Rejected index at position ${position}`); }
     }
     const exportRecoveryIssues: string[] = [];
     const expMap = readExportActivities(options.exportedIds ?? rawStorage[expKey] ?? {}, exportRecoveryIssues);
 
-    const rawSlots = rawStorage[STORAGE_KEYS.ACCOUNT_SLOTS];
-    const slotsMap = object(rawSlots) ? rawSlots : {};
-    const accountSlots = Object.keys(slotsMap).length > 0 ? Object.keys(slotsMap) : ['u0'];
+    const accountIds = (await listAccounts()).map(account => account.id);
 
     const stateMirror: MaskedConversationMirror[] = convs.map(c => {
         const nid = normId(c?.id);
@@ -213,13 +210,13 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             extensionVersion: getExtensionVersion(),
             userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
             platform: typeof navigator !== 'undefined' ? ('userAgentData' in navigator && object(navigator.userAgentData) && typeof navigator.userAgentData.platform === 'string' ? navigator.userAgentData.platform : navigator.platform) : undefined,
-            currentSlot: slot,
+            accountId: slot,
             isDevMode: !!rawStorage[STORAGE_KEYS.DEV_MODE]
         },
         storageOverview: {
             totalConversations: convs.length,
             totalExportedRecords: expMap.size,
-            accountSlots,
+            accountIds,
             hasTakeoutData: !!rawStorage[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT] || convs.some(c => isTakeoutConversation(c)),
             preferences: {
                 format: stringOr(rawStorage[STORAGE_KEYS.FORMAT], 'md'),

@@ -111,6 +111,7 @@ function makeFakeCompiler(opts: { throws?: boolean } = {}) {
 
 function baseOptions(writer: any, extra: any = {}) {
     return {
+        accountId: '10000000-0000-4000-8000-000000000001',
         selected: [{ id: sample.id, title: sample.title }],
         conversations: ([sample]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([sample]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
         useZip: false,

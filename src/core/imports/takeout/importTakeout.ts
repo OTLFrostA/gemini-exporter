@@ -1,3 +1,4 @@
+import { getAccount } from '../../api/accountRegistry.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { ingestConversation, getConversations } from '../../storage/storageService.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
@@ -22,6 +23,9 @@ export { stripHtmlTags };
 
 /** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
 export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number, msg: string) => void) | null, slot: string | null = null): Promise<TakeoutParseResult> {
+    if (!slot) throw new TypeError('Takeout requires an account UUID');
+    const account = await getAccount(slot);
+    if (!account || account.providerId !== 'gemini') throw new TypeError('Takeout requires an existing Gemini account');
     const i18n = __resolveModule('I18n', I18n);
     onProgress?.(15, i18n.t('takeoutUnzipping'));
     ZipBombGuard.validateZipFile(file);
@@ -80,7 +84,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
             }
             durableResources.push({ assetId, bytes: acquired.value, sourcePath: bound.path });
         }
-        Object.assign(native, await ingestConversation(slot || 'u0', native, durableResources, 'takeout'));
+        Object.assign(native, await ingestConversation(slot, native, durableResources, 'takeout'));
         // The repository write is the delivery boundary; it stays fatal if the store itself fails.
         for (const resource of durableResources) {
             const path = resource.sourcePath!;

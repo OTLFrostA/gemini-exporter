@@ -15,18 +15,18 @@ function rawIsNotExportable(raw: DomainConversationWithDetail): void {
     pdfDomainSelection(raw);
     const misleading = { id: 'raw', conversation: raw };
     // @ts-expect-error Extra conversation fields cannot slip through the metadata branch.
-    preparePdfItem(misleading);
+    preparePdfItem(misleading, { accountId: '10000000-0000-4000-8000-000000000001' });
 }
 void rawIsNotExportable;
 
 test('PDF metadata cannot impersonate Domain; explicit trusted adapter preserves messages', async () => {
     const raw: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'independent', id: 'pdf-source', title: 'Title' }, detail: { quality: { status: 'unknown' }, messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Independent body' }] }] }], assets: [] } };
     // @ts-expect-error Raw Domain is neither request metadata nor a trusted result.
-    const rejected = await preparePdfItem(raw, { includeAssets: false });
+    const rejected = await preparePdfItem(raw, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
     assert.equal(rejected.ok, false);
     if (!rejected.ok) assert.match(rejected.error, /Invalid conversation ID/);
     const selected = pdfDomainSelection(validateParserDomain(raw));
-    const prepared = await preparePdfItem(selected, { includeAssets: false });
+    const prepared = await preparePdfItem(selected, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
     assert.equal(prepared.ok, true);
     if (prepared.ok) assert.equal(prepared.document.messages.length, 1);
 });
@@ -44,7 +44,7 @@ test('one trusted graph preserves independent content across HTML, Markdown, JSO
     const html = (await formatHtmlDocument(parsed)).content;
     const markdown = (await formatMarkdownDocument(parsed)).content;
     const native = JSON.parse(formatContent(parsed, 'json').content);
-    const pdf = await preparePdfItem(pdfDomainSelection(conversation), { includeAssets: false });
+    const pdf = await preparePdfItem(pdfDomainSelection(conversation), { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
 
     assert.equal(document.messages.length, 2);
     assert.match(html, /Question &lt;safe&gt;/);

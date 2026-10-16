@@ -17,20 +17,21 @@ const ProgressView = require('../src/ui/views/progressView.js');
 test('accountView - exports and safe render with DOM side effect verification', () => {
     assert.ok(AccountView);
     // 1. Safe render without DOM element does not crash
-    AccountView.render({ 'u0': { name: 'Main' } }, 'u0');
+    AccountView.render([{ id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: 'main', displayName: 'Main' }], '10000000-0000-4000-8000-000000000001');
 
     // 2. Verified DOM render with element creation and selection
     const mockSelect: any = {
-        id: 'accountSlotSelect',
+        id: 'accountIdSelect',
         style: {},
         innerHTML: '',
         children: [] as any[],
+        replaceChildren() { this.children = []; },
         appendChild(el: any) { this.children.push(el); }
     };
     const oldDoc = (global as any).document;
     try {
         (global as any).document = {
-            getElementById: (id: string) => id === 'accountSlotSelect' ? mockSelect : null,
+            getElementById: (id: string) => id === 'accountIdSelect' ? mockSelect : null,
             createElement: (tag: string) => ({
                 tagName: tag.toUpperCase(),
                 value: '',
@@ -39,16 +40,16 @@ test('accountView - exports and safe render with DOM side effect verification', 
             })
         };
 
-        AccountView.render({
-            u0: { name: '默认账号', count: 12 },
-            u1: { name: '工作账号', count: 5 }
-        }, 'u1');
+        AccountView.render([
+            { id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: 'default' },
+            { id: '10000000-0000-4000-8000-000000000002', providerId: 'gemini', providerAccountId: 'work', displayName: '工作账号' }
+        ], '10000000-0000-4000-8000-000000000002');
 
         assert.strictEqual(mockSelect.style.display, 'inline-block', 'Select should be displayed inline-block when multiple slots exist');
         assert.strictEqual(mockSelect.children.length, 2, 'Should create 2 option elements');
-        assert.strictEqual(mockSelect.children[0].value, 'u0');
+        assert.strictEqual(mockSelect.children[0].value, '10000000-0000-4000-8000-000000000001');
         assert.strictEqual(mockSelect.children[0].selected, false);
-        assert.strictEqual(mockSelect.children[1].value, 'u1');
+        assert.strictEqual(mockSelect.children[1].value, '10000000-0000-4000-8000-000000000002');
         assert.strictEqual(mockSelect.children[1].selected, true, 'Current slot u1 should be selected');
     } finally {
         (global as any).document = oldDoc;
@@ -99,7 +100,7 @@ test('badgeView - DOM creation and text update', () => {
         assert.ok(badge);
         assert.strictEqual(badge.id, 'geminiExportBadge');
 
-        BadgeView.updateBadge(15, 0, null, false, { isZh: () => true, getAccountSlot: () => 'u0' });
+        BadgeView.updateBadge(15, 0, null, false, { isZh: () => true, getAccountSlot: () => '10000000-0000-4000-8000-000000000001' });
         assert.strictEqual(mockTxt.textContent, '正在追踪 15 条对话');
         assert.strictEqual(BadgeView.getLastKnownCount(), 15);
     } finally {
@@ -115,7 +116,7 @@ test('dialogView - exports, safe no-DOM invocation, and verified modal transitio
     assert.ok(DialogView);
 
     // 1. Safe no-DOM invocation
-    DialogView.renderExportBanner(null, 'u0', false);
+    DialogView.renderExportBanner(null, '10000000-0000-4000-8000-000000000001', false);
     DialogView.showDirectWritePrompt(100, () => {}, () => {});
     DialogView.hideDirectWritePrompt();
     await DialogView.showTakeoutLimitPrompt({ count: 600, onImportTakeout: () => {} });
@@ -201,7 +202,7 @@ test('dialogView - renderExportBanner XSS prevention: lastChatTitle is rendered 
             total: 10,
             current: 3,
             lastChatTitle: maliciousTitle
-        }, 'u0', false);
+        }, '10000000-0000-4000-8000-000000000001', false);
 
         assert.ok(!bannerTextElem.innerHTML.includes('<svg'), 'innerHTML must not contain unescaped HTML tags');
         assert.strictEqual(appendedNodes.length, 1, 'lastChatTitle must be appended as a text node');

@@ -7,8 +7,6 @@ import { indexStorage } from './helpers/indexStorage.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
-import { migrate, CURRENT_SCHEMA_VERSION } from '../src/core/storage/schemaMigration.js';
-import { __getLegacyBackupForTest as getLegacyBackup } from '../src/core/storage/domain/domainStore.js';
 import { indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
 import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
 import { indexActivityTime, mergeConversationIndex, restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
@@ -18,12 +16,12 @@ const row = () => indexFixture({ id: 'chat', title: 'Research', titleSource: 'rp
 test('physical index roundtrip is exact, detached and account isolated', async () => {
     const env = indexStorage();
     try {
-        await storage.setConversations('u0', [row()]);
-        const read = await storage.getConversations('u0');
+        await storage.setConversations('10000000-0000-4000-8000-000000000001', [row()]);
+        const read = await storage.getConversations('10000000-0000-4000-8000-000000000001');
         assert.deepEqual(read, [row()]);
         read[0].title = 'External mutation';
-        assert.deepEqual(await storage.getConversations('u0'), [row()]);
-        assert.deepEqual(await storage.getConversations('u1'), []);
+        assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000001'), [row()]);
+        assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000002'), []);
     } finally { env.restore(); }
 });
 test('index boundary rejects unknown fields, malformed values and duplicate identities without writes', async () => {
@@ -37,23 +35,23 @@ test('index boundary rejects unknown fields, malformed values and duplicate iden
             { ...row(), url: 'https://' }, { ...row(), url: 'javascript:alert(1)' },
             { ...row(), cloudAvailability: new String('available') }, { ...row(), cloudAvailability: 'maybe' }, { ...row(), hasTakeoutImport: undefined }]) {
             assert.throws(() => restoreConversationIndex(bad), TypeError);
-            env.local.gemini_conversations = [bad];
-            await assert.rejects(storage.getConversations('u0'), TypeError);
+            env.local['conversations_10000000-0000-4000-8000-000000000001'] = [bad];
+            await assert.rejects(storage.getConversations('10000000-0000-4000-8000-000000000001'), TypeError);
         }
-        await assert.rejects(storage.setConversations('u0', [row(), row()]), /Duplicate/);
+        await assert.rejects(storage.setConversations('10000000-0000-4000-8000-000000000001', [row(), row()]), /Duplicate/);
         assert.equal(env.writes(), 0);
     } finally { env.restore(); }
 });
 test('atomic patches preserve title authority, observed count, import and authored time', async () => {
     const env = indexStorage();
     try {
-        await storage.setConversations('u0', [row()]);
-        await storage.updateConversation('u0', 'chat', { title: 'Weaker', titleSource: 'dom', updatedAt: 20, messageCount: 2, hasTakeoutImport: true });
-        assert.deepEqual((await storage.getConversations('u0'))[0], { ...row(), hasTakeoutImport: true });
-        await storage.updateConversation('u0', 'chat', { title: 'Renamed', titleSource: 'rpc', updatedAt: 70 });
-        assert.equal((await storage.getConversations('u0'))[0].title, 'Renamed');
+        await storage.setConversations('10000000-0000-4000-8000-000000000001', [row()]);
+        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Weaker', titleSource: 'dom', updatedAt: 20, messageCount: 2, hasTakeoutImport: true });
+        assert.deepEqual((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0], { ...row(), hasTakeoutImport: true });
+        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: 'rpc', updatedAt: 70 });
+        assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].title, 'Renamed');
         const writes = env.writes();
-        await assert.rejects(storage.updateConversation('u0', 'chat', value => { Object.assign(value, { messages: [] }); }), TypeError);
+        await assert.rejects(storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', value => { Object.assign(value, { messages: [] }); }), TypeError);
         assert.equal(env.writes(), writes);
     } finally { env.restore(); }
 });
@@ -63,59 +61,25 @@ test('native detail persists separately and index updates cannot truncate or rep
         const detail = historicalFixture({ id: 'chat', title: 'Research', titleSource: 'rpc', messages: [
             { role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }
         ] });
-        await storage.setNativeConversations('u0', [detail]);
-        const before = await getDomainConversationResult('u0', 'chat');
-        const index = (await storage.getConversations('u0'))[0];
+        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [detail]);
+        const before = await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat');
+        const index = (await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0];
         assert.equal(index.messageCount, 2);
         assert.equal('messages' in index, false);
-        await storage.updateConversation('u0', 'chat', { messageCount: 1, title: 'Renamed', titleSource: 'rpc' });
-        assert.deepEqual(await getDomainConversationResult('u0', 'chat'), before);
-        assert.equal((await storage.conversationRepository({ providerId: 'gemini', accountSlot: 'u0' }).getConversation('chat'))?.index.title, 'Renamed');
-        await storage.clearConversations('u0');
-        assert.equal(await getDomainConversationResult('u0', 'chat'), null);
-    } finally { env.restore(); }
-});
-test('released v1 upgrades directly to current indexes once, merges u0 aliases, preserves raw evidence and reports rejected rows', async () => {
-    const raw = [{ id: 'c_chat', title: 'Google Gemini', titles: { takeout: 'Offline title' }, timestamp: '1700000000', lastSeen: '2099', messageCount: 7, source: 'takeout' }, null];
-    const env = indexStorage({ gemini_schema_version: 1, gemini_conversations: raw,
-        gemini_conversations_u0: [{ id: 'chat', title: 'Online title', titleSource: 'rpc', updatedAt: 1700000005000 }],
-        gemini_conversations_u1: [{ id: 'chat', title: 'Other account', updatedAt: 1 }] });
-    try {
-        await assert.rejects(storage.getConversations('u0'), TypeError);
-        assert.deepEqual(await migrate(), { ok: true, frozen: false });
-        assert.equal(CURRENT_SCHEMA_VERSION, 2);
-        assert.equal(env.local.gemini_schema_version, 2);
-        const index = (await storage.getConversations('u0'))[0];
-        assert.equal(index.title, 'Online title'); assert.equal(index.titleSource, 'rpc');
-        assert.equal(index.hasTakeoutImport, true); assert.equal(index.updatedAt, 1700000005000);
-        assert.equal(index.createdAt, undefined); assert.equal(index.messageCount, undefined);
-        assert.equal(env.local.gemini_conversations_u0, undefined);
-        assert.equal((await storage.getConversations('u1'))[0].title, 'Other account');
-        assert.deepEqual(await getLegacyBackup('index-v2:gemini_conversations'), raw);
-        assert.equal((env.local.gemini_index_migration_v2 as { issues: unknown[] }).issues.length, 1);
-        const writes = env.writes(); await migrate(); await storage.getConversations('u0'); assert.equal(env.writes(), writes);
-    } finally { env.restore(); }
-});
-test('failed index migration withholds schema stamp and retries without losing alias data or backups', async () => {
-    const raw = [{ id: 'chat', title: 'Research', timestamp: 42 }];
-    const env = indexStorage({ gemini_schema_version: 1, gemini_conversations_u0: raw });
-    try {
-        env.fail('gemini_conversations');
-        assert.equal((await migrate()).ok, false);
-        assert.equal(env.local.gemini_schema_version, 1);
-        assert.deepEqual(env.local.gemini_conversations_u0, raw);
-        assert.deepEqual(await getLegacyBackup('index-v2:gemini_conversations_u0'), raw);
-        env.fail(); assert.equal((await migrate()).ok, true);
-        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 42);
+        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { messageCount: 1, title: 'Renamed', titleSource: 'rpc' });
+        assert.deepEqual(await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'), before);
+        assert.equal((await storage.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' }).getConversation('chat'))?.index.title, 'Renamed');
+        await storage.clearConversations('10000000-0000-4000-8000-000000000001');
+        assert.equal(await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'), null);
     } finally { env.restore(); }
 });
 test('export completion records delivery without creating an Index', async () => {
     const env = indexStorage();
     try {
         const record = { title: 'Exported title', messageCount: 2, exportedAt: new Date().toISOString() };
-        await storage.finalizeConversationExport('u0', 'chat', record);
-        assert.deepEqual(await storage.getConversations('u0'), []);
-        assert.deepEqual((await storage.getExportedIds('u0')).chat, record);
+        await storage.finalizeConversationExport('10000000-0000-4000-8000-000000000001', 'chat', record);
+        assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000001'), []);
+        assert.deepEqual((await storage.getExportedIds('10000000-0000-4000-8000-000000000001')).chat, record);
     } finally { env.restore(); }
 });
 
@@ -124,20 +88,20 @@ test('partial and concurrent native imports retain unrelated indexes and existin
     try {
         const existing = { ...row(), cloudAvailability: 'deleted' as const, hasTakeoutImport: true };
         const other = indexFixture({ id: 'other', title: 'Other conversation', updatedAt: 10 });
-        await storage.setConversations('u0', [existing, other]);
-        await storage.setConversations('u1', [other]);
+        await storage.setConversations('10000000-0000-4000-8000-000000000001', [existing, other]);
+        await storage.setConversations('10000000-0000-4000-8000-000000000002', [other]);
         const first = historicalFixture({ id: 'chat', title: 'Weaker detail', titleSource: 'sniff', updatedAt: 999999,
             messages: [{ role: 'user', content: 'Question', timestamp: 70 }] });
         const second = historicalFixture({ id: 'added', title: 'Added conversation', messages: [{ role: 'user', content: 'New body', timestamp: 80 }] });
-        await Promise.all([storage.setNativeConversations('u0', [first]), storage.setNativeConversations('u0', [second])]);
-        const rows = await storage.getConversations('u0');
+        await Promise.all([storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [first]), storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [second])]);
+        const rows = await storage.getConversations('10000000-0000-4000-8000-000000000001');
         assert.deepEqual(rows.map(value => value.id).sort(), ['added', 'chat', 'other']);
         assert.deepEqual(rows.find(value => value.id === 'other'), other);
         assert.deepEqual(rows.find(value => value.id === 'chat'), { ...existing, updatedAt: 999999 });
-        assert.deepEqual(await storage.getConversations('u1'), [other]);
-        assert.equal((await getDomainConversationResult('u0', 'chat'))?.conversation.detail.messages.length, 1);
+        assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000002'), [other]);
+        assert.equal((await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'))?.conversation.detail.messages.length, 1);
         const writes = env.writes();
-        await storage.setNativeConversations('u0', []);
+        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', []);
         assert.equal(env.writes(), writes, 'empty partial import cannot clear the list');
     } finally { env.restore(); }
 });
@@ -167,13 +131,13 @@ test('native Detail source versions align with Index without claiming cloud rest
 test('export chatTime remains an export baseline and never poisons metadata updatedAt', async () => {
     const env = indexStorage();
     try {
-        await storage.setConversations('u0', [row()]);
-        await storage.finalizeConversationExport('u0', 'chat', { title: 'Research', chatTime: 999999, messageCount: 4 });
-        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 50);
+        await storage.setConversations('10000000-0000-4000-8000-000000000001', [row()]);
+        await storage.finalizeConversationExport('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Research', chatTime: 999999, messageCount: 4 });
+        assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].updatedAt, 50);
         const completion = buildExportCompletion({ conversation: { id: 'chat', title: 'Research', updatedAt: 999999,
             messages: [{ timestamp: 200 }] } });
-        await storage.finalizeConversationExport('u0', 'chat', completion.exportRecord);
-        assert.equal((await storage.getConversations('u0'))[0].updatedAt, 50);
+        await storage.finalizeConversationExport('10000000-0000-4000-8000-000000000001', 'chat', completion.exportRecord);
+        assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].updatedAt, 50);
     } finally { env.restore(); }
 });
 
@@ -183,26 +147,26 @@ test('fresh list evidence restores deleted indexes, while stale requests, cached
     const id = 'cloud-recovery';
     try {
         const deleted = { ...row(), id, cloudAvailability: 'deleted' as const, hasTakeoutImport: true };
-        await storage.setConversations('u0', [deleted]);
-        markConfirmedDeleted('u0', id);
+        await storage.setConversations('10000000-0000-4000-8000-000000000001', [deleted]);
+        markConfirmedDeleted('10000000-0000-4000-8000-000000000001', id);
         const listed = { ...deleted, title: 'Restored RPC title', cloudAvailability: 'available' as const };
-        assert.equal((await ingestRpcList([listed], 'u0', 0)).accepted, 0, 'request begun before deletion is stale');
-        await upsertConversations([{ id, title: 'Stale page title', cloudAvailability: 'available' }], 'network-detail', true, 'u0');
-        assert.deepEqual(await storage.getConversations('u0'), [deleted]);
-        env.fail('gemini_conversations');
-        await assert.rejects(ingestRpcList([listed], 'u0', Date.now() + 1000), /write failed/);
+        assert.equal((await ingestRpcList([listed], '10000000-0000-4000-8000-000000000001', 0)).accepted, 0, 'request begun before deletion is stale');
+        await upsertConversations([{ id, title: 'Stale page title', cloudAvailability: 'available' }], 'network-detail', true, '10000000-0000-4000-8000-000000000001');
+        assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000001'), [deleted]);
+        env.fail('conversations_10000000-0000-4000-8000-000000000001');
+        await assert.rejects(ingestRpcList([listed], '10000000-0000-4000-8000-000000000001', Date.now() + 1000), /write failed/);
         env.fail();
-        await upsertConversations([{ id, title: 'Stale page title' }], 'page-sync', true, 'u0');
-        assert.deepEqual(await storage.getConversations('u0'), [deleted], 'failed recovery cannot clear the deletion fence');
-        assert.equal((await ingestRpcList([listed], 'u0', Date.now() + 1000)).accepted, 1);
-        const restored = (await storage.getConversations('u0'))[0];
+        await upsertConversations([{ id, title: 'Stale page title' }], 'page-sync', true, '10000000-0000-4000-8000-000000000001');
+        assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000001'), [deleted], 'failed recovery cannot clear the deletion fence');
+        assert.equal((await ingestRpcList([listed], '10000000-0000-4000-8000-000000000001', Date.now() + 1000)).accepted, 1);
+        const restored = (await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0];
         assert.equal(restored.cloudAvailability, 'available');
         assert.equal(restored.hasTakeoutImport, true);
         assert.equal(restored.title, 'Restored RPC title');
-        await upsertConversations([{ id, messageCount: 9 }], 'page-sync', true, 'u0');
-        assert.equal((await storage.getConversations('u0'))[0].messageCount, 9, 'successful recovery clears the old in-memory fence');
-        await storage.setConversations('u1', [deleted]);
-        assert.equal((await ingestRpcList([listed], 'u1')).accepted, 1, 'persisted deletion without a local fence also recovers');
-        assert.equal((await storage.getConversations('u1'))[0].cloudAvailability, 'available');
+        await upsertConversations([{ id, messageCount: 9 }], 'page-sync', true, '10000000-0000-4000-8000-000000000001');
+        assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].messageCount, 9, 'successful recovery clears the old in-memory fence');
+        await storage.setConversations('10000000-0000-4000-8000-000000000002', [deleted]);
+        assert.equal((await ingestRpcList([listed], '10000000-0000-4000-8000-000000000002')).accepted, 1, 'persisted deletion without a local fence also recovers');
+        assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000002'))[0].cloudAvailability, 'available');
     } finally { env.restore(); }
 });

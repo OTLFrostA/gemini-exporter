@@ -24,25 +24,25 @@ const cases = () => [
 
 test('UI/cloud reconciliation retains imported conversations after an RPC title update', async () => {
     const env = indexStorage();
-    const previousSlot = ConversationsStore.getCurrentSlot();
+    const previousSlot = ConversationsStore.getCurrentAccountId();
     const previousList = ConversationsStore.getConversations();
     try {
         const originals = cases();
-        await StorageService.setConversations('u45', originals);
-        ConversationsStore.setCurrentSlot('u45');
+        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', originals);
+        ConversationsStore.setCurrentAccountId('10000000-0000-4000-8000-000000000001');
         ConversationsStore.setConversations(originals);
 
         const result = await ConversationsStore.reconcileWithCloud([{ id: 'active' }], { keepTakeout: true });
         assert.deepEqual(new Set(ConversationsStore.getConversations().map(c => c.id)),
             new Set(['mixed', 'takeout', 'active']));
-        assert.deepEqual(new Set((await StorageService.getConversations('u45')).map(c => c.id)),
+        assert.deepEqual(new Set((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map(c => c.id)),
             new Set(['mixed', 'takeout', 'active']), 'UI and persisted reconciliation must agree');
         assert.deepEqual(result.removedIds, ['stale']);
         assert.equal(result.kept, 3);
         assert.equal(ConversationsStore.hasTakeoutData(), true);
     } finally {
         ConversationsStore.setConversations(previousList);
-        ConversationsStore.setCurrentSlot(previousSlot);
+        ConversationsStore.setCurrentAccountId(previousSlot);
         env.restore();
     }
 });
@@ -50,11 +50,11 @@ test('UI/cloud reconciliation retains imported conversations after an RPC title 
 test('persistent reconciliation with keepTakeout=false may explicitly drop absent imported chats', async () => {
     const env = indexStorage();
     try {
-        await StorageService.setConversations('u45', cases());
-        const result = await StorageService.reconcileConversations('u45', [{ id: 'active' }], { keepTakeout: false });
+        await StorageService.setConversations('10000000-0000-4000-8000-000000000001', cases());
+        const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', [{ id: 'active' }], { keepTakeout: false });
         assert.deepEqual(new Set(result.removedIds), new Set(['mixed', 'takeout', 'stale']));
         assert.equal(result.kept, 1);
-        assert.deepEqual((await StorageService.getConversations('u45')).map(c => c.id), ['active']);
+        assert.deepEqual((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map(c => c.id), ['active']);
     } finally { env.restore(); }
 });
 

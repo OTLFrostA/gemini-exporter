@@ -1,5 +1,6 @@
+import { isAccountId, type Account } from '../../core/domain/accountRegistry.js';
 import type { DomainConversationIndex } from '../../types/conversation.js';
-import type { AccountSlots, ReconcileOptions, ExportRecord, IConversationsStore } from '../../types/ui.js';
+import type { ReconcileOptions, ExportRecord, IConversationsStore } from '../../types/ui.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
 
 import StorageService from '../../core/storage/storageService.js';
@@ -10,8 +11,9 @@ import { STORAGE_KEYS } from '../../core/utils/constants.js';
 
 let conversations: DomainConversationIndex[] = [];
 let exportedIds: Record<string, ExportRecord> = {};
-let currentSlot: string = 'u0';
-let accountSlots: AccountSlots = {};
+let accountId: string = '';
+let accounts: Account[] = [];
+let loadGeneration = 0;
 
 const getStorage = (): any => __resolveModule('StorageService', StorageService);
 const getUtils = (): any => __resolveModule('GeminiUtils', GeminiUtils);
@@ -43,10 +45,14 @@ export function setExportedIds(map: Record<string, ExportRecord>): void {
     collapseExportAliases(next);
     exportedIds = next;
  }
-export function getCurrentSlot(): string { return currentSlot; }
-export function setCurrentSlot(slot: string): void { currentSlot = slot || 'u0'; }
-export function getAccountSlots(): AccountSlots { return accountSlots; }
-export function setAccountSlots(map: AccountSlots): void { accountSlots = map || {}; }
+export function getCurrentAccountId(): string { return accountId; }
+export function setCurrentAccountId(id: string): void {
+    if (id !== '' && !isAccountId(id)) throw new TypeError('Invalid account UUID');
+    accountId = id;
+    loadGeneration++;
+}
+export function getAccounts(): Account[] { return accounts; }
+export function setAccounts(list: Account[]): void { accounts = list; }
 
 export function getExportedRecord(id?: string | null): ExportRecord | null {
     if (!id || !exportedIds) return null;
@@ -61,54 +67,47 @@ export function getSignature(list?: DomainConversationIndex[]): string {
     return JSON.stringify(l);
 }
 
-export async function loadStore(slotOverride?: string): Promise<{
-    conversations: DomainConversationIndex[];
-    exportedIds: Record<string, ExportRecord>;
-    slot: string;
-    accountSlots: AccountSlots;
+export async function loadStore(accountOverride?: string): Promise<{
+    conversations: DomainConversationIndex[]; exportedIds: Record<string, ExportRecord>;
+    accountId: string; accounts: Account[];
 }> {
-    let slot = slotOverride || currentSlot || 'u0';
+    const ticket = ++loadGeneration;
+    const snapshot = () => ({ conversations, exportedIds, accountId, accounts });
     const storage = getStorage();
-    const slots = storage ? await storage.getAccountSlots() : ((await chrome.storage.local.get([STORAGE_KEYS.ACCOUNT_SLOTS]))[STORAGE_KEYS.ACCOUNT_SLOTS] || {});
-    setAccountSlots(slots);
-
-    let incoming = (storage ? await storage.getConversations(slot) : []) || [];
-    // Only fall back to another slot on initial cold launch if no slot was requested
-    if (!slotOverride && !currentSlot && (!incoming || !incoming.length)) {
-        const candidates = ['u0', ...Object.keys(slots || {})].filter(s => s !== slot);
-        for (const cand of candidates) {
-            const candConvs = storage ? await storage.getConversations(cand) : [];
-            if (candConvs && candConvs.length > 0) {
-                slot = cand;
-                incoming = candConvs;
-                break;
-            }
-        }
+    const available: Account[] = await storage.listAccounts();
+    if (ticket !== loadGeneration) return snapshot();
+    if (!available.length) {
+        if (accountOverride) throw new Error('Selected account does not exist');
+        accountId = ''; setAccounts([]); setConversations([]); setExportedIds({});
+        return { conversations: [], exportedIds: {}, accountId: '', accounts: [] };
     }
-    setCurrentSlot(slot);
-
-    const expIds = storage ? await storage.getExportedIds(slot) : {};
-    setExportedIds(expIds);
-    setConversations(incoming);
-    return { conversations: incoming, exportedIds: expIds, slot, accountSlots: slots };
+    setAccounts(available);
+    const target = accountOverride || accountId || available[0].id;
+    if (!available.some(account => account.id === target)) throw new Error('Selected account does not exist');
+    const [incoming, expIds] = await Promise.all([storage.getConversations(target), storage.getExportedIds(target)]);
+    if (ticket !== loadGeneration) return snapshot();
+    accountId = target;
+    setExportedIds(expIds); setConversations(incoming);
+    return { conversations: incoming, exportedIds: expIds, accountId: target, accounts: available };
 }
 
 export async function getLastSync(slot?: string): Promise<{ timestamp: number | null; count: number }> {
-    const s = slot || currentSlot || 'u0';
+    const s = slot || accountId || '';
     const storage = getStorage();
+    if (!s) return { timestamp: null, count: 0 };
     if (storage?.getLastSync) return await storage.getLastSync(s);
     return { timestamp: null, count: 0 };
 }
 
 export async function saveConversations(slot: string, list: DomainConversationIndex[]): Promise<void> {
-    const s = slot || currentSlot;
+    const s = slot || accountId;
     const storage = getStorage();
     if (storage?.setConversations) await storage.setConversations(s, list);
-    if (s === currentSlot) setConversations(list);
+    if (s === accountId) setConversations(list);
 }
 
 export async function clearExported(slot: string): Promise<void> {
-    const s = slot || currentSlot;
+    const s = slot || accountId;
     const storage = getStorage();
     if (storage?.removeExportRecords) {
         // P1-3: clear via the transactional delete path instead of a bare
@@ -119,18 +118,18 @@ export async function clearExported(slot: string): Promise<void> {
         const cur = (storage?.getExportedIds ? await storage.getExportedIds(s) : null) || {};
         await storage.removeExportRecords(s, Object.keys(cur));
     }
-    if (s === currentSlot) setExportedIds({});
+    if (s === accountId) setExportedIds({});
 }
 
 export async function clearAll(slot: string): Promise<void> {
-    const s = slot || currentSlot;
+    const s = slot || accountId;
     const storage = getStorage();
     if (storage?.clearConversations) {
         await storage.clearConversations(s);
     } else if (storage?.setConversations) {
         await storage.setConversations(s, []);
     }
-    if (s === currentSlot) {
+    if (s === accountId) {
         setConversations([]);
         setExportedIds({});
     }
@@ -150,21 +149,24 @@ export async function setDevMode(devOn: boolean): Promise<void> {
 export async function removeConversation(id: string): Promise<DomainConversationIndex[]> {
     if (!id) return conversations;
     const nid = normId(id);
+    const capturedAccountId = accountId;
     const storage = getStorage();
     // Write-through: persist to storage first so a storage failure does not
     // leave the in-memory cache out of sync (item gone from cache but still
     // in chrome.storage). If the await throws, memory stays untouched.
     if (storage?.removeConversation) {
-        await storage.removeConversation(currentSlot, nid);
+        await storage.removeConversation(capturedAccountId, nid);
     }
-    conversations = (conversations || []).filter(c => c.id !== nid);
+    if (accountId === capturedAccountId) conversations = (conversations || []).filter(c => c.id !== nid);
     return conversations;
 }
 
 export async function reconcileWithCloud(activeCloudList: Pick<DomainConversationIndex, 'id'>[], options: ReconcileOptions = {}): Promise<{ kept: number; removed: number; removedIds: string[] }> {
     const storage = getStorage();
     if (storage && storage.reconcileConversations) {
-        const res = await storage.reconcileConversations(currentSlot, activeCloudList, options);
+        const capturedAccountId = accountId;
+        const res = await storage.reconcileConversations(capturedAccountId, activeCloudList, options);
+        if (accountId !== capturedAccountId) return res;
         const activeIdSet = new Set((activeCloudList || []).map(c => c.id));
         const keepTakeout = options.keepTakeout !== false;
         conversations = (conversations || []).filter(c => {
@@ -189,10 +191,10 @@ export const ConversationsStore: IConversationsStore = {
     reconcileWithCloud,
     getExportedIds,
     setExportedIds,
-    getCurrentSlot,
-    setCurrentSlot,
-    getAccountSlots,
-    setAccountSlots,
+    getCurrentAccountId,
+    setCurrentAccountId,
+    getAccounts,
+    setAccounts,
     getExportedRecord,
     getSignature,
     loadStore,

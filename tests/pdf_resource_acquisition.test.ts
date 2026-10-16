@@ -52,10 +52,10 @@ test('same URL with different generation/provider identities acquires separately
     assert.deepEqual(resourceValue(prepared.resources.get(ids[1])).bytes, secondBytes);
     // Exercise the actual PDF orchestrator as well, not just the preparation helper.
     const requests: Array<string | undefined> = [];
-    const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async hint => {
+    const pdf = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ assetPipeline: { acquireAssetBytes: async hint => {
         requests.push(hint.generation?.providerRequestId);
         return result(hint.assetId, hint.generation?.providerRequestId === 'request-one' ? firstBytes : secondBytes);
-    } } });
+    } } }) });
     assert.equal(pdf.ok, true);
     assert.deepEqual(requests, ['request-one', 'request-two']);
     assert.deepEqual(pdf.document, document);
@@ -91,7 +91,7 @@ test('acquired bytes, MIME and failure outcomes never enter Domain JSON or chang
             if (resource.ok) assert.deepEqual(resource.value.bytes, bytes);
             else { assert.equal(bytes, null); assert.equal(resource.reason, 'HTTP 404'); assert.equal(resource.code, 'HTTP_NOT_FOUND'); }
         }
-        const pdf = await preparePdfItem(historicalFixture(raw), { assetPipeline: { acquireAssetBytes: async item => result(item.assetId, bytes) } });
+        const pdf = await preparePdfItem(historicalFixture(raw), { accountId: '10000000-0000-4000-8000-000000000001', ...({ assetPipeline: { acquireAssetBytes: async item => result(item.assetId, bytes) } }) });
         assert.equal(pdf.ok, true);
         assert.equal(JSON.stringify(pdf.document), astJson);
         assert.equal(pdf.resources.size, imageIds.size, 'every placed image must retain an acquisition outcome');

@@ -193,7 +193,7 @@ test('normal runtime cannot parse historical records or depend on application pr
 
 
 test('fresh conversation persistence is owned by ingestion, with only startup migration allowed raw writes', () => {
-    const owners = new Set(['storage/storageService.ts', 'storage/domain/domainStore.ts', 'storage/domain/migrateLegacy.ts']);
+    const owners = new Set(['storage/storageService.ts', 'storage/domain/domainStore.ts']);
     for (const file of files(resolve(root, 'src'))) {
         const owner = relative(core, file).replace(/\\/g, '/');
         if (owners.has(owner)) continue;

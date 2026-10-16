@@ -27,7 +27,7 @@ interface ResolveChatOptions { messageSender?: MessageSenderFunction | null; sou
 interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 async function readSavedConversation(slot: string, id: string): Promise<ResourceConversationParseResult | null> {
-    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountSlot: slot }).getConversation(id);
+    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountId: slot }).getConversation(id);
     if (!stored?.detail) return null;
     if (!stored.capture) throw new TypeError('Saved body is missing capture evidence');
     return { conversation: withConversationMetadata(stored.detail, stored.index),
@@ -50,7 +50,7 @@ export async function fetchChatDetail(
     requestedItem: BatchWorkerRequestedItem,
     currentIndex: number,
     totalChats: number,
-    currentSlot: string,
+    accountId: string,
     skip: boolean,
     format: string,
     abortSignal?: AbortSignal | null,
@@ -59,7 +59,7 @@ export async function fetchChatDetail(
     const nid = normId(requestedItem.id);
     if (abortSignal?.aborted) return { success: false, error: 'aborted' };
     if (requestedItem.cloudAvailability === 'deleted') {
-        const stored = await readSavedConversation(currentSlot, nid);
+        const stored = await readSavedConversation(accountId, nid);
         if (stored?.conversation.detail.messages.length) return { success: true, results: [stored], source: 'local-cache' };
     }
     if (requestedItem.cloudAvailability === 'deleted') {
@@ -90,8 +90,8 @@ export async function fetchChatDetail(
                     const directRes = await requestNativeDetail(async () => { const reply = await tabService.sendToGeminiTab!({
                         action: 'getConversationDetail',
                         conversationId: nid,
-                        accountSlot: currentSlot
-                    }, currentSlot); directMissing = reply === null || reply === undefined; return reply; });
+                        accountId: accountId
+                    }, accountId); directMissing = reply === null || reply === undefined; return reply; });
                     if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
                     if (!settled && !directMissing) {
                         if (isObjectRecord(directRes) && directRes.success) {
@@ -128,7 +128,7 @@ export async function fetchChatDetail(
                     skipExported: skip,
                     globalOffset: currentIndex,
                     globalTotal: totalChats,
-                    accountSlot: currentSlot
+                    accountId: accountId
                 };
                 try {
                     void sender(msg, (response: unknown) => {
@@ -164,7 +164,7 @@ export async function fetchChatDetail(
 
 /** Resolve source or durable Domain bodies; historical strings are never export inputs. */
 export async function resolveConversationData(value: NativeConversationInput, id: string, _list?: DomainConversationIndex | null,
-    takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0', onLog: (message: string, level?: string) => void = () => {}, source: ResolvedConversationSource = 'unspecified'): Promise<{ result: NativeConversationInput; source: ResolvedConversationSource }> {
+    takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = '', onLog: (message: string, level?: string) => void = () => {}, source: ResolvedConversationSource = 'unspecified'): Promise<{ result: NativeConversationInput; source: ResolvedConversationSource }> {
     if (isResourceConversationParseResult(value) && value.conversation.detail.messages.length) return { result: value, source };
     const offline = takeout?.getTakeoutOfflineChat?.(id, slot);
     if (isResourceConversationParseResult(offline) && offline.conversation.detail.messages.length) {
@@ -180,7 +180,7 @@ export async function resolveConversationData(value: NativeConversationInput, id
 }
 
 export async function resolveChat(value: NativeConversationInput, requested: BatchWorkerRequestedItem, list?: DomainConversationIndex | null,
-    takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = 'u0',
+    takeout?: TakeoutExportSource | TakeoutEngineSourceLike | null, slot = '',
     onTitleUpdated: (id: string, title: string, source: string) => void = () => {},
     onLog: (message: string, level?: string) => void = () => {}, options: ResolveChatOptions = {}): Promise<ResolveChatResult> {
     const id = normId(requested.id);
@@ -192,7 +192,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         const storage = __resolveModule<Partial<Pick<typeof StorageService, 'updateConversation'>>>('StorageService', StorageService);
         try {
             await storage?.updateConversation?.(slot, id, { cloudAvailability: 'deleted' });
-            const pending = (options.messageSender || resolveRuntimeSender())?.({ action: 'syncUpdate', slot, from: 'cloud-deleted-archive-retained' });
+            const pending = (options.messageSender || resolveRuntimeSender())?.({ action: 'syncUpdate', accountId: slot, from: 'cloud-deleted-archive-retained' });
             if (pending) void Promise.resolve(pending).catch(() => {});
         } catch (error) { onLog(`Could not save cloud availability: ${getErrorMessage(error)}. Local archive retained.`, 'warn'); }
     }
@@ -211,7 +211,7 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         : cached ? result : await StorageService.ingestConversation(slot, result);
     if (!accepted) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
-    const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.index.providerId, accountSlot: slot }).getConversationIndex(accepted.conversation.index.id);
+    const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.index.providerId, accountId: slot }).getConversationIndex(accepted.conversation.index.id);
     if (!canonical) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
     if (confirmedDeleted) canonical.cloudAvailability = 'deleted';

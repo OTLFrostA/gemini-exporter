@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () => {
   test('should show suggestion modal only once when exporting > 20 conversations and never prompt again', async ({ context, extensionId }) => {
@@ -19,8 +24,8 @@ test.describe('E2E: Direct Write Suggestion Prompt for Large Bulk Exports', () =
         });
       }
       await chrome.storage.local.set({
-        gemini_conversations: (mockConvs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (mockConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         gemini_suppress_direct_write_prompt: false,
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'

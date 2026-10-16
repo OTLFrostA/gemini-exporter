@@ -17,7 +17,7 @@ from scripts.framework.assertions import CDPAssertions, assert_archive_targets, 
 from scripts.framework.pdf_evidence import assert_pdf_turn_content
 from scripts.framework.html_evidence import assert_html_turn_content
 from scripts.framework.selectors import WorkbenchSelectors
-from scripts.framework.cases.sync import wait_for_prior_scan, reset_only_coverage
+from scripts.framework.cases.sync import wait_for_prior_scan, reset_only_coverage, select_source_account
 
 DESIGNATED_HISTORICAL_CHATS = [
     {
@@ -453,6 +453,7 @@ class StaleTabImageExportCase(FeatureTestCase):
                 # only observes a recent page, so an older target is not guaranteed
                 # to exist until a real paginated sync finishes.
                 cdp_opt.eval("document.getElementById('tourSkipBtn')?.click()")
+                select_source_account(cdp_opt, source_tab_id=setup['freshId'])
                 wait_for_prior_scan(cdp_opt)
                 reset_only_coverage(cdp_opt)
                 scan = CDPActions.trigger_deep_scan(cdp_opt)

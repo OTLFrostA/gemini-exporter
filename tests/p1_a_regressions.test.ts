@@ -5,6 +5,7 @@
  * through a focused runtime harness. These are narrow guards, NOT proof of
  * full end-to-end credential confidentiality.
  */
+import { accountRuntime } from './helpers/accountRuntime.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -41,7 +42,7 @@ test('P1-005: empty postMessage token must not replace the stored token (source 
     assert.ok(src.includes('at: p.at || old.at'), 'empty token must not overwrite stored at');
 });
 
-test('P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers', () => {
+test('P1-006: asset messages reject untrusted hosts before invoking cookie-authenticated fetchers', async () => {
     const calls: string[] = [];
     const handlers = new Set<(message: any, sender: any, response: (value: any) => void) => unknown>();
     const restoreWindow = replaceGlobal('window', {
@@ -54,6 +55,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
             removeListener: (fn: any) => handlers.delete(fn)
         }
     } });
+    const runtime = accountRuntime();
     try {
         const { MessageRouter } = require('../src/content/messageRouter.js');
         const { runCleanups } = require('../src/content/cleanupRegistry.js');
@@ -90,8 +92,8 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
             assert.ok(!calls.includes(action), `${action} must not fetch a blocked URL`);
 
             let validReply: any;
-            listener({ action, url: 'https://lh3.googleusercontent.com/photo.png' }, {}, (value) => {
-                validReply = value;
+            validReply = await new Promise(resolve => {
+                listener({ action, url: 'https://lh3.googleusercontent.com/photo.png', accountId: '10000000-0000-4000-8000-000000000001' }, {}, resolve);
             });
             assert.equal(validReply?.success, true, `${action} should accept an allowlisted URL`);
             assert.equal(calls.filter(a => a === action).length, 1);
@@ -100,6 +102,7 @@ test('P1-006: asset messages reject untrusted hosts before invoking cookie-authe
         runCleanups();
         assert.equal(handlers.size, 0, 'the injected runtime listener should be removed');
     } finally {
+        runtime.restore();
         restoreChrome();
         restoreWindow();
     }

@@ -97,24 +97,24 @@ function installMock() {
 test('PR-B: Current-schema read paths read only canonical keys', async () => {
     const env = installMock();
     try {
-        env.localStore['gemini_conversations'] = ([{ id: 'u0_c1', title: 'U0 Conv', timestamp: 100 }]).map(indexFixture);
-        env.localStore['gemini_conversations_u1'] = ([{ id: 'u1_c1', title: 'U1 Conv', timestamp: 200 }]).map(indexFixture);
-        env.localStore['exportedIds'] = { 'u0_c1': { status: 'ok' } };
-        env.localStore['gemini_exported_u1'] = { 'u1_c1': { status: 'ok' } };
+        env.localStore['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'u0_c1', title: 'U0 Conv', timestamp: 100 }]).map(indexFixture);
+        env.localStore['conversations_10000000-0000-4000-8000-000000000002'] = ([{ id: 'u1_c1', title: 'U1 Conv', timestamp: 200 }]).map(indexFixture);
+        env.localStore['exported_10000000-0000-4000-8000-000000000001'] = { 'u0_c1': { status: 'ok' } };
+        env.localStore['exported_10000000-0000-4000-8000-000000000002'] = { 'u1_c1': { status: 'ok' } };
         env.sessionStore['gemini_credentials_map'] = {
             'sid_main': { at: 'at_val', bl: 'bl_val', sid: 'sid_main', accountSlot: 'default' }
         };
 
-        const u0Convs = await StorageService.getConversations('u0');
+        const u0Convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(u0Convs.map((c: any) => c.id), ['u0_c1']);
 
-        const u1Convs = await StorageService.getConversations('u1');
+        const u1Convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(u1Convs.map((c: any) => c.id), ['u1_c1']);
 
-        const u0Exp = await StorageService.getExportedIds('u0');
+        const u0Exp = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(Object.keys(u0Exp), ['u0_c1']);
 
-        const u1Exp = await StorageService.getExportedIds('u1');
+        const u1Exp = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(Object.keys(u1Exp), ['u1_c1']);
 
         const creds = await CredentialManager.loadCredMap();
@@ -129,18 +129,18 @@ test('PR-B: Current-schema read paths read only canonical keys', async () => {
 test('PR-B: Current-schema read paths are strictly non-mutating (0 writes, 0 deletes)', async () => {
     const env = installMock();
     try {
-        env.localStore['gemini_conversations'] = ([{ id: 'c1', title: 'C1' }]).map(indexFixture);
-        env.localStore['gemini_conversations_u1'] = ([{ id: 'c2', title: 'C2' }]).map(indexFixture);
-        env.localStore['exportedIds'] = { 'c1': { status: 'ok' } };
-        env.localStore['gemini_exported_u1'] = { 'c2': { status: 'ok' } };
+        env.localStore['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'c1', title: 'C1' }]).map(indexFixture);
+        env.localStore['conversations_10000000-0000-4000-8000-000000000002'] = ([{ id: 'c2', title: 'C2' }]).map(indexFixture);
+        env.localStore['exported_10000000-0000-4000-8000-000000000001'] = { 'c1': { status: 'ok' } };
+        env.localStore['exported_10000000-0000-4000-8000-000000000002'] = { 'c2': { status: 'ok' } };
         env.sessionStore['gemini_credentials_map'] = { 's1': { sid: 's1' } };
 
         env.resetStats();
 
-        await StorageService.getConversations('u0');
-        await StorageService.getConversations('u1');
-        await StorageService.getExportedIds('u0');
-        await StorageService.getExportedIds('u1');
+        await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
+        await StorageService.getConversations('10000000-0000-4000-8000-000000000002');
+        await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
+        await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         await CredentialManager.loadCredMap();
 
         const stats = env.stats();
@@ -157,74 +157,14 @@ test('PR-B: Current-schema read paths are strictly non-mutating (0 writes, 0 del
 test('PR-B: getExportedIds enforces slot isolation without fallback leakage', async () => {
     const env = installMock();
     try {
-        env.localStore['exportedIds'] = { 'u0_only': { status: 'u0' } };
-        env.localStore['gemini_exported_u1'] = { 'u1_only': { status: 'u1' } };
+        env.localStore['exported_10000000-0000-4000-8000-000000000001'] = { 'u0_only': { status: '10000000-0000-4000-8000-000000000001' } };
+        env.localStore['exported_10000000-0000-4000-8000-000000000002'] = { 'u1_only': { status: '10000000-0000-4000-8000-000000000002' } };
 
-        const u1Exp = await StorageService.getExportedIds('u1');
+        const u1Exp = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000002');
         assert.deepStrictEqual(Object.keys(u1Exp), ['u1_only'], 'u1 must NOT read u0 records from exportedIds');
 
-        const u0Exp = await StorageService.getExportedIds('u0');
+        const u0Exp = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(Object.keys(u0Exp), ['u0_only'], 'u0 must NOT read u1 records');
-    } finally {
-        env.restore();
-    }
-});
-
-// ---------------------------------------------------------------- Legacy migration fixture
-test('PR-B: Legacy storage is upgraded strictly through migration boundary, then read canonically', async () => {
-    const env = installMock();
-    try {
-        // Seed legacy storage shapes:
-        // - legacy u0 key: gemini_conversations_u0
-        // - legacy export key: gemini_exported_u0
-        // - legacy single cred: gemini_credentials
-        env.localStore['gemini_conversations_u0'] = [
-            { id: 'leg_conv', title: 'Legacy Conv', messages: [{ id: 'm1', text: 'msg' }], timestamp: 10 }
-        ];
-        env.localStore['gemini_exported_u0'] = {
-            'c_leg_exp': { status: 'ok', alias: true }
-        };
-        env.sessionStore['gemini_credentials'] = { sid: 'leg_sid', at: 'token_123', bl: 'boq_123' };
-
-        // Before migration: normal canonical reads do not see unmigrated legacy keys
-        const beforeConvs = await StorageService.getConversations('u0');
-        assert.deepStrictEqual(beforeConvs, [], 'Unmigrated key is not read by canonical getConversations');
-
-        const beforeExp = await StorageService.getExportedIds('u0');
-        assert.deepStrictEqual(beforeExp, {}, 'Unmigrated key is not read by canonical getExportedIds');
-
-        const beforeCreds = await CredentialManager.loadCredMap();
-        assert.deepStrictEqual(beforeCreds, {}, 'Unmigrated cred is not read by canonical loadCredMap');
-
-        // Execute migration via readiness boundary
-        await SchemaMigration.ensureStorageReady();
-
-        // Migration must have populated canonical keys and removed legacy keys
-        assert.strictEqual(env.localStore['gemini_schema_version'], 2);
-        assert.strictEqual(env.localStore['gemini_conversations_u0'], undefined, 'Legacy u0 conv key removed');
-        assert.strictEqual(env.localStore['gemini_exported_u0'], undefined, 'Legacy u0 export key removed');
-        assert.strictEqual(env.sessionStore['gemini_credentials'], undefined, 'Legacy single cred key removed');
-
-        // Now normal canonical reads succeed
-        const afterConvs = await StorageService.getConversations('u0');
-        assert.strictEqual(afterConvs.length, 1);
-        assert.strictEqual(afterConvs[0].id, 'leg_conv');
-        assert.ok(!Array.isArray((afterConvs[0] as any).messages), 'Conversations slimmed');
-
-        const afterExp = await StorageService.getExportedIds('u0');
-        assert.deepStrictEqual(Object.keys(afterExp), ['leg_exp'], 'Export alias normalized to canonical key');
-
-        const afterCreds = await CredentialManager.loadCredMap();
-        assert.ok(afterCreds['leg_sid']);
-        assert.strictEqual(afterCreds['leg_sid'].at, 'token_123');
-
-        // And reads remain strictly non-mutating
-        env.resetStats();
-        await StorageService.getConversations('u0');
-        await StorageService.getExportedIds('u0');
-        await CredentialManager.loadCredMap();
-        assert.strictEqual(env.stats().localSets, 0);
-        assert.strictEqual(env.stats().localRemoves, 0);
     } finally {
         env.restore();
     }

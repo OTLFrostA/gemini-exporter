@@ -3,7 +3,7 @@ import type { TabServiceModule, TabStatusResult } from '../../types/utils.js';
 import type { PingMessage, OpenGeminiPageMessage, ReloadGeminiTabMessage } from '../../types/messages.js';
 import { isObjectRecord } from './messageResponses.js';
 import { isMessageAction } from './messaging.js';
-import { detectSlotFromUrl } from './pathUtils.js';
+import { isAccountId } from '../domain/accountRegistry.js';
 
 // Preserve connection failover's message-property behavior for thrown values.
 function errorMessageProperty(error: unknown): unknown {
@@ -11,10 +11,25 @@ function errorMessageProperty(error: unknown): unknown {
         ? error.message : undefined;
 }
 
-    function filterTabsBySlot(tabs: chrome.tabs.Tab[], slot?: string): chrome.tabs.Tab[] {
-        if (!tabs || !tabs.length) return [];
-        if (!slot) return tabs;
-        return tabs.filter(t => t.url && detectSlotFromUrl(t.url) === slot);
+    /** Resolve current tab bindings on demand; service-worker memory is not an identity authority. */
+    async function filterTabsByAccount(tabs: chrome.tabs.Tab[], accountId?: string): Promise<chrome.tabs.Tab[]> {
+        if (!accountId) return tabs;
+        if (!isAccountId(accountId)) throw new TypeError('Tab routing requires an account UUID');
+        const matches = await Promise.all(tabs.map(async tab => {
+            if (tab.id == null) return false;
+            try {
+                const response = await new Promise<unknown>((resolve) => {
+                    const timer = setTimeout(() => resolve(null), 3000);
+                    chrome.tabs.sendMessage(tab.id!, { action: 'getAccountContext' }, (value: unknown) => {
+                        clearTimeout(timer);
+                        resolve(chrome.runtime.lastError ? null : value);
+                    });
+                });
+                return isObjectRecord(response) && response.ok === true && isObjectRecord(response.accountContext)
+                    && response.accountContext.providerId === 'gemini' && response.accountContext.accountId === accountId;
+            } catch { return false; }
+        }));
+        return tabs.filter((_tab, index) => matches[index]);
     }
 
     async function getGeminiTab(slot?: string): Promise<chrome.tabs.Tab | null> {
@@ -22,17 +37,8 @@ function errorMessageProperty(error: unknown): unknown {
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) return null;
         if (slot) {
-            const match = filterTabsBySlot(tabs, slot);
-            if (match.length > 0) {
-                return match.find(t => t.active) || match[0];
-            }
-            if (slot === 'u0') {
-                const nonOtherSlotTabs = tabs.filter(t => !t.url || detectSlotFromUrl(t.url) === 'u0');
-                if (nonOtherSlotTabs.length > 0) {
-                    return nonOtherSlotTabs.find(t => t.active) || nonOtherSlotTabs[0];
-                }
-            }
-            return null;
+            const matches = await filterTabsByAccount(tabs, slot);
+            return matches.find(tab => tab.active) || matches[0] || null;
         }
         return tabs.find(t => t.active) || tabs[0];
     }
@@ -47,18 +53,9 @@ function errorMessageProperty(error: unknown): unknown {
         const tabs = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
         if (!tabs || !tabs.length) throw new Error('未找到 Gemini 标签页，请先打开 gemini.google.com');
 
-        let candidates: chrome.tabs.Tab[] = [];
-        if (slot) {
-            candidates = filterTabsBySlot(tabs, slot);
-            if (!candidates.length && slot === 'u0') {
-                candidates = tabs.filter(t => !t.url || detectSlotFromUrl(t.url) === 'u0');
-            }
-            if (!candidates.length) {
-                throw new Error(`未找到多账号 slot ${slot} 对应的 Gemini 标签页，请在浏览器中打开该账号标签页`);
-            }
-        } else {
-            candidates = tabs;
-        }
+        const candidates = await filterTabsByAccount(tabs, slot);
+        if (!candidates.length) throw new Error('No open Gemini tab matches the selected account');
+        const routedMessage = slot && isObjectRecord(msg) ? { ...msg, accountId: slot } : msg;
         candidates.sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
 
         let lastError: unknown = null;
@@ -73,7 +70,7 @@ function errorMessageProperty(error: unknown): unknown {
                             reject(new Error(`与 Gemini 页面通信超时 (${timeoutMs}ms)`));
                         }
                     }, timeoutMs);
-                    chrome.tabs.sendMessage(tab.id!, msg, (r: unknown) => {
+                    chrome.tabs.sendMessage(tab.id!, routedMessage, (r: unknown) => {
                         if (!settled) {
                             settled = true;
                             clearTimeout(timer);
@@ -114,15 +111,9 @@ function errorMessageProperty(error: unknown): unknown {
             if (!tabs || !tabs.length) {
                 return { status: 'NO_TAB', tab: null };
             }
-            let targetTab: chrome.tabs.Tab | null = null;
-            if (slot && slot !== 'u0') {
-                const matched = filterTabsBySlot(tabs, slot);
-                targetTab = matched[0] || null;
-            } else if (slot === 'u0') {
-                const matched = filterTabsBySlot(tabs, 'u0');
-                targetTab = matched[0] || null;
-            }
-            if (!targetTab) targetTab = tabs.find(t => t.active) || tabs[0];
+            const matches = await filterTabsByAccount(tabs, slot);
+            const targetTab = matches.find(tab => tab.active) || matches[0] || null;
+            if (!targetTab) return { status: 'NO_TAB', tab: null };
 
             return await new Promise((resolve) => {
                 let settled = false;

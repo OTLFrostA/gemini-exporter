@@ -12,10 +12,10 @@ test('search image export downloads from extension origin and writes actual imag
         return new Response(new Uint8Array([1, 2, 3]), { headers: { 'Content-Type': 'image/png' } });
     };
     try {
-        const pipeline = new AssetPipeline({ useZip: false,
+        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({ useZip: false,
             writeFileDirect: async (path: string, bytes: any) => writes.push({ path, bytes }),
             fetchAssetDelegate: async () => { throw new Error('must not use page CORS fetch'); }
-        });
+        }) });
         const result = await pipeline.processAsset({ assetId: 'test-asset', sourceUrl: 'http://encrypted-tbn2.gstatic.com/licensed-image?q=test',
             localName: 'assets/search.png' }, { id: 'chat' }, { isImage: true, maxRetries: 0 });
         assert.equal(result.ok, true);
@@ -33,10 +33,10 @@ test('missing search images retain HTTP errors and never write a fake successful
     globalThis.fetch = async () => new Response('', { status: 404 });
     let attemptedWrites = 0;
     try {
-        const pipeline = new AssetPipeline({ useZip: false,
+        const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({ useZip: false,
             writeFileDirect: async () => { attemptedWrites++; throw new Error('must not write missing images'); },
             fetchAssetDelegate: async () => ({ success: false, error: 'Failed to fetch' })
-        });
+        }) });
         const result = await pipeline.processAsset({ assetId: 'test-asset', sourceUrl: 'https://encrypted-tbn2.gstatic.com/licensed-image?q=missing',
             localName: 'assets/missing.png' }, { id: 'chat' }, { isImage: true, maxRetries: 0 });
         assert.equal(result.ok, false);

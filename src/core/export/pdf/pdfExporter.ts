@@ -72,7 +72,7 @@ export interface PdfExporterOptions {
     writer?: IExportWriter;
     downloadHandler?: (blob: Blob, filename: string) => void | Promise<void>;
     locale?: 'zh' | 'en';
-    currentSlot?: string;
+    accountId?: string;
     skip?: boolean;
     /**
      * Detail-fetch seam. Production defaults to BatchWorker.fetchChatDetail —
@@ -248,7 +248,7 @@ export class PdfExporter {
         const locale = options.locale === 'en' ? 'en' : 'zh';
         const folderName = options.folderName || DEFAULT_EXPORT_FOLDER_NAME;
         const fetchChatDetailFn = options.fetchChatDetail ?? BatchWorker.fetchChatDetail;
-        const currentSlot = options.currentSlot ?? 'u0';
+        const accountId = options.accountId ?? '';
         const skip = options.skip ?? false;
 
         const items = selected.map((s) => {
@@ -404,7 +404,7 @@ export class PdfExporter {
                 fetchChatDetail: fetchChatDetailFn,
                 index: i,
                 total,
-                currentSlot,
+                accountId,
                 skip,
                 signal,
                 onLog,

@@ -104,13 +104,13 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
         titleSource: 'sniff'
     };
 
-    await require('../src/core/storage/storageService.js').setConversations('u0', [indexFixture(listConv)]);
+    await require('../src/core/storage/storageService.js').setConversations('10000000-0000-4000-8000-000000000001', [indexFixture(listConv)]);
     const resolved = await BatchWorker.resolveChat(
         historicalFixture(chat),
         { id: 'test_123', title: '如何设计微服务架构' },
         indexFixture(listConv as any),
         null,
-        'u0',
+        '10000000-0000-4000-8000-000000000001',
         () => {},
         () => {}
     );
@@ -145,7 +145,7 @@ test('engine - SessionRecovery.updateSessionStatus updates chrome.storage.local 
     assert.strictEqual(typeof SessionRecovery.updateSessionStatus, 'function');
 
     const origChrome = (global as any).chrome;
-    let storedSession: any = { status: 'running', slot: 'u0', current: 1 };
+    let storedSession: any = { status: 'running', slot: '10000000-0000-4000-8000-000000000001', current: 1 };
     (global as any).chrome = {
         ...globalThis.chrome,
         storage: {

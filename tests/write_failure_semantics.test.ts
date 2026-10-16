@@ -96,13 +96,13 @@ test('write-failure semantics - main markdown write failure marks chat failed, n
     const { logs, onLog, errorLogs } = collectLogs();
     const orchestrator = new ExportOrchestrator();
 
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected: [{ id: 'chat-main-fail', title: 'Main Fail Chat' }],
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeWorker()
-    }, { onLog });
+    }) }, { onLog });
 
     assert.strictEqual(result.landedChats, 0, 'failed main-md must not count as landed');
     assert.strictEqual(result.exportedCount, 0);
@@ -125,7 +125,7 @@ test('write-failure semantics - doc-md write failure lands in failedAttachments 
     const { onLog } = collectLogs();
     const orchestrator = new ExportOrchestrator();
 
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected: [{ id: 'chat-doc-fail', title: 'Doc Fail Chat' }],
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
@@ -137,7 +137,7 @@ test('write-failure semantics - doc-md write failure lands in failedAttachments 
                 attachments: [{ type: 'file', localName: 'doc_fail.md', contentMarkdown: '# failing doc' }]
             }]
         })
-    }, { onLog });
+    }) }, { onLog });
 
     assert.strictEqual(result.landedChats, 1, 'main md succeeded, chat lands');
     assert.strictEqual(result.failedChats.length, 0, 'chat itself is not failed');
@@ -161,14 +161,14 @@ test('write-failure semantics - index write failure fails closed (run rejects)',
     const orchestrator = new ExportOrchestrator();
 
     await assert.rejects(
-        orchestrator.run({
+        orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: 'chat-index-fail', title: 'Index Fail Chat' }],
             format: 'markdown',
             useZip: true, downloadHandler: async () => {},
             includeAssets: false,
             includeIndex: true,
             worker: makeWorker()
-        }, { onLog }),
+        }) }, { onLog }),
         /00_INDEX/,
         'index write failure must propagate out of run() (fail-closed)'
     );
@@ -187,13 +187,13 @@ test('write-failure semantics - diagnostics write failure is visible but never p
     const orchestrator = new ExportOrchestrator();
 
     // 必须 resolve，不能 reject（diagnostics 是 best-effort）
-    const result = await orchestrator.run({
+    const result = await orchestrator.run({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         selected: [{ id: 'chat-diag-fail', title: 'Diag Fail Chat' }],
         format: 'markdown',
         useZip: true, downloadHandler: async () => {},
         includeAssets: false,
         worker: makeWorker()
-    }, { onLog });
+    }) }, { onLog });
 
     assert.strictEqual(result.failedChats.length, 1, 'main-md failure still recorded');
     assert.strictEqual(result.failedAttachments.length, 0, 'diagnostics failure must not pollute the asset failure ledger');

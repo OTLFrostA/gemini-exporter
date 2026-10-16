@@ -75,7 +75,7 @@ test('native exports use Domain without invoking the historical record parser', 
     try {
         const html = await formatHtmlDocument(view);
         const markdown = await formatMarkdownDocument(view);
-        const pdf = await preparePdfItem(view, { includeAssets: false });
+        const pdf = await preparePdfItem(view, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false }) });
         assert.ok(pdf.ok);
         assert.match(html.content, /Rich answer/);
         assert.match(markdown.content, /Rich answer/);
@@ -108,7 +108,7 @@ const htmlEntry = (html: string) => ({ _data: { uncompressedSize: html.length },
 const bytesEntry = (byte: number) => ({ _data: { uncompressedSize: 1 }, async: async () => new Uint8Array([byte]) });
 
 test('production Takeout binds extension variations once and carries native Domain to PDF acquisition', async () => {
-    const slot = 'u0';
+    const slot = '10000000-0000-4000-8000-000000000001';
     const html = activity('<a href="image-hash.png">image</a> <a href="IMG-hash.jpeg">photo</a> <a href="script-hash.py">script</a>');
     try {
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html), 'Takeout/Gemini Apps/image-hash': bytesEntry(1), 'Takeout/Gemini Apps/IMG-hash.jpg': bytesEntry(2), 'Takeout/Gemini Apps/script-hash': bytesEntry(3) }), null, slot);
@@ -124,14 +124,14 @@ test('production Takeout binds extension variations once and carries native Doma
         assert.ok(Array.isArray(view.conversation.detail.messages[0].content));
         for (const [i, asset] of view.conversation.detail.assets.entries()) assert.deepEqual(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: view.resourceHints[asset.id].archivePath! }, slot), new Uint8Array([i + 1]));
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', { assetId: '', sourceUri: 'image-hash' }, slot), null);
-        const pdf = await preparePdfItem(view, { currentSlot: slot, takeoutEngine: MediaIndex, fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0 });
+        const pdf = await preparePdfItem(view, { accountId: slot, takeoutEngine: MediaIndex, fetchAsset: async () => ({ success: false, error: 'offline' }), maxAssetRetries: 0 });
         assert.ok(pdf.ok);
         assert.equal([...pdf.resources.values()].filter(r => r.ok && r.value.bytes.length).length, 2);
     } finally { MediaIndex.clearTakeoutData(slot); }
 });
 
 test('non-archive Takeout images do not become missing ZIP resource failures', async () => {
-    const slot = 'u0';
+    const slot = '10000000-0000-4000-8000-000000000001';
     try {
         const html = activity('').replace('<p>Answer</p>', '<p>![cdn](//cdn.example.com/image.png) ![remote](https://example.test/remote.png) ![http](http://example.test/plain.png) ![inline](data:image/png;base64,AQID)</p>');
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(html) }), null, slot);
@@ -143,7 +143,7 @@ test('non-archive Takeout images do not become missing ZIP resource failures', a
 });
 
 test('ambiguous Takeout resources cannot be recovered later by permissive legacy guessing', async () => {
-    const slot = 'u0';
+    const slot = '10000000-0000-4000-8000-000000000001';
     try {
         const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity('<a href="photo.png">image</a>')), 'one/photo.png': bytesEntry(1), 'two/photo.png': bytesEntry(2) }), null, slot);
         assert.ok(parsed.diagnostics.some(d => d.code === 'TAKEOUT_AMBIGUOUS_RESOURCE'));
@@ -158,7 +158,7 @@ test('ambiguous Takeout resources cannot be recovered later by permissive legacy
 
 test('missing ZIP references and unsupported URI schemes report failures through import and storage restore', async () => {
     for (const uri of ['missing.png', 'blob:missing.png', 'file:missing.png', 'custom:missing.png']) {
-        const slot = 'u0';
+        const slot = '10000000-0000-4000-8000-000000000001';
         try {
             const parsed = await parseTakeoutZip(zipArchive({ 'Takeout/Gemini Apps/MyActivity.html': htmlEntry(activity(`<a href="${uri}">image</a>`)) }), null, slot);
             assert.equal(parsed.status, 'partial', uri);
@@ -180,12 +180,12 @@ test('production RPC client parses raw responses without invoking the legacy det
     const credentials = require('../src/core/api/client/credentialManager.js') as typeof import('../src/core/api/client/credentialManager.js');
     const transport = require('../src/core/api/client/rpcClient.js') as typeof import('../src/core/api/client/rpcClient.js');
     const originalCred = credentials.resolveCred, originalPost = transport.postBatchexecute;
-    credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: 'u0', fSid: 'test' });
+    credentials.resolveCred = async () => ({ at: 'test', bl: 'test', accountSlot: '10000000-0000-4000-8000-000000000001', fSid: 'test' });
     const rawTurn = [['c_native', 'r_one'], [1700000000, 0], [['Question']], [[['rc_one', [['Answer']]]]]];
     transport.postBatchexecute = async () => new Response(rpc([[rawTurn], null, 'Native title']));
     try {
         const { GeminiAPIClient } = require('../src/core/api/geminiClient.js') as typeof import('../src/core/api/geminiClient.js');
-        const detail = await new GeminiAPIClient().fetchConversationPage('native', null, 'u0');
+        const detail = await new GeminiAPIClient().fetchConversationPage('native', null, '10000000-0000-4000-8000-000000000001');
         assert.equal(detail.conversation.index.title, 'Native title');
         assert.equal(detail.conversation.detail.messages.length, 2);
         assert.equal(Reflect.get(detail.conversation.detail.messages[0], 'provenance'), undefined);

@@ -48,14 +48,14 @@ test('live save: corrupt bytes leave a retryable partial export record in actual
         const result = await handleLiveSaveViaHandle({
             chat, safeTitle: 'Attachment retry', nid,
             assets: [{ fileName: 'bad_img.png', subDir: 'assets', base64: '!!!' }],
-        }, 'u0');
+        }, '10000000-0000-4000-8000-000000000001');
 
         assert.equal(result.ok, false);
         assert.deepEqual(result.failedAssets?.map((failure: any) => failure.file), ['bad_img.png']);
         assert.ok(result.targetFile && written[result.targetFile], 'main Markdown must be saved despite an asset failure');
         assert.equal(written['assets/bad_img.png'], undefined, 'invalid binary must never be written');
 
-        const records = await StorageService.getExportedIds('u0');
+        const records = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         const record = records[chatId];
         assert.ok(record, 'the real exportedIds storage must contain a record for the requested chat');
         assert.equal(record.status, 'partial');
@@ -73,22 +73,22 @@ test('live save: valid bytes persist and a subsequent upstream download failure 
         const first = await handleLiveSaveViaHandle({
             chat, safeTitle: 'Attachment retry', nid,
             assets: [{ fileName: 'good_img.png', subDir: 'assets', base64: originalBytes.toString('base64') }],
-        }, 'u0');
+        }, '10000000-0000-4000-8000-000000000001');
         assert.equal(first.ok, true);
         assert.deepEqual(first.failedAssets, []);
         assert.deepEqual(Buffer.from(written['assets/good_img.png'] as Uint8Array), originalBytes,
             'the live-save writer must preserve the actual binary payload');
-        let record = (await StorageService.getExportedIds('u0'))[chatId];
+        let record = (await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'))[chatId];
         assert.equal(record?.status, 'ok');
         assert.equal(record?.hasFailedAssets, false);
 
         const retry = await handleLiveSaveViaHandle({
             chat, safeTitle: 'Attachment retry', nid, assets: [],
             failedAssets: [{ file: 'missing.png', error: 'download returned no bytes' }],
-        }, 'u0');
+        }, '10000000-0000-4000-8000-000000000001');
         assert.equal(retry.ok, false);
         assert.deepEqual(retry.failedAssets?.map((f: any) => f.file), ['missing.png']);
-        record = (await StorageService.getExportedIds('u0'))[chatId];
+        record = (await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'))[chatId];
         assert.equal(record?.status, 'partial', 'a retry cannot silently reuse the earlier successful status');
         assert.equal(record?.hasFailedAssets, true);
     });

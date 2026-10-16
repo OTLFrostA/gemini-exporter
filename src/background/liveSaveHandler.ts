@@ -64,7 +64,7 @@ export function withLiveSaveLock<T>(key: string, op: () => Promise<T>): Promise<
     });
 }
 
-export async function handleLiveSaveViaHandle(payload: any, accountSlot: string = 'u0'): Promise<LiveSaveResult> {
+export async function handleLiveSaveViaHandle(payload: any, accountId: string = ''): Promise<LiveSaveResult> {
     try {
         if (!await isLiveSaveFormatSupported()) return { ok: false, error: 'live_save_requires_markdown' };
         const { chat: parsedChat, safeTitle, nid, fileName, assets, failedAssets: upstreamFailures } = payload || {};
@@ -107,7 +107,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
             }
         }
 
-        const chat = await StorageService.ingestConversation(accountSlot, parsedChat);
+        const chat = await StorageService.ingestConversation(accountId, parsedChat);
 
         // Shared live-save writer: filename format + markdown formatting + write.
         // Serialized through withLiveSaveLock per file to prevent concurrent createWritable
@@ -185,7 +185,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountSlot: string 
         try {
             await completeConversationExport(
                 StorageService,
-                accountSlot || 'u0',
+                accountId || '',
                 {
                     conversation: chat.conversation,
                     conversationId: nid,

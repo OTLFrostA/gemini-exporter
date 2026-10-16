@@ -14,7 +14,7 @@ test('takeout_engine - exports and methods', () => {
 
 test('takeout_engine - getTakeoutOfflineChat empty default', () => {
     TakeoutEngine.clearTakeoutData();
-    assert.strictEqual(TakeoutEngine.getTakeoutOfflineChat('nonexistent_id'), null);
+    assert.strictEqual(TakeoutEngine.getTakeoutOfflineChat('nonexistent_id', '10000000-0000-4000-8000-000000000001'), null);
 });
 
 test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn titles.takeout slot', async () => {
@@ -40,7 +40,7 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
     TakeoutEngine.clearTakeoutData();
-    const result = await TakeoutEngine.parseTakeoutZip(zipBuffer);
+    const result = await TakeoutEngine.parseTakeoutZip(zipBuffer, null, '10000000-0000-4000-8000-000000000001');
 
     assert.strictEqual(result.conversations.length, 1);
     const conv = result.conversations[0];
@@ -53,13 +53,13 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
     assert.strictEqual(conv.titleSource, 'takeout');
 
     // 3. getTakeoutOfflineChat should find by exact ID and with c_ prefix
-    const offlineChat1 = TakeoutEngine.getTakeoutOfflineChat('CaseSensitive_99');
+    const offlineChat1 = TakeoutEngine.getTakeoutOfflineChat('CaseSensitive_99', '10000000-0000-4000-8000-000000000001');
     assert.ok(offlineChat1, 'Should find offline chat by exact ID');
     assert.strictEqual(offlineChat1.conversation.index.title, '什么是量子物理？');
     assert.strictEqual(offlineChat1.conversation.index.title, '什么是量子物理？');
     assert.strictEqual(offlineChat1.conversation.detail.messages.length, 3); // Response-only activity must not fabricate a user prompt
 
-    const offlineChat2 = TakeoutEngine.getTakeoutOfflineChat('c_CaseSensitive_99');
+    const offlineChat2 = TakeoutEngine.getTakeoutOfflineChat('c_CaseSensitive_99', '10000000-0000-4000-8000-000000000001');
     assert.ok(offlineChat2, 'Should find offline chat with c_ prefix');
 });
 
@@ -116,18 +116,18 @@ test('takeout_engine - parseTakeoutZip never assigns unreferenced watermarked fi
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
     TakeoutEngine.clearTakeoutData();
-    const res = await TakeoutEngine.parseTakeoutZip(zipBuffer);
+    const res = await TakeoutEngine.parseTakeoutZip(zipBuffer, null, '10000000-0000-4000-8000-000000000001');
 
     assert.strictEqual(res.conversations.length, 2);
 
     for (const id of ['chat_A_12345678', 'chat_B_87654321']) {
-        assert.deepStrictEqual(TakeoutEngine.getTakeoutMediaForChat(id), []);
-        const chat = TakeoutEngine.getTakeoutOfflineChat(id);
+        assert.deepStrictEqual(TakeoutEngine.getTakeoutMediaForChat(id, '10000000-0000-4000-8000-000000000001'), []);
+        const chat = TakeoutEngine.getTakeoutOfflineChat(id, '10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(chat.conversation.detail.messages.find((m: any) => m.role === 'assistant').generation, { mediaKind: 'image', outputCount: 1 });
     }
     assert.strictEqual(res.diagnostics.filter((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED').length, 2);
     assert.deepStrictEqual(await res.globalMedia['watermarked_img_1111-aaaa.png'].async('uint8array'), new Uint8Array(imgABuffer));
-    assert.strictEqual(await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', { assetId: '', sourceUri: 'watermarked_img_1111-aaaa.png' }), null);
+    assert.strictEqual(await TakeoutEngine.getTakeoutFallbackMedia('chat_A_12345678', { assetId: '', sourceUri: 'watermarked_img_1111-aaaa.png' }, '10000000-0000-4000-8000-000000000001'), null);
 
 });
 
@@ -140,7 +140,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     (global as any).JSZip = require('../lib/jszip.min.js');
     const buf = fs.readFileSync(fixturePath);
     TakeoutEngine.clearTakeoutData();
-    const res = await TakeoutEngine.parseTakeoutZip(buf);
+    const res = await TakeoutEngine.parseTakeoutZip(buf, null, '10000000-0000-4000-8000-000000000001');
 
     assert.strictEqual(res.conversations.length, 6, 'Should extract exactly 6 conversations');
     assert.strictEqual(res.totalMediaCount, 1, 'Should extract exactly 1 media asset');
@@ -150,7 +150,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.ok(catChat, 'Cat conversation should exist');
     assert.ok(catChat.title.includes('astronaut cat') || catChat.title.includes('Cat'));
 
-    const catMedia = TakeoutEngine.getTakeoutMediaForChat('1bd028d5c5b0c0e2');
+    const catMedia = TakeoutEngine.getTakeoutMediaForChat('1bd028d5c5b0c0e2', '10000000-0000-4000-8000-000000000001');
     assert.strictEqual(catMedia.length, 0, 'ZIP inventory and C2PA dates cannot prove conversation ownership');
     assert.ok(res.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
 
@@ -191,20 +191,20 @@ test('takeout_engine - slot isolation ensures multi-account takeouts do not leak
     const MediaIndex = require('../src/core/resources/takeout/mediaIndex.js');
     MediaIndex.clearTakeoutData();
 
-    MediaIndex.commitTakeoutData('u0', {
+    MediaIndex.commitTakeoutData('10000000-0000-4000-8000-000000000001', {
         mediaMap: { 'chat_1': [{ filename: 'img0.jpg' }] },
         globalMedia: { 'img0.jpg': { path: 'u0/img0.jpg' } },
         convCache: { 'c_chat_1': { id: 'chat_1', title: 'Slot 0 Chat' } }
     });
 
-    MediaIndex.commitTakeoutData('u1', {
+    MediaIndex.commitTakeoutData('10000000-0000-4000-8000-000000000002', {
         mediaMap: { 'chat_2': [{ filename: 'img1.jpg' }] },
         globalMedia: { 'img1.jpg': { path: 'u1/img1.jpg' } },
         convCache: { 'c_chat_2': { id: 'chat_2', title: 'Slot 1 Chat' } }
     });
 
-    const storeU0 = MediaIndex.getStore('u0');
-    const storeU1 = MediaIndex.getStore('u1');
+    const storeU0 = MediaIndex.getStore('10000000-0000-4000-8000-000000000001');
+    const storeU1 = MediaIndex.getStore('10000000-0000-4000-8000-000000000002');
 
     assert.ok(storeU0.convCache['c_chat_1'], 'u0 has chat_1');
     assert.ok(!storeU0.convCache['c_chat_2'], 'u0 must not have chat_2');
@@ -212,9 +212,9 @@ test('takeout_engine - slot isolation ensures multi-account takeouts do not leak
     assert.ok(storeU1.convCache['c_chat_2'], 'u1 has chat_2');
     assert.ok(!storeU1.convCache['c_chat_1'], 'u1 must not have chat_1');
 
-    MediaIndex.clearTakeoutData('u1');
-    assert.strictEqual(Object.keys(MediaIndex.getStore('u1').convCache).length, 0);
-    assert.ok(MediaIndex.getStore('u0').convCache['c_chat_1'], 'u0 cache remains intact after clearing u1');
+    MediaIndex.clearTakeoutData('10000000-0000-4000-8000-000000000002');
+    assert.strictEqual(Object.keys(MediaIndex.getStore('10000000-0000-4000-8000-000000000002').convCache).length, 0);
+    assert.ok(MediaIndex.getStore('10000000-0000-4000-8000-000000000001').convCache['c_chat_1'], 'u0 cache remains intact after clearing u1');
 
     MediaIndex.clearTakeoutData();
 });
@@ -254,7 +254,7 @@ test('takeout_engine - parseTakeoutZip detects structure drift and throws descri
     TakeoutEngine.clearTakeoutData();
     await assert.rejects(
         async () => {
-            await TakeoutEngine.parseTakeoutZip(zipBuffer);
+            await TakeoutEngine.parseTakeoutZip(zipBuffer, null, '10000000-0000-4000-8000-000000000001');
         },
         (err: any) => {
             return err instanceof Error &&
@@ -296,7 +296,7 @@ test('takeout_engine - parseTakeoutZip S-4 memory guardrail on oversized MyActiv
     const TakeoutParser = require('../src/core/imports/takeout/importTakeout.js');
     await assert.rejects(
         async () => {
-            await TakeoutParser.parseTakeoutZip(zip);
+            await TakeoutParser.parseTakeoutZip(zip, null, '10000000-0000-4000-8000-000000000001');
         },
         (err: any) => {
             return err && (err.name === 'TakeoutParseError' || err.message.includes('内存安全上限'));
@@ -305,3 +305,22 @@ test('takeout_engine - parseTakeoutZip S-4 memory guardrail on oversized MyActiv
 });
 
 
+
+test('Takeout rejects a missing or foreign-provider Registry target before touching archive bytes', async () => {
+    const sendMessage = chrome.runtime.sendMessage;
+    let provider = 'chatgpt';
+    let reads = 0;
+    chrome.runtime.sendMessage = (async (message: { action: string; command?: string; accountId?: string }) => {
+        assert.equal(message.action, 'accountRegistry'); assert.equal(message.command, 'get');
+        reads++;
+        return { ok: true, value: provider ? { id: message.accountId, providerId: provider, providerAccountId: '["user","workspace"]' } : null };
+    }) as typeof chrome.runtime.sendMessage;
+    try {
+        await assert.rejects(TakeoutEngine.parseTakeoutZip(null), /requires an account UUID/);
+        assert.equal(reads, 0);
+        await assert.rejects(TakeoutEngine.parseTakeoutZip(null, null, '10000000-0000-4000-8000-000000000002'), /existing Gemini account/);
+        provider = '';
+        await assert.rejects(TakeoutEngine.parseTakeoutZip(null, null, '10000000-0000-4000-8000-000000000002'), /existing Gemini account/);
+        assert.equal(reads, 2);
+    } finally { chrome.runtime.sendMessage = sendMessage; }
+});

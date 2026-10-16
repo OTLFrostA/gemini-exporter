@@ -20,14 +20,14 @@ const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
 });
 
 async function recover(assets: DomainAsset[], item: ResourceRequest, options: { localOnly?: boolean } = {}) {
-    const slot = 'lookup-regression-slot';
+    const slot = '10000000-0000-4000-8000-000000000001';
     let downloads = 0;
     const written: Array<{ path: string; bytes: Uint8Array }> = [];
     // Populate only the Takeout index: the persistent resource cache is empty.
     commitTakeoutData(slot, { convCache: { [chatId]: native(assets) }, globalMedia: Object.fromEntries(assets.map((asset, i) =>
         [asset.sourceUri!!, { async: async () => new Uint8Array([i + 1, 42]) }])), mediaMap: {} });
     try {
-        const pipeline = new AssetPipeline({ currentSlot: slot, takeoutEngine: TakeoutEngine,
+        const pipeline = new AssetPipeline({ accountId: slot, takeoutEngine: TakeoutEngine,
             fetchAsset: async () => { downloads++; return { success: false, error: 'network unavailable' }; },
             writeFileDirect: async (path, bytes) => { written.push({ path, bytes }); } });
         const result = await pipeline.processAsset(item, { id: chatId }, { isImage: true, maxRetries: 0, ...options });

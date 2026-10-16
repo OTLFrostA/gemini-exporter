@@ -9,7 +9,7 @@ import {
 } from '../optionsContext.js';
 import { ProgressView } from '../../views/progressView.js';
 import { $ } from '../../uiCommon.js';
-import { detectSlotFromUrl } from '../../../core/utils/pathUtils.js';
+import { isAccountId } from '../../../core/domain/accountRegistry.js';
 
 let __loadStore: ((force?: boolean) => Promise<any> | void) | null = null;
 let __log: ((msg: string, level?: 'info' | 'warn' | 'error') => void) | null = null;
@@ -34,7 +34,7 @@ function bindSyncButtons(): void {
 
     $('btnSyncAll')?.addEventListener('click', () => {
         if (Controller && Controller.isRunning()) return;
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const slot = Store ? Store.getCurrentAccountId() : '';
 
         if (SyncCtrl) {
             SyncCtrl.startSync(slot, {
@@ -60,7 +60,7 @@ function bindSyncButtons(): void {
     });
 
     $('btnStopScan')?.addEventListener('click', () => {
-        const slot = Store ? Store.getCurrentSlot() : 'u0';
+        const slot = Store ? Store.getCurrentAccountId() : '';
         if (SyncCtrl) {
             SyncCtrl.stopScan(slot, {
                 onLog: (txt: string, lvl?: 'info' | 'warn' | 'error') => log(txt, lvl),
@@ -75,13 +75,15 @@ function bindSyncButtons(): void {
 export function bindBroadcastListeners(): void {
     if (typeof chrome === 'undefined') return;
     chrome.storage?.onChanged?.addListener((changes, area) => {
-        const slot = getStore()?.getCurrentSlot() || 'u0';
-        const key = getStorage().getStorageKeys(slot).convKey;
+        const slot = getStore()?.getCurrentAccountId() || '';
+        const key = slot ? getStorage().getStorageKeys(slot).convKey : '';
         if (area === 'local' && changes[key] && __loadStore) void __loadStore(true);
     });
     if (!chrome.runtime?.onMessage) return;
 
     chrome.runtime.onMessage.addListener((msg: any) => {
+        if (msg.action === 'accountsChanged') { if (__loadStore) void __loadStore(true); return; }
+        if (msg.accountId && msg.accountId !== getStore()?.getCurrentAccountId()) return;
         if (msg.action === 'scanProgress') {
             let pct = typeof msg.percent === 'number' ? msg.percent : 50;
             const incomplete = msg.status && msg.status !== 'complete' && msg.status !== 'up_to_date';
@@ -100,14 +102,16 @@ export function bindBroadcastListeners(): void {
     });
 }
 
-export async function autoDetectActiveSlot(): Promise<void> {
+export async function autoDetectActiveAccount(): Promise<void> {
     try {
         const TabService = getTabService();
         const Store = getStore();
         if (TabService && TabService.getGeminiTab) {
             const tab = await TabService.getGeminiTab();
             if (tab && tab.url && Store) {
-                Store.setCurrentSlot(detectSlotFromUrl(tab.url));
+                if (tab.id == null) return;
+                const result = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+                if (isAccountId(result?.accountContext?.accountId)) Store.setCurrentAccountId(result.accountContext.accountId);
             }
         }
     } catch (e) {
@@ -122,13 +126,13 @@ export async function init({ loadStore, log: logFn, maybePromptTakeout }: Option
 
     bindSyncButtons();
     bindBroadcastListeners();
-    await autoDetectActiveSlot();
+    await autoDetectActiveAccount();
 }
 
 export const OptionsSync = {
     init,
     bindBroadcastListeners,
-    autoDetectActiveSlot
+    autoDetectActiveAccount
 };
 
 

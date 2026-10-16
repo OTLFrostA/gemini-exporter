@@ -1,6 +1,11 @@
 import type { ScanCoverage } from '../../src/core/storage/scanCoverage.js';
 import type { HistoricalConversation as Conversation } from '../helpers/historicalConversation.js';
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test('partial accessible history initializes activity coverage and later sync closes without fetching its older tail', async ({ context, extensionId }) => {
     const gemini = await context.newPage();
@@ -29,29 +34,29 @@ test('partial accessible history initializes activity coverage and later sync cl
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await options.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_conversations: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), exportedIds: { retained: { status: 'ok' } } });
-        await chrome.storage.local.remove('gemini_scan_coverage');
+        await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), ['exported_10000000-0000-4000-8000-000000000001']: { retained: { status: 'ok' } } });
+        await chrome.storage.local.remove('scan_coverage_10000000-0000-4000-8000-000000000001');
     });
-    const read = () => options.evaluate(async () => chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage; gemini_conversations: Conversation[]; exportedIds: Record<string, { status: string }> }>(['gemini_scan_coverage', 'gemini_conversations', 'exportedIds']));
+    const read = () => options.evaluate(async () => chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage; ['conversations_10000000-0000-4000-8000-000000000001']: Conversation[]; ['exported_10000000-0000-4000-8000-000000000001']: Record<string, { status: string }> }>(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001', 'exported_10000000-0000-4000-8000-000000000001']));
     await options.click('#btnSyncAll');
     await expect(options.locator('#takeoutLimitModal')).toBeVisible({ timeout: 15000 });
     const first = await read();
-    expect(first.gemini_scan_coverage).toMatchObject({ initialized: true, historyComplete: false, lastStatus: 'partial_limit' });
-    expect(first.gemini_scan_coverage.streams.recent.range!.head).toMatchObject({ id: 'old100', time: 1700000100000 });
+    expect(first['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ initialized: true, historyComplete: false, lastStatus: 'partial_limit' });
+    expect(first['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.head).toMatchObject({ id: 'old100', time: 1700000100000 });
     expect(requests[0]).toEqual(['pinned', 'head', 'tC_middle', 'tC_limit']);
     await options.click('#btnModalDismissTakeout');
     for (round = 1; round <= 2; round++) {
         await options.click('#btnSyncAll');
-        await expect.poll(async () => (await read()).gemini_scan_coverage.lastStatus).toBe('up_to_date');
+        await expect.poll(async () => (await read())['scan_coverage_10000000-0000-4000-8000-000000000001'].lastStatus).toBe('up_to_date');
         await expect(options.locator('#btnSyncAll')).toBeEnabled();
         const stored = await read();
-        expect(stored.gemini_scan_coverage).toMatchObject({ initialized: true, historyComplete: false, activeRunId: null });
-        expect(stored.gemini_scan_coverage.streams.recent.range!.head.time).toBe(round === 1 ? 1700000120000 : 1700000130000);
-        expect(stored.gemini_scan_coverage.streams.recent.range!.tail.time).toBe(1700000070000);
+        expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ initialized: true, historyComplete: false, activeRunId: null });
+        expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.head.time).toBe(round === 1 ? 1700000120000 : 1700000130000);
+        expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.tail.time).toBe(1700000070000);
         expect(requests[round]).toEqual(['pinned', 'head']);
-        expect(stored.gemini_conversations.find((item: { id: string }) => item.id === 'retained')?.cloudAvailability).toBe('unknown');
-        expect(stored.exportedIds.retained.status).toBe('ok');
-        expect(JSON.stringify(stored.gemini_scan_coverage)).not.toContain('tC_');
+        expect(stored['conversations_10000000-0000-4000-8000-000000000001'].find((item: { id: string }) => item.id === 'retained')?.cloudAvailability).toBe('unknown');
+        expect(stored['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
+        expect(JSON.stringify(stored['scan_coverage_10000000-0000-4000-8000-000000000001'])).not.toContain('tC_');
     }
     await expect(options.locator('#list .item')).toHaveCount(9);
 });
@@ -73,12 +78,12 @@ test('a naturally observed non-head page initializes coverage and later sync con
     await gemini.goto('https://gemini.google.com/app');
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    await options.evaluate(async () => chrome.storage.local.remove('gemini_scan_coverage'));
+    await options.evaluate(async () => chrome.storage.local.remove('scan_coverage_10000000-0000-4000-8000-000000000001'));
     await gemini.evaluate(async () => {
         const body = new URLSearchParams({ 'f.req': JSON.stringify([[['MaZiqc', JSON.stringify([20, 'tC_segment', [0, null, 1]]), null, 'generic']]]) });
         await fetch('/_/BardChatUi/data/batchexecute', { method: 'POST', body });
     });
-    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage }>('gemini_scan_coverage')).gemini_scan_coverage);
+    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage }>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
     await expect.poll(async () => (await read())?.streams?.recent?.range?.head?.id).toBe('passive80');
     expect(await read()).toMatchObject({ initialized: true, historyComplete: false });
     await options.click('#btnSyncAll');
@@ -105,7 +110,7 @@ test('a complete current scan replaces a disjoint old interval without stopping 
     await gemini.goto('https://gemini.google.com/app');
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage }>('gemini_scan_coverage')).gemini_scan_coverage);
+    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage }>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
     await options.click('#btnSyncAll');
     await expect.poll(async () => (await read())?.lastStatus).toBe('complete');
     await expect(options.locator('#btnSyncAll')).toBeEnabled();
@@ -146,13 +151,13 @@ test('passive evidence arriving during the active head request fills the shared 
     expect(binding.accountContext?.accountId).toMatch(/^[0-9a-f-]{36}$/);
     // Persisted interval from a prior extension session: no in-memory page chain.
     await options.evaluate(async (accountId) => {
-        await chrome.storage.local.set({ gemini_scan_coverage: { version: 4, providerId: 'gemini', revision: 1, generation: 'shared-generation',
+        await chrome.storage.local.set({ ['scan_coverage_10000000-0000-4000-8000-000000000001']: { version: 4, providerId: 'gemini', revision: 1, generation: 'shared-generation',
             resetAt: 0, accountId, initialized: true, historyComplete: false, complete: false,
             streams: { recent: { initialized: true, historyComplete: false,
                 range: { head: { id: 'old100', time: 1700000100000 }, tail: { id: 'old70', time: 1700000070000 } } } },
             baseline: null, activeRunId: null, lastStatus: 'partial_limit' } });
     }, binding.accountContext.accountId);
-    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage }>('gemini_scan_coverage')).gemini_scan_coverage);
+    const read = () => options.evaluate(async () => (await chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage }>('scan_coverage_10000000-0000-4000-8000-000000000001'))['scan_coverage_10000000-0000-4000-8000-000000000001']);
     try {
         await options.click('#btnSyncAll');
         await expect.poll(() => requests.includes('head')).toBe(true);
@@ -191,21 +196,21 @@ for (const inversion of ['within-page', 'cross-page'] as const) {
         await gemini.goto('https://gemini.google.com/app');
         const options = await context.newPage();
         await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
-        await options.evaluate(async () => chrome.storage.local.set({ gemini_conversations: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), exportedIds: { retained: { status: 'ok' } } }));
-        const read = () => options.evaluate(async () => chrome.storage.local.get<{ gemini_scan_coverage: ScanCoverage; gemini_conversations: Conversation[]; exportedIds: Record<string, { status: string }> }>(['gemini_scan_coverage', 'gemini_conversations', 'exportedIds']));
+        await options.evaluate(async () => chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: ([{ id: 'retained', title: 'Retained archive', timestamp: 1 }]).map(canonicalIndexFixture), ['exported_10000000-0000-4000-8000-000000000001']: { retained: { status: 'ok' } } }));
+        const read = () => options.evaluate(async () => chrome.storage.local.get<{ ['scan_coverage_10000000-0000-4000-8000-000000000001']: ScanCoverage; ['conversations_10000000-0000-4000-8000-000000000001']: Conversation[]; ['exported_10000000-0000-4000-8000-000000000001']: Record<string, { status: string }> }>(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001', 'exported_10000000-0000-4000-8000-000000000001']));
         for (round = 0; round < 3; round++) {
             await options.click('#btnSyncAll');
             await expect.poll(() => requests[round].length).toBe(3);
             await expect(options.locator('#btnSyncAll')).toBeEnabled();
             const stored = await read();
             expect(requests[round]).toEqual(['pinned', 'head', `tC_tail${round}`]);
-            expect(stored.gemini_scan_coverage).toMatchObject({ historyComplete: true, complete: true, lastStatus: 'complete', activeRunId: null });
+            expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ historyComplete: true, complete: true, lastStatus: 'complete', activeRunId: null });
             if (round > 0) {
-                expect(stored.gemini_scan_coverage.streams.recent).toMatchObject({ initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
-                expect(stored.gemini_conversations.some(item => item.id.startsWith(`round${round}_`) && item.updatedAt === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
+                expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent).toMatchObject({ initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
+                expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.id.startsWith(`round${round}_`) && item.updatedAt === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
             }
-            expect(stored.gemini_conversations.some(item => item.id === 'retained')).toBe(true);
-            expect(stored.exportedIds.retained.status).toBe('ok');
+            expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.id === 'retained')).toBe(true);
+            expect(stored['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
         }
     });
 }

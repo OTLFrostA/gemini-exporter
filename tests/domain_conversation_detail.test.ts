@@ -46,13 +46,13 @@ test('Domain adapter preserves a normal RPC conversation and message order', asy
         updatedAt: 1700000001000,
         url: 'https://gemini.google.com/app/conversation-1',
         messages: [
-            { id: 'u1', role: 'user', content: 'Question', timestamp: 1700000000000 },
+            { id: '10000000-0000-4000-8000-000000000002', role: 'user', content: 'Question', timestamp: 1700000000000 },
             { id: 'a1', role: 'model', content: 'Answer', timestamp: 1700000001000 },
         ],
     };
     await assertExportEquivalent(conversation);
     const domain = historicalFixtureDomain(conversation);
-    assert.deepEqual(domain.detail.messages.map((m: { id?: string }) => m.id), ['u1', 'a1']);
+    assert.deepEqual(domain.detail.messages.map((m: { id?: string }) => m.id), ['10000000-0000-4000-8000-000000000002', 'a1']);
     assert.equal('turns' in domain, false);
 });
 

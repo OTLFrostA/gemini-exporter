@@ -110,7 +110,7 @@ test('scan consumer never completes malformed replies and always releases its ru
             } });
             try {
                 let completed = false;
-                const err = await new Promise<Error>(resolve => startSync('u0', {
+                const err = await new Promise<Error>(resolve => startSync('10000000-0000-4000-8000-000000000001', {
                     onFinished() { completed = true; resolve(new Error('Unexpected successful completion')); },
                     onError(error) { resolve(error); }
                 }));
@@ -130,7 +130,7 @@ test('scan consumer never completes malformed replies and always releases its ru
             } });
             try {
                 const result = await new Promise<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]>((resolve, reject) =>
-                    startSync('u0', { onFinished: resolve, onError: reject }));
+                    startSync('10000000-0000-4000-8000-000000000001', { onFinished: resolve, onError: reject }));
                 assert.equal(result.res, validSuccess);
                 assert.equal(result.hitGoogleLimit, !!validSuccess.hitGoogleLimit);
                 assert.equal(result.count, validSuccess.count || validSuccess.total || 0);
@@ -161,7 +161,7 @@ test('scan UI reports partial limits, cancellation and errors as incomplete, ret
             const response = { success: false, count: 3, status, error: 'remaining pages unavailable' };
             const restoreChrome = replaceGlobal('chrome', { runtime: { sendMessage(_msg: unknown, callback: (value: unknown) => void) { callback(response); } } });
             try {
-                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startSync('u0', {
+                const result = await new Promise<{ message?: string; details?: Parameters<NonNullable<ScanCallbacks['onError']>>[2] }>((resolve, reject) => startSync('10000000-0000-4000-8000-000000000001', {
                     onFinished: () => reject(new Error('Incomplete sync entered the success callback')),
                     onError: (_err, message, details) => resolve({ message, details })
                 }));

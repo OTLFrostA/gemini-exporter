@@ -36,11 +36,11 @@ export async function fetchBatch(
     portSendResponse?: (response: unknown) => void,
     globalOffset: number = 0,
     globalTotal: number = 0,
-    accountSlot: string = 'u0'
+    accountId: string = ''
 ): Promise<void> {
     const stopKeepAlive = startKeepAlive();
     try {
-        const slot = accountSlot || 'u0';
+        const slot = accountId || '';
         const batchEpoch = getSlotEpoch(slot);
         const isAborted = () => isSlotAborted(slot) || getSlotEpoch(slot) !== batchEpoch;
 

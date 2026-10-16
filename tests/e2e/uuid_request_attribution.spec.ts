@@ -2,7 +2,7 @@ import { test, expect } from './fixtures';
 
 for (const transport of ['fetch', 'xhr'] as const) {
   for (const kind of ['list', 'detail'] as const) {
-    test(`${transport} ${kind} captures identity at send time and rejects a response after same-slot Gaia switch`, async ({ context, extensionId }) => {
+    test(`${transport} ${kind} captures identity at send time and persists each response under its captured UUID after a same-slot Gaia switch`, async ({ context, extensionId }) => {
       const page = await context.newPage();
       await page.route('https://gemini.google.com/app', route => route.fulfill({ contentType: 'text/html', body:
         `<script>window.WIZ_global_data={qDCSke:'10000000001',oPEP7c:'same@example.com'}</script><body>Fixture</body>` }));
@@ -47,9 +47,48 @@ for (const transport of ['fetch', 'xhr'] as const) {
       release(); await pending;
       // A valid response under B provides a positive completion check for the same pipeline.
       await send();
-      const rows = () => options.evaluate(async () => (await chrome.storage.local.get<{ gemini_conversations?: { id: string }[] }>('gemini_conversations')).gemini_conversations || []);
-      await expect.poll(async () => (await rows()).some((row: { id: string }) => row.id === 'currentuuid123')).toBe(true);
-      expect((await rows()).some((row: { id: string }) => row.id === 'staleuuid123')).toBe(false);
+      const rows = (accountId: string) => options.evaluate(async accountId => {
+        const key = `conversations_${accountId}`;
+        return (await chrome.storage.local.get<Record<string, {id:string}[]>>(key))[key] || [];
+      }, accountId);
+      await expect.poll(async () => (await rows(current.accountId)).some(row => row.id === 'currentuuid123')).toBe(true);
+      await expect.poll(async () => (await rows(original.accountId)).some(row => row.id === 'staleuuid123')).toBe(true);
+      expect((await rows(current.accountId)).some(row => row.id === 'staleuuid123')).toBe(false);
+      expect((await rows(original.accountId)).some(row => row.id === 'currentuuid123')).toBe(false);
     });
   }
 }
+
+test('a delayed response retains its UUID without reverting a newer email on the same Gaia', async ({ context, extensionId }) => {
+    const source = await context.newPage();
+    await source.route('https://gemini.google.com/app', route => route.fulfill({ contentType: 'text/html', body:
+        `<script>window.WIZ_global_data={qDCSke:'10000000001',oPEP7c:'old@example.com'}</script>` }));
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    await source.goto('https://gemini.google.com/app');
+    const current = () => options.evaluate(async () => {
+        const [tab] = await chrome.tabs.query({ url: 'https://gemini.google.com/*' });
+        return (await chrome.tabs.sendMessage(tab.id!, { action: 'getAccountContext' })).accountContext;
+    });
+    const first = await current();
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    let arrived!: () => void;
+    const requestArrived = new Promise<void>(resolve => { arrived = resolve; });
+    await source.route('**/batchexecute*', async route => {
+        arrived(); await held;
+        const data = [null, [['c_profile_delay', 'Profile delay', null, null, null, [1700000000, 0]]], null];
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify(data)]]) });
+    });
+    const pending = source.evaluate(() => fetch('/_/BardChatUi/data/batchexecute', { method: 'POST' }).then(response => response.text()));
+    await requestArrived;
+    await source.evaluate(() => { (window as unknown as { WIZ_global_data: { oPEP7c: string } }).WIZ_global_data.oPEP7c = 'new@example.com'; });
+    expect((await current()).accountId).toBe(first.accountId);
+    release(); await pending;
+    await expect.poll(async () => options.evaluate(async id => {
+        const key = 'conversations_' + id;
+        return (await chrome.storage.local.get<Record<string, { id: string }[]>>(key))[key]?.some(row => row.id === 'profile_delay');
+    }, first.accountId)).toBe(true);
+    const account = await options.evaluate(async id => (await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'get', accountId: id })).value, first.accountId);
+    expect(account.email).toBe('new@example.com');
+});

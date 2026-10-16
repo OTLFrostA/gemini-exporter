@@ -1,10 +1,15 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test('deleted notice stays visible during repeated list updates', async ({ context, extensionId }, testInfo) => {
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: ([
+        await chrome.storage.local.set({ gemini_tour_completed: true, ['conversations_10000000-0000-4000-8000-000000000001']: ([
             { id: 'deleted_notice', title: 'Deleted conversation', cloudAvailability: 'deleted', timestamp: 1 }
         ]).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);
@@ -31,7 +36,7 @@ test('keep dismisses the notice without deleting records; new deletion prompts a
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: ([
+        await chrome.storage.local.set({ gemini_tour_completed: true, ['conversations_10000000-0000-4000-8000-000000000001']: ([
             { id: 'deleted_notice', title: 'Deleted conversation', cloudAvailability: 'deleted', timestamp: 1 },
             { id: 'unlisted_notice', title: 'Unconfirmed conversation', cloudAvailability: 'unlisted', timestamp: 2 },
             { id: 'another_notice', title: 'Another conversation', timestamp: 3 }
@@ -44,8 +49,8 @@ test('keep dismisses the notice without deleting records; new deletion prompts a
     await expect(page.locator('#archiveNotice')).toBeHidden();
     await expect(page.locator('#list .item')).toHaveCount(3);
     await page.evaluate(async () => {
-        const { gemini_conversations } = await chrome.storage.local.get('gemini_conversations');
-        await chrome.storage.local.set({ gemini_conversations: ((gemini_conversations as { id: string }[]).map(c =>
+        const gemini_conversations = (await chrome.storage.local.get('conversations_10000000-0000-4000-8000-000000000001'))['conversations_10000000-0000-4000-8000-000000000001'];
+        await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: ((gemini_conversations as { id: string }[]).map(c =>
             c.id === 'another_notice' ? { ...c, cloudAvailability: 'deleted' } : c)).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);
     });
@@ -65,7 +70,7 @@ test('unlisted conversations alone do not show a deletion notice', async ({ cont
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async () => {
-        await chrome.storage.local.set({ gemini_tour_completed: true, gemini_conversations: ([
+        await chrome.storage.local.set({ gemini_tour_completed: true, ['conversations_10000000-0000-4000-8000-000000000001']: ([
             { id: 'unlisted_notice', title: 'Unconfirmed conversation', cloudAvailability: 'unlisted', timestamp: 1 }
         ]).map(canonicalIndexFixture) });
         await window.__workbenchLoadStore!(true);

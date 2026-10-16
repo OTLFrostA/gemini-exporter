@@ -1,4 +1,9 @@
-import { test, expect } from './fixtures';
+import { test, expect, seedRegistryAccounts } from './fixtures';
+
+test.beforeEach(async ({context, extensionId}) => {
+    void extensionId;
+    await seedRegistryAccounts(context);
+});
 
 test.describe('E2E: Canonical Title Authority', () => {
   test('should arbitrate titles strictly by source tier and never allow low tier to corrupt high tier', async ({ context, extensionId }) => {
@@ -18,8 +23,8 @@ test.describe('E2E: Canonical Title Authority', () => {
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (initialConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -81,9 +86,9 @@ test.describe('E2E: Canonical Title Authority', () => {
     });
     await expect.poll(async () => {
       const data = await optionsPage.evaluate(async () => {
-        return await chrome.storage.local.get(['gemini_conversations']);
+        return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      const c = (data.gemini_conversations || []).find((x: any) => x.id === 'arbitration_chat_999');
+      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.id === 'arbitration_chat_999');
       return c?.titleSource === 'dom' ? c.title : undefined;
     }, { timeout: 10000 }).toBe('页面显式渲染的DOM标题');
 
@@ -106,9 +111,9 @@ test.describe('E2E: Canonical Title Authority', () => {
     let chat: any = null;
     await expect.poll(async () => {
       const storageData = await optionsPage.evaluate(async () => {
-        return await chrome.storage.local.get(['gemini_conversations']);
+        return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'arbitration_chat_999');
+      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.id === 'arbitration_chat_999');
       return chat?.titleSource === 'rpc' ? chat.title : undefined;
     }, { timeout: 10000 }).toBe('官方服务端RPC最终权威标题');
 
@@ -194,8 +199,8 @@ test.describe('E2E: Canonical Title Authority', () => {
         }
       ];
       await chrome.storage.local.set({
-        gemini_conversations: (initialConvs).map(canonicalIndexFixture),
-        exportedIds: {},
+        ['conversations_10000000-0000-4000-8000-000000000001']: (initialConvs).map(canonicalIndexFixture),
+        ['exported_10000000-0000-4000-8000-000000000001']: {},
         has_completed_tour: true,
         last_seen_feature_version: '999.0.0'
       });
@@ -216,9 +221,9 @@ test.describe('E2E: Canonical Title Authority', () => {
     await expect(targetItem).toContainText('如何构建高性能分布式缓存系统');
 
     const storageData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_conversations']);
+      return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const chat = (storageData.gemini_conversations || []).find((c: any) => c.id === 'sniff_test_chat_888');
+    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.id === 'sniff_test_chat_888');
 
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何构建高性能分布式缓存系统');

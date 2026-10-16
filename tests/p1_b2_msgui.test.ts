@@ -1,3 +1,4 @@
+import { accountRuntime } from './helpers/accountRuntime.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -34,6 +35,7 @@ test('p1_b2 - P1-020: null deepScan result sends a terminal failure', async () =
             }
         }
     });
+    const runtime = accountRuntime();
     try {
         const { init } = require('../src/content/messageRouter.js');
         let scanResult: any = null;
@@ -55,7 +57,7 @@ test('p1_b2 - P1-020: null deepScan result sends a terminal failure', async () =
         assert.strictEqual(completed.count, 3);
     } finally {
         try { require('../src/content/cleanupRegistry.js').runCleanups(); }
-        finally { restoreGlobal('chrome', previousChrome); }
+        finally { runtime.restore(); restoreGlobal('chrome', previousChrome); }
     }
 });
 

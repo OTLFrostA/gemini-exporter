@@ -151,13 +151,13 @@ test('regression: metadata-only options.conversations item resolves full detail 
     const exported: any[] = [];
 
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id, title }],
             conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
-        },
+        }) },
         { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
     );
 
@@ -212,13 +212,13 @@ test('regression: metadata-only selected (empty conversations) resolves full det
     const exported: any[] = [];
 
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [metadataOnly],
             conversations: [],
             useZip: false,
             writer,
             fetchChatDetail,
-        },
+        }) },
         { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
     );
 
@@ -256,13 +256,13 @@ test('fail-closed: metadata-only selected resolving to zero messages fails with 
     const exported: any[] = [];
 
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [metadataOnly],
             conversations: [],
             useZip: false,
             writer,
             fetchChatDetail,
-        },
+        }) },
         { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
     );
 
@@ -295,13 +295,13 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
     const exported: any[] = [];
 
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id, title }],
             conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
-        },
+        }) },
         { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
     );
 
@@ -337,13 +337,13 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
     const exported: any[] = [];
 
     const result = await exporter.run(
-        {
+        { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id, title }],
             conversations: ([metadataOnly]).map(indexFixture),
             useZip: false,
             writer,
             fetchChatDetail,
-        },
+        }) },
         { onItemExported: (cid: string, record: any) => exported.push({ cid, record }) }
     );
 
@@ -364,22 +364,22 @@ test('PDF document and delivered record use current Index metadata and the saved
     const id = 'canonical-pdf';
     const parsed = { ...historicalFixture({ id, title: 'Old body title', titleSource: 'rpc',
         messages: [{ role: 'model', content: 'Retained body' }] }), sourceVersion: 100 };
-    await catalogStorage.setNativeConversations('u0', [parsed]);
-    await catalogStorage.updateConversation('u0', id, { title: 'Current index title', titleSource: 'rpc', updatedAt: 200 });
+    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
+    await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', id, { title: 'Current index title', titleSource: 'rpc', updatedAt: 200 });
     const selection = indexFixture({ id, title: 'Old selection title', titleSource: 'rpc' });
     const state = { calls: 0, document: null as any };
     const records: any[] = [];
     const exporter = new PdfExporter(makeCaptureCompiler(state));
     const options = { selected: [{ id }], conversations: [selection], includeAssets: false,
         fetchChatDetail: async () => ({ success: false, error: 'offline' }), useZip: false, writer: makeMemoryWriter() };
-    const result = await exporter.run(options, { onItemExported: (_id: string, record: any) => records.push(record) });
+    const result = await exporter.run({ accountId: '10000000-0000-4000-8000-000000000001', ...(options) }, { onItemExported: (_id: string, record: any) => records.push(record) });
     assert.equal(result.succeeded, 1);
     assert.equal(state.document.title, 'Current index title');
     assert.match(documentBodyText(state.document), /Retained body/);
     assert.equal(records[0].title, 'Current index title');
     assert.equal(records[0].chatTime, 100);
-    await catalogStorage.setConversations('u0', []);
-    const absent = await exporter.run(options);
+    await catalogStorage.setConversations('10000000-0000-4000-8000-000000000001', []);
+    const absent = await exporter.run({ accountId: '10000000-0000-4000-8000-000000000001', ...(options) });
     assert.equal(absent.succeeded, 0);
     assert.equal(state.calls, 1, 'body without Index must not reach the compiler');
 });

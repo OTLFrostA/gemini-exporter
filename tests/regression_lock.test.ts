@@ -140,7 +140,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
                 useZip: true,
                 includeAssets: true,
                 includeIndex: false,
-                currentSlot: 'u0',
+                accountId: '10000000-0000-4000-8000-000000000001',
                 conversations: [],
                 downloadHandler: async () => {}
             },
@@ -155,12 +155,12 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
         // lands instead of a fixed sleep (flaky on slow machines).
         const deadline = Date.now() + 2000;
         for (;;) {
-            const ids = await StorageService.getExportedIds('u0');
+            const ids = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
             if (ids[chatDetail.id] || ids['c_' + chatDetail.id]) break;
             if (Date.now() > deadline) break;
             await new Promise(r => setTimeout(r, 10));
         }
-        const exportedIds = await StorageService.getExportedIds('u0');
+        const exportedIds = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         return { result, onItemExportedCalls, exportedIds, chromeData: chromeMock.data };
     } finally {
         (global as any).chrome = origChrome;
@@ -632,11 +632,11 @@ test('audit fix: saveExportRecord serializes concurrent writes without losing re
     try {
         const promises: Promise<any>[] = [];
         for (let i = 1; i <= 10; i++) {
-            promises.push(StorageService.saveExportRecord('u0', `chat_${i}`, { title: `Chat ${i}`, exportedAt: new Date().toISOString() }));
+            promises.push(StorageService.saveExportRecord('10000000-0000-4000-8000-000000000001', `chat_${i}`, { title: `Chat ${i}`, exportedAt: new Date().toISOString() }));
         }
         await Promise.all(promises);
 
-        const saved = await StorageService.getExportedIds('u0');
+        const saved = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         for (let i = 1; i <= 10; i++) {
             assert.ok(saved[`chat_${i}`], `Record chat_${i} must not be lost due to concurrent read-modify-write`);
         }
@@ -657,14 +657,14 @@ test('audit fix: tabService strictly isolates non-u0 slots without silent cross-
     };
 
     try {
-        const tabU1 = await TabService.getGeminiTab('u1');
+        const tabU1 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000002');
         assert.strictEqual(tabU1, null, 'getGeminiTab(u1) should return null when no u1 tab is open, avoiding u0 fallback');
 
         await assert.rejects(
             async () => {
-                await TabService.sendToGeminiTab({ action: 'ping' }, 'u1');
+                await TabService.sendToGeminiTab({ action: 'ping' }, '10000000-0000-4000-8000-000000000002');
             },
-            /未找到多账号 slot u1 对应的 Gemini 标签页/,
+            /matches the selected account/,
             'sendToGeminiTab(u1) should reject when no u1 tab exists'
         );
     } finally {
@@ -672,24 +672,18 @@ test('audit fix: tabService strictly isolates non-u0 slots without silent cross-
     }
 });
 
-test('network RPC lists from another account slot are rejected at the shared ingestion boundary', async () => {
+test('passive RPC lists persist under captured UUID even when their routing slot differs', async () => {
     const runtime = accountRuntime();
     try {
-    const bridge = require('../src/content/messageBridge.js');
-    let receivedSlot = '';
-    const api = bridge.init({
-        getAccountSlot: () => 'u0',
-        ingestRpcList: async (items: unknown[], slot: string) => {
-            receivedSlot = slot;
-            return { count: items.length, accepted: items.length, rejected: 0, persisted: items.length };
-        }
-    });
-    const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, [['c_slot_isolation', 'Title']]])]]);
-    await api.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, requestAccountObservation: ACCOUNT_OBSERVATION, slot: 'u1' } } });
-    assert.strictEqual(receivedSlot, '', 'a stale u1 response must not reach the active u0 observer');
-    await api.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, requestAccountObservation: ACCOUNT_OBSERVATION, slot: 'u0' } } });
-    assert.strictEqual(receivedSlot, 'u0');
-    } finally { runtime.restore(); }
+        const bridge = require('../src/content/messageBridge.js');
+        const owners: string[] = [];
+        const api = bridge.init({getAccountSlot: () => 'u0', ingestRpcList: async (items: unknown[], owner: string) => {
+            owners.push(owner); return {count:items.length,accepted:items.length,rejected:0,persisted:items.length};
+        }});
+        const text = JSON.stringify([['wrb.fr','MaZiqc',JSON.stringify([null,[['c_slot_isolation','Title']]])]]);
+        for (const slot of ['u1','u0']) await api.handleWindowMessage({origin:location.origin,data:{type:'GEMINI_NETWORK_BATCHEXECUTE',payload:{text,slot,requestAccountObservation:ACCOUNT_OBSERVATION}}});
+        assert.deepEqual(owners, ['10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001']);
+    } finally {runtime.restore();}
 });
 
 // ============================================================================
@@ -711,7 +705,7 @@ test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: tr
 
     try {
         const pipeline = new AssetPipeline({
-            currentSlot: 'u0',
+            accountId: '10000000-0000-4000-8000-000000000001',
             getGeminiTab: async () => ({ id: 12345 }),
             useZip: true,
             writer: { writeFile: async () => 'test.png' }
@@ -792,10 +786,10 @@ test('Bug repro - takeout title stale when second block is non-explicit prompt',
 
     try {
         TakeoutEngine.clearTakeoutData();
-        const res = await TakeoutEngine.parseTakeoutZip(buf);
+        const res = await TakeoutEngine.parseTakeoutZip(buf, null, '10000000-0000-4000-8000-000000000001');
         assert.strictEqual(res.conversations.length, 1, 'should merge to 1 conversation');
         assert.strictEqual(res.conversations[0].title, 'Corrected Title', 'extractedMap title should be corrected');
-        const offline = TakeoutEngine.getTakeoutOfflineChat('BUG_REPRO_001');
+        const offline = TakeoutEngine.getTakeoutOfflineChat('BUG_REPRO_001', '10000000-0000-4000-8000-000000000001');
         assert.ok(offline, 'offline chat should exist');
         assert.strictEqual(offline.conversation.index.title, 'Corrected Title', 'offlineCache title should be sync to Corrected Title');
         assert.strictEqual(offline.conversation.index.title, 'Corrected Title', 'offlineCache titles.takeout should be sync');

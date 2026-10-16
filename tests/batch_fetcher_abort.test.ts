@@ -58,7 +58,7 @@ test('batchFetcher - slot abort wins the race while sendToGeminiTab is in-flight
     };
 
     try {
-        const slot = 'u0';
+        const slot = '10000000-0000-4000-8000-000000000001';
         let response: any = null;
         const done = fetchBatch(
             [{ id: 'chat1', title: 't1' }],
@@ -125,7 +125,7 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
     });
 
     try {
-        const slot = 'u0';
+        const slot = '10000000-0000-4000-8000-000000000001';
         let response: any = null;
         await fetchBatch(
             [{ id: 'chat1', title: 't1' }],

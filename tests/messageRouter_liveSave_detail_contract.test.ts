@@ -1,3 +1,4 @@
+import { accountRuntime } from './helpers/accountRuntime.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
@@ -38,6 +39,7 @@ async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail |
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
         onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
     } } });
+    const runtime = accountRuntime();
     try {
         initRouter({ scraper: { ...DomScraper, contentFetchChatDetail: typeof dom === 'function' ? dom : async () => dom },
             storage: { removeConversation: async (_slot, id) => { removed = id; return true; }, getConversations: async () => [] } });
@@ -47,6 +49,7 @@ async function route(dom: DomDetail | DetailFailure | (() => Promise<DomDetail |
         });
         return { result, removed };
     } finally {
+        runtime.restore();
         if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
         else Reflect.deleteProperty(globalThis, 'chrome');
     }
@@ -151,3 +154,33 @@ test('liveSave: missing document is an explicit null DOM fallback, not a non-nul
         if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
     }
 }));
+
+test('asset routing rejects a different UUID and discards bytes when the tab switches during acquisition', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    let listener: Parameters<typeof chrome.runtime.onMessage.addListener>[0] | undefined;
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { ...globalThis.chrome, runtime: {
+        onMessage: { addListener(fn: typeof listener) { listener = fn; }, removeListener() {} }, sendMessage() {}
+    } } });
+    const runtime = accountRuntime();
+    let called = 0;
+    try {
+        const { AssetFetcher } = require('../src/content/assetFetcher.js') as typeof import('../src/content/assetFetcher.js');
+        initRouter({ assets: { ...AssetFetcher, downloadAssetDirect: async (_message, respond) => {
+            called++;
+            runtime.state.observation = { providerId: 'gemini', providerAccountId: 'other-gaia' };
+            respond({ success: true, dataBase64: 'AQID' });
+        } } });
+        const send = (accountId: string) => new Promise<{ success: boolean; error?: string }>(resolve => {
+            listener!({ action: 'downloadAssetDirect', url: 'https://lh3.googleusercontent.com/asset', accountId }, {}, resolve);
+        });
+        const mismatch = await send('10000000-0000-4000-8000-000000000002');
+        assert.equal(mismatch.success, false); assert.equal(called, 0);
+        const switched = await send('10000000-0000-4000-8000-000000000001');
+        assert.equal(switched.success, false); assert.match(switched.error || '', /Account changed/);
+        assert.equal(called, 1);
+    } finally {
+        runtime.restore();
+        if (descriptor) Object.defineProperty(globalThis, 'chrome', descriptor);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    }
+});

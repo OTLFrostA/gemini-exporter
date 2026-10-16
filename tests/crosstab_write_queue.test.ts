@@ -1,3 +1,4 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 // Cross-tab write-queue regression tests.
@@ -21,7 +22,7 @@ function setupMockChromeStorage() {
     let setCalls = 0;
     const origChrome = (global as any).chrome;
     const origNavDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         storage: {
             local: {
                 // Macrotask delays make read/write interleaving deterministic,
@@ -48,7 +49,7 @@ function setupMockChromeStorage() {
                 }
             }
         }
-    };
+    });
     return {
         mockStorage,
         getSetCalls: () => setCalls,
@@ -108,13 +109,13 @@ test('T1: concurrent transactConversations from two tabs must not lose updates',
     try {
         const tabA = freshService();
         const tabB = freshService();
-        await tabA.setConversations('u0', ([{ id: 'seed', title: 'Seed' }]).map(indexFixture));
+        await tabA.setConversations('10000000-0000-4000-8000-000000000001', ([{ id: 'seed', title: 'Seed' }]).map(indexFixture));
 
-        const pA = tabA.transactConversations('u0', (existing: any[]) => ({
+        const pA = tabA.transactConversations('10000000-0000-4000-8000-000000000001', (existing: any[]) => ({
             list: ([...existing, { id: 'fromA', title: 'A' }]).map(indexFixture),
             changed: 1
         }));
-        const pB = tabB.transactConversations('u0', (existing: any[]) => ({
+        const pB = tabB.transactConversations('10000000-0000-4000-8000-000000000001', (existing: any[]) => ({
             list: ([...existing, { id: 'fromB', title: 'B' }]).map(indexFixture),
             changed: 1
         }));
@@ -122,7 +123,7 @@ test('T1: concurrent transactConversations from two tabs must not lose updates',
         assert.strictEqual(rA.written, true);
         assert.strictEqual(rB.written, true);
 
-        const finalList = await tabA.getConversations('u0');
+        const finalList = await tabA.getConversations('10000000-0000-4000-8000-000000000001');
         const ids = finalList.map((c: any) => c.id);
         assert.ok(ids.includes('seed'), 'seed must survive');
         assert.ok(ids.includes('fromA'), "tab A's write must not be lost");
@@ -140,32 +141,13 @@ test('T2: concurrent saveExportRecordsBatch from two tabs must not lose records'
         const tabA = freshService();
         const tabB = freshService();
 
-        const pA = tabA.saveExportRecordsBatch('u0', { chat_a: { ok: true } });
-        const pB = tabB.saveExportRecordsBatch('u0', { chat_b: { ok: true } });
+        const pA = tabA.saveExportRecordsBatch('10000000-0000-4000-8000-000000000001', { chat_a: { ok: true } });
+        const pB = tabB.saveExportRecordsBatch('10000000-0000-4000-8000-000000000001', { chat_b: { ok: true } });
         await Promise.all([pA, pB]);
 
-        const ids = await tabA.getExportedIds('u0');
+        const ids = await tabA.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.ok(ids['chat_a'], "tab A's record must survive");
         assert.ok(ids['chat_b'], "tab B's record must survive");
-    } finally {
-        env.restore();
-    }
-});
-
-test('T3: concurrent updateAccountSlot from two tabs must merge fields', async () => {
-    const env = setupMockChromeStorage();
-    installFakeWebLocks();
-    try {
-        const tabA = freshService();
-        const tabB = freshService();
-
-        const pA = tabA.updateAccountSlot('u0', { count: 10 });
-        const pB = tabB.updateAccountSlot('u1', { count: 20 });
-        await Promise.all([pA, pB]);
-
-        const slots = await tabA.getAccountSlots();
-        assert.strictEqual(slots['u0'] && slots['u0'].count, 10);
-        assert.strictEqual(slots['u1'] && slots['u1'].count, 20);
     } finally {
         env.restore();
     }
@@ -176,19 +158,19 @@ test('T4: same-tab chains still serialize when Web Locks is unavailable (fallbac
     removeWebLocks();
     try {
         const tab = freshService();
-        await tab.setConversations('u0', ([{ id: 'seed', title: 'Seed' }]).map(indexFixture));
+        await tab.setConversations('10000000-0000-4000-8000-000000000001', ([{ id: 'seed', title: 'Seed' }]).map(indexFixture));
 
-        const pA = tab.transactConversations('u0', (existing: any[]) => ({
+        const pA = tab.transactConversations('10000000-0000-4000-8000-000000000001', (existing: any[]) => ({
             list: ([...existing, { id: 'first', title: '1' }]).map(indexFixture),
             changed: 1
         }));
-        const pB = tab.transactConversations('u0', (existing: any[]) => ({
+        const pB = tab.transactConversations('10000000-0000-4000-8000-000000000001', (existing: any[]) => ({
             list: ([...existing, { id: 'second', title: '2' }]).map(indexFixture),
             changed: 1
         }));
         await Promise.all([pA, pB]);
 
-        const ids = (await tab.getConversations('u0')).map((c: any) => c.id);
+        const ids = (await tab.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.id);
         assert.deepStrictEqual(ids, ['seed', 'first', 'second']);
     } finally {
         env.restore();
@@ -201,15 +183,15 @@ test('T5: transactConversations updater returning null must not write', async ()
     try {
         const tab = freshService();
         const seed = [{ id: 'seed', title: 'Seed' }];
-        await tab.setConversations('u0', (seed).map(indexFixture));
+        await tab.setConversations('10000000-0000-4000-8000-000000000001', (seed).map(indexFixture));
         const setsBefore = env.getSetCalls();
 
-        const res = await tab.transactConversations('u0', () => null);
+        const res = await tab.transactConversations('10000000-0000-4000-8000-000000000001', () => null);
         assert.strictEqual(res.written, false);
         assert.deepStrictEqual(res.list, seed.map(indexFixture));
         assert.strictEqual(env.getSetCalls(), setsBefore, 'no storage write should happen');
 
-        const after = await tab.getConversations('u0');
+        const after = await tab.getConversations('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(after, seed.map(indexFixture));
     } finally {
         env.restore();
@@ -222,27 +204,27 @@ test('T6: removeConversation inside the lock still drops export records atomical
     try {
         const tabA = freshService();
         const tabB = freshService();
-        await tabA.setConversations('u0', ([
+        await tabA.setConversations('10000000-0000-4000-8000-000000000001', ([
             { id: 'keep', title: 'Keep' },
             { id: 'drop', title: 'Drop' }
         ]).map(indexFixture));
-        await tabA.saveExportRecord('u0', 'drop', { ok: true });
+        await tabA.saveExportRecord('10000000-0000-4000-8000-000000000001', 'drop', { ok: true });
 
         // Tab B adds a conversation while tab A removes one.
-        const pRemove = tabA.removeConversation('u0', 'drop');
-        const pAdd = tabB.transactConversations('u0', (existing: any[]) => ({
+        const pRemove = tabA.removeConversation('10000000-0000-4000-8000-000000000001', 'drop');
+        const pAdd = tabB.transactConversations('10000000-0000-4000-8000-000000000001', (existing: any[]) => ({
             list: ([...existing, { id: 'added', title: 'Added' }]).map(indexFixture),
             changed: 1
         }));
         const [removed] = await Promise.all([pRemove, pAdd]);
         assert.strictEqual(removed, true);
 
-        const ids = (await tabA.getConversations('u0')).map((c: any) => c.id);
+        const ids = (await tabA.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.id);
         assert.ok(ids.includes('keep'));
         assert.ok(ids.includes('added'), "concurrent add must survive the removal");
         assert.ok(!ids.includes('drop'), 'removed conversation must stay removed');
 
-        const exported = await tabA.getExportedIds('u0');
+        const exported = await tabA.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.ok(!exported['drop'], 'export record of removed conversation must be dropped');
     } finally {
         env.restore();
