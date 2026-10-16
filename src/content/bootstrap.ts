@@ -6,8 +6,7 @@ import {
     markCredSessionAccessFailed as sharedMarkFailed,
     withCredMapLock,
 } from '../core/api/client/credStorage.js';
-import { sniffUserProfileFromDom } from './accountSniffer.js';
-import { resolveCurrentAccount } from './accountContext.js';
+import { resolveCurrentAccount, matchesCurrentAccount } from './accountContext.js';
 import { readAccountObservation } from '../core/domain/accountRegistry.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
@@ -290,9 +289,10 @@ if (typeof window !== 'undefined') {
             if (!isExtAlive()) return;
             const payload: unknown = e.data.payload;
             if (!payload || typeof payload !== 'object' || !('observation' in payload) || !('slot' in payload) || typeof payload.slot !== 'string') return;
+            if ('requestId' in payload) return; // The requesting resolver owns this reply.
             // The same-window payload is untrusted and is validated before Registry access.
             try {
-                const observation = readAccountObservation(payload.observation);
+                const observation = payload.observation === null ? null : readAccountObservation(payload.observation);
                 void resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
             } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
             return;
@@ -305,8 +305,14 @@ if (typeof window !== 'undefined') {
                 try {
                     const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
                     const slot = p.accountSlot === 'default' ? 'u0' : p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';
-                    const profile = sniffUserProfileFromDom();
-                    const account = await resolveCurrentAccount(p.accountObservation, slot);
+                    // Queued credentials can belong to the previous Gaia even
+                    // when slot/email stayed the same. Refresh before binding.
+                    const currentAccount = await resolveCurrentAccount(undefined, slot);
+                    const account = p.accountObservation && matchesCurrentAccount(p.accountObservation) ? currentAccount : null;
+                    const profile = account && p.accountObservation ? {
+                        email: p.accountObservation.email, name: p.accountObservation.displayName,
+                        gaiaId: p.accountObservation.providerAccountId,
+                    } : undefined;
                     const sid = p.sid || '';
                     if (!sid) return;
                     const map = await loadCredentialsMap();

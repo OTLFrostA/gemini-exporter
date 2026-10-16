@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readAccountFact, readAccountObservation, readAccountRegistry, resolveAccount } from '../src/core/domain/accountRegistry.js';
 import { geminiAccountObservation } from '../src/core/provider/gemini/accountObservation.js';
 import { chatgptAccountObservation } from '../src/core/provider/chatgpt/accountObservation.js';
-import { getAccountContext, resolveCurrentAccount } from '../src/content/accountContext.js';
+import { getAccountContext, resolveCurrentAccount, invalidateAccountContext, matchesCurrentAccount } from '../src/content/accountContext.js';
 
 const alice = { id: 'a0000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '101', email: 'alice@example.com' };
 const bob = { ...alice, id: 'b0000000-0000-4000-8000-000000000002', providerAccountId: '102' };
@@ -80,9 +80,9 @@ async function runtimeFixture(run: (state: { email: string; slot: string; subjec
         get defaultView() { return { _WIZ_global_data: { qDCSke: state.subject } }; }
     } });
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async (message: unknown) => { state.calls.push(message); return state.reply(message); } } } });
-    getAccountContext();
+    invalidateAccountContext();
     try { await run(state); } finally {
-        state.email = 'cleared@example.com'; getAccountContext();
+        invalidateAccountContext();
         for (const [name, descriptor] of old) {
             if (descriptor) Object.defineProperty(globalThis, name, descriptor); else Reflect.deleteProperty(globalThis, name);
         }
@@ -100,7 +100,41 @@ test('upper identity path receives UUID from Registry; hints and slots never man
     assert.equal(getAccountContext(), null);
     assert.equal((await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' }))?.accountId, alice.id);
     state.email = 'switched@example.com';
+    assert.equal(getAccountContext()?.accountId, alice.id, 'DOM email is not stable identity evidence');
+}));
+test('same Gaia keeps UUID visible during profile update and deduplicates identical observations', async () => runtimeFixture(async state => {
+    const observation = { providerId: 'gemini', providerAccountId: '101', email: alice.email };
+    await resolveCurrentAccount(observation);
+    const calls = state.calls.length;
+    await resolveCurrentAccount({ ...observation });
+    assert.equal(state.calls.length, calls);
+    let finish!: (value: unknown) => void;
+    state.reply = () => new Promise(resolve => { finish = resolve; });
+    const update = resolveCurrentAccount({ ...observation, email: 'changed@example.com' });
+    const duplicate = resolveCurrentAccount({ ...observation, email: 'changed@example.com' });
+    assert.equal(state.calls.length, calls + 1);
+    assert.equal(getAccountContext()?.accountId, alice.id);
+    assert.equal(matchesCurrentAccount({ ...observation, providerAccountId: '102' }), false);
+    finish({ ok: true, value: { resolution: 'existing', account: { ...alice, email: 'changed@example.com' } } });
+    assert.equal((await update)?.accountId, alice.id);
+    assert.equal((await duplicate)?.accountId, alice.id);
+}));
+test('loss of stable observation clears cached identity even with unchanged email and slot', async () => runtimeFixture(async () => {
+    await resolveCurrentAccount({ providerId: 'gemini', providerAccountId: '101' });
+    assert.equal(await resolveCurrentAccount(null), null);
     assert.equal(getAccountContext(), null);
+}));
+test('a failed same-Gaia profile update remains retryable and does not hide the committed UUID', async () => runtimeFixture(async state => {
+    const observation = { providerId: 'gemini', providerAccountId: '101' };
+    await resolveCurrentAccount(observation);
+    state.reply = async () => { throw new Error('disk failed'); };
+    await assert.rejects(resolveCurrentAccount({ ...observation, email: 'changed@example.com' }), /disk failed/);
+    assert.equal(getAccountContext()?.accountId, alice.id);
+    const calls = state.calls.length;
+    state.reply = async () => ({ ok: true, value: { resolution: 'existing', account: alice } });
+    await resolveCurrentAccount({ ...observation, email: 'changed@example.com' });
+    assert.equal(state.calls.length, calls + 1);
+    assert.equal(await resolveCurrentAccount(), null, 'an unavailable MAIN bridge cannot return a stale cached account');
 }));
 test('delayed registration does not restore a switched account or supersede a newer binding', async () => runtimeFixture(async state => {
     let finish: (value: unknown) => void = () => { throw new Error('No pending response'); };

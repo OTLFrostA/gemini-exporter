@@ -17,6 +17,44 @@ async function tabContext(page: Page, url: string) {
     }, url);
 }
 
+test('same-tab SPA Gaia switching survives a wrong DOM email, same-email identities and loss of Gaia', async ({ context, extensionId }) => {
+    const options = await context.newPage();
+    await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
+    const page = await context.newPage();
+    const url = 'https://gemini.google.com/app';
+    await page.route('https://gemini.google.com/**', route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html><head>
+        <script>window._WIZ_global_data = {qDCSke: '10000000001', oPEP7c: 'shared@example.com'};</script></head><body>
+        <button aria-label="Google Account: Other (other@example.com)">Other account</button></body></html>` }));
+    await page.goto(url);
+    const origin = await page.evaluate(() => performance.timeOrigin);
+    await expect.poll(async () => (await accounts(options)).length).toBe(1);
+    const [first] = await accounts(options);
+    expect(first.email).toBe('shared@example.com');
+    expect(await tabContext(options, url)).toMatchObject({ accountId: first.id });
+
+    // Change only MAIN-world bootstrap data: no reload, no synthetic extension
+    // observation and no credential request. Queries must obtain fresh Gaia.
+    await page.evaluate(() => { window._WIZ_global_data!.qDCSke = '10000000002'; });
+    const secondContext = await tabContext(options, url);
+    expect(secondContext.accountId).not.toBe(first.id);
+    expect((await accounts(options)).find(a => a.id === secondContext.accountId)).toMatchObject({
+        providerAccountId: '10000000002', email: 'shared@example.com',
+    });
+    await page.evaluate(() => { window._WIZ_global_data!.qDCSke = '10000000001'; });
+    expect(await tabContext(options, url)).toMatchObject({ accountId: first.id });
+    await expect.poll(async () => (await accounts(options)).length).toBe(2);
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(origin);
+
+    // Unsolicited periodic observation must discover a profile change too.
+    await page.evaluate(() => { window._WIZ_global_data!.oPEP7c = 'renamed@example.com'; });
+    await expect.poll(async () => (await accounts(options)).find(a => a.id === first.id)?.email).toBe('renamed@example.com');
+    const repeated = await Promise.all(Array.from({ length: 12 }, () => tabContext(options, url)));
+    expect(repeated.every(result => result?.accountId === first.id)).toBe(true);
+    await page.evaluate(() => { window._WIZ_global_data!.qDCSke = ''; });
+    expect(await tabContext(options, url)).toBeNull();
+    expect(await accounts(options)).toHaveLength(2);
+});
+
 test('real MAIN → isolated → background discovery deduplicates across slots and retains UUID after reload', async ({ context, extensionId }) => {
     const options = await context.newPage();
     await options.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);

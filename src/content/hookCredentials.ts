@@ -40,14 +40,30 @@ declare global {
 
     // MAIN-world discovery can read Wiz globals; the isolated content script cannot.
     // Discovery is independent of whether Gemini has sent a credential-bearing RPC.
-    const publishAccount = () => {
+    let publishedAccount: string | undefined;
+    const publishAccount = (requestId?: string) => {
         const observation = geminiAccountObservation(sniffUserProfileFromDom());
-        if (observation) window.postMessage({ type: Events.ACCOUNT_OBSERVED,
-            payload: { observation, slot: getSlotFromUrl(location.href) === 'default' ? 'u0' : getSlotFromUrl(location.href) } }, location.origin);
+        const slot = getSlotFromUrl(location.href) === 'default' ? 'u0' : getSlotFromUrl(location.href);
+        const signature = JSON.stringify([slot, observation]);
+        if (requestId === undefined && signature === publishedAccount) return;
+        if (requestId === undefined) publishedAccount = signature;
+        window.postMessage({ type: Events.ACCOUNT_OBSERVED,
+            payload: { observation, slot, ...(requestId ? { requestId } : {}) } }, location.origin);
     };
     publishAccount();
-    document.addEventListener('DOMContentLoaded', publishAccount, { once: true });
-    window.addEventListener('load', publishAccount, { once: true });
+    document.addEventListener('DOMContentLoaded', () => publishAccount(), { once: true });
+    window.addEventListener('load', () => publishAccount(), { once: true });
+    window.addEventListener('pageshow', () => publishAccount());
+    window.addEventListener('popstate', () => publishAccount());
+    // WIZ can change without navigation or a credential-bearing request.
+    // Publish only changed stable identity/profile evidence, including loss of Gaia.
+    window.setInterval(() => publishAccount(), 1000);
+    window.addEventListener('message', (event: MessageEvent) => {
+        if (event.source !== window || event.origin !== location.origin
+            || event.data?.type !== Events.ACCOUNT_REQUESTED) return;
+        const requestId: unknown = event.data.payload?.requestId;
+        if (typeof requestId === 'string' && requestId.length > 0 && requestId.length <= 128) publishAccount(requestId);
+    });
 
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
@@ -66,6 +82,7 @@ declare global {
 
     function captureFromUrl(url: string | URL | Request | null | undefined, body?: unknown): void {
         try {
+            publishAccount();
             if (!url) return;
             const u = toUrlString(url);
             if (!u.includes('batchexecute')) return;

@@ -177,6 +177,7 @@ function createHookSandbox() {
     const win: any = {};
     win.postMessage = (msg: any, origin: any) => posted.push({ msg, origin });
     win.addEventListener = () => {};
+    win.setInterval = () => 0;
     win.__nextResponseText = '';
     win.fetch = async () => ({
         ok: true,
@@ -199,6 +200,9 @@ function createHookSandbox() {
     vm.runInContext(protocolCode, sandbox, { filename: 'protocol.js' });
     win.GeminiProtocol = sandbox.GeminiProtocol;
     vm.runInContext(hookCode, sandbox, { filename: 'hookCredentials.js' });
+    // Request-interception assertions start after the independent initial
+    // account-discovery announcement (including a missing-Gaia observation).
+    posted.length = 0;
     return { posted, win };
 }
 
