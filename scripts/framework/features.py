@@ -216,6 +216,14 @@ class FeatureRegistry:
             critical=True
         ))
         self.register(Feature(
+            id="feat_gemini_dual_parse",
+            domain=FeatureDomain.EXPORT_DISK,
+            name="Gemini structured 与 Markdown 双路对比",
+            description="同一份原生 RPC 分别走两条解析路径，保留逐轮差异与来源证据",
+            critical=True,
+            prerequisites=["feat_zip_export_download"]
+        ))
+        self.register(Feature(
             id="feat_multimodal_spec_assertion",
             domain=FeatureDomain.EXPORT_DISK,
             name="4 大黄金分类规范断言",

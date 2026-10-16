@@ -1,3 +1,4 @@
+from .gemini_dual_parse import GeminiDualParseCase
 from .base import TestContext, FeatureTestCase, DAGRunner
 from .tour import TourGuideCase
 from .chat import InpageBadgeCase, ChatGenerationCase
@@ -19,6 +20,7 @@ from .export import (
 from .test_uninstall_lifecycle import UninstallLifecycleCase
 
 __all__ = [
+    "GeminiDualParseCase",
     "TestContext",
     "FeatureTestCase",
     "DAGRunner",

@@ -3,7 +3,7 @@ import { contentQuality } from '../../../domain/quality.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { normId } from '../../../utils/pathUtils.js';
 import { decodeGeminiDetail } from './detailDecoder.js';
-import type { GeminiDetailDebugEvidence, GeminiMessageEvidence } from './detailEvidence.js';
+import type { GeminiDetailDebugEvidence, GeminiMessageEvidence, GeminiDetailEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import { validateParserDomain } from '../../../domain/runtimeValidation.js';
@@ -69,6 +69,12 @@ export function parseGeminiRpcConversation(text: string, context: GeminiRpcParse
     if (context.providerId !== 'gemini') throw new TypeError('Gemini RPC parser requires providerId gemini');
     if (typeof text !== 'string') throw new TypeError('Gemini RPC input must be raw response text');
     const evidence = decodeGeminiDetail(text, context.targetConvId);
+    return parseGeminiDetailEvidence(evidence, context);
+}
+
+/** Adapt decoded native source evidence; also used by offline Gemini differential audits. */
+export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, context: GeminiRpcParseContext): GeminiRpcParseResult {
+    if (context.providerId !== 'gemini') throw new TypeError('Gemini evidence adapter requires providerId gemini');
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = evidence.messages.map((message, index) => {
         const sourceRef = { providerId: 'gemini', providerMessageId: message.id, locator: `messages[${index}]` };

@@ -1160,5 +1160,92 @@ class SearchSelectionCounterexamples(unittest.TestCase):
             self.sel(["a", "b"], []), self.sel(["a", "b"], ["a", "b"]))[0])
 
 
+class GeminiDualParseTests(unittest.TestCase):
+    def test_capture_requires_install_success_and_always_restores_after_read_failure(self):
+        from scripts.framework.gemini_dual_parse import install_capture, finish_capture
+        cdp = MagicMock()
+        cdp.eval.return_value = None
+        with self.assertRaises(RuntimeError):
+            install_capture(cdp)
+        cdp.eval.return_value = True
+        install_capture(cdp)
+        with tempfile.TemporaryDirectory() as directory:
+            cdp.eval.side_effect = [RuntimeError('connection lost'), True]
+            with self.assertRaisesRegex(RuntimeError, 'connection lost'):
+                finish_capture(cdp, Path(directory) / 'native', [CID])
+            self.assertIn('chrome.tabs.sendMessage = state.original', cdp.eval.call_args.args[0])
+
+    def test_capture_only_accepts_native_replies_and_removes_stale_targets(self):
+        from scripts.framework.gemini_dual_parse import finish_capture
+        native = {'success': True, 'source': 'batchexecute', 'data': {'fixture': True}}
+        cdp = MagicMock()
+        cdp.eval.side_effect = [[{'success': True, 'source': 'dom'}, native],
+                               [{'success': True, 'source': 'cache'}], True]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / 'native'
+            root.mkdir()
+            (root / 'stale.json').write_text('{}')
+            result = finish_capture(cdp, root, [CID, OTHER])
+            self.assertEqual(result['missingNative'], [OTHER])
+            self.assertEqual(json.loads((root / f'{CID}.json').read_text()), native)
+            self.assertFalse((root / 'stale.json').exists())
+            self.assertEqual(json.loads((root.parent / 'capture.json').read_text()), result)
+            self.assertIn('delete window.__geminiDualCapture', cdp.eval.call_args.args[0])
+
+    def test_capture_wrapper_preserves_callback_promise_and_unrelated_calls(self):
+        from scripts.framework.gemini_dual_parse import INSTALL_CAPTURE
+        script = """
+        const assert = require('node:assert/strict');
+        global.window = {};
+        const calls = [];
+        const original = function(...args) {
+            calls.push([this, args]);
+            const reply = {success:true,source:'batchexecute',data:{id:args[1].conversationId}};
+            if (typeof args.at(-1) === 'function') { args.at(-1)(reply); return 'callback-return'; }
+            return Promise.resolve(reply);
+        };
+        global.chrome = {tabs:{sendMessage:original}};
+        assert.equal(eval(INSTALL), true);
+        assert.throws(() => eval(INSTALL), /already installed/);
+        (async () => {
+            let received;
+            const sent = chrome.tabs.sendMessage(1,{action:'getConversationDetail',conversationId:'c_callback'},r=>received=r);
+            assert.equal(sent,'callback-return');
+            assert.equal(received.data.id,'c_callback');
+            const reply = await chrome.tabs.sendMessage(1,{action:'getConversationDetail',conversationId:'c_promise'});
+            assert.equal(reply.data.id,'c_promise');
+            await chrome.tabs.sendMessage(1,{action:'other',conversationId:'c_ignored'});
+            assert.deepEqual(Object.keys(window.__geminiDualCapture.replies),['callback','promise']);
+            assert.equal(window.__geminiDualCapture.original, original);
+            assert.ok(calls.every(call=>call[0]===chrome.tabs));
+        })().catch(error=>{console.error(error);process.exitCode=1});
+        """.replace('INSTALL', json.dumps(INSTALL_CAPTURE))
+        result = subprocess.run(['node', '-e', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_additional_case_is_registered_and_missing_or_mismatched_sources_fail(self):
+        from scripts.framework.runner import FrameworkRunner
+        from scripts.framework.cases.gemini_dual_parse import GeminiDualParseCase
+        dag = FrameworkRunner._assemble_dag()
+        self.assertIn('feat_gemini_dual_parse', dag.cases)
+        case = GeminiDualParseCase()
+        self.assertEqual(case.prerequisites, ['feat_zip_export_download'])
+        ctx = MagicMock()
+        ctx.shared_data = {}
+        self.assertFalse(case.execute(ctx)[0])
+        ctx.output_dir = '/tmp/dual-fixture'
+        ctx.worktree_root = '/tmp/repo'
+        ctx.shared_data = {'gemini_dual_capture': {'expected': [CID], 'missingNative': []}}
+        counts = {'assistant': 1, 'match': 1, 'different': 0, 'structuredUnavailable': 0}
+        summary = {'counts': counts, 'results': [{'conversationId': 'c_' + OTHER}]}
+        with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(True, summary)):
+            self.assertFalse(case.execute(ctx)[0])
+        summary = {'counts': counts, 'results': [{'conversationId': 'c_' + CID}]}
+        with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(True, summary)):
+            self.assertTrue(case.execute(ctx)[0])
+        with patch('scripts.framework.cases.gemini_dual_parse.run_check', return_value=(False, summary)):
+            self.assertFalse(case.execute(ctx)[0])
+
+
 if __name__ == '__main__':
     unittest.main()
