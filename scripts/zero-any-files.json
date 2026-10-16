@@ -130,5 +130,11 @@
   "src/core/parsers/chatgpt/timestamp.ts",
   "src/core/parsers/gemini/dom/parseIndex.ts",
   "src/core/parsers/gemini/rpc/listRequest.ts",
-  "src/core/parsers/shared/parseIndexMetadata.ts"
+  "src/core/parsers/shared/parseIndexMetadata.ts",
+  "src/core/domain/accountRegistry.ts",
+  "src/core/provider/gemini/accountObservation.ts",
+  "src/core/storage/accountRegistryStore.ts",
+  "src/background/accountRegistryHandler.ts",
+  "src/content/accountContext.ts",
+  "tests/account_registry.test.ts"
 ]

@@ -98,7 +98,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const listRes = parseList(text);
                     if (listRes && listRes.conversations) {
                         const targetSlot = slot === 'default' ? 'u0' : slot || (getAccountSlot ? getAccountSlot() : 'u0');
-                        const currentAccountId = sniffUserProfileFromDom()?.accountId ?? null;
+                        const currentAccountId = sniffUserProfileFromDom()?.identityKey ?? null;
                         if (getAccountSlot && targetSlot !== getAccountSlot()) return;
                         if (requestAccountId != null && requestAccountId !== currentAccountId) return;
                         if (_deps.ingestPageObservation) {

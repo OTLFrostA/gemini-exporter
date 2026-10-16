@@ -187,11 +187,12 @@ function createHookSandbox() {
     const sandbox: any = {
         window: win,
         location: { origin: 'https://gemini.google.com', href: 'https://gemini.google.com/app', pathname: '/app' },
-        document: { querySelectorAll: () => [] },
+        document: { querySelectorAll: () => [], addEventListener: () => {} },
         console: { log: () => {}, warn: () => {}, debug: () => {} },
         setTimeout: () => 0,
         URLSearchParams, Request,
         sniffUserProfileFromDom: require('../src/content/accountSniffer.js').sniffUserProfileFromDom,
+        geminiAccountObservation: require('../src/core/provider/gemini/accountObservation.js').geminiAccountObservation,
         readGeminiListRequest: require('../src/core/parsers/gemini/rpc/listRequest.js').readGeminiListRequest
     };
     vm.createContext(sandbox);

@@ -7,6 +7,8 @@ import {
     withCredMapLock,
 } from '../core/api/client/credStorage.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
+import { resolveCurrentAccount } from './accountContext.js';
+import { readAccountObservation } from '../core/domain/accountRegistry.js';
 import { StorageService } from '../core/storage/storageService.js';
 import { getErrorMessage } from '../core/utils/messaging.js';
 
@@ -198,6 +200,7 @@ async function ensureCredsOnce(): Promise<any> {
     try {
         if (!isExtAlive()) return null;
         const atFromPage = extractAtFromPage();
+        const account = await resolveCurrentAccount();
         const blFromPage = extractBlFromPage();
         if (blFromPage) {
             updateContextCreds({ bl: blFromPage });
@@ -214,6 +217,7 @@ async function ensureCredsOnce(): Promise<any> {
                 at: atFromPage,
                 sid: fakeSid,
                 accountSlot: slot,
+                accountId: account?.accountId,
                 lastUsed: Date.now(),
                 bl: blFromPage || (Proto ? Proto.BL_FALLBACK : '')
             };
@@ -282,6 +286,17 @@ if (typeof window !== 'undefined') {
     window.addEventListener('message', (e: MessageEvent) => {
         if (e.source !== window) return;
         if (typeof location !== 'undefined' && e.origin !== location.origin) return;
+        if (e.data?.type === CrossWorldEvents.ACCOUNT_OBSERVED) {
+            if (!isExtAlive()) return;
+            const payload: unknown = e.data.payload;
+            if (!payload || typeof payload !== 'object' || !('observation' in payload) || !('slot' in payload) || typeof payload.slot !== 'string') return;
+            // The same-window payload is untrusted and is validated before Registry access.
+            try {
+                const observation = readAccountObservation(payload.observation);
+                void resolveCurrentAccount(observation, payload.slot).catch(error => console.warn('[Gemini Exporter] Account discovery failed', getErrorMessage(error)));
+            } catch (error) { if (isDev()) console.debug('[Gemini Exporter] Invalid account observation', error); }
+            return;
+        }
         if (e.data && e.data.type === (CrossWorldEvents?.CREDENTIALS || 'GEMINI_CREDENTIALS')) {
             if (!isExtAlive()) return;
             // Queued behind any in-flight ensureCreds so concurrent load→save
@@ -289,17 +304,18 @@ if (typeof window !== 'undefined') {
             void runSerializedCredOp(async () => {
                 try {
                     const p = (e.data.payload || {}) as Partial<GeminiCredentialsPayload>;
+                    const slot = p.accountSlot === 'default' ? 'u0' : p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';
+                    const profile = sniffUserProfileFromDom();
+                    const account = await resolveCurrentAccount(p.accountObservation, slot);
                     const sid = p.sid || '';
                     if (!sid) return;
-                    const slot = p.accountSlot || detectSlotFromUrl(p.url || location.href) || 'u0';
-                    const profile = sniffUserProfileFromDom();
                     const map = await loadCredentialsMap();
                     const old = map[sid] || {};
                     map[sid] = {
                         at: p.at || old.at || extractAtFromPage() || '',
                         sid,
                         accountSlot: slot || old.accountSlot || 'u0',
-                        accountId: profile?.accountId || (old as any).accountId || slot,
+                        accountId: account?.accountId,
                         email: profile?.email || (old as any).email,
                         name: profile?.name || (old as any).name,
                         lastUsed: Date.now(),
@@ -313,7 +329,6 @@ if (typeof window !== 'undefined') {
                     if (profile?.email || profile?.name) {
                         try {
                             const slotUpdate: Record<string, any> = { slot };
-                            if (profile.accountId) slotUpdate.accountId = profile.accountId;
                             if (profile.email) slotUpdate.email = profile.email;
                             if (profile.name) slotUpdate.name = profile.name;
                             if (profile.gaiaId) slotUpdate.gaiaId = profile.gaiaId;

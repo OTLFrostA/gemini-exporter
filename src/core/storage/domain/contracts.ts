@@ -5,7 +5,8 @@ import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisiti
 export const DOMAIN_STORAGE_VERSION = 2;
 export const DOMAIN_CONTRACT_VERSION = 2;
 export const DOMAIN_DB_NAME = 'gemini_exporter_domain';
-export const DOMAIN_DB_VERSION = 2;
+export const DOMAIN_DB_VERSION = 3;
+export const ACCOUNT_STORE = 'accounts';
 
 /** Storage identity includes the account; provider IDs and conversation IDs are opaque. */
 export interface DomainStorageIdentity { providerId: string; accountSlot: string; conversationId: string }

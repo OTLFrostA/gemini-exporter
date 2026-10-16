@@ -2,7 +2,8 @@ export interface UserProfileInfo {
     email?: string;
     name?: string;
     gaiaId?: string;
-    accountId?: string;
+    /** Temporary source fingerprint for request guards; never a local Account UUID. */
+    identityKey?: string;
 }
 
 const EMAIL_REGEX = /[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+/;
@@ -68,14 +69,18 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
         /* ignore DOM query errors */
     }
 
-    // Gaia ID from Google Wiz global data (oTI7oc) if accessible
+    // Current Gemini bootstrap: qDCSke is Gaia, oPEP7c is the current account email.
+    // Read the pair from one Wiz object; a generic DOM label may belong to another account.
     try {
         const win = (documentObj.defaultView || (typeof window !== 'undefined' ? window : null));
         const wiz = win?._WIZ_global_data || win?.WIZ_global_data || win?.__WIZ_global_data;
         if (wiz && typeof wiz === 'object') {
-            const oTI7oc = wiz['oTI7oc'];
-            if (oTI7oc && typeof oTI7oc === 'string') {
-                gaiaId = oTI7oc;
+            const subject = wiz['qDCSke'];
+            if (typeof subject === 'string' && /^\d{10,25}$/.test(subject)) {
+                gaiaId = subject;
+                const activeEmail = extractEmailFromText(wiz['oPEP7c']);
+                if (activeEmail !== email) name = undefined;
+                email = activeEmail ?? undefined;
             }
         }
     } catch {
@@ -86,12 +91,12 @@ export function sniffUserProfileFromDom(doc?: Document): UserProfileInfo | null 
         return null;
     }
 
-    const accountId = email || gaiaId || undefined;
+    const identityKey = email || gaiaId || undefined;
 
     return {
         email,
-        name: name || (email ? email.split('@')[0] : undefined),
+        name,
         gaiaId,
-        accountId
+        identityKey
     };
 }

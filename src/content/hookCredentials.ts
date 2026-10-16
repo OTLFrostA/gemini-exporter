@@ -1,4 +1,5 @@
 import { sniffUserProfileFromDom } from './accountSniffer.js';
+import { geminiAccountObservation } from '../core/provider/gemini/accountObservation.js';
 import { readGeminiListRequest } from '../core/parsers/gemini/rpc/listRequest.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
@@ -36,6 +37,17 @@ declare global {
     }
     const Proto: GeminiProtocolModule = rawProto;
     const Events = Proto.EVENTS || CrossWorldEvents;
+
+    // MAIN-world discovery can read Wiz globals; the isolated content script cannot.
+    // Discovery is independent of whether Gemini has sent a credential-bearing RPC.
+    const publishAccount = () => {
+        const observation = geminiAccountObservation(sniffUserProfileFromDom());
+        if (observation) window.postMessage({ type: Events.ACCOUNT_OBSERVED,
+            payload: { observation, slot: getSlotFromUrl(location.href) === 'default' ? 'u0' : getSlotFromUrl(location.href) } }, location.origin);
+    };
+    publishAccount();
+    document.addEventListener('DOMContentLoaded', publishAccount, { once: true });
+    window.addEventListener('load', publishAccount, { once: true });
 
     const origFetch = window.fetch;
     const origOpen = (typeof XMLHttpRequest !== 'undefined' && XMLHttpRequest.prototype) ? XMLHttpRequest.prototype.open : null;
@@ -81,6 +93,7 @@ declare global {
                     sid: sidMatch ? decodeURIComponent(sidMatch[1]) : '',
                     bl: blMatch ? decodeURIComponent(blMatch[1]) : '',
                     accountSlot: slot,
+                    accountObservation: slot === getSlotFromUrl(location.href) ? geminiAccountObservation(sniffUserProfileFromDom()) ?? undefined : undefined,
                     lastUsed: Date.now(),
                     url: location.href
                 };
@@ -312,7 +325,7 @@ declare global {
             init?: RequestInit
         ): Promise<Response> {
             const requestedAt = Date.now();
-            const requestAccountId = toUrlString(input).includes('batchexecute') ? sniffUserProfileFromDom()?.accountId ?? null : null;
+            const requestAccountId = toUrlString(input).includes('batchexecute') ? sniffUserProfileFromDom()?.identityKey ?? null : null;
             let requestBody: unknown;
             if (typeof Request !== 'undefined' && input instanceof Request) {
                 requestBody = input.body;
@@ -398,7 +411,7 @@ declare global {
                 const url = this.__hookUrl;
                 const body = args[0];
                 const requestedAt = Date.now();
-                const requestAccountId = toUrlString(url).includes('batchexecute') ? sniffUserProfileFromDom()?.accountId ?? null : null;
+                const requestAccountId = toUrlString(url).includes('batchexecute') ? sniffUserProfileFromDom()?.identityKey ?? null : null;
                 captureFromUrl(url, body);
 
                 const u = toUrlString(url);

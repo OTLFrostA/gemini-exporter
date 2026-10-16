@@ -1,4 +1,5 @@
 import type { GeminiListRequestContext } from '../parsers/gemini/rpc/listRequest.js';
+import type { AccountObservation } from '../domain/accountRegistry.js';
 import { CrossWorldEvents, type CrossWorldEventType } from './protocol.js';
 
 export { CrossWorldEvents, type CrossWorldEventType };
@@ -10,6 +11,7 @@ export interface GeminiCredentialsPayload {
     accountSlot: string;
     lastUsed: number;
     url: string;
+    accountObservation?: AccountObservation;
 }
 
 export interface GeminiConversationDeletedPayload {
@@ -21,6 +23,7 @@ export interface GeminiNetworkBatchexecutePayload {
     listRequest?: GeminiListRequestContext | null;
     truncated?: boolean;
     requestedAt?: number;
+    /** Source fingerprint captured before the request, not a local Registry UUID. */
     requestAccountId?: string | null;
     text: string;
     slot: string;
