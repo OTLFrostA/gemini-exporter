@@ -1,7 +1,7 @@
 import { test, expect } from './fixtures';
 
 test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () => {
-  test('should update chat title in storage & workbench during export, and restore session banner on reload', async ({ context, extensionId }) => {
+  test('interrupted export banner survives reload, re-localizes and does not overwrite stored chat titles', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await optionsPage.waitForLoadState('domcontentloaded');
@@ -81,9 +81,12 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     await expect(banner).not.toBeVisible();
 
     const sessionData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_last_export_session']);
+      return await chrome.storage.local.get(['gemini_last_export_session', 'gemini_conversations']);
     });
     expect(sessionData.gemini_last_export_session).toBeUndefined();
+    const originalIndex = sessionData.gemini_conversations.find((item: { id: string }) => item.id === 'chat_session_test_1');
+    expect(originalIndex?.title).toBe('Takeout Prompt 临时问题');
+    expect(originalIndex?.titleSource).toBe('takeout');
   });
 
   test('should disable scan during export and never show interruption banner during active run', async ({ context, extensionId }) => {
