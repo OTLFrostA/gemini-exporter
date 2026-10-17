@@ -23,7 +23,7 @@ test('every visual/parity corpus fixture satisfies the exact current DocumentAst
     assert.ok(domainFixtures.length > 0, 'document-domain must contain contract fixtures');
     for (const file of domainFixtures) {
         const input: DomainConversationWithDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
-        entries.push({ value: composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document, context: file });
+        entries.push({ value: composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), context: file });
     }
     assertDocumentAsts(entries);
 });
@@ -33,6 +33,7 @@ test('contract rejects stale fields, nested extras, missing fields, wrong types 
     const mutations: Array<(value: ReturnType<typeof valid>) => void> = [
         value => Object.assign(value.messages[0], { anchor: 'legacy' }),
         value => Object.assign(value, { diagnostics: [] }),
+        value => Object.assign(value.metadata, { url: 'https://obsolete.example/conversation' }),
         value => Object.assign(value.messages[0].blocks[0].children[0].children[0], { assetId: 'legacy' }),
         value => Object.assign(value.messages[0].blocks[0].children[0].children[0], { alt: 123 }),
         value => { Reflect.deleteProperty(value.messages[0], 'id'); },

@@ -21,7 +21,7 @@ test('Domain closure rejects missing provider identity and duplicate resource id
     assert.throws(() => composeDomainDocument(validateParserDomain(value), { ...fixtureAccountFor(value), providerId: '' }), /account/i); value.detail.assets = [{ id: 'same', kind: 'image' }, { id: 'same', kind: 'image' }];
     assert.throws(() => assertDomainClosure((value).detail), /Duplicate.*asset identity/);
 });
-test('composer gives every message a unique positional ID without changing authored identities', () => {
+test('AST: composer gives every message a unique positional ID without changing authored identities', () => {
     const value = domain();
     value.detail.messages = [undefined, 'msg-0', 'same', 'same', '', '   '].map((id, index) => ({
         ...(id !== undefined ? { id } : {}), role: 'assistant',
@@ -29,7 +29,7 @@ test('composer gives every message a unique positional ID without changing autho
         citations: [{ id: 'citation', url: `https://example.test/${index}` }],
     }));
     const original = structuredClone(value);
-    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value))).document;
+    const document = composeDomainDocument(validateParserDomain(value), fixtureAccountFor(validateParserDomain(value)));
     assert.deepEqual(document.messages.map(message => message.id), value.detail.messages.map((_, index) => `msg-${index}`));
     assert.equal(new Set(document.messages.flatMap(message => message.sources?.items.map(item => item.id) ?? [])).size, value.detail.messages.length);
     assert.deepEqual(value, original);

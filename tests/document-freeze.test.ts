@@ -27,7 +27,7 @@ function freeze(value: unknown): void {
 }
 
 test('HTML owns DOM identities and does not derive document language from UI locale', () => {
-    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain()))).document;
+    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain())));
     assert.ok(document.messages.every(message => !('anchor' in message) && !('modelLabel' in message)));
     for (const locale of ['en', 'zh'] as const) {
         const html = renderDocumentHtml(document, {}, { locale }).html;
@@ -44,7 +44,7 @@ test('file badges use only supplied media type or kind, including misleading lab
     const file: Extract<DisplayBlock, { type: 'file' }> = { type: 'file', resourceId: 'f', label: 'misleading.pdf', kind: 'file' };
     assert.equal(fileBadge(file), 'FILE');
     assert.equal(fileBadge({ ...file, label: 'renamed.exe', mediaType: 'application/x-zip' }), 'ZIP');
-    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain()))).document;
+    const document = composeDomainDocument(validateParserDomain(domain()), fixtureAccountFor(validateParserDomain(domain())));
     document.messages[0].blocks = [file, { ...file, mediaType: 'text/plain' }];
     const html = renderDocumentHtml(document, { f: 'assets/f' }).html;
     assert.match(html, /gem-att-badge">FILE<\/span>/);
@@ -53,23 +53,36 @@ test('file badges use only supplied media type or kind, including misleading lab
     assert.deepEqual(pdf.messages[0].blocks.map(block => block.type === 'file' && block.kind), ['FILE', 'TXT']);
 });
 
-test('display date selects the first valid fact and normalizes to UTC at composition', () => {
+test('AST: display date selects the first valid fact and normalizes to UTC at composition', () => {
     const input = domain();
     input.index.createdAt = Date.parse('2026-10-04T00:00:00Z');
     let sourceVersion: number | undefined = Date.parse('2026-10-06T23:30:00-07:00');
     for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
-        const document: DocumentAst = composeDomainDocument(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }))).document;
+        const document: DocumentAst = composeDomainDocument(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } })));
+        assert.equal(document.header.date, expected);
+        if (field === 'updatedAt') sourceVersion = undefined;
+        else input.index.createdAt = undefined;
+    }
+    assert.equal(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).header.date, undefined);
+});
+
+test('integration: display date selects the first valid fact and normalizes to UTC at composition', () => {
+    const input = domain();
+    input.index.createdAt = Date.parse('2026-10-04T00:00:00Z');
+    let sourceVersion: number | undefined = Date.parse('2026-10-06T23:30:00-07:00');
+    for (const [field, expected] of [['updatedAt', '2026-10-07'], ['createdAt', '2026-10-04']] as const) {
+        const document: DocumentAst = composeDomainDocument(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain({ ...input, index: { ...input.index, updatedAt: sourceVersion } })));
         assert.equal(document.header.date, expected);
         assert.ok(renderDocumentHtml(document, {}).html.includes(expected));
         assert.ok(renderDocumentTypst(document, {}).metadata.includes(expected));
         if (field === 'updatedAt') sourceVersion = undefined;
         else input.index.createdAt = undefined;
     }
-    assert.equal(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document.header.date, undefined);
+    assert.equal(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).header.date, undefined);
     const source = { id: 'c', title: 'T', updatedAt: '2026-10-06T23:30:00-07:00', createdAt: '2026-10-04', messages: [{ id: 'a', role: 'model', author: { model: 'provider only' }, content: '' }] };
-    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation)).document.header.date, '2026-10-07');
+    assert.equal(composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation)).header.date, '2026-10-07');
     source.updatedAt = 'invalid';
-    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation)).document;
+    const document = composeDomainDocument(historicalFixture(source, { providerId: 'gemini' }).conversation, fixtureAccountFor(historicalFixture(source, { providerId: 'gemini' }).conversation));
     assert.equal(document.header.date, '2026-10-04');
     assert.equal(document.messages[0].modelLabel, 'provider only');
     assert.equal(renderDocumentTypst(document, {}).messages[0].model, 'provider only');
@@ -77,7 +90,7 @@ test('display date selects the first valid fact and normalizes to UTC at composi
 
 test('parser removes math delimiters; HTML renders source verbatim and preserves malformed source', () => {
     const parsed = historicalFixture({ id: 'math', messages: [{ role: 'model', content: '$x^2$\n\n$$\ny^2\n$$' }] }, { providerId: 'gemini' });
-    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation)).document;
+    const document = composeDomainDocument(parsed.conversation, fixtureAccountFor(parsed.conversation));
     assert.deepEqual(document.messages[0].blocks, [
         { type: 'paragraph', children: [{ type: 'inlineMath', source: 'x^2' }] }, { type: 'math', source: 'y^2' },
     ]);
@@ -105,7 +118,7 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
         { type: 'file', assetId: 'file', description: [inline('description'), inline('inline')] },
     ];
     freeze(input);
-    const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document));
+    const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)))));
     const detail: DisplayInline = { type: 'image', resourceId: 'details', alt: 'details' };
     document.messages[1].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'missing', text: 'Missing', details: [detail] });
     document.messages[1].blocks.push({ type: 'paragraph', children: [{ type: 'image', resourceId: 'body-ending', alt: 'body-ending' }] });
