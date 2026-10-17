@@ -1,6 +1,5 @@
 import { normId, isReservedRoute } from '../../../utils/pathUtils.js';
 import type { GeminiProtocolModule } from "../../../protocol/protocol.js";
-import { parseGeminiIndexObservation } from '../parseIndexObservation.js';
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
 export type ConversationListItem = GeminiIndexObservationInput & { id: string };
 
@@ -84,13 +83,15 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
 
             if (!innerStr || !inner) {
                 if (bardError) {
-                    console.log("[Gemini Exporter] Google 服务端翻页到达极限 (BardErrorInfo):", bardError);
+                    console.debug("[Gemini Exporter] List source error (BardErrorInfo):", bardError);
                 } else {
                     console.warn("[Gemini Exporter] parseList: no inner JSON string found. Raw text len:", text?.length);
                 }
                 return {
                     ...listResult([], null, null),
-                    failure: bardError ? 'hit_google_limit' : 'invalid_response',
+                    // Pragmatic provider heuristic: 1096 on a continuation is treated as the history window.
+                    // HTTP 429 is handled by Client and never becomes this parser result.
+                    failure: bardError && /BardErrorInfo\D{0,80}1096\b/.test(bardError) ? 'hit_google_limit' : 'invalid_response',
                     _debug: {
                         error: bardError ? "BARD_ERROR_INFO" : "NO_INNER_STR",
                         bardError: bardError,
@@ -128,7 +129,7 @@ function listResult(conversations: ConversationListItem[], nextPageToken: string
                 id = normId(id);
                 if (!id || id === 'unknown' || isReservedRoute(id)) continue;
                 try {
-                    convs.push({ id, title: typeof title === 'string' ? title.trim() : '', titleSource: 'rpc',
+                    convs.push({ id, title: typeof title === 'string' ? title.trim() : '', titleSource: 'provider',
                         ...(createTs !== null ? { createdAt: createTs } : {}),
                         ...(serverTs !== null ? { updatedAt: serverTs } : {}) });
                 } catch (error) {

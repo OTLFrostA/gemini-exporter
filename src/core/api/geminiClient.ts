@@ -1,4 +1,3 @@
-import { getOrCreateAccount } from './accountRegistry.js';
 import type { Account } from '../domain/accountRegistry.js';
 import { parseGeminiRpcConversation } from '../parsers/gemini/rpc/parseConversation.js';
 import GeminiProtocol, { GeminiProtocolModule } from "../protocol/protocol.js";
@@ -19,9 +18,6 @@ import GeminiClientRpcClient, {
     getApiUrl
 } from "./client/rpcClient.js";
 import GeminiClientPagination, {
-    type PaginationOptions,
-    type PaginationResult,
-    type PaginationProgressCallback,
     type GeminiListRequestOptions,
     type GeminiDetailRequestOptions,
     type PaginatedDetailResult
@@ -153,7 +149,7 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                if (retry429.aborted) throw new Error("用户取消：429 退避等待被中断 (getConversationList)");
+                if (retry429.aborted) throw new DOMException("用户取消：429 退避等待被中断 (getConversationList)", "AbortError");
 
                 throw new Error(`HTTP ${resp.status} :: ${snippet} sidLen:${String(cred.sid ?? '').length} atLen:${cred.at?.length ?? 0} hasBl:${cred.bl ? 'yes' : 'no'}`);
             }
@@ -161,17 +157,7 @@ const pagination = GeminiClientPagination;
             return parseList(txt);
         }
 
-        // Note: If all.length >= 500 or pagination flags hitGoogleLimit / 429 errors,
-        // UI layer provides browsing window limit guidance to recommend Takeout.
-        async getAllConversations(maxPages: number | PaginationOptions = 2000, onProgress?: PaginationProgressCallback | null, targetSid?: string | null, opts?: PaginationOptions): Promise<PaginationResult> {
-            if (pagination.getAllConversations) {
-                return pagination.getAllConversations(this, maxPages, onProgress, targetSid, opts);
-            }
-            throw new Error("pagination module not found");
-        }
-
         async fetchConversationPage(conversationId: string, pageToken?: string | null, targetSid?: string | null, opts?: GeminiDetailRequestOptions): Promise<DetailParseResult> {
-            const account = opts?.account ?? await getOrCreateAccount('gemini', 'default');
             let id = conversationId.startsWith("c_") ? conversationId : `c_${conversationId}`;
             let cred = await resolveCred(targetSid, opts && (opts._overrideAt || opts._overrideBl) ? { at: opts._overrideAt, bl: opts._overrideBl } : null);
             let api = getApiUrl(cred.accountSlot || "default");
@@ -254,7 +240,7 @@ const pagination = GeminiClientPagination;
                         _retryCount: retry429.nextRetryCount
                     });
                 }
-                if (retry429.aborted) throw new Error("用户取消：429 退避等待被中断 (fetchConversationPage)");
+                if (retry429.aborted) throw new DOMException("用户取消：429 退避等待被中断 (fetchConversationPage)", "AbortError");
 
                 console.error(`[Gemini Exporter Client] fetchConversationPage HTTP error ${resp.status} for ${id}:`, snippet);
                 throw new Error(`HTTP ${resp.status} ${resp.statusText} :: ${snippet}`);
@@ -262,7 +248,7 @@ const pagination = GeminiClientPagination;
 
             let text = await resp.text();
             try {
-                const native = parseGeminiRpcConversation(text, { providerId: 'gemini', account, targetConvId: conversationId });
+                const native = parseGeminiRpcConversation(text, { providerId: 'gemini', targetConvId: conversationId });
                 const parsed = native;
                 if (isDev) {
                     console.log(`[Gemini Exporter Client] fetchConversationPage parsed success: ${id}, msgs: ${parsed.conversation.detail.messages.length}`);
@@ -288,9 +274,9 @@ const pagination = GeminiClientPagination;
             }
         }
 
-        async getConversationDetail(conversationId: string, targetSid?: string | null, account?: Account): Promise<PaginatedDetailResult> {
+        async getConversationDetail(conversationId: string, targetSid?: string | null, account?: Account, signal?: AbortSignal): Promise<PaginatedDetailResult> {
             if (pagination.getConversationDetail) {
-                return pagination.getConversationDetail(this, conversationId, targetSid, account);
+                return pagination.getConversationDetail(this, conversationId, targetSid, account, signal);
             }
             throw new Error("pagination module not found");
         }
@@ -339,4 +325,4 @@ if (typeof module === "object" && module.exports) {
 
 export default GeminiClientExports;
 
-export type { PaginationOptions, PaginationResult, GeminiPaginationDiagnostics, PaginationCompletionReason, PaginationCompletenessEvidence, PaginationProgressInfo, PaginationProgressCallback, PaginationPageBatchInfo, PaginationStopDecision, PaginationPageBatchCallback, GeminiListRequestOptions, GeminiDetailRequestOptions, PaginatedDetailResult } from "./client/pagination.js";
+export type { GeminiListRequestOptions, GeminiDetailRequestOptions, PaginatedDetailResult } from './client/pagination.js';

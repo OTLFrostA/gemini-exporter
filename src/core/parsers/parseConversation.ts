@@ -1,9 +1,8 @@
 import type { Account } from '../domain/accountRegistry.js';
 import { parseGeminiDomConversation, type GeminiDomRaw, type GeminiDomParseResult } from './gemini/dom/parseConversation.js';
-import { parseGeminiTakeoutZip, type GeminiTakeoutZipRaw, type GeminiTakeoutZipContext } from './gemini/takeout/parseZip.js';
 import { parseGeminiTakeoutConversation, type GeminiTakeoutRaw, type GeminiTakeoutParseContext, type GeminiTakeoutParseResult } from './gemini/takeout/parseConversation.js';
 import { parseGeminiRpcConversation, type GeminiRpcParseContext, type GeminiRpcParseResult } from './gemini/rpc/parseConversation.js';
-import type { ResourceConversationParseResult } from './parsingResult.js';
+import type { SourceConversationParseResult } from './parsingResult.js';
 
 export interface GeminiRpcParseInput extends GeminiRpcParseContext {
     format: 'gemini-rpc';
@@ -13,25 +12,19 @@ export interface GeminiTakeoutParseInput extends GeminiTakeoutParseContext {
     format: 'gemini-takeout';
     data: GeminiTakeoutRaw;
 }
-export interface GeminiTakeoutZipParseInput extends GeminiTakeoutZipContext {
-    format: 'gemini-takeout-zip';
-    data: GeminiTakeoutZipRaw;
-}
-export interface GeminiDomParseInput { account: Account; format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
+export interface GeminiDomParseInput { account?: Account; format: 'gemini-dom'; providerId: 'gemini'; data: GeminiDomRaw }
 /** Only formats with implemented Domain parsers belong here. */
 
-export type ConversationParseInput = GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiTakeoutZipParseInput | GeminiDomParseInput;
+export type ConversationParseInput = GeminiRpcParseInput | GeminiTakeoutParseInput | GeminiDomParseInput;
 
 export function parseConversation(input: GeminiDomParseInput): GeminiDomParseResult;
 export function parseConversation(input: GeminiRpcParseInput): GeminiRpcParseResult;
 export function parseConversation(input: GeminiTakeoutParseInput): GeminiTakeoutParseResult;
-export function parseConversation(input: GeminiTakeoutZipParseInput): Promise<GeminiTakeoutParseResult>;
-export function parseConversation(input: ConversationParseInput): ResourceConversationParseResult | Promise<ResourceConversationParseResult>;
+export function parseConversation(input: ConversationParseInput): SourceConversationParseResult | Promise<SourceConversationParseResult>;
 /** Pure source parsing; L1 submits the result to Domain admission. */
-export function parseConversation(input: ConversationParseInput): ResourceConversationParseResult | Promise<ResourceConversationParseResult> {
+export function parseConversation(input: ConversationParseInput): SourceConversationParseResult | Promise<SourceConversationParseResult> {
     switch (input.format) {
         case 'gemini-dom': return parseGeminiDomConversation(input.data, input);
-        case 'gemini-takeout-zip': return parseGeminiTakeoutZip(input.data, input);
         case 'gemini-takeout': return parseGeminiTakeoutConversation(input.data, input);
         case 'gemini-rpc': return parseGeminiRpcConversation(input.data, input);
         default: throw new TypeError(`Unsupported conversation format: ${String((input as { format?: unknown }).format)}`);

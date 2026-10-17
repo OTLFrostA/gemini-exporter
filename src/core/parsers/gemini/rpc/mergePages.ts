@@ -1,24 +1,23 @@
 import { contentQuality } from '../../../parsers/qualityEvidence.js';
 import type { DomainAsset, DomainMessage } from '../../../domain/conversationDetail.js';
-import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { mapContentAssetReferences } from '../../../domain/content/assetReferences.js';
-import type { ResourceConversationParseResult } from '../../parsingResult.js';
+import type { SourceConversationParseResult } from '../../parsingResult.js';
 
-type ConversationPage = ResourceConversationParseResult;
+type ConversationPage = SourceConversationParseResult;
 
 /** Pages arrive newest first. Asset collisions without shared source identity remain distinct. */
-export function mergeConversationPages(pages: readonly ConversationPage[], truncatedReason?: string, coverageComplete = false): ResourceConversationParseResult {
+export function mergeConversationPages(pages: readonly ConversationPage[], truncatedReason?: string, coverageComplete = false): SourceConversationParseResult {
     if (!pages.length) throw new TypeError('No conversation pages');
     const first = pages[0].conversation;
     const assets = new Map<string, DomainAsset>();
     const heuristicDocumentIds: string[] = [];
     const seenMessages = new Set<string>();
     let messages: DomainMessage[] = [];
-    const resourceHints: Record<string, ResourceConversationParseResult['resourceHints'][string]> = {};
-    const acquisitionHints: Record<string, ResourceConversationParseResult['acquisitionHints'][string]> = {};
+    const resourceHints: Record<string, SourceConversationParseResult['resourceHints'][string]> = {};
+    const acquisitionHints: Record<string, SourceConversationParseResult['acquisitionHints'][string]> = {};
     for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
         const page = pages[pageIndex];
-        if (page.conversation.index.key.conversationId !== first.index.key.conversationId || page.account.id !== pages[0].account.id) throw new TypeError('Cannot merge pages from different conversations');
+        if (page.conversationId !== pages[0].conversationId) throw new TypeError('Cannot merge pages from different conversations');
         const aliases = new Map<string, string>();
         for (const asset of page.conversation.detail.assets) {
             let id = asset.id;
@@ -53,7 +52,7 @@ export function mergeConversationPages(pages: readonly ConversationPage[], trunc
     const sourceVersion = versionChanged ? undefined : pages[0].sourceVersion;
     const conversation = { index: first.index, detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), messages, assets: [...assets.values()],
         quality: contentQuality({ status: sourcePartial || versionMismatch || versionChanged ? 'partial' : coverageComplete ? 'complete' : 'unknown', rejectedTurns, truncation, heuristicDocumentIds }) } };
-    return { account: pages[0].account, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)] }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation: validateParserDomain(conversation), resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
+    return { conversationId: pages[0].conversationId, evidence: { rejectedTurns, truncation, heuristicDocumentIds: [...new Set(heuristicDocumentIds)] }, ...(sourceVersion !== undefined ? { sourceVersion } : {}), conversation, resourceHints, acquisitionHints, diagnostics: [...pages.flatMap(page => page.diagnostics),
         ...(truncatedReason ? [{ severity: 'warning' as const, code: 'GEMINI_PAGINATION_TRUNCATED', message: truncatedReason }] : []),
         ...(versionChanged ? [{ severity: 'warning' as const, code: 'CONVERSATION_VERSION_CHANGED', message: 'Conversation version changed or became unknown during pagination' }] : [])] };
 }

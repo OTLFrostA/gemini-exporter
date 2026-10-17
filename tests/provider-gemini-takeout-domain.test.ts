@@ -1,6 +1,5 @@
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
-import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
-import { parseGeminiTakeoutZipArchive } from '../src/core/parsers/gemini/takeout/parseZip.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
+import { parseGeminiTakeoutZipArchive, parseGeminiTakeoutZip } from '../src/core/imports/takeout/readArchive.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -9,10 +8,6 @@ import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { parseGeminiTakeoutArchive, type GeminiTakeoutRaw } from '../src/core/parsers/gemini/takeout/parseConversation.js';
 import { decodeTakeoutHtml } from '../src/core/parsers/gemini/takeout/decodeHtml.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 import { extractBlockText } from '../src/core/domain/content/unknownFallback.js';
 
 const ID = 'CaseSensitive_99';
@@ -24,7 +19,8 @@ const text = (blocks: Parameters<typeof extractBlockText>[0][]) => blocks.map(bl
 
 test('Takeout raw HTML constructs Domain without persisted records or fabricated message dates', () => {
     const { conversation } = native({ htmlText: activity() });
-    assert.equal(conversation.index.key.conversationId, ID);
+    assert.equal(native({ htmlText: activity() }).conversationId, ID);
+    assert.equal('key' in conversation.index, false);
     assert.equal(conversation.index.title, 'Question');
     assert.equal(Reflect.get(conversation, 'provenance'), undefined);
     assert.deepEqual(conversation.detail.messages.map(m => m.role), ['user', 'assistant']);
@@ -54,7 +50,7 @@ test('batch and selected parsing preserve separate conversation identities and s
     const selected = native({ htmlText }, `c_${ID}`);
     assert.deepEqual(selected.conversation, batch[0].conversation);
     assert.deepEqual(selected.conversation.detail.messages.map(m => text(m.content)), ['Older', 'Answer', 'Newer', 'New answer']);
-    assert.equal(batch[1].conversation.index.key.conversationId, 'other_chat_99');
+    assert.equal(batch[1].conversationId, 'other_chat_99');
 });
 
 test('archive source paths and handles stay separate from export destinations', () => {
@@ -121,9 +117,8 @@ test('long report HTML becomes authored Content AST without synthetic document I
     assert.ok(result.conversation.detail.messages[1].content.some(block => block.type === 'heading'));
     assert.ok(result.conversation.detail.messages[1].content.some(block => block.type === 'table'));
     const before = JSON.stringify(result.conversation);
-    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
-    const restored = composeDomainDocument(JSON.parse(before), fixtureAccountFor(JSON.parse(before))).document;
-    for (const backend of [renderDocumentHtml, renderDocumentMarkdown, renderDocumentTypst]) assert.deepEqual(backend(document, {}), backend(restored, {}));
+    assert.deepEqual(JSON.parse(before), result.conversation);
+    assertDomainClosure(JSON.parse(before).detail);
     assert.equal(JSON.stringify(result.conversation), before);
 });
 
@@ -143,8 +138,8 @@ test('raw ZIP bytes decode directly to selected and batch Domain results with ac
     zip.file('Takeout/Gemini/MyActivity.html', activity('Question', '<p>Output <img src="photo.png"></p>'));
     zip.file('Takeout/Gemini/photo.png', 'image source bytes');
     const data = await zip.generateAsync({ type: 'uint8array' });
-    const result = await parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: bytes => JSZip.loadAsync(bytes) });
-    assert.equal(result.conversation.index.key.conversationId, ID);
+    const result = await parseGeminiTakeoutZip(data, { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
+    assert.equal(result.conversationId, ID);
     assert.equal(result.conversation.detail.assets.length, 1);
     const handle = result.archiveResources[result.conversation.detail.assets[0].id];
     assert.equal(handle.path, 'Takeout/Gemini/photo.png');
@@ -156,20 +151,13 @@ test('raw ZIP bytes decode directly to selected and batch Domain results with ac
 
 test('ZIP parsing rejects malformed inventories, unverifiable HTML sizes and ambiguous activity selection', async () => {
     const data = new Uint8Array([1]);
-    await assert.rejects(parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data, readArchive: async () => ({}) }), /inventory/);
-    await assert.rejects(parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data,
+    await assert.rejects(parseGeminiTakeoutZip(data, { providerId: 'gemini', readArchive: async () => ({}) }), /inventory/);
+    await assert.rejects(parseGeminiTakeoutZip(data, { providerId: 'gemini',
         readArchive: async () => ({ files: { 'MyActivity.html': { async: async () => activity() } } }) }), /size|大小/);
-    await assert.rejects(parseConversation({ account: fixtureAccount('gemini'), format: 'gemini-takeout-zip', providerId: 'gemini', data,
+    await assert.rejects(parseGeminiTakeoutZip(data, { providerId: 'gemini',
         readArchive: async () => ({ files: { 'a/MyActivity.html': { _data: { uncompressedSize: 0 } }, 'b/MyActivity.html': { _data: { uncompressedSize: 0 } } } }) }), /activityPath/);
 });
 
-
-test('Domain rejects message generation events outside its frozen schema', () => {
-    const { conversation } = native({ htmlText: activity('Draw', '<p>Answer</p>') });
-    const raw = JSON.parse(JSON.stringify(conversation));
-    raw.detail.messages[1].generation = { mediaKind: 'image', outputCount: 1 };
-    assert.throws(() => restoreDomainSnapshot(raw), /persisted Domain/);
-});
 
 test('response-only activity cannot fabricate a user prompt from its first content cell', () => {
     const htmlText = activity().replace('Prompted Question<br>', '');

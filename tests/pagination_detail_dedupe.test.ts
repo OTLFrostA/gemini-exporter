@@ -1,4 +1,3 @@
-const { rpcFixture } = require('./helpers/nativeFixture.js');
 /**
  * W3: pagination.ts getConversationDetail message dedupe root-cause fix.
  * The old `seenMsgIds` bypass let any message whose id equals the conversation
@@ -21,7 +20,14 @@ function makeClient(pages: any[]): any {
     return {
         fetchConversationPage: async (_cid: string, _token: string | null) => {
             const p = pages[Math.min(calls++, pages.length - 1)];
-            return rpcFixture({ ...p, id: _cid }, { nextPageToken: p.nextPageToken });
+            return { conversationId: _cid.replace(/^c_/, ''),
+                conversation: { index: { title: p.title, titleSource: 'provider' }, detail: {
+                    quality: { status: 'unknown' }, assets: [], messages: p.messages.map((message: any) => ({
+                        ...(message.id ? { id: message.id } : {}), role: message.role === 'model' ? 'assistant' : message.role || 'unknown',
+                        content: message.content ? [{ type: 'paragraph', children: [{ type: 'text', text: message.content }] }] : []
+                    })) } },
+                resourceHints: {}, acquisitionHints: {}, diagnostics: [], transport: { nextPageToken: p.nextPageToken } };
+
         },
     };
 }

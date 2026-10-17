@@ -171,11 +171,10 @@ export function readGeminiAuditInput(input: string, kind: 'raw_rpc' | 'native_en
     const data = object(envelope.data), transport = object(data.transport);
     if (!Array.isArray(transport.decodedPayload)) throw new Error('Missing native decodedPayload');
     const conversation = object(data.conversation), index = object(conversation.index), detail = object(conversation.detail);
-    const account = object(data.account), key = object(index.key);
-    if (account.providerId !== 'gemini' || typeof key.conversationId !== 'string' || !Array.isArray(detail.messages)) throw new Error('Not a Gemini native detail');
+    if (typeof data.conversationId !== 'string' || 'key' in index || 'key' in detail || 'account' in data || !Array.isArray(detail.messages)) throw new Error('Not a keyless Gemini source detail');
     // Historical captures retain the exact inner payload, not the original HTTP framing.
     // Reconstitute only its transport wrapper, explicitly label this provenance in the report.
     const wrapper = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify(transport.decodedPayload)]]);
-    return { evidence: decodeGeminiDetail(wrapper, key.conversationId), provenance: 'captured_decoded_payload',
+    return { evidence: decodeGeminiDetail(wrapper, data.conversationId), provenance: 'captured_decoded_payload',
         expectedMessages: detail.messages.map(item => { const message = object(item); return { id: message.id, role: message.role === 'assistant' ? 'model' : message.role }; }) };
 }

@@ -1,6 +1,7 @@
 import type { Account } from '../core/domain/accountRegistry.js';
 import { sniffUserProfileFromDom } from './accountSniffer.js';
 import { geminiAccountObservation } from '../core/provider/gemini/accountObservation.js';
+import { readGeminiDetailRequest } from '../core/parsers/gemini/rpc/detailRequest.js';
 import { readGeminiListRequest } from '../core/parsers/gemini/rpc/listRequest.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import type { GeminiProtocolModule } from '../core/protocol/protocol.js';
@@ -279,9 +280,12 @@ declare global {
             if (typeof text !== 'string' || (!text.includes(Proto.RPCS.LIST) && !text.includes(Proto.RPCS.DETAIL))) return;
             const slot = capturedSlot;
             if (!slot) return;
+            const listRequest = readGeminiListRequest(body);
+            const detailRequest = readGeminiDetailRequest(body);
             const payload: GeminiNetworkBatchexecutePayload = {
                 text: text.slice(0, 3000000), // Protect against memory spikes
-                listRequest: readGeminiListRequest(body),
+                ...(listRequest ? { listRequest } : {}),
+                ...(detailRequest ? { detailRequest } : {}),
                 requestedAt,
                 requestAccountObservation,
                 truncated: truncated || text.length > 3000000,

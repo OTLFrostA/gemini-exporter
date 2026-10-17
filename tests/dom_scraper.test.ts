@@ -1,7 +1,4 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
-import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
-import { resolveConversationExportState } from '../src/core/utils/titleUtils.js';
-import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 const { extractBlockText } = require('../src/core/domain/content/unknownFallback.js');
 export {};
 const test = require('node:test');
@@ -145,18 +142,13 @@ test('dom_scraper - parseDoc extracts messages, images, and title correctly', ()
 
     const parsed = DomScraper.parseDoc(mockDoc, 'chat_001', undefined, fixtureAccount());
 
-    assert.strictEqual(parsed.conversation.index.key.conversationId, 'chat_001');
+    assert.strictEqual(parsed.conversationId, 'chat_001');
     assert.strictEqual(parsed.conversation.index.titleSource, 'provider');
     assert.ok(parsed.conversation.index.title.includes('量子力学与量子纠缠探讨'), `Title should be cleaned: ${parsed.conversation.index.title}`);
     assert.strictEqual(parsed.conversation.detail.messages.length, 2);
-    // DOM coverage must remain retryable even with successful writes and no failed assets,
-    // including after JSON restoration has discarded transient transport/diagnostics.
-    const restored = { account: fixtureAccount(), conversation: restoreDomainSnapshot(parsed.conversation), diagnostics: [], acquisitionHints: {}, resourceHints: {} };
-    assert.strictEqual(restored.conversation.detail.quality.status, 'partial');
-    const completion = buildExportCompletion({ conversation: restored.conversation, failedAssets: 0 });
-    assert.strictEqual(completion.exportRecord.status, 'partial');
-    assert.strictEqual(completion.exportRecord.hasFailedAssets, false);
-    assert.strictEqual(resolveConversationExportState({}, completion.exportRecord).needsIncrementalExport, true);
+    assert.equal(parsed.conversation.detail.quality.status, 'partial');
+    assert.equal('key' in parsed.conversation.detail, false);
+    assert.equal('account' in parsed, false);
 
     assert.strictEqual(parsed.conversation.detail.messages[0].role, 'user');
     assert.strictEqual(parsed.conversation.detail.messages[0].content.map((block: unknown) => extractBlockText(block)).join('\n\n'), '请分析这张图片');

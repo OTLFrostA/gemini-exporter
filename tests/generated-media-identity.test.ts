@@ -5,35 +5,25 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
+import { parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';
+import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 
 const id = '1bd028d5c5b0c0e2';
 const png = 'watermarked_img_45281370108017511-1c81efe352c9ef8a.png';
 const jpg = 'watermarked_img_4528137010801751197.jpg';
 
-test('real Takeout fixture retains generation evidence without guessing ownership of an unreferenced PNG', async () => {
-    const originalZip = Object.getOwnPropertyDescriptor(globalThis, 'JSZip');
-    (global as any).JSZip = require('../lib/jszip.min.js');
-    TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001');
+test('real Takeout fixture does not guess ownership of unreferenced generated image bytes', async () => {
+    const JSZip = require('../lib/jszip.min.js');
+    const result = await parseGeminiTakeoutZipArchive(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), { providerId: 'gemini', readArchive: bytes => JSZip.loadAsync(bytes) });
+    const offline = result.find(source => source.conversationId === id); assert.ok(offline);
+    assert.equal('key' in offline.conversation.detail, false);
+    assert.deepEqual(offline.archiveResources, {});
+    assert.ok(offline.diagnostics.some(d => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
+    const resources = createSourceResourceContext();
     try {
-        const result = await TakeoutEngine.parseTakeoutZip(fs.readFileSync(path.join(__dirname, 'fixtures/gemini_takeout_clean.zip')), null, '10000000-0000-4000-8000-000000000001');
-        const offline = TakeoutEngine.getTakeoutOfflineChat(id, '10000000-0000-4000-8000-000000000001');
-        assert.ok(offline.conversation, 'production cache must carry native Domain');
-        const model = offline.conversation.detail.messages.find((m: any) => m.role === 'assistant');
-        assert.equal('generation' in model, false);
-        assert.deepEqual(TakeoutEngine.getTakeoutMediaForChat(id, '10000000-0000-4000-8000-000000000001'), []);
-        assert.ok(result.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
-        assert.ok((await result.globalMedia[png].async('uint8array')).length > 0, 'unowned archive bytes remain available as acquisition evidence');
-        assert.equal(await TakeoutEngine.getTakeoutFallbackMedia(id, { assetId: '', sourceUri: png }, '10000000-0000-4000-8000-000000000001'), null, 'an archive file does not establish message ownership');
-        for (const record of result.conversations) {
-            assert.equal('parsed' in record, false);
-            assert.equal('messages' in record, false, 'imports remain metadata-only and cannot overwrite stored detail');
-        }
-    } finally {
-        TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001');
-        if (originalZip) Object.defineProperty(globalThis, 'JSZip', originalZip);
-        else delete (global as any).JSZip;
-    }
+        resources.retainParsed({ accountId: '10000000-0000-4000-8000-000000000001', conversationId: id }, offline);
+        await assert.rejects(resources.acquire({ accountId: '10000000-0000-4000-8000-000000000001', conversationId: id }, { id: png, kind: 'image' }), /locator/);
+    } finally { resources.release(); }
 });
 
 test('RPC generated-media detector preserves generated status while inline images remain unmarked', () => {

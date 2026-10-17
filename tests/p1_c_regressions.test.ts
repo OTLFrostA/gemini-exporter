@@ -1,5 +1,9 @@
 import { bindTabAccounts } from './helpers/tabAccounts.js';
-import { listFixture } from './helpers/listFixture.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { ACCOUNT_UUID } from './helpers/accountRuntime.js';
+import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
+import { sourceDetail } from './helpers/l1SourceFixture.js';
+useIndexStorage();
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -189,7 +193,7 @@ test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡
         const t0 = Date.now();
         const p = client.getConversationList(null, null, undefined, {});
         setTimeout(() => controller.abort(), 100);
-        await assert.rejects(p, /取消/, 'aborted 429 backoff should throw a cancellation error');
+        await assert.rejects(p, { name: 'AbortError' });
         assert.ok(Date.now() - t0 < 1500, `cancel took effect fast (took ${Date.now() - t0}ms, backoff was 2-3s)`);
     } finally {
         (global as any).fetch = origFetch;
@@ -200,16 +204,10 @@ test('p1c - getConversationList: 429 退避期间 abort 直接抛取消，不睡
 // P1-040: 分页启动前已取消则直接退出（不再被 client.aborted = false 吞掉）
 // ---------------------------------------------------------------------------
 
-test('p1c - getAllConversations: 启动前已取消直接退出，不调用 getConversationList', async () => {
-    let listCalls = 0;
-    const mockClient = {
-        aborted: true, // 用户在任务实际启动前一刻点了取消
-        getConversationList: async () => { listCalls++; return listFixture([], null); }
-    };
-    const res = await paginationMod.getAllConversations(mockClient as any, { maxPages: 5 });
-    assert.strictEqual(res.conversations.length, 0);
-    assert.strictEqual(listCalls, 0, 'must not issue any list request after pre-start cancel');
-    assert.ok(String(res.diagnostics.stopReason).includes('终止'), `stopReason should indicate abort, got: ${res.diagnostics.stopReason}`);
+test('p1c - listConversations: pre-start cancellation propagates AbortError without a request', async () => {
+    const controller = new AbortController(); controller.abort();
+    const provider = new GeminiProvider({ getConversationList: async () => { assert.fail('request after cancellation'); }, getConversationDetail: async () => sourceDetail() }, async () => 'u0');
+    await assert.rejects(provider.listConversations({ accountId: ACCOUNT_UUID, streamId: 'recent', signal: controller.signal }), { name: 'AbortError' });
 });
 
 // ---------------------------------------------------------------------------

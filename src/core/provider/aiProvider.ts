@@ -1,51 +1,13 @@
-import type { ResourceConversationParseResult } from '../parsers/parsingResult.js';
 export type { ProviderConversationItem } from '../parsers/contracts.js';
-import type { ProviderConversationItem } from '../parsers/contracts.js';
 
-/** Provider-neutral lifecycle and data. Gemini evidence belongs in gemini contracts. */
-export interface ProviderConversationDetail extends ResourceConversationParseResult {}
-
-export interface ProviderPageResult<T> {
-    items: T[];
-    total?: number;
-    /** Legacy availability hint; never sufficient evidence for reconciliation. */
-    hasMore?: boolean;
-    nextCursor?: string | null;
-    stoppedEarly?: boolean;
-    exhaustive: boolean;
-    /** Provider-defined cause; Gemini's exact vocabulary is in its companion. */
-    completionReason: string;
-}
-
-export interface ProviderPageBatchInfo {
-    page: number;
-    hasMore: boolean;
-    count: number;
-    scanHead?: import('../domain/coverageAdmission.js').ScanHead;
-}
-
-export interface ProviderStopDecision {
-    shouldStop?: boolean;
-    reason?: string;
-}
-
-export interface ProviderProgressInfo<T = ProviderConversationItem> {
-    page: number;
-    added: number;
-    total: number;
-    hasMore: boolean;
-    stoppedEarly?: boolean;
-    reason?: string;
-}
-
-export interface ProviderListOptions<T = ProviderConversationItem> {
-    accountId?: string;
-    canCommit?: () => boolean;
-    maxPages?: number;
-    incremental?: boolean;
-    signal?: AbortSignal | null;
-    onProgress?: ((info: ProviderProgressInfo<T>) => void) | null;
-    onPageBatch?: ((info: ProviderPageBatchInfo) => Promise<ProviderStopDecision | void>) | null;
+export type PageEvidence = Omit<import('../domain/pageObservation.js').PageObservation<unknown>, 'providerId' | 'accountId' | 'items'>;
+export interface CommittedListPage { page: number; totalObserved: number; scanHead?: PageEvidence }
+export type ListEnd = 'source_end' | 'provider_limit' | 'max_pages' | 'stopped';
+export interface ProviderListOptions {
+    accountId: string;
+    streamId: string;
+    signal?: AbortSignal;
+    onPageCommitted?: (info: CommittedListPage) => Promise<boolean>;
 }
 
 export interface ProviderReadiness {
@@ -59,11 +21,9 @@ export interface AIProvider {
     readonly name: string;
     readonly hostPatterns: string[];
 
-    /** Context/detail options are unverified at the neutral seam. */
-    checkReadiness: (context?: unknown) => Promise<ProviderReadiness>;
-    listConversations: (options?: ProviderListOptions) => Promise<ProviderPageResult<ProviderConversationItem>>;
-    fetchConversationDetail: (conversationId: string, options?: unknown) => Promise<ProviderConversationDetail>;
+    checkReadiness(accountId: string): Promise<ProviderReadiness>;
+    listConversations(options: ProviderListOptions): Promise<ListEnd>;
+    fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void>;
+    acquireResource(key: import('../domain/conversationKey.js').ConversationKey, asset: import('../domain/conversationDetail.js').DomainAsset, signal?: AbortSignal): Promise<import('../resources/resourceResult.js').ResourceBytes>;
     matchesUrl(url: string): boolean;
-    /** @unverified-provider-scaffold No implementation or production caller yet. */
-    fetchAsset?(url: string, options?: unknown): Promise<Blob | ArrayBuffer>;
 }

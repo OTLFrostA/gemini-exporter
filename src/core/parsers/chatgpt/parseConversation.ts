@@ -17,9 +17,8 @@ import type {
     DomainMessage,
 } from '../../domain/conversationDetail.js';
 import type { BlockNode } from '../../domain/content/blocks.js';
-import { validateParserDomain } from '../../domain/runtimeValidation.js';
 import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import type { ResourceConversationParseResult } from '../parsingResult.js';
+import type { SourceConversationParseResult } from '../parsingResult.js';
 import {
     parseMarkdownToBlocks,
     type MarkdownParseContext,
@@ -70,7 +69,7 @@ export interface ChatGPTNodeAssets {
 }
 
 export interface ChatGPTParseInput {
-    account: Account;
+    account?: Account;
     conversation: ChatGPTApiConversationWithId;
     /** Pre-resolved downloads keyed by node id; missing entries mean no assets. */
     assetsByNode: Map<string, ChatGPTNodeAssets>;
@@ -163,6 +162,7 @@ function messageOfNode(
     for (const file of uploadedFilesOfChatGPTNode(node)) {
         const bytes = resolved?.files.find((f) => f.id === file.id);
         const assetId = `file-${file.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+        if (bytes?.dataBase64) acquisitionHints[assetId] = { dataBase64: bytes.dataBase64 };
         if (claim(assetId)) {
             assets.push({
                 id: assetId,
@@ -171,7 +171,6 @@ function messageOfNode(
                 mediaType: bytes?.mediaType ?? file.mediaType,
                 byteLength: bytes?.byteLength ?? file.byteLength,
                 sourceUri: `file-download:${file.id}`,
-                ...(bytes?.dataBase64 ? { dataBase64: bytes.dataBase64 } : {}),
             });
         }
         addAttachmentId(assetId);
@@ -195,8 +194,8 @@ function messageOfNode(
     };
 }
 
-/** Linearize, enrich and brand one ChatGPT conversation. */
-export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConversationParseResult {
+/** Linearize source messages; final Domain validation belongs to L2. */
+export function parseChatGPTConversation(input: ChatGPTParseInput): SourceConversationParseResult {
     const { conversation } = input;
     const contentDiagnostics: Diagnostic[] = [];
     const ctx: MarkdownParseContext = {
@@ -226,19 +225,18 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
             { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
         ),
     );
-    const hasMissingImage = assets.some((a) => a.kind === 'image' && !acquisitionHints[a.id]?.dataBase64);
     // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = chatGPTTimestamp(conversation.update_time);
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
-        account: input.account,
-        conversation: validateParserDomain({
-            index: parseIndexMetadata({ account: input.account, providerId: 'chatgpt', id: conversation.id,
+        conversationId: conversation.id,
+        conversation: {
+            index: parseIndexMetadata({ providerId: 'chatgpt', id: conversation.id,
                 title: conversation.title?.trim() || '', titleSource: 'provider',
                 createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
-            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: hasMissingImage ? 'partial' : 'complete' }), assets, messages },
-        }),
+            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: 'complete' }), assets, messages },
+        },
         diagnostics: contentDiagnostics,
         resourceHints: {},
         acquisitionHints,

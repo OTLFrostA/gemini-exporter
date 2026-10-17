@@ -6,18 +6,17 @@ import { decodeGeminiDetail } from './detailDecoder.js';
 import type { GeminiDetailDebugEvidence, GeminiMessageEvidence, GeminiDetailEvidence } from './detailEvidence.js';
 import type { DomainCitation, DomainMessage } from '../../../domain/conversationDetail.js';
 import type { ConversationParseContext } from '../../contracts.js';
-import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
 import { closeLegacyCitations } from '../../shared/resources/domainCitationAdapter.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import { parseGeminiBody, parseGeminiPrompt, parseLegacyReasoning, structuredBodyAttachments } from '../shared/contentAdapter.js';
-import type { ResourceConversationParseResult } from '../../parsingResult.js';
+import type { SourceConversationParseResult } from '../../parsingResult.js';
 
 export interface GeminiRpcParseContext extends ConversationParseContext {
     targetConvId?: string;
 }
 
-export interface GeminiRpcParseResult extends ResourceConversationParseResult {
+export interface GeminiRpcParseResult extends SourceConversationParseResult {
     /** Pagination and wire/debug evidence are acquisition context, never Domain fields. */
     transport: {
         nextPageToken: string | null;
@@ -64,7 +63,7 @@ function citationsOf(message: GeminiMessageEvidence): { citations: DomainCitatio
     return { citations, legacyCitations, sourceCitations };
 }
 
-/** Raw Gemini detail RPC -> a closed Domain graph. No persisted Conversation or record parser. */
+/** Raw Gemini detail RPC -> keyless source facts. */
 export function parseGeminiRpcConversation(text: string, context: GeminiRpcParseContext): GeminiRpcParseResult {
     if (context.providerId !== 'gemini') throw new TypeError('Gemini RPC parser requires providerId gemini');
     if (typeof text !== 'string') throw new TypeError('Gemini RPC input must be raw response text');
@@ -115,7 +114,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     const versionMismatch = updatedAt !== null && messages.some(message => message.timestamp !== undefined && message.timestamp > updatedAt);
     const metadata = evidence.metadataConversation;
     const conversation = {
-        index: parseIndexMetadata({ account: context.account, providerId: 'gemini',
+        index: parseIndexMetadata({ providerId: 'gemini',
             id: normId(metadata?.id ?? evidence.id), title: metadata?.title ?? evidence.title,
             titleSource: metadata ? 'rpc' : evidence.titleSource,
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
@@ -127,7 +126,7 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     return {
         evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
-        account: context.account, conversation: validateParserDomain(conversation), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
+        conversationId: normId(evidence.id), conversation, resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
         diagnostics: [
             ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
             ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),

@@ -21,9 +21,10 @@ export interface GeminiConversationDeletedPayload {
 }
 
 export interface GeminiNetworkBatchexecutePayload {
-    listRequest?: GeminiListRequestContext | null;
-    truncated?: boolean;
-    requestedAt?: number;
+    listRequest?: GeminiListRequestContext;
+    detailRequest?: import('../parsers/gemini/rpc/detailRequest.js').GeminiDetailRequestContext;
+    truncated: boolean;
+    requestedAt: number;
     /** Immutable Provider evidence captured at send time; ISOLATED resolves the Registry UUID. */
     requestAccountObservation: Omit<Account, 'id'> | null;
     text: string;

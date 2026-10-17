@@ -4,8 +4,9 @@ useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
-import { clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
+import { importTakeout } from '../src/core/imports/takeout/importTakeout.js';
+import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
+import { getDetail } from '../src/core/storage/domain/domainStore.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 
 const activity = (id: string, date: string, response: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/${id}">Chat</a>
@@ -41,7 +42,8 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
     };
     const previousJSZip: unknown = Reflect.get(globalThis, 'JSZip');
     Reflect.set(globalThis, 'JSZip', JSZip);
-    const slot = '10000000-0000-4000-8000-000000000001';
+    const accountId = '10000000-0000-4000-8000-000000000001';
+    const resources = createSourceResourceContext();
     try {
         const zip = new JSZip();
         const chatId = 'abcd1234abcd1234';
@@ -50,13 +52,12 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
         const bytes = new TextEncoder().encode('c2pa date="20260902183642Z"');
         zip.file('Takeout/Gemini Apps/MyActivity.html', html);
         zip.file(filename, bytes);
-        const parsed = await parseTakeoutZip(await zip.generateAsync({ type: 'uint8array' }), null, slot);
-        assert.equal(parsed.mediaMap[chatId]?.length ?? 0, 0);
-        assert.ok(parsed.convCache[chatId].conversation.detail.messages.every(m => !m.attachmentIds?.length));
-        const stored = parsed.globalMedia[filename];
-        assert.deepEqual(await stored.async!('uint8array'), bytes);
+        await importTakeout(await zip.generateAsync({ type: 'uint8array' }) as unknown as File, accountId, undefined, resources);
+        const stored = await getDetail({ accountId, conversationId: chatId });
+        assert.ok(stored); assert.ok(stored.messages.every(m => !m.attachmentIds?.length));
+        await assert.rejects(resources.acquire({ accountId, conversationId: chatId }, { id: filename, kind: 'image' }), /locator/);
     } finally {
-        clearTakeoutData(slot);
+        resources.release();
         Reflect.set(globalThis, 'JSZip', previousJSZip);
     }
 });

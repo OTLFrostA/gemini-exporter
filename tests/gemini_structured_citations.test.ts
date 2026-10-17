@@ -1,4 +1,4 @@
-import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -7,10 +7,6 @@ import { parseGeminiBody } from '../src/core/parsers/gemini/shared/contentAdapte
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { extractSourceAttributions } from '../src/core/parsers/gemini/rpc/sourceAttributions.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
-import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
-import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
-import { renderDocumentTypst } from '../src/core/renderers/typst/renderTypst.js';
 
 const fixture = (name: string): unknown => JSON.parse(readFileSync(`tests/fixtures/provider/structured_rpc/${name}.json`, 'utf8'));
 const fallback = 'UNRELATED_MARKDOWN_SENTINEL';
@@ -100,9 +96,6 @@ test('captured native blockquote retains paragraph formatting without Markdown f
     assert.deepEqual(message.content, [{ type: 'quote', blocks: [{ type: 'paragraph', children: [
         { type: 'strong', children: [{ type: 'text', text: '切忌拿单调流量做线性外推，严防影子标识丢失穿透真实下游。' }] },
     ] }] }]);
-    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
-    assert.ok(renderDocumentMarkdown(document, {}).includes('> **切忌'));
-    assert.ok(renderDocumentHtml(document, {}).html.includes('<blockquote'));
     const quote = field(16, [[text('different quoted text')]]);
     const nested = successful(parse({ children: [{ nodeType: 20, items: [{ children: [quote] }] }] }));
     assert.equal(nested.content[0].type, 'list');
@@ -152,25 +145,15 @@ test('standalone citation after display math is preserved after the equation', (
     assert.ok(JSON.stringify(message.content[1]).includes('grounding-1'));
 });
 
-test('captured source attributions retain all six URLs and nested bold formatting across output backends', () => {
+test('captured source attributions retain all six URLs and nested bold formatting in source content', () => {
     const table = fixture('live-source-table');
     const result = parse(fixture('live-source-attributions'), table);
     const message = successful(result);
     assert.equal(message.citations?.length, 6);
     assert.ok(!JSON.stringify(result.conversation).includes('spp_'), 'provider source IDs end at the parser boundary');
-    assert.deepEqual(composeDomainDocument(JSON.parse(JSON.stringify(result.conversation)), fixtureAccountFor(JSON.parse(JSON.stringify(result.conversation)))).document, composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document);
     assert.ok(JSON.stringify(message.content).includes('"type":"strong","children":[{"type":"text","text":"2021年12月25日："}]'));
     assert.equal((JSON.stringify(message.content).match(/"type":"citationRef"/g) ?? []).length, 6);
-    const document = composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document;
-    const md = renderDocumentMarkdown(document, {});
-    const html = renderDocumentHtml(document, {}).html;
-    const typst = JSON.stringify(renderDocumentTypst(document, {}));
-    for (const citation of message.citations ?? []) {
-        assert.ok(md.includes(citation.url!.replaceAll('(', '%28').replaceAll(')', '%29')));
-        assert.ok(html.includes(citation.url!.replaceAll('&', '&amp;').replaceAll("'", '&#39;')));
-        assert.ok(typst.includes(citation.url!));
-    }
-    assert.ok(md.includes('**2021年12月25日：**'));
+    assert.deepEqual(JSON.parse(JSON.stringify(result.conversation)), result.conversation);
 });
 
 test('one attributed span may resolve multiple sources, including duplicate URL aliases', () => {
