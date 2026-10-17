@@ -69,6 +69,42 @@ test('stale refresh failure exports old Detail as partial with its actual versio
     const result = await runExport(request());
     assert.equal(result.partial, 1); assert.equal(records.get(address(key()))?.chatTime, 90);
 });
+test('unknown Detail quality exports as partial and cannot satisfy Skip after refresh failure', async () => {
+    seed('first', { quality: 'unknown' });
+    provider.fetchConversationDetail = async () => { events.push('refresh'); throw new Error('offline'); };
+    const first = await runExport(request({ skipUnchanged: true }));
+    assert.equal(first.exported, 1);
+    assert.equal(first.partial, 1);
+    assert.equal(records.get(address(key()))?.status, 'partial');
+    const second = await runExport(request({ skipUnchanged: true }));
+    assert.equal(second.skipped, 0);
+    assert.equal(second.partial, 1);
+    assert.equal(events.filter(event => event === 'refresh').length, 2);
+    assert.equal(events.filter(event => event === 'delivery').length, 2);
+});
+for (const format of ['markdown', 'html', 'json', 'pdf'] as const) {
+    test(`${format} exports a valid Detail with zero messages`, async () => {
+        const { detail } = seed();
+        detail.messages.splice(0);
+        const result = await runExport(request({ format }));
+        assert.equal(result.exported, 1);
+        assert.deepEqual(result.failed, []);
+        if (format === 'json') {
+            const json = JSON.parse(String(deliveries[0][0].content));
+            assert.deepEqual(json.conversation.detail.messages, []);
+        }
+    });
+}
+test('batch planning consistently reserves colliding file names for separate conversations', async () => {
+    const first = seed('alpha_sameid'), second = seed('beta_sameid');
+    first.index.title = 'Collision';
+    second.index.title = 'Collision';
+    const result = await runExport(request({
+        keys: [key('alpha_sameid'), key('beta_sameid')], format: 'markdown', delivery: 'folderWriter',
+    }));
+    assert.equal(result.exported, 2);
+    assert.deepEqual(deliveries.map(group => group[0].fileName), ['Collision_sameid.md', 'Collision_sameid_2.md']);
+});
 test('refresh is void; Export rereads L2 instead of using a Provider response', async () => {
     seed('first', { savedAt: 90 });
     provider.fetchConversationDetail = async (accountId, conversationId) => {

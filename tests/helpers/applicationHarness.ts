@@ -76,14 +76,13 @@ const storage = {
 stubModule('../../src/core/storage/storageService.js', storage);
 stubModule('../../src/core/api/accountRegistry.js', { async getAccount(id: string) { return { ...account, id }; } });
 stubModule('../../src/core/provider/providerRegistry.js', { ProviderRegistry: { get() { return provider; } } });
-class TaskProvider {
-    constructor(_client?: unknown, _route?: unknown, resources?: SourceResourceContext) {
-        if (resources) { contexts.push(resources); state.sourceContext = resources; }
+stubModule('../../src/core/provider/taskProvider.js', {
+    createTaskProvider(_providerId: string, resources: SourceResourceContext): AIProvider {
+        contexts.push(resources);
+        state.sourceContext = resources;
         return provider;
-    }
-}
-stubModule('../../src/core/provider/gemini/geminiProvider.js', { GeminiProvider: TaskProvider });
-stubModule('../../src/core/provider/chatgpt/chatgptProvider.js', { ChatGPTProvider: TaskProvider });
+    },
+});
 async function deliver(files: readonly ExportArtifact[]) {
     events.push('delivery'); deliveries.push([...files]);
     if (state.failDelivery === deliveries.length) throw new Error('delivery failed');

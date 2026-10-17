@@ -4,9 +4,7 @@ import type { ConversationKey } from '../../domain/conversationKey.js';
 import type { Account } from '../../domain/accountRegistry.js';
 import { withConversationMetadata, type ReadonlyDomain } from '../../domain/runtimeValidation.js';
 import type { AIProvider } from '../../provider/aiProvider.js';
-import { ProviderRegistry } from '../../provider/providerRegistry.js';
-import { GeminiProvider } from '../../provider/gemini/geminiProvider.js';
-import { ChatGPTProvider } from '../../provider/chatgpt/chatgptProvider.js';
+import { createTaskProvider } from '../../provider/taskProvider.js';
 import { createSourceResourceContext } from '../../provider/sourceResources.js';
 import { composeDomainDocument } from '../../document/compose/composeDomainDocument.js';
 import { collectDocumentResources } from '../../document/ast/resourceReferences.js';
@@ -66,10 +64,7 @@ export async function runExport(request: ExportRequest, options: {
     const providerFor = (id: string): AIProvider => {
         let provider = providers.get(id);
         if (!provider) {
-            // Task-owned L1 instances retain inline source bytes in this task's context only.
-            provider = id === 'gemini' ? new GeminiProvider(undefined, undefined, resources)
-                : id === 'chatgpt' ? new ChatGPTProvider({ resources }) : ProviderRegistry.get(id);
-            if (!provider) throw new Error('Account provider unavailable');
+            provider = createTaskProvider(id, resources);
             providers.set(id, provider);
         }
         return provider;
@@ -118,7 +113,7 @@ export async function runExport(request: ExportRequest, options: {
                     conversation = await readLocal(key);
                 }
                 signal.throwIfAborted();
-                if (!conversation?.detail.messages.length) throw new Error('No usable local Detail');
+                if (!conversation) throw new Error('No usable local Detail');
                 const document = request.format === 'json' ? undefined : composeDomainDocument(conversation, account);
                 const references = document && collectDocumentResources(document);
                 const requiredIds = !request.includeAssets ? new Set<string>() : request.format === 'json'
@@ -134,24 +129,22 @@ export async function runExport(request: ExportRequest, options: {
             }
         }
         signal.throwIfAborted();
-        const planned: PendingExport[] = [];
-        let plans: ReturnType<typeof planExportPaths> = [];
-        for (const item of pending) {
-            try {
-                plans = planExportPaths([...planned, item], request.format);
-                planned.push(item);
-            } catch (error) {
-                console.warn('[Gemini Exporter] Export path planning failed', item.key, error);
-                fail([item.key]);
-            }
+        let plans: ReturnType<typeof planExportPaths>;
+        try {
+            plans = planExportPaths(pending, request.format);
+        } catch (error) {
+            if (cancelled(error)) throw error;
+            console.warn('[Gemini Exporter] Export path planning failed', error);
+            fail(pending.map(item => item.key));
+            return result;
         }
         const groups: ExportGroup[] = [];
-        for (const [index, item] of planned.entries()) {
+        for (const [index, item] of pending.entries()) {
             signal.throwIfAborted();
             try {
                 const { conversation, document, prepared, key } = item;
                 const plan = plans[index];
-                let partial = conversation.detail.quality.status === 'partial'
+                let partial = conversation.detail.quality.status !== 'complete'
                     || (comparable(conversation.detail.savedAt) && comparable(conversation.index.updatedAt)
                         && conversation.detail.savedAt < conversation.index.updatedAt)
                     || [...prepared.values()].some(value => !value.ok);

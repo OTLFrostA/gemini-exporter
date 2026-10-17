@@ -5,7 +5,7 @@ Implementation of the frozen [Application design](https://app.notion.com/p/3fb5d
 Public entry points are exported from `index.ts`:
 
 - `scanAll(request, { onProgress, signal })`: Recent only, one startup Coverage snapshot, L1 committed-page counters, L2 boundary decision. No Cursor handling, admission, Coverage writes, UI strings or durable scan state.
-- `runExport(request, { onProgress, signal })`: one sequential workflow for Markdown/HTML/JSON/PDF. Refresh through L1, reread local Domain, prepare resources once, plan paths, format, deliver and commit the latest Record. No durable task/session/checkpoint.
+- `runExport(request, { onProgress, signal })`: one sequential workflow for Markdown/HTML/JSON/PDF. Refresh through L1, reread local Domain, prepare resources once, plan all batch paths once, format, deliver and commit the latest Record. Task-level Provider instances are constructed by L1, not selected in Application. No durable task/session/checkpoint.
 - `getSettings`, `updateSettings`, `isLiveSaveEffective`: one GlobalSettings schema; defaults on read, explicit patches on write, no changes to enabledDisk when format/permission prevents Live Save.
 - `deleteLocalConversations`, `clearLocalExportRecords`, `clearLocalAccountData`: explicit local cleanup only. Selected deletion leaves Index last and preserves Coverage; account-wide clearing delegates Storage's single transaction.
 
