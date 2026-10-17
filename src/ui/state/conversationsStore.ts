@@ -107,8 +107,8 @@ export async function getLastSync(slot?: string): Promise<{ timestamp: number | 
 export async function saveConversations(slot: string, list: DomainConversationIndex[]): Promise<void> {
     const s = slot || accountId;
     const storage = getStorage();
-    await ingestIndexes(s, list);
-    if (s === accountId) setConversations(list);
+    await ingestIndexes(s, list.map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })));
+    if (s === accountId) setConversations(await storage.getConversations(s));
 }
 
 export async function clearExported(slot: string): Promise<void> {

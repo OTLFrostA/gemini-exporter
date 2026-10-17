@@ -1,7 +1,10 @@
+import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
+import { cacheAcquiredResources } from '../../storage/domain/resourceContext.js';
+import { storageIdentity } from '../../storage/domain/domainStore.js';
 import { getAccount } from '../../api/accountRegistry.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { getConversations } from '../../storage/storageService.js';
-import { ingestConversation } from '../../domain/ingestion.js';
+import { ingestDetail } from '../../domain/ingestion.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
 import { ZipBombGuard } from './zipBombGuard.js';
 import { I18n } from '../../utils/i18n.js';
@@ -66,7 +69,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
     for (const [name, entries] of basenames) if (entries.length === 1) store.globalMedia[name] = entries[0] as TakeoutStore['globalMedia'][string];
     for (const [resultIndex, result] of results.entries()) {
         const id = result.conversation.index.key.conversationId;
-        const durableResources: StoredDomainResource[] = [];
+        const acquiredResources: StoredDomainResource[] = [];
         const native = { account, ...(result.sourceVersion !== undefined ? { sourceVersion: result.sourceVersion } : {}), conversation: result.conversation, diagnostics: result.diagnostics, acquisitionHints: result.acquisitionHints,
             resourceHints: {} as Record<string, { archivePath: string }> };
         store.convCache[id] = native;
@@ -83,11 +86,17 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
                 native.diagnostics = [...native.diagnostics, ...resourceDiagnostics([acquired])];
                 continue;
             }
-            durableResources.push({ assetId, bytes: acquired.value, sourcePath: bound.path });
+            acquiredResources.push({ assetId, bytes: acquired.value, sourcePath: bound.path });
         }
-        Object.assign(native, await ingestConversation(slot, native, durableResources));
+        await ingestDetail(slot, id, native.conversation.detail, native.conversation.index);
+        await cacheAcquiredResources(storageIdentity(account.providerId, slot, id), native.conversation.detail.assets, native.acquisitionHints, acquiredResources);
+        const accepted = await getDomainConversationResult(slot, id, account.providerId);
+        if (!accepted) throw new Error('Accepted Takeout Detail missing');
+        native.conversation = accepted.conversation;
+        native.sourceVersion = accepted.sourceVersion;
+        native.acquisitionHints = accepted.acquisitionHints;
         // The repository write is the delivery boundary; it stays fatal if the store itself fails.
-        for (const resource of durableResources) {
+        for (const resource of acquiredResources) {
             const path = resource.sourcePath!;
             resourceResults.push({ ok: true, resourceId: resource.assetId, value: { path } });
             native.resourceHints[resource.assetId] = { archivePath: path };

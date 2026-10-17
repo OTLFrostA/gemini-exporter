@@ -1,32 +1,7 @@
-import type { TrustedDomain } from '../../domain/runtimeValidation.js';
-import type { DomainConversationWithDetail } from '../../domain/conversation.js';
-import type { ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
-
-export const DOMAIN_STORAGE_VERSION = 3;
-export const DOMAIN_CONTRACT_VERSION = 3;
-export const DOMAIN_DB_NAME = 'gemini_exporter_domain';
-export const DOMAIN_DB_VERSION = 3;
+export const DOMAIN_DB_NAME = 'gemini_exporter_v2';
+export const DOMAIN_DB_VERSION = 1;
 export const ACCOUNT_STORE = 'accounts';
 
-/** Storage identity includes the account; provider IDs and conversation IDs are opaque. */
 export interface DomainStorageIdentity { providerId: string; accountId: string; conversationId: string }
-/** Acquired/archive bytes are durable acquisition context, never semantic Domain fields. */
+/** Acquisition context only, never part of a persisted Detail. */
 export interface StoredDomainResource { assetId: string; bytes: Uint8Array; sourcePath?: string }
-export interface DomainStorageRecord {
-    key: string;
-    storageVersion: typeof DOMAIN_STORAGE_VERSION;
-    domainVersion: typeof DOMAIN_CONTRACT_VERSION;
-    identity: DomainStorageIdentity;
-    origin: 'source';
-    /** Opaque token for the current record; no revision history is retained. */
-    revision: string;
-    /** Source updatedAt version of the saved body. Absent when the source provides no version. */
-    savedAt?: number;
-    conversation: DomainConversationWithDetail;
-    acquisitionHints: ResourceAcquisitionHints;
-    resources: StoredDomainResource[];
-    /** Cache metadata only; absent on older records. Never part of the Domain. */
-    resourceDigests?: Record<string, { sourceUri: string; sha256?: string; sourcePath?: string }>;
-}
-/** Only recovery/writing establishes this in-memory contract; disk bytes stay unbranded. */
-export interface TrustedDomainStorageRecord extends Omit<DomainStorageRecord, 'conversation'> { conversation: TrustedDomain }

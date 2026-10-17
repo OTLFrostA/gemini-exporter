@@ -1,4 +1,5 @@
-import { getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getDomainResource } from '../src/core/storage/domain/resourceContext.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { fixtureAccount } from './helpers/domainFixture.js';

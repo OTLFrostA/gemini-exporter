@@ -243,15 +243,15 @@ suppression comments are forbidden by review.
 
 ## Semantic dependency boundaries
 
-The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Pure Domain rules and Document AST do not import parsers or output backends; L2 admission operations use the existing parser-result/resource contracts and Storage ports. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. Historical record adapters exist only as test fixtures; runtime/export consume native Domain results.
+The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Pure Domain rules and Document AST do not import parsers or output backends; L2 admission operations accept Index/Detail facts and call Storage ports; Parser Results and resource bytes stay outside this boundary. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. Historical record adapters exist only as test fixtures; runtime/export consume native Domain results.
 
-Native conversation inputs publish accepted Domain through the shared ingestion boundary. This refactor adds no historical migration or compatibility path. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).
+Native conversation inputs publish accepted Domain through the shared ingestion boundary. This refactor adds no historical migration or compatibility path. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md).
 
 ## L2 v2 ownership
 
 - `core/domain/accountRegistry.ts` and `accountAdmission.ts`: Account schema, exact matching, UUID get-or-create.
 - `core/domain/conversationIndex.ts`, `titleAuthority.ts`, `ingestion.ts`: authoritative Index merge and admission.
-- `core/domain/conversationDetail.ts`, `snapshotAdmission.ts`, `runtimeValidation.ts`, `closure.ts`: whole snapshot selection, schema and references.
+- `core/domain/conversationDetail.ts`, `runtimeValidation.ts`, `closure.ts`: whole snapshot selection, schema and references.
 - `core/domain/streamCoverage.ts`, `indexCoverage.ts`, `coverageAdmission.ts`: range-only durable Coverage and ephemeral cursor proof.
 - `core/parsers/qualityEvidence.ts`: temporary parser evidence, outside persisted Detail.
 

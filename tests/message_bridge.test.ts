@@ -260,14 +260,12 @@ test('messageBridge - touches active conversation and updates timestamp on strea
 test('messageBridge - fallback to upsertConversations without client timestamp when touchActiveConversation omitted', async () => {
     let upsertedItems: any[] = [];
     let upsertedSource = '';
-    let upsertedForceWrite = false;
     let upsertedSlot = '';
 
     const api = MessageBridge.init({
-        upsertConversations: async (items: any[], source: string, forceWrite?: boolean, targetSlot?: string) => {
+        upsertConversations: async (items: any[], source: string, targetSlot?: string | null) => {
             upsertedItems = items;
             upsertedSource = source;
-            upsertedForceWrite = !!forceWrite;
             upsertedSlot = targetSlot || '';
             return items.length;
         },
@@ -291,7 +289,6 @@ test('messageBridge - fallback to upsertConversations without client timestamp w
     assert.strictEqual(upsertedItems[0].updatedAt, undefined, 'updatedAt must not be client-stamped');
     assert.strictEqual(upsertedItems[0].timestamp, undefined, 'timestamp must not be client-stamped');
     assert.strictEqual(upsertedSource, 'stream-complete');
-    assert.strictEqual(upsertedForceWrite, true, 'forceWrite must be true to ensure persistence');
     assert.strictEqual(upsertedSlot, ACCOUNT_UUID);
 });
 
@@ -316,7 +313,8 @@ test('messageBridge rejects malformed raw protocol fields before parser or strea
 test('messageBridge normalizes detail conversation id before persisting to DomainStore', async () => {
     const runtime = accountRuntime();
     try {
-    const { __clearDomainMemory, getStoredDomain, storageIdentity } = require('../src/core/storage/domain/domainStore.js');
+    const { __clearDomainMemory, storageIdentity } = require('../src/core/storage/domain/domainStore.js');
+    const { readFixture } = require('./helpers/admitFixture.js');
     __clearDomainMemory();
     const turn = [['c_1bd028d5c5b0c0e2', 'r_1'], [1788374200, 0], [['Prompt text']], [['rc_1', [['Answer text']]]]];
     const text = ")]}'\n\n" + JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Chat Title'])]]);
@@ -331,7 +329,7 @@ test('messageBridge normalizes detail conversation id before persisting to Domai
             payload: { text, slot: 'u0', requestAccountObservation: ACCOUNT_OBSERVATION }
         }
     });
-    const stored = await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', '1bd028d5c5b0c0e2'));
+    const stored = await readFixture(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', '1bd028d5c5b0c0e2'));
     assert.ok(stored);
     assert.strictEqual(stored.conversation.index.key.conversationId, '1bd028d5c5b0c0e2');
     } finally { runtime.restore(); }

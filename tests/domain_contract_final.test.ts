@@ -1,4 +1,6 @@
-import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
+import { admitFixture } from './helpers/admitFixture.js';
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,7 +8,8 @@ import { restoreDomainSnapshot, validateParserDomain } from '../src/core/domain/
 import { TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
 import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
-import { getStoredDomain, storedParseResult, storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { readFixture } from './helpers/admitFixture.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
@@ -62,10 +65,10 @@ test('restored Domain detects heuristic reports and unavailable images without p
             { id: 'report', kind: 'file', document: { id: 'original-report', contentMarkdown: '# Deep Research\n\nComplete retained body' } },
             { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } },
         ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'] }] } });
-        await saveDomainConversation(fixtureAccount('custom').id, { account: fixtureAccount('custom'), conversation, acquisitionHints: {}, resourceHints: {}, diagnostics: [] });
-        const stored = await getStoredDomain(storageIdentity('custom', fixtureAccount('custom').id, conversation.index.key.conversationId));
+        await admitFixture(fixtureAccount('custom').id, { account: fixtureAccount('custom'), conversation, acquisitionHints: {}, resourceHints: {}, diagnostics: [] });
+        const stored = await readFixture(storageIdentity('custom', fixtureAccount('custom').id, conversation.index.key.conversationId));
         assert.ok(stored);
-        const restored = storedParseResult(stored, fixtureAccountFor(stored.conversation));
+        const restored = stored;
         assert.equal(restored.evidence, undefined);
         assert.deepEqual(restored.conversation.detail.quality, { status: 'partial' });
         assert.equal(resolveExportRecordStatus({ quality: restored.conversation.detail.quality }).status, 'partial');

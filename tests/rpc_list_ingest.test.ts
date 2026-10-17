@@ -1,3 +1,4 @@
+import { catalogMock } from './helpers/catalogMock.js';
 import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +15,7 @@ const batch = () => parseList(text).conversations;
 async function fixture(run: (state: { availability: Record<string, string>; records: Conversation[]; fail: boolean; writes: number; checkpoints: number }) => Promise<void>) {
     const state = { availability: {} as Record<string, string>, records: [indexFixture({ id: 'abcdef123456', title: 'Old title', cloudAvailability: 'unlisted' })], fail: false, writes: 0, checkpoints: 0 };
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} }, storage: catalogMock(() => state.records, list => { if (state.fail) throw new Error('disk failed'); state.records = list; state.writes++; }) } });
     __setModuleOverride('StorageService', {
         async transactConversations(slot: string, apply: (items: Conversation[]) => { list: Conversation[]; changed: number } | null) {
             assert.equal(slot, ACCOUNT_UUID);

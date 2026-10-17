@@ -1,3 +1,4 @@
+import { catalogMock } from './helpers/catalogMock.js';
 import { useAccountRuntime } from './helpers/accountRuntime.js';
 useAccountRuntime();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -26,7 +27,7 @@ function mockStorageContext() {
         getScanCheckpoint: async () => checkpoint,
         setScanCheckpoint: async (_s: any, ts: number | null) => { checkpoint = ts; }
     };
-    (global as any).chrome = { runtime: globalThis.chrome.runtime };
+    (global as any).chrome = { runtime: globalThis.chrome.runtime, storage: catalogMock(() => savedList, list => { savedList = list; }) };
     __setModuleOverride('StorageService', mockStorage);
     return {
         seed: (items: any[]) => { savedList = items.map(indexFixture); },

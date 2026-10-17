@@ -1,10 +1,12 @@
-import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
+import { admitFixture } from './helpers/admitFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { requestNativeDetail, requestNativeBatch } from '../src/core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
-import { callDomainBroker, encodeDomainRecord, decodeDomainRecord } from '../src/core/storage/domain/transport.js';
+import { callDomainBroker, encodeBytes, decodeBytes } from '../src/core/storage/domain/transport.js';
 import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 
 function opaqueCannotBecomeNative(raw: unknown): void {
@@ -37,10 +39,10 @@ test('current extension reply preserves native identity; legacy and malformed en
 test('authenticated storage transport requires version and preserves resource bytes and Domain graph', async () => {
     __clearDomainMemory();
     const parsed = historicalFixture({ id: 'broker', messages: [{ role: 'user', content: 'Body' }] });
-    const record = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed);
+    const record = await admitFixture('10000000-0000-4000-8000-000000000001', parsed);
     assert.ok(record);
-    const wire = encodeDomainRecord(record);
-    assert.deepEqual(decodeDomainRecord(wire), record);
+    const wire = record.conversation.detail;
+    assert.deepEqual(decodeBytes(encodeBytes(new Uint8Array([1, 2, 3]))), new Uint8Array([1, 2, 3]));
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         for (const version of [undefined, 1, 2, 3, 4]) {

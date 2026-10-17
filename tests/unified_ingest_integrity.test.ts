@@ -1,3 +1,4 @@
+import { catalogMock } from './helpers/catalogMock.js';
 import { useAccountRuntime } from './helpers/accountRuntime.js';
 useAccountRuntime();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -95,7 +96,7 @@ function mockStorageContext() {
     };
 
     (global as any).chrome = {
-        runtime: globalThis.chrome.runtime
+        runtime: globalThis.chrome.runtime, storage: catalogMock(() => savedList, list => { savedList = list; transactionInvoked = true; })
     };
     __setModuleOverride('StorageService', mockStorage);
 
@@ -118,7 +119,7 @@ test('Fail-Closed：传入空 ID 或 c_unknown 等非法项目时，严禁触发
         { id: 'c_' }
     ];
 
-    const count = await upsertConversations(badBatch, 'network-list', true);
+    const count = await upsertConversations(badBatch, 'network-list');
     assert.strictEqual(count, 0, '非法批次直接返回 0');
     assert.strictEqual(ctx.wasTransactionInvoked(), false, '绝不发起存储事务，Fail-Closed 保护生效');
     assert.strictEqual(ctx.getSavedList().length, 1, '已有数据毫发无损');
@@ -134,7 +135,7 @@ test('混杂批次：自动剥离 c_unknown，仅允许合法 ID 写入', async 
         listItem('c_valid_1', 2000, 'Valid Chat')
     ];
 
-    const count = await upsertConversations(mixedBatch, 'batchexecute', true);
+    const count = await upsertConversations(mixedBatch, 'batchexecute');
     assert.strictEqual(count, 1, '仅 1 条合法数据入库');
     assert.strictEqual(ctx.wasTransactionInvoked(), true);
     assert.strictEqual(ctx.getSavedList().length, 1);

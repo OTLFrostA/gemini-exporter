@@ -1,3 +1,4 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
@@ -203,7 +204,7 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
     assert.equal(fromTakeout.source, 'takeout');
     assert.equal(calls, 1);
     try {
-        await DomainAdmission.ingestDetails(slot, [stored]);
+        await admitFixtures(slot, [stored]);
         const recovered = await resolveConversationData({ error: 'offline' }, id, null, null, slot);
         assert.equal(recovered.source, 'local_snapshot', 'durable fallback must be marked as a local snapshot');
         assert.deepEqual(recovered.result.conversation.detail.messages, stored.conversation.detail.messages);
@@ -216,7 +217,7 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
 test('native resolver retains unknown source blocks and arbitrates titles without reparsing', async () => {
     const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
     const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native);
+    await admitFixture('10000000-0000-4000-8000-000000000001', native);
     const resolved = await resolveChat(native, { id: 'native-title' }, list, null, '10000000-0000-4000-8000-000000000001');
     assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.index.title, 'RPC title');
     assert.deepEqual(resolved.chat.conversation.detail.messages, native.conversation.detail.messages);

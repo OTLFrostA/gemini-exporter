@@ -1,4 +1,5 @@
-import { getDomainResource, cacheDomainResource, storageIdentity } from '../storage/domain/domainStore.js';
+import { getDomainResource, cacheDomainResource } from '../storage/domain/resourceContext.js';
+import { storageIdentity } from '../storage/domain/domainStore.js';
 import type { IExportWriter } from "./writers/writerInterface.js";
 import type { ResourceRequest } from '../resources/resourceAcquisition.js';
 import { attemptResource, missingResource, type ResourceResult, type ResourceBytes, type ResourceDelivery } from '../resources/resourceResult.js';

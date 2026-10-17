@@ -1,10 +1,12 @@
+import { cacheAcquiredResources } from '../core/storage/domain/resourceContext.js';
+import { storageIdentity } from '../core/storage/domain/domainStore.js';
 import { ingestRpcList, ingestPageObservation } from './geminiIndexCapture.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
 import type { PageObservation } from '../core/domain/pageObservation.js';
-import { ingestConversation } from '../core/domain/ingestion.js';
+import { ingestDetail } from '../core/domain/ingestion.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import type { GeminiProviderConversationItem } from '../core/provider/gemini/geminiContracts.js';
 import type { RpcListIngestResult } from './geminiIndexCapture.js';
@@ -23,7 +25,7 @@ export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 export interface MessageBridgeDeps {
     ingestPageObservation?: (page: PageObservation<GeminiProviderConversationItem>, slot: string) => Promise<RpcListIngestResult>;
     ingestRpcList?: (items: GeminiProviderConversationItem[], slot: string, requestedAt?: number, canCommit?: () => boolean) => Promise<RpcListIngestResult>;
-    upsertConversations?: (items: MessageBridgeConversationInput[], source: string, forceWrite?: boolean, targetSlot?: string) => Promise<number>;
+    upsertConversations?: (items: MessageBridgeConversationInput[], source: string, targetSlot?: string | null) => Promise<number>;
     touchActiveConversation?: (cid: string, slot?: string, options?: { forceWrite?: boolean; source?: string }) => Promise<number>;
     extractActiveChatTitle?: (id: string) => { title: string; source: string } | null;
     getAccountSlot?: () => string;
@@ -127,7 +129,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const detailRes = native.conversation;
                     if (detailRes && detailRes.index.key.conversationId) {
                         if (!canCommit()) return;
-                        await ingestConversation(account.accountId, native, [], canCommit);
+                        await ingestDetail(account.accountId, detailRes.index.key.conversationId, detailRes.detail, detailRes.index);
+                        await cacheAcquiredResources(storageIdentity('gemini', account.accountId, detailRes.index.key.conversationId), detailRes.detail.assets, native.acquisitionHints);
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[MessageBridge] parseDetail err', e);
@@ -201,7 +204,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                         id: nid,
                         url: `https://gemini.google.com/app/${nid}`,
                         sidebarIndex: 0
-                    }], 'stream-start', true, streamAccountId);
+                    }], 'stream-start', streamAccountId);
                 }
             } catch (err) {
                 if (contentContext.isDevMode()) console.debug('[MessageBridge] stream start touch err', err);
@@ -243,7 +246,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                             item.titleSource = sourceTier;
                         }
                     }
-                    await upsertConversations([item], 'stream-complete', true, streamAccountId);
+                    await upsertConversations([item], 'stream-complete', streamAccountId);
                 }
             } catch (err) {
                 if (contentContext.isDevMode()) console.debug('[MessageBridge] stream complete touch err', err);

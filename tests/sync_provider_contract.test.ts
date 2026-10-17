@@ -137,7 +137,7 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
                 });
                 return adapter.listConversations(options);
             }
-            await ingestIndexes('10000000-0000-4000-8000-000000000001', input.items.map(indexFixture), { storage: store });
+            await ingestIndexes('10000000-0000-4000-8000-000000000001', input.items.map(indexFixture).map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })));
             trace.decisions.push(await options?.onPageBatch?.({ page: 1, hasMore: true, count: input.items.length }));
             options?.onProgress?.({ page: 1, added: input.items.length, total: input.items.length, hasMore: false,
                 stoppedEarly: input.stoppedEarly });

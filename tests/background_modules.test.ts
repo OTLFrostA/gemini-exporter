@@ -1,3 +1,4 @@
+import { admitFixture } from './helpers/admitFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
@@ -258,6 +259,7 @@ test('liveSaveHandler - persists to gemini_export with cid6 filename and assets'
             ]
         };
 
+        await admitFixture(payload.chat.account.id, payload.chat);
         const res = await handleLiveSaveViaHandle(payload, '10000000-0000-4000-8000-000000000001');
         // Phase A (P1-2): 空附件不再静默跳过 —— ok=false + failedAssets 累积，
         // 主 md 照常落盘，导出记录标 partial 保证下次增量重试。

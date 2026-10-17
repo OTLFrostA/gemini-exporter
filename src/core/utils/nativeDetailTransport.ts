@@ -1,3 +1,4 @@
+import { restoreDomainSnapshot } from '../domain/runtimeValidation.js';
 import { readAccount } from '../domain/accountRegistry.js';
 import { readConversationKey, sameConversationKey } from '../domain/conversationKey.js';
 import type { ResourceConversationParseResult, ConversationAcquisitionFailure, NativeConversationInput } from '../parsers/parsingResult.js';
@@ -34,6 +35,7 @@ function nativeResult(value: unknown): ResourceConversationParseResult {
     const account = readAccount(value.account);
     const indexKey = readConversationKey(graph.index.key), detailKey = readConversationKey(graph.detail.key);
     if (account.id !== indexKey.accountId || !sameConversationKey(indexKey, detailKey)) throw new TypeError('Native Account/key mismatch');
+    restoreDomainSnapshot(value.conversation);
     return opaque as ResourceConversationParseResult;
 }
 function item(value: unknown): NativeConversationInput {

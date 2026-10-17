@@ -1,4 +1,4 @@
-import * as DomainAdmission from '../core/domain/ingestion.js';
+import { getDomainConversationResult } from '../core/storage/domain/nativePersistence.js';
 import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
@@ -108,7 +108,8 @@ export async function handleLiveSaveViaHandle(payload: any, accountId: string = 
             }
         }
 
-        const chat = await DomainAdmission.ingestConversation(accountId, parsedChat);
+        const chat = await getDomainConversationResult(accountId, parsedChat.conversation.index.key.conversationId, parsedChat.account.providerId);
+        if (!chat) throw new Error('Live save requires an admitted Detail');
 
         // Shared live-save writer: filename format + markdown formatting + write.
         // Serialized through withLiveSaveLock per file to prevent concurrent createWritable

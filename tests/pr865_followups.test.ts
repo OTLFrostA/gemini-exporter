@@ -1,4 +1,4 @@
-import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { bindFixture } from './helpers/domainFixture.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
@@ -55,8 +55,8 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         { url: 'https://example.com/missing.png', fileName: 'missing.png' }
     ] }] });
     const [domain, takeout] = source.conversation.detail.assets;
-    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [source]);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
+    await admitFixtures('10000000-0000-4000-8000-000000000001', [source]);
+    await admitFixture('10000000-0000-4000-8000-000000000001', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
     await setConversationAvailability('10000000-0000-4000-8000-000000000001', 'deleted_local', 'deleted');
     let requests = 0;
     const logs: string[] = [];
@@ -87,12 +87,12 @@ test('normal export fetches fresh cloud content first and falls back to a local 
     __clearDomainMemory();
     const local = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Stale snapshot' }] });
     const fresh = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Fresh cloud answer' }] });
-    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [local]);
+    await admitFixtures('10000000-0000-4000-8000-000000000001', [local]);
     let calls = 0;
     try {
         for (const error of [null, 'HTTP 503', 'Malformed direct response envelope']) {
             __clearDomainMemory();
-            await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [local]);
+            await admitFixtures('10000000-0000-4000-8000-000000000001', [local]);
             const { files } = exportMocks();
             __setModuleOverride('TabService', { sendToGeminiTab: async () => {
                 calls++; return error ? { success: false, error } : acquiredReply({ success: true, domainEnvelopeVersion: 3, data: fresh });
@@ -117,7 +117,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
     const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', updatedAt: 1, messages: [{ role: 'user', content: 'Fresh cloud content' }] });
-    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [local]);
+    await admitFixtures('10000000-0000-4000-8000-000000000001', [local]);
     let calls = 0;
     let available = false;
     const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
@@ -151,7 +151,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     const { records } = exportMocks();
     const source = historicalFixture({ id: 'delete_write_failure', title: 'Delete write failure', messages: [{ role: 'model', content: 'Retained answer',
         images: [{ url: 'https://example.com/missing-deleted.png', fileName: 'missing.png' }] }] });
-    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [source]);
+    await admitFixtures('10000000-0000-4000-8000-000000000001', [source]);
     let assetRequests = 0;
     let writes = 0;
     let memoryAtWrite: 'unknown' | 'deleted' = 'unknown';
@@ -279,7 +279,7 @@ test('a failed cloud fetch without a same-account body remains a failed export',
     __clearDomainMemory();
     const { records } = exportMocks();
     const foreign = historicalFixture({ id: 'missing_local', title: 'Other account', messages: [{ role: 'user', content: 'Private other-account answer' }] });
-    await saveDomainConversation('10000000-0000-4000-8000-000000000002', bindFixture(foreign, '10000000-0000-4000-8000-000000000002'));
+    await admitFixture('10000000-0000-4000-8000-000000000002', bindFixture(foreign, '10000000-0000-4000-8000-000000000002'));
     __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
     try {
         const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,

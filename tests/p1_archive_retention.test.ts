@@ -1,4 +1,4 @@
-import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { sourceIndex } from './helpers/domainFixture.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
@@ -9,7 +9,8 @@ import { indexFixture } from './helpers/indexFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { __clearDomainMemory, getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getDomainResource } from '../src/core/storage/domain/resourceContext.js';
 import { getDomainConversationResult } from '../src/core/storage/domain/nativePersistence.js';
 import { resolveChat, fetchChatDetail } from '../src/core/engine/export/batchWorker.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -23,9 +24,9 @@ test('cloud-deleted archive exports durable body and resource bytes without fetc
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
         ] } }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
-    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [source]);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
+    await admitFixtures('10000000-0000-4000-8000-000000000001', [source]);
+    await admitFixture('10000000-0000-4000-8000-000000000001', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
+    await admitFixture('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
     let deleted = false; let fetched = false;
     __setModuleOverride('StorageService', { removeConversation: async () => { deleted = true; } });
     try {
@@ -48,23 +49,21 @@ test('cloud-deleted archive exports durable body and resource bytes without fetc
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
 });
 
-test('failed persistence never advances checkpoint, keeps previous records, and subsequent queued writes succeed', async () => {
-    let checkpoint = 1000;
-    let records = [indexFixture({ id: 'existing', title: 'Preserved', updatedAt: 100 })];
+test('failed persistence keeps previous records and subsequent queued writes succeed', async () => {
+    const slot = '10000000-0000-4000-8000-000000000001';
+    await catalogStorage.setConversations(slot, [indexFixture({ id: 'existing', title: 'Preserved', updatedAt: 100 })]);
+    const set = chrome.storage.local.set;
     let fail = true;
-    __setModuleOverride('StorageService', {
-        async transactConversations(_slot: string, apply: (items: typeof records) => { list: typeof records; changed: number }) {
-            if (fail) throw new Error('Injected persistence failure');
-            records = apply(records).list; return { list: records, written: true };
-        },
-        async setLastSync() {}, async updateAccountSlot() {},
-        async getScanCheckpoint() { return checkpoint; }, async setScanCheckpoint(_slot: string, ts: number) { checkpoint = ts; }
-    });
+    chrome.storage.local.set = async values => {
+        if (fail && ('conversations_' + slot) in values) throw new Error('Injected persistence failure');
+        return set(values);
+    };
     try {
-        await assert.rejects(ingestRpcList([sourceIndex(indexFixture({ id: 'incoming', title: 'Incoming', titleSource: 'rpc', titles: { rpc: 'Incoming' }, createdAt: null, updatedAt: 2000, timestamp: 2000, chatTime: 2000, messageCount: 1, url: '' }))], '10000000-0000-4000-8000-000000000001'), /Injected/);
-        assert.equal(checkpoint, 1000); assert.deepEqual(records.map(c => c.key.conversationId), ['existing']);
+        await assert.rejects(ingestRpcList([sourceIndex(indexFixture({ id: 'incoming', title: 'Incoming', titleSource: 'rpc', updatedAt: 2000 }))], slot), /Injected/);
+        assert.deepEqual((await catalogStorage.getConversations(slot)).map(c => c.key.conversationId), ['existing']);
         fail = false;
-        await upsertConversations([{ id: 'retry', title: 'Retry' }], 'retry', true, '10000000-0000-4000-8000-000000000001');
+        await upsertConversations([{ id: 'retry', title: 'Retry' }], 'retry', slot);
+        const records = await catalogStorage.getConversations(slot);
         assert.ok(records.some(c => c.key.conversationId === 'retry')); assert.ok(records.some(c => c.key.conversationId === 'existing'));
-    } finally { __clearModuleOverrides(); }
+    } finally { chrome.storage.local.set = set; }
 });

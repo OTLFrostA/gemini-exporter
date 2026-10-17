@@ -1,3 +1,4 @@
+import { clearResourceContext } from '../../src/core/storage/domain/resourceContext.js';
 import { resetIndexCoverageSessions } from '../../src/core/domain/indexCoverage.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
@@ -16,7 +17,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
         [OTHER_ACCOUNT_UUID, { id: OTHER_ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '10000000002' }],
         ['10000000-0000-4000-8000-000000000003', { id: '10000000-0000-4000-8000-000000000003', providerId: 'gemini', providerAccountId: 'default' }],
     ]);
-    for (const provider of ['chatgpt', 'custom', 'future', 'other', 'example', 'neutral', 'openai', 'independent']) { const account = fixtureAccount(provider); accounts.set(account.id, account); }
+    for (const provider of ['chatgpt', 'custom', 'future', 'future-provider', 'other', 'example', 'neutral', 'openai', 'independent']) { const account = fixtureAccount(provider); accounts.set(account.id, account); }
     globalThis.chrome = { runtime: { async sendMessage(message: Record<string, unknown>) {
         if (message.action !== 'accountRegistry') return undefined;
         if (message.command === 'get') return { ok: true, value: accounts.get(String(message.accountId)) ?? null };
@@ -37,9 +38,9 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
     } } } as typeof chrome;
     resetIndexCoverageSessions();
     __resetStorageReadyForTest();
-    __clearDomainMemory();
+    __clearDomainMemory(); clearResourceContext();
     return { local, writes: () => writes, fail: (key?: string) => { failKey = key; },
-        restore() { globalThis.chrome = previous; __resetStorageReadyForTest(); __clearDomainMemory(); } };
+        restore() { globalThis.chrome = previous; __resetStorageReadyForTest(); __clearDomainMemory(); clearResourceContext(); } };
 }
 
 /** Catalog-aware application tests use the same storage boundary as production reads. */

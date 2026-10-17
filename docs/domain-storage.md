@@ -1,110 +1,98 @@
 # Domain storage and admission
 
-The Domain contract describes accepted local facts. Source interpretation belongs to
-L1 Provider/Parser, pure admission rules belong to L2 Domain, and transactions belong
-to Storage. Application consumers read the accepted local result.
+L1 interprets sources and submits normalized facts. L2 decides which facts to keep.
+Storage owns reads, writes and serialization. Application reads accepted facts;
+it does not forward Parser Results for admission.
 
-## Owner map
+## Admission boundary
 
-`domain/accountAdmission.ts` calls `storage/accountRegistryStore.ts` for atomic
-read/decide/write. Matching, profile preservation and UUID allocation are Domain
-decisions. `domain/snapshotAdmission.ts` supplies the snapshot decision callback
-that Storage executes against the latest record within its transaction.
-`domain/coverageAdmission.ts` calls the physical `storage/scanCoverageStore.ts`
-port only after Index commit. No Storage entry duplicates merge/select rules.
+`domain/ingestion.ts` exposes the frozen interfaces:
 
-## Identity and contracts
+```ts
+ingestIndexes(accountId, [{ conversationId, fields }], page?): Promise<void>
+ingestDetail(accountId, conversationId, detail, indexFields?): Promise<void>
+```
 
-- `domain/accountRegistry.ts`: Account is `{id, providerId, providerAccountId,
-  email?, displayName?}`. The local ID is a UUID; matching uses the exact provider
-  and provider account ID. L1 normalizes provider identity. Each provider can have
-  an ordinary `default` account with its own UUID; it is never implicitly promoted
-  or merged into an identified account.
-- `domain/conversationKey.ts`: `{accountId, conversationId}` identifies both Index
-  and Detail. Provider ownership is resolved through Account.
-- `domain/conversationIndex.ts`: Index contains only `key`, optional `title` with
-  `titleSource`, `createdAt`, and `updatedAt`. Title authority is
-  `user > provider > derived`; the latest admission wins at equal authority.
-  Missing facts preserve existing values. Creation uses the earliest source time,
-  activity the latest source time. Unknown titles/times remain absent.
-- `domain/conversationDetail.ts`: Detail contains `key`, `messages`, `assets`,
-  `quality: {status}`, and optional `savedAt`. The latter is the source snapshot
-  version, never a local write clock or a message count.
-- `domain/indexCoverage.ts`, `streamCoverage.ts`, `coverageAdmission.ts`: trusted list
-  coverage advances only after all indexes on the observed page commit.
+L2 resolves the Registry account and constructs ConversationKey. Index uses
+`mergeConversationIndex`; Detail uses `selectConversationDetail`. Gemini and ChatGPT
+acquisition, passive observations, DOM acquisition and Takeout all submit here.
+Execution parameters, Parser Results, resource bytes and storage records are not
+admission arguments. There is no second snapshot-selection callback in Storage.
 
-Domain excludes pagination cursors, availability, import markers, parser diagnostics,
-resource bytes, acquisition failures and export destinations. Temporary `data:` and
-`blob:` resource locations stay outside Domain. Assets retain semantic resource
-metadata and source locators; content and reasoning refer to their asset IDs.
-Generated-media identity fields are optional when the source cannot establish them.
+Index merges and Detail selection run under Storage's conversation lock. Index is
+committed first. If Detail persistence subsequently fails, Index remains committed
+and the error propagates. Index failure prevents the Detail write. No distributed
+transaction across Chrome Storage and IndexedDB is promised. Page Coverage is
+admitted only after its Index commit; it retains its existing range/cursor rules.
 
-## Snapshot selection
+## Business rules
 
-`selectConversationDetail` selects one entire snapshot, including its asset graph.
-A complete snapshot is protected from partial/unknown input. Comparable older
-source versions are rejected. Otherwise a later admission replaces the snapshot,
-including a shorter complete body or a shorter incomplete body. There is no
-partial-body stitching or message-count preference.
+Account uses a Registry UUID and exact L1-normalized provider identity. Display
+metadata does not participate in matching. Each provider may have an ordinary
+UUID-backed default account; it never implicitly merges into an identified account.
 
-Index metadata merges independently, so an Index-only update cannot advance the
-selected Detail's `savedAt`. Rejected input cannot change the retained body, asset graph or acquisition hints.
-Separately acquired bytes can fill already selected, reliably matched resource
-bindings; they do not establish new Domain facts.
+Index title authority remains `user > provider > derived`, with the later admission
+winning at equal authority. Missing facts preserve existing values. Creation uses
+the earliest source time and activity the latest. Unknown facts stay absent.
 
-## Coverage and execution
+Detail selection retains a whole snapshot, including its asset graph. Complete
+bodies are protected against partial/unknown captures. Comparable older source
+versions cannot roll back a body. Otherwise the later capture wins, including a
+shorter complete body. There is no body stitching or message-count preference.
+Index-only admission cannot change Detail or its `savedAt` source version.
 
-Storage persists one `{range: CoverageRange | null}` per Account UUID + stream.
-Only a trusted cursor chain from the head through natural exhaustion or an explicit
-Provider history-window terminal establishes a new range. Partial scans preserve
-the previous boundary. `getCoverage` returns a detached committed snapshot;
-`hasTrustedBoundary` checks the current admitted cursor chain against the caller's
-frozen baseline and can extend the old range. Cursor evidence is ephemeral.
+## Physical ownership and read composition
 
-Scan IDs, cancellation, terminal UI status and stop decisions belong to
-`application/sync/scanLifecycle.ts` and the caller, never durable Coverage.
+`storage/conversationCatalogStore.ts` remains the sole Index authority in
+UUID-partitioned Chrome Storage. `storage/domain/domainStore.ts` persists only
+Detail: key, quality, messages, assets and optional savedAt. It contains no Index,
+revision, acquisition hints or resource bytes. Storage does not merge/select facts.
 
-## Ingestion and persistence
+The v2 IndexedDB namespace is `gemini_exporter_v2`, physical version 1. Account and
+Detail use their stores. The other stores reserved by the frozen physical layout
+are placeholders in this change: Index/Coverage/export records/directory handles
+retain their current implementations. This L2 change does not implement the full
+Storage module migration, and supplies no historical-data compatibility path.
 
-`domain/ingestion.ts` is the shared admission entry point. It validates
-Account and conversation ownership, saves the selected body, then merges and
-commits the Index under the conversation lock. L1 detail acquisition (Gemini and
-ChatGPT), content observations/live saves and Takeout imports use this boundary
-before Application consumes the result. Failed commits propagate; list coverage
-does not advance after an Index failure.
+`storage/conversationRepository.ts` and `storage/domain/nativePersistence.ts`
+combine the canonical Index with independently loaded Detail for reading.
+DomainConversation is this composition, never another persisted authority. Missing
+Index does not promote an orphaned Detail into the catalog.
 
-`storage/conversationCatalogStore.ts` owns UUID-partitioned Chrome metadata keys,
-strict detached reads and serialized read/merge/write operations.
-`storage/domain/domainStore.ts` owns the current IndexedDB snapshot and the separate
-resource-byte cache. Current Domain/storage and transport envelopes are version 3;
-the physical IndexedDB layout version remains independent. Readers reject obsolete
-or malformed contracts without repairing them. This refactor adds no migration or
-compatibility path for old identities or old Domain snapshots.
+## Validation boundaries
 
-Resources are embedded in Detail; there is no separate Domain Resource manager.
-Inline acquisition inputs are decoded into the existing byte cache. Replacements
-remove bindings for assets no longer in the selected graph. Unchanged resource
-identity/source can retain cached bytes. Actual bytes never become Domain fields.
+`domain/runtimeValidation.ts` owns complete Schema and reference-closure validation.
+Parser finalization validates source output. Admission reuses the same validated
+body in memory; otherwise it validates incoming Detail facts. A module-local
+WeakSet records this evidence without adding a serialized Schema field.
 
-`storage/conversationRepository.ts` combines the canonical catalog Index with the
-selected body for a read-only consumer. It does not fetch providers or repair data.
-Composer receives Domain plus Account and does not synthesize provider URLs.
-Export workers re-read the admitted result; existing format pipelines only adapt
-to the new contracts. Full unified Export/PDF lifecycle work is a separate module.
+IPC receivers validate raw input again. Detail restored from IndexedDB also passes
+complete validation and identity checks. Structured-clone transport/persistence
+already detaches these values, so validation adds no JSON serialization/clone.
+Physical Detail writes check only persistence identity constraints. Internal
+composition does not repeat deep validation of trusted bodies.
 
-## Availability and explicit cleanup
+## Resources and cleanup
 
-`storage/conversationAvailability.ts` stores account-scoped execution observations
-separately from Index/Detail. A confirmed cloud deletion can restrict acquisition,
-but deletion, list absence and network failure never erase the local archive.
-Only explicit local cleanup removes Index, Detail, resource bytes, availability and
-export records. A durable deletion intent allows failed cleanup to be retried
-without relying on an already-removed list row. Other accounts remain isolated.
+Assets remain semantic facts embedded in Detail. `resourceContext.ts` separately
+holds temporary acquisition hints and bytes for the current background execution;
+it does not create a resource-bytes table. Content scripts and extension pages use
+the background broker to share this context. Inline data is decoded outside Domain.
+
+Acquired bytes bind only to reliably matched assets in the selected Detail. A
+rejected partial body may fill missing bytes for a retained asset, but cannot
+replace that body or graph. Export can consume these bytes during the execution.
+Background termination clears this temporary context; re-export then depends on
+available source locators or reacquisition.
+
+Cloud deletion and missing list rows never erase local facts. Explicit local
+cleanup removes the selected account's Index, Detail, temporary resources and
+related execution records, preserving other accounts.
 
 ## Verification
 
-Admission tests exercise complete/partial selection, source-version ordering,
-whole asset-graph replacement, byte separation, ownership isolation and commit
-failure propagation. Existing parser, storage, export and browser audits remain
-integration gates. This round validates Tier 1 only, as requested; live Tier 2
-validation is outside its acceptance scope. Pending runs are not passing evidence.
+Tier 1 tests cover shared admission, independent Index/Detail writes and failure
+propagation, snapshot protection/replacement, raw-input validation, and resource
+separation. Browser tests inspect physical IndexedDB records. Live Tier 2 is outside
+this round's scope. Failures already present on the reconstruction branch are
+reported separately from L2 verification.

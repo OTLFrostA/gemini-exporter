@@ -85,7 +85,6 @@
   "src/core/imports/takeout/importTakeout.ts",
   "tests/provider-native-callers.test.ts",
   "src/core/storage/domain/contracts.ts",
-  "src/core/storage/domain/validate.ts",
   "src/core/storage/domain/domainStore.ts",
   "src/core/storage/domain/nativePersistence.ts",
   "tests/helpers/recordFixture/parseConversation.ts",
@@ -147,9 +146,9 @@
   "tests/domain_admission_storage.test.ts",
   "src/core/domain/accountAdmission.ts",
   "src/core/domain/coverageAdmission.ts",
-  "src/core/domain/snapshotAdmission.ts",
   "src/core/storage/scanCoverageStore.ts",
   "src/core/application/sync/scanLifecycle.ts",
   "src/core/parsers/qualityEvidence.ts",
-  "src/content/geminiIndexCapture.ts"
+  "src/content/geminiIndexCapture.ts",
+  "src/core/storage/domain/resourceContext.ts"
 ]

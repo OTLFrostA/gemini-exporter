@@ -93,8 +93,8 @@ test('the compatibility directory is retired and no production source imports it
 function forbidden(owner: string, target: string): boolean {
     if (owner === 'diagnostics/diagnostic.ts') return target !== 'utils/jsonTypes.ts';
     if (owner.startsWith('domain/')) {
-        const admission = new Set(['domain/accountAdmission.ts', 'domain/ingestion.ts', 'domain/snapshotAdmission.ts', 'domain/coverageAdmission.ts']);
-        if (admission.has(owner)) return !/^(domain\/|storage\/|api\/accountRegistry\.ts$|parsers\/(?:parsingResult|contracts)\.ts$|resources\/resourceAcquisition\.ts$)/.test(target);
+        const admission = new Set(['domain/accountAdmission.ts', 'domain/ingestion.ts', 'domain/coverageAdmission.ts']);
+        if (admission.has(owner)) return !/^(domain\/|storage\/|api\/accountRegistry\.ts$)/.test(target);
         return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
     }
     if (owner.startsWith('document/ast/')) return !target.startsWith('document/ast/');
@@ -196,17 +196,17 @@ test('normal runtime cannot parse historical records or depend on application pr
 });
 
 
-test('fresh conversation persistence is owned by Domain admission', () => {
-    const owners = new Set(['domain/ingestion.ts', 'domain/snapshotAdmission.ts']);
+test('only Domain admission and its validated storage IPC adapter can write Detail', () => {
+    const owners = new Set(['core/domain/ingestion.ts', 'core/storage/domain/domainStore.ts', 'background/domainStorageHandler.ts']);
     for (const file of files(resolve(root, 'src'))) {
-        const owner = relative(core, file).replace(/\\/g, '/');
-        if (owners.has(owner)) continue;
+        const owner = relative(resolve(root, 'src'), file).replace(/\\/g, '/');
         const text = readFileSync(file, 'utf8');
-        assert.ok(!tokens(text).some(token => !token.literal && token.value === 'saveDomainConversation'),
-            `${owner} bypasses conversation ingestion`);
+        if (!owners.has(owner)) assert.ok(!tokens(text).some(token => !token.literal && token.value === 'putDetail'), `${owner} bypasses Detail admission`);
+        assert.ok(!tokens(text).some(token => !token.literal && ['ingestConversation', 'saveDomainConversation', 'selectSnapshot'].includes(token.value)), `${owner} retains an obsolete entry`);
     }
+    const ingestion = readFileSync(resolve(core, 'domain/ingestion.ts'), 'utf8');
+    assert.doesNotMatch(ingestion, /parsingResult|StorageRecord|revision|acquisitionHints|resourceChanged|forceWrite|touched/);
 });
-
 
 test('Storage exposes transactions and cannot own Domain selection or scan lifecycle rules', () => {
     const rules = new Set(['mergeConversationIndex', 'selectConversationDetail', 'selectSnapshot', 'findAccount',
