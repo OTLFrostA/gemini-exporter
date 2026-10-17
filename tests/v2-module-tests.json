@@ -33,7 +33,13 @@
     "tests/domain_contract_final.test.ts",
     "tests/domain_resource_sources.test.ts",
     "tests/parser_corpus.test.ts",
-    "tests/test_provenance.test.ts"
+    "tests/test_provenance.test.ts",
+    "tests/storage_v2.test.ts",
+    "tests/application_export.test.ts",
+    "tests/application_sync.test.ts",
+    "tests/application_settings_cleanup.test.ts",
+    "tests/six-module-integration.test.ts",
+    "tests/six-admission-browser.test.ts"
   ],
   "selected": [
     {

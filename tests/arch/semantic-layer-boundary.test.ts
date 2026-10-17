@@ -93,7 +93,7 @@ test('the compatibility directory is retired and no production source imports it
 function forbidden(owner: string, target: string): boolean {
     if (owner === 'diagnostics/diagnostic.ts') return target !== 'utils/jsonTypes.ts';
     if (owner.startsWith('domain/')) {
-        const admission = new Set(['domain/accountAdmission.ts', 'domain/ingestion.ts', 'domain/coverageAdmission.ts']);
+        const admission = new Set(['domain/accountAdmission.ts', 'domain/ingestion.ts', 'domain/coverageAdmission.ts', 'domain/readConversation.ts']);
         if (admission.has(owner)) return !/^(domain\/|storage\/|api\/accountRegistry\.ts$)/.test(target);
         return !target.startsWith('domain/') && target !== 'utils/jsonTypes.ts';
     }
@@ -204,8 +204,8 @@ test('normal runtime cannot parse historical records or depend on application pr
 });
 
 
-test('only Domain admission and its validated storage IPC adapter can write Detail', () => {
-    const owners = new Set(['core/domain/ingestion.ts', 'core/storage/domain/domainStore.ts', 'background/domainStorageHandler.ts']);
+test('only L2 admission and the passive Storage implementation expose Detail writes', () => {
+    const owners = new Set(['core/domain/ingestion.ts', 'core/storage/conversationStore.ts', 'core/storage/storageService.ts', 'background/domainStorageHandler.ts']);
     for (const file of files(resolve(root, 'src'))) {
         const owner = relative(resolve(root, 'src'), file).replace(/\\/g, '/');
         const text = readFileSync(file, 'utf8');
@@ -216,7 +216,7 @@ test('only Domain admission and its validated storage IPC adapter can write Deta
     assert.doesNotMatch(ingestion, /parsingResult|StorageRecord|revision|acquisitionHints|resourceChanged|forceWrite|touched/);
 });
 
-test('Storage exposes transactions and cannot own Domain selection or scan lifecycle rules', () => {
+test('passive Storage cannot own Domain selection or scan lifecycle rules', () => {
     const rules = new Set(['mergeConversationIndex', 'selectConversationDetail', 'selectSnapshot', 'findAccount',
         'advanceIndexCoverage', 'indexCoverageConnects', 'indexCoverageExhausted', 'assertCoverageCompletion']);
     for (const [name, file] of sources) if (name.startsWith('storage/')) {

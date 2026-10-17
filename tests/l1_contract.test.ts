@@ -11,8 +11,8 @@ import { parseList, type ListParseResult } from '../src/core/parsers/gemini/rpc/
 import { readGeminiDetailRequest } from '../src/core/parsers/gemini/rpc/detailRequest.js';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { getConversationDetail } from '../src/core/api/client/pagination.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getDetail } from '../src/core/storage/domain/domainStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
+import { getDetail } from '../src/core/storage/storageService.js';
 import { getCoverage } from '../src/core/domain/coverageAdmission.js';
 import { getAccount } from '../src/core/api/accountRegistry.js';
 import { init, handleWindowMessage } from '../src/content/messageBridge.js';

@@ -1,5 +1,7 @@
 # dev/v2 四模块接口对齐验收
 
+此为 #1050 合并前的历史验收。Storage/Application 合入后的当前结果见 [六模块衔接审计](v2-six-module-alignment.md)。
+
 本次基于 `origin/dev/v2` 的 `662746d4d51216acb687b1bdbe95c3dd689a9db1`，仅修复已迁移的 L1、L2、AST、L4 及其测试接缝。Application / Sync / UI 的整体迁移继续由对应模块负责。PR 目标为 `dev/v2`，不启用自动合并。
 
 ## 设计契约与修复

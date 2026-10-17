@@ -9,8 +9,8 @@ import { parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readAr
 import { parseGeminiTakeoutArchive } from '../src/core/parsers/gemini/takeout/parseConversation.js';
 import { extractC2PATimestamp } from '../src/core/parsers/shared/resources/c2paTimestamp.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getDetail } from '../src/core/storage/domain/domainStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
+import { getDetail } from '../src/core/storage/storageService.js';
 useIndexStorage();
 
 test('Takeout import exposes only count/status after committing multi-turn facts with case-preserved source identity', async () => {

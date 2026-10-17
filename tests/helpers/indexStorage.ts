@@ -1,14 +1,21 @@
-import { clearResourceContext } from '../../src/core/storage/domain/resourceContext.js';
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { resetIndexCoverageSessions } from '../../src/core/domain/indexCoverage.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
 import { beforeEach, afterEach } from 'node:test';
-import { __resetStorageReadyForTest } from '../../src/core/storage/schemaMigration.js';
-import { __clearDomainMemory } from '../../src/core/storage/domain/domainStore.js';
 
-/** A physical storage mock: no implicit normalization or migration. */
+
+/** Production Storage over a fresh IndexedDB test backend; Chrome Settings/IPC are boundary doubles. */
 export function indexStorage(seed: Record<string, unknown> = {}) {
-    const previous = globalThis.chrome;
+    const previous = globalThis.chrome, previousDB = globalThis.indexedDB;
+    globalThis.indexedDB = new IDBFactory();
+    const originalPut = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function(value: unknown, key?: IDBValidKey) {
+        const row = value as { key?: { accountId?: string } };
+        if (failKey && (failKey === this.name || failKey === `conversations_${row.key?.accountId}`)) throw new Error(`write failed: ${failKey}`);
+        writes++;
+        return originalPut.call(this, value, key);
+    };
     const local = structuredClone(seed);
     let writes = 0;
     let failKey: string | undefined;
@@ -37,10 +44,9 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
         async remove(keys: string | string[]) { for (const key of typeof keys === 'string' ? [keys] : keys) delete local[key]; }
     } } } as typeof chrome;
     resetIndexCoverageSessions();
-    __resetStorageReadyForTest();
-    __clearDomainMemory(); clearResourceContext();
+
     return { local, writes: () => writes, fail: (key?: string) => { failKey = key; },
-        restore() { globalThis.chrome = previous; __resetStorageReadyForTest(); __clearDomainMemory(); clearResourceContext(); } };
+        restore() { globalThis.chrome = previous; globalThis.indexedDB = previousDB; IDBObjectStore.prototype.put = originalPut; } };
 }
 
 /** Catalog-aware application tests use the same storage boundary as production reads. */

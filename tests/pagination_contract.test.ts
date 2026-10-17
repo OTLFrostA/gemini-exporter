@@ -7,7 +7,7 @@ import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import { getConversationDetail, type GeminiPaginationDetailClient } from '../src/core/api/client/pagination.js';
 import type { GeminiRpcParseResult } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import type { ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
-import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
+import { listIndexes as getConversations } from '../src/core/storage/storageService.js';
 import { getCoverage } from '../src/core/domain/coverageAdmission.js';
 useIndexStorage();
 function listProvider(pages: (ListParseResult | Error)[]) {

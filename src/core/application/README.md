@@ -9,19 +9,13 @@ Public entry points are exported from `index.ts`:
 - `getSettings`, `updateSettings`, `isLiveSaveEffective`: one GlobalSettings schema; defaults on read, explicit patches on write, no changes to enabledDisk when format/permission prevents Live Save.
 - `deleteLocalConversations`, `clearLocalExportRecords`, `clearLocalAccountData`: explicit local cleanup only. Selected deletion leaves Index last and preserves Coverage; account-wide clearing delegates Storage's single transaction.
 
-## Other module owners' integration work
+## Storage and Domain integration
 
-This change intentionally does not implement Storage or rewrite UI/Browser Runtime.
+Storage v2 implements the public passive APIs in `storageService.ts`. Its `getDetail` returns a detached, unbranded `DomainConversationDetail`. Application reads through L2's `readConversation(key)`, which validates the persisted Index/Detail schema, closure and requested key before returning trusted Domain to Composer/Format. No Provider response DTO is used as export input.
 
-Storage must export the frozen functions from its existing `storageService.ts` surface:
+L2 owns account profile rules, Index/Detail selection and Coverage admission. Its small admission lock serializes read/select/write across extension contexts using Web Locks; Storage owns only physical transactions and unique identity insertion. Runtime must execute these operations at the extension origin.
 
-- `getIndex(key)`, `getDetail(key)` for local accepted Domain reads; Detail retains the existing validated `TrustedDomainBody` read contract.
-- `getExportRecord(key)`, `listExportRecords(accountId)`, `putExportRecord(key, record)`, `deleteExportRecord(key)` using **only** `export/types.ts`'s ExportRecord.
-- `getStoredSettings()`, `patchStoredSettings(patch)` using **only** `settings/index.ts`'s GlobalSettings.
-- `deleteDetail(key)`, `deleteIndex(key)`, `clearStoredAccountData(accountId)`.
-- `getDirectoryHandle()` for the already authorized global folder. Application does not request browser permissions or switch delivery targets.
-
-The current dev/v2 Storage implementation does not expose these target APIs yet. There is deliberately no legacy adapter, application-side persistence, ambient declaration, or fallback to old storage keys. Until Storage supplies them, production linking/type-checking at that boundary is expected to fail.
+## Remaining UI / Browser Runtime migration
 
 UI/Runtime callers must replace the removed class-based engine, completion helpers, Live Save writer, session recovery and `syncConversations` contracts:
 
@@ -32,7 +26,7 @@ UI/Runtime callers must replace the removed class-based engine, completion helpe
 - Guidance/Badge: read/write Settings through Application. Store shown/acknowledged flags only after the actual UI event described in the design. Takeout guidance consumes only `partial_limit` + `provider_limit`.
 - Explicit local cleanup buttons call Application rather than orchestrating Storage deletes in a view.
 
-The old UI/Content/Background callers and Storage's old preference/session code are outside this module's migration scope. Removed Application entry points intentionally expose those remaining integration errors. Content's passive observation helpers remain unchanged; only its active scan orchestration moved here. Shared legacy type exports now point to Application's Record/ScanStatus definitions.
+The remaining old UI/Content/Background callers are outside the six-module alignment scope. Removed Application entry points intentionally expose those remaining integration errors. Content's passive observation helpers remain unchanged; only its active scan orchestration moved here. Shared legacy type exports now point to Application's Record/ScanStatus definitions.
 
 ## Module Tier 1 validation
 
@@ -40,4 +34,4 @@ The old UI/Content/Background callers and Storage's old preference/session code 
 python3 tests/run_tests.py --filter application
 ```
 
-These tests isolate external IO with the frozen Storage contract and L1/Delivery/PDF compiler doubles. They exercise the real Application workflow with real Composer, resource selection, MD/HTML/JSON renderers and Packaging/ZIP. They are not a claim of browser integration, actual PDF compilation, delivery persistence, or whole-repository type-check success. No other module tests, full npm test, or Tier 2/3 runs are required for this scoped change.
+These tests isolate external IO with the frozen Storage contract and L1/Delivery/PDF compiler doubles. They exercise the real Application workflow with real Composer, resource selection, MD/HTML/JSON renderers and Packaging/ZIP. They are not a claim of browser integration, actual PDF compilation, delivery persistence, or whole-repository type-check success. Run `npm run test:v2-modules` for all six migrated module suites, real Chromium Storage/Web Locks checks, cross-module export integration and scoped whole-program type checks. Whole-repository `npm test` remains required and its migration gaps must be reported.

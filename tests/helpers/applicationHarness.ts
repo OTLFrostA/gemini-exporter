@@ -8,8 +8,8 @@ import type { AIProvider } from '../../src/core/provider/aiProvider.js';
 import type { ExportArtifact } from '../../src/core/export/artifacts.js';
 import type { SourceResourceContext } from '../../src/core/provider/sourceResources.js';
 
-// External modules are deliberately replaced at their boundary: Storage's v2 APIs
-// are another owner's pending work. Application tests never patch production IO.
+// Unit tests isolate IO at the public contract. The six-module integration suite
+// separately exercises the production IndexedDB backend.
 export function stubModule(path: string, exports: object): void {
     const filename = require.resolve(path);
     require.cache[filename] = { id: filename, filename, loaded: true, exports } as NodeModule;

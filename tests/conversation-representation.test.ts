@@ -1,6 +1,5 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
-import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -28,13 +27,4 @@ test('integration: Index owns exported metadata while the body version remains c
     assert.equal(json.conversation.index.updatedAt, 200);
     assert.deepEqual(Object.keys(json.conversation.detail).sort(), ['assets', 'key', 'messages', 'quality']);
     assert.throws(() => restoreDomainSnapshot({ ...parsed.conversation, detail: {   ...parsed.conversation.detail, title: 'Second authority' } }), TypeError);
-});
-
-test('newer Index metadata cannot manufacture an exported body version', () => {
-    const conversation = captured().conversation;
-    conversation.index.updatedAt = 200;
-    const unknown = buildExportCompletion({ conversation }).exportRecord;
-    assert.equal(unknown.chatTime, undefined);
-    const older = buildExportCompletion({ conversation, chatTime: 100 }).exportRecord;
-    assert.equal(older.chatTime, 100);
 });

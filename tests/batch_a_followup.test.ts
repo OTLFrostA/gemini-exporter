@@ -1,11 +1,11 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import AssetPipeline from '../src/core/engine/assetPipeline.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { validateZipFile } from '../src/core/imports/takeout/zipBombGuard.js';
 
 test('batch A asset no-response keeps the historical default failure reason', async () => {
+    const { default: AssetPipeline } = await import('../src/core/engine/assetPipeline.js');
     const pipeline = new AssetPipeline({ accountId: '10000000-0000-4000-8000-000000000001', ...({
         fetchAssetDelegate: async () => undefined
     }) });

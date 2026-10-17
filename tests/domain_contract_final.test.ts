@@ -8,11 +8,10 @@ import { restoreDomainSnapshot, validateParserDomain } from '../src/core/domain/
 import { TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
 import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
-import { storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { storageIdentity } from './helpers/admitFixture.js';
 import { readFixture } from './helpers/admitFixture.js';
 import { acquireSourceResource } from '../src/core/provider/sourceResources.js';
 import { attemptResource, resourceDiagnostics } from '../src/core/resources/resourceResult.js';
-import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('final-contract'), 'custom'),   titleSource: "derived",   title: 'Final' }, detail: { key: fixtureKey(String('final-contract'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
@@ -60,7 +59,7 @@ test('legacy parser normalizes unknown role/source without changing title author
 });
 
 test('restored Domain detects heuristic reports and unavailable images without persisted acquisition failures', async () => {
-    __clearDomainMemory();
+
     try {
         const conversation = validateParserDomain({ index: { ...base().index }, detail: {   ...base().detail, quality: { status: 'partial' }, assets: [
             { id: 'report', kind: 'file', document: { id: 'original-report', contentMarkdown: '# Deep Research\n\nComplete retained body' } },
@@ -72,7 +71,6 @@ test('restored Domain detects heuristic reports and unavailable images without p
         const restored = stored;
         assert.equal(restored.evidence, undefined);
         assert.deepEqual(restored.conversation.detail.quality, { status: 'partial' });
-        assert.equal(resolveExportRecordStatus({ quality: restored.conversation.detail.quality }).status, 'partial');
         assert.equal(restored.conversation.detail.assets[0].document?.contentMarkdown, conversation.detail.assets[0].document?.contentMarkdown);
         assert.equal('generation' in (restored.conversation.detail.messages[0] ?? {}), false);
         const image = restored.conversation.detail.assets.find(asset => asset.id === 'image')!;
@@ -80,8 +78,7 @@ test('restored Domain detects heuristic reports and unavailable images without p
         const prepared = { resources: new Map([[image.id, result]]), diagnostics: resourceDiagnostics([result]) };
         assert.equal(prepared.resources.get('image')?.ok, false);
         assert.ok(prepared.resources.get('image'));
-        assert.equal(resolveExportRecordStatus({ failedAssetsCount: prepared.diagnostics.length }).status, 'partial');
         assert.ok(prepared.diagnostics.some(d => d.code === 'RESOURCE_UNAVAILABLE' && d.path === 'asset:image'));
         assert.equal(Object.hasOwn(restored.conversation.detail.assets[1], 'failureReason'), false);
-    } finally { __clearDomainMemory(); }
+    } finally { /* useIndexStorage owns the IndexedDB lifetime. */ }
 });
