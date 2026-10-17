@@ -4,6 +4,7 @@ import assert from 'node:assert';
 
 // S2: background router fail-closed (unknown action, empty tab response).
 
+const originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
 const msgListeners: Array<(msg: any, sender: any, sendResponse: any) => any> = [];
 const sessionData: Record<string, any> = {};
 
@@ -57,9 +58,21 @@ let tabResponder: ((_msg: any, cb: any) => void) | null = null;
 // ts_register 下 `import { TabService }` 会拿到 undefined（生产 bundle 走 ESM
 // 不受影响）。沿用 p1_c_regressions.test.ts 的做法：给 require 缓存打补丁，仅用于测试。
 const tabServiceMod: any = require('../src/core/utils/tabService.js');
+const originalTabServiceDescriptor = tabServiceMod && Object.getOwnPropertyDescriptor(tabServiceMod, 'TabService');
 if (tabServiceMod && !tabServiceMod.TabService) tabServiceMod.TabService = tabServiceMod;
 
 require('../src/background/background.ts');
+
+test.after(() => {
+    tabResponder = null;
+    msgListeners.length = 0;
+    if (tabServiceMod) {
+        if (originalTabServiceDescriptor) Object.defineProperty(tabServiceMod, 'TabService', originalTabServiceDescriptor);
+        else Reflect.deleteProperty(tabServiceMod, 'TabService');
+    }
+    if (originalChromeDescriptor) Object.defineProperty(globalThis, 'chrome', originalChromeDescriptor);
+    else Reflect.deleteProperty(globalThis, 'chrome');
+});
 
 function lastListener() {
     return msgListeners[msgListeners.length - 1];
@@ -98,11 +111,19 @@ test('S2 - fetchChat with undefined tab response fails closed', async () => {
     }
 });
 
-test('S2 - fetchChat passes a real tab response through untouched', async () => {
-    const { responses } = await dispatch({ action: 'fetchChat', id: 'c_1' });
-    assert.strictEqual(responses.length, 1);
-    assert.strictEqual(responses[0].success, true);
-    assert.strictEqual(responses[0].data.id, 'c_1');
+test('S2 - fetchChat forwards the detail request and passes the tab reply through untouched', async () => {
+    const payload = { success: true, data: { id: 'c_1', messages: [] }, opaqueTransport: { token: 'preserved' } };
+    let sent: unknown;
+    tabResponder = (msg, cb) => { sent = msg; cb(payload); };
+    try {
+        const { responses, returned } = await dispatch({ action: 'fetchChat', id: 'c_1' });
+        assert.strictEqual(returned, true, 'owned asynchronous action keeps the response port open');
+        assert.deepStrictEqual(sent, { action: 'getConversationDetail', conversationId: 'c_1' });
+        assert.strictEqual(responses.length, 1);
+        assert.strictEqual(responses[0], payload, 'background must not normalize or drop tab evidence');
+    } finally {
+        tabResponder = null;
+    }
 });
 
 test('queued fetchBatch submitted before cancel must not restart after the in-flight batch drains', async () => {
