@@ -1,7 +1,7 @@
 import type { DomainConversationIndex } from '../../domain/conversationIndex.js';
 import { semanticTitleSource } from '../shared/parseIndexMetadata.js';
 import { normalizeTimestamp } from '../../domain/time.js';
-import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
+import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleText.js';
 import { normId, isReservedRoute } from '../../utils/pathUtils.js';
 export type GeminiIndexObservationSource = 'rpc-list' | 'detail' | 'dom';
 /** Transient source input; local ordering and source routes are not durable Domain facts. */

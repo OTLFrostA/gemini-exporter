@@ -9,10 +9,10 @@ import { storageIdentity } from '../src/core/storage/domain/domainStore.js';
 import { cacheAcquiredResources, getDomainResource } from '../src/core/storage/domain/resourceContext.js';
 import { readFixture } from './helpers/admitFixture.js';
 import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import type { DomainFixture } from './helpers/domainFixture.js';
 
 const account = fixtureAccount();
-function snapshot(text: string, status: 'complete' | 'partial' | 'unknown', savedAt?: number, image = false): ResourceConversationParseResult {
+function snapshot(text: string, status: 'complete' | 'partial' | 'unknown', savedAt?: number, image = false): DomainFixture {
     const key = fixtureKey('admission-storage');
     return { account, diagnostics: [], resourceHints: {}, acquisitionHints: image ? { image: { dataBase64: 'AQID' } } : {},
         conversation: validateParserDomain({ index: { key, title: 'Source title', titleSource: 'provider' }, detail: {

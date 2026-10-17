@@ -1,4 +1,4 @@
-import { unescapeHtml } from "../../../utils/utils.js";
+import { unescapeHtml } from "../../../utils/titleText.js";
 
 function stripHtmlTags(str: string): string {
     let prev = '';

@@ -1,13 +1,13 @@
-import { fixtureResourceResults } from './helpers/documentFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { prepareDomainResources } from '../src/core/export/assets/prepareDomainResources.js';
+import { planExportPaths } from '../src/core/export/packaging/index.js';
+import type { PreparedResources } from '../src/core/resources/resourceResult.js';
 
 const base = { id: 'resource-sources', title: '', timestamp: null };
 
-test('renaming export paths changes prepared bindings but not Domain facts or identity', async () => {
+test('renaming source archive paths cannot change Domain identity or Packaging destinations', async () => {
     const input: Conversation = { ...base, messages: [{ role: 'model', content: '![caption](old/photo.png)', attachments: [{
         type: 'image', name: 'Authored photo', url: 'https://example.test/photo', localName: 'old/photo.png',
         isGenerated: true, generation: { chatId: base.id, generationOrdinal: 1, imageOrdinal: 0 },
@@ -22,11 +22,15 @@ test('renaming export paths changes prepared bindings but not Domain facts or id
     const asset = first.conversation.detail.assets[0];
     assert.deepEqual(asset.sourceUri, 'https://example.test/photo');
     assert.equal(asset.name, 'Authored photo');
-    assert.equal((await prepareDomainResources(await fixtureResourceResults(first.conversation, first.resourceHints)))[asset.id], 'assets/old/photo.png');
-    assert.equal((await prepareDomainResources(await fixtureResourceResults(second.conversation, second.resourceHints)))[asset.id], 'assets/new/photo.webp');
+    const prepared: PreparedResources = new Map([[asset.id, { ok: true, resourceId: asset.id, value: { bytes: new Uint8Array([1]), mediaType: 'image/png' } }]]);
+    const firstPlan = planExportPaths([{ conversation: first.conversation, prepared }], 'markdown')[0];
+    const secondPlan = planExportPaths([{ conversation: second.conversation, prepared }], 'markdown')[0];
+    assert.deepEqual(firstPlan, secondPlan);
+    assert.ok(firstPlan.resources[asset.id].endsWith('Authored photo.png'));
+    assert.ok(!JSON.stringify(firstPlan).includes('old/photo'));
     const restored = JSON.parse(JSON.stringify(first.conversation));
     assert.deepEqual(restored, first.conversation);
-    assert.deepEqual(await prepareDomainResources(await fixtureResourceResults(restored, first.resourceHints)), await prepareDomainResources(await fixtureResourceResults(first.conversation, first.resourceHints)));
+    assert.deepEqual(planExportPaths([{ conversation: restored, prepared }], 'markdown')[0], firstPlan);
 });
 
 test('same export destination cannot collapse resources from different sources', () => {

@@ -158,17 +158,8 @@ export interface GeminiUtilsModule {
     getErrorMessage: (err: unknown) => string;
 }
 
-declare global {
-    var __gemExporterDevMode: boolean | undefined;
-    var __gemExporterVerboseLog: boolean | undefined;
-    var __gemExporterLogAll: boolean | undefined;
-}
-
-export function isDevMode(): boolean {
-    if (typeof globalThis !== 'undefined' && (globalThis.__gemExporterDevMode || globalThis.__gemExporterVerboseLog || globalThis.__gemExporterLogAll)) return true;
-    if (typeof window !== 'undefined' && ((window as any).__gemExporterDevMode || (window as any).__gemExporterVerboseLog || (window as any).__gemExporterLogAll)) return true;
-    return false;
-}
+import { isDevMode } from './devMode.js';
+export { isDevMode } from './devMode.js';
 
 export const GeminiUtils: GeminiUtilsModule = {
     isDevMode,

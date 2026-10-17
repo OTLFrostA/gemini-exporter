@@ -489,7 +489,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         baseTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => baseTypstMap.get(s);
-                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()).document, {}, { convertMath: convertMathFn });
+                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()), {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,
@@ -534,7 +534,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         candTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => candTypstMap.get(s);
-                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()).document, {}, { convertMath: convertMathFn });
+                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()), {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,

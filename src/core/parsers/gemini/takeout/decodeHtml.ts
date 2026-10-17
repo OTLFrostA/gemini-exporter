@@ -1,4 +1,4 @@
-import { stripHtmlTags as utilsStripHtmlTags } from "../../../utils/utils.js";
+import { stripHtmlTags as utilsStripHtmlTags } from "../../../utils/titleText.js";
 
 export const stripHtmlTags = utilsStripHtmlTags;
 

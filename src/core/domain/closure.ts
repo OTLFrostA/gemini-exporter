@@ -2,7 +2,7 @@ import type { DomainConversationDetail } from './conversationDetail.js';
 import { mapContentAssetReferences } from './content/assetReferences.js';
 
 /** Domain is a closed, JSON-portable semantic graph; invalid references never reach exporters. */
-export function assertDomainClosure(conversation: DomainConversationDetail): void {
+export function assertDomainClosure(conversation: Pick<DomainConversationDetail, 'assets' | 'messages' | 'quality'>): void {
     const assets = new Set<string>();
     for (const asset of conversation.assets) {
         if (typeof asset.id !== 'string' || !asset.id || assets.has(asset.id)) throw new TypeError(`Duplicate or empty Domain asset identity: ${asset.id}`);

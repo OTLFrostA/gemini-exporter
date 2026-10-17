@@ -1,7 +1,9 @@
 import type { Account } from '../../domain/accountRegistry.js';
 import { mergeConversationPages } from '../../parsers/gemini/rpc/mergePages.js';
 import type { SourceConversationParseResult } from '../../parsers/parsingResult.js';
-import { getErrorMessage, isDevMode, normId } from '../../utils/utils.js';
+import { getErrorMessage } from '../../utils/errorText.js';
+import { isDevMode } from '../../utils/devMode.js';
+import { normId } from '../../utils/pathUtils.js';
 import type { ListParseResult } from '../../parsers/gemini/rpc/parseList.js';
 import type { DetailParseResult } from './detailTypes.js';
 

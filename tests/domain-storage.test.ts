@@ -16,11 +16,11 @@ import { readFixture, removeFixture } from './helpers/admitFixture.js';
 import { restoreDomainSnapshot as readStorageDomain } from '../src/core/domain/runtimeValidation.js';
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import type { ResourceConversationParseResult } from '../src/core/parsers/parsingResult.js';
+import type { DomainFixture } from './helpers/domainFixture.js';
 import { __setSchemaFrozenForTest } from '../src/core/storage/schemaState.js';
 
 beforeEach(() => { __clearDomainMemory(); });
-function source(id = 'chat', count = 2): ResourceConversationParseResult {
+function source(id = 'chat', count = 2): DomainFixture {
     return { account: fixtureAccount(), sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { key: fixtureKey(String(id), 'gemini'),   titleSource: "derived",   title: 'Stored title' }, detail: { savedAt: 1700000000000, key: fixtureKey(String(id), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'image', sourceUri: 'source.png' }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) } }), resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
 }
 test('v2 stores structured Domain intact and excludes render/parse transport state', async () => {
@@ -152,7 +152,7 @@ test('placeholder sources never displace a real stored title, even when the inco
         old.conversation.index.titleSource = "derived";
         await admitFixture('10000000-0000-4000-8000-000000000001', old);
         const incoming = source(id, 3);
-        incoming.conversation.index = parseIndexMetadata({ account: fixtureAccount(), providerId: incoming.account.providerId, id: incoming.conversation.index.key.conversationId, title, titleSource: 'rpc' });
+        incoming.conversation.index = { key: incoming.conversation.index.key, ...parseIndexMetadata({ account: fixtureAccount(), providerId: incoming.account.providerId, id: incoming.conversation.index.key.conversationId, title, titleSource: 'rpc' }) };
         await admitFixture('10000000-0000-4000-8000-000000000001', incoming);
         const stored = (await readFixture(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', id)))!.conversation;
         assert.equal(stored.index.title, old.conversation.index.title, title);
@@ -165,7 +165,7 @@ test('real titles replace higher-ranked placeholders without rejecting short or 
     for (const title of ['A', 'Research question from Takeout']) {
         const id = `real-${title}`;
         const old = source(id, 2);
-        old.conversation.index = parseIndexMetadata({ account: fixtureAccount(), providerId: old.account.providerId, id: old.conversation.index.key.conversationId, title: 'Gemini', titleSource: 'rpc' });
+        old.conversation.index = { key: old.conversation.index.key, ...parseIndexMetadata({ account: fixtureAccount(), providerId: old.account.providerId, id: old.conversation.index.key.conversationId, title: 'Gemini', titleSource: 'rpc' }) };
         await admitFixture('10000000-0000-4000-8000-000000000001', old);
         const incoming = source(id, 1);
         incoming.conversation.index.title = title;
@@ -186,7 +186,7 @@ test('stored repeated source message IDs export without losing or rewriting sour
     await admitFixture('10000000-0000-4000-8000-000000000001', parsed);
     const stored = await readFixture(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', parsed.conversation.index.key.conversationId));
     assert.ok(stored);
-    const document = composeDomainDocument(stored.conversation, fixtureAccountFor(stored.conversation)).document;
+    const document = composeDomainDocument(stored.conversation, fixtureAccountFor(stored.conversation));
     assert.deepEqual(document.messages.map(message => message.id), ['msg-0', 'msg-1', 'msg-2']);
     assert.equal(document.messages.length, original.detail.messages.length);
     assert.deepEqual(stored.conversation, original);

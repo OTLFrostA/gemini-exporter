@@ -26,7 +26,7 @@ async function normAndRender(content: string, options: any = {}) {
         messages: [{ id: 'm1', role: 'model', content }],
     };
     const { conversation: domain, diagnostics } = await historicalFixture(raw, { providerId: 'gemini', ...options });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)), {});
     const msg = domain.detail.messages[0];
     return { domain, msg, html, diagnostics };
 }

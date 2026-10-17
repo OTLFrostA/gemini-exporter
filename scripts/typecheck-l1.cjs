@@ -11,6 +11,8 @@ const files = [
     'src/content/geminiIndexCapture.ts',
     'src/content/hookCredentials.ts',
     'src/core/provider/sourceResources.ts',
+    ...manifest.suites,
+    ...manifest.selected.map(group => group.file),
     ...manifest.typeTests,
     'tests/domain_trust.types.ts',
 ];
@@ -55,6 +57,14 @@ try {
             ownedLines.push(line);
         }
     }
+    if (res.error) throw res.error;
+    if (res.signal) throw new Error(`TypeScript terminated by ${res.signal}`);
+    if (res.status !== 0 && !lines.some(line => /error TS\d+:/.test(line))) {
+        console.error(output || 'TypeScript exited without diagnostics');
+        process.exit(res.status ?? 1);
+    }
+    const globalErrors = lines.filter(line => /^error TS\d+:/.test(line));
+    ownedLines.push(...globalErrors);
     if (ownedLines.length) console.error(ownedLines.join('\n'));
     console.log(`L1 type check: ${ownedLines.length} owned diagnostics; ${excludedCount} diagnostics in adjacent dependencies excluded. This is not a repository type check.`);
     process.exit(ownedLines.length ? 1 : 0);

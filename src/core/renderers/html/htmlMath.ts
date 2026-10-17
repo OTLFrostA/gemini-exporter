@@ -1,6 +1,6 @@
 import katex from 'katex';
 import type { Diagnostic as RenderDiagnostic } from '../../diagnostics/diagnostic.js';
-import { getErrorMessage } from '../../utils/messaging.js';
+import { getErrorMessage } from '../../utils/errorText.js';
 
 export interface RenderMathHtmlResult {
     html: string;

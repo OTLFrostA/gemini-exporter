@@ -10,7 +10,8 @@ import { closeDomainResources } from '../src/core/parsers/shared/resources/domai
 import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 import { storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 import { readFixture } from './helpers/admitFixture.js';
-import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
+import { acquireSourceResource } from '../src/core/provider/sourceResources.js';
+import { attemptResource, resourceDiagnostics } from '../src/core/resources/resourceResult.js';
 import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
@@ -74,7 +75,9 @@ test('restored Domain detects heuristic reports and unavailable images without p
         assert.equal(resolveExportRecordStatus({ quality: restored.conversation.detail.quality }).status, 'partial');
         assert.equal(restored.conversation.detail.assets[0].document?.contentMarkdown, conversation.detail.assets[0].document?.contentMarkdown);
         assert.equal('generation' in (restored.conversation.detail.messages[0] ?? {}), false);
-        const prepared = await preparePdfResources(restored.conversation.detail, new Set(['image']), restored.acquisitionHints);
+        const image = restored.conversation.detail.assets.find(asset => asset.id === 'image')!;
+        const result = await attemptResource(image.id, () => acquireSourceResource(image));
+        const prepared = { resources: new Map([[image.id, result]]), diagnostics: resourceDiagnostics([result]) };
         assert.equal(prepared.resources.get('image')?.ok, false);
         assert.ok(prepared.resources.get('image'));
         assert.equal(resolveExportRecordStatus({ failedAssetsCount: prepared.diagnostics.length }).status, 'partial');

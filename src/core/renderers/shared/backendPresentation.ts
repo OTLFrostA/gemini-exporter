@@ -97,7 +97,7 @@ export function sourceLabel(item: SourceGroup['items'][number]): string {
 }
 
 export function sourceNumberPrefix(item: SourceGroup['items'][number]): string {
-    return item.label === `[${item.number}]` ? '' : `[${item.number}] `;
+    return item.label === `[${item.number}]` ? '' : `[${item.number}]${item.label ? ' ' : ''}`;
 }
 
 export function unavailableResourceText(kind: 'image' | 'file', label: string, locale: 'zh' | 'en'): string {

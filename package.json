@@ -1,7 +1,7 @@
 {
   "name": "gemini-exporter",
   "version": "1.8.1",
-  "description": "100% Free & open-source • 100% local, no tracking • One-click export all chats • PDF, HTML & Markdown • Hands-off background export",
+  "description": "100% Free & open-source \u2022 100% local, no tracking \u2022 One-click export all chats \u2022 PDF, HTML & Markdown \u2022 Hands-off background export",
   "main": "background.js",
   "scripts": {
     "build": "node build.js",
@@ -14,7 +14,8 @@
     "test:gemini-dual": "node -r ./tests/ts_register.js scripts/check_gemini_dual_parse.ts",
     "test:tier2": "python3 scripts/test_live_chat_and_export.py",
     "test:upgrade": "node scripts/test_upgrade_profile.mjs",
-    "release": "gh workflow run release.yml --ref main"
+    "release": "gh workflow run release.yml --ref main",
+    "test:v2-modules": "node scripts/test-v2-modules.cjs"
   },
   "keywords": [
     "gemini",

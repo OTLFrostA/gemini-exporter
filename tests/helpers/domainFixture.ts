@@ -1,5 +1,21 @@
 import type { Account } from '../../src/core/domain/accountRegistry.js';
 import type { ConversationKey } from '../../src/core/domain/conversationKey.js';
+import type { TrustedDomain } from '../../src/core/domain/runtimeValidation.js';
+import type { Diagnostic } from '../../src/core/diagnostics/diagnostic.js';
+import type { LegacyResourceHints } from '../../src/core/parsers/shared/resources/resourceHints.js';
+import type { ResourceAcquisitionHints } from '../../src/core/resources/resourceAcquisition.js';
+import type { QualityEvidence } from '../../src/core/parsers/qualityEvidence.js';
+
+/** Test setup for already-bound historical facts, never an L1 parser contract. */
+export interface DomainFixture {
+    account: Account;
+    conversation: TrustedDomain;
+    diagnostics: Diagnostic[];
+    resourceHints: LegacyResourceHints;
+    acquisitionHints: ResourceAcquisitionHints;
+    sourceVersion?: number;
+    evidence?: QualityEvidence;
+}
 const providers = new Map<string, Account>();
 export function fixtureAccount(providerId = 'gemini', id?: string): Account {
     const known = providers.get(providerId);
@@ -20,7 +36,7 @@ export function fixtureAccountFor<T extends { index: { key: ConversationKey } }>
     if (['10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003'].includes(accountId)) return fixtureAccount('gemini', accountId);
     throw new Error(`Undeclared fixture Account ${accountId}`);
 }
-export function fixtureResult(conversation: import('../../src/core/domain/runtimeValidation.js').TrustedDomain): import('../../src/core/parsers/parsingResult.js').ResourceConversationParseResult {
+export function fixtureResult(conversation: TrustedDomain): DomainFixture {
     return { account: fixtureAccountFor(conversation), conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} };
 }
 export function sourceIndex(index: import('../../src/core/domain/conversationIndex.js').DomainConversationIndex): import('../../src/core/parsers/gemini/rpc/parseList.js').ConversationListItem {
@@ -29,7 +45,7 @@ export function sourceIndex(index: import('../../src/core/domain/conversationInd
 }
 
 /** Explicitly create a distinct account-owned test snapshot. */
-export function bindFixture<T extends import('../../src/core/parsers/parsingResult.js').ResourceConversationParseResult>(value: T, account: Account | string): T {
+export function bindFixture<T extends DomainFixture>(value: T, account: Account | string): T {
     const result = structuredClone(value);
     result.account = typeof account === 'string' ? fixtureAccount(value.account.providerId, account) : account;
     result.conversation.index.key.accountId = result.account.id;

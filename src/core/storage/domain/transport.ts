@@ -1,4 +1,5 @@
-import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../../utils/nativeDetailTransport.js';
+/** Storage broker wire version is independent of the Application detail reply. */
+export const DOMAIN_STORAGE_ENVELOPE_VERSION = 3;
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 export type DomainStoreCommand = 'get' | 'put' | 'resource' | 'remove' | 'cache' | 'acquired' | 'hints' | 'clearResources' | 'ready';
 export function needsDomainBroker(): boolean {
@@ -11,7 +12,7 @@ export async function callDomainBroker(command: DomainStoreCommand, payload: unk
         const error = response && typeof response === 'object' && 'error' in response ? response.error : undefined;
         throw new Error(typeof error === 'string' ? error : 'Domain storage background did not acknowledge the request');
     }
-    if (!('domainEnvelopeVersion' in response) || response.domainEnvelopeVersion !== NATIVE_DETAIL_ENVELOPE_VERSION) throw new TypeError('Incompatible Domain storage reply');
+    if (!('domainEnvelopeVersion' in response) || response.domainEnvelopeVersion !== DOMAIN_STORAGE_ENVELOPE_VERSION) throw new TypeError('Incompatible Domain storage reply');
     return 'value' in response ? response.value : undefined;
 }
 export function encodeBytes(bytes: Uint8Array): string {

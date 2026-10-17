@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import { normalizeTimestamp, normalizeConversationTimes } from '../src/core/domain/time.js';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { exportDomainMarkdown } from '../src/core/export/exportDomainDocument.js';
+import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
+import { renderDocumentMarkdown } from '../src/core/renderers/markdown/renderMarkdown.js';
+const exportDomainMarkdown = (domain: Parameters<typeof composeDomainDocument>[0], account: Parameters<typeof composeDomainDocument>[1]) => renderDocumentMarkdown(composeDomainDocument(domain, account), {}, { includeFrontMatter: true });
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 const base = (): DomainConversationWithDetail => ({ index: { key: fixtureKey(String('chat'), 'custom'),   titleSource: "derived",   title: 'Times' }, detail: { key: fixtureKey(String('chat'), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [] } });
 test('conversation times are independent finite epoch milliseconds and unknown facts are absent', () => {
@@ -26,7 +28,9 @@ test('current snapshots reject historical aliases and representations', () => {
 });
 test('message dates do not fabricate conversation creation or update facts during pagination', () => {
     const conversation = validateParserDomain({ index: { ...base().index }, detail: {   ...base().detail, messages: [{ role: 'user', timestamp: 1700000000000, content: [] }] } });
-    const merged = mergeConversationPages([{ account: fixtureAccount(), conversation, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }]);
+    const { key: _indexKey, ...index } = conversation.index;
+    const { key: _detailKey, ...detail } = conversation.detail;
+    const merged = mergeConversationPages([{ conversationId: conversation.index.key.conversationId, conversation: { index, detail }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }]);
     assert.equal(merged.conversation.index.createdAt, undefined);
     assert.equal(merged.sourceVersion, undefined);
     assert.equal(merged.conversation.detail.messages[0].timestamp, 1700000000000);
