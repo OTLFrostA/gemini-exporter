@@ -11,6 +11,14 @@ const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
 const I18n = require('../src/core/utils/i18n.js');
 const DialogView = require('../src/ui/views/dialogView.js');
 
+let originalJsZipDescriptor: PropertyDescriptor | undefined;
+test.beforeEach(() => { originalJsZipDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'JSZip'); });
+test.afterEach(() => {
+    TakeoutEngine.clearTakeoutData();
+    if (originalJsZipDescriptor) Object.defineProperty(globalThis, 'JSZip', originalJsZipDescriptor);
+    else Reflect.deleteProperty(globalThis, 'JSZip');
+});
+
 
 test('takeout_engine - C2PA regex parses years beyond 2029', () => {
     // 2032-11-15 12:30:00 UTC
@@ -145,11 +153,14 @@ test('dialogView - showTakeoutLimitPrompt differentiates between server limit an
         btnTakeoutLimitClose: {}
     };
 
+    const originalDocumentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const originalLanguage = I18n.getLang();
     (global as any).document = {
         getElementById: (id: string) => mockElements[id] || null,
         querySelectorAll: () => []
     };
 
+    try {
     if (I18n && typeof I18n.setLang === 'function') {
         await I18n.setLang('zh');
     }
@@ -190,11 +201,17 @@ test('dialogView - showTakeoutLimitPrompt differentiates between server limit an
         hitGoogleLimit: false
     });
     assert.ok(mockElements.takeoutLimitPromptTitle.textContent.includes('History Exceeds Web Browsing Window'));
+    } finally {
+        await I18n.setLang(originalLanguage);
+        if (originalDocumentDescriptor) Object.defineProperty(globalThis, 'document', originalDocumentDescriptor);
+        else Reflect.deleteProperty(globalThis, 'document');
+    }
 });
 
 test('optionsTakeout - processTakeoutImport blocks concurrent imports with _isImporting lock', async () => {
     const OptionsTakeout = require('../src/ui/options/modules/optionsTakeout.js');
-    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __getModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+    const originalTakeoutOverride = __getModuleOverride('TakeoutController');
 
     assert.strictEqual(OptionsTakeout.isImporting(), false, 'Initially not importing');
 
@@ -224,11 +241,13 @@ test('optionsTakeout - processTakeoutImport blocks concurrent imports with _isIm
 
         // Finish first import
         finishDeferred!();
-        await new Promise(r => setTimeout(r, 10));
+        await new Promise<void>(resolve => setImmediate(resolve));
 
         assert.strictEqual(OptionsTakeout.isImporting(), false, 'isImporting must reset to false after completion');
     } finally {
-        __clearModuleOverrides();
+        finishDeferred!();
+        await new Promise<void>(resolve => setImmediate(resolve));
+        __setModuleOverride('TakeoutController', originalTakeoutOverride);
     }
 });
 
