@@ -4,7 +4,7 @@ import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
-import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
+import { GeminiProvider, defaultGeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
 import type { CommittedListPage } from '../src/core/provider/aiProvider.js';
 import { parseList, type ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
@@ -239,15 +239,16 @@ test('L1 current inline bytes survive missing locator without network or Runtime
     const asset = { id: 'inline', kind: 'image' as const, mediaType: 'image/png' };
     parsed.conversation.detail.assets.push(asset);
     parsed.acquisitionHints = { inline: { dataBase64: 'AQID' } };
-    const p = new GeminiProvider({ ...client([]), getConversationDetail: async () => parsed }, async () => 'u0');
+    const resources = createSourceResourceContext();
+    const p = new GeminiProvider({ ...client([]), getConversationDetail: async () => parsed }, async () => 'u0', resources);
     await p.fetchConversationDetail(ACCOUNT_UUID, parsed.conversationId);
-    const offline = new GeminiProvider(client([]), async () => { throw new Error('No online route'); }, p.resources);
+    const offline = new GeminiProvider(client([]), async () => { throw new Error('No online route'); }, resources);
     const key = { accountId: ACCOUNT_UUID, conversationId: parsed.conversationId };
     assert.deepEqual((await offline.acquireResource(key, asset)).bytes, Uint8Array.of(1, 2, 3));
     for (const wrong of [{ ...key, conversationId: 'another_chat' }, { ...key, accountId: OTHER_ACCOUNT_UUID }]) {
         await assert.rejects(offline.acquireResource(wrong, asset));
     }
-    p.resources.release();
+    resources.release();
     await assert.rejects(offline.acquireResource(key, asset), /released/);
 });
 
@@ -309,4 +310,45 @@ test('L1 Sniffer hands only correlated conversation resources to the task contex
         await handleWindowMessage(sourceEvent(detailWire(), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } }));
         assert.deepEqual(retained, [{ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }]);
     } finally { resources.release(); }
+});
+
+
+test('L1 providers without task injection never retain inline Detail resources', async () => {
+    const account = await getAccount(ACCOUNT_UUID); assert.ok(account);
+    const parsed = parseGeminiRpcConversation(detailWire(), { providerId: 'gemini', account });
+    const asset = { id: 'inline', kind: 'image' as const };
+    parsed.conversation.detail.assets.push(asset);
+    parsed.acquisitionHints = { inline: { dataBase64: 'AQID' } };
+    const p = new GeminiProvider({ ...client([]), getConversationDetail: async () => parsed }, async () => 'u0');
+    for (let i = 0; i < 3; i++) await p.fetchConversationDetail(ACCOUNT_UUID, parsed.conversationId);
+    await assert.rejects(p.acquireResource({ accountId: ACCOUNT_UUID, conversationId: parsed.conversationId }, asset), /locator/);
+    assert.equal(Reflect.get(defaultGeminiProvider, 'resources'), undefined);
+    assert.equal(Reflect.get(new ChatGPTProvider(), 'resources'), undefined);
+    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: parsed.conversationId });
+    assert.ok(stored); assert.equal(stored.conversation.detail.assets[0].id, asset.id);
+});
+
+test('L1 successive Takeout tasks keep ZIP handles isolated and release independently of L2 facts', async () => {
+    const html = '<div class="outer-cell"><a href="https://gemini.google.com/app/source_chat_123">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br>2026-09-02T12:00:00Z<br><p>Answer<img src="picture.png"></p></div></div>';
+    const archive = (value: number) => ({ file() {}, files: {
+        'Takeout/Gemini/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html },
+        'Takeout/Gemini/picture.png': { _data: { uncompressedSize: 1 }, async: async () => Uint8Array.of(value) },
+    } });
+    const first = createSourceResourceContext(), second = createSourceResourceContext();
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
+    try {
+        await importTakeout(archive(1) as unknown as File, ACCOUNT_UUID, undefined, first);
+        await importTakeout(archive(2) as unknown as File, ACCOUNT_UUID, undefined, second);
+        const stored = await getStoredDomain({ providerId: 'gemini', ...key }); assert.ok(stored);
+        const asset = stored.conversation.detail.assets[0]; assert.ok(asset);
+        assert.deepEqual((await first.acquire(key, asset)).bytes, Uint8Array.of(1));
+        assert.deepEqual((await second.acquire(key, asset)).bytes, Uint8Array.of(2));
+        first.release();
+        await assert.rejects(first.acquire(key, asset), /released/);
+        assert.deepEqual((await second.acquire(key, asset)).bytes, Uint8Array.of(2));
+        const unscoped = new GeminiProvider(client([]), async () => 'u0');
+        await assert.rejects(unscoped.acquireResource(key, asset), /locator/);
+        second.release();
+        assert.ok(await getStoredDomain({ providerId: 'gemini', ...key }));
+    } finally { first.release(); second.release(); }
 });

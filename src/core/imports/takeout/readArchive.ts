@@ -48,3 +48,10 @@ export async function parseGeminiTakeoutZip(bytes: GeminiTakeoutZipRaw, context:
 export async function parseGeminiTakeoutZipArchive(bytes: GeminiTakeoutZipRaw, context: GeminiTakeoutZipContext): Promise<GeminiTakeoutParseResult[]> {
     return parseGeminiTakeoutArchiveAsync(await decodeArchive(bytes, context), context, context.onProgress);
 }
+
+/** Read only a source-bound entry; callers own the archive handle's task lifetime. */
+export async function readTakeoutBytes(file: TakeoutSourceFile): Promise<Uint8Array | null> {
+    if (typeof file.async !== 'function') return null;
+    const bytes = await file.async('uint8array');
+    return bytes instanceof Uint8Array && bytes.byteLength > 0 ? bytes : null;
+}

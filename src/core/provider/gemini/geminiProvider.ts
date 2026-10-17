@@ -8,9 +8,9 @@ import { GeminiAPIClient } from '../../api/geminiClient.js';
 import credentials from '../../api/client/credentialManager.js';
 import { geminiListObservation } from './listObservation.js';
 import { resolveCurrentAccount } from '../../../content/accountContext.js';
-import { acquireSourceResource, createSourceResourceContext } from '../sourceResources.js';
+import { acquireSourceResource, type SourceResourceContext } from '../sourceResources.js';
 import type { DomainAsset } from '../../domain/conversationDetail.js';
-import type { ConversationKey } from '../../domain/conversationKey.js';
+import { readConversationKey, type ConversationKey } from '../../domain/conversationKey.js';
 import type { ResourceBytes } from '../../resources/resourceResult.js';
 
 /** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
@@ -37,7 +37,7 @@ export class GeminiProvider implements GeminiProviderContract {
     readonly name = 'Google Gemini';
     readonly hostPatterns = ['https://gemini.google.com/*', 'https://bard.google.com/*'];
     private client: GeminiProviderClient | null;
-    constructor(client?: GeminiProviderClient, private route = resolveRoute, readonly resources = createSourceResourceContext()) { this.client = client ?? null; }
+    constructor(client?: GeminiProviderClient, private route = resolveRoute, private readonly resources?: SourceResourceContext) { this.client = client ?? null; }
     private getClient(): GeminiProviderClient { return this.client ??= new GeminiAPIClient(); }
     private async context(accountId: string) {
         const account = await getAccount(accountId);
@@ -98,16 +98,18 @@ export class GeminiProvider implements GeminiProviderContract {
         if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
         const index = parsed.conversation.index;
         await ingestDetail(accountId, parsed.conversationId, parsed.conversation.detail, index);
-        this.resources.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);
+        this.resources?.retainParsed({ accountId, conversationId: parsed.conversationId }, parsed);
     }
     async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();
+        readConversationKey(key);
         const account = await getAccount(key.accountId);
         if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
-        return this.resources.acquire(key, asset, signal, async () => {
+        const remote = async () => {
             if (!asset.sourceUri?.startsWith('data:')) await this.context(key.accountId);
             return acquireSourceResource(asset, signal);
-        });
+        };
+        return this.resources ? this.resources.acquire(key, asset, signal, remote) : remote();
     }
 }
 export const defaultGeminiProvider = new GeminiProvider();
