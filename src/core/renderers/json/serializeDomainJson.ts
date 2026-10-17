@@ -1,7 +1,7 @@
 import { readAccount, type Account } from '../../domain/accountRegistry.js';
 import { sameConversationKey } from '../../domain/conversationKey.js';
 import type { ReadonlyDomain } from '../../domain/runtimeValidation.js';
-import type { ResourceBindings } from '../../document/ast/ast.js';
+import type { ResourceBindings } from '../../export/packaging/resourceBindings.js';
 
 export const JSON_ARCHIVE_VERSION = 1;
 /** A versioned semantic archive, independent of storage and transport implementations. */

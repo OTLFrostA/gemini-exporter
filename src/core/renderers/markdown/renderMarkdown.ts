@@ -2,7 +2,8 @@ import { codeHeader, disclosureTitle, messageLabel, sourceNumberPrefix, unavaila
 import { getRendererStrings } from '../shared/renderStrings.js';
 import { isResourcePath } from '../shared/resourcePath.js';
 import type { MarkdownRenderOptions } from '../shared/renderOptions.js';
-import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst, ResourceBindings } from '../../document/ast/ast.js';
+import type { DisplayBlock, DisplayCell, DisplayInline, DocumentAst } from '../../document/ast/ast.js';
+import type { ResourceBindings } from '../../export/packaging/resourceBindings.js';
 import { inlineMathMarkdown } from '../../utils/markdownMath.js';
 
 function escapeText(text: string): string {
@@ -110,7 +111,6 @@ export function renderDocumentMarkdown(document: DocumentAst, resources: Resourc
     if (options.includeFrontMatter && !metadata) throw new TypeError('Markdown document metadata is required');
     const entries: Array<{ key: string; value: string | string[] }> | undefined = options.includeFrontMatter ? [
         { key: 'title', value: document.header.title }, { key: 'id', value: metadata.id }, { key: 'provider', value: metadata.provider },
-        ...(metadata.url ? [{ key: 'url', value: metadata.url }] : []),
         ...(metadata.createdAt ? [{ key: 'date', value: metadata.createdAt }] : []),
         ...(metadata.updatedAt ? [{ key: 'updated', value: metadata.updatedAt }] : []),
         ...(options.exportedAt ? [{ key: 'exported', value: options.exportedAt }] : []),

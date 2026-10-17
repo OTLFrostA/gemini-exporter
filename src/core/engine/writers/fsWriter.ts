@@ -38,7 +38,6 @@ async function ensureSubDir(root: any, subPath: string): Promise<any> {
 
 class FsWriter implements IExportWriter {
     rootDirHandle: FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>;
-    folderName: string;
     batchDirHandle: any;
     // Serialize concurrent writes targeting the same target path
     __writeChains: Map<string, Promise<void>>;
@@ -48,10 +47,9 @@ class FsWriter implements IExportWriter {
     static sanitizeFileName = sanitizeFileName;
     static sanitizeRelativePath = sanitizeRelativePath;
 
-    constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined, folderName: string = '') {
+    constructor(dirHandle: (FileSystemDirectoryHandle & Partial<Pick<DirectoryHandle, 'queryPermission' | 'requestPermission'>>) | null | undefined) {
         if (!dirHandle) throw new Error('Directory handle is required for FsWriter');
         this.rootDirHandle = dirHandle;
-        this.folderName = folderName;
         this.batchDirHandle = null;
         this.__writeChains = new Map();
     }

@@ -111,7 +111,7 @@ test('p1_h2 - P1-115: ZipWriter refuses beyond safe budget instead of warning', 
     (globalThis as any).self = (globalThis as any).self || {};
     (globalThis as any).self.JSZip = (globalThis as any).self.JSZip || require('../lib/jszip.min.js');
     const { ZipWriter } = require('../src/core/engine/writers/zipWriter.js');
-    const w = new ZipWriter('test');
+    const w = new ZipWriter();
     assert.throws(
         () => w.writeFile('big.bin', { byteLength: 300 * 1024 * 1024 } as any),
         /200MB/
@@ -137,7 +137,7 @@ test('p1_h2 - P1-116: FsWriter serializes concurrent writes to the same path', a
             }
         })
     };
-    const w = new FsWriter(dirHandle2, 'batch');
+    const w = new FsWriter(dirHandle2);
     await Promise.all([w.writeFile('same.txt', 'aaa'), w.writeFile('same.txt', 'bbb')]);
     const i0s = events.indexOf('w1:start'), i0e = events.indexOf('w1:end');
     const i1s = events.indexOf('w2:start'), i1e = events.indexOf('w2:end');
@@ -159,7 +159,7 @@ test('p1_h2 - review fix (c): writeChains map does not grow without bound', asyn
         name: 'gemini_export',
         getFileHandle: async () => fakeFile()
     };
-    const w = new FsWriter(fakeDir, 'gemini_export');
+    const w = new FsWriter(fakeDir);
     // concurrent writes to the same path must serialize and leave no chain residue
     await Promise.all([
         w.writeFile('same.md', 'one'),

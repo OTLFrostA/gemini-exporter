@@ -24,17 +24,17 @@ test('Markdown backend projects spans while the neutral tree retains all headers
     const composed = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), composed);
     assert.equal(JSON.stringify(input), before);
-    const table = composed.document.messages[0].blocks.find(block => block.type === 'table')!; assert.equal(table.type, 'table');
+    const table = composed.messages[0].blocks.find(block => block.type === 'table')!; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
     assert.equal(table.headerRows.length, 2); assert.equal(table.rows.length, 1);
     assert.equal(table.headerRows[0][0].colSpan, 2); assert.equal(table.headerRows[0][0].rowSpan, 2);
-    const md = renderDocumentMarkdown(composed.document, { a: 'assets/a.png' });
+    const md = renderDocumentMarkdown(composed, { a: 'assets/a.png' });
     assert.ok(md.includes('|  |  | Second header |'));
     assert.ok(md.includes('| :--- | ---: | :---: |'));
 });
 
 test('Markdown consumes only JSON display choices, explicit time and prepared paths', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     const resources = { a: 'assets/a.png' };
     assert.equal(renderDocumentMarkdown(restored, resources), renderDocumentMarkdown(document, resources));
@@ -54,12 +54,11 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
 });
 
 test('Markdown renderer owns unavailability and emits diagnostics without remote embedding', () => {
-    const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
-    assert.equal(diagnostics.length, 0);
+    const document = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const output = renderDocumentMarkdown(document, {});
     assert.ok(output.includes('[Image unavailable:')); assert.ok(output.includes('**123**'));
     assert.ok(!output.includes('https://remote'));
-    assert.deepEqual(composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture()))).document, document);
+    assert.deepEqual(composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture()))), document);
 });
 
 test('Markdown renderer cannot depend on provider, Domain or storage services', () => {
@@ -77,14 +76,13 @@ test('Markdown renderer cannot depend on provider, Domain or storage services', 
 
 test('Markdown front matter reads identity and source dates only from Document AST', () => {
     const input = fixture(); input.index.updatedAt = 1000;
-    const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    const document = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     document.header.title = 'true';
     document.metadata!.id = 'null';
-    document.metadata!.url = 'https://example.test/accepted';
     const markdown = renderDocumentMarkdown(document, {}, { includeFrontMatter: true, exportedAt: time });
     assert.ok(markdown.includes('title: "true"'));
     assert.ok(markdown.includes('id: "null"'));
-    assert.ok(markdown.includes('url: "https://example.test/accepted"'));
+    assert.ok(!/^url:/m.test(markdown), 'L3b metadata no longer supplies provider URLs');
     assert.ok(markdown.includes('updated: "1970-01-01T00:00:01.000Z"'));
     assert.ok(markdown.includes(`exported: "${time}"`));
     // @ts-expect-error Metadata is required; still reject malformed runtime callers explicitly.

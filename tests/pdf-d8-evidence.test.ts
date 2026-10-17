@@ -89,7 +89,7 @@ function compilerPayload(
     convertMathFn?: (source: string, display: boolean) => string | undefined,
 ) {
     const assetPath = (a: any) => `/assets/${a.id}`;
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain as any, fixtureAccountFor(domain as any)).document, Object.fromEntries(((domain as any).assets ?? []).map((asset: any) => [asset.id, assetPath(asset)])), {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain as any, fixtureAccountFor(domain as any)), Object.fromEntries(((domain as any).assets ?? []).map((asset: any) => [asset.id, assetPath(asset)])), {
         ...(convertMathFn ? { convertMath: convertMathFn } : {}),
     });
     return {

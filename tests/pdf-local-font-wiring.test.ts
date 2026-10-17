@@ -177,7 +177,7 @@ function assetPathFor(asset: any) {
 }
 
 function makePayload(domain: any) {
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
     return {
         rendererSchemaVersion: 1,
 

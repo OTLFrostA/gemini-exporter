@@ -1,15 +1,3 @@
-export interface CompanionResourcePlan {
-    resourceIds: string[];
-    omitted: Array<{ resourceId: string; reason: string }>;
-}
-
-export interface ArtifactWriteReport {
-    fileName: string;
-    target: 'zip' | 'folder' | string;
-    bytesWritten: number;
-    writtenAt: string;
-}
-
 export interface ExportArtifact {
     fileName: string;
     mimeType: string;

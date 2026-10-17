@@ -37,7 +37,7 @@ test('multi header rows all reach the transport with no collapse diagnostic', as
         type: 'table', headerRows: [row('h1a', 'h1b'), row('h2a', 'h2b')],
         rows: [row('b1a', 'b1b')],
     }])]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'table');
     assert.strictEqual(node.headers.length, 2);
@@ -54,7 +54,7 @@ test('colSpan/rowSpan map to native Typst table.cell spans with no warning', asy
     const b = domainFixture([msg('m1', 'assistant', [{
         type: 'table', rows: [{ cells: [spanned, { children: [{ type: 'text', text: 'b' }] }] }, { cells: [tall, { children: [{ type: 'text', text: 'c' }] }] }],
     }])]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.rows[0].length, 2);
     assert.strictEqual(node.rows[0][0].colspan, 2);
@@ -68,11 +68,11 @@ test('message sources append a note to blocks in Typst payload', async () => {
     const b = domainFixture(
         [msg('m1', 'assistant', [], { citations: [{ id: 'c1', url: 'https://example.com/a' }] })],
     );
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
     assert.equal(node.label, 'Sources');
-    assert.deepEqual(node.children, [{ type: 'link', url: 'https://example.com/a', children: [{ type: 'text', text: '[1]' }] }]);
+    assert.deepEqual(node.children, [{ type: 'link', url: 'https://example.com/a', children: [{ type: 'text', text: '[1] https://example.com/a' }] }]);
 });
 
 test('file description reaches the transport', async () => {
@@ -84,7 +84,7 @@ test('file description reaches the transport', async () => {
         }])],
         [{ id: 'fa', name: 'report.pdf', kind: 'file', mediaType: 'application/pdf', byteLength: 2048 }],
     );
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'file');
     assert.deepStrictEqual(node.description, [{ type: 'text', text: 'Q3 summary deck' }]);
@@ -92,7 +92,7 @@ test('file description reaches the transport', async () => {
 
 test('reasoning maps to a thinking process note', async () => {
     const b = domainFixture([msg('m1', 'assistant', [], { reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'hmm' }] }] })]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), {}, opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
     assert.strictEqual(node.label, 'Thinking Process');
@@ -103,7 +103,7 @@ test('code language and meta reach the transport', async () => {
         type: 'code', code: 'print(1)', language: 'python',
         meta: 'runnable',
     }])]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'code');
     assert.strictEqual(node.header, 'python · runnable');
@@ -115,7 +115,7 @@ test('code without filename has no filename field', async () => {
     const b = domainFixture([msg('m1', 'assistant', [
         { type: 'code', code: 'x', language: 'text' },
     ])]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.ok(!('filename' in node));
     assert.ok(!('meta' in node));
@@ -125,7 +125,7 @@ async function compileOnce(domain: any) {
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
     const resources = Object.fromEntries(domain.detail.assets.map((asset: { id: string }) => [asset.id, `/assets/${asset.id}.png`]));
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, resources, { convertMath });
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), resources, { convertMath });
     const context = {
 
         assets: {

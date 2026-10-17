@@ -4,7 +4,7 @@ import { assertExportPath } from '../../export/packaging/exportPath.js';
 import { __resolveModule } from '../../utils/moduleOverrides.js';
 
 export interface ZipWriterClass {
-    new (folderName?: string): ZipWriter;
+    new (): ZipWriter;
     ZipWriter: typeof ZipWriter;
 }
 
@@ -30,7 +30,7 @@ class ZipWriter implements IExportWriter {
 
     static ZipWriter = ZipWriter;
 
-    constructor(_folderName: string = '') {
+    constructor() {
         const JSZipLib = __resolveModule('JSZip', null)
             || (typeof self !== 'undefined' ? (self as any).JSZip : null)
             || (typeof require !== 'undefined' ? (function() { try { return require('jszip'); } catch { return null; } })() : null);

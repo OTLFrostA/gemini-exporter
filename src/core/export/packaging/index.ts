@@ -1,5 +1,5 @@
 import type { ReadonlyDomain } from '../../domain/runtimeValidation.js';
-import type { ResourceBindings } from '../../document/ast/ast.js';
+import type { ResourceBindings } from './resourceBindings.js';
 import type { PreparedResources } from '../../resources/resourceResult.js';
 import type { ExportArtifact } from '../artifacts.js';
 import { buildExportFileName, sanitizeFileName, shortScope } from '../../utils/pathUtils.js';
@@ -47,13 +47,16 @@ export function planExportPaths(
             if (!result?.ok) continue;
             const mediaType = result.value.mediaType ?? asset.mediaType;
             const extension = resourceExtensions[mediaType ?? ''] ?? (asset.document ? 'md' : asset.kind === 'image' ? 'jpg' : 'bin');
-            const name = asset.name || `${asset.id}.${extension}`;
+            const baseName = sanitizeFileName(asset.name || asset.id);
+            const name = asset.name && /\.[^.]+$/.test(baseName) ? baseName : `${baseName}.${extension}`;
             resources[asset.id] = reserve(asset.kind === 'image' ? 'assets/' : 'files/', shortScope(id) + name);
         }
         return { fileName, resources };
     });
 }
 
+/** Application fills prepared mediaType from acquisition metadata, then trusted
+ * DomainAsset.mediaType. Packaging uses octet-stream when neither is available. */
 export function buildExportFiles(format: ExportFormat, plan: ExportPathPlan,
     content: string | Uint8Array, prepared: PreparedResources): ExportArtifact[] {
     assertExportPath(plan.fileName);

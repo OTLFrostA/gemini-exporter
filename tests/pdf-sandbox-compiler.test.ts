@@ -211,7 +211,7 @@ function assetPathFor(asset: any) {
 }
 
 function makePayload(domain: any, opts: { convertMath?: (source: string, display: boolean) => string | undefined } = {}) {
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
         ...(opts.convertMath ? { convertMath: opts.convertMath } : {}),
     });
     return {

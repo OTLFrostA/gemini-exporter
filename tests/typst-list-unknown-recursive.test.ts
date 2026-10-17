@@ -38,7 +38,7 @@ test('list item keeps inline image as a node, not flattened text', async () => {
         type: 'list', ordered: false,
         items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'see ' }, { type: 'image', assetId: 'list-img', alt: 'dot' }] }] }],
     }], [imgAsset]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'list');
     assert.deepStrictEqual(node.items[0].blocks[0].children.map((c: any) => c.type), ['text', 'image']);
@@ -60,7 +60,7 @@ test('list item keeps block image, nested list, code, math and multi-paragraph',
             ] },
         ],
     }], [imgAsset]);
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.items[0].blocks[0].type, 'image');
     assert.strictEqual(node.items[0].blocks[0].asset, 'assets/list-img.png');
@@ -80,7 +80,7 @@ test('ordered list keeps start; absent start stays absent', async () => {
         { type: 'list', ordered: true, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'one' }] }] }] },
         { type: 'list', ordered: false, items: [{ blocks: [{ type: 'paragraph', children: [{ type: 'text', text: 'bullet' }] }] }] },
     ]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const blocks: any[] = payload.messages[0].blocks;
     assert.strictEqual(blocks[0].start, 3);
     assert.ok(!('start' in blocks[1]));
@@ -91,7 +91,7 @@ test('ordered list keeps start; absent start stays absent', async () => {
 
 test('unknown text remains visible without nested render blocks', async () => {
     const b = listBundle([{ type: 'unknown', sourceType: 'weird-widget', text: 'kept-para\ndot\nkept-code\nkept-list' }]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)), Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'unknown');
     assert.strictEqual(node.sourceType, 'weird-widget');
@@ -103,7 +103,7 @@ async function compileOnce(domain: any, assets: Record<string, Uint8Array>) {
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
     const resources = Object.fromEntries(domain.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`]));
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, resources, { convertMath });
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)), resources, { convertMath });
     const context = {
 
         assets: {
