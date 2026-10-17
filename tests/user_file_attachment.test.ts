@@ -4,7 +4,6 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
-const decodeGeminiDetail = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const ChatFormatter = require('../src/core/engine/chatFormatter.js');
 
 test('user_file_attachment: itemMatchesFilename correctly identifies valid filenames and rejects URLs', () => {
@@ -69,7 +68,7 @@ test('user_file_attachment: extractUserFiles handles real Gemini payload with Dr
 
     const f = extracted[0];
     assert.strictEqual(f.fileName, 'architecture.md', 'fileName should be correctly extracted as architecture.md, NOT the full URL');
-    assert.ok(f.sourceUrl.includes('contribution.usercontent.google.com/download'), 'sourceUrl should be the real download URL, NOT the viewer thumbnail');
+    assert.strictEqual(f.sourceUrl, realTurnUserPayload[0][3][0][1], 'download URL must come from the file attachment rather than its thumbnail');
     assert.ok(f.thumbnailUrl && f.thumbnailUrl.includes('drive.google.com/viewer/thumb'), 'thumbnailUrl should store the viewer thumbnail as candidate');
 });
 
@@ -133,7 +132,8 @@ test('user_file_attachment: ChatFormatter renders clean attachment link without 
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat), { resourceResults: await fixtureResourceResults(historicalFixture(mockChat).conversation, historicalFixture(mockChat).resourceHints) });
+    const parsed = historicalFixture(mockChat);
+    const res = await ChatFormatter.formatMarkdownDocument(parsed, { resourceResults: await fixtureResourceResults(parsed.conversation, parsed.resourceHints) });
     assert.ok(res.content.includes('[architecture.md](files/273175_architecture.md)'), 'Must render clean Markdown link for architecture.md');
     assert.ok(res.content.includes('[custom\\_data.xyz](files/273175_custom_data.xyz)'), 'Must render clean Markdown link for custom_data.xyz');
     assert.ok(!res.content.includes('https___contribution'), 'Must NOT contain sanitized URL artifacts in Markdown');
@@ -159,7 +159,8 @@ test('user_file_attachment: ChatFormatter protects against accidentally leaked U
         ]
     };
 
-    const res = await ChatFormatter.formatMarkdownDocument(historicalFixture(mockChat), { resourceResults: await fixtureResourceResults(historicalFixture(mockChat).conversation, historicalFixture(mockChat).resourceHints) });
+    const parsed = historicalFixture(mockChat);
+    const res = await ChatFormatter.formatMarkdownDocument(parsed, { resourceResults: await fixtureResourceResults(parsed.conversation, parsed.resourceHints) });
     assert.ok(!res.content.includes('[https://'), 'Leaked URL must be sanitized out of link text');
     assert.ok(res.content.includes('files/273175_leaked.json'), 'Must keep localName path');
     assert.ok(res.content.includes('[Attachment](files/273175_leaked.json)'), 'Destination basename is not a semantic file label');
