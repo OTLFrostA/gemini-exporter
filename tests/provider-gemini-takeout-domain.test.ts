@@ -1,6 +1,6 @@
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
-import { parseGeminiTakeoutZipArchive } from '../src/core/parsers/gemini/takeout/parseZip.js';
+import { parseGeminiTakeoutZipArchive } from '../src/core/imports/takeout/readArchive.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

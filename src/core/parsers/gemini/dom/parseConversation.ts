@@ -3,14 +3,13 @@ import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
-import type { ResourceConversationParseResult } from '../../parsingResult.js';
+import type { SourceConversationParseResult } from '../../parsingResult.js';
 import { parseDomContent } from './content.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
-import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 
 export interface GeminiDomRaw { document: Document; id: string; url?: string }
-export interface GeminiDomParseResult extends ResourceConversationParseResult {
+export interface GeminiDomParseResult extends SourceConversationParseResult {
     transport: { fallbackUsed: string | null; nodeCount: number; htmlLen: number };
 }
 const fallbackSelectors = ['[data-test-id*="user-query"]', '[data-test-id*="model-response"]', '[data-message-author-role="user"]', '[data-message-author-role="model"]', '[data-message-author-role="assistant"]', 'div[data-test-id="conversation-turn"]', 'div[role="article"]'];
@@ -85,12 +84,12 @@ export function parseGeminiDomConversation(raw: GeminiDomRaw, context: Conversat
     const title = (doc.title ?? doc.querySelector('title')?.textContent ?? '').trim().replace(/\s*[-–|]\s*(?:Google\s+)?Gemini$/i, '').trim();
     const authoredTitle = title && !/^(?:Google\s+)?(?:Gemini|Bard)$/i.test(title);
     const conversation = {
-        index: parseIndexMetadata({ account: context.account, providerId: 'gemini', id, title: authoredTitle ? title : '',
+        index: parseIndexMetadata({ providerId: 'gemini', id, title: authoredTitle ? title : '',
             titleSource: authoredTitle ? 'dom' : 'default', messageCount: resources.messages.length,
             url: raw.url ?? `https://gemini.google.com/app/${id}` }),
         detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), messages: resources.messages, assets: resources.assets },
     };
-    return { evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, account: context.account, conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints,
+    return { evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, resourceHints: {}, acquisitionHints: resources.acquisitionHints,
         diagnostics,
         transport: { fallbackUsed, nodeCount: nodes.length, htmlLen: doc.documentElement?.outerHTML?.length ?? 0 } };
 }

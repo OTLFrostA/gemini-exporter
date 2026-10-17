@@ -1,5 +1,4 @@
-import { conversationKey } from '../../domain/conversationKey.js';
-import { restoreConversationIndex, type DomainConversationIndex } from '../../domain/conversationIndex.js';
+import type { DomainConversationIndex } from '../../domain/conversationIndex.js';
 import { semanticTitleSource } from '../shared/parseIndexMetadata.js';
 import { normalizeTimestamp } from '../../domain/time.js';
 import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
@@ -10,7 +9,7 @@ export interface GeminiIndexObservationInput {
     id?: string; title?: string; titleSource?: string; createdAt?: number; updatedAt?: number;
     url?: string; messageCount?: number; sidebarIndex?: number;
 }
-export function parseGeminiIndexObservation(value: unknown, source: GeminiIndexObservationSource, accountId: string): DomainConversationIndex {
+export function parseGeminiIndexObservation(value: unknown, source: GeminiIndexObservationSource): { conversationId: string; fields: Omit<DomainConversationIndex, 'key'> } {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid Gemini index observation');
     const row = value as Record<string, unknown>;
     if (typeof row.id !== 'string') throw new TypeError('Index observation has no identity');
@@ -19,7 +18,7 @@ export function parseGeminiIndexObservation(value: unknown, source: GeminiIndexO
     const candidate = typeof row.title === 'string' ? cleanTitle(row.title) : '';
     const title = isRealTitle(candidate, id) || row.titleSource === 'takeout' && candidate && !isBrandPlaceholderTitle(candidate) ? candidate : undefined;
     const createdAt = normalizeTimestamp(row.createdAt), updatedAt = normalizeTimestamp(row.updatedAt);
-    return restoreConversationIndex({ key: conversationKey(accountId, id),
+    return { conversationId: id, fields: {
         ...(title ? { title, titleSource: semanticTitleSource(typeof row.titleSource === 'string' ? row.titleSource : source === 'rpc-list' ? 'rpc' : 'dom') } : {}),
-        ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) });
+        ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) } };
 }

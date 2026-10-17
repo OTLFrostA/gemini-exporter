@@ -1,9 +1,11 @@
-import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
-import { cacheAcquiredResources } from '../../storage/domain/resourceContext.js';
-import { storageIdentity } from '../../storage/domain/domainStore.js';
+import { acquireSourceResource } from '../sourceResources.js';
+import { chatgptAccountObservation } from './accountObservation.js';
+import type { Account } from '../../domain/accountRegistry.js';
+import type { DomainAsset } from '../../domain/conversationDetail.js';
+import type { ResourceBytes } from '../../resources/resourceResult.js';
+import type { ListEnd } from '../aiProvider.js';
 import { ingestIndexes, ingestDetail } from '../../domain/ingestion.js';
-import type { ProviderConversationItem } from '../aiProvider.js';
-import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
+import { getAccount } from '../../api/accountRegistry.js';
 /**
  * ChatGPT provider: acquisition only (session/list/detail/downloads).
  * Mapping parsing and Domain branding live in parsers/chatgpt, mirroring the
@@ -12,9 +14,7 @@ import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
  */
 import type {
     AIProvider,
-    ProviderConversationDetail,
     ProviderListOptions,
-    ProviderPageResult,
     ProviderReadiness,
 } from '../aiProvider.js';
 import type {
@@ -22,25 +22,15 @@ import type {
     ChatGPTApiSession,
 } from '../../parsers/chatgpt/chatgptTypes.js';
 import { CHATGPT_HOSTS, chatGPTApiBase } from '../../parsers/chatgpt/chatgptTypes.js';
-import { imagePointersOfNode, processChatGPTMapping } from '../../parsers/chatgpt/conversationTree.js';
-import type { ChatGPTConversationNode } from '../../parsers/chatgpt/chatgptTypes.js';
 import {
     parseChatGPTConversation,
 } from '../../parsers/chatgpt/parseConversation.js';
-import type {
-    ChatGPTNodeAssets,
-} from '../../parsers/chatgpt/parseConversation.js';
-import { uploadedFilesOfChatGPTNode } from '../../parsers/chatgpt/conversationDetail.js';
 import {
-    arrayBufferToBase64,
-    assetIdForPointer,
     buildFileDownloadPath,
-    CHATGPT_MAX_IMAGE_BYTES,
     fileIdFromPointer,
     parseFileDownloadPayload,
 } from './imageAssets.js';
 
-import type { DomainConversationIndex } from '../../domain/conversationIndex.js';
 import { parseChatGPTList } from '../../parsers/chatgpt/parseList.js';
 
 export interface ChatGPTFetch {
@@ -78,20 +68,23 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    private async getAccessToken(): Promise<string> {
-        const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
-            credentials: 'include',
-        });
-        if (!res.ok) throw new Error(`ChatGPT session probe failed: ${res.status}`);
-        const session = (await res.json()) as ChatGPTApiSession;
-        if (!session.accessToken) throw new Error('ChatGPT session has no accessToken (logged out?)');
-        return session.accessToken;
+    private async context(accountId: string): Promise<Account> {
+        const account = await getAccount(accountId);
+        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        return account;
     }
-
-    private async authedGet<T>(path: string): Promise<T> {
-        const token = await this.getAccessToken();
+    private async authedGet<T>(path: string, account: Account, signal?: AbortSignal): Promise<T> {
+        signal?.throwIfAborted();
+        const sessionResponse = await this.fetchFn(`${this.origin}/api/auth/session`, { credentials: 'include', signal });
+        if (!sessionResponse.ok) throw new Error(`ChatGPT session failed: ${sessionResponse.status}`);
+        const session = await sessionResponse.json() as ChatGPTApiSession;
+        const observed = chatgptAccountObservation(session);
+        if (observed ? observed.providerAccountId !== account.providerAccountId : account.providerAccountId !== 'default') throw new TypeError('ChatGPT request account mismatch');
+        const token = session.accessToken;
+        if (!token) throw new Error('ChatGPT session has no accessToken');
         const res = await this.fetchFn(`${chatGPTApiBase(this.origin)}${path}`, {
             credentials: 'include',
+            signal,
             headers: {
                 Authorization: `Bearer ${token}`,
                 'X-Authorization': `Bearer ${token}`,
@@ -101,8 +94,9 @@ export class ChatGPTProvider implements AIProvider {
         return (await res.json()) as T;
     }
 
-    async checkReadiness(): Promise<ProviderReadiness> {
+    async checkReadiness(accountId: string): Promise<ProviderReadiness> {
         try {
+            await this.context(accountId);
             const res = await this.fetchFn(`${this.origin}/api/auth/session`, {
                 credentials: 'include',
             });
@@ -117,196 +111,48 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<ProviderConversationItem>> {
-        const accountId = options?.accountId ?? (await getOrCreateAccount(this.id, 'default')).id;
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
-        const limit = 100;
-        const maxPages = typeof options?.maxPages === 'number' && options.maxPages > 0
-            ? Math.floor(options.maxPages)
-            : 20;
-        const all: ProviderConversationItem[] = [];
-        let offset = 0;
-        let total: number | undefined;
-        let cursor: string | null = null;
-        let exhaustive = false;
-        for (let page = 0; page < maxPages; page += 1) {
-            const result = parseChatGPTList(await this.authedGet<unknown>(
-                `/conversations?offset=${offset}&limit=${limit}`,
-            ));
-            const batch = result.conversations;
-            if (options?.canCommit?.() === false) throw new Error('ChatGPT list cancelled');
-            await ingestIndexes(accountId, batch.map(item => ({ conversationId: item.id, fields: {
-                ...(item.title && item.titleSource ? { title: item.title, titleSource: item.titleSource as 'provider' } : {}),
+    async listConversations(options: ProviderListOptions): Promise<ListEnd> {
+        if (options.streamId !== 'recent') throw new TypeError('Unknown ChatGPT stream');
+        const account = await this.context(options.accountId);
+        let totalObserved = 0;
+        for (let page = 1; page <= 20; page++) {
+            options.signal?.throwIfAborted();
+            const offset = (page - 1) * 100;
+            const result = parseChatGPTList(await this.authedGet<unknown>(`/conversations?offset=${offset}&limit=100`, account, options.signal));
+            options.signal?.throwIfAborted();
+            await ingestIndexes(account.id, result.conversations.map(item => ({ key: { accountId: account.id, conversationId: item.id },
+                ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
-                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })));
-            const decision = await options?.onPageBatch?.({ page: page + 1, hasMore: result.nextCursor !== null, count: batch.length });
-            if (decision?.shouldStop) break;
-            all.push(...batch);
-            if (typeof result.total === 'number') total = result.total;
-            cursor = result.nextCursor ?? null;
-            options?.onProgress?.({
-                page: page + 1,
-                added: batch.length,
-                total: all.length,
-                hasMore: true,
-            });
-            if (batch.length === 0) {
-                exhaustive = true;
-                break;
-            }
-            // pionxzh stop rules: no total and no cursor means one-shot list;
-            // reaching the reported total means history is complete.
-            if (result.total == null && result.nextCursor == null) {
-                exhaustive = true;
-                break;
-            }
-            if (result.total != null && offset + limit >= result.total) {
-                exhaustive = true;
-                break;
-            }
-            offset += limit;
+                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) })), { canCommit: () => !options.signal?.aborted });
+            totalObserved += result.conversations.length;
+            const stop = await options.onPageCommitted?.({ page, totalObserved });
+            if (result.conversations.length === 0 || (result.total === undefined && result.nextCursor === null)
+                || (result.total !== undefined && offset + 100 >= result.total)) return 'source_end';
+            if (stop) return 'stopped';
         }
-        return {
-            items: all,
-            total,
-            hasMore: !exhaustive,
-            nextCursor: cursor,
-            exhaustive,
-            completionReason: exhaustive ? 'complete' : 'page-budget-reached',
-        };
+        return 'max_pages';
     }
-
-    async fetchConversationDetail(
-        conversationId: string,
-        options?: unknown,
-    ): Promise<ProviderConversationDetail> {
-        const accountId = options && typeof options === 'object' && typeof Reflect.get(options, 'accountId') === 'string'
-            ? String(Reflect.get(options, 'accountId')) : (await getOrCreateAccount(this.id, 'default')).id;
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
-        const raw = await this.authedGet<Omit<ChatGPTApiConversationWithId, 'id'>>(
-            `/conversation/${encodeURIComponent(conversationId)}`,
-        );
-        const conversation: ChatGPTApiConversationWithId = { ...raw, id: conversationId };
-        // Acquisition only: resolve downloads per node, then hand assembled
-        // evidence to the parser for Domain branding (trust boundary).
-        const linear = this.linearNodes(conversation);        const assetsByNode = new Map<string, ChatGPTNodeAssets>();
-        await Promise.all(
-            linear.map(async (node) => {
-                assetsByNode.set(node.id, await this.resolveNodeAssets(node));
-            }),
-        );
-        const parsed = parseChatGPTConversation({ account, conversation, assetsByNode });
-        const id = parsed.conversation.index.key.conversationId;
-        await ingestDetail(account.id, id, parsed.conversation.detail, parsed.conversation.index);
-        await cacheAcquiredResources(storageIdentity(this.id, account.id, id), parsed.conversation.detail.assets, parsed.acquisitionHints);
-        const accepted = await getDomainConversationResult(account.id, id, this.id);
-        if (!accepted) throw new Error('Accepted Detail missing');
-        return { ...parsed, ...accepted, diagnostics: parsed.diagnostics };
+    async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
+        const account = await this.context(accountId);
+        const raw = await this.authedGet<Omit<ChatGPTApiConversationWithId, 'id'>>(`/conversation/${encodeURIComponent(conversationId)}`, account, signal);
+        const conversation = { ...raw, id: conversationId };
+        const parsed = parseChatGPTConversation({ account, conversation, assetsByNode: new Map() });
+        signal?.throwIfAborted();
+        const index = parsed.conversation.index;
+        await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
     }
-
-    /** Linear history without branding (used to scope per-node downloads). */
-    private linearNodes(
-        conversation: ChatGPTApiConversationWithId,
-    ): ChatGPTConversationNode[] {
-        return processChatGPTMapping(conversation);
-    }
-
-    private async resolveNodeAssets(node: ChatGPTConversationNode): Promise<ChatGPTNodeAssets> {
-        const images: ChatGPTNodeAssets['images'] = [];
-        for (const pointer of imagePointersOfNode(node)) {
-            const resolved = await this.fetchImageAsset(pointer);
-            if (resolved) {
-                images.push({
-                    pointer,
-                    assetId: resolved.assetId,
-                    dataBase64: resolved.dataBase64,
-                    mediaType: resolved.mediaType,
-                    fileName: resolved.fileName,
-                    byteLength: resolved.byteLength,
-                });
-            }
-        }
-        const files: ChatGPTNodeAssets['files'] = [];
-        for (const file of uploadedFilesOfChatGPTNode(node)) {
-            const downloaded = await this.fetchFileAsset(file.id);
-            files.push({
-                id: file.id,
-                name: file.name,
-                mediaType: downloaded?.mediaType ?? file.mediaType,
-                byteLength: downloaded?.byteLength ?? file.byteLength,
-                ...(downloaded ? { dataBase64: downloaded.dataBase64 } : {}),
-            });
-        }
-        return { nodeId: node.id, images, files };
-    }
-
-    /** Best-effort bytes for an uploaded (non-image) file; null keeps the stub. */
-    private async fetchFileAsset(
-        fileId: string,
-    ): Promise<{ dataBase64: string; mediaType?: string; byteLength?: number } | null> {
-        try {
-            const exchange = await this.authedGet<unknown>(buildFileDownloadPath(fileId));
-            const parsed = parseFileDownloadPayload(exchange);
-            if (!parsed) return null;
-            const bytesRes = await this.fetchFn(parsed.downloadUrl);
-            if (!bytesRes.ok) return null;
-            const buf = await bytesRes.arrayBuffer();
-            if (buf.byteLength === 0 || buf.byteLength > CHATGPT_MAX_IMAGE_BYTES) return null;
-            const headerType = bytesRes.headers?.get('content-type');
-            return {
-                dataBase64: arrayBufferToBase64(buf),
-                mediaType:
-                    (typeof headerType === 'string' && headerType.split(';')[0]?.trim()) ||
-                    parsed.mimeType ||
-                    undefined,
-                byteLength: buf.byteLength,
-            };
-        } catch {
-            return null;
-        }
-    }
-
-    /**
-     * Resolve one image pointer into bytes. Returns null (keeping the text)
-     * when the pointer is foreign, the exchange fails, or the payload is
-     * over the in-memory cap — never throws the whole export.
-     */
-    async fetchImageAsset(
-        pointer: string,
-    ): Promise<{
-        assetId: string;
-        sourceUri: string;
-        dataBase64: string;
-        mediaType?: string;
-        fileName?: string;
-        byteLength?: number;
-    } | null> {
-        const fileId = fileIdFromPointer(pointer);
-        if (!fileId) return null;
-        try {
-            const exchange = await this.authedGet<unknown>(buildFileDownloadPath(fileId));
-            const parsed = parseFileDownloadPayload(exchange);
-            if (!parsed) return null;
-            const bytesRes = await this.fetchFn(parsed.downloadUrl);
-            if (!bytesRes.ok) return null;
-            const buf = await bytesRes.arrayBuffer();
-            if (buf.byteLength === 0 || buf.byteLength > CHATGPT_MAX_IMAGE_BYTES) return null;
-            const headerType = bytesRes.headers?.get('content-type');
-            return {
-                assetId: assetIdForPointer(pointer),
-                sourceUri: pointer,
-                dataBase64: arrayBufferToBase64(buf),
-                mediaType:
-                    (typeof headerType === 'string' && headerType.split(';')[0]?.trim()) ||
-                    parsed.mimeType ||
-                    undefined,
-                fileName: parsed.fileName,
-                byteLength: buf.byteLength,
-            };
-        } catch {
-            return null;
-        }
+    async acquireResource(accountId: string, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
+        signal?.throwIfAborted();
+        const account = await this.context(accountId);
+        const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
+        if (!fileId) return acquireSourceResource(asset, signal);
+        const exchange = parseFileDownloadPayload(await this.authedGet<unknown>(buildFileDownloadPath(fileId), account, signal));
+        if (!exchange) throw new Error('ChatGPT resource locator unavailable');
+        const response = await this.fetchFn(exchange.downloadUrl, { signal });
+        if (!response.ok) throw new Error(`Resource request failed: ${response.status}`);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        signal?.throwIfAborted();
+        if (!bytes.byteLength) throw new Error('Empty ChatGPT resource');
+        return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
     }
 }

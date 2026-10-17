@@ -26,3 +26,12 @@ export function isResourceConversationParseResult(value: NativeConversationInput
     }
     return true;
 }
+
+/** Pure L1 candidates reuse L2 fields; local UUID/Key and final validation belong to L2. */
+export interface SourceConversationParseResult extends Omit<ResourceConversationParseResult, 'account' | 'conversation'> {
+    conversationId: string;
+    conversation: {
+        index: Omit<import('../domain/conversationIndex.js').DomainConversationIndex, 'key'>;
+        detail: Omit<import('../domain/conversationDetail.js').DomainConversationDetail, 'key'>;
+    };
+}

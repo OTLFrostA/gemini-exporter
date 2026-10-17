@@ -6,7 +6,7 @@ import type { Diagnostic } from '../diagnostics/diagnostic.js';
 /** Every raw parser knows its producer. No filename/source-string heuristics at this boundary. */
 export interface ConversationParseContext {
     providerId: string;
-    account: Account;
+    account?: Account;
 }
 
 /** Parsers establish semantic quality in Domain; diagnostics report observations only. */
@@ -21,7 +21,7 @@ export interface ConversationParseResult {
 }
 
 /** Raw decoders construct a closed Domain graph before returning, including after async acquisition. */
-export type ConversationParser<Raw, Result extends ConversationParseResult = ConversationParseResult> =
+export type ConversationParser<Raw, Result extends import('./parsingResult.js').SourceConversationParseResult = import('./parsingResult.js').SourceConversationParseResult> =
     (raw: Raw, context: ConversationParseContext) => Result | Promise<Result>;
 
 /** Transient list source facts; L1 binds these to a Registry UUID before L2 admission. */

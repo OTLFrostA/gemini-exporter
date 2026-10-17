@@ -4,11 +4,10 @@ import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainMessage } from '../../../domain/conversationDetail.js';
 import type { Diagnostic } from '../../../diagnostics/diagnostic.js';
-import { validateParserDomain } from '../../../domain/runtimeValidation.js';
 import { closeDomainResources } from '../../shared/resources/domainResourceAdapter.js';
 import type { ResourceEvidence } from '../../shared/resources/resourceEvidence.js';
 import { parseGeminiBody } from '../shared/contentAdapter.js';
-import type { ResourceConversationParseResult } from '../../parsingResult.js';
+import type { SourceConversationParseResult } from '../../parsingResult.js';
 
 import { createTakeoutResourceResolver, decodeTakeoutReference, takeoutBaseName, type TakeoutSourceFile } from './archiveResources.js';
 export type { TakeoutSourceFile } from './archiveResources.js';
@@ -20,7 +19,7 @@ export interface GeminiTakeoutRaw {
     archiveFiles?: Readonly<Record<string, TakeoutSourceFile>>;
 }
 export interface GeminiTakeoutParseContext extends ConversationParseContext { targetConvId?: string }
-export interface GeminiTakeoutParseResult extends ResourceConversationParseResult {
+export interface GeminiTakeoutParseResult extends SourceConversationParseResult {
     archiveResources: Readonly<Record<string, { path: string; entry: TakeoutSourceFile }>>;
 }
 
@@ -128,9 +127,9 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
     const titleEvent = selected.find(a => a.hasExplicitPrompt && a.promptText)
         ?? selected.find(a => a.promptText && !/^(?:Takeout conversation|Untitled.*)$/i.test(a.promptText.trim()))
         ?? selected.find(a => a.promptText);
-    const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
+    const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || '';
     const conversation = {
-        index: parseIndexMetadata({ account: context.account, providerId: 'gemini', id, title, titleSource: 'takeout',
+        index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,
             url: `https://gemini.google.com/app/${id}` }, 'takeout'),
         detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
@@ -140,6 +139,6 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
-    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, account: context.account, conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
+    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, conversationId: id, conversation, resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
         diagnostics: [...diagnostics, ...contentDiagnostics] };
 }

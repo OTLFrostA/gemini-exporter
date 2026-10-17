@@ -1,5 +1,4 @@
 import type { GeminiIndexObservationInput } from '../parseIndexObservation.js';
-import { parseGeminiIndexObservation } from '../parseIndexObservation.js';
 import { normId, isReservedRoute } from '../../../utils/pathUtils.js';
 import { cleanTitle, isRealTitle } from '../../../utils/titleUtils.js';
 

@@ -1,6 +1,6 @@
 import { isAccountId } from '../../domain/accountRegistry.js';
 import { extractC2PATimestamp } from '../../parsers/shared/resources/c2paTimestamp.js';
-import type { ResourceConversationParseResult } from '../../parsers/parsingResult.js';
+import type { SourceConversationParseResult } from '../../parsers/parsingResult.js';
 import { findResourceMatch, resourceIdentity, type ResourceIdentity } from '../../parsers/shared/resources/resourceIdentity.js';
 import type { DomainGeneratedMediaIdentity } from '../../domain/conversationDetail.js';
 import type { LegacyAttachmentInput } from '../../parsers/shared/resources/resolveResources.js';
@@ -28,7 +28,7 @@ export interface TakeoutResourceLookup {
     generation?: Partial<DomainGeneratedMediaIdentity>;
 }
 
-export type TakeoutCachedConversation = ResourceConversationParseResult;
+export type TakeoutCachedConversation = SourceConversationParseResult;
 
 export interface TakeoutStore {
     mediaMap: Record<string, StoredTakeoutMedia[]>;
@@ -97,7 +97,7 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
     const requested: ResourceIdentity = { conversationId: nid, assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
     const native = store.convCache[nid];
     if (native) {
-        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.index.key.conversationId)), sourceUris:
+        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversationId)), sourceUris:
             [asset.sourceUri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
                 native.resourceHints[asset.id]?.archivePath].filter((uri): uri is string => !!uri) }));
         const match = findResourceMatch(nid, requested, candidates);

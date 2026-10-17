@@ -1,146 +1,110 @@
-import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
-import { cacheAcquiredResources } from '../../storage/domain/resourceContext.js';
-import { storageIdentity } from '../../storage/domain/domainStore.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
 import { ingestIndexes, ingestDetail } from '../../domain/ingestion.js';
-import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
-import type {
-    GeminiProviderClient, GeminiProviderContract, GeminiProviderReadiness,
-    GeminiProviderListOptions, GeminiProviderPageResult,
-    GeminiProviderConversationDetail
-} from "./geminiContracts.js";
-import { ProviderRegistry } from "../providerRegistry.js";
-import { GeminiAPIClient } from "../../api/geminiClient.js";
-import GeminiClientCredentialManager from "../../api/client/credentialManager.js";
+import { getAccount } from '../../api/accountRegistry.js';
+import type { GeminiProviderClient, GeminiProviderContract } from './geminiContracts.js';
+import type { ProviderListOptions, ListEnd, ProviderReadiness } from '../aiProvider.js';
+import { ProviderRegistry } from '../providerRegistry.js';
+import { GeminiAPIClient } from '../../api/geminiClient.js';
+import credentials from '../../api/client/credentialManager.js';
+import { geminiListObservation } from './listObservation.js';
+import { resolveCurrentAccount } from '../../../content/accountContext.js';
+import { acquireSourceResource } from '../sourceResources.js';
+import type { DomainAsset } from '../../domain/conversationDetail.js';
+import type { ResourceBytes } from '../../resources/resourceResult.js';
 
-/** Opaque neutral callers may pass any value; only observed string inputs are used. */
-function readStringInput(input: unknown, key: 'accountSlot' | 'targetSid' | 'slot' | 'accountId'): string | undefined {
-    if (input === null || (typeof input !== 'object' && typeof input !== 'function') || !(key in input)) return undefined;
-    const value: unknown = Reflect.get(input, key);
-    return typeof value === 'string' ? value : undefined;
-}
-
-/** Credential failures are diagnostics; only a nonempty string is a readiness error. */
-function readinessErrorMessage(error: unknown): string {
-    const message = error instanceof Error
-        ? error.message
-        : error !== null && (typeof error === 'object' || typeof error === 'function') && 'message' in error
-            ? error.message
-            : undefined;
-    return typeof message === 'string' && message ? message : 'Gemini 凭据解析失败';
+/** Runtime routing is frozen before acquisition, never inferred from SID or Slot. */
+async function resolveRoute(accountId: string): Promise<string> {
+    if (typeof document !== 'undefined' && location.hostname === 'gemini.google.com') {
+        const context = await resolveCurrentAccount();
+        if (context?.accountId === accountId) return context.slot;
+    } else if (typeof chrome !== 'undefined' && chrome.tabs) {
+        const tabs = await chrome.tabs.query({ url: ['https://gemini.google.com/*'] });
+        for (const tab of tabs) {
+            if (tab.id === undefined) continue;
+            try {
+                const response = await chrome.tabs.sendMessage(tab.id, { action: 'getAccountContext' });
+                if (response?.ok && response.accountContext?.accountId === accountId
+                    && /^u\d+$/.test(response.accountContext.slot)) return response.accountContext.slot;
+            } catch { /* A tab without a content script is not a route. */ }
+        }
+    }
+    throw new Error('No verified Gemini account route');
 }
 
 export class GeminiProvider implements GeminiProviderContract {
     readonly id = 'gemini';
     readonly name = 'Google Gemini';
     readonly hostPatterns = ['https://gemini.google.com/*', 'https://bard.google.com/*'];
-
-    private client: GeminiProviderClient | null = null;
-
-    constructor(client?: GeminiProviderClient) {
-        if (client) {
-            this.client = client;
-        }
+    private client: GeminiProviderClient | null;
+    constructor(client?: GeminiProviderClient, private route = resolveRoute) { this.client = client ?? null; }
+    private getClient(): GeminiProviderClient { return this.client ??= new GeminiAPIClient(); }
+    private async context(accountId: string) {
+        const account = await getAccount(accountId);
+        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        const slot = await this.route(accountId);
+        return { account, slot };
     }
-
-    private getClient(): GeminiProviderClient {
-        if (!this.client) {
-            this.client = new GeminiAPIClient();
-        }
-        return this.client;
-    }
-
     matchesUrl(url: string): boolean {
-        if (!url || typeof url !== 'string') return false;
+        try { return ['gemini.google.com', 'bard.google.com'].includes(new URL(url).hostname); }
+        catch { return false; }
+    }
+    async checkReadiness(accountId: string): Promise<ProviderReadiness> {
         try {
-            const parsed = new URL(url);
-            return parsed.hostname === 'gemini.google.com' || parsed.hostname === 'bard.google.com';
-        } catch {
-            return false;
-        }
+            const { slot } = await this.context(accountId);
+            const cred = await credentials.resolveCred(slot);
+            return cred.at ? { ready: true } : { ready: false, error: 'Gemini credentials unavailable' };
+        } catch (error) { return { ready: false, error: error instanceof Error ? error.message : 'Gemini unavailable' }; }
     }
-
-    async checkReadiness(context?: unknown): Promise<GeminiProviderReadiness> {
-        try {
-            const slot = readStringInput(context, 'accountSlot') || 'u0';
-            const cred = await GeminiClientCredentialManager.resolveCred(slot);
-            if (cred && cred.at) {
-                return {
-                    ready: true,
-                    accountSlot: slot
-                };
-            }
-            return {
-                ready: false,
-                accountSlot: slot,
-                error: '未获取到有效认证凭据，请刷新 gemini.google.com'
-            };
-        } catch (e: unknown) {
-            return {
-                ready: false,
-                error: readinessErrorMessage(e)
-            };
-        }
-    }
-
-    async listConversations(options?: GeminiProviderListOptions): Promise<GeminiProviderPageResult> {
+    async listConversations(options: ProviderListOptions): Promise<ListEnd> {
+        if (options.streamId !== 'recent' && options.streamId !== 'pinned') throw new TypeError('Unknown Gemini stream');
+        options.signal?.throwIfAborted();
+        const { account, slot } = await this.context(options.accountId);
         const client = this.getClient();
-        const accountId = options?.accountId ?? (await getOrCreateAccount(this.id, 'default')).id;
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
-        const result = await client.getAllConversations({ ...options,
-            onProgress: progress => {
-                const { batch: _batch, ...control } = progress;
-                options?.onProgress?.(control);
-            },
-            onPageBatch: async (batch, info) => {
-                if (options?.canCommit?.() === false) throw new Error('List request cancelled or account changed');
-                const indexes = batch.map(item => parseGeminiIndexObservation(item, 'rpc-list', accountId));
-                const observation = info.observation ? { ...info.observation, accountId } : undefined;
-                // Unknown-source default data may be retained, but cannot establish trusted coverage.
-                const page = account.providerAccountId !== 'default' ? observation : undefined;
-                await ingestIndexes(accountId, indexes.map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })), page);
-                const scanHead = page ? (({ providerId: _providerId, accountId: _accountId, items: _items, ...head }) => head)(page) : undefined;
-                return options?.onPageBatch?.({ page: info.page, hasMore: info.hasMore, count: batch.length, ...(scanHead ? { scanHead } : {}) });
-            },
-        });
-        // The companion retains Gemini control evidence; hasMore remains the legacy hint.
-        const page: GeminiProviderPageResult = {
-            items: result.conversations,
-            conversations: result.conversations,
-            total: result.total,
-            exhaustive: result.exhaustive,
-            completionReason: result.completionReason,
-            diagnostics: result.diagnostics,
-            hitGoogleLimit: result.hitGoogleLimit,
-            hasMore: !!result.stoppedEarly,
-            nextCursor: null,
-        };
-        // Preserve absence versus an explicitly present undefined value.
-        if (Object.prototype.propertyIsEnumerable.call(result, 'stoppedEarly')) page.stoppedEarly = result.stoppedEarly;
-        return page;
+        const seen = new Set<string>();
+        let cursor: string | null = null, totalObserved = 0, sentHead = false;
+        for (let page = 1; page <= 2000; page++) {
+            options.signal?.throwIfAborted();
+            if (await this.route(account.id) !== slot) throw new Error('Gemini account route changed');
+            const requestedAt = Date.now();
+            const result = await client.getConversationList(cursor, slot,
+                options.streamId === 'pinned' ? [1, null, 1] : undefined, { signal: options.signal });
+            options.signal?.throwIfAborted();
+            const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);
+            if (result.failure && observation.terminal !== 'provider_limit') throw new Error(`Gemini list failed: ${result.failure}`);
+            const pageEvidence = account.providerAccountId === 'default' ? undefined : observation;
+            await ingestIndexes(account.id, result.conversations.map(item => { const { conversationId, fields } = parseGeminiIndexObservation(item, 'rpc-list'); return { key: { accountId: account.id, conversationId }, ...fields }; }),
+                { ...(pageEvidence ? { page: pageEvidence } : {}), canCommit: () => !options.signal?.aborted });
+            totalObserved += result.conversations.length;
+            const { providerId: _provider, accountId: _account, items: _items, ...head } = observation;
+            const trustedHead = !sentHead && pageEvidence && head.requestCursor === null && head.requestKnown && head.valid && head.ordered;
+            if (trustedHead) sentHead = true;
+            const stop = await options.onPageCommitted?.({ page, totalObserved, ...(trustedHead ? { scanHead: head } : {}) });
+            if (result.failure === 'hit_google_limit') return 'provider_limit';
+            if (!result.pageEvidence.valid) throw new Error('Malformed Gemini list page');
+            if (result.nextPageToken === null) return 'source_end';
+            if (seen.has(result.nextPageToken)) throw new Error('Gemini list cursor loop');
+            if (stop) return 'stopped';
+            seen.add(result.nextPageToken);
+            cursor = result.nextPageToken;
+        }
+        return 'max_pages';
     }
-
-    async fetchConversationDetail(conversationId: string, options?: unknown): Promise<GeminiProviderConversationDetail> {
-        const client = this.getClient();
-        const targetSid = readStringInput(options, 'targetSid') || readStringInput(options, 'slot') || null;
-        // The Runtime supplies a captured UUID. Explicitly unknown identity uses the ordinary default account.
-        const accountId = readStringInput(options, 'accountId') ?? (await getOrCreateAccount('gemini', 'default')).id;
-        const account = await getAccount(accountId);
-        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
-        const detail = await client.getConversationDetail(conversationId, targetSid, account);
-        const id = detail.conversation.index.key.conversationId;
-        await ingestDetail(accountId, id, detail.conversation.detail, detail.conversation.index);
-        await cacheAcquiredResources(storageIdentity(this.id, accountId, id), detail.conversation.detail.assets, detail.acquisitionHints);
-        const accepted = await getDomainConversationResult(accountId, id, this.id);
-        if (!accepted) throw new Error('Accepted Detail missing');
-        return { ...detail, ...accepted, diagnostics: detail.diagnostics };
+    async fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void> {
+        signal?.throwIfAborted();
+        const { account, slot } = await this.context(accountId);
+        const parsed = await this.getClient().getConversationDetail(conversationId, slot, account, signal);
+        signal?.throwIfAborted();
+        if (parsed.conversationId !== conversationId.replace(/^c_/, '')) throw new TypeError('Detail identity mismatch');
+        const index = parsed.conversation.index;
+        await ingestDetail(accountId, parsed.conversationId, parsed.conversation.detail, index);
+    }
+    async acquireResource(accountId: string, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
+        signal?.throwIfAborted();
+        await this.context(accountId);
+        return acquireSourceResource(asset, signal);
     }
 }
-
 export const defaultGeminiProvider = new GeminiProvider();
 ProviderRegistry.register(defaultGeminiProvider);
 ProviderRegistry.setDefaultProviderId('gemini');
-
 export default GeminiProvider;
-
