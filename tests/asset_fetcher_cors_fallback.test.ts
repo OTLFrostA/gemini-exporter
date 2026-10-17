@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const AssetFetcherModule = require('../src/content/assetFetcher.js');
 
-const { fetchWithCredentialFallback, downloadAssetDirect, fetchGgChain, toHighRes } = AssetFetcherModule;
+const { fetchWithCredentialFallback, downloadAssetDirect, toHighRes } = AssetFetcherModule;
 
 test('assetFetcher - toHighRes preserves gstatic.com thumbnail URLs without corrupting them', () => {
     const gstaticUrl = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQ9Ag43ZZiH3Vfs56ySvDFnu_p3Lx_RC_99CHpWd4i2nozwkOlerQxMFI&s=10';
@@ -145,8 +145,9 @@ test('fetchWithCredentialFallback - private/authenticated URL 仍能使用 inclu
 });
 
 test('downloadAssetDirect - transparently downloads CORS-restricted asset via omit fallback', async () => {
-    const origFetch = (global as any).fetch;
+    const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     const fetchAttempts: string[] = [];
+    const sampleBytes = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4]);
 
     try {
         (global as any).fetch = async (url: string, init?: RequestInit) => {
@@ -155,7 +156,6 @@ test('downloadAssetDirect - transparently downloads CORS-restricted asset via om
                 throw new TypeError('Failed to fetch');
             }
             if (init?.credentials === 'omit') {
-                const sampleBytes = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 1, 2, 3, 4]);
                 return {
                     ok: true,
                     status: 200,
@@ -184,17 +184,19 @@ test('downloadAssetDirect - transparently downloads CORS-restricted asset via om
         assert.ok(result, 'Must receive downloadAssetDirect response');
         assert.strictEqual(result.success, true, 'Download must succeed via fallback');
         assert.ok(result.dataBuffer, 'Must return dataBuffer');
-        assert.strictEqual(result.size, 8);
+        assert.strictEqual(result.size, sampleBytes.length);
+        assert.deepStrictEqual(new Uint8Array(result.dataBuffer), sampleBytes, 'CORS fallback must preserve downloaded bytes');
         assert.strictEqual(fetchAttempts[0], 'include', 'First try must include credentials');
         assert.strictEqual(fetchAttempts[1], 'omit', 'Second try must omit credentials');
     } finally {
-        (global as any).fetch = origFetch;
+        if (originalFetchDescriptor) Object.defineProperty(globalThis, 'fetch', originalFetchDescriptor);
+        else Reflect.deleteProperty(globalThis, 'fetch');
     }
 });
 
 test('handleGetImageBlob - bare /gg/<token> requests =s0 rendition and downloads native resolution buffer', async () => {
     const { handleGetImageBlob } = AssetFetcherModule;
-    const origFetch = (global as any).fetch;
+    const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     const requestedUrls: string[] = [];
     try {
         const nativeBytes = Buffer.alloc(230904, 0x42); // 1408x768 native payload
@@ -228,7 +230,9 @@ test('handleGetImageBlob - bare /gg/<token> requests =s0 rendition and downloads
         assert.ok(requestedUrls[0].includes('=s0'), `Must request =s0 rendition, got: ${requestedUrls[0]}`);
         assert.ok(requestedUrls[0].includes('alr=yes'), `Must include alr=yes, got: ${requestedUrls[0]}`);
         assert.strictEqual(result.size, 230904, 'Must return native size (not preview 69036)');
+        assert.deepStrictEqual(Buffer.from(result.dataBuffer), nativeBytes, 'native rendition must return the fetched bytes');
     } finally {
-        (global as any).fetch = origFetch;
+        if (originalFetchDescriptor) Object.defineProperty(globalThis, 'fetch', originalFetchDescriptor);
+        else Reflect.deleteProperty(globalThis, 'fetch');
     }
 });
