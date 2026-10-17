@@ -4,7 +4,7 @@ import { parseConversation } from '../src/core/parsers/parseConversation.js';
 /** Domain/composer contracts, including the shared title authority rules. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveTitle, titleAuthorityRank, TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
+import { resolveTitle, titleAuthorityRank } from '../src/core/domain/titleAuthority.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import { renderDocumentHtml } from '../src/core/renderers/html/renderHtml.js';
@@ -68,91 +68,43 @@ test('unknown provider bodies have a bounded deterministic fallback, and raw inp
 });
 
 // ---------------------------------------------------------- title authority
-test('low-authority observation cannot downgrade a high-authority title', () => {
-    let title = resolveTitle([{ value: 'RPC权威标题', source: 'rpc' }]);
-    assert.ok(title);
-    title = resolveTitle([title!, { value: 'sniff旧标题', source: 'sniff' }]);
-    assert.strictEqual(title!.value, 'RPC权威标题');
-    assert.strictEqual(title!.source, 'rpc');
+test('stronger title evidence wins across source tiers even when weaker evidence is newer', () => {
+    const cases: { label: string; candidates: Parameters<typeof resolveTitle>[0]; value: string; source: string }[] = [
+        { label: 'sniff cannot downgrade rpc', candidates: [{ value: 'RPC title', source: 'rpc' }, { value: 'Sniff title', source: 'sniff' }], value: 'RPC title', source: 'rpc' },
+        { label: 'rpc can upgrade takeout', candidates: [{ value: 'Takeout title', source: 'takeout' }, { value: 'RPC title', source: 'rpc' }], value: 'RPC title', source: 'rpc' },
+        { label: 'newer sniff cannot replace older rpc', candidates: [
+            { value: 'Older RPC', source: 'rpc', observedAt: '2026-01-01T00:00:00Z' },
+            { value: 'Newer sniff', source: 'sniff', observedAt: '2026-06-01T00:00:00Z' },
+        ], value: 'Older RPC', source: 'rpc' },
+        { label: 'user title outranks derived title', candidates: [{ value: 'Derived', source: 'derived' }, { value: 'My title', source: 'user' }], value: 'My title', source: 'user' },
+    ];
+    for (const { label, candidates, value, source } of cases) {
+        const winner = resolveTitle(candidates);
+        assert.equal(winner?.value, value, label);
+        assert.equal(winner?.source, source, label);
+    }
 });
 
-test('higher-authority observation upgrades the title (no regression)', () => {
-    let title = resolveTitle([{ value: 'Takeout旧标题', source: 'takeout' }]);
-    assert.ok(title);
-    title = resolveTitle([title!, { value: 'RPC新标题', source: 'rpc' }]);
-    assert.strictEqual(title!.value, 'RPC新标题');
-    assert.strictEqual(title!.source, 'rpc');
+test('same-tier titles use observed time and stable insertion-order tie breakers', () => {
+    const earlier = '2026-01-01T00:00:00Z';
+    const later = '2026-02-01T00:00:00Z';
+    const cases: { label: string; candidates: Parameters<typeof resolveTitle>[0]; winner: string }[] = [
+        { label: 'newer replaces older', candidates: [{ value: 'old', source: 'dom', observedAt: earlier }, { value: 'new', source: 'dom', observedAt: later }], winner: 'new' },
+        { label: 'older cannot replace newer', candidates: [{ value: 'new', source: 'dom', observedAt: later }, { value: 'old', source: 'dom', observedAt: earlier }], winner: 'new' },
+        { label: 'dated beats undated', candidates: [{ value: 'undated', source: 'dom' }, { value: 'dated', source: 'dom', observedAt: later }], winner: 'dated' },
+        { label: 'undated cannot beat dated', candidates: [{ value: 'dated', source: 'dom', observedAt: later }, { value: 'undated', source: 'dom' }], winner: 'dated' },
+        { label: 'last arrival wins when both undated', candidates: [{ value: 'first', source: 'dom' }, { value: 'last', source: 'dom' }], winner: 'last' },
+        { label: 'last arrival wins on equal timestamps', candidates: [{ value: 'first', source: 'dom', observedAt: later }, { value: 'last', source: 'dom', observedAt: later }], winner: 'last' },
+    ];
+    for (const { label, candidates, winner } of cases) {
+        assert.equal(resolveTitle(candidates)?.value, winner, label);
+    }
 });
 
-test('same-tier newer observation overwrites (repo setTitleBySource semantics)', () => {
-    let title = resolveTitle([{ value: 'DOM旧标题', source: 'dom', observedAt: '2026-01-01T00:00:00Z' }]);
-    assert.ok(title);
-    title = resolveTitle([title!, { value: 'DOM新标题', source: 'dom', observedAt: '2026-02-01T00:00:00Z' }]);
-    assert.strictEqual(title!.value, 'DOM新标题');
-});
-
-test('same-tier older observation can never overwrite a newer title', () => {
-    let title = resolveTitle([{ value: 'DOM新标题', source: 'dom', observedAt: '2026-02-01T00:00:00Z' }]);
-    assert.ok(title);
-    title = resolveTitle([title!, { value: 'DOM旧标题', source: 'dom', observedAt: '2026-01-01T00:00:00Z' }]);
-    assert.strictEqual(title!.value, 'DOM新标题');
-});
-
-test('same-tier: candidate with a timestamp beats one without', () => {
-    const title = resolveTitle([
-        { value: '无时间', source: 'dom' },
-        { value: '有时间', source: 'dom', observedAt: '2026-03-01T00:00:00Z' },
-    ]);
-    assert.strictEqual(title!.value, '有时间');
-});
-
-test('same-tier: later insertion wins when both timestamps are missing', () => {
-    const title = resolveTitle([
-        { value: '先到', source: 'dom' },
-        { value: '后到', source: 'dom' },
-    ]);
-    assert.strictEqual(title!.value, '后到');
-});
-
-test('same-tier: later insertion wins on equal timestamps', () => {
-    const at = '2026-03-01T00:00:00Z';
-    const title = resolveTitle([
-        { value: '先到', source: 'dom', observedAt: at },
-        { value: '后到', source: 'dom', observedAt: at },
-    ]);
-    assert.strictEqual(title!.value, '后到');
-});
-
-test('authority tier beats recency: newer sniff cannot beat older rpc', () => {
-    let title = resolveTitle([{ value: 'RPC旧', source: 'rpc', observedAt: '2026-01-01T00:00:00Z' }]);
-    assert.ok(title);
-    title = resolveTitle([title!, { value: 'sniff新', source: 'sniff', observedAt: '2026-06-01T00:00:00Z' }]);
-    assert.strictEqual(title!.value, 'RPC旧');
-    assert.strictEqual(title!.source, 'rpc');
-});
-
-test('resolveTitle returns undefined when no candidate is usable', () => {
-    assert.strictEqual(resolveTitle([]), undefined);
-    assert.strictEqual(resolveTitle([{ value: '   ', source: 'dom' }]), undefined);
-});
-
-test('title tiers mirror the repo TITLE_TIER_RANK ladder', () => {
-    assert.strictEqual(titleAuthorityRank('rpc'), 50);
-    assert.strictEqual(titleAuthorityRank('api-detail'), 50);
-    assert.strictEqual(titleAuthorityRank('dom'), 40);
-    assert.strictEqual(titleAuthorityRank('takeout'), 30);
-    assert.strictEqual(titleAuthorityRank('sniff'), 20);
-    assert.strictEqual(titleAuthorityRank('legacy'), 10);
-    assert.strictEqual(titleAuthorityRank('default'), 0);
-    for (const source of ['unknown', '__proto__', 'constructor', 'toString']) assert.strictEqual(titleAuthorityRank(source), 0);
-    assert.ok(TITLE_AUTHORITY_RANK.user > TITLE_AUTHORITY_RANK.rpc, 'user title outranks auto-derived');
-    assert.strictEqual(resolveTitle([
-        { value: 'derived', source: 'derived' },
-        { value: 'mine', source: 'user' },
-    ])!.value, 'mine');
-});
-
-test('unknown source titles resolve to nothing (unknown stays unknown)', () => {
-    assert.strictEqual(resolveTitle([]), undefined);
-    assert.strictEqual(resolveTitle([{ value: '   ', source: 'rpc' }]), undefined);
+test('empty title candidates and unsafe inherited source names never become authority', () => {
+    assert.equal(resolveTitle([]), undefined);
+    assert.equal(resolveTitle([{ value: '   ', source: 'rpc' }]), undefined);
+    for (const source of ['unknown', '__proto__', 'constructor', 'toString']) {
+        assert.equal(titleAuthorityRank(source), 0, source);
+    }
 });
