@@ -71,7 +71,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "07-portrait-image",
+      "provider": "gemini"
+    }
   },
   "resourceIds": [
     "img-portrait"

@@ -54,7 +54,7 @@ test('UI locale, theme and page policy change independently of document language
 
 test('neutral AST has no output controls and renderers do not import source models', () => {
     const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
-    const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'openLabel']);
+    const forbidden = new Set(['pdfLayout', 'layout', 'gapBeforePt', 'gapAfterPt', 'measurementText', 'minWidthCards', 'profile', 'theme', 'frontMatter', 'copy', 'repeatHeader', 'locale', 'badge', 'openLabel', 'showHeader', 'initiallyCollapsed', 'emptyNotice']);
     function check(value: unknown): void { if (!value || typeof value !== 'object') return; for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), key); check(child); } }
     check(document);
     // Inspect import/export declarations, not unrelated implementation tokens.
@@ -81,9 +81,9 @@ test('prepared resource absence is reported by each backend without deleting the
     const pdf = renderDocumentTypst(document, {}, { onDiagnostic: diagnostic => diagnostics.push(diagnostic) });
     assert.ok(diagnostics.some(d => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING'));
     const paragraph = pdf.messages[0].blocks[0]; if (paragraph.type !== 'paragraph') throw new Error('Expected paragraph');
-    assert.deepEqual(paragraph.children[0], { type: 'text', text: 'image' });
+    assert.deepEqual(paragraph.children[0], { type: 'text', text: 'Image unavailable: image.png' });
     const html = renderDocumentHtml(document, {}, { locale: 'en' });
-    assert.ok(html.html.includes('Image missing · image') && html.diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
-    assert.ok(renderDocumentMarkdown(document, {}).includes('[Image unavailable: image]'));
+    assert.ok(html.html.includes('Image unavailable: image.png') && html.diagnostics.some(d => d.code === 'HTML_ASSET_UNRESOLVED'));
+    assert.ok(renderDocumentMarkdown(document, {}).includes('[Image unavailable: image.png]'));
     assert.equal(JSON.stringify(document), before);
 });

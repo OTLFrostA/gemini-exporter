@@ -1089,7 +1089,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "long-table",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

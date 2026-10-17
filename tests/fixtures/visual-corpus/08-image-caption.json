@@ -81,7 +81,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "08-image-caption",
+      "provider": "gemini"
+    }
   },
   "resourceIds": [
     "img-arch"

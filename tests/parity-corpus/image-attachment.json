@@ -109,7 +109,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "image-attachment",
+      "provider": "gemini"
+    }
   },
   "resourceIds": [
     "asset-img-1",

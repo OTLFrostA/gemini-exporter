@@ -779,7 +779,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "05-wide-table",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

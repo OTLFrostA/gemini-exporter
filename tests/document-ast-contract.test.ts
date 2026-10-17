@@ -7,7 +7,7 @@ import { assertDocumentAst, assertDocumentAsts } from './helpers/assertDocumentA
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
-const valid = () => ({ schemaVersion: 2, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
+const valid = () => ({ schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'T', providerLabel: 'custom', messageCount: 1 }, messages: [{ type: 'message', id: 'm', variant: 'flow', label: 'assistant', modelLabel: 'Model', blocks: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'image', resourceId: 'i', alt: 'Image' }] }] }] }] });
 
 test('every visual/parity corpus fixture satisfies the exact current DocumentAst definition', () => {
     const entries: Array<{ value: unknown; context: string }> = [];
@@ -43,6 +43,13 @@ test('contract rejects stale fields, nested extras, missing fields, wrong types 
         value => Object.assign(value.messages[0], { modelLabel: 42 }),
         value => Object.assign(value.messages[0], { blocks: {} }),
         value => Object.assign(value.messages[0], { sources: { type: 'sources', items: [], anchor: 'legacy' } }),
+        value => { Reflect.deleteProperty(value, 'metadata'); },
+        value => Object.assign(value, { emptyNotice: 'legacy' }),
+        value => Object.assign(value.messages[0], { heading: { level: 2, text: 'legacy' } }),
+        value => Object.assign(value.messages[0], { sources: { type: 'sources', heading: [], items: [] } }),
+        value => Object.assign(value.messages[0], { sources: { type: 'sources', items: [{ id: 's', label: 'Unnumbered' }] } }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'code', code: 'x', showHeader: true }] }),
+        value => Object.assign(value.messages[0], { blocks: [{ type: 'disclosure', kind: 'reasoning', blocks: [], initiallyCollapsed: false }] }),
     ];
     for (const mutate of mutations) {
         const value = valid(); mutate(value);

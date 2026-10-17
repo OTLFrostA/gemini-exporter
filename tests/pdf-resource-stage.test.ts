@@ -12,7 +12,7 @@ function png(seed = 1): Uint8Array {
 }
 const image = (id: string): DisplayBlock => ({ type: 'image', resourceId: id, alt: id });
 function document(blocks: DisplayBlock[]): DocumentAst {
-    return { schemaVersion: 2, header: { title: 'T', providerLabel: 'test', messageCount: 1 }, messages: [
+    return { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'T', providerLabel: 'test', messageCount: 1 }, messages: [
         { type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks },
     ] };
 }
@@ -42,10 +42,10 @@ test('PDF mounts all AST images, including every rich metadata field', async () 
         { type: 'disclosure', kind: 'reasoning', blocks: [image('reasoning')] },
         { type: 'file', resourceId: 'file', kind: 'file', label: 'report', description: [inline('description')] },
     ]);
-    tree.messages[0].sources = { type: 'sources', heading: [inline('source-heading')], items: [] };
+    tree.messages[0].blocks.push({ type: 'paragraph', children: [inline('body-ending')] });
     tree.messages[0].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'placeholder', text: 'missing', details: [inline('details')] });
     const original = JSON.stringify(tree);
-    const ids = ['main', 'header', 'cell', 'reasoning', 'caption', 'table-caption', 'description', 'source-heading', 'details'];
+    const ids = ['main', 'header', 'cell', 'reasoning', 'caption', 'table-caption', 'description', 'body-ending', 'details'];
     const skipped = ['file', 'placeholder'];
     const result = await resourceStage({ document: tree, resources: preparedResources([...ids.map(id => [id, { bytes: png() }] as const), ...skipped.map(id => [id, { get bytes(): Uint8Array { return assert.fail(`Must not read metadata-only resource ${id}`); } }] as const)]) }, ctx());
     assert.deepEqual([...result.output.pathMap.keys()].sort(), ids.sort());

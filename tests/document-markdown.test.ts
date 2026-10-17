@@ -41,19 +41,19 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
     const md = renderDocumentMarkdown(restored, resources);
     assert.ok(!md.includes('exported:')); assert.ok(md.includes('**123**'));
     assert.equal(md.match(/!\[/g)?.length, 2); assert.ok(md.includes('Preserved description'));
-    restored.messages[0].heading = { level: 3, text: 'Chosen heading' };
-    restored.messages[0].sources = { type: 'sources', heading: [{ type: 'text', text: 'Chosen footer' }], items: [{ id: 'ignored', label: 'Chosen source', number: 7 }] };
+    restored.messages[0].label = 'developer';
+    restored.messages[0].sources = { type: 'sources', items: [{ id: 'ignored', label: 'Chosen source', number: 7 }] };
     const disclosure = restored.messages[0].blocks.find(block => block.type === 'disclosure');
     if (!disclosure || disclosure.type !== 'disclosure') throw new Error('Expected disclosure');
-    disclosure.title = 'Chosen disclosure'; disclosure.initiallyCollapsed = false;
-    const changed = renderDocumentMarkdown(restored, resources);
-    assert.ok(changed.includes('### Chosen heading')); assert.ok(changed.includes('> Chosen footer\n> [7] [Chosen source]'));
+    disclosure.title = 'Chosen disclosure';
+    const changed = renderDocumentMarkdown(restored, resources, { thoughtInitiallyCollapsed: false });
+    assert.ok(changed.includes('## 🛠 Developer')); assert.ok(changed.includes('> 🌐 **Sources:**\n> [7] [Chosen source]'));
     assert.ok(changed.includes('<details open>\n<summary>Chosen disclosure</summary>'));
     assert.ok(renderDocumentMarkdown(document, {}).includes('[Image unavailable:'));
     assert.ok(renderDocumentHtml(document, resources).html.includes('<strong>123</strong>'));
 });
 
-test('Markdown composition owns unavailability and emits diagnostics without remote embedding', () => {
+test('Markdown renderer owns unavailability and emits diagnostics without remote embedding', () => {
     const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     assert.equal(diagnostics.length, 0);
     const output = renderDocumentMarkdown(document, {});
@@ -87,5 +87,6 @@ test('Markdown front matter reads identity and source dates only from Document A
     assert.ok(markdown.includes('url: "https://example.test/accepted"'));
     assert.ok(markdown.includes('updated: "1970-01-01T00:00:01.000Z"'));
     assert.ok(markdown.includes(`exported: "${time}"`));
+    // @ts-expect-error Metadata is required; still reject malformed runtime callers explicitly.
     assert.throws(() => renderDocumentMarkdown({ ...document, metadata: undefined }, {}, { includeFrontMatter: true }), /metadata is required/);
 });

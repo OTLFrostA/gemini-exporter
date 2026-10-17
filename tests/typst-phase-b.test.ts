@@ -71,8 +71,8 @@ test('message sources append a note to blocks in Typst payload', async () => {
     const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: { id: string }) => [asset.id, `assets/${asset.id}.png`])), opts);
     const node: any = payload.messages[0].blocks[0];
     assert.strictEqual(node.type, 'note');
-    assert.ok(!('label' in node));
-    assert.ok((node.children[0].text as string).includes('[1]'));
+    assert.equal(node.label, 'Sources');
+    assert.deepEqual(node.children, [{ type: 'link', url: 'https://example.com/a', children: [{ type: 'text', text: '[1]' }] }]);
 });
 
 test('file description reaches the transport', async () => {

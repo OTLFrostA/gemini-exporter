@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "generatedAt": "2026-10-07",
+  "generatedAt": "2026-10-17",
   "classificationDefinitions": {
     "P0": "Real Gemini: Strictly requires verified raw payload evidence file and originalHash. ONLY tier that can justify compatibility rules. (Currently 0 pending real session captures).",
     "P1": "Standard Syntax: CommonMark / GFM or standard LaTeX syntax. Verifies integration with standard behavior.",
@@ -2277,15 +2277,56 @@
           "policy": "PRESERVE_PROJECT_CONTRACT"
         }
       ]
+    },
+    {
+      "file": "tests/domain-ast-projection.test.ts",
+      "domain": "document_ast",
+      "classification": "P2",
+      "policy": "PRESERVE_PROJECT_CONTRACT",
+      "provenanceSource": "Notion L3b Composer and Document Model contracts, exercised through accepted L2 Domain and production export APIs",
+      "notes": "Controlled project semantics: Account/key binding, Index facts, source numbering, explicit media ownership and format-neutral renderer inputs. No claim of live Provider evidence.",
+      "testCount": 6,
+      "tests": [
+        {
+          "name": "projection uses matched Account and Index facts, preserving supplied partial body order",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "missing Index title and times get reading defaults without borrowing savedAt",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Composer numbers sources once across messages; renderers retain numbers and absent URLs",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "only explicit media placements become AST content; resource absence never changes the AST",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "code headers and initial disclosure folding are Renderer options for the same tree",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        },
+        {
+          "name": "Composer modules cannot reach persistence, acquisition or provider services",
+          "classification": "P2",
+          "policy": "PRESERVE_PROJECT_CONTRACT"
+        }
+      ]
     }
   ],
   "summary": {
-    "totalSuites": 42,
-    "totalTests": 356,
+    "totalSuites": 43,
+    "totalTests": 362,
     "byClassification": {
       "P0": 0,
       "P1": 18,
-      "P2": 336,
+      "P2": 342,
       "P3": 2,
       "P4": 0
     }

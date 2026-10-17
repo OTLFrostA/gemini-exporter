@@ -93,7 +93,7 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     const input = domain();
     const inline = (id: string) => ({ type: 'image' as const, assetId: id, alt: id });
     const rendered = ['main', 'inline', 'heading', 'header', 'cell', 'nested'];
-    const rich = ['image-caption', 'table-caption', 'description', 'source-heading', 'details'];
+    const rich = ['image-caption', 'table-caption', 'description', 'body-ending', 'details'];
     input.detail.assets = [...rendered, ...rich].map(id => ({ id, kind: 'image', sourceUri: `https://example.test/${id}` }));
     input.detail.assets.push({ id: 'file', kind: 'file' });
     input.detail.messages[1].content = [
@@ -106,9 +106,9 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     ];
     freeze(input);
     const document: DocumentAst = JSON.parse(JSON.stringify(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document));
-    document.messages[1].sources = { type: 'sources', heading: [{ type: 'image', resourceId: 'source-heading', alt: 'source-heading' }], items: [] };
     const detail: DisplayInline = { type: 'image', resourceId: 'details', alt: 'details' };
     document.messages[1].blocks.push({ type: 'placeholder', kind: 'image', resourceId: 'missing', text: 'Missing', details: [detail] });
+    document.messages[1].blocks.push({ type: 'paragraph', children: [{ type: 'image', resourceId: 'body-ending', alt: 'body-ending' }] });
     freeze(document);
     const before = JSON.stringify(document);
     const imageIds = collectDocumentResources(document).imageIds;
@@ -133,6 +133,6 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     assert.deepEqual(pdf.messages[1].blocks[3].type === 'table' && pdf.messages[1].blocks[3].caption, [{ type: 'image', asset: bindings['table-caption'], alt: 'table-caption' }]);
     assert.deepEqual(pdf.messages[1].blocks[5].type === 'file' && pdf.messages[1].blocks[5].description, ['description', 'inline'].map(id => ({ type: 'image', asset: bindings[id], alt: id })));
     assert.deepEqual(pdf.messages[1].blocks[6].type === 'unknown' && pdf.messages[1].blocks[6].details, [{ type: 'image', asset: bindings.details, alt: 'details' }]);
-    assert.ok(JSON.stringify(pdf.messages[1].blocks[7]).includes(bindings['source-heading']));
+    assert.ok(JSON.stringify(pdf.messages[1].blocks[7]).includes(bindings['body-ending']));
     assert.equal(JSON.stringify(document), before);
 });

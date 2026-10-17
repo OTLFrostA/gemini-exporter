@@ -296,7 +296,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "04-nested-list-quote",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

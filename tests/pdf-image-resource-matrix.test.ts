@@ -10,7 +10,7 @@ import type { DocumentAst } from '../src/core/document/ast/ast.js';
 function sha256hex(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }
 const PATH_RE = /^assets\/sha256\/[0-9a-f]{2}\/[0-9a-f]{2}\/[0-9a-f]{64}\.[a-z0-9]+$/;
 async function mount(resources: Record<string, ResourceBytes | ResourceFailure>, ids = Object.keys(resources)) {
-    const document: DocumentAst = { schemaVersion: 2, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
+    const document: DocumentAst = { schemaVersion: 2, metadata: { id: 'fixture', provider: 'test' }, header: { title: 'Image matrix', providerLabel: 'test', messageCount: 1 }, messages: [{ type: 'message', id: 'm', label: 'assistant', variant: 'flow', blocks: ids.map(resourceId => ({ type: 'image', resourceId, alt: resourceId })) }] };
     const before = JSON.stringify(document);
     const result = await resourceStage({ document, resources: new Map(Object.entries(resources).map(([resourceId, value]) => [resourceId, 'ok' in value ? value : { ok: true as const, resourceId, value }])) }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
     assert.equal(JSON.stringify(document), before);

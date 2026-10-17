@@ -19,7 +19,7 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
             case 'inlineMath': return { type: 'inlineMath', source: node.source };
             case 'lineBreak': return { type: 'lineBreak', kind: node.kind };
             case 'citationRef': return { type: 'citation', ...source(node.citationId, node.label) };
-            case 'image': return assets.has(node.assetId) ? { type: 'image', resourceId: node.assetId, alt: node.alt ?? '', ...(node.title ? { title: node.title } : {}) } : { type: 'placeholder', resourceId: node.assetId, kind: 'image', text: node.alt ?? `[image: ${node.assetId}]` };
+            case 'image': return { type: 'image', resourceId: node.assetId, alt: label(node.assetId, node.alt), ...(node.title ? { title: node.title } : {}) };
         }
     });
     const table = (node: DeepReadonly<TableBlock>): DisplayBlock => {
@@ -37,7 +37,7 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
             case 'heading': return { type: 'heading', level: node.level, children: inlines(node.children) };
             case 'list': return { type: 'list', ordered: node.ordered, ...(node.start !== undefined ? { start: node.start } : {}), items: node.items.map(item => ({ blocks: blocks(item.blocks) })) };
             case 'quote': return { type: 'quote', blocks: blocks(node.blocks) };
-            case 'code': return { type: 'code', code: node.code, showHeader: true, ...(node.language !== undefined ? { language: node.language } : {}), ...(node.meta !== undefined ? { meta: node.meta } : {}) };
+            case 'code': return { type: 'code', code: node.code, ...(node.language !== undefined ? { language: node.language } : {}), ...(node.meta !== undefined ? { meta: node.meta } : {}) };
             case 'math': return { type: 'math', source: node.source };
             case 'table': return table(node);
             case 'image': {
@@ -45,12 +45,12 @@ export function contentComposer(assets: ReadonlyMap<string, DeepReadonly<DomainA
                 const fallback = assetPresentation(assets.get(node.assetId), node.alt).caption;
                 const caption = node.caption?.length && !transportCaption ? inlines(node.caption) : fallback ? [{ type: 'text' as const, text: fallback }] : undefined;
                 const alt = label(node.assetId, !transportCaption ? node.alt ?? assetCaptionText(node.caption) : node.alt);
-                return assets.has(node.assetId) ? { type: 'image', resourceId: node.assetId, alt, ...(caption ? { caption } : {}) } : { type: 'placeholder', resourceId: node.assetId, kind: 'image', text: alt, ...(caption ? { details: caption } : {}) };
+                return { type: 'image', resourceId: node.assetId, alt, ...(caption ? { caption } : {}) };
             }
             case 'file': {
-                const asset = assets.get(node.assetId), name = label(node.assetId, node.label, 'Attachment');
+                const asset = assets.get(node.assetId)!, name = label(node.assetId, node.label, 'Attachment');
                 const description = node.description ? inlines(node.description) : undefined;
-                return asset ? { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) } : { type: 'placeholder', resourceId: node.assetId, kind: 'file', text: name, ...(description ? { details: description } : {}) };
+                return { type: 'file', resourceId: node.assetId, label: name, kind: asset.kind, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.byteLength !== undefined ? { byteLength: asset.byteLength } : {}), ...(description ? { description } : {}) };
             }
             case 'thematicBreak': return { type: 'thematicBreak' };
             case 'unknown': return { type: 'unsupported', sourceType: node.sourceType, text: node.text };

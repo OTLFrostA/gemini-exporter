@@ -134,7 +134,7 @@ test('inline image maps to a formal transport node', async () => {
         'TYPST_V8_INLINE_IMAGE_FLATTENED is retired');
 });
 
-test('inline image without alt omits the alt key', async () => {
+test('inline image without authored alt uses the shared friendly name', async () => {
     const b = domainFixture(
         [msg('m1', 'user', [
             { type: 'paragraph', children: [{ type: 'image', assetId: 'a-inline' }] },
@@ -143,7 +143,7 @@ test('inline image without alt omits the alt key', async () => {
     );
     const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), {  });
     assert.deepStrictEqual((payload.messages[0].blocks[0] as any).children[0],
-        { type: 'image', asset: 'assets/a-inline.png' });
+        { type: 'image', asset: 'assets/a-inline.png', alt: 'd.png' });
 });
 
 test('missing inline image asset falls back to visible text with missing-asset diagnostic', async () => {
@@ -152,19 +152,19 @@ test('missing inline image asset falls back to visible text with missing-asset d
     ])], { assets: [{ id: 'a-gone', kind: 'image' }] });
     const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, opts);
     const para: any = payload.messages[0].blocks[0];
-    assert.deepStrictEqual(para.children[0], { type: 'text', text: 'a diagram' });
+    assert.deepStrictEqual(para.children[0], { type: 'text', text: 'Image unavailable: a diagram' });
     assert.ok(diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_MISSING' && d.severity === 'warning'),
         'asset absence must be visible, never silent');
     assert.ok(!diagnostics.some((d: any) => d.code === 'TYPST_V8_INLINE_IMAGE_FLATTENED'),
         'TYPST_V8_INLINE_IMAGE_FLATTENED is retired');
 });
 
-test('missing inline image asset without alt preserves its resource identity as visible fallback', async () => {
+test('missing inline image without authored alt uses a friendly fallback', async () => {
     const b = domainFixture([msg('m1', 'user', [
         { type: 'paragraph', children: [{ type: 'image', assetId: 'a-gone' }] },
     ])], { assets: [{ id: 'a-gone', kind: 'image' }] });
     const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, opts);
-    assert.strictEqual((payload.messages[0].blocks[0] as any).children[0].text, 'a-gone');
+    assert.strictEqual((payload.messages[0].blocks[0] as any).children[0].text, 'Image unavailable: Image');
 });
 
 test('collectReferencedAssetIds walks block and inline trees recursively', async () => {
@@ -274,9 +274,9 @@ test('system role becomes a visible note prefix', async () => {
 
 test('PDF date uses document timestamps and stays unknown without them', () => {
     const b: any = domainFixture([]);
-    assert.strictEqual(renderTypstFixture(composeDomainDocument({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } })).document, {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages');
-    assert.strictEqual(renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages');
+    assert.strictEqual(renderTypstFixture(composeDomainDocument({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } }, fixtureAccountFor({ ...b, index: { ...b.index, updatedAt: Date.parse('2026-09-28T00:00:00Z') } })).document, {}, opts).payload.metadata, 'gemini · 2026-09-28 · 0 messages · Empty conversation.');
+    assert.strictEqual(renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, opts).payload.metadata, 'gemini · 2026-09-20 · 0 messages · Empty conversation.');
     delete b.index.createdAt;
     const { getRendererStrings } = require('../src/core/renderers/shared/renderStrings.js');
-    assert.strictEqual(renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages`);
+    assert.strictEqual(renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, { ...opts, locale: 'en' }).payload.metadata, `gemini · ${getRendererStrings('en').dateUnknown} · 0 messages · Empty conversation.`);
 });

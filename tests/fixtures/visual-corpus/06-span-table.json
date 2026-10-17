@@ -183,7 +183,11 @@
           }
         ]
       }
-    ]
+    ],
+    "metadata": {
+      "id": "06-span-table",
+      "provider": "gemini"
+    }
   },
   "resourceIds": []
 }

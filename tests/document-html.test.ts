@@ -37,7 +37,7 @@ test('HTML consumes the neutral composition and preserves immutable semantic inp
     assert.equal(disclosure.type, 'disclosure');
     if (disclosure.type === 'disclosure') {
         assert.equal(disclosure.kind, 'reasoning');
-        assert.equal(disclosure.initiallyCollapsed, undefined);
+        assert.ok(!('initiallyCollapsed' in disclosure));
     }
     assert.deepEqual(document.messages[1].sources?.items, [{ id: 'msg-1:c1', label: 'Source', href: 'https://example.com', number: 1 }]);
     assert.equal(document.messages[1].blocks.filter(b => b.type === 'image').length, 2, 'registry identity never deduplicates placements');
@@ -52,7 +52,7 @@ test('JSON roundtrip and explicit presentation edits work without semantic input
     assert.deepEqual(renderDocumentHtml(restored, resources), renderDocumentHtml(document, resources));
     restored.header.providerLabel = 'Custom metadata';
     restored.messages[0].variant = 'flow';
-    restored.messages[1].sources = { type: 'sources', items: [{ id: 'chosen', label: 'Chosen source' }] };
+    restored.messages[1].sources = { type: 'sources', items: [{ id: 'chosen', label: 'Chosen source', number: 1 }] };
     const disclosure = restored.messages[1].blocks[0];
     assert.equal(disclosure.type, 'disclosure');
     if (disclosure.type === 'disclosure') disclosure.title = 'Chosen title';
@@ -105,13 +105,12 @@ test('renderer requires prepared bindings and escapes text and URL attributes', 
     assert.ok(!queryHtml.includes('&amp;amp;'));
 });
 
-test('empty state is composed and locale is explicit', () => {
+test('known empty state uses shared localized text without claiming acquisition failure', () => {
     const input = fixture(); input.detail.messages = [];
     const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
-    assert.equal(document.emptyNotice, undefined);
-    assert.ok(renderDocumentHtml(document, {}, { locale: 'en' }).html.includes('Empty conversation or fetch failed.'));
-    document.emptyNotice = 'A different notice';
-    assert.ok(renderDocumentHtml(document, {}).html.includes('A different notice'));
+    assert.ok(!('emptyNotice' in document));
+    assert.ok(renderDocumentHtml(document, {}, { locale: 'en' }).html.includes('Empty conversation.'));
+    assert.ok(renderDocumentHtml(document, {}, { locale: 'zh' }).html.includes('暂无对话记录。'));
 });
 
 

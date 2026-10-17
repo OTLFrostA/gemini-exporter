@@ -24,7 +24,7 @@ for (const layout of ['messages', 'turns'] as const) {
         assert.equal(result.resources.size, 1);
         const node = result.document.messages[0];
         assert.equal(node.label, 'unknown');
-        assert.equal(node.heading, undefined);
+        assert.ok(!('heading' in node));
         const unknownBlock = node.blocks.find((block) => block.type === 'unsupported');
         assert.ok(unknownBlock && unknownBlock.type === 'unsupported');
         assert.match(unknownBlock.text, /historical.*payload.*42/);
