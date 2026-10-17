@@ -1,6 +1,5 @@
 import type { SourceResourceContext } from '../../provider/sourceResources.js';
 import { getAccount } from '../../api/accountRegistry.js';
-import { attemptResource } from '../../resources/resourceResult.js';
 import { ingestDetail } from '../../domain/ingestion.js';
 import * as ZipBombGuard from '../../parsers/shared/archive/zipBombGuard.js';
 import { stripHtmlTags } from '../../parsers/gemini/takeout/decodeHtml.js';
@@ -41,14 +40,6 @@ export async function importTakeout(file: File, slot: string, onProgress?: (pct:
     let resourceFailure = false;
     for (const [resultIndex, result] of results.entries()) {
         const id = result.conversationId;
-        for (const [assetId, bound] of Object.entries(result.archiveResources)) {
-            const acquired = await attemptResource(assetId, async () => {
-                const bytes = await readTakeoutBytes(bound.entry);
-                if (!bytes?.byteLength) throw new Error(`Takeout resource is empty or unreadable: ${bound.path}`);
-                return bytes;
-            });
-            if (!acquired.ok) resourceFailure = true;
-        }
         await ingestDetail(slot, id, result.conversation.detail, result.conversation.index);
         resources?.retainParsed({ accountId: slot, conversationId: id }, result);
         for (const [assetId, bound] of Object.entries(result.archiveResources)) {

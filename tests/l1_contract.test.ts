@@ -265,19 +265,27 @@ test('L1 task resource contexts isolate identical keys and propagate cancellatio
 
 test('L1 Takeout hands bound ZIP entries to current resource context', async () => {
     const html = '<div class="outer-cell"><a href="https://gemini.google.com/app/source_chat_123">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br>2026-09-02T12:00:00Z<br><p>Answer<img src="picture.png"></p></div></div>';
+    let reads = 0, unreadable = false;
     const archive = { file() {}, files: {
         'Takeout/Gemini/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html },
-        'Takeout/Gemini/picture.png': { _data: { uncompressedSize: 3 }, async: async () => Uint8Array.of(4, 5, 6) },
+        'Takeout/Gemini/picture.png': { _data: { uncompressedSize: 3 }, async: async () => { reads++; if (unreadable) throw new Error('Unreadable ZIP entry'); return Uint8Array.of(4, 5, 6); } },
     } };
     const resources = createSourceResourceContext();
     try {
         await importTakeout(archive as unknown as File, ACCOUNT_UUID, undefined, resources);
+        assert.equal(reads, 0, 'Import must not decompress attachment bytes');
         const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
         assert.ok(stored);
         const asset = stored.conversation.detail.assets[0]; assert.ok(asset);
         const offline = new GeminiProvider(client([]), async () => { throw new Error('No online route'); }, resources);
         const result = await offline.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset);
         assert.deepEqual(result.bytes, Uint8Array.of(4, 5, 6));
+        assert.equal(reads, 1);
+        unreadable = true;
+        await assert.rejects(offline.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset));
+        assert.equal(reads, 2);
+        const afterFailure = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+        assert.deepEqual(afterFailure?.conversation.detail.quality, stored.conversation.detail.quality);
     } finally { resources.release(); }
 });
 
