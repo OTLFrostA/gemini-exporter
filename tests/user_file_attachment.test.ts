@@ -48,6 +48,7 @@ test('user_file_attachment: extractUserFiles handles real Gemini payload with Dr
     // The exact structure seen in production:
     // node[0] is Drive thumb (viewer/thumb?ds=...)
     // node[1] is contribution.usercontent.google.com download URL with filename=...
+    const downloadUrl = 'https://contribution.usercontent.google.com/download?c=CgxiYXJkX3N0b3JhZ2USTxIMcmVxdWVzdF9kYXRhGj8KMDFhMzNjNWM1NjdkOWMwZDEwMDA2NWJkYWZiODRmMGYxMDI4YTFmZjJlZTNhNmFjYRILEgcQwLPF9o4VGAE&filename=architecture.md&opi=103135050';
     const realTurnUserPayload = [
         [
             "请评估附件中的架构设计报告",
@@ -56,7 +57,7 @@ test('user_file_attachment: extractUserFiles handles real Gemini payload with Dr
             [
                 [
                     "https://drive.google.com/viewer/thumb?ds=AAEAbe2jCEW-mock&ck=contribservice&dsmi=unknown&w=400&p=proj",
-                    "https://contribution.usercontent.google.com/download?c=CgxiYXJkX3N0b3JhZ2USTxIMcmVxdWVzdF9kYXRhGj8KMDFhMzNjNWM1NjdkOWMwZDEwMDA2NWJkYWZiODRmMGYxMDI4YTFmZjJlZTNhNmFjYRILEgcQwLPF9o4VGAE&filename=architecture.md&opi=103135050",
+                    downloadUrl,
                     "file_token_273175"
                 ]
             ]
@@ -68,7 +69,7 @@ test('user_file_attachment: extractUserFiles handles real Gemini payload with Dr
 
     const f = extracted[0];
     assert.strictEqual(f.fileName, 'architecture.md', 'fileName should be correctly extracted as architecture.md, NOT the full URL');
-    assert.strictEqual(f.sourceUrl, realTurnUserPayload[0][3][0][1], 'download URL must come from the file attachment rather than its thumbnail');
+    assert.strictEqual(f.sourceUrl, downloadUrl, 'download URL must come from the file attachment rather than its thumbnail');
     assert.ok(f.thumbnailUrl && f.thumbnailUrl.includes('drive.google.com/viewer/thumb'), 'thumbnailUrl should store the viewer thumbnail as candidate');
 });
 
