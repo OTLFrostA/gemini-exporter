@@ -6,8 +6,38 @@ import { sourceDetail, sourceList } from './helpers/l1SourceFixture.js';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import credentials from '../src/core/api/client/credentialManager.js';
 import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { getDetail } from '../src/core/storage/domain/domainStore.js';
+import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 useIndexStorage();
+
+test('adapter: prefixed request IDs use the canonical source ID for admission and task resources', async () => {
+    const turn = [['c_prefixed_detail', 'r_request'], [1700000000, 0], [['Question']],
+        [[['rc_answer', [['Answer ![image](data:image/png;base64,AQID)']]]]]];
+    const raw = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Canonical detail'])]]);
+    const parsed = parseGeminiRpcConversation(raw, { providerId: 'gemini', targetConvId: 'c_prefixed_detail' });
+    assert.equal(parsed.conversationId, 'prefixed_detail');
+    assert.equal(parsed.conversation.detail.assets.length, 1);
+    const resources = createSourceResourceContext();
+    let requestedId = '';
+    const provider = new GeminiProvider({
+        async getConversationList() { throw new Error('unexpected list request'); },
+        async getConversationDetail(id) { requestedId = id; return parsed; },
+    }, async () => 'u0', resources);
+    try {
+        assert.equal(await provider.fetchConversationDetail(ACCOUNT_UUID, 'c_prefixed_detail'), undefined);
+        assert.equal(requestedId, 'c_prefixed_detail');
+        const key = { accountId: ACCOUNT_UUID, conversationId: 'prefixed_detail' };
+        const detail = await getDetail(key); assert.ok(detail);
+        assert.deepEqual(detail.key, key);
+        assert.deepEqual(detail.messages, parsed.conversation.detail.messages);
+        assert.deepEqual((await getConversations(ACCOUNT_UUID)).map(index => index.key.conversationId), ['prefixed_detail']);
+        assert.equal(await getDetail({ ...key, conversationId: 'c_prefixed_detail' }), null);
+        const asset = detail.assets[0];
+        assert.deepEqual((await provider.acquireResource(key, asset)).bytes, Uint8Array.of(1, 2, 3));
+        await assert.rejects(resources.acquire({ ...key, conversationId: 'c_prefixed_detail' }, { id: asset.id, kind: asset.kind }), /locator/);
+    } finally { resources.release(); }
+});
 
 test('adapter submits source Detail and returns completion without a Domain/transport payload', async () => {
     const parsed = sourceDetail();
@@ -21,9 +51,9 @@ test('adapter submits source Detail and returns completion without a Domain/tran
     assert.equal((request as unknown[])[1], 'u1');
     assert.equal((request as unknown[])[3], controller.signal);
     assert.deepEqual(parsed, before);
-    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: parsed.conversationId });
-    assert.ok(stored); assert.equal(stored.conversation.detail.messages.length, 1);
-    assert.equal(Reflect.get(stored.conversation.detail, 'transport'), undefined);
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: parsed.conversationId });
+    assert.ok(stored); assert.equal(stored.messages.length, 1);
+    assert.equal(Reflect.get(stored, 'transport'), undefined);
     assert.equal((await getConversations(OTHER_ACCOUNT_UUID)).length, 0);
 });
 test('adapter commits a natural empty terminal before callback and exposes no aggregate fields', async () => {

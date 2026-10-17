@@ -4,7 +4,7 @@ import { useIndexStorage } from './helpers/indexStorage.js';
 import { useAccountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { init, handleWindowMessage } from '../src/content/messageBridge.js';
 import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { getDetail } from '../src/core/storage/domain/domainStore.js';
 import { getCoverage } from '../src/core/domain/coverageAdmission.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 useIndexStorage(); useAccountRuntime(); beforeEach(() => { init(); });
@@ -51,8 +51,8 @@ test('mismatched Detail request identity is rejected before admission or retenti
 });
 test('uncorrelated Detail remains usable unknown source facts and never requests missing pages', async () => {
     await handleWindowMessage(sourceCapture(detail));
-    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'bridge_chat_123' });
-    assert.ok(stored); assert.equal(stored.conversation.detail.quality.status, 'unknown');
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'bridge_chat_123' });
+    assert.ok(stored); assert.equal(stored.quality.status, 'unknown');
 });
 test('task resource capture receives the same account/conversation binding as L2', async () => {
     const resources = createSourceResourceContext(); let observed: unknown;

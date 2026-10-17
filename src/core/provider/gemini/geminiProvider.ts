@@ -73,8 +73,8 @@ export class GeminiProvider implements GeminiProviderContract {
             const observation = geminiListObservation(result, { streamId: options.streamId, requestCursor: cursor }, account.id, false, requestedAt);
             if (result.failure && observation.terminal !== 'provider_limit') throw new Error(`Gemini list failed: ${result.failure}`);
             const pageEvidence = account.providerAccountId === 'default' ? undefined : observation;
-            await ingestIndexes(account.id, result.conversations.map(item => { const { conversationId, fields } = parseGeminiIndexObservation(item, 'rpc-list'); return { key: { accountId: account.id, conversationId }, ...fields }; }),
-                { ...(pageEvidence ? { page: pageEvidence } : {}), canCommit: () => !options.signal?.aborted });
+            await ingestIndexes(account.id, result.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')), pageEvidence);
+            options.signal?.throwIfAborted();
             totalObserved += result.conversations.length;
             const { providerId: _provider, accountId: _account, items: _items, ...head } = observation;
             const trustedHead = !sentHead && pageEvidence && head.requestCursor === null && head.requestKnown && head.valid && head.ordered;

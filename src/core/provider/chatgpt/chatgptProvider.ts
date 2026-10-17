@@ -124,10 +124,11 @@ export class ChatGPTProvider implements AIProvider {
             const offset = (page - 1) * 100;
             const result = parseChatGPTList(await this.authedGet<unknown>(`/conversations?offset=${offset}&limit=100`, account, options.signal));
             options.signal?.throwIfAborted();
-            await ingestIndexes(account.id, result.conversations.map(item => ({ key: { accountId: account.id, conversationId: item.id },
+            await ingestIndexes(account.id, result.conversations.map(item => ({ conversationId: item.id, fields: {
                 ...(item.title ? { title: item.title, titleSource: 'provider' as const } : {}),
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
-                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) })), { canCommit: () => !options.signal?.aborted });
+                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })));
+            options.signal?.throwIfAborted();
             totalObserved += result.conversations.length;
             const stop = await options.onPageCommitted?.({ page, totalObserved });
             if (result.conversations.length === 0 || (result.total === undefined && result.nextCursor === null)

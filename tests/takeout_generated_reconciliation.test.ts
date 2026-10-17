@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { importTakeout } from '../src/core/imports/takeout/importTakeout.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
-import { getStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { getDetail } from '../src/core/storage/domain/domainStore.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 
 const activity = (id: string, date: string, response: string) => `<div class="outer-cell"><a href="https://gemini.google.com/app/${id}">Chat</a>
@@ -53,8 +53,8 @@ test('Ambiguous ZIP media retains its original bytes without claiming either gen
         zip.file('Takeout/Gemini Apps/MyActivity.html', html);
         zip.file(filename, bytes);
         await importTakeout(await zip.generateAsync({ type: 'uint8array' }) as unknown as File, accountId, undefined, resources);
-        const stored = await getStoredDomain({ providerId: 'gemini', accountId, conversationId: chatId });
-        assert.ok(stored); assert.ok(stored.conversation.detail.messages.every(m => !m.attachmentIds?.length));
+        const stored = await getDetail({ accountId, conversationId: chatId });
+        assert.ok(stored); assert.ok(stored.messages.every(m => !m.attachmentIds?.length));
         await assert.rejects(resources.acquire({ accountId, conversationId: chatId }, { id: filename, kind: 'image' }), /locator/);
     } finally {
         resources.release();

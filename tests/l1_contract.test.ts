@@ -12,7 +12,7 @@ import { readGeminiDetailRequest } from '../src/core/parsers/gemini/rpc/detailRe
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { getConversationDetail } from '../src/core/api/client/pagination.js';
 import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { getDetail } from '../src/core/storage/domain/domainStore.js';
 import { getCoverage } from '../src/core/domain/coverageAdmission.js';
 import { getAccount } from '../src/core/api/accountRegistry.js';
 import { init, handleWindowMessage } from '../src/content/messageBridge.js';
@@ -138,16 +138,16 @@ test('L1 passive input validates URL, required fields and capture limits', async
 });
 test('L1 passive uncorrelated detail cannot become complete or issue a request', async () => {
     await handleWindowMessage(sourceEvent(detailWire()));
-    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
-    assert.ok(stored); assert.equal(stored.conversation.detail.quality.status, 'unknown');
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+    assert.ok(stored); assert.equal(stored.quality.status, 'unknown');
 });
 test('L1 passive observed detail chain shares active source assembly', async () => {
     const next = 'tC_NEXT_PAGE_123456789';
     await handleWindowMessage(sourceEvent(detailWire('Newer', next), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } }));
     await handleWindowMessage(sourceEvent(detailWire('Older'), { detailRequest: { conversationId: 'source_chat_123', requestCursor: next } }));
-    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
-    assert.ok(stored); assert.equal(stored.conversation.detail.quality.status, 'complete');
-    assert.equal(stored.conversation.detail.messages.length, 4);
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+    assert.ok(stored); assert.equal(stored.quality.status, 'complete');
+    assert.equal(stored.messages.length, 4);
 });
 test('L1 delete only emits existing source control callback', async () => {
     let observed: unknown;
@@ -274,9 +274,9 @@ test('L1 Takeout hands bound ZIP entries to current resource context', async () 
     try {
         await importTakeout(archive as unknown as File, ACCOUNT_UUID, undefined, resources);
         assert.equal(reads, 0, 'Import must not decompress attachment bytes');
-        const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+        const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
         assert.ok(stored);
-        const asset = stored.conversation.detail.assets[0]; assert.ok(asset);
+        const asset = stored.assets[0]; assert.ok(asset);
         const offline = new GeminiProvider(client([]), async () => { throw new Error('No online route'); }, resources);
         const result = await offline.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset);
         assert.deepEqual(result.bytes, Uint8Array.of(4, 5, 6));
@@ -284,8 +284,8 @@ test('L1 Takeout hands bound ZIP entries to current resource context', async () 
         unreadable = true;
         await assert.rejects(offline.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset));
         assert.equal(reads, 2);
-        const afterFailure = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
-        assert.deepEqual(afterFailure?.conversation.detail.quality, stored.conversation.detail.quality);
+        const afterFailure = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+        assert.deepEqual(afterFailure?.quality, stored.quality);
     } finally { resources.release(); }
 });
 
@@ -332,8 +332,8 @@ test('L1 providers without task injection never retain inline Detail resources',
     await assert.rejects(p.acquireResource({ accountId: ACCOUNT_UUID, conversationId: parsed.conversationId }, asset), /locator/);
     assert.equal(Reflect.get(defaultGeminiProvider, 'resources'), undefined);
     assert.equal(Reflect.get(new ChatGPTProvider(), 'resources'), undefined);
-    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: parsed.conversationId });
-    assert.ok(stored); assert.equal(stored.conversation.detail.assets[0].id, asset.id);
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: parsed.conversationId });
+    assert.ok(stored); assert.equal(stored.assets[0].id, asset.id);
 });
 
 test('L1 successive Takeout tasks keep ZIP handles isolated and release independently of L2 facts', async () => {
@@ -347,8 +347,8 @@ test('L1 successive Takeout tasks keep ZIP handles isolated and release independ
     try {
         await importTakeout(archive(1) as unknown as File, ACCOUNT_UUID, undefined, first);
         await importTakeout(archive(2) as unknown as File, ACCOUNT_UUID, undefined, second);
-        const stored = await getStoredDomain({ providerId: 'gemini', ...key }); assert.ok(stored);
-        const asset = stored.conversation.detail.assets[0]; assert.ok(asset);
+        const stored = await getDetail(key); assert.ok(stored);
+        const asset = stored.assets[0]; assert.ok(asset);
         assert.deepEqual((await first.acquire(key, asset)).bytes, Uint8Array.of(1));
         assert.deepEqual((await second.acquire(key, asset)).bytes, Uint8Array.of(2));
         first.release();
@@ -357,6 +357,6 @@ test('L1 successive Takeout tasks keep ZIP handles isolated and release independ
         const unscoped = new GeminiProvider(client([]), async () => 'u0');
         await assert.rejects(unscoped.acquireResource(key, asset), /locator/);
         second.release();
-        assert.ok(await getStoredDomain({ providerId: 'gemini', ...key }));
+        assert.ok(await getDetail(key));
     } finally { first.release(); second.release(); }
 });

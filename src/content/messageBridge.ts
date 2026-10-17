@@ -68,8 +68,8 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 const parsed = parseList(text);
                 const page = geminiListObservation(parsed, context, account.id, truncated, requestedAt);
                 const trustedIdentity = field('requestAccountObservation') !== null && account.providerAccountId !== 'default';
-                await ingestIndexes(account.id, parsed.conversations.map(item => { const { conversationId, fields } = parseGeminiIndexObservation(item, 'rpc-list'); return { key: { accountId: account.id, conversationId }, ...fields }; }),
-                    trustedIdentity && context ? { page } : {});
+                await ingestIndexes(account.id, parsed.conversations.map(item => parseGeminiIndexObservation(item, 'rpc-list')),
+                    trustedIdentity && context ? page : undefined);
             }
             if (text.includes(GeminiProtocol.RPCS.DETAIL)) {
                 const request = field('detailRequest');
@@ -117,7 +117,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
         if (cid) {
             const item = parseGeminiDomIndex(typeof document !== 'undefined' ? document : null, cid);
             const { conversationId, fields } = parseGeminiIndexObservation(item, 'dom');
-            await ingestIndexes(account.id, [{ key: { accountId: account.id, conversationId }, ...fields }]);
+            await ingestIndexes(account.id, [{ conversationId, fields }]);
         }
         if (raw.type === CrossWorldEvents.STREAM_START) {
             if (deps.onStreamStart) deps.onStreamStart(typeof id === 'string' ? id : null, slot);

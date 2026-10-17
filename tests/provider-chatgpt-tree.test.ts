@@ -1,6 +1,7 @@
 import { getOrCreateAccount } from '../src/core/api/accountRegistry.js';
 import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getStoredDomain, getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getDomainResource } from '../src/core/storage/domain/resourceContext.js';
+import { getDetail, storageIdentity } from '../src/core/storage/domain/domainStore.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { fixtureAccount } from './helpers/domainFixture.js';
@@ -264,11 +265,11 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     });
     const account = await getOrCreateAccount('chatgpt', 'default');
     assert.equal(await provider.fetchConversationDetail(account.id, 'conv-img'), undefined);
-    const stored = await getStoredDomain(storageIdentity('chatgpt', account.id, 'conv-img'));
+    const stored = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
     assert.ok(stored);
-    const detail = stored.conversation.detail;
+    const detail = stored;
     assert.equal(detail.savedAt, 1700000060000);
-    assert.equal(stored.conversation.index.createdAt, 1700000000000);
+    assert.equal((await getConversations(account.id))[0].createdAt, 1700000000000);
     assert.equal(detail.assets.length, 2);
     assert.equal(detail.assets[0].sourceUri, 'sediment://file_cat');
     assert.equal(await getDomainResource(storageIdentity('chatgpt', account.id, 'conv-img'), detail.assets[0].id), null);
@@ -276,8 +277,8 @@ test('Detail submits image identities; bytes are acquired on demand without chan
     assert.deepEqual((await provider.acquireResource(key, detail.assets[0])).bytes, pngBytes);
     await assert.rejects(provider.acquireResource(key, detail.assets[1]), /404/);
     assert.equal(detail.quality.status, 'complete');
-    const after = await getStoredDomain(storageIdentity('chatgpt', account.id, 'conv-img'));
-    assert.deepEqual(after?.conversation.detail.quality, detail.quality);
+    const after = await getDetail(storageIdentity('chatgpt', account.id, 'conv-img'));
+    assert.deepEqual(after?.quality, detail.quality);
     const userMsg = detail.messages.find(m => m.id === 'u1');
     assert.deepEqual(userMsg?.content.map(b => b.type), ['paragraph', 'image', 'paragraph']);
     const toolMsg = detail.messages.find(m => m.id === 't1');

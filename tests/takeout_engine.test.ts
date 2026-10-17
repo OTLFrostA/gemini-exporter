@@ -10,7 +10,7 @@ import { parseGeminiTakeoutArchive } from '../src/core/parsers/gemini/takeout/pa
 import { extractC2PATimestamp } from '../src/core/parsers/shared/resources/c2paTimestamp.js';
 import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
-import { getStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { getDetail } from '../src/core/storage/domain/domainStore.js';
 useIndexStorage();
 
 test('Takeout import exposes only count/status after committing multi-turn facts with case-preserved source identity', async () => {
@@ -18,9 +18,9 @@ test('Takeout import exposes only count/status after committing multi-turn facts
     const progress: number[] = [];
     const result = await importTakeout(takeoutArchive(html), ACCOUNT_UUID, n => progress.push(n));
     assert.deepEqual(Object.keys(result).sort(), ['imported', 'status']); assert.equal(result.imported, 1);
-    const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'CasePreserved_123' });
-    assert.ok(stored); assert.equal(stored.conversation.detail.messages.length, 4);
-    assert.equal(stored.conversation.index.titleSource, 'derived');
+    const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'CasePreserved_123' });
+    assert.ok(stored); assert.equal(stored.messages.length, 4);
+    assert.equal((await getConversations(ACCOUNT_UUID))[0].titleSource, 'derived');
     assert.equal(progress.at(-1), 100); assert.ok(progress.every(n => typeof n === 'number'));
 });
 test('Takeout unreferenced C2PA files do not become conversation resources by timestamp proximity', async () => {
@@ -28,8 +28,8 @@ test('Takeout unreferenced C2PA files do not become conversation resources by ti
     const resources = createSourceResourceContext();
     try {
         await importTakeout(takeoutArchive(activityHtml(), { 'watermarked.png': { _data: { uncompressedSize: 50 }, async: async () => { reads++; return new TextEncoder().encode('c2pa date="20260902120000Z"'); } } }), ACCOUNT_UUID, undefined, resources);
-        const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
-        assert.ok(stored); assert.deepEqual(stored.conversation.detail.assets, []); assert.equal(reads, 0);
+        const stored = await getDetail({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+        assert.ok(stored); assert.deepEqual(stored.assets, []); assert.equal(reads, 0);
         await assert.rejects(resources.acquire({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, { id: 'watermarked.png', kind: 'image' }), /locator/);
     } finally { resources.release(); }
 });

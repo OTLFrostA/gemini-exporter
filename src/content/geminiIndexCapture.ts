@@ -1,3 +1,4 @@
+import { getConversations } from '../core/storage/conversationCatalogStore.js';
 import { ingestIndexes } from '../core/domain/ingestion.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import { parseGeminiIndexObservation, type GeminiIndexObservationSource } from '../core/parsers/gemini/parseIndexObservation.js';
@@ -21,14 +22,14 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
     const indexes = incomingItems.flatMap(item => {
         try {
             const { conversationId, fields } = parseGeminiIndexObservation(item, kind);
-            return [{ key: { accountId, conversationId }, ...fields }];
+            return [{ conversationId, fields }];
         } catch (error) { if (error instanceof TypeError) return []; throw error; }
     });
-    const tx = await ingestIndexes(accountId, indexes, {
-        canCommit: () => canCommit?.() !== false && (!captured || isCurrentAccount(captured)),
-        ...(page && account.providerAccountId !== 'default' ? { page: { ...page, items: indexes, valid: page.valid && indexes.length === incomingItems.length } } : {}),
-    });
-    return { count: tx.list.length, accepted: indexes.length, rejected: incomingItems.length - indexes.length, persisted: indexes.length };
+    if (canCommit?.() === false || (captured && !isCurrentAccount(captured))) throw new DOMException('Source input cancelled or account changed', 'AbortError');
+    await ingestIndexes(accountId, indexes, page && account.providerAccountId !== 'default'
+        ? { ...page, valid: page.valid && indexes.length === incomingItems.length } : undefined);
+    const list = await getConversations(accountId);
+    return { count: list.length, accepted: indexes.length, rejected: incomingItems.length - indexes.length, persisted: indexes.length };
 }
 export async function upsertConversations(items: readonly unknown[], source: string, forceWrite = false, accountId: string | null = null): Promise<number> {
     return (await persistConversationBatch(items, source, forceWrite, accountId)).count;
