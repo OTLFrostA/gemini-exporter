@@ -134,8 +134,6 @@ import { runCleanups, registerCleanup } from './cleanupRegistry.js';
     if (Bridge && Bridge.init && Sync) {
         Bridge.init({
             upsertConversations: Sync.upsertConversations,
-            ingestRpcList: Sync.ingestRpcList,
-            ingestPageObservation: Sync.ingestPageObservation,
             touchActiveConversation: Sync.touchActiveConversation,
             extractActiveChatTitle: Sync.extractActiveChatTitle,
             getAccountSlot,

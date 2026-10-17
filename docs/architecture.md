@@ -24,38 +24,17 @@
 
 Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解耦为 **主世界网络嗅探层**、**隔离世界内容脚本层**、**后台服务工作线程 (Service Worker)**、**跨平台通用 Provider 与解析核心**、**领域导出/打包引擎**、**响应式持久化层** 以及 **用户界面展示层**。
 
-语义层的代码按职责独立放置：`parsers/` 提取原始来源并构造 Domain，`domain/` 保存长期语义契约，`document/ast/` 定义文档契约，`document/compose/` 负责组合，`renderers/` 输出 HTML/Markdown/Typst。资源准备、导出文件命名和编译编排属于 `export/`，旧磁盘格式解释仅属于 `parsers/legacyStorage/`，导入编排属于 `imports/`，离线资源缓存与获取辅助属于 `resources/`，问题记录属于 `diagnostics/`。已移除通用 `compatibility` 目录；历史磁盘数据通过版本化 parser 升级。
+本轮 v2 的 L2 以 [Domain 模型](domain-model.md) 与 [Domain 接纳与存储](domain-storage.md) 为当前实现说明；下方全景图中的其他模块尚未全部进行 v2 重构。
 
-依赖门禁检查直接引用（包括类型与再导出）及通过工具模块产生的运行时依赖。原生 parser 不依赖 renderer、export 或 storage，renderer 不依赖 parser、Domain 或 storage；只有 `legacyStorage` 迁移边界可调用历史 record 解码，运行时和导出直接消费原生 Domain 结果。具体目录见 [Source Directory Guide](../src/README.md)。
+L1 Parser 解释来源，Client / Sniffer / Import 提交规范化事实。`core/domain/` 唯一拥有 Account 匹配与 UUID 分配、Index 标题和时间合并、Detail 整体快照选择、内部引用闭合及 StreamCoverage 判断。L2 接纳操作调用 Storage 读写端口；数据库锁、事务和资源 bytes 由 Storage 管理。Application 只控制 ScanRun、取消、停止与进度，不转交主动列表的待接纳内容。
 
-旧索引的 `timestamp`、`chatTime`、`titles` 等别名只由 `parsers/legacyStorage/parseIndex.ts` 解释。当前 Gemini 元数据观测使用独立的 `parsers/gemini/parseIndexObservation.ts`，不读取旧字段；`storage/conversationIndexFromParsed.ts` 仅选取已解析的 Index 与正文消息数，不再复用旧格式解析。
+长期会话事实只有 Account、Index、Detail（内嵌 Assets）；独立列表流 Coverage 只含 `range`。UUID 归属贯穿 L1 接纳、Storage 读取和下游只读装配。标题与活动时间只由 Index 维护，Detail 的 `savedAt` 只表示来源版本。Index-only 不制造正文；partial/unknown 不覆盖旧 complete，完整新快照可以整体变短并替换资源引用图。
 
-列表业务数据同样统一为 `DomainConversationIndex`：ChatGPT 列表字段由 `parsers/chatgpt/parseList.ts` 解释，Gemini RPC parser 输出独立的 `pageEvidence`（原始行有效性、官方排序键），DOM 列表与当前页标题由 `parsers/gemini/dom/parseIndex.ts` 解释。Provider 负责获取和分页调度，消费 parser 的明确结果；下游不得重新读取 `_raw` 来推断业务或扫描覆盖。
+`domain/ingestion.ts` 与 `domain/snapshotAdmission.ts` 实施唯一接纳规则；`storage/conversationCatalogStore.ts`、`storage/domain/domainStore.ts`、`storage/accountRegistryStore.ts` 和 `storage/scanCoverageStore.ts` 只提交规则选定的事实。Chrome Storage 与 IndexedDB 之间不承诺跨介质 ACID，必要提交失败必须抛出。
 
-外部正文统一通过 `StorageService.ingestConversation(slot, parsed, resources, source)` 接受：parser 负责来源解释，入库入口在现有会话锁内保存正文、合并完整 Index，并返回按权威 Index 投影的实际保留正文。RPC 拦截、主动拉取、DOM、Takeout、live-save 和导出采集共用这一入口。已有快照只从 scoped repository 读取，Index 不存在时不使用孤立正文。此锁不表示 Chrome Storage 与 IndexedDB 之间存在跨存储事务。
+`document/compose/` 只组合已接纳的同 Key Index + Detail 与 Account，供 HTML、Markdown、Typst/PDF 使用。JSON 直接序列化同一 Domain + Account，不经过阅读 AST。格式、资源获取和交付生命周期后续单独重构。
 
-会话统一使用 `{ index, detail }`：parser、持久化快照、repository 和 composer 共用同一个聚合结构。标题、URL、来源身份及创建/活动时间只属于 `index`；`detail` 只含 `quality`、`assets` 和 `messages`。列表可以只有 Index，正文缺失与空正文有明确区别。Repository 返回目录中的权威 Index，快照中的 Index 是当次观测，不能覆盖后续改名或云端状态。列表 parser 返回 Index 正是该聚合的目录部分。
-
-`sourceVersion` 是随正文捕获的来源活动版本，持久化为包络中的 `savedAt`；后续 Index 可以更新而保留较早正文及其版本。文档元数据从权威 Index 生成。Domain、存储记录、原生传输包络及 JSON 归档统一使用 v2 聚合结构。正式升级路径是已发布的 1.7 到本次 v2；历史数据只通过现有 `parsers/legacyStorage/` 路径转换，原始数据先备份，迁移失败不写入版本戳，读取不执行修复。开发过程中的中间快照不构成独立发布版本，也不增加迁移分支。
-
-导出完成只写交付记录，不再创建会话或更新标题、时间和消息数。HTML、Markdown、Typst/PDF 的正文与文档元数据均由 Document AST 提供；Markdown frontmatter 所需身份与 ISO 日期在 composer 内进入 AST。JSON 保持 Domain 语义存档契约，不改成展示 AST。
-
-诊断使用独立的 `diagnostics/diagnostic.ts` 契约，仅供日志、审计与问题报告。分页合并依据拒识数量和源版本事实判断完整性；列表 parser 以 `failure` 返回源失败，同步依据正式的完成原因与限流状态判断结果，不回读诊断码、`_debug` 或诊断副本。诊断持久化失败不阻断同步覆盖提交，导出状态与重试依据结构化完整性、资源交付结果及错误。
-
-文档导出的内部会话表示只有 Domain 和 Document AST 两层：
-
-```text
-raw input → parsers/parseConversation → Domain
-old disk record → parsers/legacyStorage ────────┘
-                                               ↓ composeDomainDocument
-                                          Document AST
-                                               ├─ HTML backend
-                                               ├─ Markdown backend
-                                               └─ PDF backend → private Typst transport
-resource/acquisition hints → preparation → prepared bindings/bytes → backend
-```
-
-popup、批量导出和 live-save 使用 `formatHtmlDocument()` / `formatMarkdownDocument()`。parser 负责外部输入、资源去重和引用关系；composer 负责逻辑文档组织；renderer 只接收 Document AST、RenderOptions 和 prepared resources，并负责输出格式、物理布局和能力降级。消息数组顺序是唯一权威顺序。旧 Canonical 数据模型和兼容入口已删除。Standard JSON 保持独立归档序列化，继续使用同步 `formatContent()`。
+本轮不实现旧身份、旧记录或中间开发版本兼容；历史 record 解析已移出生产目录，只在测试夹具中保留。云端缺席与删除不清除本地归档，清理由用户明确触发。
 
 ```mermaid
 graph TD
@@ -109,7 +88,7 @@ graph TD
 
         subgraph ApiParserLayer ["协议通信 (api/) 与来源解析 (parsers/)"]
             API_Client["GeminiClient (facade)<br/>rpcClient / pagination / retryPolicy / credentialManager / credStorage (严格单向隔离)"]
-            API_Parser["parsers/gemini/rpc & takeout<br/>历史记录仅经 parsers/legacyStorage"]
+            API_Parser["parsers/gemini/rpc & takeout<br/>来源协议解释与纯解析"]
         end
 
         subgraph ExportEngines ["导出、转换与打包引擎 (src/core/engine/)"]
@@ -123,15 +102,15 @@ graph TD
         end
 
         subgraph CoreUtils ["工具库与单点真理 (src/core/utils/)"]
-            UT_SSoT["utils.ts / titleUtils.ts / mergeUtils.ts<br/>(权威标题仲裁、去重、时间戳排序)"]
+            UT_SSoT["domain/ingestion.ts / conversationIndex.ts<br/>(L2 标题仲裁、快照选择和列表覆盖)"]
             UT_Path["pathUtils.ts / chipUtils.ts / progressUtils.ts / tabService.ts (Strict Tab Routing)"]
             UT_I18n["i18n.ts (locales/zh.ts, locales/en.ts)"]
         end
 
         subgraph StorageLayer ["两级存储与持久化层 (src/core/storage/)"]
-            ST_Service["StorageService & schemaMigration<br/>(两级主控: chrome.storage.local 轻量元数据索引 & Slot 隔离)"]
+            ST_Service["StorageService & schemaMigration<br/>(两级主控: chrome.storage.local 元数据索引 & UUID 隔离)"]
             ST_Locks["withCrossTabLock / withConversationLock / withSlotLock<br/>(三把跨 tab 命名锁 + transactConversations 原子读写)"]
-            ST_Detail["conversationDetailStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
+            ST_Detail["domain/domainStore.ts<br/>(两级详情: IndexedDB 完整对话轮次与消息体实体仓储)"]
             ST_Live["liveStorageManager.ts<br/>(实时保存配置与目录句柄代理)"]
             ST_IDB["idbHandleStore.ts<br/>(FileSystemDirectoryHandle 跨会话持久化)"]
             ST_Session["SessionStore.ts<br/>(内存/chrome.storage.session 缓存)"]
@@ -227,12 +206,11 @@ graph TD
 | `src/core/parsers/gemini/rpc/parseList.ts` | Core: API Parser | `parseList`, `extractListItemTimestamp` | 从 batchexecute 响应中提取会话列表项（ID、标题、修改时间）。 | `geminiClient`, `messageBridge` | 原始数组 -> 会话摘要列表 | `API_Parser` |
 | `src/core/api/client/detailTypes.ts` | Core: API Transport | `DetailParseResult` | 原生 Domain 的应用详情返回类型及分页、调试旁路字段。 | `geminiClient`, `pagination`, 原生详情调用方 | 类型定义 | `API_Transport` |
 | `src/core/parsers/gemini/rpc/extractors.ts` | Core: API Parser | `extractCandidateText`, `extractThoughts`, `extractCitations` | 提取模型思考推理过程（Thought Blocks）、候选回答文本与网络引用链接。 | `detailDecoder.ts` | 候选数据块 -> 纯文本与引用元数据 | `API_Parser` |
-| `src/core/parsers/legacyStorage/attachments.ts` | Core: Legacy Parser | `extractImages`, `extractResponseImages` | 仅旧记录迁移保留历史图片命名与附件解析。 | `parsers/legacyStorage` | 历史附件证据 | `API_Parser` |
 | `src/core/parsers/gemini/rpc/payload.ts` | Core: API Parser | `PayloadParser`, `extractInnerPayload`, `payloadToMs` | 深入解析 batchexecute 中转义的多层嵌套 JSON 响应字符串与时间戳转换。 | `detailDecoder.ts`, `parseList.ts` | 展开的结构化数据块 | `API_Parser` |
 | `src/core/engine/exportEngine.ts` | Core: Engine | `ExportEngine` (Facade 别名 `ExportOrchestrator`) | 导出引擎统一命名空间门面，对上游保持稳定契约。 | UI 控制器 | `exportOrchestrator.ts` | `ENG_Orchestrator` |
 | `src/core/engine/export/exportOrchestrator.ts` | Core: Engine | `ExportOrchestrator`, `AsyncQueue` | 编排批量导出作业，维护基于并发上限的异步任务队列，驱动进度通知与异常恢复。 | `exportController.ts` | `batchWorker`, `rateLimiter`, `progressReporter` | `ENG_Orchestrator` |
-| `src/core/engine/export/batchWorker.ts` | Core: Engine | `fetchChatDetail` / `resolveChat` | 独立执行单条会话详情抓取与解析（RPC 请求与详情解析），实际导出装配由 `exportOrchestrator` 协调。 | `exportOrchestrator.ts` | `geminiClient`, `conversationDetailStore` | `ENG_Worker` |
-| `src/core/domain/quality.ts` | Core: Domain | `ContentQuality`, `contentQuality` | parser 统一完整度、拒识、截断与启发式文档事实，导出直接读取状态。 | 原生 parser、存储、导出 | 内容质量 | `ENG_Orchestrator` |
+| `src/core/engine/export/batchWorker.ts` | Core: Engine | `fetchChatDetail` / `resolveChat` | 独立执行单条会话详情抓取与解析（RPC 请求与详情解析），实际导出装配由 `exportOrchestrator` 协调。 | `exportOrchestrator.ts` | `geminiClient`, `domainStore` | `ENG_Worker` |
+| `src/core/domain/quality.ts` | Core: Domain | `ContentQuality` | 仅定义持久化正文完整度状态；Parser 证据与状态映射归 `parsers/qualityEvidence.ts`。 | 原生 parser、存储、导出 | 内容质量 | `ENG_Orchestrator` |
 | `src/core/engine/export/rateLimiter.ts` | Core: Engine | `isRateLimited` / `calculateBackoff` / `abortableSleep` / `RateLimitManager` | 自适应限流器状态机，根据响应延迟与 429 频率动态调整请求间隔与并发数。 | `exportOrchestrator.ts` | 延迟休眠控制 | `ENG_Rate` |
 | `src/core/engine/export/progressReporter.ts` | Core: Engine | `ProgressReporter` | 实时计算导出百分比、已完成/失败计数、附件统计与预估剩余时间 (ETA)。 | `exportOrchestrator.ts` | UI 进度回调通知 | `ENG_Orchestrator` |
 | `src/core/engine/export/sessionRecovery.ts` | Core: Engine | `writeIndexAndMeta`, `finalizeChatExport`, `writeDiagnostics` | 导出索引归档、单聊导出记录 SSoT 持久化与开发者诊断恢复。 | `exportOrchestrator.ts` | `sessionStore.ts`, `storageService.ts` | `ENG_Orchestrator` |
@@ -248,16 +226,16 @@ graph TD
 | `src/core/engine/writers/zipWriter.ts` | Core: Engine Writers | `ZipWriter` (基于 JSZip) | 在内存中构建多级目录树；对多模态图片应用 `isPrecompressedAsset` (STORE 模式)，配合 200MB 安全阈值与流式分块消除内存 OOM 崩溃。 | `writerInterface.ts` | 最终 ZIP 压缩包 Blob | `ENG_Writers` |
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
 | `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`（`processAsset`） | 导出时并发下载媒体附件并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
-| `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | 多账号 Slot 隔离存储核心，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `conversationDetailStore` | `ST_Service` |
-| `src/core/storage/conversationDetailStore.ts` | Core: Storage | `saveConversationDetail`, `getConversationDetail`, `deleteConversationDetail` | 两级存储架构之 IndexedDB 实体详情仓储，承接全量 turns 与重消息体，保障 chrome.storage.local 永远处于安全轻量区。 | `storageService.ts` | IndexedDB (`gemini_conversation_details`) | `ST_Detail` |
+| `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | Account UUID 隔离的物理存储，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `domainStore` | `ST_Service` |
+| `src/core/storage/domain/domainStore.ts` | Core: Storage | `commitDomainConversation`, `getStoredDomain`, `removeStoredDomain` | 执行 L2 提供的快照选择回调，原子保存当前正文与独立资源字节；不拥有正文选择规则。 | `domain/snapshotAdmission.ts` | IndexedDB (`gemini_exporter_domain`) | `ST_Detail` |
 | `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理（enabledDisk/format/includeAssets）并代理 `idbHandleStore` 目录句柄。真正实体快照落盘由 `liveSaveHandler`/`liveSaveWriter` 承载。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
 | `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `saveStoredDirHandle`, `getMemoryDirHandle`, `setMemoryDirHandle` | `FileSystemDirectoryHandle` 在 IndexedDB 与内存缓存中的唯一真理源 (SSoT)。 | `dirHandleController`, `liveStorageManager`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
-| `src/core/storage/schemaMigration.ts` | Core: Storage | `ensureSchemaMigrated` | 存储 Schema 版本迁移引擎，负责旧版键值结构升级与幂等迁移校验。 | `storageService.ts`, `lifecycle.ts` | `chrome.storage.local` | `ST_Service` |
+| `src/core/storage/schemaMigration.ts` | Core: Storage | `ensureStorageReady` | 当前物理 Schema 的启动检查；不包含旧记录迁移。 | `storageService.ts`, `lifecycle.ts` | `chrome.storage.local` | `ST_Service` |
 | `src/core/storage/sessionStore.ts` | Core: Storage | `SessionStore` | 临时会话数据缓存，支持中途恢复与内存级热数据读取。 | `exportOrchestrator`, `background` | `chrome.storage.session` / 内存 | `ST_Session` |
 | `src/core/storage/formatStore.ts` | Core: Storage | `FormatStore` | 校验并持久化用户的导出格式偏好设置与自定义模板参数。 | UI Settings, Popup | `chrome.storage.local` | `ST_Service` |
 | `src/core/utils/utils.ts` | Core: Utils | `GeminiUtils` (单点真理 SSoT 集合) | 汇聚全局路径清理、标题仲裁与列表合并去重逻辑的统一门面。 | 全系统所有模块 | 格式规范与仲裁结果 | `UT_SSoT` |
-| `src/core/utils/titleUtils.ts` | Core: Utils | `resolveTitle`, `resolveDetailTitle`, `cleanTitle` | 权威标题仲裁中心，实现多源标题优先级排序（rpc > api-detail > dom > takeout > openai > sniff > legacy > default）。 | `utils.ts`, `parseList`, `syncEngine` | 统一规范标题字符串 | `UT_SSoT` |
-| `src/core/utils/mergeUtils.ts` | Core: Utils | `mergeConversation`, `deduplicateConversations` | 负责多源会话合并与去重，保证高权标题与最新更新时间戳永不倒退。 | `utils.ts`, `syncEngine`, `takeoutEngine` | 合并后的稳定会话数组 | `UT_SSoT` |
+| `src/core/utils/titleUtils.ts` | Core: Utils | `resolveTitle`, `resolveDetailTitle`, `cleanTitle` | 标题清理与来源归一化工具；标题选择委托 `domain/titleAuthority.ts`（user > provider > derived）。 | `utils.ts`, `parseList`, `syncEngine` | 统一规范标题字符串 | `UT_SSoT` |
+| `src/core/domain/indexCollection.ts` | Core: Domain | `mergeConversation`, `deduplicateConversations` | 负责多源会话合并与去重，保证高权标题与最新更新时间戳永不倒退。 | `utils.ts`, `syncEngine`, `takeoutEngine` | 合并后的稳定会话数组 | `UT_SSoT` |
 | `src/core/utils/pathUtils.ts` | Core: Utils | `sanitizeRelativePath`, `buildExportFileName`, `normId`, `AccountProfile` | 严格清洗相对路径与文件名，定义多账号用户画像契约，防范路径穿越 (Path Traversal) 漏洞。 | `fsWriter`, `zipWriter`, `exportOrchestrator`, `bootstrap` | 安全合法的文件名与路径 | `UT_Path` |
 | `src/core/utils/progressUtils.ts` | Core: Utils | `formatETA`, `formatByteSize`, `calculateRate` | 计算传输速率、剩余时间人类可读格式化。 | `progressReporter.ts` | 格式化文本输出 | `UT_Path` |
 | `src/core/utils/tabService.ts` | Core: Utils | `TabService`, `getGeminiTab`, `sendToGeminiTab` | 严格按账号 Slot 定向检索 Gemini 标签页并建立安全通信，未找到匹配账号标签页时强校验报错，杜绝串账号盲投。 | Background, UI Controllers | `chrome.tabs` API | `UT_Path` |
@@ -407,7 +385,7 @@ sequenceDiagram
 
 * **数据源 (Data Source)**：
   - 用户在 Options 工作台中勾选的会话 ID 集合；
-  - `StorageService` 与 `conversationDetailStore` 中的两级历史详情；
+  - `StorageService` 与 `domainStore` 中的两级历史详情；
   - Google Gemini 详细内容 RPC（或 Takeout 离线媒体池）。
 * **数据汇 (Data Sink)**：
   - 模式 A：JSZip 内存打包生成的 `application/zip` Blob，触发 Chrome 下载管理器；
@@ -634,7 +612,7 @@ sequenceDiagram
 
 1. **核心逻辑零 DOM 依赖与分层基线 (Zero DOM Baseline & Layered Browser API Policy)**：
    `src/core/` 按领域职责组织模块，其中不同子层对浏览器 API 的依赖边界有明确区分：
-   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`api/parser/*`）、格式化器（`chatFormatter`）、纯工具库（`titleUtils`、`mergeUtils`、`pathUtils`、`progressUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
+   - **严格零 DOM / 零浏览器 API 层（纯逻辑，可在任意 JS 运行时执行）**：响应解析器（`parsers/*`）、格式化器（`chatFormatter`）、纯工具库（`titleUtils`、`indexCollection`、`pathUtils`、`progressUtils`、`chipUtils`）、协议常量与类型定义（`protocol/*`）、Provider 接口规范（`aiProvider.ts`）。这些模块严禁导入或依赖任何浏览器专属变量（`document`、`HTMLElement`、`window`），确保可被纯 Node.js 单元测试直接加载验证。
    - **运行时基础设施层（允许浏览器标准 API，禁止 DOM 渲染操作）**：API 客户端（`api/client/*`：`credentialManager` 通过 `querySelectorAll("script")` 只读提取页面内嵌凭据、`rpcClient` 调用 `fetch` 发送 RPC 请求、`pagination` 读取 `window.__gemExporterAborted` 作为旧版中断兼容 fallback）、持久化存储（`storage/*`：使用 `chrome.storage.local`、`IndexedDB`）、文件写入器（`writers/*`：使用 `FileSystem Access API`）、标签页服务（`tabService`：使用 `chrome.tabs`）以及导出编排引擎（`exportOrchestrator`：直接导入 `tabService` 与 `fsWriter`，调用 `chrome.tabs` 与 FileSystem Access API 完成标签页协调与磁盘直写）。这些模块允许使用 `fetch`、`chrome.*`、`IndexedDB`、`FileSystem API` 等浏览器运行时标准 API，但**严禁执行任何 DOM 渲染行为**（`createElement`、`appendChild`、`innerHTML` 赋值、样式操作等），确保 UI 渲染职责完全归属 `src/ui/` 与 `src/content/` 层。
 2. **严格的 UI 分层关注点分离 (Strict UI Separation of Concerns)**：
    - `state/`：单向数据流与响应式存储数据状态管理；
@@ -650,7 +628,7 @@ sequenceDiagram
 6. **MV3 Service Worker 保活机制 (Keepalive Resilience)**：
    在耗时较长的大批量扫描或附件打包过程中，定期向后台派发轻量保活心跳，彻底解决 Chromium 浏览器可能在后台静默终止 Service Worker 导致导出任务异常中断的问题。
 7. **两级存储架构与配额安全隔离 (Two-Tier Storage & Quota Isolation)**：
-   `chrome.storage.local` 严格仅存轻量列表元数据索引（`id`, `title`, `timestamp`, `updatedAt`, `snippet`, `count`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `conversationDetailStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
+   `chrome.storage.local` 严格仅存轻量列表元数据索引（`key`, `title?`, `titleSource?`, `createdAt?`, `updatedAt?`），严格限制在 10MB 配额安全水位以内。所有包含完整多轮提问、回复正文与媒体附件的会话实体（`turns`）必须通过两级存储引擎下沉持久化至 IndexedDB `domainStore`，杜绝任何因会话增长导致扩展整体崩溃的数据截断。
 8. **无头环境写盘降权优雅检测 (Headless FileSystem Permission Resilience)**：
    Service Worker 处于无头环境，在浏览器重启后目录句柄权限降权为 `prompt` 时，Chromium 机制物理禁止其直接请求权限。此时 `handleLiveSaveViaHandle` 返回 `{ ok: false, error: 'permission_prompt_needed' }` 并写入 live 配置（`dirError`）；内容脚本 `liveSaveCoordinator` 根据返回值触发徽章警告，用户手势经 `reauthorizeDirHandle()` 一键恢复物理直写。不存在 `DIR_HANDLE_PERMISSION_DEGRADED` 广播事件，也没有 Downloads API 兜底。
 9. **多账号单向隔离与凭据零借调 (Multi-Account Strict Isolation & Zero Token Stealing)**：
@@ -706,7 +684,7 @@ flowchart TD
 
 1. **P2-7 — 网页自身 protobuf 解码结果对照验证（未实现）**：
    审计曾建议插件调用或静态复用 Gemini 网页自身的 protobuf/JSPB 处理代码，并用网页解码结果交叉验证自研解析器输出。
-   现状：解析器仍为自研实现（`src/core/api/parser/*`），没有接入网页自身解码管线做对照验证。该能力需要稳定的网页端钩子与结果比对框架，暂不排期。
+   现状：解析器仍为自研实现（`src/core/parsers/*`），没有接入网页自身解码管线做对照验证。该能力需要稳定的网页端钩子与结果比对框架，暂不排期。
 2. **P2-8 — 导出会话断点续传（未实现）**：
    现状只有导出会话的状态记录（`sessionStore`：`status`/`lastExportedBefore` 等）与失败落盘，没有基于进度的断点续传能力。
    中断后重跑依赖增量扫描与导出记录去重跳过，而非从精确断点恢复。如需实现，需先定义可恢复的进度水位语义（与 P2-1 的 `stoppedEarly` 语义联动），暂不排期。

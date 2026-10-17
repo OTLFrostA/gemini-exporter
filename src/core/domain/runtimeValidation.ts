@@ -77,7 +77,7 @@ function block(v: unknown): boolean {
         default: return false;
     }
 }
-const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), generation: optional(shape({ mediaKind: enumeration('image', 'audio', 'video', 'other'), outputCount: optional(number) })), reasoning: optional(array(block)), citations: optional(array(citation)) });
+const message = shape({ id: optional(text), role: enumeration('user', 'assistant', 'system', 'developer', 'unknown'), model: optional(text), content: array(block), timestamp: optional(number), attachmentIds: optional(array(text)), reasoning: optional(array(block)), citations: optional(array(citation)) });
 const quality = shape({ status: enumeration('complete', 'partial', 'unknown') });
 const domainFields: Record<string, Check> = { key: v => { try { readConversationKey(v); return true; } catch { return false; } }, savedAt: optional(number), assets: array(asset), messages: array(message), quality };
 const domain = shape(domainFields);

@@ -17,7 +17,7 @@ const LiveStorageManager = require('../src/core/storage/liveStorageManager.js');
 const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
 const IdbHandleStore = require('../src/core/storage/idbHandleStore.js');
 const FormatStore = require('../src/core/storage/formatStore.js');
-const { mergeConversation } = require('../src/core/utils/mergeUtils.js');
+const { mergeConversation } = require('../src/core/domain/indexCollection.js');
 const Pagination = require('../src/core/api/client/pagination.js');
 
 // ------------------------------------------------------------------ helpers

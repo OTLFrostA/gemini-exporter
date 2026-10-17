@@ -1,3 +1,4 @@
+import { resetIndexCoverageSessions } from '../../src/core/domain/indexCoverage.js';
 import { fixtureAccount } from './domainFixture.js';
 import { ACCOUNT_UUID, OTHER_ACCOUNT_UUID } from './accountRuntime.js';
 import { beforeEach, afterEach } from 'node:test';
@@ -34,6 +35,7 @@ export function indexStorage(seed: Record<string, unknown> = {}) {
         },
         async remove(keys: string | string[]) { for (const key of typeof keys === 'string' ? [keys] : keys) delete local[key]; }
     } } } as typeof chrome;
+    resetIndexCoverageSessions();
     __resetStorageReadyForTest();
     __clearDomainMemory();
     return { local, writes: () => writes, fail: (key?: string) => { failKey = key; },

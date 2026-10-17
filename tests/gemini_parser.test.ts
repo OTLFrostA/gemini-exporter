@@ -226,7 +226,7 @@ test('gemini_parser - detectTurnSchemaDrift detects malformed and healthy turns'
 
 test('gemini_parser - sub-modules and unified deepWalk verification', () => {
     const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
-    const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
+    const attachments = require('./helpers/recordFixture/attachments.js');
     const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
 
     // 1. deepWalk unified tree walker

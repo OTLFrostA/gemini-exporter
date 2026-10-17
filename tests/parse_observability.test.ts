@@ -12,10 +12,10 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
-const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
+const attachments = require('./helpers/recordFixture/attachments.js');
 const pagination = require('../src/core/api/client/pagination.js');
 const { resolveExportRecordStatus } = require('../src/core/engine/export/exportCompletion.js');
-const { contentQuality } = require('../src/core/domain/quality.js');
+const { contentQuality } = require('../src/core/parsers/qualityEvidence.js');
 
 // ---------------------------------------------------------------- helpers
 function makeDetailRpc(inner: unknown): string {

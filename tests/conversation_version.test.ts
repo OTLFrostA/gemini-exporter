@@ -1,3 +1,4 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { toJsonStandard } from '../src/core/engine/formatters/jsonFormatter.js';
 import { test, beforeEach } from 'node:test';
@@ -6,11 +7,11 @@ import { readFileSync } from 'node:fs';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
 import { parseList } from '../src/core/parsers/gemini/rpc/parseList.js';
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
-import { indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
-import { __clearDomainMemory, saveDomainConversation } from '../src/core/storage/domain/domainStore.js';
+import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
+import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 import { buildExportCompletion } from '../src/core/engine/export/exportCompletion.js';
 import { resolveConversationExportState } from '../src/core/utils/titleUtils.js';
-import { parseLegacyStorageConversation } from '../src/core/parsers/legacyStorage/parseConversation.js';
+import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
 
 beforeEach(() => __clearDomainMemory());
 const wire = (rows: Array<[string, unknown]>) => JSON.stringify(rows.map(([rpc, payload]) => ['wrb.fr', rpc, JSON.stringify(payload)]));
@@ -33,7 +34,7 @@ test('six anonymized live pairs preserve identical List/Detail versions and late
         const index = parseList(wire([['MaZiqc', [null, null, [['c_version_chat', 'Source title', null, null, null, pair.listWire]]]]])).conversations[0];
         assert.equal(parsed.sourceVersion, index.updatedAt);
         assert.equal(parsed.sourceVersion, pair.listUpdatedAt);
-        assert.equal(indexFromParsed(parsed).updatedAt, pair.listUpdatedAt);
+        assert.equal(restoreConversationIndex(parsed.conversation.index).updatedAt, pair.listUpdatedAt);
     }
 });
 test('matching metadata owns the update version, while message dates remain message facts', () => {
@@ -77,7 +78,7 @@ test('partial, unknown, metadata-only, conflicting and migrated bodies carry no 
     const legacy = parseLegacyStorageConversation({ metadata: { id: 'legacy_chat', title: 'Legacy', updatedAt: 1700000005000,
         messages: [{ role: 'user', content: 'Cached older body', timestamp: 1700000000000 }] } }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(legacy.sourceVersion, undefined);
-    assert.equal((await saveDomainConversation('10000000-0000-4000-8000-000000000001', legacy, [], true))?.savedAt, undefined);
+    assert.equal((await saveDomainConversation('10000000-0000-4000-8000-000000000001', legacy))?.savedAt, undefined);
 });
 test('a version change during pagination invalidates the saved version until a consistent refetch', async () => {
     const first = detail([1700000005, 0], [1700000005, 0], true);
@@ -91,7 +92,7 @@ test('a version change during pagination invalidates the saved version until a c
 });
 test('export freshness compares source versions even with a newer Index and a far-ahead local clock', () => {
     const parsed = detail([1700000000, 0], [1700000000, 0]);
-    const index = indexFromParsed(parsed);
+    const index = restoreConversationIndex(parsed.conversation.index);
     const record = buildExportCompletion({ conversation: parsed.conversation, chatTime: parsed.sourceVersion, exportedAt: 1900000000000 }).exportRecord;
     assert.equal(record.chatTime, parsed.sourceVersion);
     assert.equal(resolveConversationExportState(index, record).needsIncrementalExport, false);

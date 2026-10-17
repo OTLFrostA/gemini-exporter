@@ -135,10 +135,7 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
         const reasoning = message.reasoning && mapContentAssetReferences(message.reasoning, resolve);
         const content = mapContentAssetReferences(message.content, resolve);
         const attachmentIds = resolved.attachmentIndexes[groupIndex].map(index => assets[index].id);
-        const generated = resolved.attachmentIndexes[groupIndex].map(index => resolved.attachments[index]).filter(record => record.isGenerated);
         return { ...message, content, ...(reasoning ? { reasoning } : {}),
-            ...(!message.generation && message.role === 'assistant' && generated.length ? { generation: { mediaKind: 'image' as const,
-                ...(generated[0].generation?.imageCount !== undefined ? { outputCount: generated[0].generation.imageCount } : {}) } } : {}),
             ...(attachmentIds.length || groups[groupIndex].input.attachments ? { attachmentIds } : {}) };
     });
     const heuristicDocumentIds = resolved.attachments.flatMap((record, index) => record.hasFabricatedText ? [assets[index].id] : []);

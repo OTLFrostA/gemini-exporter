@@ -1,11 +1,12 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { restoreDomainSnapshot, validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { TITLE_AUTHORITY_RANK } from '../src/core/domain/titleAuthority.js';
 import { closeDomainResources } from '../src/core/parsers/shared/resources/domainResourceAdapter.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
-import { saveDomainConversation, getStoredDomain, storedParseResult, storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { parseLegacyStorageConversation } from './helpers/recordFixture/parseConversation.js';
+import { getStoredDomain, storedParseResult, storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 import { preparePdfResources } from '../src/core/export/pdf/prepareResources.js';
 import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
@@ -45,7 +46,7 @@ test('partial resource identities remain valid and parsers omit absent generatio
 test('legacy parser normalizes unknown role/source without changing title authority or input', () => {
     const raw = { metadata: { id: 'old', title: 'Original', titleSource: 'future-provider-tier' }, detail: { key: fixtureKey(), messages: [{ role: 'plugin-tool', content: 'Kept answer' }] } };
     const original = structuredClone(raw);
-    const parsed = parseConversation({ account: fixtureAccount('gemini'), format: 'legacy-storage', providerId: 'gemini', data: raw });
+    const parsed = parseLegacyStorageConversation(raw, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(parsed.conversation.index.title, 'Original');
     assert.equal(parsed.conversation.index.titleSource, 'derived');
     assert.equal(parsed.conversation.detail.messages[0].role, 'unknown');
@@ -60,7 +61,7 @@ test('restored Domain detects heuristic reports and unavailable images without p
         const conversation = validateParserDomain({ index: { ...base().index }, detail: {   ...base().detail, quality: { status: 'partial' }, assets: [
             { id: 'report', kind: 'file', document: { id: 'original-report', contentMarkdown: '# Deep Research\n\nComplete retained body' } },
             { id: 'image', kind: 'image', sourceUri: 'Takeout/missing.png', generation: { imageOrdinal: 0 } },
-        ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'], generation: { mediaKind: 'image', outputCount: 1 } }] } });
+        ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'image' }], attachmentIds: ['report'] }] } });
         await saveDomainConversation(fixtureAccount('custom').id, { account: fixtureAccount('custom'), conversation, acquisitionHints: {}, resourceHints: {}, diagnostics: [] });
         const stored = await getStoredDomain(storageIdentity('custom', fixtureAccount('custom').id, conversation.index.key.conversationId));
         assert.ok(stored);
@@ -69,7 +70,7 @@ test('restored Domain detects heuristic reports and unavailable images without p
         assert.deepEqual(restored.conversation.detail.quality, { status: 'partial' });
         assert.equal(resolveExportRecordStatus({ quality: restored.conversation.detail.quality }).status, 'partial');
         assert.equal(restored.conversation.detail.assets[0].document?.contentMarkdown, conversation.detail.assets[0].document?.contentMarkdown);
-        assert.deepEqual(restored.conversation.detail.messages[0].generation, { mediaKind: 'image', outputCount: 1 });
+        assert.equal('generation' in (restored.conversation.detail.messages[0] ?? {}), false);
         const prepared = await preparePdfResources(restored.conversation.detail, new Set(['image']), restored.acquisitionHints);
         assert.equal(prepared.resources.get('image')?.ok, false);
         assert.ok(prepared.resources.get('image'));

@@ -45,7 +45,7 @@ export function readAccountRegistry(value: unknown): Account[] {
     }
     return accounts;
 }
-/** Pure matching/profile update. Allocation and durable commit belong to Storage. */
+/** Pure identity match and profile update. Account admission allocates; Storage commits atomically. */
 export function findAccount(accounts: readonly Account[], providerId: string, providerAccountId: string,
     email?: string, displayName?: string): Account | null {
     const parameters = readAccountParameters({ providerId, providerAccountId, email, displayName });

@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../core/domain/ingestion.js';
 import { missingResource, type ResourceResult, type ResourceDelivery } from '../core/resources/resourceResult.js';
 import { getStoredDirHandle, clearStoredDirHandle } from '../core/storage/idbHandleStore.js';
 import { setLiveConfig, isLiveSaveFormatSupported } from '../core/storage/liveStorageManager.js';
@@ -107,7 +108,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountId: string = 
             }
         }
 
-        const chat = await StorageService.ingestConversation(accountId, parsedChat);
+        const chat = await DomainAdmission.ingestConversation(accountId, parsedChat);
 
         // Shared live-save writer: filename format + markdown formatting + write.
         // Serialized through withLiveSaveLock per file to prevent concurrent createWritable

@@ -65,7 +65,7 @@ export interface BuildExportCompletionInput {
     messageCount?: number;
     /** Explicit authoritative timestamp if available */
     chatTime?: number | string | Date | null;
-    evidence?: import('../../domain/quality.js').QualityEvidence;
+    evidence?: import('../../parsers/qualityEvidence.js').QualityEvidence;
     usedLocalSnapshot?: boolean;
 }
 
@@ -129,7 +129,7 @@ export interface ResolveExportRecordStatusOptions {
     messageCount?: number;
     isEmpty?: boolean;
     quality?: ContentQuality;
-    evidence?: import('../../domain/quality.js').QualityEvidence;
+    evidence?: import('../../parsers/qualityEvidence.js').QualityEvidence;
     usedLocalSnapshot?: boolean;
 }
 

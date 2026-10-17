@@ -2,7 +2,7 @@ import { listAccounts } from '../api/accountRegistry.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../domain/conversationIndex.js';
 import { getExtensionVersion, STORAGE_KEYS } from '../utils/constants.js';
 import { normId } from '../utils/pathUtils.js';
-import { isTakeoutConversation, resolveConversationExportState, type ExportActivityRecord } from '../utils/titleUtils.js';
+import { resolveConversationExportState, type ExportActivityRecord } from '../utils/titleUtils.js';
 import { FlightRecorder, type FlightEvent } from './flightRecorder.js';
 
 export interface MaskedConversationMirror {
@@ -13,7 +13,6 @@ export interface MaskedConversationMirror {
     createdAt?: number;
     updatedAt?: number;
     messageCount?: number;
-    isTakeout: boolean;
     exportRecord: {
         exportedAt?: string | number;
         chatTime?: string | number;
@@ -180,7 +179,6 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             createdAt: c.createdAt,
             updatedAt: c?.updatedAt,
             messageCount: undefined,
-            isTakeout: isTakeoutConversation(c),
             exportRecord: rec ? {
                 exportedAt: rec.exportedAt,
                 chatTime: rec.chatTime,
@@ -217,7 +215,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             totalConversations: convs.length,
             totalExportedRecords: expMap.size,
             accountIds,
-            hasTakeoutData: !!rawStorage[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT] || convs.some(c => isTakeoutConversation(c)),
+            hasTakeoutData: !!rawStorage[STORAGE_KEYS.HAS_IMPORTED_TAKEOUT],
             preferences: {
                 format: stringOr(rawStorage[STORAGE_KEYS.FORMAT], 'md'),
                 useZip: typeof rawStorage[STORAGE_KEYS.ZIP] !== 'undefined' ? !!rawStorage[STORAGE_KEYS.ZIP] : true,

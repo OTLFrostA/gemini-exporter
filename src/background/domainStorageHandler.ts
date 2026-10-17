@@ -1,7 +1,8 @@
+import { saveDomainRequest } from '../core/domain/snapshotAdmission.js';
 import { getAccount } from '../core/storage/accountRegistryStore.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
-import { getStoredDomain, saveDomainRequest, cacheDomainResource, getDomainResource, removeStoredDomain, backupLegacyValue, storageIdentity } from '../core/storage/domain/domainStore.js';
+import { getStoredDomain, cacheDomainResource, getDomainResource, removeStoredDomain, storageIdentity } from '../core/storage/domain/domainStore.js';
 import { encodeDomainRecord, encodeBytes, decodeBytes, readStoredAcquisitionHints } from '../core/storage/domain/transport.js';
 import type { StoredDomainResource } from '../core/storage/domain/contracts.js';
 
@@ -24,19 +25,14 @@ export function handleDomainStorageMessage(message: unknown, sender: chrome.runt
                 const raw = object(payload.parsed);
                 const parsed = { sourceVersion: raw.sourceVersion, conversation: raw.conversation, acquisitionHints: readStoredAcquisitionHints(raw.acquisitionHints) };
                 if (payload.resources !== undefined && !Array.isArray(payload.resources)) throw new TypeError('Invalid transported resources');
-                if (payload.migration !== undefined && typeof payload.migration !== 'boolean') throw new TypeError('Invalid migration envelope');
                 const resources: StoredDomainResource[] = Array.isArray(payload.resources) ? payload.resources.map(value => {
                     const item = object(value);
                     return { assetId: text(item.assetId), bytes: decodeBytes(item.bytes), ...(typeof item.sourcePath === 'string' ? { sourcePath: item.sourcePath } : {}) };
                 }) : [];
                 const account = await getAccount(text(payload.accountId));
                 if (!account) throw new TypeError('Domain Account missing');
-                const record = await saveDomainRequest(account, parsed, resources, payload.migration === true);
+                const record = await saveDomainRequest(account, parsed, resources);
                 respond({ ok: true, value: record ? encodeDomainRecord(record) : null }); return;
-            }
-            if (request.command === 'backup') {
-                await backupLegacyValue(text(payload.key), payload.value);
-                respond({ ok: true }); return;
             }
             if (request.command === 'ready') { respond({ ok: true }); return; }
             const rawIdentity = object(payload.identity);

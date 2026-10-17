@@ -331,9 +331,9 @@ def test_javascript_unit_tests(target_tests=None):
                 ("src/core/parsers/gemini/rpc/extractors.js", "./parser/extractors.js"),
                 ("src/core/parsers/gemini/rpc/extractors.js", "./extractors.js"),
                 ("src/core/parsers/gemini/rpc/extractors.js", "../src/core/parsers/gemini/rpc/extractors.js"),
-                ("src/core/parsers/legacyStorage/attachments.js", "./parser/attachments.js"),
-                ("src/core/parsers/legacyStorage/attachments.js", "./attachments.js"),
-                ("src/core/parsers/legacyStorage/attachments.js", "../src/core/parsers/legacyStorage/attachments.js"),
+                ("tests/helpers/recordFixture/attachments.js", "./parser/attachments.js"),
+                ("tests/helpers/recordFixture/attachments.js", "./attachments.js"),
+                ("tests/helpers/recordFixture/attachments.js", "./helpers/recordFixture/attachments.js"),
                 ("src/core/parsers/gemini/rpc/parseList.js", "./parser/parseList.js"),
                 ("src/core/parsers/gemini/rpc/parseList.js", "./parseList.js"),
                 ("src/core/parsers/gemini/rpc/parseList.js", "../src/core/parsers/gemini/rpc/parseList.js"),
@@ -470,9 +470,11 @@ def test_content_badge_flicker_prevention():
         sync_js = f.read()
     combined_js = js + badge_js
     assert "debouncedSync" in observer_js, "pageObserver.js should debounce sync triggers"
-    with open(os.path.join(BASE_DIR, "src/core/storage/conversationIngest.ts"), encoding="utf-8") as f:
+    with open(os.path.join(BASE_DIR, "src/core/domain/ingestion.ts"), encoding="utf-8") as f:
         ingestion = f.read()
-    assert "ingestIndexes" in sync_js, "Sync must delegate admission to the shared Domain boundary"
+    with open(os.path.join(BASE_DIR, "src/content/geminiIndexCapture.ts"), encoding="utf-8") as f:
+        capture_js = f.read()
+    assert "ingestIndexes" in capture_js, "L1 capture must delegate admission to the shared Domain boundary"
     assert "options.forceWrite || changed || reordered" in ingestion, "Index admission must skip unchanged writes"
     assert "textContent" in combined_js and "targetText" in combined_js, "badgeView/content.js updateBadge should guard textContent updates"
     assert "existing.isConnected" in combined_js or "isConnected" in combined_js, "badgeView/content.js ensureBadge should check isConnected"

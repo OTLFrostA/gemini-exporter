@@ -11,5 +11,7 @@ export interface PageObservation<T> {
     requestKnown: boolean;
     valid: boolean;
     ordered: boolean;
+    /** Only explicit Provider proof of a history window boundary. */
+    terminal?: 'provider_limit';
     keys: { id: string; time: number }[];
 }

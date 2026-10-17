@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -365,8 +366,8 @@ test('PDF document and delivered record use current Index metadata and the saved
     const id = 'canonical-pdf';
     const parsed = { ...historicalFixture({ id, title: 'Old body title', titleSource: 'rpc',
         messages: [{ role: 'model', content: 'Retained body' }] }), sourceVersion: 100 };
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
-    await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', id, { title: 'Current index title', titleSource: "provider", updatedAt: 200 });
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed]);
+    await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', id, { title: 'Current index title', titleSource: "provider", updatedAt: 200 });
     const selection = indexFixture({ id, title: 'Old selection title', titleSource: 'rpc' });
     const state = { calls: 0, document: null as any };
     const records: any[] = [];

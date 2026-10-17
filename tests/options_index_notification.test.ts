@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,9 +24,9 @@ test('Options observes accepted Index writes even when acquisition emits no sync
             await originalSet(values);
             listener!(Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { newValue: value }])), 'local');
         };
-        await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture({ id: 'chat', title: 'Fresh', messages: [{ role: 'user', content: 'Question' }] }));
+        await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture({ id: 'chat', title: 'Fresh', messages: [{ role: 'user', content: 'Question' }] }));
         assert.equal(refreshed, 1);
-        await StorageService.ingestConversation('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'chat', title: 'Other account', messages: [{ role: 'user', content: 'Question' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
+        await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'chat', title: 'Other account', messages: [{ role: 'user', content: 'Question' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
         assert.equal(refreshed, 1);
     } finally {
         if (previousDocument === undefined) Reflect.deleteProperty(globalThis, 'document');

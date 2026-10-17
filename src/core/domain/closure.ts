@@ -11,10 +11,6 @@ export function assertDomainClosure(conversation: DomainConversationDetail): voi
     const quality = conversation.quality;
     if (!quality || !['complete', 'partial', 'unknown'].includes(quality.status)) throw new TypeError('Invalid Domain quality');
     conversation.messages.forEach((message, index) => {
-        if (message.generation && (!['image', 'audio', 'video', 'other'].includes(message.generation.mediaKind) ||
-            (message.generation.outputCount !== undefined && (!Number.isSafeInteger(message.generation.outputCount) || message.generation.outputCount < 0)))) {
-            throw new TypeError(`Invalid Domain generation event in messages[${index}]`);
-        }
         const citations = new Set<string>();
         for (const citation of message.citations ?? []) {
             if (typeof citation.id !== 'string' || !citation.id || citations.has(citation.id)) throw new TypeError(`Duplicate or empty Domain citation identity in messages[${index}]`);

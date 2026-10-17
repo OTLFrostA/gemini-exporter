@@ -3,7 +3,8 @@ import type { DomainConversationIndex, TitleSource } from '../../types/index.js'
 export type { TitleSource };
 import type { ExportRecord } from '../../types/ui.js';
 import { normId } from './pathUtils.js';
-import { TITLE_AUTHORITY_RANK, resolveTitle as resolveAuthorityTitle } from '../domain/titleAuthority.js';
+import { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, normalizeReliableTitleSource, resolveReliableTitleSource } from '../domain/titleAuthority.js';
+export { TITLE_SOURCE_PRIORITY, TITLE_TIER_RANK, normalizeReliableTitleSource, resolveReliableTitleSource } from '../domain/titleAuthority.js';
 
 /** Only the fields title arbitration reads or mutates. */
 export interface TitleResolutionInput { id?: string | number; title?: string; titleSource?: string; titles?: import('../../types/conversation.js').TitleSources; }
@@ -22,41 +23,6 @@ export interface TitleResolution {
 }
 
 export const RESEARCH_PROMPT_PREFIX_RE = /^(?:我已经完成了研究|我拟定了一个研究方案|I've completed your research|Here is a research plan)/i;
-
-export const TITLE_SOURCE_PRIORITY: TitleSource[] = ['user', 'provider', 'derived'];
-
-export const TITLE_TIER_RANK = Object.fromEntries(TITLE_SOURCE_PRIORITY.map(source => [source, TITLE_AUTHORITY_RANK[source]]));
-
-/**
- * Normalizes a raw source string into a canonical, reliable TitleSource.
- * Returns undefined if source is falsy, unknown, or an unreliable fallback
- * tier ('default', 'legacy', 'export').
- */
-export function normalizeReliableTitleSource(source?: string | null): TitleSource | undefined {
-    if (typeof source !== 'string') return undefined;
-    const s = source.trim();
-    if (!s || s === 'default' || s === 'legacy' || s === 'export') {
-        return undefined;
-    }
-    return TITLE_SOURCE_PRIORITY.find(candidate => candidate === s);
-}
-
-/**
- * Resolves the first reliable TitleSource from candidate sources in priority order.
- * Returns undefined if no candidate provides a reliable source.
- */
-export function resolveReliableTitleSource(...sources: (string | null | undefined)[]): TitleSource | undefined {
-    for (const src of sources) {
-        const normalized = normalizeReliableTitleSource(src);
-        if (normalized) return normalized;
-    }
-    return undefined;
-}
-
-
-export function isTakeoutConversation(c?: Readonly<Partial<DomainConversationIndex>> | null): boolean {
-    return false;
-}
 
 export function cleanZeroWidth(t: unknown): string {
     return String(t || '').replace(/[\u200E\u200B\uFEFF\u00A0]/g, '').trim();

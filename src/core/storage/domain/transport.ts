@@ -2,7 +2,7 @@ import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../../utils/nativeDetailTranspor
 import type { ResourceAcquisitionHint, ResourceAcquisitionHints } from '../../resources/resourceAcquisition.js';
 import type { TrustedDomainStorageRecord } from './contracts.js';
 
-export type DomainStoreCommand = 'get' | 'save' | 'resource' | 'remove' | 'backup' | 'cache' | 'ready';
+export type DomainStoreCommand = 'get' | 'save' | 'resource' | 'remove' | 'cache' | 'ready';
 export function needsDomainBroker(): boolean {
     return typeof chrome !== 'undefined' && Boolean(chrome.runtime?.id && chrome.runtime.sendMessage)
         && typeof location !== 'undefined' && location.protocol !== 'chrome-extension:';

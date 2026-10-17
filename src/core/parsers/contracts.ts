@@ -1,6 +1,6 @@
 import type { Account } from '../domain/accountRegistry.js';
 import type { TrustedDomain } from '../domain/runtimeValidation.js';
-import type { QualityEvidence } from '../domain/quality.js';
+import type { QualityEvidence } from './qualityEvidence.js';
 import type { Diagnostic } from '../diagnostics/diagnostic.js';
 
 /** Every raw parser knows its producer. No filename/source-string heuristics at this boundary. */

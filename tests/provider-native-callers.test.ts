@@ -70,7 +70,7 @@ test('native token loops retain diagnostics and explicitly mark incomplete cover
 
 test('native exports use Domain without invoking the historical record parser', async () => {
     const view = result('data:image/png;base64,iVBORw0KGgo=');
-    const recordParser = require('../src/core/parsers/legacyStorage/parseRecord.js') as { parseConversationRecord: (...args: unknown[]) => unknown };
+    const recordParser = require('./helpers/recordFixture/parseRecord.js') as { parseConversationRecord: (...args: unknown[]) => unknown };
     const old = recordParser.parseConversationRecord;
     recordParser.parseConversationRecord = () => { throw new Error('A native result cannot be reparsed as a record'); };
     try {

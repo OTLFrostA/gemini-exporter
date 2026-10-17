@@ -56,17 +56,16 @@ test('provider-neutral - listing preserves sync completeness evidence and callba
     const diagnostics = { hitGoogleLimit: true, stopReason: 'window limit' };
     const options = {
         maxPages: 3,
-        onPageBatch: async (items: unknown[], info: { page: number; hasMore: boolean }) => {
-            assert.strictEqual(items, batch);
-            assert.deepStrictEqual(info, { page: 1, hasMore: true });
+        onPageBatch: async (info: { page: number; hasMore: boolean; count: number }) => {
+            assert.deepStrictEqual(info, { page: 1, hasMore: true, count: 1 });
             return { shouldStop: true, reason: 'watermark' };
         }
     };
     let observedDecision: unknown;
     const gp = new GeminiProvider({
-        getAllConversations: async (received: typeof options) => {
-            assert.strictEqual(received, options);
-            observedDecision = await received.onPageBatch(batch, { page: 1, hasMore: true });
+        getAllConversations: async (received: import('../src/core/api/client/pagination.js').PaginationOptions) => {
+            assert.strictEqual(received.maxPages, options.maxPages);
+            observedDecision = await received.onPageBatch?.(batch, { page: 1, hasMore: true });
             return {
                 conversations: batch, total: 1, stoppedEarly: true,
                 exhaustive: false, completionReason: 'hit_google_limit',

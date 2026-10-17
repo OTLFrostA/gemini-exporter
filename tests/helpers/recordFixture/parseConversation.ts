@@ -1,8 +1,8 @@
 import { parseConversationRecord } from './parseRecord.js';
 import type { ConversationRecordInput } from './conversationRecord.js';
-import type { ResourceConversationParseResult } from '../parsingResult.js';
+import type { ResourceConversationParseResult } from '../../../src/core/parsers/parsingResult.js';
 import type { ConversationRecordParseContext } from './parseRecord.js';
-import { normId } from '../../utils/pathUtils.js';
+import { normId } from '../../../src/core/utils/pathUtils.js';
 
 export interface LegacyStorageRaw { metadata: unknown; detail?: unknown }
 function record(value: unknown): Record<string, unknown> {

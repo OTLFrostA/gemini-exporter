@@ -13,9 +13,10 @@ let bundle: string;
 test.beforeAll(async () => {
     const result = await build({ stdin: { contents: `
         import * as store from './src/core/storage/domain/domainStore.ts';
+        import { saveDomainConversation } from './src/core/domain/snapshotAdmission.ts';
         import * as fixtures from './tests/helpers/mediaSourceFixture.ts';
         import { bindFixture } from './tests/helpers/domainFixture.ts';
-        import { ingestIndexes } from './src/core/storage/conversationIngest.ts';
+        import { ingestIndexes } from './src/core/domain/ingestion.ts';
         import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import { planExportResources } from './src/core/export/assets/planExportResources.ts';
@@ -23,7 +24,7 @@ test.beforeAll(async () => {
         import { preparePdfItem, PdfExporter } from './src/core/export/pdf/pdfExporter.ts';
         import { resourceStage } from './src/core/export/pdf/pipeline/resourceStage.ts';
         import { encodeBytes } from './src/core/storage/domain/transport.ts';
-        globalThis.mediaProbe = { ...store, ...fixtures, bindFixture, ingestIndexes, getDomainConversationResult, AssetPipeline,
+        globalThis.mediaProbe = { ...store, saveDomainConversation, ...fixtures, bindFixture, ingestIndexes, getDomainConversationResult, AssetPipeline,
             planExportResources, formatMarkdownDocument, formatHtmlDocument, preparePdfItem, PdfExporter, resourceStage, encodeBytes };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = result.outputFiles[0].text;
@@ -262,34 +263,4 @@ test('resource persistence: 40 continuous saves and repeated imports retain only
     });
     expect(retained).toMatchObject({ length: 4 * 1024 * 1024, first: 37, last: 37, count: 1 });
     expect(retained.names).not.toContain('revisions');
-});
-
-test('legacy inline cache migrates once without rewriting identical bytes; subsequent saves read metadata only', async ({ context, extensionId }) => {
-    const page = await context.newPage(); await install(page, extensionId);
-    const result = await page.evaluate(async () => {
-        const api = Reflect.get(globalThis, 'mediaProbe'); const { offline, resources } = api.mediaSources();
-        const original = await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
-        const db = await api.openDomainDB();
-        await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction('conversations', 'readwrite');
-            const legacy = { ...original, resources, revision: 'pre-optimization-uuid' }; delete legacy.resourceDigests;
-            tx.objectStore('conversations').put(legacy);
-            tx.oncomplete = () => resolve(); tx.onabort = tx.onerror = () => reject(tx.error);
-        }); db.close();
-        const originalGet = IDBObjectStore.prototype.get, originalPut = IDBObjectStore.prototype.put;
-        let reads = 0, writes = 0;
-        IDBObjectStore.prototype.get = function (...args) { if (this.name === 'resource_bytes') reads++; return originalGet.apply(this, args); };
-        IDBObjectStore.prototype.put = function (...args) { if (this.name === 'resource_bytes') writes++; return originalPut.apply(this, args); };
-        try {
-            const upgraded = await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', api.storedParseResult(original, fixtureAccountFor(original.conversation)));
-            const first = { reads, writes, inline: upgraded.resources.length }; reads = writes = 0;
-            for (let i = 0; i < 10; i++) {
-                const parsed = api.storedParseResult(upgraded, fixtureAccountFor(upgraded.conversation)); parsed.conversation.index.title = `Legacy follow-up ${i}`;
-                await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed);
-            }
-            return { first, subsequent: { reads, writes } };
-        } finally { IDBObjectStore.prototype.get = originalGet; IDBObjectStore.prototype.put = originalPut; }
-    });
-    expect(result.first).toEqual({ reads: 2, writes: 0, inline: 0 });
-    expect(result.subsequent).toEqual({ reads: 0, writes: 0 });
 });

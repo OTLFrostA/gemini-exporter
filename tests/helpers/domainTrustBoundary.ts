@@ -6,11 +6,11 @@ import { type Node, type SourceFile, isIdentifier, isPropertyAccessExpression, i
 
 const validator = 'core/domain/runtimeValidation.ts';
 const parserOwners = new Set(['core/parsers/gemini/rpc/parseConversation.ts', 'core/parsers/gemini/dom/parseConversation.ts',
-    'core/parsers/gemini/takeout/parseConversation.ts', 'core/parsers/gemini/rpc/mergePages.ts', 'core/parsers/chatgpt/parseConversation.ts', 'core/parsers/legacyStorage/parseRecord.ts']);
+    'core/parsers/gemini/takeout/parseConversation.ts', 'core/parsers/gemini/rpc/mergePages.ts', 'core/parsers/chatgpt/parseConversation.ts']);
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
-    ['validateParserDomain', parserOwners], ['restoreDomainSnapshot', new Set(['core/storage/domain/validate.ts'])],
+    ['validateParserDomain', new Set([...parserOwners, 'core/domain/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['core/storage/domain/validate.ts', 'core/domain/snapshotAdmission.ts'])],
     ['readStorageDomain', new Set(['core/storage/domain/domainStore.ts'])],
     ['requestNativeDetail', new Set(['background/batchFetcher.ts', 'core/engine/export/batchWorker.ts', 'ui/popup/popup.ts'])],
     ['requestNativeBatch', new Set(['core/engine/export/batchWorker.ts'])],

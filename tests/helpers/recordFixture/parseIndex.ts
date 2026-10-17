@@ -1,10 +1,10 @@
-import type { Account } from '../../domain/accountRegistry.js';
-import { semanticTitleSource, parseIndexMetadata } from '../shared/parseIndexMetadata.js';
-import { restoreConversationIndex, type DomainConversationIndex } from '../../domain/conversationIndex.js';
-import { normalizeTimestamp } from '../../domain/time.js';
-import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../utils/titleUtils.js';
-import { isTitleSource, resolveTitle, type TitleCandidate } from '../../domain/titleAuthority.js';
-import { normId, isReservedRoute } from '../../utils/pathUtils.js';
+import type { Account } from '../../../src/core/domain/accountRegistry.js';
+import { semanticTitleSource, parseIndexMetadata } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
+import { restoreConversationIndex, type DomainConversationIndex } from '../../../src/core/domain/conversationIndex.js';
+import { normalizeTimestamp } from '../../../src/core/domain/time.js';
+import { cleanTitle, isRealTitle, isBrandPlaceholderTitle } from '../../../src/core/utils/titleUtils.js';
+import { isTitleSource, resolveTitle, type TitleCandidate } from '../../../src/core/domain/titleAuthority.js';
+import { normId, isReservedRoute } from '../../../src/core/utils/pathUtils.js';
 
 function object(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Invalid index source record');

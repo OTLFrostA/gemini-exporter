@@ -92,7 +92,7 @@ test('only explicit media placements become AST content; resource absence never 
     const raw = input();
     raw.detail.assets = [{ id: 'photo', kind: 'image', name: 'Diagram.png' }, { id: 'file', kind: 'file', name: 'Report.pdf' }, { id: 'unowned', kind: 'image' }];
     raw.detail.messages = [
-        { role: 'assistant', content: [], generation: { mediaKind: 'image', outputCount: 1 } },
+        { role: 'assistant', content: [] },
         { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'image', assetId: 'photo' }] }], attachmentIds: ['photo', 'file'] },
     ];
     const { document } = composeDomainDocument(validateParserDomain(raw), account), before = JSON.stringify(document);

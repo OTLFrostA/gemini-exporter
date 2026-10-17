@@ -23,7 +23,12 @@ export interface GeminiProviderReadinessContext {
 export interface GeminiProviderReadiness extends ProviderReadiness {
     accountSlot?: string;
 }
-export type GeminiProviderListOptions = PaginationOptions;
+export interface GeminiProviderListOptions extends Omit<PaginationOptions, 'onPageBatch' | 'onProgress'> {
+    accountId?: string;
+    canCommit?: () => boolean;
+    onPageBatch?: ((info: { page: number; hasMore: boolean; count: number; scanHead?: import('../../domain/coverageAdmission.js').ScanHead }) => Promise<import('../../api/client/pagination.js').PaginationStopDecision | void>) | null;
+    onProgress?: ((info: Omit<import('../../api/client/pagination.js').PaginationProgressInfo, 'batch'>) => void) | null;
+}
 export interface GeminiProviderDetailOptions {
     targetSid?: string | null;
     slot?: string | null;
@@ -31,7 +36,7 @@ export interface GeminiProviderDetailOptions {
 
 /** The two client operations this adapter actually calls; also permits typed DI. */
 export interface GeminiProviderClient {
-    getAllConversations(options?: GeminiProviderListOptions): Promise<PaginationResult>;
+    getAllConversations(options?: PaginationOptions): Promise<PaginationResult>;
     getConversationDetail(conversationId: string, targetSid?: string | null, account?: Account): Promise<PaginatedDetailResult>;
 }
 

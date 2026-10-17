@@ -19,7 +19,7 @@ const path = require('path');
 const detailDecoder = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const parseListMod = require('../src/core/parsers/gemini/rpc/parseList.js');
 const extractors = require('../src/core/parsers/gemini/rpc/extractors.js');
-const attachments = require('../src/core/parsers/legacyStorage/attachments.js');
+const attachments = require('./helpers/recordFixture/attachments.js');
 
 // ---------------------------------------------------------------- helpers
 function makeDetailRpc(inner: unknown): string {
