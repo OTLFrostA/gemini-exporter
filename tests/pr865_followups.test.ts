@@ -1,3 +1,5 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { bindFixture } from './helpers/domainFixture.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { setConversationAvailability } from '../src/core/storage/conversationAvailability.js';
@@ -9,7 +11,7 @@ import assert from 'node:assert/strict';
 import { ExportOrchestrator } from '../src/core/engine/export/exportOrchestrator.js';
 import { AssetPipeline, type AssetPipelineOptions } from '../src/core/engine/assetPipeline.js';
 import { BatchWorker } from '../src/core/engine/export/batchWorker.js';
-import { saveDomainConversation, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { __setModuleOverride, __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 import { OptionsSync } from '../src/ui/options/modules/optionsSync.js';
@@ -53,7 +55,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
         { url: 'https://example.com/missing.png', fileName: 'missing.png' }
     ] }] });
     const [domain, takeout] = source.conversation.detail.assets;
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [source]);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
     await setConversationAvailability('10000000-0000-4000-8000-000000000001', 'deleted_local', 'deleted');
     let requests = 0;
@@ -85,12 +87,12 @@ test('normal export fetches fresh cloud content first and falls back to a local 
     __clearDomainMemory();
     const local = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Stale snapshot' }] });
     const fresh = historicalFixture({ id: 'unlisted_local', title: 'Unlisted local', messages: [{ role: 'user', content: 'Fresh cloud answer' }] });
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [local]);
     let calls = 0;
     try {
         for (const error of [null, 'HTTP 503', 'Malformed direct response envelope']) {
             __clearDomainMemory();
-            await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
+            await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [local]);
             const { files } = exportMocks();
             __setModuleOverride('TabService', { sendToGeminiTab: async () => {
                 calls++; return error ? { success: false, error } : acquiredReply({ success: true, domainEnvelopeVersion: 3, data: fresh });
@@ -115,7 +117,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     const { records, files } = exportMocks();
     const local = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', messages: [{ role: 'user', content: 'Saved snapshot' }] });
     const fresh = historicalFixture({ id: 'retry_snapshot', title: 'Retry snapshot', updatedAt: 1, messages: [{ role: 'user', content: 'Fresh cloud content' }] });
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [local]);
     let calls = 0;
     let available = false;
     const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
@@ -136,7 +138,7 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
         assert.match(Object.values(files).filter(value => typeof value === 'string').join(' '), /Fresh cloud content/);
         assert.equal((await run(true)).skipped, 1); assert.equal(calls, 3);
         await setConversationAvailability('10000000-0000-4000-8000-000000000001', list.key.conversationId, 'deleted');
-        await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', list.key.conversationId, {  });
+        await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', list.key.conversationId, {  });
         await run(false);
         assert.equal(status(), 'ok', 'known deleted local export remains complete');
         assert.equal(calls, 3);
@@ -149,7 +151,7 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     const { records } = exportMocks();
     const source = historicalFixture({ id: 'delete_write_failure', title: 'Delete write failure', messages: [{ role: 'model', content: 'Retained answer',
         images: [{ url: 'https://example.com/missing-deleted.png', fileName: 'missing.png' }] }] });
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [source]);
     let assetRequests = 0;
     let writes = 0;
     let memoryAtWrite: 'unknown' | 'deleted' = 'unknown';

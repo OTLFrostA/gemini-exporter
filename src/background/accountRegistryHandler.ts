@@ -1,4 +1,5 @@
-import { getOrCreateAccount, listAccounts, getAccount } from '../core/storage/accountRegistryStore.js';
+import { getOrCreateAccount } from '../core/domain/accountAdmission.js';
+import { listAccounts, getAccount } from '../core/storage/accountRegistryStore.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 
 export function handleAccountRegistryMessage(message: unknown, sender: chrome.runtime.MessageSender, respond: (value: unknown) => void): boolean {

@@ -20,6 +20,7 @@ const ALLOWED_STORAGE_FILES = new Set<string>([
     'src/core/storage/schemaMigration.ts',
     'src/core/storage/conversationAvailability.ts',
     'src/core/storage/conversationCatalogStore.ts',
+    'src/core/storage/scanCoverageStore.ts',
 ]);
 
 function gitGrepFixed(pattern: string): Array<{ file: string; line: number; text: string }> {

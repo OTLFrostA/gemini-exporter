@@ -1,9 +1,11 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
 import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { readStoredAcquisitionHints } from '../src/core/storage/domain/transport.js';
-import { saveDomainRequest, saveDomainConversation, getStoredDomain, getDomainResource, __clearDomainMemory, storageIdentity, storedParseResult } from '../src/core/storage/domain/domainStore.js';
+import { saveDomainRequest } from '../src/core/domain/snapshotAdmission.js';
+import { getStoredDomain, getDomainResource, __clearDomainMemory, storageIdentity, storedParseResult } from '../src/core/storage/domain/domainStore.js';
 
 test('storage acquisition context retains only verified fields and rejects malformed inputs', async () => {
     const hints = { asset: { url: 'source', resolvedUrl: 'derived', localName: 'export/path', candidates: ['original'] } };

@@ -12,7 +12,7 @@ export async function composeFixture(domain: DomainConversationWithDetail, resou
     return { ...composeDomainDocument(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } }), fixtureAccountFor(validateParserDomain(sourceVersion === undefined ? domain : { ...domain, index: { ...domain.index, updatedAt: sourceVersion } }))), resources: await prepareDomainResources(await fixtureResourceResults(domain, resourceHints, acquisitionHints)) };
 }
 
-import type { ConversationRecordInput } from '../../src/core/parsers/legacyStorage/conversationRecord.js';
+import type { ConversationRecordInput } from './recordFixture/conversationRecord.js';
 
 /** Historical fixture decoding feeds the same native composer and preparation APIs as production. */
 export async function parseFixture(raw: ConversationRecordInput) {

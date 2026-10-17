@@ -1,3 +1,4 @@
+import { getCoverage } from '../src/core/domain/coverageAdmission.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { listFixture } from './helpers/listFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -135,8 +136,8 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
     assert.strictEqual(mockStore['scan_checkpoint_10000000-0000-4000-8000-000000000001'], undefined, 'Scan checkpoint must be removed');
     assert.deepStrictEqual(mockStore['exported_10000000-0000-4000-8000-000000000001'], {}, 'Exported records must be emptied');
 
-    const checkpoint = await StorageService.getScanCoverage('10000000-0000-4000-8000-000000000001');
-    assert.strictEqual(checkpoint, null, 'getScanCoverage must return null after clearConversations');
+    const checkpoint = await getCoverage('10000000-0000-4000-8000-000000000001', 'recent');
+    assert.strictEqual(checkpoint, null, 'getCoverage must return null after clearConversations');
     } finally {
         if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
         else delete (globalThis as any).chrome;

@@ -123,7 +123,7 @@ test('takeout_engine - parseTakeoutZip never assigns unreferenced watermarked fi
     for (const id of ['chat_A_12345678', 'chat_B_87654321']) {
         assert.deepStrictEqual(TakeoutEngine.getTakeoutMediaForChat(id, '10000000-0000-4000-8000-000000000001'), []);
         const chat = TakeoutEngine.getTakeoutOfflineChat(id, '10000000-0000-4000-8000-000000000001');
-        assert.deepStrictEqual(chat.conversation.detail.messages.find((m: any) => m.role === 'assistant').generation, { mediaKind: 'image', outputCount: 1 });
+        assert.ok(chat.conversation.detail.messages.every((m: object) => !('generation' in m)));
     }
     assert.strictEqual(res.diagnostics.filter((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED').length, 2);
     assert.deepStrictEqual(await res.globalMedia['watermarked_img_1111-aaaa.png'].async('uint8array'), new Uint8Array(imgABuffer));

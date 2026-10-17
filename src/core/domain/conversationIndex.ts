@@ -1,4 +1,4 @@
-import { TITLE_AUTHORITY_RANK, isTitleSource, type TitleSource } from './titleAuthority.js';
+import { resolveTitle, isTitleSource, type TitleSource } from './titleAuthority.js';
 import { readConversationKey, sameConversationKey, type ConversationKey } from './conversationKey.js';
 
 export interface DomainConversationIndex {
@@ -28,7 +28,9 @@ export function restoreConversationIndex(value: unknown): DomainConversationInde
 export function mergeConversationIndex(old: DomainConversationIndex | undefined, incoming: DomainConversationIndex): DomainConversationIndex {
     if (!old) return restoreConversationIndex(incoming);
     if (!sameConversationKey(old.key, incoming.key)) throw new TypeError('Conversation index identity mismatch');
-    const title = incoming.title && (!old.title || TITLE_AUTHORITY_RANK[incoming.titleSource!] >= TITLE_AUTHORITY_RANK[old.titleSource!]) ? incoming : old;
+    const chosen = resolveTitle([old, incoming].flatMap(index => index.title && index.titleSource
+        ? [{ value: index.title, source: index.titleSource }] : []));
+    const title = chosen ? { title: chosen.value, titleSource: chosen.source } : {};
     const createdAt = old.createdAt === undefined ? incoming.createdAt : incoming.createdAt === undefined ? old.createdAt : Math.min(old.createdAt, incoming.createdAt);
     const updatedAt = old.updatedAt === undefined ? incoming.updatedAt : incoming.updatedAt === undefined ? old.updatedAt : Math.max(old.updatedAt, incoming.updatedAt);
     return { key: { ...old.key }, ...(title.title !== undefined ? { title: title.title, titleSource: title.titleSource! } : {}),

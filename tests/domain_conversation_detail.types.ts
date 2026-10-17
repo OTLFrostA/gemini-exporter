@@ -111,6 +111,7 @@ void rejectedExportStatus;
 void rejectedMissingProvider;
 void rejectedMissingAssets;
 
+// @ts-expect-error Message generation events are diagnostics, not durable body facts.
 const generationEvent: DomainMessage = { role: 'assistant', content: body(''), generation: { mediaKind: 'image', outputCount: 2 } };
 void generationEvent;
 

@@ -17,7 +17,7 @@ export interface DomainStorageRecord {
     storageVersion: typeof DOMAIN_STORAGE_VERSION;
     domainVersion: typeof DOMAIN_CONTRACT_VERSION;
     identity: DomainStorageIdentity;
-    origin: 'source' | 'legacy-storage';
+    origin: 'source';
     /** Opaque token for the current record; no revision history is retained. */
     revision: string;
     /** Source updatedAt version of the saved body. Absent when the source provides no version. */
@@ -30,5 +30,3 @@ export interface DomainStorageRecord {
 }
 /** Only recovery/writing establishes this in-memory contract; disk bytes stay unbranded. */
 export interface TrustedDomainStorageRecord extends Omit<DomainStorageRecord, 'conversation'> { conversation: TrustedDomain }
-export interface DomainMigrationIssue { key: string; code: string; message: string }
-export interface DomainMigrationReport { converted: number; issues: DomainMigrationIssue[] }

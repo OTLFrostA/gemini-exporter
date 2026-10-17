@@ -1,11 +1,11 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeConversation } from '../src/core/utils/mergeUtils.js';
+import { mergeConversation } from '../src/core/domain/indexCollection.js';
 import { parseGeminiIndexObservation } from '../src/core/parsers/gemini/parseIndexObservation.js';
-import { indexFromParsed } from '../src/core/storage/conversationIndexFromParsed.js';
+import { restoreConversationIndex } from '../src/core/domain/conversationIndex.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseLegacyConversationIndex } from '../src/core/parsers/legacyStorage/parseIndex.js';
+import { parseLegacyConversationIndex } from './helpers/recordFixture/parseIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
 
 test('index title authority survives weaker observations and adopts same-tier renames', () => {
@@ -36,8 +36,8 @@ test('placeholder and malformed provenance are handled before index merging', ()
 });
 test('index merging preserves independent times, sampled counts, and import history without extension fields', () => {
     const old = indexFixture({ id: 'merge-fields', title: 'RPC title', titleSource: 'rpc', updatedAt: 5000, createdAt: 2000, messageCount: 8 });
-    const incoming = indexFromParsed(historicalFixture({ id: old.key.conversationId, title: 'Offline title', titleSource: 'takeout',
-        messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }] }), 'takeout');
+    const incoming = restoreConversationIndex(historicalFixture({ id: old.key.conversationId, title: 'Offline title', titleSource: 'takeout',
+        messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }] }).conversation.index);
     const result = mergeConversation(old, incoming);
     assert.equal(result.merged.updatedAt, 5000);
     assert.equal(result.merged.createdAt, 2000, 'Takeout message times cannot replace metadata creation');

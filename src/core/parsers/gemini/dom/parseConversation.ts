@@ -1,4 +1,4 @@
-import { contentQuality } from '../../../domain/quality.js';
+import { contentQuality } from '../../../parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import type { ConversationParseContext } from '../../contracts.js';
 import type { DomainMessage } from '../../../domain/conversationDetail.js';

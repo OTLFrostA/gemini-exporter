@@ -1,7 +1,7 @@
 import { getAccount } from '../../api/accountRegistry.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { getConversations } from '../../storage/storageService.js';
-import { ingestConversation } from '../../storage/conversationIngest.js';
+import { ingestConversation } from '../../domain/ingestion.js';
 import type { StoredDomainResource } from '../../storage/domain/contracts.js';
 import { ZipBombGuard } from './zipBombGuard.js';
 import { I18n } from '../../utils/i18n.js';
@@ -85,7 +85,7 @@ export async function parseTakeoutZip(file: unknown, onProgress?: ((pct: number,
             }
             durableResources.push({ assetId, bytes: acquired.value, sourcePath: bound.path });
         }
-        Object.assign(native, await ingestConversation(slot, native, durableResources, 'takeout'));
+        Object.assign(native, await ingestConversation(slot, native, durableResources));
         // The repository write is the delivery boundary; it stays fatal if the store itself fails.
         for (const resource of durableResources) {
             const path = resource.sourcePath!;

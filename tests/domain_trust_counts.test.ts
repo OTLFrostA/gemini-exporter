@@ -1,10 +1,11 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
 import { fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
-import { saveDomainConversation, getStoredDomain, storageIdentity, getDomainResource, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { getStoredDomain, storageIdentity, getDomainResource, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {

@@ -33,7 +33,7 @@ interface SessionLogFailedAttachmentEntry extends Partial<FailedAttachment> {
 
 export interface SessionParseDriftEntry {
     quality: ContentQuality;
-    evidence?: import('../../domain/quality.js').QualityEvidence;
+    evidence?: import('../../parsers/qualityEvidence.js').QualityEvidence;
     diagnostics: Diagnostic[];
     id?: string;
     title?: string;

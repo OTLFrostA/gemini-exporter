@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { bindFixture } from './helpers/domainFixture.js';
 import { sourceIndex } from './helpers/domainFixture.js';
@@ -251,9 +252,9 @@ test('completeConversationExport cannot publish title candidates to the catalog'
 test('ingestion arbitrates title authority before completion', async () => {
     const native = (title: string, titleSource: string) => historicalFixture({ id: 'tier-test', title, titleSource,
         messages: [{ role: 'user', content: 'Question' }] });
-    await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', native('Imported', 'takeout'), [], 'takeout');
-    await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', native('Online', 'rpc'));
-    await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', native('Old import', 'takeout'), [], 'takeout');
+    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native('Imported', 'takeout'), []);
+    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native('Online', 'rpc'));
+    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native('Old import', 'takeout'), []);
     const [index] = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(index.title, 'Online');
     assert.strictEqual(index.titleSource, 'provider');
@@ -461,7 +462,7 @@ test('BatchWorker keeps dirty legacy title slots outside canonical index', async
         titles: {}
     });
 
-    await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
+    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
     await resolveChat(historicalFixture(chat), { id: 'c_adv_j' }, listConversation, null, '10000000-0000-4000-8000-000000000001');
 
     assert.equal('titles' in listConversation, false);

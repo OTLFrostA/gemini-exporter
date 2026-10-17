@@ -14,6 +14,11 @@ export type DomainMessageRole =
 /** Semantic resource identity, shared across the conversation. No export destination or layout. */
 export type DomainAssetKind = 'image' | 'file' | 'audio' | 'video' | 'other';
 
+export interface DomainDocumentMetadata {
+    id?: string;
+    contentMarkdown?: string;
+}
+
 export interface DomainAsset {
     id: string;
     kind: DomainAssetKind;
@@ -23,10 +28,7 @@ export interface DomainAsset {
     /** Source locator; never inline bytes, a temporary blob URL or an export destination. */
     sourceUri?: string;
     generation?: DomainGeneratedMediaIdentity;
-    document?: {
-        id?: string;
-        contentMarkdown?: string;
-    };
+    document?: DomainDocumentMetadata;
 }
 
 export interface DomainGeneratedMediaIdentity {
@@ -46,12 +48,6 @@ export interface DomainCitation {
     title?: string;
 }
 
-/** Authored media-generation event; output files may be absent from the source. */
-export interface DomainGenerationEvent {
-    mediaKind: 'image' | 'audio' | 'video' | 'other';
-    outputCount?: number;
-}
-
 export interface DomainMessage {
     /** Optional stable message identity; never synthesized from array position. */
     id?: string;
@@ -63,8 +59,6 @@ export interface DomainMessage {
     timestamp?: number;
     /** Explicit message-owned resources, in source order; every ID belongs to conversation.assets. */
     attachmentIds?: string[];
-    /** A source-recorded generation event remains meaningful even when its output files are absent. */
-    generation?: DomainGenerationEvent;
     /** Provider-exposed reasoning parsed before Domain; resource nodes use registry IDs. */
     reasoning?: BlockNode[];
     citations?: DomainCitation[];

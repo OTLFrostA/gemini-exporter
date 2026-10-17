@@ -5,8 +5,9 @@ let bundle: string;
 test.beforeAll(async () => {
     const output = await build({ stdin: { contents: `
         import * as registry from './src/core/storage/accountRegistryStore.ts';
+        import { getOrCreateAccount } from './src/core/domain/accountAdmission.ts';
         import { openDomainDB } from './src/core/storage/domain/domainStore.ts';
-        globalThis.registryProbe = { ...registry, openDomainDB };
+        globalThis.registryProbe = { ...registry, getOrCreateAccount, openDomainDB };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = output.outputFiles[0].text;
 });

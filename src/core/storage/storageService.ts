@@ -1,18 +1,8 @@
 import { getConversationAvailability, setConversationAvailability } from './conversationAvailability.js';
 import { getStorageKeys, getConversations, setConversations, transactConversations, writeConversationIndexes, withConversationLock, withCrossTabLock, requireAccountId } from './conversationCatalogStore.js';
 export type { StorageKeys, ConversationTransaction } from './conversationCatalogStore.js';
-import { ingestConversation } from './conversationIngest.js';
-import { getAccount, listAccounts, getOrCreateAccount } from '../api/accountRegistry.js';
-import { isAccountId } from '../domain/accountRegistry.js';
-import { deduplicateConversations } from '../utils/mergeUtils.js';
-import { restoreConversationIndex, mergeConversationIndex, compareConversationIndexes, type ConversationIndexPatch } from '../domain/conversationIndex.js';
-import type { StreamCoverage } from '../domain/streamCoverage.js';
-import { advanceIndexCoverage, indexCoverageConnects, indexCoverageExhausted } from '../domain/indexCoverage.js';
-import type { PageObservation } from '../domain/pageObservation.js';
-import { readScanCoverage, type ScanCoverage, type ScanCoverageBaseline, type ScanCoverageRun } from '../domain/scanCoverage.js';
-import type { ScanStatus } from '../../types/ui.js';
+import { getAccount } from '../api/accountRegistry.js';
 import { assertSchemaWritable } from './schemaState.js';
-import { type ResourceConversationParseResult } from '../parsers/parsingResult.js';
 import { removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
 import { createConversationRepository, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
 import {
@@ -36,10 +26,6 @@ export interface FinalizeExportOptions<T = ExportRecord> {
     onItemExported?: (id: string, record: T) => void;
 }
 import {
-    removeConversationDetails,
-    clearAllDetails
-} from './conversationDetailStore.js';
-import {
     getDevMode,
     setDevMode,
     isTourCompleted,
@@ -60,35 +46,7 @@ import {
     setLanguagePreference
 } from './userPreferences.js';
 
-/** Upsert a partial native import; unrelated indexes and stronger metadata remain intact. */
-async function setNativeConversations(slot: string | null | undefined, list: readonly ResourceConversationParseResult[]): Promise<void> {
-    for (const parsed of list) await ingestConversation(requireAccountId(slot), parsed, [], 'snapshot');
-}
-
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null; }
-
-async function updateConversation(
-    slot: string | null | undefined,
-    conversationId: string,
-    patchOrUpdater: ConversationIndexPatch | ((conv: DomainConversationIndex) => ConversationIndexPatch | null | void)
-): Promise<boolean> {
-    return withConversationLock(async () => {
-        const id = normId(conversationId);
-        const list = await getConversations(slot);
-        const position = list.findIndex(c => c.key.conversationId === id);
-        if (position < 0) return false;
-        const old = list[position];
-        const current = { ...old };
-        const patch = typeof patchOrUpdater === 'function' ? patchOrUpdater(current) : patchOrUpdater;
-        if (patch === null) return false;
-        const incoming = restoreConversationIndex({ ...current, ...patch });
-        const merged = mergeConversationIndex(old, incoming);
-        if (JSON.stringify(merged) === JSON.stringify(old)) return false;
-        list[position] = merged;
-        await writeConversationIndexes(slot, list);
-        return true;
-    });
-}
 
 // Durable intent outlives list metadata and every partial cleanup. These helpers
 // run under the conversation lock; retire IDs only after all stores commit.
@@ -151,7 +109,7 @@ async function clearConversations(slot?: string | null): Promise<void> {
             [convKey]: [],
             [countKey]: 0,
             [expKey]: {},
-            [coverageKey]: { resetAt: Date.now() }
+            [coverageKey]: {}
         };
         await chrome.storage.local.set(toSet);
         await chrome.storage.local.remove([checkpointKey]);
@@ -335,103 +293,6 @@ async function setLastSync(slot: string | null | undefined, timestamp?: number |
     });
 }
 
-async function getScanCoverage(slot?: string | null): Promise<ScanCoverage | null> {
-    const { coverageKey } = getStorageKeys(slot);
-    const data = await chrome.storage.local.get<Record<string, unknown>>([coverageKey]);
-    return readScanCoverage(data[coverageKey]);
-}
-
-
-async function preparePageCoverage(slot: string, accountId: string | null, providerId = 'gemini'): Promise<ScanCoverage> {
-    if (!isAccountId(accountId) || slot !== accountId) throw new TypeError('Coverage requires its Registry account UUID');
-    return withConversationLock(async () => {
-        await assertSchemaWritable();
-        const current = await getScanCoverage(slot);
-        if (current && current.accountId === accountId && current.providerId === providerId) return current;
-        const { coverageKey } = getStorageKeys(slot);
-        const raw = (await chrome.storage.local.get<Record<string, unknown>>([coverageKey]))[coverageKey];
-        const resetAt = current?.resetAt ?? (isObjectRecord(raw) && typeof raw.resetAt === 'number' ? raw.resetAt : 0);
-        const next: ScanCoverage = { version: 4, providerId, revision: current?.revision ?? 1, generation: crypto.randomUUID(),
-            resetAt, accountId, initialized: false, historyComplete: false, streams: {}, complete: false,
-            baseline: null, lastStatus: null, activeRunId: null };
-        await chrome.storage.local.set({ [coverageKey]: next });
-        return next;
-    });
-}
-
-/** Page data must have been fully persisted before entering this transaction. */
-async function recordPageCoverage<T>(slot: string, page: PageObservation<T>, context: ScanCoverage,
-    requireOrder: boolean, expectedStreams: readonly string[], runId?: string, canCommit?: () => boolean): Promise<boolean> {
-    return withConversationLock(async () => {
-        await assertSchemaWritable();
-        const current = await getScanCoverage(slot);
-        if (!current || current.generation !== context.generation || current.providerId !== page.providerId
-            || page.accountId === null || current.accountId !== page.accountId || canCommit?.() === false
-            || runId !== undefined && current.activeRunId !== runId
-            || !Number.isFinite(page.requestedAt) || page.requestedAt <= current.resetAt) return false;
-        const next = advanceIndexCoverage(slot, current, page, requireOrder, expectedStreams, runId);
-        if (next === current) return true;
-        if (canCommit?.() === false) return false;
-        await chrome.storage.local.set({ [getStorageKeys(slot).coverageKey]: next });
-        return true;
-    });
-}
-
-/** Query the same committed page chain; passive observations alone never complete a scan. */
-async function hasScanCoverageOverlap<T>(slot: string, runId: string, head: PageObservation<T>,
-    previous: StreamCoverage, canCommit?: () => boolean): Promise<boolean> {
-    return withConversationLock(async () => {
-        const current = await getScanCoverage(slot);
-        if (!current || current.activeRunId !== runId
-            || current.accountId !== head.accountId || current.providerId !== head.providerId
-            || head.requestedAt <= current.resetAt || canCommit?.() === false) return false;
-        return indexCoverageConnects(slot, current, head, previous);
-    });
-}
-
-/** Freeze the previous coverage and invalidate older active runs under the cross-tab lock. */
-async function beginScanCoverage(slot: string, accountId: string | null): Promise<ScanCoverageRun> {
-    const prepared = await preparePageCoverage(slot, accountId, 'gemini');
-    return withConversationLock(async () => {
-        await assertSchemaWritable();
-        const previous = await getScanCoverage(slot);
-        if (!previous || previous.generation !== prepared.generation) throw new Error('Coverage was cleared or account changed');
-        const runId = crypto.randomUUID();
-        const coverage = { ...previous, revision: previous.revision + (previous.activeRunId || previous.lastStatus ? 1 : 0), activeRunId: runId };
-        await chrome.storage.local.set({ [getStorageKeys(slot).coverageKey]: coverage });
-        return { runId, previous: (previous.initialized || previous.lastStatus !== null) ? previous : null };
-    });
-}
-
-async function isScanCoverageCurrent(slot: string, runId: string): Promise<boolean> {
-    return (await getScanCoverage(slot))?.activeRunId === runId;
-}
-
-async function finishScanCoverage(slot: string, runId: string, status: ScanStatus,
-    baseline: ScanCoverageBaseline | null = null, _visibleIds?: readonly string[], canCommit?: () => boolean): Promise<boolean> {
-    return withConversationLock(async () => {
-        await assertSchemaWritable();
-        const current = await getScanCoverage(slot);
-        if (!current || current.activeRunId !== runId || canCommit?.() === false) return false;
-        if (status === 'complete' && (!current.historyComplete || !current.complete
-            || !['pinned', 'recent'].every(id => current.streams[id]?.historyComplete === true
-                && indexCoverageExhausted(slot, current, id)))) {
-            throw new Error('Natural traversal ended without durable complete coverage');
-        }
-        if (status === 'up_to_date' && (current.streams.recent?.orderingInvalidated || !current.streams.recent?.range)) {
-            throw new Error('Incremental completion requires trusted activity coverage');
-        }
-        const { coverageKey } = getStorageKeys(slot);
-        const exhaustive = status === 'complete' && baseline !== null;
-        const next: ScanCoverage = { ...current, activeRunId: null, lastStatus: status,
-            baseline: exhaustive ? baseline : current.baseline };
-        const write: Record<string, unknown> = { [coverageKey]: next };
-        if (canCommit?.() === false) return false;
-        await chrome.storage.local.set(write);
-        return true;
-    });
-}
-
 async function setHasImportedTakeout(imported: boolean = true): Promise<void> {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
     try {
@@ -458,19 +319,14 @@ function conversationRepository(scope: ConversationScope): ConversationRepositor
 }
 
 export {
-    getAccount, listAccounts, getOrCreateAccount,
     conversationRepository,
-    ingestConversation,
     normId,
     getStorageKeys,
     getConversations,
     setConversations,
-    setNativeConversations,
     transactConversations,
-    updateConversation,
     removeConversation,
     clearConversations,
-    clearAllDetails,
     reconcileConversations,
     getExportedIds,
     saveExportRecord,
@@ -479,13 +335,6 @@ export {
     removeExportRecords,
     getLastSync,
     setLastSync,
-    getScanCoverage,
-    preparePageCoverage,
-    recordPageCoverage,
-    hasScanCoverageOverlap,
-    beginScanCoverage,
-    isScanCoverageCurrent,
-    finishScanCoverage,
     getDevMode,
     setDevMode,
     isTourCompleted,
@@ -510,19 +359,14 @@ export {
 
 export const StorageService = {
     getConversationAvailability, setConversationAvailability,
-    getAccount, listAccounts, getOrCreateAccount,
     conversationRepository,
-    ingestConversation,
     normId,
     getStorageKeys,
     getConversations,
     setConversations,
-    setNativeConversations,
     transactConversations,
-    updateConversation,
     removeConversation,
     clearConversations,
-    clearAllDetails,
     reconcileConversations,
     getExportedIds,
     saveExportRecord,
@@ -531,13 +375,6 @@ export const StorageService = {
     removeExportRecords,
     getLastSync,
     setLastSync,
-    getScanCoverage,
-    preparePageCoverage,
-    recordPageCoverage,
-    hasScanCoverageOverlap,
-    beginScanCoverage,
-    isScanCoverageCurrent,
-    finishScanCoverage,
     getDevMode,
     setDevMode,
     isTourCompleted,

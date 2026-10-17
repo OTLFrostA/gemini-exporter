@@ -33,7 +33,7 @@ export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine | null;
     scraper?: typeof DomScraper | null;
     assets?: typeof AssetFetcher | null;
-    storage?: Partial<Pick<typeof StorageService, 'setConversationAvailability' | 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
+    storage?: Partial<Pick<typeof StorageService, 'setConversationAvailability' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
 }
 
 export function init({

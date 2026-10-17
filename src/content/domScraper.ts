@@ -4,7 +4,7 @@ import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIn
 import type { ContentConversationDetail, DetailClient } from '../types/detailTransport.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import type { ApplicationProvider } from './providerCompatibility.js';
-import { ingestConversation } from '../core/storage/conversationIngest.js';
+import { ingestConversation } from '../core/domain/ingestion.js';
 import { resolveCurrentAccount, isCurrentAccount } from './accountContext.js';
 import type { DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { parseGeminiDomList } from '../core/parsers/gemini/dom/parseIndex.js';
@@ -34,7 +34,7 @@ export async function contentFetchChatDetail(id: string, expectedAccountId?: str
     if (!account || expectedAccountId && expectedAccountId !== account.accountId) throw new Error('Requested account does not match this tab');
     const registered = await getAccount(account.accountId);
     if (!registered) throw new Error('Account no longer exists');
-    const accept = (detail: DomDetail) => ingestConversation(account.accountId, detail, [], 'detail', () => isCurrentAccount(account)).then(accepted => ({ ...detail, ...accepted }));
+    const accept = (detail: DomDetail) => ingestConversation(account.accountId, detail, [], () => isCurrentAccount(account)).then(accepted => ({ ...detail, ...accepted }));
     const url = `https://gemini.google.com/app/${id}`;
     let res: Response;
     try {
@@ -84,7 +84,7 @@ export async function acquireCurrentConversation(cid: string, expectedAccountId?
     const accept = async (detail: ContentConversationDetail) => {
         const fresh = await resolveCurrentAccount();
         if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during acquisition');
-        return ingestConversation(account.accountId, detail, [], 'detail', () => isCurrentAccount(account));
+        return ingestConversation(account.accountId, detail, [], () => isCurrentAccount(account));
     };
     const provider = Object.hasOwn(options, 'clientClass') ? null : resolveProvider();
     if (options.clientClass) {

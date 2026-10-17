@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
-import type { ConversationRecordInput } from '../src/core/parsers/legacyStorage/conversationRecord.js';
+import type { ConversationRecordInput } from './helpers/recordFixture/conversationRecord.js';
 import type { ConversationParseResult } from '../src/core/parsers/contracts.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
 

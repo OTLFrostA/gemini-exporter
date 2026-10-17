@@ -1,5 +1,5 @@
 import { bindFixture } from './domainFixture.js';
-import { ingestConversation } from '../../src/core/storage/conversationIngest.js';
+import { ingestConversation } from '../../src/core/domain/ingestion.js';
 import { isResourceConversationParseResult } from '../../src/core/parsers/parsingResult.js';
 import { BatchWorker, type BatchWorkerModule } from '../../src/core/engine/export/batchWorker.js';
 

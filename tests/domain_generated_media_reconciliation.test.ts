@@ -10,7 +10,7 @@ import type { ChatMessage } from '../src/types/conversation.js';
 import type { DomainGeneratedMediaIdentity } from '../src/core/domain/conversationDetail.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 import { composeFixture } from './helpers/documentFixture.js';
-import { supplementLegacyGeneratedMedia } from '../src/core/parsers/legacyStorage/generatedMediaReconciliation.js';
+import { supplementLegacyGeneratedMedia } from './helpers/recordFixture/generatedMediaReconciliation.js';
 
 const metadata = { id: 'media-chat', title: 'Generated media', timestamp: 1700000000123 };
 const requestId = 'abcd1234abcd1234';
@@ -84,8 +84,8 @@ for (const [ambiguity, messages] of [
         assert.ok(domain.detail.messages.slice(0, messages.length).every(m => !m.attachmentIds?.length));
         assert.equal(domain.detail.messages.length, messages.length + 1, 'unresolved media is retained separately');
         assert.equal(messageAssets(domain, domain.detail.messages.length - 1)?.[0].name, 'cat.png');
-        assert.ok(domain.detail.messages.slice(0, messages.length).every(m => !m.generation));
-        assert.deepEqual(domain.detail.messages.at(-1)?.generation, { mediaKind: 'image', outputCount: 1 });
+        assert.ok(domain.detail.messages.slice(0, messages.length).every(m => !('generation' in m)));
+        assert.equal('generation' in (domain.detail.messages.at(-1) ?? {}), false);
     });
 }
 
@@ -165,7 +165,7 @@ test('Unknown multi-image ordinals cannot suppress detached media using request 
     ] });
     assert.equal(domain.detail.messages.length, 1);
     assert.deepEqual(messageAssets(domain, 0)?.map(a => a.name), ['offline-a.png', 'offline-b.png', 'online.jpg']);
-    assert.deepEqual(domain.detail.messages[0].generation, { mediaKind: 'image', outputCount: 2 });
+    assert.equal('generation' in (domain.detail.messages[0] ?? {}), false);
     assert.equal(collectDocumentResources((await composeFixture(domain)).document).referencedIds.size, 3);
     assert.deepEqual(conversation, original);
 });

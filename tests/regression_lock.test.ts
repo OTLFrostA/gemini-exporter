@@ -6,7 +6,7 @@ import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { extractImages } = require('../src/core/parsers/legacyStorage/attachments.js');
+const { extractImages } = require('./helpers/recordFixture/attachments.js');
 const { decodeGeminiDetail } = require('../src/core/parsers/gemini/rpc/detailDecoder.js');
 const { isRealTitle } = require('../src/core/parsers/gemini/rpc/extractors.js');
 export {};

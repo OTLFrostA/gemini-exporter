@@ -1,3 +1,4 @@
+import { listAccounts, getAccount, getOrCreateAccount } from '../../core/api/accountRegistry.js';
 import type { TakeoutControllerContract } from '../../types/ui.js';
 import TakeoutEngine from '../../core/engine/takeoutEngine.js';
 import { __resolveModule } from '../../core/utils/moduleOverrides.js';
@@ -32,9 +33,9 @@ export async function handleTakeoutImport(
         const Store = getStore();
         const Storage = getStorage();
         const selected = Store?.getCurrentAccountId();
-        const available = await Storage.listAccounts('gemini');
-        const account = !available.length ? await Storage.getOrCreateAccount('gemini', 'default')
-            : selected ? await Storage.getAccount(selected) : null;
+        const available = await listAccounts('gemini');
+        const account = !available.length ? await getOrCreateAccount('gemini', 'default')
+            : selected ? await getAccount(selected) : null;
         if (!account || account.providerId !== 'gemini') throw new Error('Select a Gemini account before importing Takeout');
         const slot = account.id;
         if (selected !== slot) Store?.setCurrentAccountId(slot);

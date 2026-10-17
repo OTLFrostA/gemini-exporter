@@ -1,3 +1,5 @@
+import { listAccounts } from '../../core/api/accountRegistry.js';
+import { ingestIndexes } from '../../core/domain/ingestion.js';
 import { getConversationAvailability } from '../../core/storage/conversationAvailability.js';
 import { isAccountId, type Account } from '../../core/domain/accountRegistry.js';
 import type { DomainConversationIndex } from '../../types/conversation.js';
@@ -75,7 +77,7 @@ export async function loadStore(accountOverride?: string): Promise<{
     const ticket = ++loadGeneration;
     const snapshot = () => ({ conversations, exportedIds, accountId, accounts });
     const storage = getStorage();
-    const available: Account[] = await storage.listAccounts();
+    const available: Account[] = await listAccounts();
     if (ticket !== loadGeneration) return snapshot();
     if (!available.length) {
         if (accountOverride) throw new Error('Selected account does not exist');
@@ -105,7 +107,7 @@ export async function getLastSync(slot?: string): Promise<{ timestamp: number | 
 export async function saveConversations(slot: string, list: DomainConversationIndex[]): Promise<void> {
     const s = slot || accountId;
     const storage = getStorage();
-    if (storage?.setConversations) await storage.setConversations(s, list);
+    await ingestIndexes(s, list);
     if (s === accountId) setConversations(list);
 }
 
@@ -129,8 +131,7 @@ export async function clearAll(slot: string): Promise<void> {
     const storage = getStorage();
     if (storage?.clearConversations) {
         await storage.clearConversations(s);
-    } else if (storage?.setConversations) {
-        await storage.setConversations(s, []);
+
     }
     if (s === accountId) {
         setConversations([]);

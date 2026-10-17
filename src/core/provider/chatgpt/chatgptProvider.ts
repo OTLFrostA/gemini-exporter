@@ -1,4 +1,4 @@
-import { ingestConversation } from '../../storage/conversationIngest.js';
+import { ingestIndexes, ingestConversation } from '../../domain/ingestion.js';
 import type { ProviderConversationItem } from '../aiProvider.js';
 import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
 /**
@@ -115,6 +115,9 @@ export class ChatGPTProvider implements AIProvider {
     }
 
     async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<ProviderConversationItem>> {
+        const accountId = options?.accountId ?? (await getOrCreateAccount(this.id, 'default')).id;
+        const account = await getAccount(accountId);
+        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
         const limit = 100;
         const maxPages = typeof options?.maxPages === 'number' && options.maxPages > 0
             ? Math.floor(options.maxPages)
@@ -129,6 +132,13 @@ export class ChatGPTProvider implements AIProvider {
                 `/conversations?offset=${offset}&limit=${limit}`,
             ));
             const batch = result.conversations;
+            if (options?.canCommit?.() === false) throw new Error('ChatGPT list cancelled');
+            await ingestIndexes(accountId, batch.map(item => ({ key: { accountId, conversationId: item.id },
+                ...(item.title && item.titleSource ? { title: item.title, titleSource: item.titleSource as 'provider' } : {}),
+                ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
+                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) })), { canCommit: options?.canCommit });
+            const decision = await options?.onPageBatch?.({ page: page + 1, hasMore: result.nextCursor !== null, count: batch.length });
+            if (decision?.shouldStop) break;
             all.push(...batch);
             if (typeof result.total === 'number') total = result.total;
             cursor = result.nextCursor ?? null;
@@ -137,7 +147,6 @@ export class ChatGPTProvider implements AIProvider {
                 added: batch.length,
                 total: all.length,
                 hasMore: true,
-                batch,
             });
             if (batch.length === 0) {
                 exhaustive = true;

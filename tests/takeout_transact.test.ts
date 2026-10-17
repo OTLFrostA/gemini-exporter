@@ -1,3 +1,4 @@
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -12,12 +13,12 @@ const parsed = (id: string, titleSource = 'takeout') => historicalFixture({ id, 
     messages: [{ role: 'user', content: 'Question' }] });
 
 test('Takeout commits once through ingestion; UI refresh retains concurrent writes and authoritative metadata', async () => {
-    await storage.ingestConversation('10000000-0000-4000-8000-000000000001', parsed('online', 'rpc'));
+    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', parsed('online', 'rpc'));
     let visible: unknown;
     __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001', setConversations: (list: unknown) => { visible = list; } });
     __setModuleOverride('StorageService', { ...storage, transactConversations: () => assert.fail('UI must not merge or publish imported metadata') });
     __setModuleOverride('TakeoutEngine', { parseTakeoutZip: async () => {
-        await Promise.all(['online', 'imported', 'concurrent'].map(id => storage.ingestConversation('10000000-0000-4000-8000-000000000001', parsed(id), [], 'takeout')));
+        await Promise.all(['online', 'imported', 'concurrent'].map(id => DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', parsed(id), [])));
         return { conversations: (await storage.getConversations('10000000-0000-4000-8000-000000000001')).filter(row => row.key.conversationId !== 'concurrent'), totalMediaCount: 0 };
     } });
     let added = -1;
@@ -35,7 +36,7 @@ test('Takeout refresh stays bound to the importing account when selection change
     __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => visibleSlot, setConversations: () => assert.fail('must not refresh another account') });
     __setModuleOverride('TakeoutEngine', { parseTakeoutZip: async (_file: unknown, _progress: unknown, slot: string) => {
         assert.equal(slot, '10000000-0000-4000-8000-000000000001');
-        await storage.ingestConversation(slot, parsed('imported'), [], 'takeout');
+        await DomainAdmission.ingestConversation(slot, parsed('imported'), []);
         visibleSlot = '10000000-0000-4000-8000-000000000002';
         return { conversations: await storage.getConversations(slot), totalMediaCount: 0 };
     } });
@@ -46,6 +47,14 @@ test('Takeout refresh stays bound to the importing account when selection change
 
 for (const initial of ['', '10000000-0000-4000-8000-000000000002']) test(`Takeout without Gemini accounts selects Gemini default from selection ${initial || 'empty'}`, async () => {
     const fallback = { id: '10000000-0000-4000-8000-000000000003', providerId: 'gemini', providerAccountId: 'default' };
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = (async (message: Record<string, unknown>) => {
+        if (message.action !== 'accountRegistry') return send(message);
+        if (message.command === 'list') { assert.equal(message.providerId, 'gemini'); return { ok: true, value: [] }; }
+        if (message.command === 'get') assert.fail('unrelated provider selection is not an import target');
+        assert.equal(message.providerId, 'gemini'); assert.equal(message.providerAccountId, 'default');
+        return { ok: true, value: fallback };
+    }) as typeof chrome.runtime.sendMessage;
     let selected = initial;
     let importedInto = '';
     __setModuleOverride('ConversationsStore', {

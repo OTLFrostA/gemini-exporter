@@ -1,7 +1,7 @@
 import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseLegacyConversationIndex } from '../src/core/parsers/legacyStorage/parseIndex.js';
+import { parseLegacyConversationIndex } from './helpers/recordFixture/parseIndex.js';
 import { mergeConversationIndex } from '../src/core/domain/conversationIndex.js';
 
 for (const source of ['openai', 'sniff', 'api-detail', 'rpc', 'takeout', 'dom'] as const) {

@@ -1,26 +1,26 @@
-import { semanticTitleSource } from '../shared/parseIndexMetadata.js';
-import { contentQuality, type ContentQuality } from '../../domain/quality.js';
-import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
-import { normalizeConversationTimes } from '../../domain/time.js';
+import { semanticTitleSource } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
+import { contentQuality, type ContentQuality } from '../../../src/core/parsers/qualityEvidence.js';
+import { parseIndexMetadata } from '../../../src/core/parsers/shared/parseIndexMetadata.js';
+import { normalizeConversationTimes } from '../../../src/core/domain/time.js';
 import { structuredBodyAttachments } from './contentAdapter.js';
-import { closeLegacyCitations } from '../shared/resources/domainCitationAdapter.js';
-import { closeDomainResources } from '../shared/resources/domainResourceAdapter.js';
-import { resolveTitle, isTitleSource } from '../../domain/titleAuthority.js';
-import { validateParserDomain } from '../../domain/runtimeValidation.js';
-import type { BlockNode } from '../../domain/content/blocks.js';
-import { parseImportedBody } from '../shared/importedContentAdapter.js';
-import { parseGeminiBody, parseLegacyReasoning } from '../gemini/shared/contentAdapter.js';
+import { closeLegacyCitations } from '../../../src/core/parsers/shared/resources/domainCitationAdapter.js';
+import { closeDomainResources } from '../../../src/core/parsers/shared/resources/domainResourceAdapter.js';
+import { resolveTitle, isTitleSource } from '../../../src/core/domain/titleAuthority.js';
+import { validateParserDomain } from '../../../src/core/domain/runtimeValidation.js';
+import type { BlockNode } from '../../../src/core/domain/content/blocks.js';
+import { parseImportedBody } from '../../../src/core/parsers/shared/importedContentAdapter.js';
+import { parseGeminiBody, parseLegacyReasoning } from '../../../src/core/parsers/gemini/shared/contentAdapter.js';
 import { supplementLegacyGeneratedMedia } from './generatedMediaReconciliation.js';
 import type { ConversationRecordInput, ConversationRecordMessage, ConversationRecordAttachment } from './conversationRecord.js';
-import type { ConversationParseContext } from '../contracts.js';
-import type { ResourceConversationParseResult } from '../parsingResult.js';
-import type { Diagnostic } from '../../diagnostics/diagnostic.js';
-import { isObjectRecord } from '../../utils/messageResponses.js';
+import type { ConversationParseContext } from '../../../src/core/parsers/contracts.js';
+import type { ResourceConversationParseResult } from '../../../src/core/parsers/parsingResult.js';
+import type { Diagnostic } from '../../../src/core/diagnostics/diagnostic.js';
+import { isObjectRecord } from '../../../src/core/utils/messageResponses.js';
 import type {
     DomainCitation,
     DomainConversationDetail,
     DomainMessage,
-} from '../../domain/conversationDetail.js';
+} from '../../../src/core/domain/conversationDetail.js';
 
 function copyAttachment(value: ConversationRecordAttachment): ConversationRecordAttachment {
     return { ...value, ...(value.generation ? { generation: { ...value.generation } } : {}) };
@@ -140,7 +140,6 @@ export function parseConversationRecord(conversation: ConversationRecordInput, o
         }
         return [{
             ...message,
-            ...(message.generation ? { generation: { ...message.generation } } : {}),
             ...(message.attachments ? { attachments: message.attachments.map(copyAttachment) } : {}),
             ...(message.images ? { images: message.images.map(copyAttachment) } : {}),
         }];

@@ -1,4 +1,4 @@
-import { contentQuality } from '../../../domain/quality.js';
+import { contentQuality } from '../../../parsers/qualityEvidence.js';
 import { parseIndexMetadata } from '../../shared/parseIndexMetadata.js';
 import { decodeTakeoutHtml, decodeTakeoutHtmlAsync, type TakeoutActivityEvidence } from './decodeHtml.js';
 import type { ConversationParseContext } from '../../contracts.js';
@@ -109,12 +109,14 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         for (const role of ['user', 'assistant'] as const) {
             const content = role === 'user' ? (activity.hasExplicitPrompt ? activity.promptText : '') : activity.responseHtml;
             const references = activity.media.filter(media => media.owner === role);
-            if (!content && !references.length && !(role === 'assistant' && generation)) continue;
+            if (!content && !references.length) {
+                if (role === 'assistant' && generation) diagnostics.push({ severity: 'info', code: 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED', message: 'Source generation activity has no authored content or resource' });
+                continue;
+            }
             const attachments = references.map(ref => attachmentOf(ref, role === 'assistant' ? generation : undefined));
             messages.push({ role, content: parseGeminiBody(content, undefined, { diagnostics: contentDiagnostics,
                 sourceRef: { providerId: 'gemini', locator: `blocks[${activity.blockIndex}].${role}` } }),
-                ...(activity.timestamp !== null ? { timestamp: activity.timestamp } : {}),
-                ...(role === 'assistant' && generation ? { generation: { mediaKind: 'image' as const, outputCount: generation.imageCount } } : {}) });
+                ...(activity.timestamp !== null ? { timestamp: activity.timestamp } : {}) });
             groups.push({ input: { attachments } });
             if (role === 'assistant' && generation && !attachments.some(a => a.isGenerated)) diagnostics.push({ severity: 'warning', code: 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED', message: 'Activity records image generation without an explicit archive resource reference' });
         }

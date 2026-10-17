@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { indexFixture } from './helpers/indexFixture.js';
-import { mergeConversation } from '../src/core/utils/mergeUtils.js';
+import { mergeConversation } from '../src/core/domain/indexCollection.js';
 
 test('index activity time is monotonic without a source-specific merge option', () => {
     const old = indexFixture({ id: 'source-independent', title: 'Stored', titleSource: 'rpc', updatedAt: 2000 });

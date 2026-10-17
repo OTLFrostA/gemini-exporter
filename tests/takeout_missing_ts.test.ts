@@ -4,7 +4,7 @@ import { indexFixture } from './helpers/indexFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as TakeoutEngine from '../src/core/engine/takeoutEngine.js';
-import { mergeConversation } from '../src/core/utils/mergeUtils.js';
+import { mergeConversation } from '../src/core/domain/indexCollection.js';
 
 const htmlNoTimestamp = `
 <html><body>

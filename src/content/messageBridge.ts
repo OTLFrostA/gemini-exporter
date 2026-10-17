@@ -1,18 +1,19 @@
+import { ingestRpcList, ingestPageObservation } from './geminiIndexCapture.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
 import type { PageObservation } from '../core/domain/pageObservation.js';
-import { ingestConversation } from '../core/storage/conversationIngest.js';
+import { ingestConversation } from '../core/domain/ingestion.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import type { GeminiProviderConversationItem } from '../core/provider/gemini/geminiContracts.js';
-import type { RpcListIngestResult } from './syncEngine.js';
+import type { RpcListIngestResult } from './geminiIndexCapture.js';
 import { contentContext } from './contentContext.js';
 import { parseList } from '../core/parsers/gemini/rpc/parseList.js';
 import { GeminiProtocol, CrossWorldEvents } from '../core/protocol/protocol.js';
 import { LiveSaveObserver } from './liveSaveObserver.js';
 import { extractConversationIdFromUrl, normId } from '../core/utils/pathUtils.js';
-import { TITLE_TIER_RANK, normalizeReliableTitleSource } from '../core/utils/titleUtils.js';
+import { normalizeReliableTitleSource } from '../core/domain/titleAuthority.js';
 import type { TitleSource } from '../types/index.js';
 import { registerCleanup } from './cleanupRegistry.js';
 
@@ -108,6 +109,9 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                                 account.accountId, truncated, requestedAt), account.accountId);
                         } else if (_deps.ingestRpcList) {
                             await _deps.ingestRpcList(listRes.conversations, account.accountId, requestedAt, canCommit);
+                        } else {
+                            await ingestPageObservation(geminiListObservation(listRes, listRequest ?? null,
+                                account.accountId, truncated, requestedAt), account.accountId);
                         }
                     }
                 } catch (e) {
@@ -123,7 +127,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                     const detailRes = native.conversation;
                     if (detailRes && detailRes.index.key.conversationId) {
                         if (!canCommit()) return;
-                        await ingestConversation(account.accountId, native, [], 'detail', canCommit);
+                        await ingestConversation(account.accountId, native, [], canCommit);
                     }
                 } catch (e) {
                     if (contentContext.isDevMode()) console.debug('[MessageBridge] parseDetail err', e);

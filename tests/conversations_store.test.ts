@@ -1,3 +1,4 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { indexFixture } from './helpers/indexFixture.js';
 export {};
 const test = require('node:test');
@@ -9,12 +10,15 @@ const ConversationsStore = require('../src/ui/state/conversationsStore.js');
 let previousConversations: any[];
 let previousExportedIds: Record<string, any>;
 let previousSlot: string;
+let previousChrome: typeof chrome;
 test.beforeEach(() => {
+    previousChrome = globalThis.chrome; globalThis.chrome = withRegistry({}) as typeof chrome;
     previousConversations = ConversationsStore.getConversations();
     previousExportedIds = ConversationsStore.getExportedIds();
     previousSlot = ConversationsStore.getCurrentAccountId();
 });
 test.afterEach(() => {
+    globalThis.chrome = previousChrome;
     ConversationsStore.setConversations(previousConversations);
     ConversationsStore.setExportedIds(previousExportedIds);
     ConversationsStore.setCurrentAccountId(previousSlot);

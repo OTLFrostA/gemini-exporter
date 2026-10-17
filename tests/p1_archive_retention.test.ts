@@ -1,3 +1,5 @@
+import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { sourceIndex } from './helpers/domainFixture.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -7,7 +9,7 @@ import { indexFixture } from './helpers/indexFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { saveDomainConversation, __clearDomainMemory, getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory, getDomainResource, storageIdentity } from '../src/core/storage/domain/domainStore.js';
 import { getDomainConversationResult } from '../src/core/storage/domain/nativePersistence.js';
 import { resolveChat, fetchChatDetail } from '../src/core/engine/export/batchWorker.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
@@ -21,7 +23,7 @@ test('cloud-deleted archive exports durable body and resource bytes without fetc
             { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived question' }] }] },
             { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Archived answer' }, { type: 'image', assetId: 'image' }] }], attachmentIds: ['image'] }
         ] } }), diagnostics: [], resourceHints: {}, acquisitionHints: {} };
-    await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
+    await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [source]);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: 'image', bytes: new Uint8Array([1, 2, 3]) }]);
     await saveDomainConversation('10000000-0000-4000-8000-000000000002', historicalFixture({ id: 'retained', messages: [{ role: 'user', content: 'Other account' }] }, { account: fixtureAccount('gemini', '10000000-0000-4000-8000-000000000002') }));
     let deleted = false; let fetched = false;

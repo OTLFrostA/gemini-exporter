@@ -62,7 +62,6 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     await optionsPage.evaluate(async () => {
       await chrome.storage.local.set({
         ['conversations_10000000-0000-4000-8000-000000000001']: ([]).map(canonicalIndexFixture),
-        ['scan_checkpoint_10000000-0000-4000-8000-000000000001']: 9999999999999,
         ['exported_10000000-0000-4000-8000-000000000001']: {}
       });
       if (typeof window.__workbenchLoadStore === 'function') {
@@ -70,13 +69,13 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       }
     });
 
-    // 3. The single sync button must scan despite an untrusted legacy checkpoint
+    // 3. The single sync button scans the Recent stream.
     await optionsPage.click('#btnSyncAll');
 
-    // 4. The pinned chat exists only in its own RPC chain.
+    // 4. Ordinary Scan All admits Recent; the separate pinned item stays absent.
     const listItems = optionsPage.locator('#list .item');
-    await expect(listItems).toHaveCount(4, { timeout: 10000 });
-    await expect(optionsPage.locator('[data-chat-id="scan_pinned"]')).toContainText('置顶的较早会话');
+    await expect(listItems).toHaveCount(3, { timeout: 10000 });
+    await expect(optionsPage.locator('[data-chat-id="scan_pinned"]')).toHaveCount(0);
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
 
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('量子计算与超导量子比特');
@@ -88,28 +87,24 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001', 'scan_coverage_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
     const convs = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []) as any[];
-    expect(convs.length).toBe(4);
-    expect(storageData['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ version: 4, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
-      activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
+    expect(convs.length).toBe(3);
+    expect(storageData['scan_coverage_10000000-0000-4000-8000-000000000001'].recent.range.head.time).toBe(1700000200000);
     const oldChat = convs.find((c: any) => c.key.conversationId === 'scan_001');
     expect(oldChat.title).toBe('量子计算与超导量子比特');
     expect(oldChat.updatedAt, 'initial source activity time comes from list RPC').toBe(1700000000000);
-    await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 4 conversations|正在追踪 4 条对话/);
+    await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 3 conversations|正在追踪 3 条对话/);
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
     // Renaming an old item does not change its timestamp or move it ahead of the head.
     mockListItems[2][1] = '改名后的老会话';
     await optionsPage.click('#btnSyncAll');
     await expect(optionsPage.locator('#btnSyncAll')).toBeEnabled();
-    await expect(listItems).toHaveCount(4);
+    await expect(listItems).toHaveCount(3);
     await expect(optionsPage.locator('[data-chat-id="scan_001"]')).toContainText('改名后的老会话');
     const repeated = await optionsPage.evaluate(async () => chrome.storage.local.get(['scan_coverage_10000000-0000-4000-8000-000000000001', 'conversations_10000000-0000-4000-8000-000000000001']));
-    expect(repeated['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({
-      complete: true, revision: 2, activeRunId: null,
-      baseline: { headTimestamp: 1700000200000 },
-    });
+    expect((repeated['scan_coverage_10000000-0000-4000-8000-000000000001'] as { recent: { range: { head: { time: number } } } }).recent.range.head.time).toBe(1700000200000);
     expect((repeated['conversations_10000000-0000-4000-8000-000000000001'] as any[]).find(c => c.key.conversationId === 'scan_001').updatedAt,
       'renaming an old chat must not advance its source activity version').toBe(oldChat.updatedAt);
-    expect(requestedKinds).toEqual(['pinned', 'recent', 'pinned', 'recent']);
+    expect(requestedKinds).toEqual(['recent', 'recent']);
   });
 });
 
