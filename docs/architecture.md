@@ -26,7 +26,7 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 本轮 v2 的 L2 以 [Domain 模型](domain-model.md) 与 [Domain 接纳与存储](domain-storage.md) 为当前实现说明；下方全景图中的其他模块尚未全部进行 v2 重构。
 
-L1 Parser 解释来源，Client / Sniffer / Import 提交规范化事实。`core/domain/` 唯一拥有 Account 匹配与 UUID 分配、Index 标题和时间合并、Detail 整体快照选择、内部引用闭合及 StreamCoverage 判断。L2 接纳操作调用 Storage 读写端口；数据库锁、事务和资源 bytes 由 Storage 管理。Application 只控制 ScanRun、取消、停止与进度，不转交主动列表的待接纳内容。
+L1 Parser 解释来源，Client / Sniffer / Import 提交规范化事实。`core/domain/` 唯一拥有 Account 匹配与 UUID 分配、Index 标题和时间合并、Detail 整体快照选择、内部引用闭合及 StreamCoverage 判断。L2 接纳操作调用 Storage 读写端口；数据库锁与事务由 Storage 管理；临时资源 bytes 应由 Acquisition/Export 管理，当前过渡上下文的迁移缺口见 [Domain 接纳与存储](domain-storage.md#pending-cross-module-task-acquisition--export-resource-lifecycle)。Application 只控制 ScanRun、取消、停止与进度，不转交主动列表的待接纳内容。
 
 长期会话事实只有 Account、Index、Detail（内嵌 Assets）；独立列表流 Coverage 只含 `range`。UUID 归属贯穿 L1 接纳、Storage 读取和下游只读装配。标题与活动时间只由 Index 维护，Detail 的 `savedAt` 只表示来源版本。Index-only 不制造正文；partial/unknown 不覆盖旧 complete，完整新快照可以整体变短并替换资源引用图。
 

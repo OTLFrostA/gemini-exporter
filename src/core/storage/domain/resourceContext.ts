@@ -7,6 +7,8 @@ import type { DomainStorageIdentity, StoredDomainResource } from './contracts.js
 import { needsDomainBroker, callDomainBroker, encodeBytes, decodeBytes, readStoredAcquisitionHints } from './transport.js';
 
 interface ResourceContext { assets: DomainConversationDetail['assets']; hints: ResourceAcquisitionHints; resources: StoredDomainResource[] }
+// Transitional: no job-end cleanup. Acquisition / Export must own and release this
+// context; see docs/domain-storage.md, Pending cross-module task.
 const contexts = new Map<string, ResourceContext>();
 // Extension pages share the background execution context with content-script acquisition.
 function useResourceBroker(): boolean {

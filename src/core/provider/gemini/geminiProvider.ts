@@ -129,9 +129,10 @@ export class GeminiProvider implements GeminiProviderContract {
         const account = await getAccount(accountId);
         if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
         const detail = await client.getConversationDetail(conversationId, targetSid, account);
-        await ingestDetail(accountId, conversationId, detail.conversation.detail, detail.conversation.index);
-        await cacheAcquiredResources(storageIdentity(this.id, accountId, conversationId), detail.conversation.detail.assets, detail.acquisitionHints);
-        const accepted = await getDomainConversationResult(accountId, conversationId, this.id);
+        const id = detail.conversation.index.key.conversationId;
+        await ingestDetail(accountId, id, detail.conversation.detail, detail.conversation.index);
+        await cacheAcquiredResources(storageIdentity(this.id, accountId, id), detail.conversation.detail.assets, detail.acquisitionHints);
+        const accepted = await getDomainConversationResult(accountId, id, this.id);
         if (!accepted) throw new Error('Accepted Detail missing');
         return { ...detail, ...accepted, diagnostics: detail.diagnostics };
     }

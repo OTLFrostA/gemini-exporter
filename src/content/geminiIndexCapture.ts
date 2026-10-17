@@ -33,7 +33,6 @@ export interface RpcListIngestResult {
 
 const emptyIngest = (rejected = 0): RpcListIngestResult => ({ count: 0, accepted: 0, rejected, persisted: 0 });
 let __storageWriteQueue = Promise.resolve<RpcListIngestResult>(emptyIngest());
-let __lastKnownCount = 0;
 
 
 export function upsertConversations(incomingItems: readonly unknown[], source: string, targetSlot: string | null = null): Promise<number> {
@@ -107,11 +106,10 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
                 return true;
             });
             if (!commit()) throw new Error('Account changed before index ingestion');
-            const before = await getConversations(slot);
             await ingestIndexes(slot, eligible.map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })),
                 page && eligible.length === incomingItems.length ? page : undefined);
+            // Read the accepted total for the UI, without reconstructing L2's write decision.
             const list = await getConversations(slot);
-            const written = JSON.stringify(before) !== JSON.stringify(list);
             if (kind === 'rpc-list') for (const index of eligible) {
                 if (!confirmedDeleted.get(slot)?.has(index.key.conversationId) || recovered.has(index.key.conversationId)) await Storage.setConversationAvailability?.(slot, index.key.conversationId, 'available');
             }
@@ -120,13 +118,6 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
             const mergedLength = list.length;
             const result: RpcListIngestResult = { count: mergedLength, accepted,
                 rejected: incomingItems.length - accepted, persisted: accepted };
-            if (!written) {
-                if (__lastKnownCount !== mergedLength) {
-                    if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
-                    __lastKnownCount = mergedLength;
-                }
-                return result;
-            }
 
             await Storage.setLastSync(slot, Date.now(), mergedLength);
 
@@ -143,7 +134,6 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
             }
 
             if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
-            __lastKnownCount = mergedLength;
             return result;
         } catch (e: unknown) {
             console.error('[Gemini Exporter] upsertConversations failed', e);

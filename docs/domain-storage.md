@@ -89,6 +89,33 @@ Cloud deletion and missing list rows never erase local facts. Explicit local
 cleanup removes the selected account's Index, Detail, temporary resources and
 related execution records, preserving other accounts.
 
+## Pending cross-module task: Acquisition / Export resource lifecycle
+
+**Open; not implemented by this L2 change.** The current
+`storage/domain/resourceContext.ts` and the resource commands in
+`background/domainStorageHandler.ts` are transitional wiring, not the frozen
+Storage design. Storage must not own acquisition state. The runtime-global Map
+has no task-completion cleanup; Takeout eagerly fills it with decoded bytes, so
+large imports can retain substantial memory until explicit deletion or background
+termination. This PR does not resolve that memory risk.
+
+The follow-up belongs to Acquisition / Export, with these concrete completion
+conditions:
+
+- Move bytes, temporary locators and resource bindings into acquisition/export job
+  context, including the broker operations; remove the global resource state from
+  Storage without changing the Domain Schema or adding another admission path.
+- Pass that context to consumers for the job's lifetime. Takeout should resolve
+  bytes from its archive on demand rather than keep all decoded media globally.
+- Release the context on success, cancellation and failure through the same job
+  cleanup path. Closing one job must preserve resources still owned by another.
+- Verify bounded retained memory over a large import and repeated jobs, cleanup on
+  cancellation/failure, concurrent job isolation and successful asset export.
+
+L2 continues to admit only semantic Asset facts. Its Index/Detail rules do not
+own resource acquisition or cleanup. Export lifecycle work is intentionally
+separate; the current temporary context cannot be considered its final design.
+
 ## Verification
 
 Tier 1 tests cover shared admission, independent Index/Detail writes and failure
