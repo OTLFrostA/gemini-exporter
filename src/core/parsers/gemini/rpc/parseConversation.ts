@@ -115,18 +115,19 @@ export function parseGeminiDetailEvidence(evidence: GeminiDetailEvidence, contex
     const versionMismatch = updatedAt !== null && messages.some(message => message.timestamp !== undefined && message.timestamp > updatedAt);
     const metadata = evidence.metadataConversation;
     const conversation = {
-        index: parseIndexMetadata({ providerId: 'gemini',
+        index: parseIndexMetadata({ account: context.account, providerId: 'gemini',
             id: normId(metadata?.id ?? evidence.id), title: metadata?.title ?? evidence.title,
             titleSource: metadata ? 'rpc' : evidence.titleSource,
             url: metadata ? `https://gemini.google.com/app/${metadata.id.replace(/^c_/, '')}` : evidence.url,
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length }),
-        detail: { quality: contentQuality({ status: versionMismatch ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
+        detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: versionMismatch ? 'partial' : 'unknown', rejectedTurns: evidence.turnsRejected,
             ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds }),
             assets: resources.assets, messages: resources.messages },
     };
     return {
+        evidence: { rejectedTurns: evidence.turnsRejected, ...(hasMore ? { truncation: 'pagination_pending' } : {}), heuristicDocumentIds: resources.heuristicDocumentIds },
         ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}),
-        conversation: validateParserDomain(conversation), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
+        account: context.account, conversation: validateParserDomain(conversation), resourceHints: resources.resourceHints, acquisitionHints: resources.acquisitionHints,
         diagnostics: [
             ...(evidence.schemaDrift ?? []).map(message => ({ severity: 'warning' as const, code: 'GEMINI_SCHEMA_DRIFT', message })),
             ...(rejected ? [{ severity: 'warning' as const, code: 'GEMINI_TURNS_REJECTED', message: `Rejected ${evidence.turnsRejected} unrecognized source turns` }] : []),

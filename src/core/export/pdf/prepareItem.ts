@@ -1,3 +1,6 @@
+import { getConversationAvailability } from '../../storage/conversationAvailability.js';
+import { getDomainResource, storageIdentity } from '../../storage/domain/domainStore.js';
+import type { Account } from '../../domain/accountRegistry.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
 import type { TrustedDomain } from '../../domain/runtimeValidation.js';
 import type { DomainConversationIndex } from '../../../types/conversation.js';
@@ -43,7 +46,7 @@ interface PdfSelectedItemObject { id?: string | number | null; title?: string | 
 export type PdfSelectedItem = string | PdfSelectedItemObject | ResourceConversationParseResult;
 
 /** Explicit adapter for an already trusted graph; metadata and raw objects cannot establish trust. */
-export function pdfDomainSelection(conversation: TrustedDomain): ResourceConversationParseResult { return { conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} }; }
+export function pdfDomainSelection(conversation: TrustedDomain, account: Account): ResourceConversationParseResult { return { account, conversation, diagnostics: [], resourceHints: {}, acquisitionHints: {} }; }
 
 type PdfGetGeminiTab = NonNullable<AssetPipelineOptions['getGeminiTab']>;
 type PdfSendToGeminiTab = NonNullable<AssetPipelineOptions['sendToGeminiTab']>;
@@ -202,9 +205,9 @@ async function prepareNativePdfItem(
 ): Promise<PreparedPdfItemResult> {
     const nativeSelected = typeof selectedItem === 'object' && selectedItem.conversation ? selectedItem : null;
     const source = nativeSelected?.conversation;
-    const rawId = source?.index.id ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
-    const id = source && source.index.providerId !== 'gemini' ? source.index.id : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');
-    const listItem = context.conversations?.find(item => normId(item.id) === id);
+    const rawId = source?.index.key.conversationId ?? (typeof selectedItem === 'string' ? selectedItem : 'id' in selectedItem ? selectedItem.id : '');
+    const id = source && nativeSelected?.account.providerId !== 'gemini' ? source.index.key.conversationId : normId(typeof rawId === 'string' || typeof rawId === 'number' ? rawId : '');
+    const listItem = context.conversations?.find(item => normId(item.key.conversationId) === id);
     const rawTitle = typeof selectedItem === 'object' && 'title' in selectedItem ? selectedItem.title : undefined;
     let title = listItem?.title || (typeof rawTitle === 'string' ? rawTitle : source?.index.title) || id;
     const signal = context.signal ?? new AbortController().signal;
@@ -226,15 +229,13 @@ async function prepareNativePdfItem(
     if (resolved.isError) return { ok: false, id, title, error: `[${PDF_NO_MESSAGES}] ${resolved.errMsg}`, diagnostics };
     parsed = resolved.chat;
     dataSource = resolved.source;
-    title = parsed.conversation.index.title;
+    title = parsed.conversation.index.title || id;
     const quality = parsed.conversation.detail.quality;
-    const usedLocalSnapshot = dataSource === 'local_snapshot'
-        && listItem?.cloudAvailability !== 'deleted'
-        && !(listItem?.hasTakeoutImport && listItem.cloudAvailability !== 'available');
+    const usedLocalSnapshot = dataSource === 'local_snapshot' && (await getConversationAvailability(accountId))[id] !== 'deleted';
     let document: DocumentAst;
     try {
         diagnostics.push(...parsed.diagnostics);
-        const composed = composeDomainDocument(parsed.conversation);
+        const composed = composeDomainDocument(parsed.conversation, parsed.account);
         document = composed.document;
         diagnostics.push(...composed.diagnostics);
     } catch (error) {
@@ -246,13 +247,20 @@ async function prepareNativePdfItem(
         ? { pipeline: null, maxRetries: undefined }
         : resolvePdfAssetPipeline({ ...context, accountId, onLog });
 
-    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.index.id, title };
+    const pipelineChat: AssetPipelineChat = { id: parsed.conversation.index.key.conversationId, title };
     const imageIds = collectDocumentResources(document).imageIds;
     const prepared = await preparePdfResources(parsed.conversation.detail, imageIds, parsed.acquisitionHints, {
         signal,
-        acquire: pipeline ? (assetId, hint) => pipeline.acquireAssetBytes({ ...hint, assetId, localName: parsed.resourceHints[assetId]?.archivePath ?? hint.localName }, pipelineChat, {
-            isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}),
-        }) : undefined,
+        acquire: async (assetId, hint) => {
+            const bytes = await getDomainResource(storageIdentity(parsed.account.providerId, accountId, id), assetId);
+            const asset = parsed.conversation.detail.assets.find(asset => asset.id === assetId);
+            if (bytes) return { ok: true, resourceId: assetId, value: { bytes, mediaType: asset?.mediaType } };
+            if (!pipeline) return { ok: false, resourceId: assetId, reason: 'Image acquisition is unavailable', code: 'ASSET_UNAVAILABLE' };
+            return pipeline.acquireAssetBytes({ ...hint, ...(asset?.generation ? { generation: { ...asset.generation }, providerRequestId: asset.generation.providerRequestId } : {}), assetId,
+                localName: parsed.resourceHints[assetId]?.archivePath ?? hint.localName }, pipelineChat, {
+                isImage: true, listTitle: title, signal, ...(typeof maxRetries === 'number' ? { maxRetries } : {}),
+            });
+        },
         onFailure: (assetId, reason) => onLog(`[PDF] [${title || id}] 图片获取失败 (${assetId}): ${reason}`, 'warn'),
     });
     diagnostics.push(...prepared.diagnostics);

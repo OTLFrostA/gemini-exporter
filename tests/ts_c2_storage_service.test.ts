@@ -151,7 +151,7 @@ test('C2-6: queue survives failed write without stalling future tasks', async ()
 
         const fetched = await getConversations('10000000-0000-4000-8000-000000000001');
         assert.strictEqual(fetched.length, 1);
-        assert.strictEqual(fetched[0].id, 'ok_conv');
+        assert.strictEqual(fetched[0].key.conversationId, 'ok_conv');
         assert.strictEqual(store['conversations_10000000-0000-4000-8000-000000000001'] !== undefined, true);
     } finally {
         restore();

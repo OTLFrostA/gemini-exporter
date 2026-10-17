@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
@@ -142,7 +143,7 @@ test('regression: metadata-only options.conversations item resolves full detail 
     const fetchCalls: any[] = [];
     const fetchChatDetail = async (requestedItem: any, index: number, total: number, slot: string, skip: boolean, format: string) => {
         fetchCalls.push({ requestedItem, index, total, slot, skip, format });
-        return { success: true, results: [historicalFixture(JSON.parse(JSON.stringify(fullChat)))] };
+        return await acquiredReply({ success: true, results: [historicalFixture(JSON.parse(JSON.stringify(fullChat)))] });
     };
 
     const compilerState = { calls: 0, document: null as any };
@@ -203,7 +204,7 @@ test('regression: metadata-only selected (empty conversations) resolves full det
     const fetchCalls: any[] = [];
     const fetchChatDetail = async (requestedItem: any, index: number, total: number, slot: string, skip: boolean, format: string) => {
         fetchCalls.push({ requestedItem, index, total, slot, skip, format });
-        return { success: true, results: [historicalFixture(JSON.parse(JSON.stringify(fullChat)))] };
+        return await acquiredReply({ success: true, results: [historicalFixture(JSON.parse(JSON.stringify(fullChat)))] });
     };
 
     const compilerState = { calls: 0, document: null as any };
@@ -245,10 +246,10 @@ test('fail-closed: metadata-only selected resolving to zero messages fails with 
     const title = 'Selected Empty Chat';
     const metadataOnly = { id, title, updatedAt: '2026-09-26T00:00:00.000Z' };
 
-    const fetchChatDetail = async () => ({
+    const fetchChatDetail = async () => await acquiredReply(({
         success: true,
         results: [historicalFixture({ id, title, messages: [] })],
-    });
+    }));
 
     const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
@@ -287,7 +288,7 @@ test('fail-closed: detail fetch failure fails the item without compiling or writ
     const title = 'Broken Chat';
     const metadataOnly = { id, title, updatedAt: '2026-09-26T00:00:00.000Z' };
 
-    const fetchChatDetail = async () => ({ success: false, error: 'network down' });
+    const fetchChatDetail = async () => await acquiredReply(({ success: false, error: 'network down' }));
 
     const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
@@ -326,10 +327,10 @@ test('fail-closed: resolved conversation without messages fails with PDF_NO_MESS
     const title = 'Empty Chat';
     const metadataOnly = { id, title, updatedAt: '2026-09-26T00:00:00.000Z' };
 
-    const fetchChatDetail = async () => ({
+    const fetchChatDetail = async () => await acquiredReply(({
         success: true,
         results: [historicalFixture({ id, title, messages: [] })],
-    });
+    }));
 
     const compilerState = { calls: 0, document: null as any };
     const writer = makeMemoryWriter();
@@ -365,13 +366,13 @@ test('PDF document and delivered record use current Index metadata and the saved
     const parsed = { ...historicalFixture({ id, title: 'Old body title', titleSource: 'rpc',
         messages: [{ role: 'model', content: 'Retained body' }] }), sourceVersion: 100 };
     await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed]);
-    await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', id, { title: 'Current index title', titleSource: 'rpc', updatedAt: 200 });
+    await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', id, { title: 'Current index title', titleSource: "provider", updatedAt: 200 });
     const selection = indexFixture({ id, title: 'Old selection title', titleSource: 'rpc' });
     const state = { calls: 0, document: null as any };
     const records: any[] = [];
     const exporter = new PdfExporter(makeCaptureCompiler(state));
     const options = { selected: [{ id }], conversations: [selection], includeAssets: false,
-        fetchChatDetail: async () => ({ success: false, error: 'offline' }), useZip: false, writer: makeMemoryWriter() };
+        fetchChatDetail: async () => await acquiredReply(await acquiredReply(({ success: false, error: 'offline' }))), useZip: false, writer: makeMemoryWriter() };
     const result = await exporter.run({ accountId: '10000000-0000-4000-8000-000000000001', ...(options) }, { onItemExported: (_id: string, record: any) => records.push(record) });
     assert.equal(result.succeeded, 1);
     assert.equal(state.document.title, 'Current index title');

@@ -89,7 +89,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
       const data = await optionsPage.evaluate(async () => {
         return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.id === '39d5b41870e49a67' || x.id === 'c_39d5b41870e49a67');
+      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.key.conversationId === '39d5b41870e49a67' || x.key.conversationId === 'c_39d5b41870e49a67');
       return c?.title;
     }, { timeout: 10000 }).toBe('量子纠缠物理原理深度解析');
 
@@ -152,7 +152,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
       const storageData = await optionsPage.evaluate(async () => {
         return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.id === 'takeout_chat_888');
+      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'takeout_chat_888');
       return chat?.title;
     }, { timeout: 10000 }).toBe('微服务与分布式事务设计');
 
@@ -213,7 +213,7 @@ test.describe('In-Page Active Chat & Real Title Synchronization', () => {
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.id === 'loading_chat_777');
+    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'loading_chat_777');
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何用Rust实现异步Actor模型');
     expect(chat.title).not.toBe('Google Gemini');

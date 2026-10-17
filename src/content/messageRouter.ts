@@ -1,6 +1,6 @@
+import { setConversationAvailability } from '../core/storage/conversationAvailability.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { isResourceConversationParseResult } from '../core/parsers/parsingResult.js';
-import { ingestConversation } from '../core/storage/storageService.js';
 import { readStoredObject, type StoredObject } from '../core/storage/storageCompatibility.js';
 import type { ContentConversationDetail, DomDetailDebug, GetConversationDetailResponse, ProviderEmptyDebug } from '../types/detailTransport.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
@@ -33,7 +33,7 @@ export interface MessageRouterDeps {
     syncEngine?: typeof SyncEngine | null;
     scraper?: typeof DomScraper | null;
     assets?: typeof AssetFetcher | null;
-    storage?: Partial<Pick<typeof StorageService, 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
+    storage?: Partial<Pick<typeof StorageService, 'setConversationAvailability' | 'updateConversation' | 'removeConversation' | 'getLastSync' | 'getConversations'>> | null;
 }
 
 export function init({
@@ -54,7 +54,7 @@ export function init({
             console.warn('[Gemini Exporter] cloud deletion memory marker failed', cid, getErrorMessage(error));
         }
         try {
-            if (Storage?.updateConversation) await Storage.updateConversation(slot, cid, { cloudAvailability: 'deleted' });
+            await Storage?.setConversationAvailability?.(slot, cid, 'deleted');
         } catch (error: unknown) {
             console.warn('[Gemini Exporter] cloud deletion status persistence failed; local archive retained', cid, getErrorMessage(error));
         }
@@ -164,25 +164,22 @@ export function init({
                     const fresh = await resolveCurrentAccount();
                     if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) throw new Error('Account changed during detail acquisition');
                 };
-                const acceptDetail = async (chatObj: ContentConversationDetail): Promise<ContentConversationDetail> => {
-                    await assertActive();
-                    return { ...chatObj, ...await ingestConversation(account.accountId, chatObj, [], 'detail', () => isCurrentAccount(account)) };
-                }
 
                 let batchexecuteEmptyDebug: ProviderEmptyDebug | null = null;
                 try {
                     const provider = resolveProvider() as ApplicationProvider | undefined;
                     if (provider) {
-                        const detail = await provider.fetchConversationDetail(cid, { targetSid: account.slot });
+                        const detail = await provider.fetchConversationDetail(cid, { targetSid: account.slot, accountId: account.accountId });
                         if (detail && isResourceConversationParseResult(detail) && detail.conversation.detail.messages.length > 0) {
-                            const accepted = await acceptDetail(detail);
+                            await assertActive();
+                            const accepted = detail;
                             respondDetail({ success: true, data: accepted, source: 'batchexecute' });
                             return;
                         } else if (detail) {
                             const rawKeys = detail.transport.decodedPayload ? Object.keys(detail.transport.decodedPayload) : [];
                             const rawPreview = detail.transport.decodedPayload ? JSON.stringify(detail.transport.decodedPayload).slice(0, 4000) : '';
                             const topPreview = detail.transport.decodedPayload ? JSON.stringify(detail).slice(0, 1000) : '';
-                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.detail.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.index.title };
+                            batchexecuteEmptyDebug = { rawKeys, rawPreview, topPreview, messagesLen: detail.conversation.detail.messages.length, hasRaw: !!detail.transport.decodedPayload, titleSeen: detail.conversation.index.title ?? "" };
                             if (contentContext.isDevMode()) {
                                 console.warn('[Gemini Exporter] batchexecute returned empty messages, fallback to DOM', cid, batchexecuteEmptyDebug);
                             }
@@ -217,9 +214,10 @@ export function init({
                 }
                 try {
                     if (Scraper) {
-                        const chat = await Scraper.contentFetchChatDetail(cid);
+                        const chat = await Scraper.contentFetchChatDetail(cid, account.accountId);
                         if (chat && isResourceConversationParseResult(chat) && chat.conversation.detail.messages.length > 0) {
-                            const accepted = await acceptDetail(chat);
+                            await assertActive();
+                            const accepted = chat;
                             respondDetail({ success: true, data: accepted, source: 'dom' });
                             return;
                         } else {

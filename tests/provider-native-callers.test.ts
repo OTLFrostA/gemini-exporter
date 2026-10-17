@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { resolveExportRecordStatus } from '../src/core/engine/export/exportCompletion.js';
@@ -9,7 +10,7 @@ import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parse
 import { mergeConversationPages } from '../src/core/parsers/gemini/rpc/mergePages.js';
 import { getConversationDetail } from '../src/core/api/client/pagination.js';
 import { formatContent, formatHtmlDocument, formatMarkdownDocument } from '../src/core/engine/chatFormatter.js';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { assertDomainClosure } from '../src/core/domain/closure.js';
 import { parseTakeoutZip } from '../src/core/imports/takeout/importTakeout.js';
 import { MediaIndex } from '../src/core/resources/takeout/mediaIndex.js';
@@ -22,12 +23,12 @@ const rpc = (inner: unknown) => `)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', 
 function page(request: string, seconds: number, cursor: string | null = null) {
     const turn = [['c_native', request], [seconds, 0], [[`Question ${request}`]], [[['rc_' + request, [['**Answer**']]]]]];
     return parseGeminiRpcConversation(JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], cursor, 'Title'])],
-        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_native', 'Title', null, null, null, [1700000010, 0]]]])]]), { providerId: 'gemini', targetConvId: 'native' });
+        ['wrb.fr', 'MaZiqc', JSON.stringify([null, null, [['c_native', 'Title', null, null, null, [1700000010, 0]]]])]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
 }
-const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({
-    sourceVersion: timestamp, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'native', title: 'Title' }, detail: { quality: { status: 'unknown' }, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
-        content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }], assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri ? { sourceUri: uri } : {}) }] } }),
-    diagnostics: [], resourceHints: {}, acquisitionHints: {},
+const result = (uri?: string, messageId = 'm1', timestamp = 1): ResourceConversationParseResult => ({ account: fixtureAccount(),
+    sourceVersion: timestamp, conversation: validateParserDomain({ index: { key: fixtureKey(String('native'), 'gemini'),   titleSource: "derived",   title: 'Title' }, detail: { key: fixtureKey(String('native'), 'gemini'), quality: { status: 'unknown' }, messages: [{ id: messageId, role: 'assistant', model: 'Authored model', timestamp,
+        content: [{ type: 'table', rows: [{ cells: [{ children: [{ type: 'strong', children: [{ type: 'text', text: 'Rich answer' }] }, { type: 'image', assetId: 'image' }] }] }] }], attachmentIds: ['image'] }], assets: [{ id: 'image', kind: 'image', name: 'photo.png', ...(uri && !/^(?:data|blob):/.test(uri) ? { sourceUri: uri } : {}) }] } }),
+    diagnostics: [], resourceHints: {}, acquisitionHints: uri?.startsWith('data:') ? { image: { url: uri } } : {},
 });
 
 test('production pagination merges native pages chronologically and closes renamed resources', async () => {
@@ -54,13 +55,13 @@ test('page merge dedupes stable messages and shared source images without collap
     assert.equal(merged.conversation.detail.assets.length, 1);
     const anonymous = mergeConversationPages([result(undefined, 'new'), result(undefined, 'old')]);
     assert.equal(anonymous.conversation.detail.assets.length, 2);
-    assert.throws(() => mergeConversationPages([same, { ...same, conversation: { index: { ...same.conversation.index, id: 'other' }, detail: { ...same.conversation.detail } } }]), /different conversations/);
+    assert.throws(() => mergeConversationPages([same, {   ...same, conversation: { index: { ...same.conversation.index, key: { ...same.conversation.index.key, conversationId: 'other' } }, detail: {   ...same.conversation.detail } } }]), /different conversations/);
 });
 
 test('native token loops retain diagnostics and explicitly mark incomplete coverage', async () => {
     const view = page('r_one', 1700000000, 'tC_repeat');
     const detail = await getConversationDetail({ async fetchConversationPage() { return view; } }, 'native');
-    assert.equal(detail.conversation.detail.quality.truncation, 'token_loop');
+    assert.equal(detail.evidence?.truncation, 'token_loop');
     assert.equal(detail.conversation.detail.messages.length, 2);
     assert.equal(detail.conversation.detail.quality.status, 'partial');
     assert.ok(detail.diagnostics.some(d => d.code === 'GEMINI_PAGINATION_TRUNCATED'));
@@ -92,13 +93,13 @@ test('standard JSON preserves native data without mutation', () => {
     const json = JSON.parse(formatContent(view, 'json').content);
     assert.equal('parsed' in json, false);
     assert.deepEqual(json.conversation, native.conversation);
-    assert.equal(json.version, 2);
+    assert.equal(json.version, 3);
     assert.deepEqual(native.conversation, snapshot);
 
 });
 
 test('malformed native results fail rather than silently using the legacy parser', () => {
-    assert.throws(() => formatContent({ conversation: result().conversation, diagnostics: [], resourceHints: [], acquisitionHints: {} } as never, 'json'), /Malformed native/);
+    assert.throws(() => formatContent({ account: fixtureAccount(), conversation: result().conversation, diagnostics: [], resourceHints: [], acquisitionHints: {} } as never, 'json'), /Malformed native/);
     assert.throws(() => formatContent({ id: 'old', messages: [] } as never, 'json'));
 });
 
@@ -120,7 +121,7 @@ test('production Takeout binds extension variations once and carries native Doma
         assert.equal('parsed' in parsed.conversations[0], false);
         assert.equal('messages' in parsed.conversations[0], false);
         assert.equal('turns' in parsed.conversations[0], false);
-        assert.equal(parsed.conversations[0].hasTakeoutImport, true);
+        assert.equal(Reflect.get(parsed.conversations[0] ?? {}, 'hasTakeoutImport'), undefined);
         assert.ok(Array.isArray(view.conversation.detail.messages[0].content));
         for (const [i, asset] of view.conversation.detail.assets.entries()) assert.deepEqual(await MediaIndex.getTakeoutFallbackMedia('native', { assetId: '', sourceUri: view.resourceHints[asset.id].archivePath! }, slot), new Uint8Array([i + 1]));
         assert.equal(await MediaIndex.getTakeoutFallbackMedia('other', { assetId: '', sourceUri: 'image-hash' }, slot), null);
@@ -220,7 +221,7 @@ test('native pagination rejects mixed legacy message pages instead of dropping t
 
 test('metadata-only detail retry follows native pagination to its terminal page', async () => {
     const calls: Array<{ token?: string | null; detailOnly?: boolean }> = [];
-    const empty = parseGeminiRpcConversation(rpc([null, null, [['c_native']]]), { providerId: 'gemini', targetConvId: 'native' });
+    const empty = parseGeminiRpcConversation(rpc([null, null, [['c_native']]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
     const detail = await getConversationDetail({ async fetchConversationPage(_id, token, _sid, options) {
         calls.push({ token, detailOnly: options?.detailOnly });
         if (!options?.detailOnly) return empty;
@@ -230,7 +231,7 @@ test('metadata-only detail retry follows native pagination to its terminal page'
     assert.equal(calls[2].token, 'tC_retry_older');
     assert.equal(calls[2].detailOnly, true);
     assert.equal(detail.conversation.detail.messages.length, 4);
-    assert.equal(Boolean(detail.conversation.detail.quality.truncation), false);
+    assert.equal(Boolean(detail.evidence?.truncation), false);
 });
 
 test('cooperative ZIP decoding yields to the event loop and preserves synchronous HTML semantics', async () => {
@@ -240,10 +241,10 @@ test('cooperative ZIP decoding yields to the event loop and preserves synchronou
     const timer = setTimeout(() => { yielded = true; }, 0);
     const progress: number[][] = [];
     try {
-        const asyncResults = await parseGeminiTakeoutArchiveAsync(raw, { providerId: 'gemini' }, (completed, total) => progress.push([completed, total]));
+        const asyncResults = await parseGeminiTakeoutArchiveAsync(raw, { account: fixtureAccount('gemini'), providerId: 'gemini' }, (completed, total) => progress.push([completed, total]));
         assert.equal(yielded, true);
         assert.ok(progress.some(([completed, total]) => completed === 100 && total === 120));
-        assert.deepEqual(asyncResults, parseGeminiTakeoutArchive(raw, { providerId: 'gemini' }));
+        assert.deepEqual(asyncResults, parseGeminiTakeoutArchive(raw, { account: fixtureAccount('gemini'), providerId: 'gemini' }));
         assert.equal(asyncResults[0].conversation.detail.messages.length, 240);
     } finally { clearTimeout(timer); }
 });
@@ -252,7 +253,7 @@ test('cooperative ZIP decoding yields to the event loop and preserves synchronou
 test('Takeout prompt-cell attachments and audio stay user-owned while response references remain assistant-owned', () => {
     const { parseGeminiTakeoutArchive } = require('../src/core/parsers/gemini/takeout/parseConversation.js') as typeof import('../src/core/parsers/gemini/takeout/parseConversation.js');
     const htmlText = `<div class="outer-cell"><a href="https://gemini.google.com/app/c_native">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Read files<br>Attached 1 file.<br><a href="same.png">Image</a><br><a href="recording.wav">Audio</a><br>2026-09-02T12:00:00Z<br><p>Answer <img src="same.png"></p></div><div class="content-cell mdl-typography--text-right"><img src="same.png" class="image-preview"></div><img src="unowned.png"></div>`;
-    const result = parseGeminiTakeoutArchive({ htmlText, archiveFiles: { 'same.png': {}, 'recording.wav': {}, 'unowned.png': {} } }, { providerId: 'gemini' })[0];
+    const result = parseGeminiTakeoutArchive({ htmlText, archiveFiles: { 'same.png': {}, 'recording.wav': {}, 'unowned.png': {} } }, { account: fixtureAccount('gemini'), providerId: 'gemini' })[0];
     const assets = new Map(result.conversation.detail.assets.map(asset => [asset.id, asset]));
     assert.deepEqual(result.conversation.detail.messages[0].attachmentIds!.map(id => assets.get(id)!.kind), ['image', 'audio']);
     assert.deepEqual(result.conversation.detail.messages[1].attachmentIds!.map(id => assets.get(id)!.name), ['same.png']);
@@ -263,7 +264,7 @@ test('Takeout prompt-cell attachments and audio stay user-owned while response r
 
 
 test('metadata-only retry cannot hide a subsequent detail-page fetch failure', async () => {
-    const empty = parseGeminiRpcConversation(rpc([null, null, [['c_native']]]), { providerId: 'gemini', targetConvId: 'native' });
+    const empty = parseGeminiRpcConversation(rpc([null, null, [['c_native']]]), { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: 'native' });
     await assert.rejects(getConversationDetail({ async fetchConversationPage(_id, token, _sid, options) {
         if (!options?.detailOnly) return empty;
         if (token) throw new Error('Interrupted detail chain');

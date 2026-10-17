@@ -1,3 +1,5 @@
+import { indexFixture as canonicalIndex } from './helpers/indexFixture.js';
+const canonicalList = (value: any): any => Array.isArray(value) ? value.map(canonicalIndex) : value;
 /**
  * P1-3 回归测试：conversationsStore.clearExported 必须走
  * removeExportRecords(slot, allIds) 事务性删除路径，禁止用
@@ -170,11 +172,11 @@ test('ListView.render: 传入 prevSelectedSet=null 时强制重置 canonicalSele
         ];
         // 1. 初始全部已导出，默认 0 勾选（canonicalSelectedIds 为空 Set）
         ListView.setSelectedIds(null);
-        ListView.render(convs as any, { '1': { exportedAt: 2000, chatTime: 1000 }, '2': { exportedAt: 2000, chatTime: 1000 } } as any, null);
+        ListView.render(canonicalList(convs as any), { '1': { exportedAt: 2000, chatTime: 1000 }, '2': { exportedAt: 2000, chatTime: 1000 } } as any, null);
         assert.strictEqual(ListView.getSelectedIds().size, 0, '全部已导出时初始应 0 勾选');
 
         // 2. 清除导出记录后传入 expMap={} 与 prevSelectedSet=null，应重新自动全选
-        ListView.render(convs as any, {}, null);
+        ListView.render(canonicalList(convs as any), {}, null);
         const selectedAfterClear = ListView.getSelectedIds();
         assert.ok(selectedAfterClear.has('1') || selectedAfterClear.has('c_1'), '清除后 Chat 1 应自动勾选');
         assert.ok(selectedAfterClear.has('2') || selectedAfterClear.has('c_2'), '清除后 Chat 2 应自动勾选');

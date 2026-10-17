@@ -33,7 +33,7 @@ export function parseGeminiTakeoutConversation(raw: GeminiTakeoutRaw, context: G
     const ids = [...new Set(activities.flatMap(activity => activity.conversationIds))];
     const id = context.targetConvId?.replace(/^c_/, '') ?? (ids.length === 1 ? ids[0] : undefined);
     if (!id || !ids.includes(id)) throw new TypeError('Takeout requires an existing targetConvId when no single conversation can be selected');
-    return buildConversation(id, activities, createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath));
+    return buildConversation(id, activities, createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath), context);
 }
 
 /** Batch decoding shares the same source evidence and per-conversation Domain construction. */
@@ -43,7 +43,7 @@ export function parseGeminiTakeoutArchive(raw: GeminiTakeoutRaw, context: Conver
     const ids = [...new Set(activities.flatMap(activity => activity.conversationIds))];
     if (!ids.length) throw new TypeError('Takeout has no recognized conversation identities');
     const resolveResource = createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath);
-    return ids.map(id => buildConversation(id, activities, resolveResource));
+    return ids.map(id => buildConversation(id, activities, resolveResource, context));
 }
 
 /** Large ZIP inputs yield during decoding and Domain construction without changing semantics. */
@@ -59,13 +59,13 @@ export async function parseGeminiTakeoutArchiveAsync(raw: GeminiTakeoutRaw, cont
     const resolve = createTakeoutResourceResolver(raw.archiveFiles ?? {}, raw.activityPath);
     const results: GeminiTakeoutParseResult[] = [];
     for (const [id, selected] of groups) {
-        results.push(buildConversation(id, selected, resolve));
+        results.push(buildConversation(id, selected, resolve, context));
         if (results.length % 50 === 0) await new Promise<void>(resume => setTimeout(resume, 0));
     }
     return results;
 }
 
-function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>): GeminiTakeoutParseResult {
+function buildConversation(id: string, activities: TakeoutActivityEvidence[], resolveResource: ReturnType<typeof createTakeoutResourceResolver>, context: ConversationParseContext): GeminiTakeoutParseResult {
     const diagnostics: Diagnostic[] = [];
     const contentDiagnostics: Diagnostic[] = [];
     const messages: DomainMessage[] = [];
@@ -128,16 +128,16 @@ function buildConversation(id: string, activities: TakeoutActivityEvidence[], re
         ?? selected.find(a => a.promptText);
     const title = titleEvent?.promptText.split('\n')[0].slice(0, 80).trim() || 'Takeout conversation';
     const conversation = {
-        index: parseIndexMetadata({ providerId: 'gemini', id, title, titleSource: 'takeout',
+        index: parseIndexMetadata({ account: context.account, providerId: 'gemini', id, title, titleSource: 'takeout',
             ...(updatedAt !== null ? { updatedAt } : {}), messageCount: resources.messages.length,
             url: `https://gemini.google.com/app/${id}` }, 'takeout'),
-        detail: { quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
+        detail: { ...(updatedAt !== null ? { savedAt: updatedAt } : {}), quality: contentQuality({ status: 'partial', heuristicDocumentIds: resources.heuristicDocumentIds }), assets: resources.assets, messages: resources.messages },
     };
     const archiveResources: Record<string, { path: string; entry: TakeoutSourceFile }> = {};
     for (const asset of resources.assets) {
         const bound = asset.sourceUri ? boundFiles.get(asset.sourceUri) : undefined;
         if (bound) archiveResources[asset.id] = bound;
     }
-    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
+    return { ...(updatedAt !== null ? { sourceVersion: updatedAt } : {}), evidence: { heuristicDocumentIds: resources.heuristicDocumentIds }, account: context.account, conversation: validateParserDomain(conversation), resourceHints: {}, acquisitionHints: resources.acquisitionHints, archiveResources,
         diagnostics: [...diagnostics, ...contentDiagnostics] };
 }

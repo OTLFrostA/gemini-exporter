@@ -103,21 +103,21 @@ src/
 
     storage/                   Storage Abstraction & Persistence Layer
       storageService.ts        Multi-account metadata index and native Domain persistence coordinator
-      conversationDetailStore.ts Historical IndexedDB string body store retained for migration/compatibility
+      conversationDetailStore.ts Historical string body store; current readers use the Domain repository
       liveStorageManager.ts    Live auto-save configuration and FileSystem Directory Handle proxy
       idbHandleStore.ts        FileSystemDirectoryHandle IndexedDB persistence across sessions
-      schemaMigration.ts       Versioned startup readiness and recoverable legacy upgrades
+      schemaMigration.ts       Current-schema startup readiness; unsupported schemas fail
       schemaState.ts           Dependency-free future-schema write guard
-      domain/                  Account/provider-scoped Domain repository, validation, migration and byte acquisition
+      domain/                  UUID-scoped selected Domain snapshots and separate resource byte cache
         contracts.ts           Independent storage/Domain versions and durable envelope
-        domainStore.ts         Transactional snapshots, history, bytes and deletion markers
+        domainStore.ts         Transactional current snapshots, byte bindings and deletion markers
         transport.ts           Content-script routing to the extension-origin repository
       sessionStore.ts          In-memory and chrome.storage.session recovery cache
       formatStore.ts           Export format preferences & template persistence
 
     utils/                     Single Source of Truth (SSoT) & Utilities
       utils.ts                 SSoT facade: title arbitration, deduplication, path cleaning
-      titleUtils.ts            Title arbitration (rpc > api-detail > dom > takeout > openai > sniff > legacy > default)
+      titleUtils.ts            L1 title normalization; L2 owns user > provider > derived arbitration
       mergeUtils.ts            SSoT merge & deduplication (preserves highest-rank title & timestamps)
       pathUtils.ts             Strict relative path sanitization & filename builders
       chipUtils.ts             Internal chip URL filtering & code chip extraction
@@ -212,7 +212,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
    - `controllers/`: Business workflow orchestration and asynchronous execution;
    - `options.ts` / `popup.ts`: Pure entrypoint mount and sub-module coordinators.
 3. **Single Source of Truth (SSoT) & Title Anti-Degradation**:
-   Path sanitization (`pathUtils.ts`), title arbitration (`titleUtils.ts`), and list merging (`mergeUtils.ts`) reside exclusively in `src/core/utils/`. No module may roll its own regexes for title cleaning or sorting. Source selection order: `rpc > api-detail > dom > takeout > openai > sniff > legacy > default`. Rank ties remain `rpc = api-detail` and `takeout = openai`; source selection uses the listed order.
+   Path sanitization resides in `pathUtils.ts`; canonical title/index merge rules reside in `src/core/domain/`. Source normalization helpers delegate admission to that boundary. No module may roll its own regexes for title cleaning or sorting. L1 normalizes raw title evidence. Domain applies `user > provider > derived`; equal authority uses the latest admission.
 4. **Sandboxed Interceptors Guard**:
    Code injected into `MAIN` world (`hookCredentials.ts`) runs in a fail-safe sandbox: any unexpected exception is swallowed silently to guarantee zero degradation of native Google Gemini functionality.
 5. **Event-Driven AsyncQueue & Controlled Polling Boundary**:
@@ -220,7 +220,7 @@ All bundles are generated in `< 30ms` with minification and sourcemaps.
 6. **MV3 Service Worker Keepalive Resilience**:
    Regular lightweight heartbeat pings keep the MV3 Service Worker alive during lengthy deep scans and multi-megabyte media packaging tasks, preventing unexpected background worker termination by Chromium.
 7. **Two-Tier Storage & Quota Isolation**:
-   `chrome.storage.local` strictly stores lightweight conversation metadata index (`providerId`, `id`, `title`, `titleSource`, optional `createdAt`/`updatedAt`/`messageCount`/`url`, `cloudAvailability`, `hasTakeoutImport`), maintaining memory well below Chrome's 10MB quota ceiling. Structured conversation Domain and resource bytes are persisted in extension-origin IndexedDB via `storage/domain/`. The old `conversationDetailStore.ts` remains a legacy migration input. Native body writes commit before metadata index writes.
+   `chrome.storage.local` stores the exact UUID-owned Index (`key`, optional `title`/`titleSource`, `createdAt`, `updatedAt`). Availability is separate execution state. Detail (`key`, `messages`, `assets`, `quality.status`, optional source-version `savedAt`) and resource bytes are physically separate in extension-origin IndexedDB. `conversationIngest.ts` commits body selection before metadata; coverage advances only after Index commit. See [Domain storage](../docs/domain-storage.md).
 8. **Headless FileSystem Permission Resilience**:
    When Service Worker executes in headless background and directory handle permissions drop to `prompt` upon browser restart (where Chromium forbids headless permission prompting), the system safely returns `permission_prompt_needed` and records `dirError` in live config, allowing 1-click reauthorization via user gesture (`reauthorizeDirHandle()`).
 9. **Multi-Account Strict Isolation & Zero Token Stealing**:
@@ -244,4 +244,4 @@ suppression comments are forbidden by review.
 
 The [semantic layer architecture tests](../tests/arch/) check source imports and re-exports, including erased type dependencies, and follow runtime dependencies through shared helpers. Domain and Document AST do not import parsers or output backends. Native source parsers do not load storage, export naming, renderers or legacy projections. Renderers consume Document AST and prepared resources without reaching source parsers or Domain. Only legacy-storage migration can invoke historical record decoding; runtime/export consume native Domain results.
 
-Native conversation inputs now persist Domain in the versioned repository; the old record format has an explicit parser and recoverable migration. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).
+Native conversation inputs publish accepted Domain through the shared ingestion boundary. This refactor adds no historical migration or compatibility path. See [Domain storage](../docs/domain-storage.md) and [parser migration status](../docs/domain-model.md#migration-order-and-acceptance).

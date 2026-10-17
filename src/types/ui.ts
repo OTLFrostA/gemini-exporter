@@ -60,7 +60,7 @@ export interface TakeoutExportSource {
     getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLookup, slot?: string | null): Promise<Uint8Array | null>;
 }
 export interface UIExportOptions {
-    selected: Array<string | Pick<DomainConversationIndex, 'id'> & Partial<DomainConversationIndex>>;
+    selected: Array<string | { id: string; url?: string } & Partial<DomainConversationIndex>>;
     format?: string;
     useZip?: boolean;
     accountId?: string;
@@ -159,8 +159,7 @@ export interface IConversationsStore {
     getDevMode: () => Promise<boolean>;
     setDevMode: (devOn: boolean) => Promise<void>;
     removeConversation: (id: string) => Promise<DomainConversationIndex[]>;
-    reconcileWithCloud: (activeCloudList: Pick<DomainConversationIndex, 'id'>[], options?: ReconcileOptions) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
-    hasTakeoutData: () => boolean;
+    reconcileWithCloud: (activeCloudList: { id: string }[], options?: ReconcileOptions) => Promise<{ kept: number; removed: number; removedIds: string[] }>;
     normId: (id: string | null | undefined) => string;
 }
 

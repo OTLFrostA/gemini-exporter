@@ -67,7 +67,7 @@ test('production bridge and active observer persist identical stream coverage af
         assert.equal(records.length, 2);
         outcomes.push({ streams: coverage?.streams, rows: records.map(row => {
             assert.ok(isStoredObject(row) && !Array.isArray(row));
-            return { id: row.id, title: row.title, timestamp: row.timestamp, source: row.source };
+            return { id: row.key.conversationId, title: row.title, timestamp: row.timestamp, source: row.source };
         }) });
     });
     assert.deepEqual(outcomes[0], outcomes[1]);

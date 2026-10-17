@@ -616,12 +616,12 @@ class ScanAndImportTests(unittest.TestCase):
                     'initialized': True, 'historyComplete': True, 'activeRunId': None, 'lastStatus': 'up_to_date',
                     'streams': {'recent': {'initialized': True, 'range': {
                         'head': {'id': CID, 'time': 100}, 'tail': {'id': 'tail', 'time': 10}}}}}
-        initial = {'coverage': coverage, 'rows': [{'id': CID, 'updatedAt': 100, 'titleSource': 'rpc'},
-                    {'id': 'tail', 'updatedAt': 10, 'titleSource': 'rpc'}], 'exportIds': [CID]}
+        initial = {'coverage': coverage, 'rows': [{'id': CID, 'updatedAt': 100, 'titleSource': 'provider'},
+                    {'id': 'tail', 'updatedAt': 10, 'titleSource': 'provider'}], 'exportIds': [CID]}
         after = copy.deepcopy(initial)
         after['coverage']['streams']['recent']['range']['head'] = {'id': OTHER, 'time': 120}
         after['rows'][0]['updatedAt'] = 110
-        after['rows'].append({'id': OTHER, 'updatedAt': 120, 'titleSource': 'rpc'})
+        after['rows'].append({'id': OTHER, 'updatedAt': 120, 'titleSource': 'provider'})
         scan = scan_evidence()
         scan['response']['status'] = 'up_to_date'
         scan['response']['diagnostics'].update(incremental=True, stopReason='Connected to verified activity coverage')
@@ -753,8 +753,8 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_all_matched_titles_must_upgrade(self):
         cdp = MagicMock()
-        first = {'id': CID, 'title': 'Online title', 'source': 'rpc', 'hasTakeoutImport': True}
-        second = {'id': OTHER, 'title': 'Offline', 'source': 'takeout', 'hasTakeoutImport': True}
+        first = {'id': CID, 'title': 'Online title', 'source': 'provider', 'hasTakeoutImport': True}
+        second = {'id': OTHER, 'title': 'Offline', 'source': 'derived', 'hasTakeoutImport': True}
         cdp.eval.return_value = {'matched': [first, second]}
         self.assertFalse(CDPAssertions.assert_title_upgraded(cdp, [CID, OTHER])[0])
         cdp.eval.return_value = {'matched': [first]}
@@ -763,15 +763,15 @@ class ScanAndImportTests(unittest.TestCase):
 
     def test_takeout_empty_import_and_missing_resources_fail_idempotent_passes(self):
         media = {'image.png': hashlib.sha256(b'image bytes').hexdigest()}
-        record = {'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                  'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
+        record = {'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
+                  'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
                       {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}},
                   'resources': [{'sourcePath': 'Takeout/image.png', 'bytes': base64.b64encode(b'image bytes').decode()}]}
         self.assertTrue(validate_takeout_records([CID], media, [record])[0])
         self.assertFalse(validate_takeout_records([CID], media, [])[0])
-        for section, field, value in [('index', 'id', OTHER), ('index', 'providerId', 'chatgpt')]:
+        for field, value in [('conversationId', OTHER), ('accountId', 'another-account')]:
             broken = copy.deepcopy(record)
-            broken['domain'][section][field] = value
+            broken['domain']['index']['key'][field] = value
             self.assertFalse(validate_takeout_records([CID], media, [broken])[0])
         broken = copy.deepcopy(record)
         broken['domain'] = {**record['domain']['index'], **record['domain']['detail']}
@@ -794,8 +794,8 @@ class ScanAndImportTests(unittest.TestCase):
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
             cdp = ctx.connect_options.return_value
-            cdp.eval.return_value = [{'id': CID, 'ok': True, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
-                'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
+            cdp.eval.return_value = [{'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Prompt', 'hasTakeoutImport': True},
+                'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
                     {'role': 'user', 'content': [{'text': 'Prompt'}]}, {'role': 'assistant', 'content': [{'text': 'Answer'}]}]}}, 'resources': []}]
             result = {'success': True, 'importedIds': [CID], 'status': 'ok', 'addedCount': 0}
             with patch.object(CDPActions, 'import_takeout_zip', return_value=result):
@@ -804,8 +804,8 @@ class ScanAndImportTests(unittest.TestCase):
                 self.assertFalse(TakeoutZipImportCase().execute(ctx)[0])
 
     def test_empty_image_reply_requires_source_recorded_generation(self):
-        record = {'id': CID, 'ok': True, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
-                  'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
+        record = {'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'}, 'summary': {'title': 'Draw', 'hasTakeoutImport': True},
+                  'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
                       {'role': 'user', 'content': [{'text': 'Draw'}]},
                       {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}},
                   'resources': []}
@@ -822,8 +822,8 @@ class ScanAndImportTests(unittest.TestCase):
                 zf.writestr('Takeout/media.png', b'Image bytes')
             ctx = MagicMock(takeout_zip=str(path))
             ctx.shared_data = {}
-            ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True,
-                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'index': {'id': CID, 'providerId': 'gemini'}, 'detail': {'messages': [
+            ctx.connect_options.return_value.eval.return_value = [{'id': CID, 'ok': True, 'account': {'id': '10000000-0000-4000-8000-000000000001', 'providerId': 'gemini'},
+                'summary': {'title': 'Draw', 'hasTakeoutImport': True}, 'domain': {'index': {'key': {'accountId': '10000000-0000-4000-8000-000000000001', 'conversationId': CID}}, 'detail': {'messages': [
                     {'role': 'user', 'content': [{'text': 'Draw'}]},
                     {'role': 'assistant', 'content': [], 'generation': {'mediaKind': 'image', 'outputCount': 1}}]}}, 'resources': []}]
             res = {'success': True, 'importedIds': [CID], 'status': 'ok', 'totalMediaCount': 1}

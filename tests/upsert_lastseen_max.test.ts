@@ -1,3 +1,4 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { indexFixture } from './helpers/indexFixture.js';
 /**
  * Server-authored updatedAt is monotonic across index observations.
@@ -26,11 +27,11 @@ function mockStorageContext() {
         getScanCheckpoint: async () => null,
         setScanCheckpoint: async () => {}
     };
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: () => {} } } });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: () => {} } }) });
     __setModuleOverride('StorageService', mockStorage);
     return {
         seed: (items: any[]) => { savedList = items.map(indexFixture); },
-        find: (id: string) => savedList.find((c: any) => c.id === id),
+        find: (id: string) => savedList.find((c: any) => c.key.conversationId === id),
         restore: () => {
             __setModuleOverride('StorageService', previousStorage);
             if (previousChrome) Object.defineProperty(globalThis, 'chrome', previousChrome);

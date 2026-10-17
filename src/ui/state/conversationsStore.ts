@@ -1,3 +1,4 @@
+import { getConversationAvailability } from '../../core/storage/conversationAvailability.js';
 import { isAccountId, type Account } from '../../core/domain/accountRegistry.js';
 import type { DomainConversationIndex } from '../../types/conversation.js';
 import type { ReconcileOptions, ExportRecord, IConversationsStore } from '../../types/ui.js';
@@ -86,6 +87,8 @@ export async function loadStore(accountOverride?: string): Promise<{
     if (!available.some(account => account.id === target)) throw new Error('Selected account does not exist');
     const [incoming, expIds] = await Promise.all([storage.getConversations(target), storage.getExportedIds(target)]);
     if (ticket !== loadGeneration) return snapshot();
+    await storage.getConversationAvailability?.(target);
+    if (ticket !== loadGeneration) return snapshot();
     accountId = target;
     setExportedIds(expIds); setConversations(incoming);
     return { conversations: incoming, exportedIds: expIds, accountId: target, accounts: available };
@@ -157,31 +160,12 @@ export async function removeConversation(id: string): Promise<DomainConversation
     if (storage?.removeConversation) {
         await storage.removeConversation(capturedAccountId, nid);
     }
-    if (accountId === capturedAccountId) conversations = (conversations || []).filter(c => c.id !== nid);
+    if (accountId === capturedAccountId) conversations = (conversations || []).filter(c => c.key.conversationId !== nid);
     return conversations;
 }
 
-export async function reconcileWithCloud(activeCloudList: Pick<DomainConversationIndex, 'id'>[], options: ReconcileOptions = {}): Promise<{ kept: number; removed: number; removedIds: string[] }> {
-    const storage = getStorage();
-    if (storage && storage.reconcileConversations) {
-        const capturedAccountId = accountId;
-        const res = await storage.reconcileConversations(capturedAccountId, activeCloudList, options);
-        if (accountId !== capturedAccountId) return res;
-        const activeIdSet = new Set((activeCloudList || []).map(c => c.id));
-        const keepTakeout = options.keepTakeout !== false;
-        conversations = (conversations || []).filter(c => {
-            const nid = c.id;
-            const isTakeout = keepTakeout && c.hasTakeoutImport;
-            return activeIdSet.has(nid) || isTakeout;
-        });
-        return res;
-    }
+export async function reconcileWithCloud(_activeCloudList: {id: string}[], _options: ReconcileOptions = {}): Promise<{kept: number; removed: number; removedIds: string[]}> {
     return { kept: conversations.length, removed: 0, removedIds: [] };
-}
-
-
-export function hasTakeoutData(): boolean {
-    return (conversations || []).some(c => c && c.hasTakeoutImport);
 }
 
 export const ConversationsStore: IConversationsStore = {
@@ -204,7 +188,6 @@ export const ConversationsStore: IConversationsStore = {
     clearAll,
     getDevMode,
     setDevMode,
-    hasTakeoutData,
     normId
 };
 

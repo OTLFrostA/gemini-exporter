@@ -33,6 +33,7 @@ interface SessionLogFailedAttachmentEntry extends Partial<FailedAttachment> {
 
 export interface SessionParseDriftEntry {
     quality: ContentQuality;
+    evidence?: import('../../domain/quality.js').QualityEvidence;
     diagnostics: Diagnostic[];
     id?: string;
     title?: string;
@@ -235,10 +236,9 @@ function buildSessionLogText({
         for (const pd of parseDrift) {
             const bits: string[] = [];
             bits.push(`quality=${pd.quality.status}`);
-            if (pd.quality.truncation) bits.push(`truncation=${pd.quality.truncation}`);
-            const turnsRejected = pd.quality.rejectedTurns;
-            if (turnsRejected !== undefined && turnsRejected > 0) bits.push(`turnsRejected=${turnsRejected}`);
-            if (pd.quality.heuristicDocumentIds?.length) bits.push(`heuristicDocs`);
+            if (pd.evidence?.truncation) bits.push(`truncation=${pd.evidence.truncation}`);
+            if (pd.evidence?.rejectedTurns) bits.push(`turnsRejected=${pd.evidence.rejectedTurns}`);
+            if (pd.evidence?.heuristicDocumentIds?.length) bits.push('heuristicDocs');
             fullLogText += `  - ${pd.id || 'unknown'} | "${(pd.title || '').slice(0, 60)}" | ${bits.join(", ") || "schema drift"}\n`;
             if (Array.isArray(pd.diagnostics)) {
                 for (const w of pd.diagnostics.slice(0, 5)) {

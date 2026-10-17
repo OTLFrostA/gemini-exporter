@@ -162,7 +162,6 @@ export async function showTakeoutLimitPrompt(options: { count?: number; hitGoogl
             }
         }
         try {
-            if (store?.hasTakeoutData && store.hasTakeoutData()) return;
             if (storage?.hasTakeoutData && await storage.hasTakeoutData()) return;
         } catch (e) {
             console.warn("[GemExporter:dialogView.ts]", e);

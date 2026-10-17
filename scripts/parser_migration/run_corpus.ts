@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureKey } from '../../tests/helpers/domainFixture.js';
 import { historicalFixture } from '../../tests/helpers/nativeFixture.js';
 /**
  * scripts/parser_migration/run_corpus.ts
@@ -476,9 +477,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const domain: DomainConversationWithDetail = { index: { titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
-                        providerId: 'gemini', id: 'corpus-math-baseline-compile-gate',
-                        title: 'Corpus Math Baseline Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { completeness: 'unknown',
+                    const domain: DomainConversationWithDetail = { index: { titleSource: 'derived', key: fixtureKey('corpus-math-baseline-compile-gate'),
+                        title: 'Corpus Math Baseline Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey('corpus-math-baseline-compile-gate'), quality: { status: 'unknown' },
                         assets: [], messages: [{ id: 'm1', role: 'assistant',
                             content: baselineSuccessful.map(e => ({ type: 'math', source: e.latex })),
                         }],
@@ -489,7 +489,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         baseTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => baseTypstMap.get(s);
-                    const document = renderDocumentTypst(composeDomainDocument(domain).document, {}, { convertMath: convertMathFn });
+                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()).document, {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,
@@ -522,9 +522,8 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                 const host = new RealWasmSandboxHost(repoRoot());
                 const compiler = new TypstSandboxCompiler({ host });
                 try {
-                    const domain: DomainConversationWithDetail = { index: { titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
-                        providerId: 'gemini', id: 'corpus-math-candidate-compile-gate',
-                        title: 'Corpus Math Candidate Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { completeness: 'unknown',
+                    const domain: DomainConversationWithDetail = { index: { titleSource: 'derived', key: fixtureKey('corpus-math-candidate-compile-gate'),
+                        title: 'Corpus Math Candidate Compile Gate', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey('corpus-math-candidate-compile-gate'), quality: { status: 'unknown' },
                         assets: [], messages: [{ id: 'm1', role: 'assistant',
                             content: candidateSuccessful.map(e => ({ type: 'math', source: e.latex })),
                         }],
@@ -535,7 +534,7 @@ export async function runCorpus(options: CorpusRunnerOptions = {}): Promise<Corp
                         candTypstMap.set(e.latex, e.typst);
                     }
                     const convertMathFn = (s: string) => candTypstMap.get(s);
-                    const document = renderDocumentTypst(composeDomainDocument(domain).document, {}, { convertMath: convertMathFn });
+                    const document = renderDocumentTypst(composeDomainDocument(domain, fixtureAccount()).document, {}, { convertMath: convertMathFn });
                     const compileRes = await compiler.compile({
                         rendererSchemaVersion: 1,
                         document,

@@ -15,17 +15,16 @@ test('ChatGPT lists emit exact Domain indexes with source times and no invented 
         { id: 'untitled', title: '', create_time: null, update_time: 'invalid' },
         { id: 'millis', title: 'A', create_time: 1700000000123, update_time: Infinity },
     ], total: 3, cursor: 'next' });
-    assert.deepEqual(page.conversations[0], { providerId: 'chatgpt', id: 'api-chat', title: 'Source title',
-        titleSource: 'provider', createdAt: 1700000000125, updatedAt: 1700000060000,
-        url: 'https://chatgpt.com/c/api-chat', cloudAvailability: 'available', hasTakeoutImport: false });
+    assert.deepEqual(page.conversations[0], { id: 'api-chat', title: 'Source title',
+        titleSource: 'provider', createdAt: 1700000000125, updatedAt: 1700000060000 });
     const empty = page.conversations[1];
-    assert.equal(empty.title, '');
-    assert.equal(empty.titleSource, 'default');
+    assert.equal(empty.title, undefined);
+    assert.equal(empty.titleSource, undefined);
     assert.equal(Object.hasOwn(empty, 'updatedAt'), false);
     assert.equal(Object.hasOwn(empty, 'createdAt'), false);
     assert.equal(page.conversations[2].createdAt, 1700000000123);
     assert.equal(Object.hasOwn(page.conversations[2], 'updatedAt'), false);
-    for (const index of page.conversations) assert.deepEqual(restoreConversationIndex(index), index);
+    for (const index of page.conversations) assert.equal(Object.hasOwn(index, 'key'), false);
     assert.equal(page.total, 3);
     assert.equal(page.nextCursor, 'next');
 });
@@ -51,8 +50,8 @@ test('provider list results and progress carry the same parsed Domain indexes', 
     let observed: unknown;
     const page = await provider.listConversations({ onProgress: info => { observed = info.batch?.[0]; } });
     assert.strictEqual(observed, page.items[0]);
-    assert.deepEqual(restoreConversationIndex(page.items[0]), page.items[0]);
-    assert.equal(page.items[0].providerId, 'chatgpt');
+    assert.equal(Object.hasOwn(page.items[0], 'key'), false);
+    assert.equal(Reflect.get(page.items[0] ?? {}, 'providerId'), undefined);
     assert.equal(page.items[0].updatedAt, 1700000060000);
     assert.equal(page.exhaustive, true);
 });
@@ -93,9 +92,9 @@ test('DOM metadata preserves title precedence and keeps UI labels and observatio
     } as unknown as Document;
     const [index] = parseGeminiDomList(doc);
     assert.equal(index.title, '');
-    assert.equal(index.titleSource, 'default');
-    assert.equal(index.cloudAvailability, 'unknown');
-    assert.deepEqual(restoreConversationIndex(index), index);
+    assert.equal(index.titleSource, 'dom');
+    assert.equal(Reflect.get(index ?? {}, 'cloudAvailability'), undefined);
+    assert.equal(Object.hasOwn(index, 'key'), false);
     assert.equal(parseGeminiDomIndex(doc, 'boundary123').title, 'Header title');
     header.textContent = 'Google Gemini';
     const fallback = parseGeminiDomIndex(doc, 'boundary123');

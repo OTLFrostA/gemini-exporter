@@ -26,7 +26,7 @@ test('chat_formatter - formatMarkdownDocument', async () => {
     assert.ok(res.content.includes('\n---\n\n'), 'YAML frontmatter must close with --- delimiter');
     assert.ok(res.content.includes('title: "Quantum Physics Guide"'), 'Frontmatter must contain title key');
     assert.ok(res.content.includes('id: "12345678"'), 'Frontmatter must contain id key');
-    assert.ok(res.content.includes('url: "https://gemini.google.com/app/12345678"'), 'Frontmatter must contain url key');
+    assert.ok(!/^url:/m.test(res.content), 'Composer does not synthesize a source URL');
     assert.ok(res.content.includes('tags:\n  - gemini-export'), 'Frontmatter must contain gemini-export tag');
     // Heading and content assertions
     assert.ok(res.content.includes('# Quantum Physics Guide'), 'Must render H1 title');
@@ -105,6 +105,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
     };
 
     await require('../src/core/storage/storageService.js').setConversations('10000000-0000-4000-8000-000000000001', [indexFixture(listConv)]);
+    await require('../src/core/storage/storageService.js').ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
     const resolved = await BatchWorker.resolveChat(
         historicalFixture(chat),
         { id: 'test_123', title: '如何设计微服务架构' },
@@ -196,7 +197,7 @@ test('chat_formatter - decoupled formatters export valid focused functions', asy
     const testChat = { id: 'c1', title: 'Test', messages: [{ role: 'user', content: 'hello' }] };
     assert.ok((await ChatFormatter.formatMarkdownDocument(historicalFixture(testChat))).content.includes('title: "Test"'));
     assert.throws(() => ChatFormatter.formatContent(historicalFixture(testChat), 'markdown'), /unsupported format/);
-    assert.ok(toJsonStandard(historicalFixture(testChat)).includes('"id": "c1"'));
+    assert.ok(toJsonStandard(historicalFixture(testChat)).includes('"conversationId": "c1"'));
     assert.ok(convertHtmlToMarkdown('<b>bold</b>').includes('**bold**'));
 });
 

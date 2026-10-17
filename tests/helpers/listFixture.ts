@@ -2,7 +2,8 @@ import type { DomainConversationIndex } from '../../src/core/domain/conversation
 import type { ListParseResult } from '../../src/core/parsers/gemini/rpc/parseList.js';
 
 /** Pagination unit tests stub the parser seam; they do not establish source ordering evidence. */
-export function listFixture(conversations: DomainConversationIndex[] = [], nextPageToken: string | null = null): ListParseResult {
-    return { conversations, nextPageToken, pageEvidence: { valid: true, ordered: false,
-        keys: conversations.map(item => ({ id: item.id, time: 0 })) } };
+export function listFixture(conversations: (DomainConversationIndex | import('../../src/core/parsers/gemini/rpc/parseList.js').ConversationListItem)[] = [], nextPageToken: string | null = null): ListParseResult {
+    const items = conversations.map(item => "key" in item ? (({ key, ...fields }) => ({ ...fields, id: key.conversationId }))(item) : item);
+    return { conversations: items, nextPageToken, pageEvidence: { valid: true, ordered: false,
+        keys: items.map(item => ({ id: item.id, time: 0 })) } };
 }

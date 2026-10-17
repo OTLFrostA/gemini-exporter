@@ -167,8 +167,8 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
     const accountIds = (await listAccounts()).map(account => account.id);
 
     const stateMirror: MaskedConversationMirror[] = convs.map(c => {
-        const nid = normId(c?.id);
-        const rec = expMap.get(nid) ?? expMap.get(c.id) ?? null;
+        const nid = normId(c?.key.conversationId);
+        const rec = expMap.get(nid) ?? expMap.get(c.key.conversationId) ?? null;
         const derived = resolveConversationExportState(c, rec);
         const { maskedTitle, titleLength } = maskTitle(c?.title);
 
@@ -179,7 +179,7 @@ export async function buildDiagnosticSnapshot(options: BuildSnapshotOptions = {}
             titleSource: c?.titleSource,
             createdAt: c.createdAt,
             updatedAt: c?.updatedAt,
-            messageCount: c.messageCount,
+            messageCount: undefined,
             isTakeout: isTakeoutConversation(c),
             exportRecord: rec ? {
                 exportedAt: rec.exportedAt,

@@ -97,7 +97,7 @@ async function getTakeoutFallbackMedia(chatId: string, lookup: TakeoutResourceLo
     const requested: ResourceIdentity = { conversationId: nid, assetId: lookup.assetId, sourceUris: lookup.sourceUri ? [lookup.sourceUri] : [], generation: lookup.generation };
     const native = store.convCache[nid];
     if (native) {
-        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.index.id)), sourceUris:
+        const candidates = native.conversation.detail.assets.map(asset => ({ ...resourceIdentity(asset, normId(native.conversation.index.key.conversationId)), sourceUris:
             [asset.sourceUri, native.acquisitionHints[asset.id]?.url, native.acquisitionHints[asset.id]?.sourceUrl,
                 native.resourceHints[asset.id]?.archivePath].filter((uri): uri is string => !!uri) }));
         const match = findResourceMatch(nid, requested, candidates);

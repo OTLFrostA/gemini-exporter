@@ -18,15 +18,15 @@ test('Takeout commits once through ingestion; UI refresh retains concurrent writ
     __setModuleOverride('StorageService', { ...storage, transactConversations: () => assert.fail('UI must not merge or publish imported metadata') });
     __setModuleOverride('TakeoutEngine', { parseTakeoutZip: async () => {
         await Promise.all(['online', 'imported', 'concurrent'].map(id => storage.ingestConversation('10000000-0000-4000-8000-000000000001', parsed(id), [], 'takeout')));
-        return { conversations: (await storage.getConversations('10000000-0000-4000-8000-000000000001')).filter(row => row.id !== 'concurrent'), totalMediaCount: 0 };
+        return { conversations: (await storage.getConversations('10000000-0000-4000-8000-000000000001')).filter(row => row.key.conversationId !== 'concurrent'), totalMediaCount: 0 };
     } });
     let added = -1;
     await handleTakeoutImport({} as File, { onFinished: result => { added = result.addedCount; }, onError: error => { throw error; } });
     const canonical = await storage.getConversations('10000000-0000-4000-8000-000000000001');
     assert.deepEqual(visible, canonical);
-    assert.deepEqual(canonical.map(row => row.id).sort(), ['concurrent', 'imported', 'online']);
-    assert.equal(canonical.find(row => row.id === 'online')?.titleSource, 'rpc');
-    assert.equal(canonical.find(row => row.id === 'online')?.hasTakeoutImport, true);
+    assert.deepEqual(canonical.map(row => row.key.conversationId).sort(), ['concurrent', 'imported', 'online']);
+    assert.equal(canonical.find(row => row.key.conversationId === 'online')?.titleSource, 'provider');
+    assert.equal(Reflect.get(canonical.find(row => row.key.conversationId === 'online') ?? {}, 'hasTakeoutImport'), undefined);
     assert.equal(added, 1);
 });
 

@@ -1,3 +1,5 @@
+import { ingestConversation } from '../../storage/conversationIngest.js';
+import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
 import type {
     GeminiProviderClient, GeminiProviderContract, GeminiProviderReadiness,
     GeminiProviderListOptions, GeminiProviderPageResult,
@@ -8,7 +10,7 @@ import { GeminiAPIClient } from "../../api/geminiClient.js";
 import GeminiClientCredentialManager from "../../api/client/credentialManager.js";
 
 /** Opaque neutral callers may pass any value; only observed string inputs are used. */
-function readStringInput(input: unknown, key: 'accountSlot' | 'targetSid' | 'slot'): string | undefined {
+function readStringInput(input: unknown, key: 'accountSlot' | 'targetSid' | 'slot' | 'accountId'): string | undefined {
     if (input === null || (typeof input !== 'object' && typeof input !== 'function') || !(key in input)) return undefined;
     const value: unknown = Reflect.get(input, key);
     return typeof value === 'string' ? value : undefined;
@@ -100,8 +102,13 @@ export class GeminiProvider implements GeminiProviderContract {
     async fetchConversationDetail(conversationId: string, options?: unknown): Promise<GeminiProviderConversationDetail> {
         const client = this.getClient();
         const targetSid = readStringInput(options, 'targetSid') || readStringInput(options, 'slot') || null;
-        const detail = await client.getConversationDetail(conversationId, targetSid);
-        return detail;
+        // The Runtime supplies a captured UUID. Explicitly unknown identity uses the ordinary default account.
+        const accountId = readStringInput(options, 'accountId') ?? (await getOrCreateAccount('gemini', 'default')).id;
+        const account = await getAccount(accountId);
+        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
+        const detail = await client.getConversationDetail(conversationId, targetSid, account);
+        const accepted = await ingestConversation(accountId, detail);
+        return { ...detail, ...accepted };
     }
 }
 

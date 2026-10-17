@@ -115,7 +115,7 @@ async function updateCount(): Promise<void> {
 
         if (isGemini && _activeConvId) {
             const list = getStorage() ? await getStorage().getConversations(slot) : [];
-            const rawFound = list.find((c: any) => c.id === _activeConvId || c.id === `c_${_activeConvId}`);
+            const rawFound = list.find((c: any) => c.key.conversationId === _activeConvId);
             const found = isStoredObject(rawFound) && !Array.isArray(rawFound) ? rawFound : null;
             if (found && found.title) {
                 _activeChatTitle = cleanTitle(typeof found.title === 'string' ? found.title : undefined);
@@ -130,7 +130,8 @@ async function updateCount(): Promise<void> {
                 currentChatTitleEl.title = _activeChatTitle;
             }
 
-            const msgCount = found?.messageCount || (Array.isArray(found?.messages) ? found.messages.length : 0) || 0;
+            const detail = await getStorage().conversationRepository({ providerId: 'gemini', accountId: slot }).getConversation(_activeConvId);
+            const msgCount = detail?.detail?.messages.length ?? 0;
             if (chatTurnBadgeEl) {
                 chatTurnBadgeEl.textContent = Number(msgCount) > 0
                     ? (i18n.t('chatMessagesCount', msgCount))
@@ -296,7 +297,7 @@ function initPopupEvents(): void {
                     } else {
                         formatted = ChatFormatter.formatContent(chat, format, missing);
                     }
-                    const fileName = buildExportFileName(chat.conversation.index.title || chat.conversation.index.id, _activeConvId, formatted.ext);
+                    const fileName = buildExportFileName(chat.conversation.index.title || chat.conversation.index.key.conversationId, _activeConvId, formatted.ext);
                     const blob = new Blob([formatted.content], { type: formatted.mime });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');

@@ -1,8 +1,7 @@
 import type { DeepReadonly } from './readonly.js';
 import type { DomainConversationWithDetail } from './conversation.js';
 
-/** A source version proves saved body coverage only for a nonpartial capture. */
+/** Source snapshot version is independent of completeness and message count. */
 export function savedConversationVersion(conversation: DeepReadonly<DomainConversationWithDetail>, sourceVersion?: number): number | undefined {
-    return conversation.detail.quality.status !== 'partial' && (conversation.detail.messages.length > 0 || conversation.detail.quality.status === 'complete')
-        ? sourceVersion : undefined;
+    return conversation.detail.savedAt ?? sourceVersion;
 }

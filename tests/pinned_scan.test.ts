@@ -1,3 +1,4 @@
+import { sourceIndex } from './helpers/domainFixture.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
@@ -6,8 +7,8 @@ import { getAllConversations } from '../src/core/api/client/pagination.js';
 import type { ConversationListItem, ListParseResult } from '../src/core/parsers/gemini/rpc/parseList.js';
 
 function item(id: string, timestamp = 1700000000000): ConversationListItem {
-    return indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id }, createdAt: timestamp,
-        updatedAt: timestamp, chatTime: timestamp, timestamp, messageCount: 0, url: '' });
+    return sourceIndex(indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id }, createdAt: timestamp,
+        updatedAt: timestamp, chatTime: timestamp, timestamp, messageCount: 0, url: '' }));
 }
 function page(ids: string[], token: string | null = null): ListParseResult {
     return listFixture(ids.map(id => item(id)), token);

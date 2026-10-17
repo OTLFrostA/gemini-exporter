@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 /**
  * tests/pdf-d8-evidence.test.ts
  *
@@ -59,7 +60,7 @@ function msg(id: string, role: 'user' | 'assistant', blocks: unknown[], extra: R
 }
 
 function makeDomain(messages: unknown[], opts: { title?: string; conversationId?: string; assets?: unknown[] } = {}) {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: opts.conversationId ?? 'd8-evidence', title: opts.title ?? 'D8 evidence', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { quality: { status: 'unknown' }, assets: opts.assets ?? [], messages } };
+    return { index: { key: fixtureKey(String(opts.conversationId ?? 'd8-evidence'), 'gemini'),   titleSource: "derived",   title: opts.title ?? 'D8 evidence', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { key: fixtureKey(String(opts.conversationId ?? 'd8-evidence'), 'gemini'), quality: { status: 'unknown' }, assets: opts.assets ?? [], messages } };
 }
 
 function makeContext(overrides: { assets?: Record<string, Uint8Array> } = {}) {
@@ -88,7 +89,7 @@ function compilerPayload(
     convertMathFn?: (source: string, display: boolean) => string | undefined,
 ) {
     const assetPath = (a: any) => `/assets/${a.id}`;
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain as any).document, Object.fromEntries(((domain as any).assets ?? []).map((asset: any) => [asset.id, assetPath(asset)])), {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain as any, fixtureAccountFor(domain as any)).document, Object.fromEntries(((domain as any).assets ?? []).map((asset: any) => [asset.id, assetPath(asset)])), {
         ...(convertMathFn ? { convertMath: convertMathFn } : {}),
     });
     return {

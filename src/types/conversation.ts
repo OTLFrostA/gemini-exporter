@@ -1,13 +1,4 @@
-export type TitleSource =
-    | 'rpc'
-    | 'dom'
-    | 'takeout'
-    | 'openai'
-    | 'sniff'
-    | 'api-detail'
-    | 'legacy'
-    | 'default';
-
+export type { TitleSource } from '../core/domain/titleAuthority.js';
 export interface TitleSources {
     rpc?: string;
     dom?: string;

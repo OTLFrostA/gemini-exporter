@@ -1,3 +1,6 @@
+import { bindFixture } from './helpers/domainFixture.js';
+import { acquiredReply } from './helpers/acquisitionFixture.js';
+import { setConversationAvailability } from '../src/core/storage/conversationAvailability.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
 useIndexStorage();
@@ -34,6 +37,7 @@ function exportMocks() {
         async generateAsync() { return new Blob(['zip']); }
     });
     __setModuleOverride('StorageService', {
+        getConversationAvailability: catalogStorage.getConversationAvailability,
         getExportedIds: async () => records,
         saveExportRecord: async (_slot: string, id: string, record: unknown) => { records[id] = record; return records; }
     });
@@ -51,7 +55,7 @@ test('deleted export uses Domain / Takeout assets and immediately records missin
     const [domain, takeout] = source.conversation.detail.assets;
     await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: domain.id, bytes: new Uint8Array([1, 2, 3]) }]);
-    await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', 'deleted_local', { cloudAvailability: 'deleted' });
+    await setConversationAvailability('10000000-0000-4000-8000-000000000001', 'deleted_local', 'deleted');
     let requests = 0;
     const logs: string[] = [];
     __setModuleOverride('TabService', { sendToGeminiTab: async () => { requests++; return { success: false, error: 'unexpected request' }; } });
@@ -89,7 +93,7 @@ test('normal export fetches fresh cloud content first and falls back to a local 
             await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [local]);
             const { files } = exportMocks();
             __setModuleOverride('TabService', { sendToGeminiTab: async () => {
-                calls++; return error ? { success: false, error } : { success: true, domainEnvelopeVersion: 2, data: fresh };
+                calls++; return error ? { success: false, error } : acquiredReply({ success: true, domainEnvelopeVersion: 3, data: fresh });
             } });
             const logs: string[] = [];
             const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'unlisted_local' }], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,
@@ -116,9 +120,9 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
     let available = false;
     const list: Conversation = indexFixture({ id: 'retry_snapshot', title: 'Retry snapshot', timestamp: 1 });
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
-        calls++; return available ? { success: true, domainEnvelopeVersion: 2, data: fresh } : { success: false, error: 'HTTP 503' };
+        calls++; return available ? acquiredReply({ success: true, domainEnvelopeVersion: 3, data: fresh }) : { success: false, error: 'HTTP 503' };
     } });
-    const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list],
+    const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.key.conversationId }], conversations: [list],
         accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false, skip, worker: BatchWorker });
     const status = () => (records.retry_snapshot as { status: string }).status;
     try {
@@ -131,8 +135,8 @@ test('normal snapshot records stay partial and skipExported retries cloud; fresh
         assert.equal(calls, 3); assert.equal(status(), 'ok');
         assert.match(Object.values(files).filter(value => typeof value === 'string').join(' '), /Fresh cloud content/);
         assert.equal((await run(true)).skipped, 1); assert.equal(calls, 3);
-        list.cloudAvailability = 'deleted';
-        await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', list.id, { cloudAvailability: 'deleted' });
+        await setConversationAvailability('10000000-0000-4000-8000-000000000001', list.key.conversationId, 'deleted');
+        await catalogStorage.updateConversation('10000000-0000-4000-8000-000000000001', list.key.conversationId, {  });
         await run(false);
         assert.equal(status(), 'ok', 'known deleted local export remains complete');
         assert.equal(calls, 3);
@@ -148,17 +152,18 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     await catalogStorage.setNativeConversations('10000000-0000-4000-8000-000000000001', [source]);
     let assetRequests = 0;
     let writes = 0;
-    let memoryAtWrite: Conversation['cloudAvailability'] = 'unknown';
-    const list: Conversation = indexFixture({ id: source.conversation.index.id, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' });
-    __setModuleOverride('StorageService', { getExportedIds: async () => records,
+    let memoryAtWrite: 'unknown' | 'deleted' = 'unknown';
+    let observedRequested: { cloudAvailability?: string };
+    const requested = { id: 'delete_write_failure', cloudAvailability: 'unknown' as 'unknown' | 'deleted' };
+    const list: Conversation = indexFixture({ id: source.conversation.index.key.conversationId, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' });
+    __setModuleOverride('StorageService', { getConversationAvailability: catalogStorage.getConversationAvailability,
+        getExportedIds: async () => records,
         saveExportRecord: async (_slot: string, id: string, record: unknown) => { records[id] = record; return records; },
-        updateConversation: async (_slot: string, _id: string, update: unknown) => {
-            if (update && typeof update === 'object' && 'cloudAvailability' in update) {
-                writes++; memoryAtWrite = list.cloudAvailability; throw new Error('Injected deleted marker write failure');
-            }
+        setConversationAvailability: async (_slot: string, _id: string, state: string) => {
+            if (state === 'deleted') { writes++; memoryAtWrite = observedRequested.cloudAvailability as 'unknown' | 'deleted'; throw new Error('Injected deleted marker write failure'); }
         }
     });
-    __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 2, data: { id: list.id, isDeleted: true, error: 'HTTP 404' } }) });
+    __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 3, data: { id: list.key.conversationId, isDeleted: true, error: 'HTTP 404' } }) });
     __setModuleOverride('AssetPipeline', class extends AssetPipeline {
         constructor(options: AssetPipelineOptions) { super({ ...options, fetchAsset: async () => {
             assetRequests++; return { success: true, dataBase64: 'AQID' };
@@ -166,16 +171,16 @@ test('confirmed deletion updates memory before persistence and retains localOnly
     });
     try {
         const logs: string[] = [];
-        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], conversations: [list], accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker },
+        const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [requested], conversations: [list], accountId: '10000000-0000-4000-8000-000000000001', worker: { ...BatchWorker, resolveChat: (...args) => { observedRequested = args[1]; return BatchWorker.resolveChat(...args); } } },
             { onLog: message => logs.push(message) });
         assert.equal(memoryAtWrite, 'deleted', 'memory must be restricted before any storage await');
-        assert.equal(list.cloudAvailability, 'deleted');
+        assert.equal(observedRequested!.cloudAvailability, 'deleted');
         assert.equal(writes, 1);
         assert.equal(assetRequests, 0);
         assert.equal(result.landedChats, 1); assert.equal(result.failedAttachments.length, 1);
         assert.match(logs.join(' '), /Injected deleted marker write failure/);
         // Confirmed deletion is also restrictive when the caller has no list metadata.
-        const noList = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.id }], accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker });
+        const noList = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: list.key.conversationId }], accountId: '10000000-0000-4000-8000-000000000001', worker: BatchWorker });
         assert.equal(noList.landedChats, 1); assert.equal(noList.failedAttachments.length, 1);
         assert.equal(assetRequests, 0);
     } finally { __clearModuleOverrides(); __clearDomainMemory(); }
@@ -272,7 +277,7 @@ test('a failed cloud fetch without a same-account body remains a failed export',
     __clearDomainMemory();
     const { records } = exportMocks();
     const foreign = historicalFixture({ id: 'missing_local', title: 'Other account', messages: [{ role: 'user', content: 'Private other-account answer' }] });
-    await saveDomainConversation('10000000-0000-4000-8000-000000000002', foreign);
+    await saveDomainConversation('10000000-0000-4000-8000-000000000002', bindFixture(foreign, '10000000-0000-4000-8000-000000000002'));
     __setModuleOverride('TabService', { sendToGeminiTab: async () => ({ success: false, error: 'HTTP 503' }) });
     try {
         const result = await new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: 'missing_local' }], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,
@@ -292,10 +297,10 @@ test('batch export records the fetched body version rather than a newer Index ve
     await catalogStorage.setConversations('10000000-0000-4000-8000-000000000001', [index]);
     let requests = 0;
     __setModuleOverride('TabService', { sendToGeminiTab: async () => {
-        requests++; return { success: true, domainEnvelopeVersion: 2, data: body };
+        requests++; return acquiredReply({ success: true, domainEnvelopeVersion: 3, data: body });
     } });
     try {
-        const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: index.id }],
+        const run = (skip: boolean) => new ExportOrchestrator().run({ downloadHandler: async () => {}, selected: [{ id: index.key.conversationId }],
             conversations: [index], accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false, skip, worker: BatchWorker });
         assert.equal((await run(false)).landedChats, 1);
         assert.equal((records.stale_body_version as { chatTime: number }).chatTime, body.sourceVersion);

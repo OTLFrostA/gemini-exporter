@@ -8,10 +8,15 @@ export function withRegistry<T extends object>(mock: T, extra: Account[] = []): 
         { id: OTHER_ACCOUNT_UUID, providerId: 'gemini', providerAccountId: '10000000002' },
         ...extra,
     ];
-    return Object.assign(mock, { runtime: { async sendMessage(message: Record<string, unknown>) {
-        if (message.action !== 'accountRegistry') return undefined;
+    const runtime: any = Reflect.get(mock, 'runtime');
+    const send = runtime?.sendMessage;
+    return Object.assign(mock, { runtime: { ...runtime, async sendMessage(message: Record<string, unknown>, ...args: unknown[]) {
+        if (message.action !== 'accountRegistry') return send?.call(runtime, message, ...args);
         if (message.command === 'get') return { ok: true, value: accounts.find(a => a.id === message.accountId) ?? null };
         if (message.command === 'list') return { ok: true, value: accounts.filter(a => !message.providerId || a.providerId === message.providerId) };
-        throw new Error('Storage fixture does not allocate accounts');
+        const found = accounts.find(a => a.providerId === message.providerId && a.providerAccountId === message.providerAccountId);
+        const created = found ?? { id: crypto.randomUUID(), providerId: String(message.providerId), providerAccountId: String(message.providerAccountId) };
+        if (!found) accounts.push(created);
+        return { ok: true, value: created };
     } } });
 }

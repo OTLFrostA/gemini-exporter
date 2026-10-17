@@ -1,3 +1,4 @@
+import { fixtureAccountFor, fixtureKey } from '../helpers/domainFixture.js';
 import { validateParserDomain } from '../../src/core/domain/runtimeValidation.js';
 /**
  * tests/e2e/mitex_pdf_export.spec.ts
@@ -55,10 +56,13 @@ test.describe('MiTeX production math converter & Typst PDF export (MV3 browser r
         String.raw`\begin{cases} 1 & x > 0 \\ 0 & x \le 0 \end{cases}`,
       ];
       // Exercise the production composition path rather than hand-maintaining its wire schema.
-      const ast = composeDomainDocument(validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'mitex-e2e', title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
+      const ast = composeDomainDocument(validateParserDomain({ index: { key: fixtureKey(String('mitex-e2e'), 'gemini'),   titleSource: "derived",   title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey(String('mitex-e2e'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
         { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
         ...formulas.map(source => ({ type: 'math' as const, source })),
-      ] }] } })).document;
+      ] }] } }), fixtureAccountFor(validateParserDomain({ index: { key: fixtureKey(String('mitex-e2e'), 'gemini'),   titleSource: "derived",   title: 'MiTeX Browser E2E Test', createdAt: Date.parse('2026-09-28T00:00:00Z') }, detail: { key: fixtureKey(String('mitex-e2e'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm1', role: 'assistant', content: [
+        { type: 'paragraph', children: [{ type: 'text', text: 'MiTeX converted formulas in Typst sandbox:' }] },
+        ...formulas.map(source => ({ type: 'math' as const, source })),
+      ] }] } }))).document;
       const payload = renderDocumentTypst(ast, {});
 
       // 1. In-browser pipeline evaluation

@@ -1,3 +1,4 @@
+import { fixtureKey } from './helpers/domainFixture.js';
 import type { HistoricalConversation as Conversation } from './helpers/historicalConversation.js';
 import type { DomainAsset, DomainMessage, DomainMessageRole } from '../src/core/domain/conversationDetail.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
@@ -136,13 +137,13 @@ const failedAsset: DomainAsset = { id: 'image', kind: 'image', failureReason: 'H
 // @ts-expect-error Citation numbering belongs to Document composition.
 const numberedCitation: import('../src/core/domain/conversationDetail.js').DomainCitation = { id: 'cite', number: 1 };
 // @ts-expect-error Unknown title sources must be normalized before Domain.
-const unknownTitleSource: DomainConversationWithDetail = { index: { ...domainConversation.index, titleSource: 'unknown-source' }, detail: { ...domainConversation.detail } };
+const unknownTitleSource: DomainConversationWithDetail = { index: { ...domainConversation.index, titleSource: 'unknown-source' }, detail: { key: domainConversation.index.key,  ...domainConversation.detail } };
 void failedAsset; void numberedCitation; void unknownTitleSource;
 
 // @ts-expect-error Conversation activity belongs solely to Index.
-const duplicateActivity: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { ...domainConversation.detail, updatedAt: 1700000000000 } };
+const duplicateActivity: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { key: domainConversation.index.key,  ...domainConversation.detail, updatedAt: 1700000000000 } };
 // @ts-expect-error The saved body version belongs to its storage envelope.
-const embeddedSavedVersion: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { ...domainConversation.detail }, savedAt: 1700000000000 };
+const embeddedSavedVersion: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { key: domainConversation.index.key,  ...domainConversation.detail }, savedAt: 1700000000000 };
 // @ts-expect-error Acquisition context cannot become a persisted Detail field.
-const embeddedCaptureVersion: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { ...domainConversation.detail }, sourceVersion: 1700000000000 };
+const embeddedCaptureVersion: DomainConversationWithDetail = { index: { ...domainConversation.index }, detail: { key: domainConversation.index.key,  ...domainConversation.detail }, sourceVersion: 1700000000000 };
 void [duplicateActivity, embeddedSavedVersion, embeddedCaptureVersion];

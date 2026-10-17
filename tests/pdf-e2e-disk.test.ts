@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -220,7 +221,7 @@ test('e2e-disk: single PDF export lands a real, parseable file on disk', async (
         const result = await exporter.run(
             { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: [{ id: conv.id, title: conv.title }],
-                conversations: ([conv]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([conv]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+                conversations: ([conv]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([conv]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
                 useZip: false,
                 writer,
             }) },
@@ -294,7 +295,7 @@ test('e2e-disk: batch ZIP of 3 conversations lands a real ZIP with 3 parseable P
             { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: conversations.map((c) => ({ id: c.id, title: c.title })),
                 conversations: conversations.map(indexFixture),
-                fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+                fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(conversations.find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
                 useZip: true,
                 writer,
                 // The production delivery endpoint: in the browser this triggers

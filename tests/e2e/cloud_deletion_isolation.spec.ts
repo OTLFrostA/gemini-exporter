@@ -33,14 +33,15 @@ test.beforeAll(async () => {
             await domain.saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
             const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' })];
             await StorageService.setConversations('10000000-0000-4000-8000-000000000001', list);
+            await StorageService.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'unlisted');
             let writeFailures = 0, remoteCalls = 0, domCalls = 0;
             const order = [], warnings = [], logs = [], replies = [];
-            const storage = { ...StorageService, updateConversation: async (slot, cid, patch) => {
-                if (patch && typeof patch === 'object' && patch.cloudAvailability === 'deleted') {
+            const storage = { ...StorageService, setConversationAvailability: async (slot, cid, state) => {
+                if (state === 'deleted') {
                     order.push('storage');
                     if (scenario.writeFailure) { writeFailures++; throw new Error('Injected deletion persistence failure'); }
                 }
-                return StorageService.updateConversation(slot, cid, patch);
+                return StorageService.setConversationAvailability(slot, cid, state);
             } };
             const provider = ProviderRegistry.getDefault();
             const originalFetch = provider.fetchConversationDetail;
@@ -89,7 +90,7 @@ test.beforeAll(async () => {
                     }
                 }, { onLog: message => logs.push(message) });
                 return { result, remoteCalls, domCalls, writeFailures, order, warnings, logs, replies,
-                    listAvailability: list[0]?.cloudAvailability,
+                    availability: (await StorageService.getConversationAvailability('10000000-0000-4000-8000-000000000001'))[id],
                     persistedList: await StorageService.getConversations('10000000-0000-4000-8000-000000000001'),
                     records: await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'),
                     savedConversation: await StorageService.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' }).getConversation(id),
@@ -167,8 +168,8 @@ for (const scenario of scenarios) {
         expect(observed.records['deletion-isolation'].status).toBe('partial');
         if (scenario.route === 'network') {
             expect(observed.replies[0].data.isDeleted).toBe(false);
-            expect(observed.listAvailability).toBe('unlisted');
-            expect(observed.persistedList[0].cloudAvailability).toBe('unlisted');
+            expect(observed.availability).toBe('unlisted');
+            expect(observed.availability).toBe('unlisted');
             expect(observed.writeFailures).toBe(0);
             expect(observed.remoteCalls).toBe(2);
             expect(assetRequests).toHaveLength(2);
@@ -185,12 +186,12 @@ for (const scenario of scenarios) {
             expect(contents).toContainEqual([4, 5, 6]);
             expect(observed.logs.join(' ')).not.toMatch(/后重试|backoff/);
             expect(observed.order.slice(0, 2)).toEqual(['memory', 'storage']);
-            if (!scenario.noList) expect(observed.listAvailability).toBe('deleted');
+            expect(observed.persistedList[0]).not.toHaveProperty('cloudAvailability');
             if (scenario.writeFailure) {
                 expect(observed.writeFailures).toBe(2);
                 expect(observed.warnings.join(' ')).toContain('Injected deletion persistence failure');
-                if (!scenario.noList) expect(observed.persistedList[0].cloudAvailability).toBe('unlisted');
-            } else expect(observed.persistedList[0].cloudAvailability).toBe('deleted');
+                if (!scenario.noList) expect(observed.availability).toBe('unlisted');
+            } else expect(observed.availability).toBe('deleted');
         }
         // Reload proves the archive body and cached bytes survived on disk.
         await page.reload(); await page.evaluate(bundle);

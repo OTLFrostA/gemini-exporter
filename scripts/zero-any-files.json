@@ -100,9 +100,9 @@
   "src/core/engine/chatFormatter.ts",
   "src/core/engine/formatters/jsonFormatter.ts",
   "src/core/engine/export/batchWorker.ts",
-  "src/core/sync/pageObservation.ts",
-  "src/core/sync/streamCoverage.ts",
-  "src/core/storage/scanCoverage.ts",
+  "src/core/domain/pageObservation.ts",
+  "src/core/domain/streamCoverage.ts",
+  "src/core/domain/scanCoverage.ts",
   "src/core/provider/gemini/listObservation.ts",
   "tests/stream_coverage.test.ts",
   "tests/observed_page_ingest.test.ts",
@@ -137,5 +137,14 @@
   "src/background/accountRegistryHandler.ts",
   "src/content/accountContext.ts",
   "tests/account_registry.test.ts",
-  "src/core/api/accountRegistry.ts"
+  "src/core/api/accountRegistry.ts",
+  "src/core/domain/conversationKey.ts",
+  "src/core/domain/conversationIndex.ts",
+  "src/core/domain/indexCoverage.ts",
+  "src/core/storage/conversationCatalogStore.ts",
+  "src/core/storage/conversationIngest.ts",
+  "src/core/storage/conversationAvailability.ts",
+  "src/core/utils/conversationSourceUrl.ts",
+  "tests/domain_admission_rules.test.ts",
+  "tests/domain_admission_storage.test.ts"
 ]

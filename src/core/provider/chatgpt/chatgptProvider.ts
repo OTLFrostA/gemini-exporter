@@ -1,3 +1,6 @@
+import { ingestConversation } from '../../storage/conversationIngest.js';
+import type { ProviderConversationItem } from '../aiProvider.js';
+import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
 /**
  * ChatGPT provider: acquisition only (session/list/detail/downloads).
  * Mapping parsing and Domain branding live in parsers/chatgpt, mirroring the
@@ -111,12 +114,12 @@ export class ChatGPTProvider implements AIProvider {
         }
     }
 
-    async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<DomainConversationIndex>> {
+    async listConversations(options?: ProviderListOptions): Promise<ProviderPageResult<ProviderConversationItem>> {
         const limit = 100;
         const maxPages = typeof options?.maxPages === 'number' && options.maxPages > 0
             ? Math.floor(options.maxPages)
             : 20;
-        const all: DomainConversationIndex[] = [];
+        const all: ProviderConversationItem[] = [];
         let offset = 0;
         let total: number | undefined;
         let cursor: string | null = null;
@@ -164,7 +167,12 @@ export class ChatGPTProvider implements AIProvider {
 
     async fetchConversationDetail(
         conversationId: string,
+        options?: unknown,
     ): Promise<ProviderConversationDetail> {
+        const accountId = options && typeof options === 'object' && typeof Reflect.get(options, 'accountId') === 'string'
+            ? String(Reflect.get(options, 'accountId')) : (await getOrCreateAccount(this.id, 'default')).id;
+        const account = await getAccount(accountId);
+        if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
         const raw = await this.authedGet<Omit<ChatGPTApiConversationWithId, 'id'>>(
             `/conversation/${encodeURIComponent(conversationId)}`,
         );
@@ -177,7 +185,7 @@ export class ChatGPTProvider implements AIProvider {
                 assetsByNode.set(node.id, await this.resolveNodeAssets(node));
             }),
         );
-        return parseChatGPTConversation({ conversation, assetsByNode });
+        return ingestConversation(account.id, parseChatGPTConversation({ account, conversation, assetsByNode }));
     }
 
     /** Linear history without branding (used to scope per-node downloads). */

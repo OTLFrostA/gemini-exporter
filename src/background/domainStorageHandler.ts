@@ -1,3 +1,4 @@
+import { getAccount } from '../core/storage/accountRegistryStore.js';
 import { NATIVE_DETAIL_ENVELOPE_VERSION } from '../core/utils/nativeDetailTransport.js';
 import { ensureStorageReady } from '../core/storage/schemaMigration.js';
 import { getStoredDomain, saveDomainRequest, cacheDomainResource, getDomainResource, removeStoredDomain, backupLegacyValue, storageIdentity } from '../core/storage/domain/domainStore.js';
@@ -28,7 +29,9 @@ export function handleDomainStorageMessage(message: unknown, sender: chrome.runt
                     const item = object(value);
                     return { assetId: text(item.assetId), bytes: decodeBytes(item.bytes), ...(typeof item.sourcePath === 'string' ? { sourcePath: item.sourcePath } : {}) };
                 }) : [];
-                const record = await saveDomainRequest(text(payload.accountId), parsed, resources, payload.migration === true);
+                const account = await getAccount(text(payload.accountId));
+                if (!account) throw new TypeError('Domain Account missing');
+                const record = await saveDomainRequest(account, parsed, resources, payload.migration === true);
                 respond({ ok: true, value: record ? encodeDomainRecord(record) : null }); return;
             }
             if (request.command === 'backup') {

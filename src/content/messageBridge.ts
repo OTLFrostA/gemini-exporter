@@ -1,8 +1,9 @@
+import { getAccount } from '../core/api/accountRegistry.js';
 import type { GeminiIndexObservationInput } from '../core/parsers/gemini/parseIndexObservation.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
-import type { PageObservation } from '../core/sync/pageObservation.js';
-import { ingestConversation } from '../core/storage/storageService.js';
+import type { PageObservation } from '../core/domain/pageObservation.js';
+import { ingestConversation } from '../core/storage/conversationIngest.js';
 import { parseGeminiRpcConversation } from '../core/parsers/gemini/rpc/parseConversation.js';
 import type { GeminiProviderConversationItem } from '../core/provider/gemini/geminiContracts.js';
 import type { RpcListIngestResult } from './syncEngine.js';
@@ -116,9 +117,11 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
 
             if (text.includes(Proto.RPCS.DETAIL)) {
                 try {
-                    const native = parseGeminiRpcConversation(text, { providerId: 'gemini' });
+                    const registered = await getAccount(account.accountId);
+                    if (!registered) throw new Error('Account no longer exists');
+                    const native = parseGeminiRpcConversation(text, { providerId: 'gemini', account: registered });
                     const detailRes = native.conversation;
-                    if (detailRes && detailRes.index.id) {
+                    if (detailRes && detailRes.index.key.conversationId) {
                         if (!canCommit()) return;
                         await ingestConversation(account.accountId, native, [], 'detail', canCommit);
                     }

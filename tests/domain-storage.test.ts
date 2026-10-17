@@ -1,3 +1,5 @@
+import { bindFixture, fixtureAccount, fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
+import { withRegistry } from './helpers/registryMock.js';
 import { parseIndexMetadata } from '../src/core/parsers/shared/parseIndexMetadata.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { composeDomainDocument } from '../src/core/document/compose/composeDomainDocument.js';
@@ -14,35 +16,35 @@ import { __setSchemaFrozenForTest } from '../src/core/storage/schemaState.js';
 
 beforeEach(() => { __clearDomainMemory(); __clearMemoryStore(); });
 function source(id = 'chat', count = 2): ResourceConversationParseResult {
-    return { sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id, title: 'Stored title' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'image', sourceUri: 'source.png' }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) } }), resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
+    return { account: fixtureAccount(), sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { key: fixtureKey(String(id), 'gemini'),   titleSource: "derived",   title: 'Stored title' }, detail: { savedAt: 1700000000000, key: fixtureKey(String(id), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'image', sourceUri: 'source.png' }], messages: Array.from({ length: count }, (_, i) => ({ id: `m${i}`, role: 'assistant', model: 'Source model', content: [{ type: 'paragraph', children: [{ type: 'strong', children: [{ type: 'text', text: `content ${i}` }, { type: 'image', assetId: 'asset' }] }] }], reasoning: [{ type: 'math', source: 'x^2' }], attachmentIds: ['asset'] })) } }), resourceHints: { asset: { archivePath: 'assets/export.png' } }, acquisitionHints: { asset: { url: 'source.png', localName: 'assets/export.png', resolvedUrl: 'https://derived.test/high-res' } }, diagnostics: [{ severity: 'warning', code: 'TEST', message: 'side channel' }] };
 }
 test('v2 stores structured Domain intact and excludes render/parse transport state', async () => {
     const parsed = source();
     const before = structuredClone(parsed);
     const record = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed, [{ assetId: 'asset', bytes: new Uint8Array([1, 2, 3]), sourcePath: 'Takeout/source.png' }]);
     assert.deepEqual(record.conversation, parsed.conversation);
-    assert.equal(record.storageVersion, 2);
-    assert.equal(record.domainVersion, 2);
+    assert.equal(record.storageVersion, 3);
+    assert.equal(record.domainVersion, 3);
     assert.doesNotMatch(JSON.stringify(record), /archivePath|localName|resolvedUrl|diagnostics/);
     assert.deepEqual(parsed, before);
     record.conversation.detail.messages[0].model = 'mutated';
     assert.equal((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'c_chat')))!.conversation.detail.messages[0].model, 'Source model');
     assert.deepEqual(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat'), 'asset'), new Uint8Array([1, 2, 3]));
-    assert.deepEqual(storedParseResult((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!), { sourceVersion: parsed.sourceVersion, conversation: parsed.conversation, diagnostics: [], resourceHints: {}, acquisitionHints: { asset: { url: 'source.png' } } });
+    assert.deepEqual(storedParseResult((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!, fixtureAccountFor((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!.conversation)), { account: fixtureAccount(), sourceVersion: parsed.sourceVersion, conversation: parsed.conversation, diagnostics: [], resourceHints: {}, acquisitionHints: { asset: { url: 'source.png' } } });
 });
 test('accounts and providers isolate identical IDs; non-Gemini IDs remain opaque', async () => {
     assert.deepEqual(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'c_chat'), storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat'));
-    assert.equal(storageIdentity('future', '10000000-0000-4000-8000-000000000001', 'c_chat').accountId, '10000000-0000-4000-8000-000000000001');
+    assert.equal(storageIdentity('future', fixtureAccount('future').id, 'c_chat').accountId, fixtureAccount('future').id);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source());
     assert.equal((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!.identity.accountId, '10000000-0000-4000-8000-000000000001');
-    const second = source(); second.conversation.index.title = 'Other account';
+    const second = bindFixture(source(), '10000000-0000-4000-8000-000000000002'); second.conversation.index.title = 'Other account';
     await saveDomainConversation('10000000-0000-4000-8000-000000000002', second);
-    const other = source('c_chat'); other.conversation.index.providerId = 'future';
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', other);
+    const other = bindFixture(source('c_chat'), fixtureAccount('future'));
+    await saveDomainConversation(other.account.id, other);
     assert.equal((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!.conversation.index.title, 'Stored title');
     assert.equal((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', 'chat')))!.conversation.index.title, 'Other account');
-    assert.equal(await getStoredDomain(storageIdentity('future', '10000000-0000-4000-8000-000000000001', 'chat')), null);
-    assert.ok(await getStoredDomain(storageIdentity('future', '10000000-0000-4000-8000-000000000001', 'c_chat')));
+    assert.equal(await getStoredDomain(storageIdentity('future', fixtureAccount('future').id, 'chat')), null);
+    assert.ok(await getStoredDomain(storageIdentity('future', fixtureAccount('future').id, 'c_chat')));
 });
 test('partial/older captures cannot truncate current detail; migration retries are idempotent', async () => {
     const full = source('chat', 4); full.conversation.detail.quality.status = 'complete';
@@ -58,7 +60,7 @@ test('partial/older captures cannot truncate current detail; migration retries a
 test('stable resource bytes survive subsequent detail saves and scoped deletion leaves other accounts intact', async () => {
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source(), [{ assetId: 'asset', bytes: new Uint8Array([7]) }]);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source('chat', 3));
-    await saveDomainConversation('10000000-0000-4000-8000-000000000002', source());
+    await saveDomainConversation('10000000-0000-4000-8000-000000000002', bindFixture(source(), '10000000-0000-4000-8000-000000000002'));
     assert.deepEqual(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat'), 'asset'), new Uint8Array([7]));
     await removeStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat'));
     assert.equal(await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')), null);
@@ -81,18 +83,18 @@ test('legacy-storage is a distinct unified parser format and joins metadata with
     const metadata = { id: 'c_legacy', title: 'Legacy', timestamp: 1, messageCount: 2, messages: [{ role: 'user', content: 'short' }] };
     const detail = { id: 'legacy', messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: '**Answer**', model: 'Old model', thoughts: 'Reasoning', images: [{ url: 'https://example.test/image.png', type: 'image' }] }] };
     const before = structuredClone({ metadata, detail });
-    const result = parseConversation({ format: 'legacy-storage', providerId: 'gemini', data: { metadata, detail } });
-    assert.equal(result.conversation.index.id, 'legacy');
+    const result = parseConversation({ account: fixtureAccount('gemini'), format: 'legacy-storage', providerId: 'gemini', data: { metadata, detail } });
+    assert.equal(result.conversation.index.key.conversationId, 'legacy');
     assert.equal(result.conversation.detail.messages.length, 2);
     assert.equal(result.conversation.detail.messages[1].model, 'Old model');
     assert.equal(result.conversation.detail.messages[1].role, 'assistant');
     assert.ok(result.conversation.detail.messages[1].reasoning);
     assert.equal(result.conversation.detail.assets.length, 1);
     assert.deepEqual({ metadata, detail }, before);
-    assert.throws(() => parseLegacyStorageConversation({ metadata, detail: { id: 'other' } }, { providerId: 'gemini' }), /identity mismatch/);
+    assert.throws(() => parseLegacyStorageConversation({ metadata, detail: { key: fixtureKey(), id: 'other' } }, { account: fixtureAccount('gemini'), providerId: 'gemini' }), /identity mismatch/);
 });
 test('legacy metadata without body reports partial coverage instead of fabricating a transcript', () => {
-    const result = parseLegacyStorageConversation({ metadata: { id: 'meta', title: 'Meta', messageCount: 5 } }, { providerId: 'gemini' });
+    const result = parseLegacyStorageConversation({ metadata: { id: 'meta', title: 'Meta', messageCount: 5 } }, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     assert.equal(result.conversation.detail.messages.length, 0);
     assert.equal(result.conversation.detail.quality.status, 'partial');
 });
@@ -105,7 +107,7 @@ test('identical captures retain the current record token', async () => {
 test('future schema freezes writes and deletion while known Domain remains readable', async () => {
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source());
     const before = globalThis.chrome;
-    globalThis.chrome = { storage: { local: { get: async () => ({ gemini_schema_version: 999 }) } } } as unknown as typeof chrome;
+    globalThis.chrome = withRegistry({ storage: { local: { get: async () => ({ gemini_schema_version: 999 }) } } }) as unknown as typeof chrome;
     try {
         await assert.rejects(saveDomainConversation('10000000-0000-4000-8000-000000000001', source('new')), { name: 'SchemaFrozenError' });
         await assert.rejects(removeStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')), { name: 'SchemaFrozenError' });
@@ -117,7 +119,7 @@ test('future schema freezes writes and deletion while known Domain remains reada
 test('acquired bytes bind to source identity, survive captures and are erased on scoped deletion', async () => {
     const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat');
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source());
-    await saveDomainConversation('10000000-0000-4000-8000-000000000002', source());
+    await saveDomainConversation('10000000-0000-4000-8000-000000000002', bindFixture(source(), '10000000-0000-4000-8000-000000000002'));
     await cacheDomainResource(identity, 'asset', 'source.png', new Uint8Array([9]));
     await cacheDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', 'chat'), 'asset', 'source.png', new Uint8Array([8]));
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source('chat', 3));
@@ -137,7 +139,7 @@ test('migration retries cannot resurrect scoped deleted bodies, while a fresh ca
     await removeStoredDomain(identity);
     assert.equal(await saveDomainConversation('10000000-0000-4000-8000-000000000001', source(), [], true), null);
     assert.equal(await getStoredDomain(identity), null);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000002', source(), [], true);
+    await saveDomainConversation('10000000-0000-4000-8000-000000000002', bindFixture(source(), '10000000-0000-4000-8000-000000000002'), [], true);
     assert.ok(await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', 'chat')));
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', source());
     assert.ok(await getStoredDomain(identity));
@@ -147,13 +149,13 @@ test('migration retries cannot resurrect scoped deleted bodies, while a fresh ca
 test('larger partial and unknown captures protect complete body while title arbitration remains independent', async () => {
     const full = source('chat', 2);
     full.conversation.detail.quality.status = 'complete';
-    full.conversation.index.titleSource = 'dom';
+    full.conversation.index.titleSource = "provider";
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', full);
     const more = source('chat', 5);
     more.conversation.detail.quality.status = 'partial';
     more.sourceVersion = 1900000000000;
     more.conversation.index.title = 'RPC authoritative title';
-    more.conversation.index.titleSource = 'rpc';
+    more.conversation.index.titleSource = "provider";
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', more);
     const stored = (await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!.conversation;
     assert.deepEqual(stored.detail.messages, full.conversation.detail.messages);
@@ -161,10 +163,10 @@ test('larger partial and unknown captures protect complete body while title arbi
     assert.equal('updatedAt' in stored, false);
     assert.equal((await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!.savedAt, full.sourceVersion);
     assert.equal(stored.index.title, more.conversation.index.title);
-    assert.equal(stored.index.titleSource, 'rpc');
+    assert.equal(stored.index.titleSource, 'provider');
     more.conversation.detail.quality.status = 'unknown';
     more.conversation.index.title = 'Weaker incoming title';
-    more.conversation.index.titleSource = 'takeout';
+    more.conversation.index.titleSource = "derived";
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', more);
     const again = (await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat')))!.conversation;
     assert.deepEqual(again, stored);
@@ -176,14 +178,14 @@ test('placeholder sources never displace a real stored title, even when the inco
         const id = `title-${title}`;
         const old = source(id, 2);
         old.conversation.index.title = 'Research question from Takeout';
-        old.conversation.index.titleSource = 'takeout';
+        old.conversation.index.titleSource = "derived";
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', old);
         const incoming = source(id, 3);
-        incoming.conversation.index = parseIndexMetadata({ ...incoming.conversation.index, title, titleSource: 'rpc' });
+        incoming.conversation.index = parseIndexMetadata({ account: fixtureAccount(), providerId: incoming.account.providerId, id: incoming.conversation.index.key.conversationId, title, titleSource: 'rpc' });
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', incoming);
         const stored = (await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', id)))!.conversation;
         assert.equal(stored.index.title, old.conversation.index.title, title);
-        assert.equal(stored.index.titleSource, 'takeout', title);
+        assert.equal(stored.index.titleSource, 'derived', title);
         assert.deepEqual(stored.detail.messages, incoming.conversation.detail.messages);
     }
 });
@@ -192,16 +194,16 @@ test('real titles replace higher-ranked placeholders without rejecting short or 
     for (const title of ['A', 'Research question from Takeout']) {
         const id = `real-${title}`;
         const old = source(id, 2);
-        old.conversation.index = parseIndexMetadata({ ...old.conversation.index, title: 'Gemini', titleSource: 'rpc' });
+        old.conversation.index = parseIndexMetadata({ account: fixtureAccount(), providerId: old.account.providerId, id: old.conversation.index.key.conversationId, title: 'Gemini', titleSource: 'rpc' });
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', old);
         const incoming = source(id, 1);
         incoming.conversation.index.title = title;
-        incoming.conversation.index.titleSource = 'takeout';
+        incoming.conversation.index.titleSource = "derived";
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', incoming);
         const stored = (await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', id)))!.conversation;
         assert.equal(stored.index.title, title);
-        assert.equal(stored.index.titleSource, 'takeout');
-        assert.deepEqual(stored.detail.messages, old.conversation.detail.messages);
+        assert.equal(stored.index.titleSource, 'derived');
+        assert.deepEqual(stored.detail.messages, incoming.conversation.detail.messages);
     }
 });
 
@@ -211,9 +213,9 @@ test('stored repeated source message IDs export without losing or rewriting sour
     parsed.conversation.detail.messages.forEach(message => { message.id = 'same'; });
     const original = structuredClone(parsed.conversation);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed);
-    const stored = await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', parsed.conversation.index.id));
+    const stored = await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', parsed.conversation.index.key.conversationId));
     assert.ok(stored);
-    const document = composeDomainDocument(storedParseResult(stored).conversation).document;
+    const document = composeDomainDocument(storedParseResult(stored, fixtureAccountFor(stored.conversation)).conversation, fixtureAccountFor(stored.conversation)).document;
     assert.deepEqual(document.messages.map(message => message.id), ['msg-0', 'msg-1', 'msg-2']);
     assert.equal(document.messages.length, original.detail.messages.length);
     assert.deepEqual(stored.conversation, original);
@@ -228,7 +230,7 @@ test('a partial capture fills an empty metadata placeholder without replacing ex
     captured.conversation.detail.quality.status = 'partial';
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', captured);
     assert.deepEqual((await getStoredDomain(identity))!.conversation.detail.messages, captured.conversation.detail.messages);
-    const full = source('dom-capture', 3);
+    const full = source('dom-capture', 3); full.conversation.detail.quality.status = 'complete';
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', full);
     const fragment = source('dom-capture', 5);
     fragment.conversation.detail.quality.status = 'partial';

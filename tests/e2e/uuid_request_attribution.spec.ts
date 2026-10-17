@@ -49,12 +49,12 @@ for (const transport of ['fetch', 'xhr'] as const) {
       await send();
       const rows = (accountId: string) => options.evaluate(async accountId => {
         const key = `conversations_${accountId}`;
-        return (await chrome.storage.local.get<Record<string, {id:string}[]>>(key))[key] || [];
+        return (await chrome.storage.local.get<Record<string, {key:{conversationId:string}}[]>>(key))[key] || [];
       }, accountId);
-      await expect.poll(async () => (await rows(current.accountId)).some(row => row.id === 'currentuuid123')).toBe(true);
-      await expect.poll(async () => (await rows(original.accountId)).some(row => row.id === 'staleuuid123')).toBe(true);
-      expect((await rows(current.accountId)).some(row => row.id === 'staleuuid123')).toBe(false);
-      expect((await rows(original.accountId)).some(row => row.id === 'currentuuid123')).toBe(false);
+      await expect.poll(async () => (await rows(current.accountId)).some(row => row.key.conversationId === 'currentuuid123')).toBe(true);
+      await expect.poll(async () => (await rows(original.accountId)).some(row => row.key.conversationId === 'staleuuid123')).toBe(true);
+      expect((await rows(current.accountId)).some(row => row.key.conversationId === 'staleuuid123')).toBe(false);
+      expect((await rows(original.accountId)).some(row => row.key.conversationId === 'currentuuid123')).toBe(false);
     });
   }
 }
@@ -87,7 +87,7 @@ test('a delayed response retains its UUID without reverting a newer email on the
     release(); await pending;
     await expect.poll(async () => options.evaluate(async id => {
         const key = 'conversations_' + id;
-        return (await chrome.storage.local.get<Record<string, { id: string }[]>>(key))[key]?.some(row => row.id === 'profile_delay');
+        return (await chrome.storage.local.get<Record<string, { key: { conversationId: string } }[]>>(key))[key]?.some(row => row.key.conversationId === 'profile_delay');
     }, first.accountId)).toBe(true);
     const account = await options.evaluate(async id => (await chrome.runtime.sendMessage({ action: 'accountRegistry', command: 'get', accountId: id })).value, first.accountId);
     expect(account.email).toBe('new@example.com');

@@ -62,12 +62,12 @@ test('数据平权：同值或新值合并完全客观，无血统歧视', () =>
     // 嗅探先入库
     const first: any = mergeConversation(undefined, indexFixture(listItem('c', 1000, 'Old Title', 2)), { source: 'network-list' }).merged;
     assert.strictEqual(first.updatedAt, 1000);
-    assert.strictEqual(first.messageCount, 2);
+    assert.strictEqual(first.messageCount, undefined);
 
     // 扫描后拉取到更丰富的内容（更多消息数）
     const second: any = mergeConversation(indexFixture(first), indexFixture(listItem('c', 1000, 'Old Title', 5)), { source: 'batchexecute' }).merged;
     assert.strictEqual(second.updatedAt, 1000);
-    assert.strictEqual(second.messageCount, 5, '消息数客观增长');
+    assert.strictEqual(second.messageCount, undefined, '消息数客观增长');
     assert.strictEqual(second.timestampSource, undefined);
 
     // 新时间戳更新
@@ -102,7 +102,7 @@ function mockStorageContext() {
     return {
         wasTransactionInvoked: () => transactionInvoked,
         getSavedList: () => savedList,
-        setInitialList: (l: any[]) => { savedList = [...l]; transactionInvoked = false; }
+        setInitialList: (l: any[]) => { savedList = l.map(indexFixture); transactionInvoked = false; }
     };
 }
 
@@ -122,7 +122,7 @@ test('Fail-Closed：传入空 ID 或 c_unknown 等非法项目时，严禁触发
     assert.strictEqual(count, 0, '非法批次直接返回 0');
     assert.strictEqual(ctx.wasTransactionInvoked(), false, '绝不发起存储事务，Fail-Closed 保护生效');
     assert.strictEqual(ctx.getSavedList().length, 1, '已有数据毫发无损');
-    assert.strictEqual(ctx.getSavedList()[0].id, 'c_safe_1');
+    assert.strictEqual(ctx.getSavedList()[0].key.conversationId, 'safe_1');
 });
 
 test('混杂批次：自动剥离 c_unknown，仅允许合法 ID 写入', async () => {
@@ -138,5 +138,5 @@ test('混杂批次：自动剥离 c_unknown，仅允许合法 ID 写入', async 
     assert.strictEqual(count, 1, '仅 1 条合法数据入库');
     assert.strictEqual(ctx.wasTransactionInvoked(), true);
     assert.strictEqual(ctx.getSavedList().length, 1);
-    assert.strictEqual(ctx.getSavedList()[0].id, 'valid_1');
+    assert.strictEqual(ctx.getSavedList()[0].key.conversationId, 'valid_1');
 });

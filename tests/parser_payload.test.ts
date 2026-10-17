@@ -101,7 +101,7 @@ test('resolveDetailTitle - sniffs valid user prompt', () => {
 
     const result = resolveDetailTitle(messages, 'c_12345');
     assert.ok(result);
-    assert.strictEqual(result.source, 'sniff');
+    assert.strictEqual(result.source, 'derived');
     assert.strictEqual(result.title, 'Quantum computing and superconducting qubits in 2026 Second');
 });
 

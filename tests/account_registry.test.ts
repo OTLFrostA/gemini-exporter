@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readAccount, readAccountParameters, readAccountRegistry, findAccount } from '../src/core/domain/accountRegistry.js';
@@ -42,7 +43,7 @@ test('ChatGPT user/workspace tuple isolates subjects and keeps email mutable', (
     assert.deepEqual(parameters, { providerId: 'chatgpt', providerAccountId: '["user-a","workspace-a"]', email: alice.email, displayName: 'Alice' });
     const account = { ...parameters, id: ACCOUNT_UUID };
     assert.equal(findAccount([account], 'chatgpt', parameters.providerAccountId, 'new@example.com')?.id, ACCOUNT_UUID);
-    for (const other of [{ ...session, account: { id: 'workspace-b' } }, { ...session, user: { id: 'user-b' } }]) {
+    for (const other of [{ ...session, account: { id: 'workspace-b' } }, {   ...session, user: { id: 'user-b' } }]) {
         assert.notEqual(chatgptAccountObservation(other)?.providerAccountId, parameters.providerAccountId);
     }
     for (const invalid of [null, {}, { user: session.user }, { user: session.user, account: { id: 'default' } }]) assert.equal(chatgptAccountObservation(invalid), null);

@@ -243,7 +243,7 @@ def assert_activity_sync_result(baseline, before, scan, after, target_ids):
     for cid in target_ids:
         old_time = old_rows.get(cid, {}).get('updatedAt', frozen_head)
         row = new_rows.get(cid) or {}
-        if (row.get('titleSource') != 'rpc' or row.get('updatedAt', 0) <= old_time
+        if (row.get('titleSource') != 'provider' or row.get('updatedAt', 0) <= old_time
                 or span and span['head']['time'] < row.get('updatedAt', 0)):
             return False, f'Real activity was not saved or coverage did not advance: {cid}'
     for state in (initial, before):
@@ -319,8 +319,8 @@ class CDPAssertions:
             return new Promise((resolve) => {{
                 chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
                     const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
-                    const c1 = convs.find(c => c.id === '{promoted_chat_id}' || c.id === 'c_{promoted_chat_id}');
-                    const c2 = convs.find(c => c.id === '{older_chat_id}' || c.id === 'c_{older_chat_id}');
+                    const c1 = convs.find(c => c.key.conversationId === '{promoted_chat_id}' || c.key.conversationId === 'c_{promoted_chat_id}');
+                    const c2 = convs.find(c => c.key.conversationId === '{older_chat_id}' || c.key.conversationId === 'c_{older_chat_id}');
                     const domItems = Array.from(document.querySelectorAll('{WorkbenchSelectors.ITEM}'));
                     const el1 = domItems.find(el => el.dataset.chatId === '{promoted_chat_id}' || el.dataset.chatId === 'c_{promoted_chat_id}');
                     const el2 = domItems.find(el => el.dataset.chatId === '{older_chat_id}' || el.dataset.chatId === 'c_{older_chat_id}');
@@ -426,7 +426,7 @@ class CDPAssertions:
                 return new Promise((resolve) => {{
                     chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
                         const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
-                        const inStorage = convs.some(c => c.id === '{deleted_chat_id}' || c.id === 'c_{clean_id}' || c.id === '{clean_id}');
+                        const inStorage = convs.some(c => c.key.conversationId === '{deleted_chat_id}' || c.key.conversationId === 'c_{clean_id}' || c.key.conversationId === '{clean_id}');
                         const inDom = !!document.querySelector('{pruned_sel}');
                         resolve({{
                             inStorage: inStorage,
@@ -458,9 +458,11 @@ class CDPAssertions:
             last = cdp_opt.eval(f"""(async () => {{
                 const store = window.ConversationsStore;
                 const conversations = store ? store.getConversations() : [];
-                const item = conversations.find(c => String(c.id).replace(/^c_/, '') === {json.dumps(clean_id)});
+                const slot = store.getCurrentAccountId();
+                const availability = (await chrome.storage.local.get('conversation_availability_' + slot))['conversation_availability_' + slot] || {{}};
+                const item = conversations.find(c => String(c.key.conversationId).replace(/^c_/, '') === {json.dumps(clean_id)});
                 const row = Array.from(document.querySelectorAll('#list .item')).find(el => String(el.dataset.chatId).replace(/^c_/, '') === {json.dumps(clean_id)});
-                return {{ retained: !!item, deleted: item?.cloudAvailability === 'deleted', inDom: !!row, marked: !!row?.querySelector('.cloud-status') }};
+                return {{ retained: !!item, deleted: availability[{json.dumps(clean_id)}] === 'deleted', inDom: !!row, marked: !!row?.querySelector('.cloud-status') }};
             }})()""", await_promise=True) or {}
             if all(last.get(key) for key in ['retained', 'deleted', 'inDom', 'marked']):
                 return True, '云端删除已确认，本地归档与列表保留', last
@@ -476,14 +478,13 @@ class CDPAssertions:
                 chrome.storage.local.get('conversations_' + window.ConversationsStore.getCurrentAccountId(), (data) => {{
                     const convs = data['conversations_' + window.ConversationsStore.getCurrentAccountId()] || [];
                     const checkList = {json.dumps(check_ids)};
-                    const matched = convs.filter(c => checkList.some(cid => c.id === cid || c.id === 'c_' + cid));
+                    const matched = convs.filter(c => checkList.some(cid => c.key.conversationId === cid || c.key.conversationId === 'c_' + cid));
                     resolve({{
                         total: convs.length,
                         matched: matched.map(c => ({{
-                            id: c.id,
+                            id: c.key.conversationId,
                             title: c.title,
-                            source: c.titleSource,
-                            hasTakeoutImport: c.hasTakeoutImport
+                            source: c.titleSource
                         }}))
                     }});
                 }});
@@ -501,9 +502,8 @@ class CDPAssertions:
         upgraded_count = 0
         for m in matched:
             source = m.get("source", "")
-            has_takeout = m.get("hasTakeoutImport") is True
-            is_rpc = source == "rpc" and bool(m.get("title"))
-            if has_takeout and is_rpc:
+            is_rpc = source == "provider" and bool(m.get("title"))
+            if is_rpc:
                 upgraded_count += 1
 
         if upgraded_count != len(check_ids):

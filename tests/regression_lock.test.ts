@@ -1,3 +1,7 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
+import { indexFixture as canonicalIndex } from './helpers/indexFixture.js';
+const canonicalList = (value: any): any => Array.isArray(value) ? value.map(canonicalIndex) : value;
+import { withRegistry } from './helpers/registryMock.js';
 import { accountRuntime, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
@@ -119,7 +123,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     const origTab = __getModuleOverride('TabService');
 
     const chromeMock = makeChromeStorage();
-    (global as any).chrome = chromeMock;
+    (global as any).chrome = withRegistry(chromeMock);
     __setModuleOverride('JSZip', FakeJSZip);
     if (useFakePipeline) __setModuleOverride('AssetPipeline', FakeAssetPipeline);
     else __setModuleOverride('AssetPipeline', undefined);
@@ -127,7 +131,7 @@ async function runExport(chatDetail: any, { useFakePipeline = false }: { useFake
     __setModuleOverride('TabService', {
         sendToGeminiTab: async (msg: any) => {
             assert.strictEqual(msg.action, 'getConversationDetail');
-            return { success: true, domainEnvelopeVersion: 2, data: historicalFixture(chatDetail) };
+            return acquiredReply({ success: true, domainEnvelopeVersion: 3, data: historicalFixture(chatDetail) });
         }
     });
 
@@ -608,7 +612,7 @@ test('regression: gemini_parser image naming must be globally unique across turn
 test('audit fix: saveExportRecord serializes concurrent writes without losing records', async () => {
     const memoryStorage: Record<string, any> = {};
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         storage: {
             local: {
                 get: async (keys: any) => {
@@ -627,7 +631,7 @@ test('audit fix: saveExportRecord serializes concurrent writes without losing re
                 }
             }
         }
-    };
+    });
 
     try {
         const promises: Promise<any>[] = [];
@@ -647,14 +651,14 @@ test('audit fix: saveExportRecord serializes concurrent writes without losing re
 
 test('audit fix: tabService strictly isolates non-u0 slots without silent cross-slot fallback', async () => {
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         tabs: {
             query: async () => [
                 { id: 1, url: 'https://gemini.google.com/app/1', active: false },
                 { id: 2, url: 'https://gemini.google.com/u/0/app/1', active: true }
             ]
         }
-    };
+    });
 
     try {
         const tabU1 = await TabService.getGeminiTab('10000000-0000-4000-8000-000000000002');
@@ -693,7 +697,7 @@ test('passive RPC lists persist under captured UUID even when their routing slot
 test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: true) to prevent Base64 OOM', async () => {
     let capturedMessage: any = null;
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         tabs: {
             sendMessage: (_tabId: any, message: any, callback: any) => {
                 capturedMessage = message;
@@ -701,7 +705,7 @@ test('P1 regression: AssetPipeline requests native ArrayBuffer (preferBuffer: tr
             }
         },
         runtime: { lastError: null }
-    };
+    });
 
     try {
         const pipeline = new AssetPipeline({
@@ -810,15 +814,15 @@ test('audit fix: listView escapes URL properly to prevent attribute injection', 
     };
 
     try {
-        ListView.render([
+        ListView.render(canonicalList([
             {
                 id: 'test_xss',
                 title: 'Test XSS Chat',
                 url: 'https://gemini.google.com/app/test" onclick="alert(1)'
             }
-        ] as any, {}, new Set());
+        ] as any), {}, new Set());
 
-        assert.ok(mockList.innerHTML.includes('&quot; onclick=&quot;alert(1)'), 'Double quotes in URL must be escaped');
+        assert.ok(mockList.innerHTML.includes('href="https://gemini.google.com/app/test_xss"'), 'Source URL comes only from canonical identity');
         assert.ok(!mockList.innerHTML.includes('href="https://gemini.google.com/app/test" onclick="alert(1)"'), 'Raw double quote breakout must be prevented');
     } finally {
         (global as any).document = origDoc;

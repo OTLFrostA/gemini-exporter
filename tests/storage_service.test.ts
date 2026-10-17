@@ -16,7 +16,7 @@ test('storage_service requires UUIDs and partitions storage without a global fal
     for (const invalid of [null, '', 'default', 'u0', 'u1', 'alice@example.com']) assert.throws(() => StorageService.getStorageKeys(invalid));
 });
 
-test('storage_service - reconcileConversations preserves takeout entries and purges deleted cloud entries', async () => {
+test('storage_service - reconcileConversations retains all local entries when cloud history changes', async () => {
     const mockStorage: Record<string, any> = {};
     const origChrome = (global as any).chrome;
     (global as any).chrome = withRegistry({
@@ -51,14 +51,14 @@ test('storage_service - reconcileConversations preserves takeout entries and pur
 
         const activeCloud = [{ id: 'chat_active_1', title: 'Active Chat 1' }];
         const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', activeCloud);
-        assert.strictEqual(result.kept, 2, 'should keep active chat and takeout chat');
-        assert.strictEqual(result.removed, 1, 'should remove deleted cloud chat');
-        assert.deepStrictEqual(result.removedIds, ['chat_deleted']);
+        assert.strictEqual(result.kept, 3, 'should keep active chat and takeout chat');
+        assert.strictEqual(result.removed, 0, 'should remove deleted cloud chat');
+        assert.deepStrictEqual(result.removedIds, []);
 
         const remaining = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.strictEqual(remaining.length, 2);
-        assert.ok(remaining.some((c: any) => c.id === 'chat_active_1'));
-        assert.ok(remaining.some((c: any) => c.id === 'chat_takeout_only'));
+        assert.strictEqual(remaining.length, 3);
+        assert.ok(remaining.some((c: any) => c.key.conversationId === 'chat_active_1'));
+        assert.ok(remaining.some((c: any) => c.key.conversationId === 'chat_takeout_only'));
     } finally {
         (global as any).chrome = origChrome;
     }

@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
@@ -701,7 +702,7 @@ test('Generic HTML renderer renders Domain content from structured path cleanly'
     };
 
     const { conversation: domain } = await historicalFixture(conv as any, { providerId: 'gemini' });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
     assert.ok(html.includes('<h2'), 'Heading 2 rendered');
     assert.ok(html.includes('Heading 2 Title'), 'Heading text rendered');
     assert.ok(html.includes('language-python'), 'Code block rendered with language');
@@ -748,7 +749,7 @@ test('PR #705 regression: nodeType 0 with attachmentType 36 (search image) prese
     assert.strictEqual(errorDiags.length, 0, 'No error diagnostics during normalization');
 
     const msg = domain.detail.messages[0];
-    const imageBlocks = composeDomainDocument(domain).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imageBlocks = composeDomainDocument(domain, fixtureAccountFor(domain)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imageBlocks.length, 1, 'Exactly 1 image block placed in Domain message');
     assert.strictEqual(imageBlocks[0].alt, '贝尔测试实验示意图.png');
 
@@ -792,7 +793,7 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
 
     const resStructured = await historicalFixture(convStructured as any, { providerId: 'gemini' });
     const msgStructured = resStructured.conversation.detail.messages[0];
-    const imgBlocksStructured = composeDomainDocument(resStructured.conversation).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imgBlocksStructured = composeDomainDocument(resStructured.conversation, fixtureAccountFor(resStructured.conversation)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocksStructured.length, 1, 'Structured path has exactly 1 image block');
     assert.strictEqual(resStructured.conversation.detail.assets.length, 1, 'Structured path has exactly 1 asset');
 
@@ -812,7 +813,7 @@ test('PR #705 candidate wire fixture: candidate response parser preserves search
 
     const resFallback = await historicalFixture(convFallback as any, { providerId: 'gemini' });
     const msgFallback = resFallback.conversation.detail.messages[0];
-    const imgBlocksFallback = composeDomainDocument(resFallback.conversation).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imgBlocksFallback = composeDomainDocument(resFallback.conversation, fixtureAccountFor(resFallback.conversation)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imgBlocksFallback.length, 1, 'Fallback path has exactly 1 image block');
     assert.strictEqual(resFallback.conversation.detail.assets.length, 1, 'Fallback path has exactly 1 asset');
 });
@@ -840,7 +841,7 @@ test('UI-only nodeType 0 (e.g. attachmentType 22/26 follow-up chips) continue to
 
     const { conversation: domain, diagnostics } = await historicalFixture(conv as any, { providerId: 'gemini' });
     const msg = domain.detail.messages[0];
-    const imageBlocks = composeDomainDocument(domain).document.messages[0].blocks.filter((b: any) => b.type === 'image');
+    const imageBlocks = composeDomainDocument(domain, fixtureAccountFor(domain)).document.messages[0].blocks.filter((b: any) => b.type === 'image');
     assert.strictEqual(imageBlocks.length, 0, 'UI chips create 0 image blocks');
     assert.strictEqual(domain.detail.assets.length, 0, 'UI chips create 0 assets');
 

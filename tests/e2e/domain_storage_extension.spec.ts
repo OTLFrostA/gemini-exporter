@@ -41,7 +41,7 @@ test('content-script native detail is committed in extension IndexedDB and remai
             });
         } finally { db.close(); }
     }) as { conversation: { detail: { messages: Array<{ model?: string; content: unknown[] }> } }; storageVersion: number; identity: { accountId: string } };
-    expect(stored.storageVersion).toBe(2);
+    expect(stored.storageVersion).toBe(3);
     expect(stored.identity.accountId).toBe('10000000-0000-4000-8000-000000000001');
     expect(stored.conversation.detail.messages).toHaveLength(2);
     expect(stored.conversation.detail.messages[1].model).toBe('Cross origin model');

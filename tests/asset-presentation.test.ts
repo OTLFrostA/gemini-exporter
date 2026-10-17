@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -18,8 +19,8 @@ test('asset labels suppress opaque storage names and preserve meaningful multili
 
 test('opaque generated image caption policy agrees across Markdown HTML and Typst', () => {
     const name = 'watermarked_img_11204364633950674587.jpg';
-    const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c', title: 'Title' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'i', name, kind: 'image' }], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'image', assetId: 'i', alt: name, caption: [{ type: 'text', text: name }] }] }] } };
-    const document = composeDomainDocument(validateParserDomain(domain)).document;
+    const domain = { index: { key: fixtureKey(String('c'), 'gemini'),   titleSource: "derived",   title: 'Title' }, detail: { key: fixtureKey(String('c'), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'i', name, kind: 'image' }], messages: [{ id: 'm', role: 'assistant', content: [{ type: 'image', assetId: 'i', alt: name, caption: [{ type: 'text', text: name }] }] }] } };
+    const document = composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document;
     const resources = { i: 'assets/image.jpg' };
     const md = renderDocumentMarkdown(document, resources);
     assert.ok(md.includes('![Image](assets/image.jpg)'));

@@ -1,15 +1,16 @@
+import { withRegistry } from './helpers/registryMock.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { StorageService } from '../src/core/storage/storageService.js';
-import { readScanCoverage } from '../src/core/storage/scanCoverage.js';
+import { readScanCoverage } from '../src/core/domain/scanCoverage.js';
 import { __clearModuleOverrides } from '../src/core/utils/moduleOverrides.js';
 import { ingestRpcList } from '../src/content/syncEngine.js';
 
 async function fixture(run: (data: Record<string, unknown>) => Promise<void>) {
     const data: Record<string, unknown> = { ['scan_checkpoint_10000000-0000-4000-8000-000000000001']: 9999999999999 };
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({
         runtime: { sendMessage: async () => {} }, storage: { local: {
             async get(keys: string[] | string | null) {
                 if (keys === null) return structuredClone(data);
@@ -20,7 +21,7 @@ async function fixture(run: (data: Record<string, unknown>) => Promise<void>) {
             async set(value: Record<string, unknown>) { Object.assign(data, structuredClone(value)); },
             async remove(keys: string[] | string) { for (const key of typeof keys === 'string' ? [keys] : keys) delete data[key]; }
         } }
-    } });
+    }) });
     __clearModuleOverrides();
     try { await run(data); } finally {
         if (previous) Object.defineProperty(globalThis, 'chrome', previous);

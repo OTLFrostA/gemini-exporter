@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 export {};
 const test = require('node:test');
@@ -11,9 +12,9 @@ const { renderDocumentHtml } = require('../src/core/renderers/html/renderHtml.js
 function domainFixture(messages: any[], extra: any = {}) {
     const createdAt = require('../src/core/domain/time.js').normalizeTimestamp('createdAt' in extra ? extra.createdAt : Date.parse('2026-09-20T10:00:00Z'));
     const updatedAt = require('../src/core/domain/time.js').normalizeTimestamp(extra.updatedAt);
-    return restoreDomainSnapshot({ index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false,
+    return restoreDomainSnapshot({ index: { key: fixtureKey(String('c1'), 'gemini'),   title: 'Test convo', titleSource: "derived",
         ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) },
-        detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages } });
+        detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages } });
 }
 
 function msg(blocks: any[]) {
@@ -41,7 +42,7 @@ test('typst zh locale localizes chrome copy', () => {
         { type: 'math', source: 'x^2' },
     ];
     const b = domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, { ...opts, locale: 'zh' });
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, { ...opts, locale: 'zh' });
     const nodes = payload.messages[0].blocks;
     const thought = nodes.find((n: any) => n.type === 'note' && n.label === '思考过程');
     assert.ok(thought, 'thought label localized');
@@ -53,7 +54,7 @@ test('typst zh locale localizes chrome copy', () => {
 
 test('typst defaults to en when locale omitted', () => {
     const b = domainFixture([{ ...msg([]), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]);
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, opts);
     const thought = payload.messages[0].blocks.find((n: any) => n.type === 'note');
     assert.strictEqual(thought.label, 'Thinking Process');
 });
@@ -61,15 +62,15 @@ test('typst defaults to en when locale omitted', () => {
 test('typst zh date unknown is localized', () => {
     const b = domainFixture([msg([])]);
     delete b.index.createdAt;
-    const { payload } = renderTypstFixture(composeDomainDocument(b).document, {}, { ...opts, locale: 'zh' });
+    const { payload } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, { ...opts, locale: 'zh' });
     assert.ok(payload.metadata.includes('日期未知'));
 });
 
 test('html uses the same string source', () => {
     const blocks: any[] = [];
-    const zh = renderDocumentHtml(composeDomainDocument(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }])).document, {}, { locale: 'zh' });
+    const zh = renderDocumentHtml(composeDomainDocument(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]), fixtureAccountFor(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]))).document, {}, { locale: 'zh' });
     assert.ok(zh.html.includes('思考过程'));
-    const en = renderDocumentHtml(composeDomainDocument(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }])).document, {}, { locale: 'en' });
+    const en = renderDocumentHtml(composeDomainDocument(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]), fixtureAccountFor(domainFixture([{ ...msg(blocks), reasoning: [{ type: 'paragraph', children: [{ type: 'text', text: 'Visible reasoning' }] }] }]))).document, {}, { locale: 'en' });
     assert.ok(en.html.includes('Thinking Process'));
 });
 
@@ -98,18 +99,18 @@ test('typst localizes role prefix notes', () => {
         roleMsg('developer'),
         roleMsg('unknown'),
     ];
-    const zh = renderTypstFixture(composeDomainDocument(domainFixture(msgs)).document, {}, { ...opts, locale: 'zh' });
+    const zh = renderTypstFixture(composeDomainDocument(domainFixture(msgs), fixtureAccountFor(domainFixture(msgs))).document, {}, { ...opts, locale: 'zh' });
     assert.strictEqual(firstNoteText(zh.payload.messages[0]), '系统消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[1]), '开发者消息');
     assert.strictEqual(firstNoteText(zh.payload.messages[2]), '未知角色');
-    const en = renderTypstFixture(composeDomainDocument(domainFixture(msgs)).document, {}, opts);
+    const en = renderTypstFixture(composeDomainDocument(domainFixture(msgs), fixtureAccountFor(domainFixture(msgs))).document, {}, opts);
     assert.strictEqual(firstNoteText(en.payload.messages[0]), 'System message');
     assert.strictEqual(firstNoteText(en.payload.messages[1]), 'Developer message');
     assert.strictEqual(firstNoteText(en.payload.messages[2]), 'Unknown role');
 });
 
 test('user/assistant roles get no prefix note', () => {
-    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([roleMsg('user'), roleMsg('assistant')])).document, {}, opts);
+    const { payload } = renderTypstFixture(composeDomainDocument(domainFixture([roleMsg('user'), roleMsg('assistant')]), fixtureAccountFor(domainFixture([roleMsg('user'), roleMsg('assistant')]))).document, {}, opts);
     assert.strictEqual(payload.messages[0].blocks.length, 0);
     assert.strictEqual(payload.messages[1].blocks.length, 0);
 });

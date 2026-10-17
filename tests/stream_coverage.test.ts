@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CoverageSession, emptyStream } from '../src/core/sync/streamCoverage.js';
-import type { PageObservation } from '../src/core/sync/pageObservation.js';
+import { CoverageSession, emptyStream } from '../src/core/domain/streamCoverage.js';
+import type { PageObservation } from '../src/core/domain/pageObservation.js';
 function page(times: number[], requestCursor: string | null = null, nextCursor: string | null = null): PageObservation<unknown> {
     return { providerId: 'other-provider', accountId: 'a', streamId: 'activity', items: [], requestCursor, nextCursor,
         requestKnown: true, requestedAt: Date.now(), valid: true, ordered: true, keys: times.map(time => ({ id: 'id' + time, time })) };

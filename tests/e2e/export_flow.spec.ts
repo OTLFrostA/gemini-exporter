@@ -103,7 +103,7 @@ test.describe('Export Workflow & State Update', () => {
     expect(zipPath).toBeTruthy();
     const zip = await JSZip.loadAsync(fs.readFileSync(zipPath!));
     const markdownNames = Object.keys(zip.files).filter(name => name.endsWith('.md') && !zip.files[name].dir);
-    expect(markdownNames).toHaveLength(1);
+    expect(markdownNames, await page.locator('#log').innerText()).toHaveLength(1);
     const markdown = await zip.files[markdownNames[0]].async('text');
     expect(markdown).toContain('请概述深度学习神经网络的实践要点');
     expect(markdown).toContain('数据预处理');

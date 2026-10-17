@@ -14,10 +14,10 @@ def read_sync_state(cdp):
         const coverageKey = 'scan_coverage_' + slot;
         const convKey = 'conversations_' + slot;
         const expKey = 'exported_' + slot;
-        const data = await chrome.storage.local.get([coverageKey, convKey, expKey]);
+        const data = await chrome.storage.local.get([coverageKey, convKey, expKey, 'conversation_availability_' + slot]);
         return { slot, coverage: data[coverageKey] || null,
-            rows: (data[convKey] || []).map(c => ({ id: c.id,
-                updatedAt: c.updatedAt, titleSource: c.titleSource, cloudAvailability: c.cloudAvailability })),
+            rows: (data[convKey] || []).map(c => ({ id: c.key.conversationId,
+                updatedAt: c.updatedAt, titleSource: c.titleSource, cloudAvailability: (data['conversation_availability_' + slot] || {})[c.key.conversationId] })),
             exportIds: Object.keys(data[expKey] || {}).sort() };
     })()""", await_promise=True) or {}
 

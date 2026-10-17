@@ -29,20 +29,20 @@ test('untimed Takeout ZIP yields no activity version and cannot replace server t
 
         // Physical Domain schema omits unknown times; it does not store null or Date.now().
         assert.equal(Object.hasOwn(takeout, 'updatedAt'), false);
-        assert.equal(takeout.hasTakeoutImport, true);
+        assert.equal(Reflect.get(takeout ?? {}, 'hasTakeoutImport'), undefined);
 
         const oldServer = indexFixture({
-            id: takeout.id, title: 'Server title', titleSource: 'rpc', updatedAt: 1700000000000
+            id: takeout.key.conversationId, title: 'Server title', titleSource: 'rpc', updatedAt: 1700000000000
         });
         const mergedServer = mergeConversation(oldServer, takeout).merged;
         assert.equal(mergedServer.updatedAt, 1700000000000);
-        assert.equal(mergedServer.hasTakeoutImport, true);
+        assert.equal(Reflect.get(mergedServer ?? {}, 'hasTakeoutImport'), undefined);
         assert.equal(oldServer.updatedAt, 1700000000000);
 
-        const oldUntimed = indexFixture({ id: takeout.id, title: 'Untimed server title', titleSource: 'rpc' });
+        const oldUntimed = indexFixture({ id: takeout.key.conversationId, title: 'Untimed server title', titleSource: 'rpc' });
         const mergedUntimed = mergeConversation(oldUntimed, takeout).merged;
         assert.equal(Object.hasOwn(mergedUntimed, 'updatedAt'), false);
-        assert.equal(mergedUntimed.hasTakeoutImport, true);
+        assert.equal(Reflect.get(mergedUntimed ?? {}, 'hasTakeoutImport'), undefined);
     } finally {
         TakeoutEngine.clearTakeoutData();
         if (previousJSZip === undefined) delete (global as any).JSZip;

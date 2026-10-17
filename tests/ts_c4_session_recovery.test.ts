@@ -446,7 +446,7 @@ test('C4-8: session-log formatting matches exact sections, debug/raw precedence,
                 {
                     id: 'drift_1',
                     title: 'Drift Title',
-                    quality: { status: 'partial', rejectedTurns: 2, heuristicDocumentIds: ['doc'] },
+                    quality: { status: 'partial' }, evidence: { rejectedTurns: 2, heuristicDocumentIds: ['doc'] },
                     diagnostics: ['d1', 'd2', 'd3', 'd4', 'd5', 'd6_excess'].map(message => ({ severity: 'warning', code: 'DRIFT', message }))
                 },
                 { quality: { status: 'unknown' }, diagnostics: [] }

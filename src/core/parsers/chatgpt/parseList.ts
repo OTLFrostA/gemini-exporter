@@ -1,8 +1,8 @@
-import { restoreConversationIndex, type DomainConversationIndex } from '../../domain/conversationIndex.js';
+import type { ProviderConversationItem } from '../contracts.js';
 import { chatGPTTimestamp } from './timestamp.js';
 
 export interface ChatGPTListParseResult {
-    conversations: DomainConversationIndex[];
+    conversations: ProviderConversationItem[];
     total?: number;
     nextCursor: string | null;
 }
@@ -26,9 +26,8 @@ export function parseChatGPTList(value: unknown): ChatGPTListParseResult {
         const title = typeof item.title === 'string' ? item.title.trim() : '';
         const createdAt = chatGPTTimestamp(item.create_time);
         const updatedAt = chatGPTTimestamp(item.update_time);
-        return restoreConversationIndex({ providerId: 'chatgpt', id, title, titleSource: title ? 'provider' : 'default',
-            cloudAvailability: 'available', hasTakeoutImport: false, url: `https://chatgpt.com/c/${encodeURIComponent(id)}`,
-            ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) });
+        return { id, ...(title ? { title, titleSource: 'provider' } : {}),
+            ...(createdAt !== undefined ? { createdAt } : {}), ...(updatedAt !== undefined ? { updatedAt } : {}) };
     });
     return { conversations, ...(typeof page.total === 'number' ? { total: page.total } : {}),
         nextCursor: typeof page.cursor === 'string' ? page.cursor : null };

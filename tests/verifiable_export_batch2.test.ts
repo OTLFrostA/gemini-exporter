@@ -23,8 +23,8 @@ test('D3: getConversationDetail flags truncated=true when exceeding 20 pages', a
 
     const detail = await Pagination.getConversationDetail(mockClient, 'chat_long');
     assert.strictEqual(pageCalls, 20, 'Should stop after 20 pages');
-    assert.strictEqual(Boolean(detail.conversation.detail.quality.truncation), true, 'detail must be flagged as truncated');
-    assert.strictEqual(detail.conversation.detail.quality.truncation, 'max_turns_page_limit_20');
+    assert.strictEqual(Boolean(detail.evidence?.truncation), true, 'detail must be flagged as truncated');
+    assert.strictEqual(detail.evidence?.truncation, 'max_turns_page_limit_20');
     assert.strictEqual(detail.conversation.detail.quality.status, 'partial', 'Truncated detail must not be presented as a complete body');
 });
 
@@ -46,8 +46,8 @@ test('D3: getConversationDetail flags truncated=true on detail cursor token loop
 
     const detail = await Pagination.getConversationDetail(mockClient, 'chat_loop');
     assert.strictEqual(pageCalls, 2, 'Should break on repeated token (callCount = 2)');
-    assert.strictEqual(Boolean(detail.conversation.detail.quality.truncation), true, 'detail must be flagged as truncated on loop');
-    assert.strictEqual(detail.conversation.detail.quality.truncation, 'token_loop');
+    assert.strictEqual(Boolean(detail.evidence?.truncation), true, 'detail must be flagged as truncated on loop');
+    assert.strictEqual(detail.evidence?.truncation, 'token_loop');
 });
 
 // 2. D5: Failed items show failure badge, never ok badge

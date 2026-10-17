@@ -112,7 +112,7 @@ export async function handleLiveSaveViaHandle(payload: any, accountId: string = 
         // Shared live-save writer: filename format + markdown formatting + write.
         // Serialized through withLiveSaveLock per file to prevent concurrent createWritable
         // collisions (NoModificationAllowedError) when multiple tabs write simultaneously.
-        const fileLockKey = String(fileName || nid || safeTitle || chat.conversation.index.id || 'live_save');
+        const fileLockKey = String(fileName || nid || safeTitle || chat.conversation.index.key.conversationId || 'live_save');
 
         const { targetFile, failedAssets } = await withLiveSaveLock(fileLockKey, async () => {
             const writer = await createLiveSaveWriter(handle);

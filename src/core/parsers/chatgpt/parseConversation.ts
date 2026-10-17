@@ -1,3 +1,5 @@
+import type { Account } from '../../domain/accountRegistry.js';
+import type { ResourceAcquisitionHint } from '../../resources/resourceAcquisition.js';
 import { contentQuality } from '../../domain/quality.js';
 import { parseIndexMetadata } from '../shared/parseIndexMetadata.js';
 /**
@@ -68,6 +70,7 @@ export interface ChatGPTNodeAssets {
 }
 
 export interface ChatGPTParseInput {
+    account: Account;
     conversation: ChatGPTApiConversationWithId;
     /** Pre-resolved downloads keyed by node id; missing entries mean no assets. */
     assetsByNode: Map<string, ChatGPTNodeAssets>;
@@ -99,6 +102,7 @@ function messageOfNode(
     node: ChatGPTConversationNode,
     branchSlug: string,
     assets: DomainAsset[],
+    acquisitionHints: Record<string, ResourceAcquisitionHint>,
     seenAssetIds: Set<string>,
     resolved: ChatGPTNodeAssets | undefined,
     thinking: ChatGPTThinking | undefined,
@@ -127,6 +131,7 @@ function messageOfNode(
         const assetId = image?.assetId ?? assetIdForPointer(seg.pointer);
         if (claim(assetId)) {
             if (image) {
+                acquisitionHints[assetId] = { dataBase64: image.dataBase64 };
                 assets.push({
                     id: assetId,
                     kind: 'image',
@@ -134,7 +139,6 @@ function messageOfNode(
                     mediaType: image.mediaType,
                     byteLength: image.byteLength,
                     sourceUri: image.pointer,
-                    dataBase64: image.dataBase64,
                 });
             } else {
                 // Keep placeholder asset + diagnostic instead of silently dropping the image.
@@ -208,32 +212,35 @@ export function parseChatGPTConversation(input: ChatGPTParseInput): ResourceConv
         startId,
     );
     const assets: DomainAsset[] = [];
+    const acquisitionHints: Record<string, ResourceAcquisitionHint> = {};
     const seenAssetIds = new Set<string>();
     const messages: DomainMessage[] = nodes.map((node) =>
         messageOfNode(
             node,
             branchSlug,
             assets,
+            acquisitionHints,
             seenAssetIds,
             input.assetsByNode.get(node.id),
             thinkingByNode.get(node.id),
             { ...ctx, sourceRef: { ...ctx.sourceRef, providerMessageId: node.id } },
         ),
     );
-    const hasMissingImage = assets.some((a) => a.kind === 'image' && !a.dataBase64);
+    const hasMissingImage = assets.some((a) => a.kind === 'image' && !acquisitionHints[a.id]?.dataBase64);
     // Source activity versions travel beside Detail; Index owns updatedAt.
     const sourceVersion = chatGPTTimestamp(conversation.update_time);
     return {
         ...(sourceVersion !== undefined ? { sourceVersion } : {}),
+        account: input.account,
         conversation: validateParserDomain({
-            index: parseIndexMetadata({ providerId: 'chatgpt', id: conversation.id,
+            index: parseIndexMetadata({ account: input.account, providerId: 'chatgpt', id: conversation.id,
                 title: conversation.title?.trim() || '', titleSource: 'provider',
                 createdAt: chatGPTTimestamp(conversation.create_time), updatedAt: sourceVersion,
                 messageCount: messages.length, url: `https://chatgpt.com/c/${conversation.id}` }),
-            detail: { quality: contentQuality({ status: hasMissingImage ? 'partial' : 'complete' }), assets, messages },
+            detail: { ...(sourceVersion !== undefined ? { savedAt: sourceVersion } : {}), quality: contentQuality({ status: hasMissingImage ? 'partial' : 'complete' }), assets, messages },
         }),
         diagnostics: contentDiagnostics,
         resourceHints: {},
-        acquisitionHints: {},
+        acquisitionHints,
     };
 }

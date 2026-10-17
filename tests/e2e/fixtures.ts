@@ -1,8 +1,9 @@
+import { domainFixtureBrowser } from './domainFixtureBrowser';
 import { test as base, chromium, expect, type BrowserContext } from '@playwright/test';
 import * as path from 'path';
 
 interface IndexSeed {
-  id: string; title?: string; titleSource?: string; timestamp?: number; updatedAt?: number;
+  id?: string; key?: { accountId: string; conversationId: string }; title?: string; titleSource?: string; timestamp?: number; updatedAt?: number;
   createdAt?: number; messageCount?: number; cloudAvailability?: string; hasTakeoutImport?: boolean;
 }
 declare global {
@@ -30,16 +31,14 @@ export const test = base.extend<{
         '--disable-setuid-sandbox'
       ],
     });
+    await context.addInitScript({ content: domainFixtureBrowser });
     await context.addInitScript(() => {
       globalThis.canonicalIndexFixture = row => ({
-        providerId: 'gemini', id: row.id.replace(/^c_/, ''),
-        title: row.titleSource === 'default' ? '' : row.title || '',
-        titleSource: row.titleSource === 'default' || !row.title ? 'default' : row.titleSource || 'legacy',
-        cloudAvailability: row.cloudAvailability || 'unknown',
-        hasTakeoutImport: row.hasTakeoutImport ?? row.titleSource === 'takeout',
+        key: row.key ?? { accountId: '10000000-0000-4000-8000-000000000001', conversationId: row.id!.replace(/^c_/, '') },
+        ...(row.title && row.titleSource !== 'default' ? { title: row.title,
+            titleSource: row.titleSource === 'user' ? 'user' : ['rpc', 'api-detail', 'dom', 'openai', 'provider'].includes(row.titleSource || '') ? 'provider' : 'derived' } : {}),
         ...((row.updatedAt ?? row.timestamp) !== undefined ? { updatedAt: row.updatedAt ?? row.timestamp } : {}),
         ...(row.createdAt !== undefined ? { createdAt: row.createdAt } : {}),
-        ...(row.messageCount !== undefined ? { messageCount: row.messageCount } : {}),
       });
     });
     await use(context);

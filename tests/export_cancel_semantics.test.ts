@@ -1,3 +1,5 @@
+import { withRegistry } from './helpers/registryMock.js';
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
@@ -105,7 +107,7 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
     let downloadCalls = 0;
 
     const worker = makeTestWorker({
-        fetchChatDetail: async (requestedItem: any) => ({
+        fetchChatDetail: async (requestedItem: any) => await ({
             success: true,
             chat: historicalFixture({
                 id: requestedItem.id,
@@ -115,7 +117,7 @@ test('cancel semantics - user cancel mid-export: no failedChats, no download, no
         }),
         // 注入点：抓取完成、主 md 写入前 —— 用户点了取消
         resolveChat: async (chat: any, _requestedItem: any) => {
-            if (chat.conversation.index.id === 'chat-cancel-2') {
+            if (chat.conversation.index.key.conversationId === 'chat-cancel-2') {
                 orchestrator.abort();
             }
             return {
@@ -158,7 +160,7 @@ test('cancel semantics - permission revoked: one real failure recorded, still no
     let downloadCalls = 0;
 
     const worker = makeTestWorker({
-        fetchChatDetail: async (requestedItem: any) => ({
+        fetchChatDetail: async (requestedItem: any) => await ({
             success: true,
             chat: historicalFixture({
                 id: requestedItem.id,
@@ -206,7 +208,7 @@ test('cancel semantics - rate-limit backoff is abortable (no 30s stall on cancel
             if (fetchCalls === 1) {
                 setTimeout(() => orchestrator.abort(), 50);
             }
-            return { success: false, error: 'rate limited' };
+            return await { success: false, error: 'rate limited' };
         }
     });
 
@@ -236,7 +238,7 @@ test('ZIP delivery makes cancellation during Storage await ineffective; next run
     const paused = new Promise<void>(resolve => { startedWrite = resolve; });
     const release = new Promise<void>(resolve => { releaseWrite = resolve; });
     let blockFirstWrite = true, downloads = 0, cancellations = 0;
-    Reflect.set(globalThis, 'chrome', {
+    Reflect.set(globalThis, 'chrome', withRegistry({
         runtime: { sendMessage: (message: { action: string }, callback: () => void) => {
             if (message.action === 'cancelExport') cancellations++;
             callback();
@@ -255,11 +257,11 @@ test('ZIP delivery makes cancellation during Storage await ineffective; next run
             },
             remove: async () => {},
         } },
-    });
+    }));
     setupMockJSZip();
     __setModuleOverride('StorageService', Storage);
     const orchestrator = new ExportOrchestrator();
-    const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => ({ success: true,
+    const worker = makeTestWorker({ fetchChatDetail: async (item: { id: string }) => await ({ success: true,
         chat: historicalFixture({ id: item.id, messages: [{ role: 'user', content: 'Hello' }] }),
     }) });
     const notified: string[] = [];

@@ -11,8 +11,8 @@ import { indexFixture } from './helpers/indexFixture.js';
 const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
     [['c_abcdef123456', 'Server title', null, null, null, [1700000000, 0]]]])]]);
 const batch = () => parseList(text).conversations;
-async function fixture(run: (state: { records: Conversation[]; fail: boolean; writes: number; checkpoints: number }) => Promise<void>) {
-    const state = { records: [indexFixture({ id: 'abcdef123456', title: 'Old title', cloudAvailability: 'unlisted' })], fail: false, writes: 0, checkpoints: 0 };
+async function fixture(run: (state: { availability: Record<string, string>; records: Conversation[]; fail: boolean; writes: number; checkpoints: number }) => Promise<void>) {
+    const state = { availability: {} as Record<string, string>, records: [indexFixture({ id: 'abcdef123456', title: 'Old title', cloudAvailability: 'unlisted' })], fail: false, writes: 0, checkpoints: 0 };
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
     __setModuleOverride('StorageService', {
@@ -23,6 +23,7 @@ async function fixture(run: (state: { records: Conversation[]; fail: boolean; wr
             if (result) { state.records = result.list; state.writes++; }
             return { list: state.records, written: !!result, changed: result?.changed || 0 };
         },
+        async setConversationAvailability(_slot: string, id: string, value: string) { state.availability[id] = value; },
         async setLastSync() {}, async updateAccountSlot() {},
         async getScanCheckpoint() { return 1700000000000; },
         async setScanCheckpoint() { state.checkpoints++; }
@@ -41,10 +42,10 @@ test('RPC lists from the bridge and scanner persist identical titles, time, sour
     await bridge.handleWindowMessage({ origin: location.origin, data: { type: 'GEMINI_NETWORK_BATCHEXECUTE', payload: { text, slot: 'u2', requestAccountObservation: ACCOUNT_OBSERVATION } } } as MessageEvent);
     const sniffed = structuredClone(state.records);
     assert.equal(sniffed[0].title, 'Server title');
-    assert.equal(sniffed[0].titleSource, 'rpc');
+    assert.equal(sniffed[0].titleSource, 'provider');
     assert.equal(sniffed[0].updatedAt, 1700000000000, 'server-authored activity must survive ingest');
     assert.equal('source' in sniffed[0], false);
-    assert.equal(sniffed[0].cloudAvailability, 'available');
+    assert.equal(state.availability[sniffed[0].key.conversationId], 'available');
     await ingestRpcList(batch(), ACCOUNT_UUID);
     assert.deepEqual(state.records, sniffed);
     assert.equal(state.checkpoints, 0);
@@ -57,11 +58,11 @@ test('RPC receipts reject invalid/stale observations and acknowledge fresh autho
     markConfirmedDeleted(ACCOUNT_UUID, 'deleted123456');
     const stale = await ingestRpcList(items, ACCOUNT_UUID, 0);
     assert.deepEqual(stale, { count: 2, accepted: 1, rejected: 2, persisted: 1 });
-    assert.equal(state.records.find(item => item.id === 'deleted123456')?.title, 'Archived');
+    assert.equal(state.records.find(item => item.key.conversationId === 'deleted123456')?.title, 'Archived');
     const fresh = await ingestRpcList(items, ACCOUNT_UUID, Date.now() + 1000);
     assert.deepEqual(fresh, { count: 2, accepted: 2, rejected: 1, persisted: 2 });
-    assert.equal(state.records.find(item => item.id === 'deleted123456')?.cloudAvailability, 'available');
-    assert.equal(state.records.find(item => item.id === 'deleted123456')?.title, 'Server title');
+    assert.equal(state.availability.deleted123456, 'available');
+    assert.equal(state.records.find(item => item.key.conversationId === 'deleted123456')?.title, 'Server title');
 }));
 
 test('scanner sees storage failures; bridge catches them at its event boundary and a retry commits', async () => fixture(async state => {

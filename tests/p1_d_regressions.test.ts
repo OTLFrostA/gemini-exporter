@@ -153,7 +153,7 @@ test('P1-048: removeConversation keeps list, count key and slot count consistent
         const removed = await StorageService.removeConversation('10000000-0000-4000-8000-000000000001', 'c_gone');
         assert.strictEqual(removed, true);
         assert.deepStrictEqual(
-            (store['conversations_10000000-0000-4000-8000-000000000001'] as any[]).map((c) => c.id),
+            (store['conversations_10000000-0000-4000-8000-000000000001'] as any[]).map((c) => c.key.conversationId),
             ['keep']
         );
         assert.strictEqual(store['last_count_10000000-0000-4000-8000-000000000001'], 1, 'countKey diverged from list');
@@ -178,22 +178,22 @@ test('P1-049: removeConversation deletes the conversation export records (all al
     } finally { restore(); }
 });
 
-test('P1-049: reconcileConversations deletes export records of removed conversations', async () => {
+test('P1-049: reconcileConversations retains unlisted local indexes and export records', async () => {
     const { store, chrome } = makeChromeStore();
     const restore = withChrome(chrome);
     try {
         store['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'c_a' }, { id: 'c_b' }]).map(indexFixture);
         store['exported_10000000-0000-4000-8000-000000000001'] = { 'a': { v: 1 }, 'b': { v: 1 } };
         const res = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', [{ id: 'c_a' }]);
-        assert.deepStrictEqual(res.removedIds, ['b']);
+        assert.deepStrictEqual(res.removedIds, []);
         assert.deepStrictEqual(
             Object.keys(store['exported_10000000-0000-4000-8000-000000000001']),
-            ['a'],
-            'reconciled-away conversation kept its export record'
+            ['a', 'b'],
+            'cloud absence must retain export records'
         );
         assert.deepStrictEqual(
-            (store['conversations_10000000-0000-4000-8000-000000000001'] as any[]).map((c) => c.id),
-            ['a']
+            (store['conversations_10000000-0000-4000-8000-000000000001'] as any[]).map((c) => c.key.conversationId),
+            ['a', 'b']
         );
     } finally { restore(); }
 });
@@ -371,14 +371,14 @@ test('P1-054: loadFormat warns instead of silently swallowing storage errors', a
 
 // ------------------------------------------------------------------ P1-056
 
-test('P1-056: merge keeps the fuller message body when the incoming body is empty/shorter', async () => {
+test('P1-056: Index merging ignores bodies and message counts', async () => {
     const mkMsgs = (n: number) => Array.from({ length: n }, (_, i) => ({ id: 'm' + i, text: 't' + i }));
     const full = { id: 'c_x', title: 'T', titles: { rpc: 'T' }, titleSource: 'rpc', messages: mkMsgs(5), messageCount: 5, timestamp: 100, updatedAt: 100 };
 
     // Empty incoming body must not clobber the full body.
     const r1 = mergeConversation(indexFixture(full), indexFixture({ ...full, messages: [], messageCount: 0 }), { source: 'network-list' });
     assert.strictEqual(r1.merged.messages, undefined, 'empty incoming body clobbered the full body');
-    assert.strictEqual(r1.merged.messageCount, 5, 'stale smaller messageCount regressed');
+    assert.strictEqual(r1.merged.messageCount, undefined, 'stale smaller messageCount regressed');
 
     // Shorter (not just empty) incoming body must not clobber either.
     const r3 = mergeConversation(indexFixture(full), indexFixture({ ...full, messages: mkMsgs(2), messageCount: 2 }), { source: 'network-list' });
@@ -391,7 +391,7 @@ test('P1-056: merge keeps the fuller message body when the incoming body is empt
         { source: 'network-list' }
     );
     assert.strictEqual(r2.merged.messages, undefined);
-    assert.strictEqual(r2.merged.messageCount, 5);
+    assert.strictEqual(r2.merged.messageCount, undefined);
 });
 
 test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have shorter incoming messages attached', () => {
@@ -421,7 +421,7 @@ test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have sho
 
     const res = mergeConversation(indexFixture(slimOld), indexFixture(incomingShort), { source: 'network-list' });
     assert.strictEqual(res.merged.messages, undefined, '较短的 incoming 消息数组绝不可附着到 slim 会话上');
-    assert.strictEqual(res.merged.messageCount, 15, '应保持原有 15 条消息计数');
+    assert.strictEqual(res.merged.messageCount, undefined, '应保持原有 15 条消息计数');
     assert.strictEqual(res.isChanged, false, '更短的残缺正文不应触发变更标记');
 
     // 较长的 incoming (例如全量追加或离线导入带来 20 条消息)
@@ -438,20 +438,20 @@ test('P1-056b: slimmed existing conversation (messages in IDB) must NOT have sho
 
     const res2 = mergeConversation(indexFixture(slimOld), indexFixture(incomingLong), { source: 'network-list' });
     assert.strictEqual(res2.merged.messages, undefined, '更长完整的消息数组应正常并入');
-    assert.strictEqual(res2.merged.messageCount, 20);
-    assert.strictEqual(res2.isChanged, true);
+    assert.strictEqual(res2.merged.messageCount, undefined);
+    assert.strictEqual(res2.isChanged, false);
 });
 
 // ------------------------------------------------------------------ P1-057
 
-test('P1-057: isChanged detects message-count growth when timestamps are unchanged', async () => {
+test('P1-057: Index ignores message-count growth when timestamps are unchanged', async () => {
     const base: any = { id: 'c_y', title: 'Same title', titles: { rpc: 'Same title' }, titleSource: 'rpc', timestamp: 1000, updatedAt: 1000 };
     const old = { ...base, messageCount: 5, messages: [{ id: 'a' }] };
     const incoming = { ...base, messageCount: 8, messages: [{ id: 'a' }] };
     const r = mergeConversation(indexFixture(old), indexFixture(incoming), { source: 'network-list' });
     assert.strictEqual(
-        r.isChanged, true,
-        'messageCount 5 -> 8 with identical title/timestamps must count as changed'
+        r.isChanged, false,
+        'messageCount 5 -> 8 with identical title/timestamps does not change Index'
     );
 });
 

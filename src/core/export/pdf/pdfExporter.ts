@@ -254,9 +254,9 @@ export class PdfExporter {
         const items = selected.map((s) => {
             const native = typeof s === 'object' && s.conversation ? s : null;
             const source = native?.conversation.index ?? s;
-            const id = typeof source === 'string' ? source : source && typeof source === 'object' && 'id' in source ? source.id : '';
+            const id = typeof source === 'string' ? source : native ? native.conversation.index.key.conversationId : source && typeof source === 'object' && 'id' in source ? source.id : '';
             const title = source && typeof source === 'object' && 'title' in source && typeof source.title === 'string' ? source.title : String(id ?? '');
-            return { id: native && native.conversation.index.providerId !== 'gemini' ? String(id ?? '') : normId(String(id ?? '')), title, selected: s };
+            return { id: native && native.account.providerId !== 'gemini' ? String(id ?? '') : normId(String(id ?? '')), title, selected: s };
         }).filter((it) => it.id);
 
         const total = items.length;

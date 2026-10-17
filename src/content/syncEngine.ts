@@ -1,11 +1,12 @@
+import { setConversationAvailability } from '../core/storage/conversationAvailability.js';
 import { isAccountId } from '../core/domain/accountRegistry.js';
-import { ingestConversation } from '../core/storage/storageService.js';
+import { ingestConversation, ingestIndexes } from '../core/storage/conversationIngest.js';
 import { parseGeminiIndexObservation, type GeminiIndexObservationSource } from '../core/parsers/gemini/parseIndexObservation.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { parseGeminiDomIndex } from '../core/parsers/gemini/dom/parseIndex.js';
-import type { PageObservation } from '../core/sync/pageObservation.js';
+import type { PageObservation } from '../core/domain/pageObservation.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
-import type { ScanCoverageRun, ScanCoverage } from '../core/storage/scanCoverage.js';
+import type { ScanCoverageRun, ScanCoverage } from '../core/domain/scanCoverage.js';
 import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
 import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
@@ -85,7 +86,7 @@ export async function refreshInitialBadge(): Promise<void> {
 export function extractActiveChatTitle(activeId: string): { title: string; source: string } | null {
     if (!activeId || typeof document === 'undefined') return null;
     const index = parseGeminiDomIndex(document, activeId);
-    return index.title ? { title: index.title, source: index.titleSource } : null;
+    return index.title ? { title: index.title, source: index.titleSource ?? "derived" } : null;
 }
 
 const __fetchingDetailMap = new Map<string, number>();
@@ -98,9 +99,9 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             const slot = getAccountSlot();
             const Storage = getStorage();
             const existing = Storage ? await Storage.getConversations((await resolveCurrentAccount())?.accountId) : [];
-            const found = existing.find(c => c.id === activeId);
-            const hasResolvedTitle = found && found.title !== ''
-                && found.titleSource !== 'sniff' && found.titleSource !== 'default';
+            const found = existing.find(c => c.key.conversationId === activeId);
+            const hasResolvedTitle = found && Boolean(found.title)
+                && found.titleSource !== 'derived';
             if (!options?.force && hasResolvedTitle && found.updatedAt !== undefined) {
                 return;
             }
@@ -109,13 +110,10 @@ export function scheduleActiveChatDetailFetch(activeId: string, options?: { forc
             if (!provider) return;
             const account = await resolveCurrentAccount();
             if (!account || account.slot !== slot) return;
-            const native = await provider.fetchConversationDetail(activeId, { slot });
+            const native = await provider.fetchConversationDetail(activeId, { slot, accountId: account.accountId });
             const fresh = await resolveCurrentAccount();
             if (fresh?.accountId !== account.accountId || !isCurrentAccount(account)) return;
-            const d = native.conversation;
-            if (d && d.index.id) {
-                await ingestConversation(account.accountId, native, [], 'detail', () => isCurrentAccount(account));
-            }
+
         } catch (err) {
             if (contentContext.isDevMode()) console.debug('[Gemini Exporter] scheduleActiveChatDetailFetch err', err);
         } finally {
@@ -198,7 +196,7 @@ export function upsertConversations(incomingItems: readonly unknown[], source: s
 }
 
 /** Both RPC acquisition paths commit through the same merge and storage transaction. */
-export async function ingestRpcList(items: GeminiProviderConversationItem[], slot: string, requestedAt = Date.now(), canCommit?: () => boolean): Promise<RpcListIngestResult> {
+export async function ingestRpcList(items: (GeminiProviderConversationItem | DomainConversationIndex)[], slot: string, requestedAt = Date.now(), canCommit?: () => boolean): Promise<RpcListIngestResult> {
     await assertSchemaWritable();
     return persistConversationBatch(items, 'network-list', true, slot, requestedAt, [], canCommit);
 }
@@ -213,16 +211,11 @@ export async function ingestPageObservation(page: PageObservation<GeminiProvider
     const canCommit = () => (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
         && (runId === undefined || !contentContext.isAborted());
     if (!canCommit()) throw new Error('Page observation belongs to a stale account or cancelled request');
-    const context: ScanCoverage = await Storage.preparePageCoverage(slot, page.accountId, page.providerId);
-    const receipt = await ingestRpcList(page.items, slot, page.requestedAt, canCommit);
-    if (receipt.rejected > 0 || receipt.persisted !== receipt.accepted) return receipt;
-    if (!await Storage.recordPageCoverage(slot, page, context, page.streamId === 'recent', ['pinned', 'recent'], runId, canCommit)
-        && runId !== undefined) throw new Error('Coverage was cleared, cancelled or superseded');
-    return receipt;
+    return persistConversationBatch(page.items, 'network-list', true, slot, page.requestedAt, [], canCommit, page, runId);
 }
 
-async function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now(), localTouches: readonly string[] = [], canCommit?: () => boolean): Promise<RpcListIngestResult> {
-    if (!incomingItems || !incomingItems.length) return Promise.resolve(emptyIngest());
+async function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now(), localTouches: readonly string[] = [], canCommit?: () => boolean, page?: PageObservation<unknown>, runId?: string): Promise<RpcListIngestResult> {
+    if (!incomingItems || (!incomingItems.length && !page)) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
     // If incoming items lack valid IDs or are malformed (e.g. schema drift resulting
@@ -230,29 +223,29 @@ async function persistConversationBatch(incomingItems: readonly unknown[], sourc
     // abort storage transaction immediately to protect existing data from corruption.
     const kind: GeminiIndexObservationSource = source === 'network-list' || source === 'batchexecute' ? 'rpc-list'
         : source.includes('detail') ? 'detail' : 'dom';
+    const captured = targetSlot ? null : await resolveCurrentAccount();
+    const targetAccountId = targetSlot || captured?.accountId;
+    if (!isAccountId(targetAccountId)) throw new Error('List ingestion requires an account UUID');
     const validIncoming: DomainConversationIndex[] = [];
     const touched = new Set(localTouches);
     for (const item of incomingItems) {
         try {
-            const index = item && typeof item === 'object' && 'providerId' in item
-                ? restoreConversationIndex(item) : parseGeminiIndexObservation(item, kind);
+            const index: DomainConversationIndex = item && typeof item === 'object' && 'key' in item
+                ? restoreConversationIndex(item) : parseGeminiIndexObservation(item, kind, targetAccountId);
             // Validate canonical identity without reparsing or rewriting the Domain fields.
-            if (index.providerId !== 'gemini' || index.id !== normId(index.id)
-                || index.id === 'unknown' || isReservedRoute(index.id)) throw new TypeError('Invalid canonical Gemini identity');
+            if (index.key.accountId !== targetAccountId || index.key.conversationId !== normId(index.key.conversationId)
+                || index.key.conversationId === 'unknown' || isReservedRoute(index.key.conversationId)) throw new TypeError('Invalid canonical Gemini identity');
             validIncoming.push(index);
-            if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.id);
+            if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.key.conversationId);
         }
         catch (error) { if (!(error instanceof TypeError)) throw error; }
     }
 
-    if (validIncoming.length === 0) {
+    if (validIncoming.length === 0 && incomingItems.length > 0) {
         console.warn('[Gemini Exporter] Fail-Closed: incoming batch has no valid conversation IDs, aborting storage write to protect existing data.');
         return Promise.resolve(emptyIngest(incomingItems.length));
     }
 
-    const captured = targetSlot ? null : await resolveCurrentAccount();
-    const targetAccountId = targetSlot || captured?.accountId;
-    if (!isAccountId(targetAccountId)) throw new Error('List ingestion requires an account UUID');
     const commit = () => canCommit?.() !== false && (!captured || isCurrentAccount(captured));
     __storageWriteQueue = __storageWriteQueue.catch(() => emptyIngest()).then(async () => {
         try {
@@ -264,38 +257,29 @@ async function persistConversationBatch(incomingItems: readonly unknown[], sourc
             // transaction. The old shape read outside the lock, so two tabs
             // could build on the same stale snapshot and the later write would
             // silently discard the earlier tab's updates (lost update).
-            let accepted = 0;
             const recovered = new Map<string, { at: number }>();
-            const tx = await Storage.transactConversations(slot, existing => {
-                if (!commit()) throw new Error('Account changed before queued list ingestion');
-                const map = new Map(existing.map(c => [`${c.providerId}:${c.id}`, c]));
-                let changed = 0;
-                for (const incoming of validIncoming) {
-                    const deletion = confirmedDeleted.get(slot)?.get(incoming.id);
-                    const authoritativePresence = kind === 'rpc-list' && incoming.cloudAvailability === 'available';
-                    if (deletion && (!authoritativePresence || requestedAt <= deletion.at)) continue;
-                    const old = map.get(`${incoming.providerId}:${incoming.id}`);
-                    if (old?.cloudAvailability === 'deleted' && !authoritativePresence) continue;
-                    if (deletion && authoritativePresence) recovered.set(incoming.id, deletion);
-                    accepted++;
-                    const result = mergeConversation(old, incoming);
-                    if (result.isChanged) changed++;
-                    map.set(`${incoming.providerId}:${incoming.id}`, result.merged);
-                }
-                // Local touches change tie order only, never authored activity timestamps.
-                const merged = [...map.values()].sort((a, b) => compareConversations(a, b)
-                    || Number(touched.has(b.id)) - Number(touched.has(a.id)));
-                const reordered = merged.some((item, index) => item.id !== existing[index]?.id);
-                if (!forceWrite && changed === 0 && !reordered) return null;
-                return { list: merged, changed };
+            const tx = await ingestIndexes(slot, validIncoming, {
+                storage: Storage, canCommit: commit, forceWrite, touched,
+                ...(page && validIncoming.length === incomingItems.length ? { page, runId } : {}),
+                accept: (incoming, old) => {
+                    const deletion = confirmedDeleted.get(slot)?.get(incoming.key.conversationId);
+                    const authoritativePresence = kind === 'rpc-list';
+                    if (deletion && (!authoritativePresence || requestedAt <= deletion.at)) return false;
+                    if (deletion && authoritativePresence) recovered.set(incoming.key.conversationId, deletion);
+                    return true;
+                },
             });
+            if (kind === 'rpc-list' && tx.written) for (const index of validIncoming) {
+                if (!confirmedDeleted.get(slot)?.has(index.key.conversationId) || recovered.has(index.key.conversationId)) await Storage.setConversationAvailability?.(slot, index.key.conversationId, 'available');
+            }
+            const accepted = tx.accepted;
 
             if (tx.written) for (const [id, deletion] of recovered) {
                 if (confirmedDeleted.get(slot)?.get(id) === deletion) confirmedDeleted.get(slot)?.delete(id);
             }
             const mergedLength = tx.list.length;
             const result: RpcListIngestResult = { count: mergedLength, accepted,
-                rejected: incomingItems.length - accepted, persisted: tx.written ? accepted : 0 };
+                rejected: incomingItems.length - accepted, persisted: accepted };
             if (!tx.written) {
                 if (__lastKnownCount !== mergedLength) {
                     if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
@@ -333,7 +317,7 @@ export async function syncOnce(): Promise<number> {
     if (__syncOnceInFlight) return 0;
     __syncOnceInFlight = true;
     try {
-        const items: DomainConversationIndex[] = [];
+        const items: unknown[] = [];
         const activeId = typeof location !== 'undefined' ? extractConversationIdFromUrl(location.pathname) : null;
         if (activeId) {
             const index = parseGeminiDomIndex(typeof document === 'undefined' ? null : document, activeId);

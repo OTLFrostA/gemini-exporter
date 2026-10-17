@@ -100,7 +100,7 @@ test('PR-B: Current-schema read paths read only canonical keys', async () => {
     const env = installMock();
     try {
         env.localStore['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'u0_c1', title: 'U0 Conv', timestamp: 100 }]).map(indexFixture);
-        env.localStore['conversations_10000000-0000-4000-8000-000000000002'] = ([{ id: 'u1_c1', title: 'U1 Conv', timestamp: 200 }]).map(indexFixture);
+        env.localStore['conversations_10000000-0000-4000-8000-000000000002'] = ([{ id: 'u1_c1', title: 'U1 Conv', timestamp: 200 }]).map(indexFixture).map(c => ({ ...c, key: { ...c.key, accountId: '10000000-0000-4000-8000-000000000002' } }));
         env.localStore['exported_10000000-0000-4000-8000-000000000001'] = { 'u0_c1': { status: 'ok' } };
         env.localStore['exported_10000000-0000-4000-8000-000000000002'] = { 'u1_c1': { status: 'ok' } };
         env.sessionStore['gemini_credentials_map'] = {
@@ -108,10 +108,10 @@ test('PR-B: Current-schema read paths read only canonical keys', async () => {
         };
 
         const u0Convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.deepStrictEqual(u0Convs.map((c: any) => c.id), ['u0_c1']);
+        assert.deepStrictEqual(u0Convs.map((c: any) => c.key.conversationId), ['u0_c1']);
 
         const u1Convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000002');
-        assert.deepStrictEqual(u1Convs.map((c: any) => c.id), ['u1_c1']);
+        assert.deepStrictEqual(u1Convs.map((c: any) => c.key.conversationId), ['u1_c1']);
 
         const u0Exp = await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001');
         assert.deepStrictEqual(Object.keys(u0Exp), ['u0_c1']);
@@ -131,7 +131,7 @@ test('PR-B: Current-schema read paths are strictly non-mutating (0 writes, 0 del
     const env = installMock();
     try {
         env.localStore['conversations_10000000-0000-4000-8000-000000000001'] = ([{ id: 'c1', title: 'C1' }]).map(indexFixture);
-        env.localStore['conversations_10000000-0000-4000-8000-000000000002'] = ([{ id: 'c2', title: 'C2' }]).map(indexFixture);
+        env.localStore['conversations_10000000-0000-4000-8000-000000000002'] = ([{ id: 'c2', title: 'C2' }]).map(indexFixture).map(c => ({ ...c, key: { ...c.key, accountId: '10000000-0000-4000-8000-000000000002' } }));
         env.localStore['exported_10000000-0000-4000-8000-000000000001'] = { 'c1': { status: 'ok' } };
         env.localStore['exported_10000000-0000-4000-8000-000000000002'] = { 'c2': { status: 'ok' } };
         env.sessionStore['gemini_credentials_map'] = { 's1': { sid: 's1' } };

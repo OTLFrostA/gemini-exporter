@@ -37,7 +37,7 @@ Each Provider can have one ordinary fallback Account with `providerAccountId: 'd
 | Takeout | `src/ui/controllers/takeoutController.ts`, `src/core/engine/takeoutEngine.ts` | Import into a selected existing Gemini UUID. With no Gemini Accounts, create/reuse Gemini default. With existing accounts and no valid selection, require selection. Engine validates existence and Provider before parsing or writes. |
 | Export | Export orchestration, pipeline, PDF and session recovery | Carry the selected UUID into list/body/resource reads and export-record writes. Internal parameters still named `slot` in a few helpers contain a UUID, never `u0`. |
 
-Provider/parser output contains conversation identity and content. Runtime supplies the resolved enclosing Account scope when admitting that output to Storage; local UUID allocation is not embedded into pure parsing.
+L1 resolves the Registry Account before parsing. Parser input and output carry that Account; Index and Detail share `{accountId, conversationId}`. The shared ingestion boundary validates ownership before persistence. Parsers do not allocate local UUIDs.
 
 ## Clean schema boundary
 

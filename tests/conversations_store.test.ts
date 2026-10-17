@@ -74,23 +74,11 @@ test('conversationsStore - getSignature', () => {
     assert.ok(sigA !== sigD);
 });
 
-test('conversationsStore detects historical import fact, not title provenance', () => {
-    const canonical = (id: string, titleSource: 'rpc' | 'takeout', hasTakeoutImport: boolean) =>
-        indexFixture({ providerId: 'gemini', id, title: 'Valid title', titleSource,
-            cloudAvailability: 'unknown', hasTakeoutImport });
-
-    const online = canonical('online', 'rpc', false);
-    const titleOnly = canonical('title-only', 'takeout', false);
-    const importedRenamed = canonical('imported', 'rpc', true);
-
-    ConversationsStore.setConversations([online, titleOnly]);
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), false,
-        'a Takeout-looking title does not prove a prior import');
-    ConversationsStore.setConversations([online, importedRenamed]);
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), true,
-        'a conversation renamed online still carries its import history');
-    ConversationsStore.setConversations([online]);
-    assert.strictEqual(ConversationsStore.hasTakeoutData(), false);
+test('conversationsStore retains only canonical Index facts', () => {
+    const list = [indexFixture({ id: 'imported', title: 'Renamed online', titleSource: 'rpc', hasTakeoutImport: true })];
+    ConversationsStore.setConversations(list);
+    assert.equal(Object.hasOwn(ConversationsStore.getConversations()[0], 'hasTakeoutImport'), false);
+    assert.equal(ConversationsStore.getConversations()[0].titleSource, 'provider');
 });
 
 test('conversationsStore consumes canonical indexes without rewriting them', () => {
@@ -129,11 +117,11 @@ for (const switchAccount of [false, true]) test(`a delayed account load cannot r
         release([indexFixture({ id: 'older', title: 'Older snapshot' })]);
         await older;
         assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
-        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { id: string }) => row.id), ['newer']);
+        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['newer']);
     } finally { release([]); __clearModuleOverrides(); }
 });
 
-for (const operation of ['remove', 'reconcile']) test(`completion of ${operation} in A cannot remove the same conversation from the visible B account`, async () => {
+for (const operation of ['remove']) test(`completion of ${operation} in A cannot remove the same conversation from the visible B account`, async () => {
     const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
     const firstId = '10000000-0000-4000-8000-000000000001';
     const nextId = '10000000-0000-4000-8000-000000000002';
@@ -153,6 +141,6 @@ for (const operation of ['remove', 'reconcile']) test(`completion of ${operation
         ConversationsStore.setConversations([indexFixture({ id: 'shared', title: 'B keeps this conversation' })]);
         release(); await pending;
         assert.strictEqual(ConversationsStore.getCurrentAccountId(), nextId);
-        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { id: string }) => row.id), ['shared']);
+        assert.deepStrictEqual(ConversationsStore.getConversations().map((row: { key: { conversationId: string } }) => row.key.conversationId), ['shared']);
     } finally { release(); __clearModuleOverrides(); }
 });

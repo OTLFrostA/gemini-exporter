@@ -129,7 +129,7 @@ test('T1: concurrent transactConversations from two tabs must not lose updates',
         assert.strictEqual(rB.written, true);
 
         const finalList = await tabA.getConversations('10000000-0000-4000-8000-000000000001');
-        const ids = finalList.map((c: any) => c.id);
+        const ids = finalList.map((c: any) => c.key.conversationId);
         assert.ok(ids.includes('seed'), 'seed must survive');
         assert.ok(ids.includes('fromA'), "tab A's write must not be lost");
         assert.ok(ids.includes('fromB'), "tab B's write must not be lost");
@@ -175,7 +175,7 @@ test('T4: same-tab chains still serialize when Web Locks is unavailable (fallbac
         }));
         await Promise.all([pA, pB]);
 
-        const ids = (await tab.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.id);
+        const ids = (await tab.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.key.conversationId);
         assert.deepStrictEqual(ids, ['seed', 'first', 'second']);
     } finally {
         env.restore();
@@ -224,7 +224,7 @@ test('T6: removeConversation inside the lock still drops export records atomical
         const [removed] = await Promise.all([pRemove, pAdd]);
         assert.strictEqual(removed, true);
 
-        const ids = (await tabA.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.id);
+        const ids = (await tabA.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.key.conversationId);
         assert.ok(ids.includes('keep'));
         assert.ok(ids.includes('added'), "concurrent add must survive the removal");
         assert.ok(!ids.includes('drop'), 'removed conversation must stay removed');

@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
 import { resourceValue } from './helpers/resources.js';
 import type { ResourceRequest } from '../src/core/resources/resourceAcquisition.js';
@@ -36,7 +37,7 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { preparePdfItem } = require('../src/core/export/pdf/prepareItem.js');
+const { preparePdfItem } = require('./helpers/pdfAcquisitionFixture.js');
 const { PdfExporter } = require('../src/core/export/pdf/index.js');
 const { resourceStage } = require('../src/core/export/pdf/pipeline/resourceStage.js');
 const { payloadStage } = require('../src/core/export/pdf/pipeline/payloadStage.js');
@@ -111,7 +112,7 @@ test('1a. Remote Gemini RPC image (with pre-populated localName): hydrates bytes
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         { accountId: '10000000-0000-4000-8000-000000000001', ...({
-            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
             fetchAsset: async (req: any) => {
                 fetchedUrls.push(typeof req === 'string' ? req : req.url);
                 return {
@@ -213,7 +214,7 @@ test('1b. Remote URL-only attachment and standalone Markdown remote image: conte
     const result = await exporter.run(
         { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
             useZip: false,
             writer,
             fetchAsset: async () => ({
@@ -286,7 +287,7 @@ test('2. Takeout fallback: when network fetch fails, Takeout fallback provides b
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         { accountId: '10000000-0000-4000-8000-000000000001', ...({
-            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({
@@ -379,7 +380,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const prepared = await preparePdfItem(
         { id: rawChat.id, title: rawChat.title },
         { accountId: '10000000-0000-4000-8000-000000000001', ...({
-            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
             maxAssetRetries: 0,
             takeoutEngine: fakeTakeoutEngine,
             fetchAsset: async () => ({
@@ -425,7 +426,7 @@ test('3. Acquisition failure: when both network fetch and Takeout fallback fail,
     const runRes = await exporter.run(
         { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
             useZip: false,
             writer,
             maxAssetRetries: 0,
@@ -469,7 +470,7 @@ test('4. Abort during asset acquisition stops immediately and writes no files', 
     const runPromise = exporter.run(
         { accountId: '10000000-0000-4000-8000-000000000001', ...({
             selected: [{ id: rawChat.id, title: rawChat.title }],
-            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+            conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
             useZip: false,
             writer,
             fetchAsset: async () => {
@@ -530,7 +531,7 @@ test('5. End-to-end real Typst WASM compile: PdfExporter mounts relative resourc
         const result = await exporter.run(
             { accountId: '10000000-0000-4000-8000-000000000001', ...({
                 selected: [{ id: rawChat.id, title: rawChat.title }],
-                conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => ({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] }),
+                conversations: ([rawChat]).map(indexFixture), fetchChatDetail: async (item: { id: string }) => await acquiredReply(({ success: true, results: [historicalFixture(([rawChat]).find((row: { id: string }) => row.id.replace(/^c_/, '') === item.id.replace(/^c_/, '')) || {})] })),
                 useZip: false,
                 writer,
                 fetchAsset: async () => ({
@@ -686,8 +687,8 @@ test('inline bytes skip acquisition', async () => {
     assert.strictEqual(acquireCalls, 0, 'acquireAssetBytes must NOT be called when inline bytes exist');
 });
 
-test('acquisition keeps the legacy destination hint while source URI controls grouping', async () => {
-    let capturedItem: { localName?: string } = {};
+test('acquisition uses source identity without retaining export destination hints', async () => {
+    let capturedItem: Partial<ResourceRequest> = {};
     const img = {
         localName: 'assets/key_local.png',
         resolvedUrl: 'https://example.com/key_resolved.png',
@@ -717,5 +718,7 @@ test('acquisition keeps the legacy destination hint while source URI controls gr
     }) });
 
     assert.strictEqual(result.ok, true);
-    assert.strictEqual(capturedItem?.localName, 'assets/key_local.png');
+    assert.strictEqual(capturedItem?.localName, undefined);
+    assert.strictEqual(capturedItem?.sourceUrl, 'https://example.com/key_source.png');
+    assert.ok(capturedItem?.assetId);
 });

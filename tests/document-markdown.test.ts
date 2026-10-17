@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,8 +21,8 @@ function freeze(value: unknown): void {
 
 test('Markdown backend projects spans while the neutral tree retains all headers', () => {
     const input = fixture(); const before = JSON.stringify(input); freeze(input);
-    const composed = composeDomainDocument(validateParserDomain(input));
-    assert.deepEqual(composeDomainDocument(validateParserDomain(input)), composed);
+    const composed = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
+    assert.deepEqual(composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))), composed);
     assert.equal(JSON.stringify(input), before);
     const table = composed.document.messages[0].blocks.find(block => block.type === 'table')!; assert.equal(table.type, 'table');
     if (table.type !== 'table') throw new Error('Expected table');
@@ -33,7 +34,7 @@ test('Markdown backend projects spans while the neutral tree retains all headers
 });
 
 test('Markdown consumes only JSON display choices, explicit time and prepared paths', () => {
-    const { document } = composeDomainDocument(validateParserDomain(fixture()));
+    const { document } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     const restored: DocumentAst = JSON.parse(JSON.stringify(document));
     const resources = { a: 'assets/a.png' };
     assert.equal(renderDocumentMarkdown(restored, resources), renderDocumentMarkdown(document, resources));
@@ -53,12 +54,12 @@ test('Markdown consumes only JSON display choices, explicit time and prepared pa
 });
 
 test('Markdown composition owns unavailability and emits diagnostics without remote embedding', () => {
-    const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()));
+    const { document, diagnostics } = composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture())));
     assert.equal(diagnostics.length, 0);
     const output = renderDocumentMarkdown(document, {});
     assert.ok(output.includes('[Image unavailable:')); assert.ok(output.includes('**123**'));
     assert.ok(!output.includes('https://remote'));
-    assert.deepEqual(composeDomainDocument(validateParserDomain(fixture())).document, document);
+    assert.deepEqual(composeDomainDocument(validateParserDomain(fixture()), fixtureAccountFor(validateParserDomain(fixture()))).document, document);
 });
 
 test('Markdown renderer cannot depend on provider, Domain or storage services', () => {
@@ -76,7 +77,7 @@ test('Markdown renderer cannot depend on provider, Domain or storage services', 
 
 test('Markdown front matter reads identity and source dates only from Document AST', () => {
     const input = fixture(); input.index.updatedAt = 1000;
-    const { document } = composeDomainDocument(validateParserDomain(input));
+    const { document } = composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input)));
     document.header.title = 'true';
     document.metadata!.id = 'null';
     document.metadata!.url = 'https://example.test/accepted';

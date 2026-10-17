@@ -643,7 +643,7 @@ function decodeDetailEvidence(text: string, targetConvId: string | undefined, _o
             const sniffed = resolveDetailTitle(allMsgs, convId);
             if (sniffed) {
                 cleanT = sniffed.title;
-                finalSource = sniffed.source;
+                finalSource = "sniff";
             }
         }
         let _debug: GeminiDetailDebugEvidence | null = null;

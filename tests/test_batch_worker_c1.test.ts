@@ -18,7 +18,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     // 1. Direct TabService success
     const mockDirectTabService = {
         sendToGeminiTab: async () => ({
-            success: true, domainEnvelopeVersion: 2,
+            success: true, domainEnvelopeVersion: 3,
             data: historicalFixture({ id: 'chat_direct_1', title: 'Direct Tab Chat', messages: [] })
         })
     };
@@ -93,7 +93,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     const mockFallbackSender = (msg: unknown, callback?: (res: unknown) => void) => {
         remotePayload = msg;
         callback?.({
-            success: true, domainEnvelopeVersion: 2,
+            success: true, domainEnvelopeVersion: 3,
             results: [historicalFixture({ id: 'chat_remote_1', title: 'Remote Fallback Chat', messages: [] })]
         });
     };
@@ -116,7 +116,7 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
         skipExported: false,
         globalOffset: 0,
         globalTotal: 1,
-        accountSlot: 'u0',
+        accountId: '10000000-0000-4000-8000-000000000001',
     }, 'fallback must carry the requested ID, account, format and progress to the runtime');
 });
 
@@ -171,7 +171,7 @@ test('Track C1: abort signal cleanup and single-settle', async () => {
 test('C1 review: malformed raw replies are reportable failures rather than native results', async () => {
     const payload = { messages: [{ role: 'model', content: 'raw' }], extension: 17 };
     const direct = await fetchChatDetail({ id: 'c_raw' }, 0, 1, '10000000-0000-4000-8000-000000000001', false, 'md', null, {
-        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 2, data: payload }) }
+        tabService: { sendToGeminiTab: async () => ({ success: true, domainEnvelopeVersion: 3, data: payload }) }
     });
     assert.equal(direct.success, false);
     assert.equal(direct.results, undefined);
@@ -189,7 +189,7 @@ test('C1 review: malformed raw replies are reportable failures rather than nativ
 });
 
 test('runtime detail recovery prefers native online, then native Takeout, then durable Domain', async () => {
-    const id = 'cascade_test'; const slot = '10000000-0000-4000-8000-000000000003';
+    const id = 'cascade_test'; const slot = '10000000-0000-4000-8000-000000000001';
     const make = (text: string) => historicalFixture({ id, title: text, messages: [{ role: 'model', content: text }] });
     const online = make('online'), offline = make('offline'), stored = make('stored'); let calls = 0;
     const takeout = { getTakeoutOfflineChat() { calls++; return offline; } };
@@ -215,6 +215,7 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
 test('native resolver retains unknown source blocks and arbitrates titles without reparsing', async () => {
     const native = historicalFixture({ id: 'native-title', title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' }, messages: [{ role: 'tool', content: { untouched: true } }] });
     const list = indexFixture({ id: 'native-title', title: 'Takeout title', titleSource: 'takeout' });
+    await catalogStorage.ingestConversation('10000000-0000-4000-8000-000000000001', native);
     const resolved = await resolveChat(native, { id: 'native-title' }, list, null, '10000000-0000-4000-8000-000000000001');
     assert.equal(resolved.isError, false); assert.equal(resolved.chat.conversation.index.title, 'RPC title');
     assert.deepEqual(resolved.chat.conversation.detail.messages, native.conversation.detail.messages);

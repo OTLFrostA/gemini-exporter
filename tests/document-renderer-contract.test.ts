@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
 /**
  * tests/document-renderer-contract.test.ts
@@ -30,7 +31,7 @@ const txt = (text: string) => ({ type: 'text', text });
 const para = (text: string) => ({ type: 'paragraph', children: [txt(text)] });
 
 function domainFixture(blocks: any[], extra: any = {}) {
-    return restoreDomainSnapshot({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Contract', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
+    return restoreDomainSnapshot({ index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 'Contract', createdAt: Date.parse('2026-09-26T10:00:00Z') }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: [{ id: 'm1', role: 'assistant', content: blocks, reasoning: extra.reasoning, citations: extra.citations ?? [] }] } });
 }
 
 const imgAsset = (id: string, name: string) => ({
@@ -45,8 +46,8 @@ const TYPST_OPTS = {};
 
 function renderBoth(blocks: any[], extra: any = {}) {
     const b = domainFixture(blocks, extra);
-    const { html, diagnostics: htmlDiags } = renderDocumentHtml(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}`])), HTML_OPTS);
-    const { payload, diagnostics: typstDiags } = renderTypstFixture(composeDomainDocument(b).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), TYPST_OPTS);
+    const { html, diagnostics: htmlDiags } = renderDocumentHtml(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}`])), HTML_OPTS);
+    const { payload, diagnostics: typstDiags } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, Object.fromEntries(b.detail.assets.map((asset: any) => [asset.id, `assets/${asset.id}.png`])), TYPST_OPTS);
     return { html: html as string, htmlDiags: htmlDiags as any[], payload: payload as any, typstDiags: typstDiags as any[] };
 }
 
@@ -259,7 +260,7 @@ test('shared collectReferencedAssetIds sees inline images everywhere', () => {
 
 test('inline HTML resource references are collected from the Document AST and use supplied bindings', () => {
     const domain = domainFixture([{ type: 'paragraph', children: [txt('diagram: '), { type: 'image', assetId: 'img-1', alt: 'architecture' }] }], { assets: [imgAsset('img-1', 'diagram.png')] });
-    const document = composeDomainDocument(domain).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
     const { collectDocumentResources } = require('../src/core/document/ast/resourceReferences.js');
     assert.deepEqual([...collectDocumentResources(document).referencedIds], ['img-1']);
     const result = renderDocumentHtml(document, { 'img-1': 'assets/img-1.png' });
@@ -268,7 +269,7 @@ test('inline HTML resource references are collected from the Document AST and us
     assert.deepEqual(result.diagnostics, []);
 });
 test('HTML renders all messages in authoritative source order', () => {
-    const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'order', title: 'Order' }, detail: { quality: { status: 'unknown' }, assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) } };
-    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {});
+    const domain = { index: { key: fixtureKey(String('order'), 'gemini'),   titleSource: "derived",   title: 'Order' }, detail: { key: fixtureKey(String('order'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: ['second', 'first'].map(id => ({ id, role: 'user', content: [para(id)] })) } };
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {});
     assert.ok(html.indexOf('second') < html.indexOf('first'));
 });

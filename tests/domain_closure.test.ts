@@ -1,3 +1,5 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureKey } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
@@ -35,7 +37,7 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
         { role: 'assistant', content: '![four](https://example.test/image)' },
     ] };
     const original = structuredClone(input);
-    const { conversation: domain, resourceHints } = historicalFixture(input);
+    const { conversation: domain, resourceHints, acquisitionHints } = historicalFixture(input);
     assert.equal(domain.detail.assets.length, 1);
     const [asset] = domain.detail.assets;
     assert.deepEqual(domain.detail.messages.slice(0, 2).map(message => message.attachmentIds), [[asset.id], [asset.id]]);
@@ -46,7 +48,8 @@ test('one registry resource spans messages, attachment aliases, body and reasoni
     assert.equal(Reflect.get(asset, 'generated'), undefined);
     assert.deepEqual(Reflect.get(asset, 'dimensions'), undefined);
     assert.equal(asset.mediaType, 'image/png');
-    assert.equal(asset.dataBase64, 'AQID');
+    assert.equal(acquisitionHints[asset.id].dataBase64, 'AQID');
+    assert.equal(Object.hasOwn(asset, 'dataBase64'), false);
     const restored: DomainConversationWithDetail = JSON.parse(JSON.stringify(domain));
     assert.deepEqual(restored, domain);
     const result = await composeFixture(domain);
@@ -84,12 +87,13 @@ test('document aliases merge across messages without losing metadata or byte pay
         { role: 'assistant', content: '', documents: [document] },
     ] };
     const original = structuredClone(input);
-    const { conversation: domain, resourceHints } = historicalFixture(input);
+    const { conversation: domain, resourceHints, acquisitionHints } = historicalFixture(input);
     const [asset] = domain.detail.assets;
     assert.equal(domain.detail.assets.length, 1);
     assert.equal(asset.kind, 'file');
     assert.equal(asset.name, 'Report');
-    assert.equal(asset.dataBase64, 'AQID');
+    assert.equal(acquisitionHints[asset.id].dataBase64, 'AQID');
+    assert.equal(Object.hasOwn(asset, 'dataBase64'), false);
     const expectedDocument = { id: document.id, contentMarkdown: '# Report\n\nIntro\n\nIntro\n\n[Source](https://example.test)' };
     assert.deepEqual(asset.document, expectedDocument);
     assert.equal(messageAssets(domain, 0)[0], messageAssets(domain, 1)[0]);
@@ -123,7 +127,7 @@ test('missing evidence, unknown ordinals and conflicting documents never collaps
 });
 
 test('downstream binding respects Domain identity even when two URIs have the same basename', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'custom'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'custom'), quality: { status: 'unknown' }, assets: [
         { id: 'one', kind: 'image', name: 'Attachment', sourceUri: 'https://one.test/shared.png' },
         { id: 'two', kind: 'image', sourceUri: 'https://two.test/shared.png' },
     ], messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'two', alt: 'Inline' }], attachmentIds: ['one'] }] } };
@@ -135,7 +139,7 @@ test('downstream binding respects Domain identity even when two URIs have the sa
 });
 
 test('resource IDs never collide with export numbering or acquisition URI aliases', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'custom'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'custom'), quality: { status: 'unknown' }, assets: [
         { id: 'msg-0-a1', kind: 'image', name: 'First', sourceUri: 'https://first.test/image' },
         { id: 'second', kind: 'image', name: 'Second', sourceUri: 'msg-0-a1' },
     ], messages: [{ role: 'assistant', attachmentIds: ['msg-0-a1', 'second'],
@@ -145,7 +149,7 @@ test('resource IDs never collide with export numbering or acquisition URI aliase
 });
 
 test('resource metadata and audio/video kinds survive neutral downstream adaptation', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'custom'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'custom'), quality: { status: 'unknown' }, assets: [
         { id: 'audio', kind: 'audio', name: 'Audio' }, { id: 'video', kind: 'video', name: 'Video' },
         { id: 'image', kind: 'image', name: 'Shared', mediaType: 'image/png',
             sourceUri: 'https://example.test/image' },
@@ -168,7 +172,7 @@ test('reasoning is parsed at the producer boundary and Domain reasoning text sta
     assert.ok(parsed.detail.messages[0].reasoning?.[0].type === 'paragraph');
     assert.equal(parsed.detail.messages[0].reasoning[0].children[0].type, 'strong');
     assert.equal(parsed.detail.assets.length, 1);
-    const literal: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{
+    const literal: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'custom'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'custom'), quality: { status: 'unknown' }, assets: [], messages: [{
         role: 'assistant', content: text('Body'), reasoning: text('**literal** <b>HTML</b> ![image](url) $x$'),
     }] } };
     const original = structuredClone(literal);
@@ -183,33 +187,33 @@ test('reasoning is parsed at the producer boundary and Domain reasoning text sta
 for (const providerId of ['openai', 'anthropic', 'custom-provider']) {
     test(`Composer trusts Domain provider ${providerId} for conversation and diagnostics`, async () => {
         const domain = historicalFixtureDomain({ ...metadata, source: 'openai-import', messages: [{ role: 'assistant', content: '![missing](missing.png)' }] }, { providerId });
-        assert.equal(domain.index.providerId, providerId);
+        assert.equal(fixtureAccountFor(domain).providerId, providerId);
         const result = await composeFixture(domain);
         assert.equal(result.document.header.providerLabel, providerId);
         const parsed = historicalFixture({ ...metadata, messages: [{ role: 'tool', content: 42 }] }, { providerId });
-        assert.equal(parsed.conversation.index.providerId, providerId);
+        assert.equal(fixtureAccountFor(parsed.conversation).providerId, providerId);
         assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_ROLE'));
         assert.ok(parsed.diagnostics.some(d => d.code === 'UNKNOWN_MESSAGE_CONTENT'));
     });
 }
 
 test('provider identity is assigned only by producers, with OpenAI and Takeout correctly distinguished', () => {
-    assert.equal(historicalFixtureDomain({ ...metadata, source: 'openai-import' }).index.providerId, 'openai');
-    assert.equal(historicalFixtureDomain({ ...metadata, source: 'takeout' }).index.providerId, 'gemini');
+    assert.equal(fixtureAccountFor(historicalFixtureDomain({ ...metadata, source: 'openai-import' })).providerId, 'openai');
+    assert.equal(fixtureAccountFor(historicalFixtureDomain({ ...metadata, source: 'takeout' })).providerId, 'gemini');
     assert.throws(() => historicalFixtureDomain(metadata, { providerId: '' }), /providerId/);
 });
 
 test('Domain closure rejects invalid provider, repeated registry/message IDs and dangling references', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'custom' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'file' }], messages: [{ role: 'assistant', content: [], attachmentIds: ['asset'] }] } };
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'custom'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'custom'), quality: { status: 'unknown' }, assets: [{ id: 'asset', kind: 'file' }], messages: [{ role: 'assistant', content: [], attachmentIds: ['asset'] }] } };
     assertDomainClosure((domain).detail);
     const invalid: DomainConversationWithDetail[] = [
-        { index: { ...domain.index, providerId: '' }, detail: { ...domain.detail } },
-        { index: { ...domain.index }, detail: { ...domain.detail, assets: [domain.detail.assets[0], { ...domain.detail.assets[0] }] } },
-        { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ ...domain.detail.messages[0], attachmentIds: ['asset', 'asset'] }] } },
-        { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ ...domain.detail.messages[0], attachmentIds: ['unknown'] }] } },
-        { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'unknown' }] }] } },
-        { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ role: 'assistant', content: [], reasoning: [{ type: 'file', assetId: 'unknown' }] }] } },
-        { index: { ...domain.index }, detail: { ...domain.detail, messages: [{ role: 'assistant', content: [], reasoning: 'raw string' as never }] } },
+        { index: { ...domain.index, key: { ...domain.index.key, accountId: 'invalid' } }, detail: { ...domain.detail } },
+        { index: { ...domain.index }, detail: {   ...domain.detail, assets: [domain.detail.assets[0], { ...domain.detail.assets[0] }] } },
+        { index: { ...domain.index }, detail: {   ...domain.detail, messages: [{ ...domain.detail.messages[0], attachmentIds: ['asset', 'asset'] }] } },
+        { index: { ...domain.index }, detail: {   ...domain.detail, messages: [{ ...domain.detail.messages[0], attachmentIds: ['unknown'] }] } },
+        { index: { ...domain.index }, detail: {   ...domain.detail, messages: [{ role: 'assistant', content: [{ type: 'image', assetId: 'unknown' }] }] } },
+        { index: { ...domain.index }, detail: {   ...domain.detail, messages: [{ role: 'assistant', content: [], reasoning: [{ type: 'file', assetId: 'unknown' }] }] } },
+        { index: { ...domain.index }, detail: {   ...domain.detail, messages: [{ role: 'assistant', content: [], reasoning: 'raw string' as never }] } },
     ];
     for (const input of invalid) {
         assert.throws(() => validateParserDomain(input as never), TypeError);
@@ -256,7 +260,7 @@ test('existing raw corpus preserves Domain, AST and all backend outputs across J
     assert.ok(inputs.length > 100);
     for (const input of inputs) {
         const original = structuredClone(input);
-        const { conversation: domain, resourceHints } = historicalFixture(input);
+        const { conversation: domain, resourceHints, acquisitionHints } = historicalFixture(input);
         const semantic = await composeFixture(domain, resourceHints);
         const restored = await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints);
         const parsed = historicalFixture(input, { providerId: 'gemini' });

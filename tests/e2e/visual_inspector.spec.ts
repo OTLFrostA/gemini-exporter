@@ -351,7 +351,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       return new Promise((resolve) => {
         chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001'], async (data: any) => {
           const convs = data['conversations_10000000-0000-4000-8000-000000000001'] || [];
-          const target = convs.find((c: any) => c.id === 'historical_old_111');
+          const target = convs.find((c: any) => c.key.conversationId === 'historical_old_111');
           if (target) {
             const bumpedTime = Date.now() + 50000;
             target.updatedAt = bumpedTime;
@@ -430,7 +430,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       return new Promise((resolve) => {
         chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001'], async (data: any) => {
           let convs = data['conversations_10000000-0000-4000-8000-000000000001'] || [];
-          convs = convs.map((c: any) => c.id === 'del_eph_9999' ? { ...c, cloudAvailability: 'deleted' } : c);
+          await chrome.storage.local.set({ ['conversation_availability_10000000-0000-4000-8000-000000000001']: { del_eph_9999: 'deleted' } });
           await chrome.storage.local.set({ ['conversations_10000000-0000-4000-8000-000000000001']: (convs).map(canonicalIndexFixture) });
           chrome.runtime.sendMessage({ action: 'syncUpdate', slot: 'u0', from: 'delete-event' });
           if (typeof (window as any).__workbenchLoadStore === 'function') {
@@ -501,7 +501,7 @@ test.describe('Layout, Occlusion & Physical Hit-Testing Suite (Phase 1 & 2)', ()
       return new Promise((resolve) => {
         chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001'], async (data: any) => {
           const convs = data['conversations_10000000-0000-4000-8000-000000000001'] || [];
-          const chat = convs.find((c: any) => c.id === '1bd028d5c5b0c0e2');
+          const chat = convs.find((c: any) => c.key.conversationId === '1bd028d5c5b0c0e2');
           if (chat) {
             chat.title = '火星宇航员猫咪（AI 生成图片 Imagen）';
             chat.titleSource = 'rpc';

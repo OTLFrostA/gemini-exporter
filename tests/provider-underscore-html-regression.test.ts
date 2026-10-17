@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
 /**
  * tests/provider-underscore-html-regression.test.ts
@@ -35,7 +36,7 @@ test('full pipeline keeps LaTeX-like underscores and file names intact', async (
         messages: [{ id: 'm1', role: 'user', content }],
     };
     const { conversation: domain } = await historicalFixture(chat, { providerId: 'gemini' });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {}, { locale: 'zh' });
 
     for (const c of CASES) {
         assert.ok(html.includes(c), `expected verbatim output to contain ${JSON.stringify(c)}`);
@@ -53,7 +54,7 @@ test('legit underscore emphasis still renders in HTML', async () => {
         messages: [{ id: 'm1', role: 'user', content: 'word _italic_ word and __strong__ here' }],
     };
     const { conversation: domain } = await historicalFixture(chat, { providerId: 'gemini' });
-    const { html } = renderDocumentHtml(composeDomainDocument(domain).document, {}, { locale: 'zh' });
+    const { html } = renderDocumentHtml(composeDomainDocument(domain, fixtureAccountFor(domain)).document, {}, { locale: 'zh' });
     assert.ok(html.includes('<em>italic</em>'), 'legit _italic_ renders');
     assert.ok(html.includes('<strong>strong</strong>'), 'legit __strong__ renders');
 });

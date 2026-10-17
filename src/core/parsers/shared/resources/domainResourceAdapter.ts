@@ -46,7 +46,6 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     const name = displayName(record);
     const uri = record.resolvedUrl || record.sourceUrl || record.url || record.src || (/^https?:\/\//i.test(record.localName ?? '') ? record.localName : undefined);
     const mediaType = record.mimeType || record.mime;
-    const dataBase64 = record.dataBase64 || record.blobBase64;
     const body = record.contentMarkdown ?? '';
     const additions = [
         ...(record.sections ?? []).filter(section => section.trim() && !body.includes(section.trim())),
@@ -68,8 +67,7 @@ function toAsset(record: ResourceEvidence, id: string): DomainAsset {
     return { id, kind, ...(name ? { name } : {}),
         ...(mediaType ? { mediaType } : {}),
         ...(record.size !== undefined ? { byteLength: record.size } : {}),
-        ...(uri ? { sourceUri: uri } : {}),
-        ...(dataBase64 ? { dataBase64 } : {}),
+        ...(uri && !/^(data|blob):/i.test(uri) ? { sourceUri: uri } : {}),
         ...(Object.keys(generation).length ? { generation } : {}),
         ...(Object.keys(document).length ? { document } : {}),
     };
@@ -79,6 +77,7 @@ function acquisitionHint(record: ResourceEvidence): ResourceAcquisitionHint {
     const fields = ['url', 'sourceUrl', 'resolvedUrl', 'src', 'localName', 'fileName', 'name', 'title',
         'mimeType', 'mime', 'providerRequestId', 'imageOrdinal'] as const;
     return {
+        ...(record.dataBase64 || record.blobBase64 ? { dataBase64: record.dataBase64 || record.blobBase64 } : {}),
         ...Object.fromEntries(fields.flatMap(field => record[field] !== undefined ? [[field, record[field]]] : [])),
         ...(record.candidates ? { candidates: [...record.candidates] } : {}),
         ...(record.generation ? { generation: { ...record.generation } } : {}),
@@ -126,7 +125,7 @@ export function closeDomainResources(providerId: string, messages: DomainMessage
             }
             claimedIds.add(id);
             const name = alt?.trim() || (hasSource && !/^data:/i.test(ref) ? (ref.split('/').pop() ?? '').split('?')[0] : undefined);
-            assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource ? { sourceUri: ref } : {}) });
+            assets.push({ id, kind, ...(name ? { name } : {}), ...(hasSource && !/^(data|blob):/i.test(ref) ? { sourceUri: ref } : {}) });
             if (hasSource) acquisitionHints[id] = { url: ref, ...(name ? { fileName: name } : {}) };
             if (!hasSource) resourceHints[id] = { unresolvedReference: ref };
             inline.set(key, id);

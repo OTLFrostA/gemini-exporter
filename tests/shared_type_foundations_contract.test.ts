@@ -39,7 +39,7 @@ type Contracts = [
     Assert<Equal<Awaited<ReturnType<DirHandleControllerContract['restoreSavedDirHandle']>>, DirectoryHandle | null>>,
     Assert<Equal<Parameters<DirHandleControllerContract['setDirHandle']>[0], DirectoryHandle | null>>,
     Assert<Equal<Parameters<NonNullable<ScanCallbacks['onFinished']>>[0]['res'], ScanResponse>>,
-    Assert<Equal<TakeoutImportResult['conversations'][number]['title'], string>>,
+    Assert<Equal<TakeoutImportResult['conversations'][number]['title'], string | undefined>>,
     Assert<Equal<Parameters<ExportControllerContract['runExport']>, [UIExportOptions, UIExportCallbacks]>>,
     Assert<Equal<Awaited<ReturnType<typeof runExport>>, UIExportResult>>,
     Assert<Equal<ReturnType<typeof getActiveEngine>, ReturnType<ExportControllerContract['getActiveEngine']>>>,

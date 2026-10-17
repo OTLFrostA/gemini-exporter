@@ -91,7 +91,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
     expect(convs.length).toBe(4);
     expect(storageData['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ version: 4, initialized: true, historyComplete: true, complete: true, lastStatus: 'complete',
       activeRunId: null, baseline: { conversationCount: 4, headTimestamp: 1700000200000 } });
-    const oldChat = convs.find((c: any) => c.id === 'scan_001');
+    const oldChat = convs.find((c: any) => c.key.conversationId === 'scan_001');
     expect(oldChat.title).toBe('量子计算与超导量子比特');
     expect(oldChat.updatedAt, 'initial source activity time comes from list RPC').toBe(1700000000000);
     await expect(geminiPage.locator('#geminiExportBadgeText')).toHaveText(/Tracking 4 conversations|正在追踪 4 条对话/);
@@ -107,7 +107,7 @@ test.describe('Deep E2E: Real Gemini Scanning & Network Pagination', () => {
       complete: true, revision: 2, activeRunId: null,
       baseline: { headTimestamp: 1700000200000 },
     });
-    expect((repeated['conversations_10000000-0000-4000-8000-000000000001'] as any[]).find(c => c.id === 'scan_001').updatedAt,
+    expect((repeated['conversations_10000000-0000-4000-8000-000000000001'] as any[]).find(c => c.key.conversationId === 'scan_001').updatedAt,
       'renaming an old chat must not advance its source activity version').toBe(oldChat.updatedAt);
     expect(requestedKinds).toEqual(['pinned', 'recent', 'pinned', 'recent']);
   });

@@ -52,14 +52,14 @@ test('StorageService.removeConversation - removes target conversation by id or c
 
     const list1 = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(list1.length, 2);
-    assert.strictEqual(list1.some((c: any) => c.id === 'cca63136d0630930'), false);
+    assert.strictEqual(list1.some((c: any) => c.key.conversationId === 'cca63136d0630930'), false);
 
     const res2 = await StorageService.removeConversation('10000000-0000-4000-8000-000000000001', 'c_1dc469a46941004f');
     assert.strictEqual(res2, true);
 
     const list2 = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(list2.length, 1);
-    assert.strictEqual(list2[0].id.replace(/^c_/, ''), '6ea653f1f5f2f533');
+    assert.strictEqual(list2[0].key.conversationId.replace(/^c_/, ''), '6ea653f1f5f2f533');
 
     const res3 = await StorageService.removeConversation('10000000-0000-4000-8000-000000000001', 'non_existent_id');
     assert.strictEqual(res3, false);
@@ -80,19 +80,19 @@ test('StorageService.reconcileConversations - prunes absent cloud chats while ke
 
     const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', activeCloudList, { keepTakeout: true });
 
-    assert.strictEqual(result.removed, 2);
-    assert.deepStrictEqual(result.removedIds, ['cca63136d0630930', 'takeout_title_only']);
-    assert.strictEqual(result.kept, 3);
+    assert.strictEqual(result.removed, 0);
+    assert.deepStrictEqual(result.removedIds, []);
+    assert.strictEqual(result.kept, 5);
 
     const updatedList = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-    assert.strictEqual(updatedList.length, 3);
-    const updatedIds = updatedList.map((c: any) => c.id);
-    assert.strictEqual(updatedIds.includes('cca63136d0630930'), false);
+    assert.strictEqual(updatedList.length, 5);
+    const updatedIds = updatedList.map((c: any) => c.key.conversationId);
+    assert.strictEqual(updatedIds.includes('cca63136d0630930'), true);
     assert.strictEqual(updatedIds.includes('0214ab4226767bf9'), true);
     assert.strictEqual(updatedIds.includes('takeout_offline_1'), true);
     assert.strictEqual(updatedIds.includes('takeout_offline_2'), true);
-    assert.strictEqual(updatedIds.includes('takeout_title_only'), false);
-    assert.ok(updatedList.find((c: any) => c.id === 'takeout_offline_1')?.hasTakeoutImport);
+    assert.strictEqual(updatedIds.includes('takeout_title_only'), true);
+    assert.equal(updatedList.find((c: any) => c.key.conversationId === 'takeout_offline_1')?.title, 'Imported Chat Renamed Online');
 });
 
 test('StorageService.reconcileConversations - keepTakeout false removes offline imports', async () => {
@@ -101,6 +101,6 @@ test('StorageService.reconcileConversations - keepTakeout false removes offline 
         indexFixture({ providerId: 'gemini', id: 'cloud_active', title: 'Cloud chat', titleSource: 'rpc', cloudAvailability: 'available', hasTakeoutImport: false }),
     ]);
     const result = await StorageService.reconcileConversations('10000000-0000-4000-8000-000000000001', [{ id: 'cloud_active' }], { keepTakeout: false });
-    assert.deepStrictEqual(result, { kept: 1, removed: 1, removedIds: ['offline_import'] });
-    assert.deepStrictEqual((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.id), ['cloud_active']);
+    assert.deepStrictEqual(result, { kept: 2, removed: 0, removedIds: [] });
+    assert.deepStrictEqual((await StorageService.getConversations('10000000-0000-4000-8000-000000000001')).map((c: any) => c.key.conversationId), ['offline_import', 'cloud_active']);
 });

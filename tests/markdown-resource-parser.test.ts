@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import { parseMarkdownAst } from '../src/core/parsers/shared/markdown/parseMarkdown.js';
@@ -29,7 +30,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 test('serialized literal dollars round-trip as text while links and math retain their nodes', () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'currency', title: 'Currency' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('currency'), 'gemini'),   titleSource: "derived",   title: 'Currency' }, detail: { key: fixtureKey(String('currency'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'message', role: 'assistant', content: [
                 { type: 'paragraph', children: [
                     { type: 'text', text: 'The price changed from $5 ' },
                     { type: 'link', href: 'files/foo.pdf', children: [{ type: 'text', text: 'receipt' }] },
@@ -40,7 +41,7 @@ test('serialized literal dollars round-trip as text while links and math retain 
                 { type: 'code', language: 'md', code: '[fake](files/missing.pdf)' },
                 { type: 'paragraph', children: [{ type: 'inlineCode', code: '[fake](files/missing.pdf)' }] },
             ] }] } };
-    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
+    const markdown = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {});
     assert.ok(markdown.includes(String.raw`The price changed from \$5 [receipt](files/foo.pdf) to \$10. $E = mc^2$`));
     assert.ok(markdown.includes('$$\n' + String.raw`\left[W(k)\right](\mathbf{t})` + '\n$$'));
     const tree = parseMarkdownAst(markdown);

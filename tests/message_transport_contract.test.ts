@@ -1,3 +1,4 @@
+import { fixtureAccount } from './helpers/domainFixture.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -82,9 +83,9 @@ test('scan validation rejects malformed fields while preserving valid diagnostic
 });
 
 test('popup validation preserves rich envelope/direct replies and rejects false success shapes', () => {
-    const chat = { ...historicalFixture({ id: 'abc', title: 'Report', messages: [{ role: 'model', content: 'body' }] }),
+    const chat = {   ...historicalFixture({ id: 'abc', title: 'Report', messages: [{ role: 'model', content: 'body' }] }),
         rawProviderEvidence: { keep: true } };
-    for (const value of [{ success: true, data: chat }, { success: true, ...chat }]) {
+    for (const value of [{ success: true, data: chat }, {   success: true, ...chat }]) {
         const parsed = readPopupFetchResult(value);
         assert.equal(parsed.success, true);
         if (parsed.success) {

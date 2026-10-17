@@ -1,5 +1,5 @@
-import type { ScanCoverage } from '../../src/core/storage/scanCoverage.js';
-import type { HistoricalConversation as Conversation } from '../helpers/historicalConversation.js';
+import type { ScanCoverage } from '../../src/core/domain/scanCoverage.js';
+import type { DomainConversationIndex as Conversation } from '../../src/core/domain/conversationIndex.js';
 import { test, expect, seedRegistryAccounts } from './fixtures';
 
 test.beforeEach(async ({context, extensionId}) => {
@@ -54,7 +54,7 @@ test('partial accessible history initializes activity coverage and later sync cl
         expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.head.time).toBe(round === 1 ? 1700000120000 : 1700000130000);
         expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent.range!.tail.time).toBe(1700000070000);
         expect(requests[round]).toEqual(['pinned', 'head']);
-        expect(stored['conversations_10000000-0000-4000-8000-000000000001'].find((item: { id: string }) => item.id === 'retained')?.cloudAvailability).toBe('unknown');
+        expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.key.conversationId === 'retained')).toBe(true);
         expect(stored['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
         expect(JSON.stringify(stored['scan_coverage_10000000-0000-4000-8000-000000000001'])).not.toContain('tC_');
     }
@@ -207,9 +207,9 @@ for (const inversion of ['within-page', 'cross-page'] as const) {
             expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001']).toMatchObject({ historyComplete: true, complete: true, lastStatus: 'complete', activeRunId: null });
             if (round > 0) {
                 expect(stored['scan_coverage_10000000-0000-4000-8000-000000000001'].streams.recent).toMatchObject({ initialized: true, historyComplete: true, range: null, orderingInvalidated: true });
-                expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.id.startsWith(`round${round}_`) && item.updatedAt === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
+                expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.key.conversationId.startsWith(`round${round}_`) && item.updatedAt === 1700000000000 + (round === 1 ? inversion === 'within-page' ? 70 : 80 : 130) * 1000)).toBe(true);
             }
-            expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.id === 'retained')).toBe(true);
+            expect(stored['conversations_10000000-0000-4000-8000-000000000001'].some(item => item.key.conversationId === 'retained')).toBe(true);
             expect(stored['exported_10000000-0000-4000-8000-000000000001'].retained.status).toBe('ok');
         }
     });

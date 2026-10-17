@@ -13,12 +13,12 @@ test('cloud-deleted local archive produces a physical ZIP with body and cached a
     const page = await context.newPage();
     await page.goto(`chrome-extension://${extensionId}/src/ui/options/options.html?notour=1`);
     await page.evaluate(async (cachedPngBase64: string) => {
-        await chrome.storage.local.set({ gemini_schema_version: 3, gemini_tour_completed: true,
+        await chrome.storage.local.set({ ['conversation_availability_10000000-0000-4000-8000-000000000001']: { archive_local: 'deleted', metadata_only: 'deleted' }, gemini_schema_version: 3, gemini_tour_completed: true,
             ['conversations_10000000-0000-4000-8000-000000000001']: ([
                 { id: 'archive_local', title: 'Retained local archive', timestamp: 1700000000000, cloudAvailability: 'deleted' },
                 { id: 'metadata_only', title: 'Title without body', timestamp: 1, cloudAvailability: 'deleted' }
             ]).map(canonicalIndexFixture), ['exported_10000000-0000-4000-8000-000000000001']: { archive_local: { status: 'ok', exportedAt: 1700000000000, format: 'markdown', title: 'Retained local archive', messageCount: 2 } } });
-        const native = { sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'archive_local', title: 'Retained local archive' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }], messages: [
+        const native = { account: fixtureAccount(), sourceVersion: 1700000000000, conversation: { index: { key: fixtureKey(String('archive_local'), 'gemini'),   titleSource: "derived",   title: 'Retained local archive' }, detail: { key: fixtureKey(String('archive_local'), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'img', kind: 'image', sourceUri: 'https://unavailable.invalid/image.png' }], messages: [
                 { role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local question' }] }] },
                 { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Preserved local answer' }, { type: 'image', assetId: 'img' }] }], attachmentIds: ['img'] }
             ] } }, resourceHints: {}, acquisitionHints: {}, diagnostics: [] };

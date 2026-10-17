@@ -31,7 +31,7 @@ function mockStorageContext() {
     return {
         seed: (items: any[]) => { savedList = items.map(indexFixture); },
         getSavedList: () => savedList,
-        find: (id: string) => savedList.find((c: any) => c.id === id),
+        find: (id: string) => savedList.find((c: any) => c.key.conversationId === id),
         getCheckpoint: () => checkpoint,
         setCheckpoint: (ts: number | null) => { checkpoint = ts; }
     };

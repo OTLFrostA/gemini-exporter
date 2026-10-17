@@ -1,3 +1,8 @@
+import { useIndexStorage } from './helpers/indexStorage.js';
+import { fixtureAccount, bindFixture, sourceIndex as asSource } from './helpers/domainFixture.js';
+useIndexStorage();
+import { sourceIndex } from './helpers/domainFixture.js';
+import type { ProviderConversationItem } from '../src/core/provider/aiProvider.js';
 import type { DomainConversationIndex } from '../src/core/domain/conversationIndex.js';
 import { indexFixture } from './helpers/indexFixture.js';
 import { rpcFixture, historicalFixture } from './helpers/nativeFixture.js';
@@ -18,7 +23,7 @@ type Assert<T extends true> = T;
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
 type StrictFunction<F extends (...args: never[]) => unknown> = (...args: Parameters<F>) => ReturnType<F>;
 type RequiredField<T, K extends keyof T> = {} extends Pick<T, K> ? false : true;
-type ListItemContract = Assert<Equal<Awaited<ReturnType<AIProvider['listConversations']>>['items'][number], DomainConversationIndex>>;
+type ListItemContract = Assert<Equal<Awaited<ReturnType<AIProvider['listConversations']>>['items'][number], ProviderConversationItem>>;
 const listItemsAreDomain: ListItemContract = true;
 void listItemsAreDomain;
 
@@ -59,8 +64,8 @@ function detail(): GeminiProviderConversationDetail {
 }
 function result(reason: PaginationCompletionReason): PaginationResult {
     const exhaustive = reason === 'natural_exhaustion';
-    return { conversations: [indexFixture({ id: 'typed-chat', title: 'Report', titleSource: 'rpc', titles: { rpc: 'Report' },
-        createdAt: null, updatedAt: 2, timestamp: 2, chatTime: 2, messageCount: 1, url: 'url' })],
+    return { conversations: [sourceIndex(indexFixture({ id: 'typed-chat', title: 'Report', titleSource: 'rpc', titles: { rpc: 'Report' },
+        createdAt: null, updatedAt: 2, timestamp: 2, chatTime: 2, messageCount: 1, url: 'url' }))],
         total: 1, exhaustive, completionReason: reason,
         ...(exhaustive ? {} : { stoppedEarly: true as const }),
         hitGoogleLimit: reason === 'hit_google_limit',
@@ -69,7 +74,7 @@ function result(reason: PaginationCompletionReason): PaginationResult {
             hitGoogleLimit: reason === 'hit_google_limit', pageHistory: [] } };
 }
 function client(list: PaginationResult, data = detail()): GeminiProviderClient {
-    return { async getAllConversations() { return list; }, async getConversationDetail() { return data; } };
+    return { async getAllConversations() { return list; }, async getConversationDetail(_id, _slot, account) { return bindFixture(data, account!); } };
 }
 
 test('provider contract: neutral surface requires completeness and excludes Gemini evidence', () => {
@@ -84,7 +89,7 @@ test('provider contract: all seven upstream reasons and diagnostic identity surv
         const upstream = result(reason);
         const provider: ApplicationProvider = new GeminiProvider(client(upstream));
         const page = await provider.listConversations();
-        const neutral: ProviderPageResult<DomainConversationIndex> = page;
+        const neutral: ProviderPageResult<ProviderConversationItem> = page;
         assert.equal(neutral.exhaustive, upstream.exhaustive);
         assert.equal(neutral.completionReason, reason);
         assert.equal(isPaginationExhaustive(page), upstream.exhaustive);
@@ -105,7 +110,7 @@ test('provider contract: typed batch/progress options and Gemini slot policy are
     let observedProgress = false;
     const options: GeminiProviderListOptions = { maxPages: 2, incremental: true, targetSid: 'u2', signal,
         onPageBatch: async (batch, info) => {
-            assert.equal(batch[0].titleSource, 'rpc');
+            assert.equal(batch[0].titleSource, 'provider');
             assert.deepEqual(info, { page: 1, hasMore: true });
             return { shouldStop: true, reason: 'watermark' };
         },
@@ -124,22 +129,22 @@ test('provider contract: typed batch/progress options and Gemini slot policy are
 test('provider contract: detailed media, provenance and parser evidence retain their typed identities', async () => {
     const data = detail();
     const slots: (string | null | undefined)[] = [];
-    const provider: ApplicationProvider = new GeminiProvider({ ...client(result('natural_exhaustion')), async getConversationDetail(id, sid) {
-        assert.equal(id, data.conversation.index.id); slots.push(sid); return data;
+    const provider: ApplicationProvider = new GeminiProvider({ ...client(result('natural_exhaustion')), async getConversationDetail(id, sid, account) {
+        assert.equal(id, data.conversation.index.key.conversationId); slots.push(sid); return bindFixture(data, account!);
     } });
-    const returned = await provider.fetchConversationDetail(data.conversation.index.id, { targetSid: 'u2', slot: 'u1' });
-    await provider.fetchConversationDetail(data.conversation.index.id, { slot: 'u1' });
-    await provider.fetchConversationDetail(data.conversation.index.id, { targetSid: '', slot: 'u3' });
-    await provider.fetchConversationDetail(data.conversation.index.id);
+    const returned = await provider.fetchConversationDetail(data.conversation.index.key.conversationId, { accountId: fixtureAccount().id, targetSid: 'u2', slot: 'u1' });
+    await provider.fetchConversationDetail(data.conversation.index.key.conversationId, { slot: 'u1' });
+    await provider.fetchConversationDetail(data.conversation.index.key.conversationId, { targetSid: '', slot: 'u3' });
+    await provider.fetchConversationDetail(data.conversation.index.key.conversationId);
     assert.deepEqual(slots, ['u2', 'u1', 'u3', null]);
-    assert.deepEqual(returned, data);
-    assert.strictEqual(returned.conversation.detail.messages, data.conversation.detail.messages);
-    assert.strictEqual(returned.transport.decodedPayload, data.transport.decodedPayload);
-    assert.strictEqual(returned.transport, data.transport);
+    assert.deepEqual(returned.conversation.detail.messages, data.conversation.detail.messages);
+    assert.deepEqual(returned.conversation.detail.messages, data.conversation.detail.messages);
+    assert.deepEqual(returned.transport.decodedPayload, data.transport.decodedPayload);
+    assert.deepEqual(returned.transport, data.transport);
     assert.equal(returned.conversation.detail.assets[0].sourceUri, 'https://example.com/image');
     assert.equal(returned.conversation.detail.messages[0].citations?.[0].url, 'https://example.com');
     assert.equal(returned.sourceVersion, 2);
-    assert.strictEqual(returned, data);
+    assert.deepEqual(returned.transport, data.transport);
 });
 
 test('provider contract: registry retains the application companion and resolver default side effect', () => {
@@ -223,7 +228,7 @@ test('provider input: opaque neutral callers are safe and Gemini string slot pre
     const original = credentials.resolveCred;
     const slots: (string | null | undefined)[] = [];
     const detailSlots: (string | null | undefined)[] = [];
-    const provider = new GeminiProvider({ ...client(result('natural_exhaustion')), async getConversationDetail(_id, slot) { detailSlots.push(slot); return detail(); } });
+    const provider = new GeminiProvider({ ...client(result('natural_exhaustion')), async getConversationDetail(_id, slot, account) { detailSlots.push(slot); return bindFixture(detail(), account!); } });
     const calls = neutralFunctions(provider);
     try {
         credentials.resolveCred = async slot => { slots.push(slot); return { sid: 'sid', at: 'token', bl: 'build', accountSlot: slot || 'u0' }; };

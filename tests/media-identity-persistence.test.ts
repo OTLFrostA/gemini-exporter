@@ -52,12 +52,12 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         if (order === 'takeout-first') await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
         const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
         assert.deepEqual((await getStoredDomain(identity))!.conversation.detail, snapshot.detail);
-        assert.equal((await getStoredDomain(identity))!.conversation.index.hasTakeoutImport, true);
+        assert.equal(Reflect.get((await getStoredDomain(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
         assert.equal((await getStoredDomain(identity))!.conversation.index.title, snapshot.index.title);
         assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
         assert.deepEqual((await getStoredDomain(identity))!.conversation.detail, snapshot.detail);
-        assert.equal((await getStoredDomain(identity))!.conversation.index.hasTakeoutImport, true);
+        assert.equal(Reflect.get((await getStoredDomain(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
         assert.equal((await getStoredDomain(identity))!.conversation.index.title, snapshot.index.title);
         assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
         assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', mediaChatId), online.conversation.detail.assets[0].id), null);
@@ -82,7 +82,7 @@ test('DomainStore rebinds existing byte-cache entries only with unique event pro
 test('production RPC request conflicts reject cross-source reuse even with identical event timestamps and prompts', async () => {
     const first = mediaSources().online;
     const second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
-    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], first.conversation.index.id), second.conversation.detail.assets.map(asset => resourceIdentity(asset, second.conversation.index.id))), null);
+    assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], first.conversation.index.key.conversationId), second.conversation.detail.assets.map(asset => resourceIdentity(asset, second.conversation.index.key.conversationId))), null);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', first, [{ assetId: first.conversation.detail.assets[0].id, bytes: mediaBytes }]);
     await saveDomainConversation('10000000-0000-4000-8000-000000000001', second);
     assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), second.conversation.detail.assets[0].id), null);

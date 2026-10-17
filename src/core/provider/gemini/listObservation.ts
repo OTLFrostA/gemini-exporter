@@ -1,4 +1,4 @@
-import type { PageObservation } from '../../sync/pageObservation.js';
+import type { PageObservation } from '../../domain/pageObservation.js';
 import type { ConversationListItem, ListParseResult } from '../../parsers/gemini/rpc/parseList.js';
 import type { GeminiListRequestContext } from '../../parsers/gemini/rpc/listRequest.js';
 

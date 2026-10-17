@@ -1,3 +1,5 @@
+import { withRegistry } from './helpers/registryMock.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
 /** Passive captures only save records; they cannot establish or advance scan coverage. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,9 +21,9 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
         async recordPageCoverage() { throw new Error('Sniff must not advance coverage'); }
     });
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: async () => {} } }) });
     const item = parseGeminiIndexObservation({ id: 'abcdef123', title: 'A', titleSource: 'rpc',
-        updatedAt: 1700000000000 }, 'rpc-list');
+        updatedAt: 1700000000000 }, 'rpc-list', fixtureAccount().id);
     try {
         await ingestRpcList([item], '10000000-0000-4000-8000-000000000001');
         await ingestRpcList([{ ...item, updatedAt: item.updatedAt! - 1000 }], '10000000-0000-4000-8000-000000000001');
@@ -30,7 +32,7 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
         await ingestRpcList([{ ...item }], '10000000-0000-4000-8000-000000000001');
         assert.equal(records.length, 1);
         assert.equal(records[0].updatedAt, item.updatedAt);
-        assert.equal(records[0].cloudAvailability, 'available');
+        assert.equal(Reflect.get(records[0] ?? {}, 'cloudAvailability'), undefined);
     } finally {
         __clearModuleOverrides();
         if (previous) Object.defineProperty(globalThis, 'chrome', previous);

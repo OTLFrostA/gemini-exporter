@@ -1,3 +1,4 @@
+import { fixtureAccount } from './domainFixture.js';
 import { parseGeminiRpcConversation } from '../../src/core/parsers/gemini/rpc/parseConversation.js';
 import { parseGeminiTakeoutArchive } from '../../src/core/parsers/gemini/takeout/parseConversation.js';
 import type { ResourceConversationParseResult } from '../../src/core/parsers/parsingResult.js';
@@ -20,7 +21,7 @@ export function mediaSources(options: { noTime?: boolean; noPrompt?: boolean; mu
         options.noPrompt && i === 9 ? null : [[i === 9 ? mediaPrompt : `Online question ${i}`]],
         [[`rc_answer-${i}`, [[`Complete online answer ${i}`], ...(i === 9 ? images : [])]]]]);
     const online = parseGeminiRpcConversation(`)]}'\n\n${JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([turns, null, 'Complete online body'])]])}`,
-        { providerId: 'gemini', targetConvId: mediaChatId });
+        { account: fixtureAccount('gemini'), providerId: 'gemini', targetConvId: mediaChatId });
     const activity = (prompt: string, time: number, answer: string, count?: number) =>
         `<div class="outer-cell"><a href="https://gemini.google.com/app/c_${mediaChatId}">Chat</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted ${prompt}<br>${new Date(time).toISOString()}<br>${answer}</div>${count ? `${count} generated image${count > 1 ? 's' : ''}` : ''}</div>`;
     let html = Array.from({ length: 6 }, (_, i) => activity(i === 5 ? mediaPrompt : `Takeout question ${i}`, mediaTime + (i === 5 ? 0 : (i - 20) * 1000),
@@ -33,8 +34,9 @@ export function mediaSources(options: { noTime?: boolean; noPrompt?: boolean; mu
         html += activity(mediaPrompt, mediaTime, '<p><img src="duplicate.png"></p>', 1);
         files['Takeout/Gemini Apps/duplicate.png'] = { _data: { uncompressedSize: otherMediaBytes.length }, async: async () => otherMediaBytes.slice() };
     }
-    const takeout = parseGeminiTakeoutArchive({ htmlText: html, archiveFiles: files, activityPath: 'Takeout/Gemini Apps/MyActivity.html' }, { providerId: 'gemini' })[0];
-    const offline: ResourceConversationParseResult = { ...takeout, resourceHints: Object.fromEntries(Object.entries(takeout.archiveResources).map(([id, bound]) => [id, { archivePath: bound.path }])) };
+    const takeout = parseGeminiTakeoutArchive({ htmlText: html, archiveFiles: files, activityPath: 'Takeout/Gemini Apps/MyActivity.html' }, { account: fixtureAccount('gemini'), providerId: 'gemini' })[0];
+    const offline: ResourceConversationParseResult = {   ...takeout, resourceHints: Object.fromEntries(Object.entries(takeout.archiveResources).map(([id, bound]) => [id, { archivePath: bound.path }])) };
     const resources = Object.entries(takeout.archiveResources).map(([assetId, bound]) => ({ assetId, sourcePath: bound.path, bytes: bytesFor(bound.path).slice() }));
+    online.conversation.detail.quality.status = 'complete';
     return { online, offline, files, resources };
 }

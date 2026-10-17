@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
@@ -21,7 +22,7 @@ test('storage acquisition context retains only verified fields and rejects malfo
     assert.equal(Object.getPrototypeOf(parsed), Object.prototype, 'untrusted keys must not alter the result prototype');
 
     await assert.rejects(
-        saveDomainRequest('10000000-0000-4000-8000-000000000001', { conversation: { providerId: 'gemini' }, acquisitionHints: {} }),
+        saveDomainRequest(fixtureAccount(), { conversation: { providerId: 'gemini' }, acquisitionHints: {} }),
         TypeError, 'raw unvalidated objects cannot cross the storage write boundary',
     );
 });
@@ -30,9 +31,9 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
     __clearDomainMemory();
     try {
         const original = validateParserDomain({
-            index: { providerId: 'gemini', id: 'trust-copy-case', title: 'Original', titleSource: 'legacy',
-                cloudAvailability: 'unknown', hasTakeoutImport: false },
-            detail: {
+            index: { key: fixtureKey(String('trust-copy-case'), 'gemini'),   title: 'Original', titleSource: "derived",
+                  },
+            detail: { key: fixtureKey(String('trust-copy-case'), 'gemini'),
                 quality: { status: 'unknown' },
                 assets: [{ id: 'asset', kind: 'file', sourceUri: 'opaque:original' }],
                 messages: [{ role: 'user', attachmentIds: ['asset'],
@@ -42,7 +43,7 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
         const candidates = ['opaque:original'];
         const bytes = new Uint8Array([1, 2, 3]);
         await saveDomainConversation('10000000-0000-4000-8000-000000000001',
-            { conversation: original, acquisitionHints: { asset: { candidates } }, resourceHints: {}, diagnostics: [] },
+            { account: fixtureAccount(), conversation: original, acquisitionHints: { asset: { candidates } }, resourceHints: {}, diagnostics: [] },
             [{ assetId: 'asset', bytes }],
         );
 
@@ -64,7 +65,7 @@ test('storage write, restore and native adaptation preserve detached Domain, hin
         assert.ok(firstBytes);
         assert.deepEqual([...firstBytes], [1, 2, 3]);
 
-        const adapted = storedParseResult(stored);
+        const adapted = storedParseResult(stored, fixtureAccountFor(stored.conversation));
         adapted.conversation.index.title = 'Changed projection';
         adapted.acquisitionHints.asset.candidates![0] = 'changed';
         firstBytes[0] = 88;

@@ -1,3 +1,4 @@
+import { fixtureKey } from './helpers/domainFixture.js';
 import { historicalFixture, historicalFixtureDomain } from './helpers/nativeFixture.js';
 import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import { collectDocumentResources } from '../src/core/document/ast/resourceReferences.js';
@@ -98,7 +99,7 @@ test('Domain construction reconciles flattened legacy turns before evidence is d
 });
 
 test('Domain construction deduplicates provider representations while Composer uses explicit media only', async () => {
-    const first = { type: 'image', isGenerated: true, providerRequestId: requestId, imageOrdinal: 0, localName: 'online.jpg', dataBase64: 'AQID' };
+    const first = { type: 'image', isGenerated: true, providerRequestId: requestId, imageOrdinal: 0, localName: 'online.jpg', sourceUri: 'data:image/png;base64,AQID' };
     const duplicate = { ...first, localName: 'offline.png', generation };
     const second = { ...first, imageOrdinal: 1, localName: 'second.jpg' };
     const conversation = legacy([{ role: 'assistant', content: '', attachments: [first], images: [duplicate, second] }]);
@@ -107,13 +108,13 @@ test('Domain construction deduplicates provider representations while Composer u
     assert.ok(messageAssets(domain, 0)?.every(asset => !Object.hasOwn(asset, 'path')));
     assert.deepEqual((await composeFixture(domain, resourceHints)).document, (await composeFixture(historicalFixture(conversation, { providerId: 'gemini' }).conversation, resourceHints)).document);
     assert.deepEqual(conversation, original);
-    const explicitDomain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] } };
+    const explicitDomain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'gemini'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'gemini'), quality: { status: 'unknown' }, assets: ['one', 'two', 'three'].map(id => ({ id, kind: 'image', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } })), messages: [{ role: 'assistant', content: [], attachmentIds: ['one', 'two', 'three'] }] } };
     assert.equal(collectDocumentResources((await composeFixture(explicitDomain)).document).referencedIds.size, 3,
         'Composer must not collapse explicit attachments using provider IDs');
 });
 
 test('Explicit message attachment ownership is authoritative downstream', async () => {
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', id: metadata.id, title: metadata.title, providerId: 'gemini' }, detail: { quality: { status: 'unknown' }, assets: [{ id: 'cat', kind: 'image', name: 'cat.png', dataBase64: 'AQID', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } }], messages: [
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String(metadata.id), 'gemini'),   titleSource: "derived",  title: metadata.title,  }, detail: { key: fixtureKey(String(metadata.id), 'gemini'), quality: { status: 'unknown' }, assets: [{ id: 'cat', kind: 'image', name: 'cat.png', generation: { providerRequestId: generation.providerRequestId, time: generation.time ?? undefined, prompt: generation.prompt, generationOrdinal: generation.generationOrdinal, imageCount: generation.imageCount, imageOrdinal: generation.imageOrdinal } }], messages: [
         { id: requestId, role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'First' }] }] },
         { role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Second' }] }], attachmentIds: ['cat'] },
     ] } };

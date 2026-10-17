@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 /**
  * tests/pdf-sandbox-compiler.test.ts
  *
@@ -196,7 +197,7 @@ test('stripConvertedMath: removes typst fields, keeps latex', () => {
 // ---------------------------------------------------------------------------
 
 function makeDomain(extra: any = {}) {
-    return { index: { providerId: 'gemini', id: 'c1', title: 'Test convo', titleSource: 'legacy', cloudAvailability: 'unknown', hasTakeoutImport: false, createdAt: Date.parse('2026-09-20T10:00:00Z') }, detail: { quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: extra.messages ?? [
+    return { index: { key: fixtureKey(String('c1'), 'gemini'),   title: 'Test convo', titleSource: "derived",   createdAt: Date.parse('2026-09-20T10:00:00Z') }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: extra.assets ?? [], messages: extra.messages ?? [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
         { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
     ] } };
@@ -210,7 +211,7 @@ function assetPathFor(asset: any) {
 }
 
 function makePayload(domain: any, opts: { convertMath?: (source: string, display: boolean) => string | undefined } = {}) {
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])), {
         ...(opts.convertMath ? { convertMath: opts.convertMath } : {}),
     });
     return {

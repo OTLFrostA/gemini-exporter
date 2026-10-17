@@ -1,3 +1,5 @@
+import { sourceIndex } from './helpers/domainFixture.js';
+import { withRegistry } from './helpers/registryMock.js';
 import { accountRuntime } from './helpers/accountRuntime.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
@@ -22,9 +24,9 @@ const typedResult: Assert<Equal<Awaited<ReturnType<typeof syncConversations>>, P
 const typedDiagnostics: Assert<Equal<ProviderSyncResult['diagnostics'], GeminiPaginationDiagnostics>> = true;
 const NOW = 1700000000000;
 function item(id = 'chat_visible'): GeminiProviderConversationItem {
-    return indexFixture({ id, title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' },
+    return sourceIndex(indexFixture({ id, title: 'RPC title', titleSource: 'rpc', titles: { rpc: 'RPC title' },
         createdAt: null, updatedAt: NOW, timestamp: NOW, chatTime: NOW,
-        messageCount: 2, url: `https://gemini.google.com/u/2/app/${id}` });
+        messageCount: 2, url: `https://gemini.google.com/u/2/app/${id}` }));
 }
 function page(reason: PaginationCompletionReason = 'natural_exhaustion'): GeminiProviderPageResult {
     const items = [item()];
@@ -97,8 +99,8 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
             assert.strictEqual(items, input.items);
             assert.deepEqual(options, { keepTakeout: true });
             const ids = new Set(items.map(c => c.id));
-            const removedIds = records.filter(c => !c.hasTakeoutImport && !ids.has(c.id)).map(c => c.id);
-            records = records.filter(c => c.hasTakeoutImport || ids.has(c.id));
+            const removedIds = records.filter(c => !Reflect.get(c ?? {}, 'hasTakeoutImport') && !ids.has(c.key.conversationId)).map(c => c.key.conversationId);
+            records = records.filter(c => Reflect.get(c ?? {}, 'hasTakeoutImport') || ids.has(c.key.conversationId));
             return { kept: records.length, removed: removedIds.length, removedIds };
         }
     };
@@ -141,10 +143,10 @@ async function scan(input: GeminiProviderPageResult, setup: Setup = {}) {
     } });
     Object.defineProperty(globalThis, 'location', { configurable: true, value: { href: 'https://gemini.google.com/u/2/app', pathname: '/u/2/app' } });
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => null, setItem() {} } });
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: {
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({
         runtime: { sendMessage: async (message: unknown) => { trace.progress.push(message); } },
         storage: { local: { get: async () => ({}) } }
-    } });
+    }) });
     const account = accountRuntime();
     __setModuleOverride('StorageService', store);
     if (setup.slidingLimit) __setModuleOverride('GeminiProtocol', { ...GeminiProtocol, LIMITS: { ...GeminiProtocol.LIMITS, SLIDING_WINDOW: setup.slidingLimit } });
@@ -202,12 +204,12 @@ test('sync provider: complete cloud data preserves unseen local archives and Tak
     assert.equal(trace.reconcileCalls, 0);
     assert.equal(result?.status, 'complete');
     assert.equal(result?.count, 1); // successfully fetched cloud items
-    assert.deepEqual(records.map(c => c.id).sort(), ['chat_archive', 'chat_old', 'chat_visible']);
-    const visible = records.find(c => c.id === 'chat_visible');
+    assert.deepEqual(records.map(c => c.key.conversationId).sort(), ['chat_archive', 'chat_old', 'chat_visible']);
+    const visible = records.find(c => c.key.conversationId === 'chat_visible');
     assert.equal(visible?.updatedAt, NOW);
     assert.equal(visible?.createdAt, undefined);
-    assert.equal(visible?.titleSource, 'rpc');
-    assert.equal(visible?.titleSource, 'rpc');
+    assert.equal(visible?.titleSource, 'provider');
+    assert.equal(visible?.titleSource, 'provider');
     assert.ok(trace.slots.every(slot => slot === '10000000-0000-4000-8000-000000000001'));
     assert.deepEqual(trace.checkpointWrites, [NOW]);
     assert.strictEqual(result?.diagnostics, input.diagnostics);
@@ -218,7 +220,7 @@ test('sync provider: every incomplete reason preserves unseen historical cloud r
         const input = page(reason);
         const { result, trace, records } = await scan(input);
         assert.equal(trace.reconcileCalls, 0, reason);
-        assert.ok(records.some(c => c.id === 'chat_old'), reason);
+        assert.ok(records.some(c => c.key.conversationId === 'chat_old'), reason);
         assert.deepEqual(trace.checkpointWrites, [], reason);
         assert.equal(result?.count, 1, reason);
         assert.equal(result?.status, reason === 'hit_google_limit' ? 'partial_limit' : reason === 'aborted' ? 'aborted' : 'error');
@@ -237,7 +239,7 @@ test('sync provider: explicit false completeness, Google evidence and cancellati
         if (cause === 'top-limit') input.hitGoogleLimit = true;
         const { trace, records } = await scan(input, { abort: cause === 'cancelled' });
         assert.equal(trace.reconcileCalls, 0, cause);
-        assert.ok(records.some(c => c.id === 'chat_old'), cause);
+        assert.ok(records.some(c => c.key.conversationId === 'chat_old'), cause);
         assert.deepEqual(trace.checkpointWrites, [], cause);
     }
 });
@@ -251,7 +253,7 @@ test('sync provider: legacy timestamps cannot authorize an unverified overlap ea
     assert.equal(trace.options?.maxPages, 4);
     assert.equal(trace.options?.targetSid, 'u2');
     assert.deepEqual(trace.checkpointWrites, []);
-    assert.ok(records.some(c => c.id === 'chat_old'));
+    assert.ok(records.some(c => c.key.conversationId === 'chat_old'));
 });
 
 test('sync provider: explicit Google limit outcome preserves quota prompt regardless of diagnostics', async () => {
@@ -276,7 +278,7 @@ test('sync provider: empty complete account retains the existing conservative no
     const { result, trace, records } = await scan(input);
     assert.equal(result?.count, 0);
     assert.equal(trace.reconcileCalls, 0);
-    assert.ok(records.some(c => c.id === 'chat_old'));
+    assert.ok(records.some(c => c.key.conversationId === 'chat_old'));
     assert.equal(trace.checkpointWrites.length, 1);
 });
 
@@ -298,7 +300,7 @@ test('sync safety: real pagination edge results pass through adapter without rec
         const mapped = await adapter.listConversations();
         const { trace, records } = await scan(mapped);
         assert.equal(trace.reconcileCalls, 0, edge);
-        assert.ok(records.some(c => c.id === 'chat_old'), edge);
+        assert.ok(records.some(c => c.key.conversationId === 'chat_old'), edge);
         assert.deepEqual(trace.checkpointWrites, [], edge);
     }
 });
@@ -308,7 +310,7 @@ test('sync safety: real pagination edge results pass through adapter without rec
     const { result, trace, records } = await scan(page());
     assert.ok(result);
     assert.deepEqual(trace.checkpointWrites, [NOW]);
-    assert.ok(records.some(c => c.id === 'chat_old'));
+    assert.ok(records.some(c => c.key.conversationId === 'chat_old'));
 });
 
 
@@ -319,7 +321,7 @@ test('sync safety: later pages with newer updates are saved even when the first 
     const { result, records, trace } = await scan(page(), { checkpoint: NOW + 100, wirePages: [first, later] });
     assert.equal(result?.status, 'complete');
     assert.equal(result?.diagnostics.totalPagesFetched, 3);
-    assert.equal(records.find(record => record.id === 'late105')?.updatedAt, NOW + 105);
+    assert.equal(records.find(record => record.key.conversationId === 'late105')?.updatedAt, NOW + 105);
     assert.deepEqual(trace.checkpointWrites, [NOW + 120]);
 });
 
@@ -333,8 +335,8 @@ test('sync safety: a limited first scan and retry never claim complete coverage'
         assert.equal(result?.status, 'partial_limit');
         assert.equal(result?.diagnostics.totalPagesFetched, 3);
         assert.deepEqual(trace.checkpointWrites, []);
-        assert.ok(records.some(record => record.id === 'chat_visible'));
-        assert.ok(records.some(record => record.id === 'chat_old'));
+        assert.ok(records.some(record => record.key.conversationId === 'chat_visible'));
+        assert.ok(records.some(record => record.key.conversationId === 'chat_old'));
     }
 });
 
@@ -357,9 +359,9 @@ test('sync covers pinned-only chats and persists a later-page rename with an unc
     assert.equal(result?.status, 'complete');
     assert.equal(result?.count, 3);
     assert.equal(result?.diagnostics.totalPagesFetched, 3);
-    assert.equal(records.find(record => record.id === 'chat_old')?.title, 'Renamed on another device');
-    assert.equal(records.find(record => record.id === 'chat_old')?.updatedAt, NOW - 1000);
-    assert.ok(records.some(record => record.id === 'pinned_only'));
+    assert.equal(records.find(record => record.key.conversationId === 'chat_old')?.title, 'Renamed on another device');
+    assert.equal(records.find(record => record.key.conversationId === 'chat_old')?.updatedAt, NOW - 1000);
+    assert.ok(records.some(record => record.key.conversationId === 'pinned_only'));
     assert.deepEqual(trace.checkpointWrites, [NOW]);
 });
 

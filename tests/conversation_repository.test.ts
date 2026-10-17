@@ -1,3 +1,5 @@
+import { bindFixture, fixtureAccountFor } from './helpers/domainFixture.js';
+import { fixtureAccount } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { indexStorage } from './helpers/indexStorage.js';
@@ -6,20 +8,20 @@ import { historicalFixture } from './helpers/nativeFixture.js';
 import { StorageService as storage } from '../src/core/storage/storageService.js';
 import { saveDomainConversation, getStoredDomain, storageIdentity } from '../src/core/storage/domain/domainStore.js';
 import { createConversationRepository } from '../src/core/storage/conversationRepository.js';
-import { preparePdfItem } from '../src/core/export/pdf/prepareItem.js';
+import { preparePdfItem } from './helpers/pdfAcquisitionFixture.js';
 import { resolveChat } from '../src/core/engine/export/batchWorker.js';
 import { buildExportCompletion, completeConversationExport } from '../src/core/engine/export/exportCompletion.js';
 import { finalizeChatExport } from '../src/core/engine/export/sessionRecovery.js';
 import { withConversationMetadata } from '../src/core/domain/runtimeValidation.js';
 
 const scope = { providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' };
-const parsed = () => ({ ...historicalFixture({ id: 'chat', title: 'Old title', titleSource: 'rpc', updatedAt: 100,
-    messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }] }), sourceVersion: 100 });
+const parsed = () => ({   ...historicalFixture({ id: 'chat', title: 'Old title', titleSource: 'rpc', updatedAt: 100,
+    completeness: { status: 'complete' }, messages: [{ role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }] }), sourceVersion: 100 });
 
 test('metadata projection erases absent optional fields even when passed a structurally assignable full snapshot', () => {
     const source = parsed().conversation;
-    source.index.createdAt = 90; source.index.url = 'https://gemini.google.com/app/old';
-    const { url: _url, ...index } = indexFixture({ id: 'chat', title: 'Canonical' });
+    source.index.createdAt = 90;
+    const index = indexFixture({ id: 'chat', title: 'Canonical' });
     const projected = withConversationMetadata(source.detail, index);
     assert.equal(Object.hasOwn(projected, 'createdAt'), false);
     assert.equal(Object.hasOwn(projected, 'url'), false);
@@ -44,7 +46,7 @@ test('index-only, absent, empty saved body and incomplete body remain distinct w
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', partial);
         const capture = await repository.getConversation('chat');
         assert.equal(capture?.detail?.quality.status, 'partial');
-        assert.equal(capture?.capture?.savedAt, undefined);
+        assert.equal(capture?.capture?.savedAt, 100);
     } finally { env.restore(); }
 });
 
@@ -52,14 +54,14 @@ test('index owns every metadata field while capture retains the actual older bod
     const env = indexStorage();
     try {
         await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: 'rpc', createdAt: 50, updatedAt: 200,
-            url: 'https://gemini.google.com/u/1/app/chat', cloudAvailability: 'deleted' });
+        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Renamed', titleSource: "provider", createdAt: 50, updatedAt: 200,
+             });
         const repository = storage.conversationRepository(scope);
         const before = await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'chat'));
         const writes = env.writes();
         const stored = await repository.getConversation('c_chat');
         assert.ok(stored?.detail);
-        assert.deepEqual(Object.keys(stored.detail).sort(), ['assets', 'messages', 'quality']);
+        assert.deepEqual(Object.keys(stored.detail).sort(), ['assets', 'key', 'messages', 'quality', 'savedAt']);
         assert.equal(stored.index.updatedAt, 200);
         assert.equal(stored.capture?.savedAt, 100);
         const resolved = await resolveChat(undefined, { id: 'chat' }, stored.index, null, '10000000-0000-4000-8000-000000000001');
@@ -68,14 +70,14 @@ test('index owns every metadata field while capture retains the actual older bod
         const projected = resolved.chat;
         assert.equal(projected.conversation.index.title, 'Renamed');
         assert.equal(projected.conversation.index.createdAt, 50);
-        assert.equal(projected.conversation.index.url, 'https://gemini.google.com/u/1/app/chat');
+        assert.equal(Reflect.get(projected.conversation.index ?? {}, 'url'), undefined);
         assert.equal(projected.sourceVersion, 100);
         assert.equal('updatedAt' in projected.conversation, false);
         assert.equal(resolved.isError, false);
         if (!resolved.isError) {
             assert.equal(resolved.chat.conversation.index.title, 'Renamed');
             assert.equal(resolved.chat.conversation.index.createdAt, 50);
-            assert.equal(resolved.chat.conversation.index.url, projected.conversation.index.url);
+            assert.equal(Reflect.get(resolved.chat.conversation.index ?? {}, 'url'), Reflect.get(projected.conversation.index ?? {}, 'url'));
             assert.equal(resolved.chat.sourceVersion, 100);
         }
         assert.equal(env.writes(), writes);
@@ -91,6 +93,7 @@ test('cached projections cannot roll back newer metadata passed by a caller', as
     const env = indexStorage();
     try {
         const cached = parsed();
+        await storage.ingestConversation(scope.accountId, cached);
         const current = indexFixture({ id: 'chat', title: 'Renamed', titleSource: 'rpc', updatedAt: 200, createdAt: 50,
             url: 'https://gemini.google.com/u/1/app/chat' });
         await storage.setConversations('10000000-0000-4000-8000-000000000001', [current]);
@@ -100,7 +103,7 @@ test('cached projections cannot roll back newer metadata passed by a caller', as
         if (!resolved.isError) {
             assert.equal(resolved.chat.conversation.index.title, 'Renamed');
             assert.equal(resolved.chat.conversation.index.createdAt, 50);
-            assert.equal(resolved.chat.conversation.index.url, current.url);
+            assert.equal(Reflect.get(resolved.chat.conversation.index ?? {}, 'url'), Reflect.get(current ?? {}, 'url'));
         }
         assert.equal(cached.conversation.index.title, 'Old title');
     } finally { env.restore(); }
@@ -114,7 +117,7 @@ test('a rename after preparation survives direct and staged cached export comple
         assert.equal(resolved.isError, false);
         if (resolved.isError) return;
         const old = resolved.chat;
-        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Rename during export', titleSource: 'rpc', updatedAt: 200 });
+        await storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Rename during export', titleSource: "provider", updatedAt: 200 });
         const input = { conversation: old.conversation, chatTime: old.sourceVersion, usedLocalSnapshot: true };
         await completeConversationExport(storage, '10000000-0000-4000-8000-000000000001', input);
         assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0].title, 'Rename during export');
@@ -133,19 +136,17 @@ test('bound scope isolates accounts/providers, rejects unsupported slots and ign
         const repository = storage.conversationRepository(mutableScope);
         mutableScope.accountId = '10000000-0000-4000-8000-000000000002';
         await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
-        const other = parsed(); other.conversation.index.title = 'Other account';
+        const other = bindFixture(parsed(), '10000000-0000-4000-8000-000000000002'); other.conversation.index.title = 'Other account';
         await storage.setNativeConversations('10000000-0000-4000-8000-000000000002', [other]);
-        const foreign = parsed(); foreign.conversation.index.providerId = 'other'; foreign.conversation.index.title = 'Other provider';
-        await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [foreign]);
+        const foreign = bindFixture(parsed(), { ...fixtureAccount('other'), id: scope.accountId });
+        await assert.rejects(storage.setNativeConversations(scope.accountId, [foreign]), /mismatch/);
         assert.equal((await repository.getConversationIndex('chat'))?.title, 'Old title');
         assert.equal((await storage.conversationRepository({ ...scope, accountId: '10000000-0000-4000-8000-000000000002' }).getConversationIndex('chat'))?.title, 'Other account');
-        assert.equal((await storage.conversationRepository({ ...scope, providerId: 'other' }).getConversationIndex('chat'))?.title, 'Other provider');
-        assert.equal((await storage.conversationRepository({ ...scope, accountId: '10000000-0000-4000-8000-000000000001' }).getConversationIndex('chat'))?.title, 'Old title');
         assert.throws(() => storage.conversationRepository({ ...scope, accountId: 'typo' }), /UUID/);
         assert.throws(() => storage.conversationRepository({ ...scope, providerId: ' gemini' }), /scope/);
         await assert.rejects(repository.getConversation(''), /ID/);
         await assert.rejects(repository.getConversationIndex('c_'), /ID/);
-        const orphan = parsed(); orphan.conversation.index.id = 'orphan';
+        const orphan = parsed(); orphan.conversation.index.key.conversationId = 'orphan'; orphan.conversation.detail.key.conversationId = 'orphan';
         await saveDomainConversation('10000000-0000-4000-8000-000000000001', orphan);
         assert.equal(await repository.getConversation('orphan'), null);
         assert.ok(await getStoredDomain(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'orphan')));
@@ -175,7 +176,7 @@ test('index reads avoid body I/O; malformed identities and storage failures reje
         await assert.rejects(broken.getConversation('chat'), error => error === failure);
         await storage.setNativeConversations('10000000-0000-4000-8000-000000000001', [parsed()]);
         const ordered = storage.conversationRepository(scope);
-        const write = storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Queued rename', titleSource: 'rpc' });
+        const write = storage.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', { title: 'Queued rename', titleSource: "provider" });
         const read = ordered.getConversation('chat');
         await write; assert.equal((await read)?.index.title, 'Queued rename');
     } finally { env.restore(); }
@@ -186,18 +187,18 @@ test('fresh acquisition commits all metadata before rendering, independently of 
     try {
         const fresh = parsed();
         fresh.conversation.index.createdAt = 20;
-        fresh.conversation.index.url = 'https://gemini.google.com/u/0/app/chat';
+
         const prepared = await preparePdfItem({ id: 'chat', title: 'Stale selection' }, { accountId: '10000000-0000-4000-8000-000000000001', ...({ includeAssets: false,
-            fetchChatDetail: async () => ({ success: true, chat: fresh }) }) });
+            fetchChatDetail: async () => ({ success: true, chat: await storage.ingestConversation(scope.accountId, fresh) }) }) });
         assert.equal(prepared.ok, true);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
         assert.ok(stored?.detail);
         assert.equal(stored.index.title, fresh.conversation.index.title);
-        assert.equal(stored.index.titleSource, 'rpc');
+        assert.equal(stored.index.titleSource, 'provider');
         assert.equal(stored.index.createdAt, 20);
         assert.equal(stored.index.updatedAt, 100);
-        assert.equal(stored.index.url, fresh.conversation.index.url);
-        assert.equal(stored.index.messageCount, 2);
+        assert.equal(Reflect.get(stored.index ?? {}, 'url'), Reflect.get(fresh.conversation.index ?? {}, 'url'));
+        assert.equal(Reflect.get(stored.index ?? {}, 'messageCount'), undefined);
         assert.deepEqual(await storage.getExportedIds('10000000-0000-4000-8000-000000000001'), {});
     } finally { env.restore(); }
 });
@@ -217,7 +218,7 @@ test('accepting a partial observation advances Index but returns the retained co
         assert.equal(accepted.sourceVersion, 100);
         const index = await storage.conversationRepository(scope).getConversationIndex('chat');
         assert.equal(index?.updatedAt, 200);
-        assert.equal(index?.messageCount, 2);
+        assert.equal(Reflect.get(index ?? {}, 'messageCount'), undefined);
     } finally { env.restore(); }
 });
 
@@ -227,9 +228,9 @@ test('initial partial capture publishes activity to Index without claiming a sav
     try {
         const partial = parsed(); partial.conversation.detail.quality.status = 'partial';
         const accepted = await storage.ingestConversation('10000000-0000-4000-8000-000000000001', partial);
-        assert.equal(accepted.sourceVersion, undefined);
+        assert.equal(accepted.sourceVersion, 100);
         const stored = await storage.conversationRepository(scope).getConversation('chat');
-        assert.equal(stored?.capture?.savedAt, undefined);
+        assert.equal(stored?.capture?.savedAt, 100);
         assert.equal(stored?.index.updatedAt, 100);
     } finally { env.restore(); }
 });

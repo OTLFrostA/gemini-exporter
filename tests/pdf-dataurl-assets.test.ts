@@ -1,7 +1,8 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { resourceValue } from './helpers/resources.js';
 import type { ResourceBytes } from '../src/core/resources/resourceResult.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-/** Original data URI facts are parsed into Domain; decoded bytes belong to PreparedResources. */
+/** Inline source data stays in acquisition context; decoded bytes belong to PreparedResources. */
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -20,20 +21,21 @@ async function prepare(content: string, id = 'dataurl') {
     const parsed = historicalFixture(input, { providerId: 'gemini' });
     const domain = parsed.conversation;
     assertDomainClosure((domain).detail);
-    const document = composeDomainDocument(domain).document;
+    const document = composeDomainDocument(domain, fixtureAccountFor(domain)).document;
     const semantic = JSON.stringify({ domain, document });
     const prepared = await preparePdfResources((domain).detail, collectDocumentResources(document).imageIds, parsed.acquisitionHints);
     const staged = await resourceStage({ document, resources: prepared.resources }, { signal: new AbortController().signal, log() {}, reportProgress() {} });
     assert.equal(JSON.stringify({ domain, document }), semantic);
     assert.equal(JSON.stringify(input), before);
-    return { domain, document, resources: prepared.resources, diagnostics: [...prepared.diagnostics, ...staged.diagnostics], ...staged.output };
+    return { domain, acquisitionHints: parsed.acquisitionHints, document, resources: prepared.resources, diagnostics: [...prepared.diagnostics, ...staged.diagnostics], ...staged.output };
 }
-test('original base64 PNG facts survive JSON; preparation produces the real content address', async () => {
+test('inline PNG bytes stay outside Domain; preparation produces the real content address', async () => {
     const source = `data:image/png;base64,${PNG_B64}`;
     const result = await prepare(`![dot](${source})`);
     assert.equal(result.domain.detail.assets.length, 1);
     const asset = result.domain.detail.assets[0];
-    assert.equal(asset.sourceUri, source);
+    assert.equal(asset.sourceUri, undefined);
+    assert.equal(result.acquisitionHints[asset.id].url, source);
     assert.equal(result.pathMap.get(asset.id), PNG_REF);
     assert.equal(resourceValue<ResourceBytes>(result.resources.get(asset.id)).mediaType, 'image/png');
     assert.deepEqual(Buffer.from(resourceValue<ResourceBytes>(result.resources.get(asset.id)).bytes), Buffer.from(PNG_B64, 'base64'));
@@ -68,7 +70,8 @@ test('malformed original data URL failures are sidecar diagnostics', async () =>
     for (const uri of ['data:image/png;base64', 'data:image/png;base64,!!!not-base64!!!', 'data:image/png,%zz']) {
         const result = await prepare(`![x](${uri})`);
         const id = result.domain.detail.assets[0].id;
-        assert.equal(result.domain.detail.assets[0].sourceUri, uri);
+        assert.equal(result.domain.detail.assets[0].sourceUri, undefined);
+        assert.equal(result.acquisitionHints[id].url, uri);
         assert.equal(result.resources.get(id).ok, false);
         assert.ok(result.diagnostics.some((d: any) => d.code === 'DATA_URL_MALFORMED'));
     }

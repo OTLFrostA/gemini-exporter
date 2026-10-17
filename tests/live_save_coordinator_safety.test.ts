@@ -1,3 +1,6 @@
+import { useAccountRuntime } from './helpers/accountRuntime.js';
+useAccountRuntime();
+import { withRegistry } from './helpers/registryMock.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 const { historicalFixture } = require('./helpers/nativeFixture.js');
@@ -164,7 +167,7 @@ test('B3 Safety 5: live-save IPC success delegates and triggers feedback', async
     let feedbackCalled = false;
 
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         ...globalThis.chrome,
         runtime: {
             sendMessage: (msg: any, cb: (res: any) => void) => {
@@ -172,7 +175,7 @@ test('B3 Safety 5: live-save IPC success delegates and triggers feedback', async
                 if (cb) cb({ ok: true, handleName: 'TargetVault' });
             }
         }
-    };
+    });
 
     try {
         LiveSaveCoordinator.init({
@@ -209,7 +212,7 @@ test('B3 Safety 6: partial asset result is treated as saved + warning', async ()
     let warningCalledWith: string | null = null;
 
     const origChrome = (global as any).chrome;
-    (global as any).chrome = {
+    (global as any).chrome = withRegistry({
         ...globalThis.chrome,
         runtime: {
             sendMessage: (_msg: any, cb: (res: any) => void) => {
@@ -221,7 +224,7 @@ test('B3 Safety 6: partial asset result is treated as saved + warning', async ()
                 }
             }
         }
-    };
+    });
 
     try {
         LiveSaveCoordinator.init({
@@ -263,14 +266,14 @@ test('B3 Safety 7: permission/directory errors map exactly as expected', async (
     for (const testCase of errorCases) {
         let warningCalledWith: string | null = null;
         const origChrome = (global as any).chrome;
-        (global as any).chrome = {
+        (global as any).chrome = withRegistry({
         ...globalThis.chrome,
             runtime: {
                 sendMessage: (_msg: any, cb: (res: any) => void) => {
                     if (cb) cb({ ok: false, error: testCase.err });
                 }
             }
-        };
+        });
 
         try {
             LiveSaveCoordinator.init({
@@ -550,7 +553,7 @@ test('B3 Safety 13: direct directory path calls export completion with title/tim
     assert.ok(completionInput);
     assert.strictEqual(completionInput.conversationId, 'completion_test');
     assert.strictEqual(completionInput.titleCandidate, 'Export Record Complete Test');
-    assert.strictEqual(completionInput.titleProvenance, 'dom');
+    assert.strictEqual(completionInput.titleProvenance, 'provider');
     assert.strictEqual(completionInput.format, 'markdown');
     assert.ok(savedConfig);
     assert.strictEqual(savedConfig.lastSavedTitle, 'Export Record Complete Test');

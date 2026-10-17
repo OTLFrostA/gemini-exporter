@@ -113,7 +113,7 @@ export async function refreshConversationIndex(chatId: string, exportSlot?: stri
     const slot = exportSlot || Store?.getCurrentAccountId?.() || '';
     const index = await getStorage()?.conversationRepository({ providerId: 'gemini', accountId: slot }).getConversationIndex(normId(chatId));
     if (Store?.getCurrentAccountId?.() !== slot || !index) return;
-    const item = Store.getConversations().find(c => normId(c.id) === index.id);
+    const item = Store.getConversations().find(c => normId(c.key.conversationId) === index.key.conversationId);
     if (item) Object.assign(item, index);
 }
 
@@ -468,7 +468,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                                     await Storage.setZipPreference(false);
                                 }
                             }
-                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, false, newHandle);
+                            await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, false, newHandle);
                         } catch (err: unknown) {
                             const errMsg = getErrorMessage(err);
                             log(typeof t === 'function' ? t('dirCancelled', errMsg) : `未选择导出目录: ${errMsg}`, 'warn');
@@ -479,7 +479,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
                     async () => {
                         decisionMade = true;
                         try {
-                            await startExportPipeline(selected, format, skip, includeIndex, includeAssets, true, null);
+                            await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, true, null);
                         } catch (err: unknown) {
                             const errMsg = getErrorMessage(err);
                             log(typeof t === 'function' ? t('exportFailed', errMsg) : `导出失败: ${errMsg}`, 'error');
@@ -504,7 +504,7 @@ export async function exportSelected(overrideFormat: string | null = null, force
         }
     }
 
-    await startExportPipeline(selected, format, skip, includeIndex, includeAssets, includeZip, dirHandle);
+    await startExportPipeline(selected.map(item => ({ ...item, id: item.key.conversationId })), format, skip, includeIndex, includeAssets, includeZip, dirHandle);
     } finally {
         _isExporting = false;
         setExportSessionBusy(false);

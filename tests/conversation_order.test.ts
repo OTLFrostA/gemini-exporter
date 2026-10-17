@@ -7,12 +7,12 @@ import { indexFixture } from './helpers/indexFixture.js';
 test('index ordering prioritizes authored activity over creation and leaves unknown times after known times', () => {
     const records = [indexFixture({ id: 'recent', title: 'Recent', createdAt: 5000 }), indexFixture({ id: 'unknown-time', title: 'Unknown', lastSeen: 99999 }),
         indexFixture({ id: 'revived', title: 'Revived', createdAt: 1000, updatedAt: 6000 })];
-    assert.deepEqual(records.sort(compareConversationIndexes).map(item => item.id), ['revived', 'recent', 'unknown-time']);
+    assert.deepEqual(records.sort(compareConversationIndexes).map(item => item.key.conversationId), ['revived', 'recent', 'unknown-time']);
     assert.equal(indexActivityTime(records[2]), undefined);
 });
 test('index ordering preserves established array order on ties including missing activity', () => {
     const records = ['third', 'first', 'second'].map(id => indexFixture({ id, title: id }));
-    assert.deepEqual(records.sort(compareConversationIndexes).map(item => item.id), ['third', 'first', 'second']);
+    assert.deepEqual(records.sort(compareConversationIndexes).map(item => item.key.conversationId), ['third', 'first', 'second']);
     assert.equal(compareConversationIndexes({ ...records[0], updatedAt: 0 }, records[1]), -1);
 });
 test('reviving an old conversation monotonically advances activity without changing creation', () => {
@@ -28,7 +28,7 @@ test('list parsing provides strict indexes and independent source times, with no
     assert.equal(index.updatedAt, 1700000000000);
     assert.equal(index.createdAt, undefined);
     assert.equal(index.messageCount, undefined, 'RPC turn count is not a message count');
-    assert.equal(index.cloudAvailability, 'available');
+    assert.equal(Reflect.get(index ?? {}, 'cloudAvailability'), undefined);
     for (const key of ['timestamp', 'chatTime', 'titles', 'messages', 'lastSeen']) assert.equal(Object.hasOwn(index, key), false);
 });
 

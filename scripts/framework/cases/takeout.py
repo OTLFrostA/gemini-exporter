@@ -23,8 +23,9 @@ def validate_takeout_records(expected_ids, expected_media, records, generation_i
     for record in records:
         domain, summary = record.get('domain') or {}, record.get('summary') or {}
         index, detail = domain.get('index') or {}, domain.get('detail') or {}
-        if (record.get('ok') is not True or index.get('id') != record['id']
-                or index.get('providerId') != 'gemini' or summary.get('hasTakeoutImport') is not True or not summary.get('title')):
+        if (record.get('ok') is not True or index.get('key', {}).get('conversationId') != record['id']
+                or index.get('key', {}).get('accountId') != record.get('account', {}).get('id')
+                or not record.get('account', {}).get('id') or record.get('account', {}).get('providerId') != 'gemini' or not summary.get('title')):
             return False, f"Takeout 会话身份/临时标题未进入正常存储: {record['id']}"
         messages = detail.get('messages') or []
         asset_ids = {a.get('id') for a in detail.get('assets', [])}
@@ -112,6 +113,7 @@ class TakeoutZipImportCase(FeatureTestCase):
             (async () => {{
                 const slot = window.ConversationsStore.getCurrentAccountId();
                 const key = 'conversations_' + slot;
+                const accountReply = await chrome.runtime.sendMessage({{ action: 'accountRegistry', command: 'get', accountId: slot }});
                 const summaries = (await chrome.storage.local.get(key))[key] || [];
                 const result = [];
                 for (const id of {json.dumps(expected_ids)}) {{
@@ -123,8 +125,8 @@ class TakeoutZipImportCase(FeatureTestCase):
                         const read = await chrome.runtime.sendMessage({{ action: 'domainStorage', command: 'resource', payload: {{ identity, assetId: resource.assetId }} }});
                         resources.push({{ sourcePath: resource.sourcePath, bytes: read?.ok ? read.value : null }});
                     }}
-                    result.push({{ id, ok: record?.ok, domain,
-                        summary: summaries.find(c => c.id === id || c.id === 'c_' + id), resources }});
+                    result.push({{ id, ok: record?.ok, account: accountReply?.value, domain,
+                        summary: summaries.find(c => c.key.conversationId === id || c.key.conversationId === 'c_' + id), resources }});
                 }}
                 return result;
             }})()
@@ -172,7 +174,7 @@ class DeepScanPaginationCase(FeatureTestCase):
                 known = cdp_opt.eval("""(async () => {
                     const key = 'conversations_' + window.ConversationsStore.getCurrentAccountId();
                     const data = await chrome.storage.local.get(key);
-                    return (data[key] || []).filter(c => c.titleSource === 'rpc' && c.title).map(c => c.id.replace(/^c_/, ''));
+                    return (data[key] || []).filter(c => c.titleSource === 'provider' && c.title).map(c => c.key.conversationId.replace(/^c_/, ''));
                 })()""", await_promise=True) or []
                 missing = [cid for cid in ids if cid.removeprefix('c_') not in known]
                 if missing:

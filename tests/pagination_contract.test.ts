@@ -1,3 +1,4 @@
+import { sourceIndex } from './helpers/domainFixture.js';
 import { contentQuality } from '../src/core/domain/quality.js';
 import { listFixture } from './helpers/listFixture.js';
 import { indexFixture } from './helpers/indexFixture.js';
@@ -13,9 +14,9 @@ import type { ListParseDiagnostics } from '../src/core/parsers/gemini/rpc/parseL
 import type { GeminiAPIClient } from '../src/core/api/geminiClient.js';
 
 function item(id: string): ConversationListItem {
-    return indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id },
+    return sourceIndex(indexFixture({ id, title: id, titleSource: 'rpc', titles: { rpc: id },
         createdAt: null, updatedAt: null, chatTime: null, timestamp: null,
-        messageCount: 0, url: `https://gemini.google.com/app/${id}` });
+        messageCount: 0, url: `https://gemini.google.com/app/${id}` }));
 }
 function page(ids: string[], nextPageToken: string | null = null): ListParseResult {
     return listFixture(ids.map(item), nextPageToken);
@@ -225,29 +226,31 @@ test('completeness guard preserves legacy absence semantics and rejects each exp
 test('detail: typed aggregation preserves reverse page order, dedupe, diagnostics and raw evidence', async () => {
     const first = detailPage(['new'], 'tC_more'); first.transport.decodedPayload = { evidence: 'not validated' };
     const second = detailPage(['old', 'new']);
-    first.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 1, truncation: 'pagination_pending' });
-    second.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 2 });
+    first.conversation.detail.quality = contentQuality({ status: 'unknown' });
+    first.evidence = { rejectedTurns: 1, truncation: 'pagination_pending' };
+    second.conversation.detail.quality = contentQuality({ status: 'unknown' });
+    second.evidence = { rejectedTurns: 2 };
     first.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'drift one' }];
     second.diagnostics = ['drift one', 'drift two'].map(message => ({ severity: 'warning', code: 'DRIFT', message }));
     const result: PaginatedDetailResult = await getConversationDetail(detailClient([first, second]), 'c_test');
-    assert.equal(result.conversation.index.id, 'test');
+    assert.equal(result.conversation.index.key.conversationId, 'test');
     assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['old', 'new']);
     assert.equal(result.conversation.detail.messages.length, 2);
-    assert.equal(result.conversation.detail.quality.rejectedTurns, 3);
+    assert.equal(result.evidence?.rejectedTurns, 3);
     assert.deepEqual([...new Set(result.diagnostics.map(d => d.message))], ['drift one', 'drift two']);
     assert.strictEqual(result.transport.decodedPayload, first.transport.decodedPayload);
-    assert.equal(Boolean(result.conversation.detail.quality.truncation), false);
-    assert.equal(result.conversation.detail.quality.truncation, undefined);
+    assert.equal(Boolean(result.evidence?.truncation), false);
+    assert.equal(result.evidence?.truncation, undefined);
 });
 
 test('detail: token loop and 20-page cap retain exact truncation reasons', async () => {
     const loop = await getConversationDetail(detailClient([detailPage(['one'], 'tC_loop'), detailPage(['two'], 'tC_loop')]), 'test');
-    assert.equal(loop.conversation.detail.quality.truncation, 'token_loop');
-    assert.equal(Boolean(loop.conversation.detail.quality.truncation), true);
+    assert.equal(loop.evidence?.truncation, 'token_loop');
+    assert.equal(Boolean(loop.evidence?.truncation), true);
     const max = await getConversationDetail(detailClient(Array.from({ length: 20 }, (_, i) => detailPage([`m${i}`], `tC_${i}`))), 'test');
     assert.equal(max.conversation.detail.messages.length, 20);
-    assert.equal(max.conversation.detail.quality.truncation, 'max_turns_page_limit_20');
-    assert.equal(Boolean(max.conversation.detail.quality.truncation), true);
+    assert.equal(max.evidence?.truncation, 'max_turns_page_limit_20');
+    assert.equal(Boolean(max.evidence?.truncation), true);
 });
 
 test('list: first-page Bard limit returns an incomplete empty result; first-page HTTP limit rejects', async () => {
@@ -298,10 +301,12 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
     const first = detailPage([]);
     first.conversation.index.title = 'Authoritative metadata title';
     first.transport.decodedPayload = [null, null, [['c_test', 'metadata title']]];
-    first.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 1 });
+    first.conversation.detail.quality = contentQuality({ status: 'unknown' });
+    first.evidence = { rejectedTurns: 1 };
     first.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'initial drift' }];
-    const retry = detailPage(['answer']); retry.conversation.index.title = 'Prompt fallback'; retry.conversation.index.titleSource = 'sniff';
-    retry.conversation.detail.quality = contentQuality({ status: 'unknown', rejectedTurns: 2 });
+    const retry = detailPage(['answer']); retry.conversation.index.title = 'Prompt fallback'; retry.conversation.index.titleSource = "derived";
+    retry.conversation.detail.quality = contentQuality({ status: 'unknown' });
+    retry.evidence = { rejectedTurns: 2 };
     retry.diagnostics = [{ severity: 'warning', code: 'DRIFT', message: 'retry drift' }];
     let calls = 0;
     const client: GeminiPaginationDetailClient = { async fetchConversationPage(id, token, sid, opts) {
@@ -318,10 +323,10 @@ test('detail: metadata-only retry flags and authoritative primary title remain u
     const result = await getConversationDetail(client, 'c_test', 'u2');
     assert.equal(calls, 2);
     assert.equal(result.conversation.index.title, 'Authoritative metadata title');
-    assert.equal(result.conversation.index.titleSource, 'rpc');
+    assert.equal(result.conversation.index.titleSource, 'provider');
     assert.equal(Object.hasOwn(result.conversation, 'titles'), false);
     assert.deepEqual(result.conversation.detail.messages.map(m => m.id), ['answer']);
-    assert.equal(result.conversation.detail.quality.rejectedTurns, 3);
+    assert.equal(result.evidence?.rejectedTurns, 3);
     assert.deepEqual([...new Set(result.diagnostics.map(d => d.message))], ['initial drift', 'retry drift']);
 });
 

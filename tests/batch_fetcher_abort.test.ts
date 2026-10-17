@@ -120,7 +120,7 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
     const origSend = TabService.sendToGeminiTab;
     TabService.getGeminiTab = async () => ({ id: 123 });
     TabService.sendToGeminiTab = async (msg: any, _slot?: string) => ({
-        success: true, domainEnvelopeVersion: 2,
+        success: true, domainEnvelopeVersion: 3,
         data: historicalFixture({ id: msg.conversationId, title: 'ok-chat', messages: [] })
     });
 
@@ -140,7 +140,7 @@ test('batchFetcher - no abort: sendToGeminiTab result passes through, timer rele
         assert.strictEqual(response.success, true, 'non-aborted batch reports success');
         assert.strictEqual(response.aborted, false);
         assert.strictEqual(response.results.length, 1);
-        assert.strictEqual(response.results[0].conversation.index.id, 'chat1');
+        assert.strictEqual(response.results[0].conversation.index.key.conversationId, 'chat1');
         assert.strictEqual(
             __bgControllers.has(slot), false,
             'controller must be cleaned up after settle even without abort'

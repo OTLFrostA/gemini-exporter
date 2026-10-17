@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
@@ -15,11 +16,11 @@ Keep [link](https://example.com) and \* intact.`;
     const turn = [['c_literalprompt', 'r_prompt'], [1700000000, 0], [[prompt]],
         [[['rc_answer', [['**Rendered answer**']]]]]];
     const wire = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn]])]]);
-    const { conversation } = parseGeminiRpcConversation(wire, { providerId: 'gemini' });
+    const { conversation } = parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
     const user = conversation.detail.messages[0];
     assert.equal(user.role, 'user');
     assert.equal(user.content.map(block => extractBlockText(block)).join('\n'), prompt);
-    const { document } = composeDomainDocument(conversation);
+    const { document } = composeDomainDocument(conversation, fixtureAccountFor(conversation));
     const { html } = renderDocumentHtml(document, {});
     assert.ok(html.includes(String.raw`f(\$)=1, **literal**, $x$, &lt;input&gt; and C:\temp\file.`));
     assert.ok(html.includes('<strong>Rendered answer</strong>'));

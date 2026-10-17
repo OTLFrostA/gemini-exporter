@@ -1,3 +1,4 @@
+import { getAccount } from '../../api/accountRegistry.js';
 import { StorageService } from '../../storage/storageService.js';
 import { selectConversationBody, withConversationMetadata } from '../../domain/runtimeValidation.js';
 import { isResourceConversationParseResult, type ResourceConversationParseResult, type NativeConversationInput } from '../../parsers/parsingResult.js';
@@ -16,7 +17,7 @@ interface TabServiceLike { sendToGeminiTab?: (message: unknown, slot?: string, t
 interface FetchChatDetailOptions { messageSender?: MessageSenderFunction | null; tabService?: TabServiceModule | TabServiceLike | null }
 export type FetchChatDetailResult = NativeBatchReply;
 export type ResolvedConversationSource = 'online' | 'takeout' | 'local_snapshot' | 'unspecified';
-export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: DomainConversationIndex['cloudAvailability'] };
+export type BatchWorkerRequestedItem = { id: string; title?: string; url?: string; cloudAvailability?: 'available' | 'deleted' | 'unlisted' | 'unknown' };
 export type WorkerChat = ResourceConversationParseResult;
 export type WorkerChatResolveInput = NativeConversationInput;
 export type ResolveChatResult = {
@@ -27,10 +28,12 @@ interface ResolveChatOptions { messageSender?: MessageSenderFunction | null; sou
 interface TakeoutEngineSourceLike { getTakeoutOfflineChat?: (id: string, slot?: string | null) => ResourceConversationParseResult | null }
 function isObjectRecord(value: unknown): value is Record<string, unknown> { return !!value && typeof value === 'object' && !Array.isArray(value); }
 async function readSavedConversation(slot: string, id: string): Promise<ResourceConversationParseResult | null> {
-    const stored = await StorageService.conversationRepository({ providerId: 'gemini', accountId: slot }).getConversation(id);
+    const account = await getAccount(slot);
+    if (!account) throw new TypeError('Saved Account missing');
+    const stored = await StorageService.conversationRepository({ providerId: account.providerId, accountId: slot }).getConversation(id);
     if (!stored?.detail) return null;
     if (!stored.capture) throw new TypeError('Saved body is missing capture evidence');
-    return { conversation: withConversationMetadata(stored.detail, stored.index),
+    return { account, conversation: withConversationMetadata(stored.detail, stored.index),
         ...(stored.capture.savedAt !== undefined ? { sourceVersion: stored.capture.savedAt } : {}), diagnostics: [], resourceHints: {},
         acquisitionHints: stored.capture.acquisitionHints };
 }
@@ -188,10 +191,9 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
     const confirmedDeleted = evidence?.isDeleted === true || isConfirmedDeletedError(evidence?.error);
     if (confirmedDeleted) {
         requested.cloudAvailability = 'deleted';
-        if (list) list.cloudAvailability = 'deleted';
-        const storage = __resolveModule<Partial<Pick<typeof StorageService, 'updateConversation'>>>('StorageService', StorageService);
+        const storage = __resolveModule<Partial<Pick<typeof StorageService, 'setConversationAvailability'>>>('StorageService', StorageService);
         try {
-            await storage?.updateConversation?.(slot, id, { cloudAvailability: 'deleted' });
+            await storage.setConversationAvailability?.(slot, id, 'deleted');
             const pending = (options.messageSender || resolveRuntimeSender())?.({ action: 'syncUpdate', accountId: slot, from: 'cloud-deleted-archive-retained' });
             if (pending) void Promise.resolve(pending).catch(() => {});
         } catch (error) { onLog(`Could not save cloud availability: ${getErrorMessage(error)}. Local archive retained.`, 'warn'); }
@@ -207,18 +209,16 @@ export async function resolveChat(value: NativeConversationInput, requested: Bat
         return { isError: true, displayTitle: requested.title || id, isConfirmedDeleted: deleted, errMsg: error };
     }
     const cached = dataSource === 'local_snapshot' || dataSource === 'takeout';
-    const accepted = dataSource === 'takeout' ? await readSavedConversation(slot, id)
-        : cached ? result : await StorageService.ingestConversation(slot, result);
+    const accepted = await readSavedConversation(slot, id);
     if (!accepted) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
-    const canonical = await StorageService.conversationRepository({ providerId: accepted.conversation.index.providerId, accountId: slot }).getConversationIndex(accepted.conversation.index.id);
+    const canonical = await StorageService.conversationRepository({ providerId: accepted.account.providerId, accountId: slot }).getConversationIndex(accepted.conversation.index.key.conversationId);
     if (!canonical) return { isError: true, displayTitle: requested.title || id,
         isConfirmedDeleted: false, errMsg: 'Local conversation is no longer catalogued' };
-    if (confirmedDeleted) canonical.cloudAvailability = 'deleted';
     if (list) Object.assign(list, canonical);
-    if (!cached) onTitleUpdated(id, canonical.title, canonical.titleSource);
-    return { isError: false, chat: { ...result, ...accepted, sourceVersion: accepted.sourceVersion, diagnostics: result.diagnostics, resourceHints: result.resourceHints,
-        acquisitionHints: { ...accepted.acquisitionHints, ...result.acquisitionHints }, conversation: withConversationMetadata(selectConversationBody(accepted.conversation), canonical) }, source: dataSource,
+    if (!cached) onTitleUpdated(id, canonical.title || id, canonical.titleSource || "derived");
+    return { isError: false, chat: { ...result, ...accepted, sourceVersion: accepted.sourceVersion, diagnostics: result.diagnostics, resourceHints: {},
+        acquisitionHints: accepted.acquisitionHints, conversation: withConversationMetadata(selectConversationBody(accepted.conversation), canonical) }, source: dataSource,
         isConfirmedDeleted: false, errMsg: null };
 }
 export const isWorkerChat = isResourceConversationParseResult;

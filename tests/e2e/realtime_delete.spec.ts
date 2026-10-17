@@ -25,8 +25,8 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
         ['last_count_10000000-0000-4000-8000-000000000001']: convs.length,
         ['exported_10000000-0000-4000-8000-000000000001']: { [convs[0].id]: { status: 'ok', exportedAt: 1700000000000 } }
       });
-      const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountId: '10000000-0000-4000-8000-000000000001', parsed: {
-        sourceVersion: 1700000000000, conversation: { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: convs[0].id, title: convs[0].title }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Durable archived body' }] }] }] } },
+      const saved = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: { accountId: '10000000-0000-4000-8000-000000000001', parsed: { account: fixtureAccount(),
+        sourceVersion: 1700000000000, conversation: { index: { key: fixtureKey(String(convs[0].id), 'gemini'),   titleSource: "derived",   title: convs[0].title }, detail: { key: fixtureKey(String(convs[0].id), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'Durable archived body' }] }] }] } },
         acquisitionHints: {}, resourceHints: {}, diagnostics: []
       } } });
       if (!saved.ok) throw new Error(saved.error);
@@ -100,7 +100,8 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
       });
     });
 
-    expect(storageState.list.find((c: any) => c.id === targetId)?.cloudAvailability).toBe('deleted');
+    const availability = await optionsPage.evaluate(async () => (await chrome.storage.local.get('conversation_availability_10000000-0000-4000-8000-000000000001'))['conversation_availability_10000000-0000-4000-8000-000000000001'] as Record<string, string>);
+    expect(availability[targetId]).toBe('deleted');
     expect(storageState.list.length).toBe(3);
     expect(storageState.count).toBe(3);
     const deletedDomain = await optionsPage.evaluate(async (conversationId) => {
@@ -111,7 +112,7 @@ test.describe('Real-Time Cloud Deletion & Local Archive Retention', () => {
     const exported = await optionsPage.evaluate(async () => (await chrome.storage.local.get('exported_10000000-0000-4000-8000-000000000001'))['exported_10000000-0000-4000-8000-000000000001'] as Record<string, unknown>);
     expect(exported[targetId]).toMatchObject({ status: 'ok', exportedAt: 1700000000000 });
 
-    expect(storageState.list.map((c: any) => c.id)).toEqual(
+    expect(storageState.list.map((c: any) => c.key.conversationId)).toEqual(
       expect.arrayContaining(['keep_chat_1111', 'keep_chat_2222'])
     );
   });

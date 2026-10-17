@@ -1,3 +1,4 @@
+import { getConversationAvailability } from '../../../core/storage/conversationAvailability.js';
 import type { DomainConversationIndex } from '../../../types/conversation.js';
 import { getStore, getStorage, getExportCtrl, getSyncCtrl, t } from '../optionsContext.js';
 
@@ -7,8 +8,10 @@ let dismissed = '';
 export async function renderArchiveNotice(conversations: DomainConversationIndex[], slot: string, reload: () => Promise<void>): Promise<void> {
     const card = document.getElementById('archiveNotice');
     if (!card || getStore()?.getCurrentAccountId() !== slot) return;
-    const affected = conversations.filter(c => c.cloudAvailability === 'deleted');
-    const signature = slot + affected.map(c => `${c.id}:${c.cloudAvailability}`).sort().join('|');
+    const availability = await getConversationAvailability(slot);
+    if (getStore()?.getCurrentAccountId() !== slot) return;
+    const affected = conversations.filter(c => availability[c.key.conversationId] === 'deleted');
+    const signature = slot + affected.map(c => `${c.key.conversationId}:deleted`).sort().join('|');
     if (!affected.length || signature === dismissed) {
         card.hidden = true;
         return;
@@ -26,7 +29,7 @@ export async function renderArchiveNotice(conversations: DomainConversationIndex
     button('archiveDismiss', () => { dismissed = signature; card.hidden = true; });
     button('archiveCleanLocal', async () => {
         if (getStore()?.getCurrentAccountId() !== slot || !window.confirm(t('archiveCleanConfirm', affected.length))) return;
-        for (const conversation of affected) await getStorage().removeConversation(slot, conversation.id);
+        for (const conversation of affected) await getStorage().removeConversation(slot, conversation.key.conversationId);
         await reload();
     });
     card.replaceChildren(content);

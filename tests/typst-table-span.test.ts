@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -14,7 +15,7 @@ const {
 } = require('./helpers/realWasmSandbox.js');
 
 function domainFixture(blocks: any[], assets: any[] = []) {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Fixture', createdAt: '2026-09-26T10:00:00Z' }, detail: { quality: { status: 'unknown' }, assets, messages: [{ id: 'm1', role: 'assistant', content: blocks }] } };
+    return { index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 'Fixture', createdAt: '2026-09-26T10:00:00Z' }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets, messages: [{ id: 'm1', role: 'assistant', content: blocks }] } };
 }
 
 function msg(id: string, role: string, blocks: any[]) {
@@ -28,19 +29,19 @@ const row = (...cells: any[]) => ({ cells });
 const opts = {};
 
 function typstOf(blocks: any[]) {
-    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domainFixture(blocks)).document, {}, opts);
+    const { payload, diagnostics } = renderTypstFixture(composeDomainDocument(domainFixture(blocks), fixtureAccountFor(domainFixture(blocks))).document, {}, opts);
     return { node: payload.messages[0].blocks[0] as any, diagnostics: diagnostics as any[] };
 }
 
 function htmlOf(blocks: any[]) {
-    return renderDocumentHtml(composeDomainDocument(domainFixture(blocks)).document, {}).html as string;
+    return renderDocumentHtml(composeDomainDocument(domainFixture(blocks), fixtureAccountFor(domainFixture(blocks))).document, {}).html as string;
 }
 
 async function compileOnce(blocks: any[]) {
     const b = domainFixture(blocks);
     const host = new RealWasmSandboxHost(repoRoot());
     const compiler = new TypstSandboxCompiler({ host });
-    const { payload: document } = renderTypstFixture(composeDomainDocument(b).document, {}, { convertMath });
+    const { payload: document } = renderTypstFixture(composeDomainDocument(b, fixtureAccountFor(b)).document, {}, { convertMath });
     const context = {
 
         assets: { resolve: async (id: string) => null },

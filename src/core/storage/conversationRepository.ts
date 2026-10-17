@@ -40,7 +40,7 @@ export function createConversationRepository(scope: ConversationScope, ports: Re
     };
     const readIndex = async (identity: DomainStorageIdentity): Promise<DomainConversationIndex | null> => {
         const rows = await ports.readIndexes();
-        const matches = rows.filter(row => row.providerId === identity.providerId && row.id === identity.conversationId);
+        const matches = rows.filter(row => row.key.accountId === identity.accountId && row.key.conversationId === identity.conversationId);
         if (matches.length > 1) throw new TypeError('Duplicate conversation identity');
         return matches.length ? restoreConversationIndex(matches[0]) : null;
     };
@@ -51,8 +51,8 @@ export function createConversationRepository(scope: ConversationScope, ports: Re
         const stored = await ports.readBody(identity);
         if (!stored) return { index };
         if (stored.key !== domainStorageKey(identity) || domainStorageKey(stored.identity) !== stored.key
-            || stored.conversation.index.providerId !== identity.providerId
-            || storageIdentity(identity.providerId, identity.accountId, stored.conversation.index.id).conversationId !== identity.conversationId) {
+            || stored.conversation.index.key.accountId !== identity.accountId
+            || storageIdentity(identity.providerId, identity.accountId, stored.conversation.index.key.conversationId).conversationId !== identity.conversationId) {
             throw new TypeError('Conversation body identity mismatch');
         }
         return structuredClone({ index, detail: selectConversationBody(stored.conversation),

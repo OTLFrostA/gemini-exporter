@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 export {};
 const test = require('node:test');
 const assert = require('node:assert');
@@ -152,7 +153,7 @@ async function driveCompileRoundTrip(host: FakeHost): Promise<any> {
 }
 
 function makeDomain() {
-    return { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'c1', title: 'Test convo', createdAt: '2026-09-20T10:00:00Z' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [
+    return { index: { key: fixtureKey(String('c1'), 'gemini'),   titleSource: "derived",   title: 'Test convo', createdAt: '2026-09-20T10:00:00Z' }, detail: { key: fixtureKey(String('c1'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [
         { id: 'm1', role: 'user', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }] },
         { id: 'm2', role: 'assistant', content: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }] },
     ] } };
@@ -176,7 +177,7 @@ function assetPathFor(asset: any) {
 }
 
 function makePayload(domain: any) {
-    const { payload: document } = renderTypstFixture(composeDomainDocument(domain).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
+    const { payload: document } = renderTypstFixture(composeDomainDocument(domain, fixtureAccountFor(domain)).document, Object.fromEntries(domain.detail.assets.map((asset: any) => [asset.id, assetPathFor(asset)])));
     return {
         rendererSchemaVersion: 1,
 
@@ -341,7 +342,7 @@ test('D: production-style CJK path resolves provider bytes into the sandbox and 
             role: i % 2 === 0 ? 'user' : 'assistant',
             content: [para(`第${i + 1}段：${s}`)],
         }));
-        const domain = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'local-font-cjk', title: '本地字体 CJK 路径测试', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { quality: { status: 'unknown' }, assets: [], messages } };
+        const domain = { index: { key: fixtureKey(String('local-font-cjk'), 'gemini'),   titleSource: "derived",   title: '本地字体 CJK 路径测试', createdAt: '2026-09-26T00:00:00Z', updatedAt: '2026-09-26T00:10:00Z' }, detail: { key: fixtureKey(String('local-font-cjk'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages } };
         const context = {
 
             assets: { resolve: async () => null },

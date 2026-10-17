@@ -63,7 +63,7 @@ test('dedup - formatLiveSaveMarkdown uses shared filename format and formatter',
     const seen: any[] = [];
     const deps = {
         buildFileName: (t: string, n: string, e: string) => { seen.push([t, n, e]); return `${t}_${n}.${e}`; },
-        formatter: { formatMarkdownDocument: async (c: any) => ({ content: `#MOCK#${c.conversation.index.title}#${c.conversation.index.id}`, ext: 'md', mime: 'text/markdown' }) },
+        formatter: { formatMarkdownDocument: async (c: any) => ({ content: `#MOCK#${c.conversation.index.title}#${c.conversation.index.key.conversationId}`, ext: 'md', mime: 'text/markdown' }) },
     };
     const { fileName, markdown } = await formatLiveSaveMarkdown(
         { chat: historicalFixture({ id: 'abc123', title: 'Canonical title', messages: [{ role: 'user', content: 'hi' }] }), safeTitle: 'My Chat', nid: 'abc123' },

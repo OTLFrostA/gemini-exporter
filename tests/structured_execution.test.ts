@@ -1,3 +1,4 @@
+import { fixtureKey, fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,8 +15,8 @@ test('captured execution panels survive structured RPC, Domain and physical Mark
     const content = parseGeminiBody('', decodeGeminiStructuredPayload(fixture.nodes));
     assert.equal(content.length, 2);
     assert.ok(content.every(node => node.type === 'code'));
-    const domain: DomainConversationWithDetail = { index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: 'execution', title: 'Execution' }, detail: { quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content }] } };
-    const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain)).document, {});
+    const domain: DomainConversationWithDetail = { index: { key: fixtureKey(String('execution'), 'gemini'),   titleSource: "derived",   title: 'Execution' }, detail: { key: fixtureKey(String('execution'), 'gemini'), quality: { status: 'unknown' }, assets: [], messages: [{ id: 'm', role: 'assistant', content }] } };
+    const serialized = renderDocumentMarkdown(composeDomainDocument(validateParserDomain(domain), fixtureAccountFor(validateParserDomain(domain))).document, {});
     const result = spawnSync('node', ['scripts/framework/markdown_evidence.mjs'], { input: JSON.stringify(serialized), encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     const evidence = JSON.parse(result.stdout) as { executionBlocks: { code: string; stdout: string }[]; codeBlocks: string[] };

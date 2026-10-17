@@ -46,11 +46,11 @@ test('takeout_engine - parseTakeoutZip preserves ID case and syncs multi-turn ti
     const conv = result.conversations[0];
     
     // 1. ID case must be preserved (CaseSensitive_99, not lowercased to casesensitive_99)
-    assert.strictEqual(conv.id, 'CaseSensitive_99');
+    assert.strictEqual(conv.key.conversationId, 'CaseSensitive_99');
 
     // 2. Title and titles.takeout must both be synced to turn 2's prompt
     assert.strictEqual(conv.title, '什么是量子物理？');
-    assert.strictEqual(conv.titleSource, 'takeout');
+    assert.strictEqual(conv.titleSource, 'derived');
 
     // 3. getTakeoutOfflineChat should find by exact ID and with c_ prefix
     const offlineChat1 = TakeoutEngine.getTakeoutOfflineChat('CaseSensitive_99', '10000000-0000-4000-8000-000000000001');
@@ -146,7 +146,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.strictEqual(res.totalMediaCount, 1, 'Should extract exactly 1 media asset');
 
     // Verify cat image conversation
-    const catChat = res.conversations.find((c: any) => c.id === '1bd028d5c5b0c0e2');
+    const catChat = res.conversations.find((c: any) => c.key.conversationId === '1bd028d5c5b0c0e2');
     assert.ok(catChat, 'Cat conversation should exist');
     assert.ok(catChat.title.includes('astronaut cat') || catChat.title.includes('Cat'));
 
@@ -155,7 +155,7 @@ test('takeout_engine - authentic cleaned Takeout fixture parsing', async () => {
     assert.ok(res.diagnostics.some((d: any) => d.code === 'TAKEOUT_GENERATED_MEDIA_UNRESOLVED'));
 
     // Verify Python decorator conversation
-    const pyChat = res.conversations.find((c: any) => c.id === '1cea7e48cc166b57');
+    const pyChat = res.conversations.find((c: any) => c.key.conversationId === '1cea7e48cc166b57');
     assert.ok(pyChat, 'Python decorator conversation should exist');
     assert.ok(pyChat.title.includes('Python') || pyChat.title.includes('装饰器'));
 });

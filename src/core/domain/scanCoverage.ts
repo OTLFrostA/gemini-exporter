@@ -1,6 +1,6 @@
 import { isAccountId } from '../domain/accountRegistry.js';
-import type { ScanStatus } from '../../types/ui.js';
-import type { StreamCoverage } from '../sync/streamCoverage.js';
+type ScanStatus = 'complete' | 'up_to_date' | 'partial_limit' | 'aborted' | 'error';
+import type { StreamCoverage } from './streamCoverage.js';
 export interface ScanCoverageBaseline { headTimestamp: number | null; conversationCount: number }
 export interface ScanCoverage {
     version: 4;

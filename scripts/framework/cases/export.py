@@ -594,13 +594,15 @@ class FastSkipExportedCase(FeatureTestCase):
                 return False, f"全量跳过异常生成 ZIP: {new_zips}", status
 
             partial = cdp_opt.eval("""
-            (() => {
+            (async () => {
                 const items = Array.from(document.querySelectorAll('#list .item'));
                 const store = window.ConversationsStore;
                 if (!store || typeof store.getConversations !== 'function') return { error: 'Missing canonical index store' };
                 const normalize = id => (id || '').replace(/^c_/, '');
+                const key = 'conversation_availability_' + store.getCurrentAccountId();
+                const availability = (await chrome.storage.local.get(key))[key] || {};
                 const available = new Set(store.getConversations()
-                    .filter(index => index.cloudAvailability === 'available').map(index => normalize(index.id)));
+                    .filter(index => availability[index.key.conversationId] === 'available').map(index => normalize(index.key.conversationId)));
                 const exported = items.find(it => it.querySelector('.badge-exported'));
                 const unexported = items.find(it => !it.querySelector('.badge-exported') && available.has(normalize(it.dataset.chatId)));
                 for (const it of items) {
@@ -610,7 +612,7 @@ class FastSkipExportedCase(FeatureTestCase):
                 return { exportedId: exported?.dataset.chatId, unexportedId: unexported?.dataset.chatId,
                          unexportedCloudAvailability: unexported ? 'available' : null };
             })()
-            """) or {}
+            """, await_promise=True) or {}
             if not partial.get('exportedId') or not partial.get('unexportedId') or partial.get('unexportedCloudAvailability') != 'available':
                 return False, "部分跳过需要真实已导出会话与云端可用的未导出会话，准备不足", partial
             partial_zip = CDPActions.trigger_export_zip(cdp_opt, ctx.output_dir, max_wait=30, skip_exported=True)

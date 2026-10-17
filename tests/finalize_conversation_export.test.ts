@@ -1,3 +1,7 @@
+import { withRegistry } from './helpers/registryMock.js';
+import { bindFixture } from './helpers/domainFixture.js';
+import { sourceIndex } from './helpers/domainFixture.js';
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
@@ -21,7 +25,7 @@ function createMockChromeStorage(initialData: Record<string, any> = {}) {
     const mockStorage: Record<string, any> = { ...initialData };
     return {
         mockStorage,
-        chrome: {
+        chrome: withRegistry({
             storage: {
                 local: {
                     get: async (keys: any) => {
@@ -42,7 +46,7 @@ function createMockChromeStorage(initialData: Record<string, any> = {}) {
                     }
                 }
             }
-        }
+        })
     };
 }
 
@@ -112,11 +116,11 @@ test('Storage finalization preserves catalog metadata and records delivery', asy
         // Verify gemini_conversations promotion: promoted to real title, source is 'legacy' (not fake api-detail/export)
         const convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
         assert.strictEqual(convs.length, 1);
-        assert.strictEqual(convs[0].title, '');
-        assert.strictEqual(convs[0].titleSource, 'default');
+        assert.strictEqual(convs[0].title, undefined);
+        assert.strictEqual(convs[0].titleSource, undefined);
         assert.notStrictEqual(convs[0].titleSource, 'api-detail', 'Must not synthesize fake api-detail provenance');
         assert.notStrictEqual(convs[0].titleSource, 'export', 'Must not synthesize unindexed export tier');
-        assert.strictEqual(convs[0].messageCount, 1);
+        assert.strictEqual(convs[0].messageCount, undefined);
     } finally {
         (global as any).chrome = origChrome;
     }
@@ -151,7 +155,7 @@ test('Unknown candidate does NOT overwrite authoritative RPC title', async () =>
 
         const convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
         assert.strictEqual(convs[0].title, '线上RPC权威标题', '权威RPC标题绝不能被无来源候选标题覆盖');
-        assert.strictEqual(convs[0].titleSource, 'rpc');
+        assert.strictEqual(convs[0].titleSource, 'provider');
     } finally {
         (global as any).chrome = origChrome;
     }
@@ -192,14 +196,14 @@ test('Unknown candidate does NOT overwrite API-detail or Takeout existing real t
         });
 
         const convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        const apiChat = convs.find((c: any) => normId(c.id) === 'api_chat');
-        const takeoutChat = convs.find((c: any) => normId(c.id) === 'takeout_chat');
+        const apiChat = convs.find((c: any) => normId(c.key.conversationId) === 'api_chat');
+        const takeoutChat = convs.find((c: any) => normId(c.key.conversationId) === 'takeout_chat');
 
         assert.strictEqual(apiChat.title, 'API详细端权威标题', 'api-detail 绝不能被无来源候选标题覆盖');
-        assert.strictEqual(apiChat.titleSource, 'api-detail');
+        assert.strictEqual(apiChat.titleSource, 'provider');
 
         assert.strictEqual(takeoutChat.title, 'Takeout历史真实标题', 'takeout 真实标题绝不能被无来源候选标题覆盖');
-        assert.strictEqual(takeoutChat.titleSource, 'takeout');
+        assert.strictEqual(takeoutChat.titleSource, 'derived');
     } finally {
         (global as any).chrome = origChrome;
     }
@@ -236,8 +240,8 @@ test('completeConversationExport cannot publish title candidates to the catalog'
         );
 
         const convs = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
-        assert.strictEqual(convs[0].title, '');
-        assert.strictEqual(convs[0].titleSource, 'default');
+        assert.strictEqual(convs[0].title, undefined);
+        assert.strictEqual(convs[0].titleSource, undefined);
         assert.notStrictEqual(convs[0].titleSource, 'api-detail');
     } finally {
         (global as any).chrome = origChrome;
@@ -252,8 +256,8 @@ test('ingestion arbitrates title authority before completion', async () => {
     await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', native('Old import', 'takeout'), [], 'takeout');
     const [index] = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(index.title, 'Online');
-    assert.strictEqual(index.titleSource, 'rpc');
-    assert.strictEqual(index.hasTakeoutImport, true);
+    assert.strictEqual(index.titleSource, 'provider');
+    assert.strictEqual(index.hasTakeoutImport, undefined);
 });
 
 test('Callback semantics: invoked after persistence, error does not abort, not invoked on failure', async () => {
@@ -322,8 +326,8 @@ test('actual Batch and background Live Save produce the same completion record f
             });
             const index = indexFixture({ id, title, titleSource: 'rpc', updatedAt: sourceVersion, messageCount: 2 });
             const { chrome } = createMockChromeStorage({
-                ['conversations_10000000-0000-4000-8000-000000000002']: [index],
-                ['conversations_10000000-0000-4000-8000-000000000003']: [index]
+                ['conversations_10000000-0000-4000-8000-000000000002']: [{ ...index, key: { ...index.key, accountId: '10000000-0000-4000-8000-000000000002' } }],
+                ['conversations_10000000-0000-4000-8000-000000000003']: [{ ...index, key: { ...index.key, accountId: '10000000-0000-4000-8000-000000000001' } }]
             });
             (global as any).chrome = chrome;
 
@@ -336,7 +340,7 @@ test('actual Batch and background Live Save produce the same completion record f
                 dirHandle: batchDir.handle,
                 concurrency: 1,
                 includeAssets: false,
-                worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) })
+                worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true, chat: source }) })
             });
             assert.strictEqual(batch.landedChats, 1, 'Batch must actually deliver ' + completeness);
             assert.ok([...batchDir.files.keys()].some(file => file.endsWith('.md')), 'Batch file must be closed');
@@ -347,11 +351,11 @@ test('actual Batch and background Live Save produce the same completion record f
             const liveDir = createMemoryDirectory();
             setMemoryDirHandle(liveDir.handle);
             const live = await handleLiveSaveViaHandle({
-                chat: source, safeTitle: title, nid: id, assets: []
-            }, '10000000-0000-4000-8000-000000000003');
+                chat: bindFixture(source, '10000000-0000-4000-8000-000000000001'), safeTitle: title, nid: id, assets: []
+            }, '10000000-0000-4000-8000-000000000001');
             assert.strictEqual(live.ok, true, 'Live Save must actually deliver ' + completeness);
             assert.ok([...liveDir.files.keys()].some(file => file.endsWith('.md')), 'Live file must be closed');
-            const liveRecord = (await StorageService.getExportedIds('10000000-0000-4000-8000-000000000003'))[normId(id)];
+            const liveRecord = (await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'))[normId(id)];
             assert.ok(liveRecord && typeof liveRecord === 'object' && !Array.isArray(liveRecord),
                 'Live record must be a persisted object');
 
@@ -362,10 +366,10 @@ test('actual Batch and background Live Save produce the same completion record f
             assert.ok(typeof liveExportedAt === 'string' && Number.isFinite(Date.parse(liveExportedAt)));
             assert.deepStrictEqual(batchFacts, liveFacts, 'real entrypoints must agree on durable completion facts');
             assert.strictEqual(batchFacts.status, completeness === 'partial' ? 'partial' : 'ok');
-            for (const slot of ['10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003']) {
+            for (const slot of ['10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001']) {
                 const [stored] = await StorageService.getConversations(slot);
                 assert.strictEqual(stored.title, title);
-                assert.strictEqual(stored.titleSource, 'rpc');
+                assert.strictEqual(stored.titleSource, 'provider');
                 assert.strictEqual(stored.updatedAt, sourceVersion);
             }
         }
@@ -403,13 +407,13 @@ test('real Batch export respects title provenance from the conversation index wi
                 conversations: [list],
                 includeAssets: false,
                 concurrency: 1,
-                worker: makeTestWorker({ fetchChatDetail: async () => ({ success: true, chat: source }) })
+                worker: makeTestWorker({ fetchChatDetail: async () => await ({ success: true, chat: source }) })
             });
             assert.strictEqual(result.landedChats, 1, listSource + ': Batch must deliver a file');
             assert.ok([...dir.files.keys()].some(file => file.endsWith('.md')));
             const [stored] = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
             assert.strictEqual(stored.title, title);
-            assert.strictEqual(stored.titleSource, listSource === 'default' ? 'legacy' : listSource,
+            assert.strictEqual(stored.titleSource, ['rpc', 'api-detail'].includes(listSource) ? 'provider' : 'derived',
                 'Batch must use the real available provenance, never a guessed api-detail/rpc source');
             const record = (await StorageService.getExportedIds('10000000-0000-4000-8000-000000000001'))[normId(id)];
             assert.ok(record && typeof record === 'object' && !Array.isArray(record));
@@ -457,11 +461,12 @@ test('BatchWorker keeps dirty legacy title slots outside canonical index', async
         titles: {}
     });
 
+    await StorageService.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
     await resolveChat(historicalFixture(chat), { id: 'c_adv_j' }, listConversation, null, '10000000-0000-4000-8000-000000000001');
 
     assert.equal('titles' in listConversation, false);
     assert.strictEqual(listConversation.title, 'RPC Title', 'resolved title must be RPC Title');
-    assert.strictEqual(listConversation.titleSource, 'rpc', 'resolved titleSource must be rpc');
+    assert.strictEqual(listConversation.titleSource, 'provider', 'resolved titleSource must be rpc');
 });
 
 
@@ -540,7 +545,7 @@ test('Directory finalizes real Storage and UI immediately after file close, befo
                     assert.ok(mockStorage[expKey]['dir-one'], 'first record is already persisted');
                     assert.deepEqual(notified, ['dir-one']);
                 }
-                return { success: true, chat: historicalFixture({ id: item.id, title: item.id, messages: [{ role: 'user', content: 'Q' }] }) };
+                return await { success: true, chat: historicalFixture({ id: item.id, title: item.id, messages: [{ role: 'user', content: 'Q' }] }) };
             } }),
         }, { onItemExported: (id: string) => {
             assert.ok(closed.length > notified.length, 'Writer.close precedes record notification');

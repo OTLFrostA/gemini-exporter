@@ -1,3 +1,4 @@
+import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { StorageService as catalogStorage } from '../src/core/storage/storageService.js';
 useIndexStorage();
@@ -5,21 +6,21 @@ const { historicalFixture } = require('./helpers/nativeFixture.js');
 export {};
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { preparePdfItem, extractChatFromDetailResult, PDF_NO_MESSAGES } = require('../src/core/export/pdf/prepareItem.js');
+const { preparePdfItem, extractChatFromDetailResult, PDF_NO_MESSAGES } = require('./helpers/pdfAcquisitionFixture.js');
 const { resolveConversationData } = require('../src/core/engine/export/batchWorker.js');
 const store = require('../src/core/storage/domain/domainStore.js');
 const message = (text: string) => ({ id: 'm1', role: 'model', content: text });
 
 test('PDF successful empty online response selects Takeout rather than reporting a cache fallback', async () => {
-    const id = 'pdf-takeout-044', slot = '10000000-0000-4000-8000-0000000001b9';
-    const takeout = historicalFixture({ id, messages: [message('Recovered Takeout')] });
+    const id = 'pdf-takeout-044', slot = '10000000-0000-4000-8000-000000000001';
+    const takeout = historicalFixture({ id, completeness: { status: 'complete' }, messages: [message('Recovered Takeout')] });
     let takeoutReads = 0;
     await catalogStorage.setNativeConversations(slot, [takeout]);
     try {
         const result = await preparePdfItem({ id }, {
             accountId: slot,
             includeAssets: false,
-            fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ id, messages: [] })] }),
+            fetchChatDetail: async () => await acquiredReply(({ success: true, results: [historicalFixture({ id, messages: [] })] })),
             takeoutEngine: {
                 getTakeoutOfflineChat: (requestedId: string, requestedSlot?: string | null) => {
                     assert.equal(requestedId, id);
@@ -37,7 +38,7 @@ test('PDF successful empty online response selects Takeout rather than reporting
 });
 
 test('shared acquisition prefers valid online input and uses local cache after unusable Takeout', async () => {
-    const id = 'pdf-cache-044', slot = '10000000-0000-4000-8000-0000000001ba';
+    const id = 'pdf-cache-044', slot = '10000000-0000-4000-8000-000000000001';
     let calls = 0;
     const takeout = { getTakeoutOfflineChat: () => { calls++; return historicalFixture({ id, messages: [] }); } };
     const online = historicalFixture({ id, messages: [message('online')] });
@@ -51,7 +52,7 @@ test('shared acquisition prefers valid online input and uses local cache after u
         assert.match(JSON.stringify(recovered.result.conversation.detail.messages), /cache/);
         const pdf = await preparePdfItem({ id }, {
             accountId: slot, includeAssets: false, takeoutEngine: takeout,
-            fetchChatDetail: async () => ({ success: false, error: 'offline' }),
+            fetchChatDetail: async () => await acquiredReply(({ success: false, error: 'offline' })),
         });
         assert.equal(calls, 2);
         assert.equal(pdf.ok, true);
@@ -63,7 +64,7 @@ test('shared acquisition prefers valid online input and uses local cache after u
 test('PDF reports no messages only after all sources fail', async () => {
     const result = await preparePdfItem({ id: 'missing' }, { accountId: '10000000-0000-4000-8000-000000000001', ...({
         includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [historicalFixture({ messages: [] })] }),
+        fetchChatDetail: async () => await acquiredReply(({ success: true, results: [historicalFixture({ messages: [] })] })),
         takeoutEngine: { getTakeoutOfflineChat: () => null },
     }) });
     assert.equal(result.ok, false);
@@ -77,14 +78,14 @@ test('metadata-only selected item triggers detail fetch and prepares PDF documen
         fetchChatDetail: async (item: { id: string; title?: string }) => {
             fetched = true;
             assert.equal(item.id, 'meta-only');
-            return {
+            return await acquiredReply({
                 success: true,
                 results: [historicalFixture({
                     id: 'meta-only',
                     title: 'Authoritative Title',
                     messages: [message('Detail payload content')],
                 })],
-            };
+            });
         },
     }) });
     assert.equal(fetched, true);
@@ -109,8 +110,8 @@ test('detail extraction prefers the native results envelope over a competing nat
     );
 
     const result = await preparePdfItem({ id }, {
-        accountId: '10000000-0000-4000-8000-0000000001bb', includeAssets: false,
-        fetchChatDetail: async () => ({ success: true, results: [fromResults], chat: fromChat }),
+        accountId: '10000000-0000-4000-8000-000000000001', includeAssets: false,
+        fetchChatDetail: async () => await acquiredReply(({ success: true, results: [fromResults], chat: fromChat })),
     });
     assert.equal(result.ok, true);
     assert.match(JSON.stringify(result.document), /winner from results/);

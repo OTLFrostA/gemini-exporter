@@ -39,7 +39,7 @@ export async function handleTakeoutImport(
         const slot = account.id;
         if (selected !== slot) Store?.setCurrentAccountId(slot);
         const previous = await Storage.getConversations(slot);
-        const previousIds = new Set(previous.map(row => JSON.stringify([row.providerId, row.id])));
+        const previousIds = new Set(previous.map(row => JSON.stringify([row.key.accountId, row.key.conversationId])));
         const res = await Takeout.parseTakeoutZip(file, (pct: number, txt: string) => {
             if (onProgress) onProgress(pct, txt);
             if (onLog) onLog(txt, 'info');
@@ -50,7 +50,7 @@ export async function handleTakeoutImport(
         }
         const incoming = Array.isArray(res.conversations) ? res.conversations : [];
 
-        const addedCount = incoming.filter(row => !previousIds.has(JSON.stringify([row.providerId, row.id]))).length;
+        const addedCount = incoming.filter(row => !previousIds.has(JSON.stringify([row.key.accountId, row.key.conversationId]))).length;
         const accepted = await Storage.getConversations(slot);
         if (Store?.getCurrentAccountId() === slot) Store.setConversations(accepted);
 

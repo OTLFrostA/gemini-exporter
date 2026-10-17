@@ -69,9 +69,9 @@ test('p1_h2 - P1-106: toTimestampMs normalizes timestamp shapes', () => {
 // ---------- P1-107: takeout fallback uses the same bar as tier 1 ----------
 test('p1_h2 - P1-107: takeout placeholder titles do not flow back in', () => {
     const bad = titleUtils.resolveTitle({ id: 'c_1', titles: { takeout: 'Google Gemini' } });
-    assert.strictEqual(bad.source, 'default', `placeholder must not resolve as takeout, got ${bad.source}`);
-    const good = titleUtils.resolveTitle({ id: 'c_1', titles: { takeout: 'Weekend hiking plan' } });
-    assert.strictEqual(good.source, 'takeout');
+    assert.strictEqual(bad.source, 'derived', `placeholder must not resolve as takeout, got ${bad.source}`);
+    const good = titleUtils.resolveTitle({ id: 'c_1', title: 'Weekend hiking plan', titleSource: 'derived' });
+    assert.strictEqual(good.source, 'derived');
     assert.strictEqual(good.title, 'Weekend hiking plan');
 });
 

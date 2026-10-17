@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,8 +14,8 @@ const chatId = 'lookup-regression';
 const generation = { generationOrdinal: 2, time: 1700000000123, prompt: 'Draw a diagram', imageCount: 2 };
 const source = (id: string, ordinal?: number): DomainAsset => ({ id, kind: 'image', name: 'diagram.png',
     sourceUri: `Takeout/Gemini Apps/${id}.png`, generation: { ...generation, imageOrdinal: ordinal } });
-const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({
-    sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { cloudAvailability: 'unknown', hasTakeoutImport: false, titleSource: 'legacy', providerId: 'gemini', id: chatId, title: 'Lookup' }, detail: { quality: { status: 'partial' }, messages: [], assets } }),
+const native = (assets: DomainAsset[]): ResourceConversationParseResult => ({ account: fixtureAccount(),
+    sourceVersion: 1700000000000, conversation: validateParserDomain({ index: { key: fixtureKey(String(chatId), 'gemini'),   titleSource: "derived",   title: 'Lookup' }, detail: { key: fixtureKey(String(chatId), 'gemini'), quality: { status: 'partial' }, messages: [], assets } }),
     diagnostics: [], acquisitionHints: {}, resourceHints: Object.fromEntries(assets.map(asset =>
         [asset.id, { archivePath: asset.sourceUri!! }])),
 });

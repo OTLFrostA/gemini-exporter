@@ -86,13 +86,13 @@ test.describe('E2E: Export Session Recovery Banner & Interruption Handling', () 
     await expect(banner).not.toBeVisible();
 
     const sessionData = await optionsPage.evaluate(async () => {
-      return await chrome.storage.local.get(['gemini_last_export_session', 'gemini_conversations']);
+      return await chrome.storage.local.get(['gemini_last_export_session', 'conversations_10000000-0000-4000-8000-000000000001']);
     });
     expect(sessionData.gemini_last_export_session).toBeUndefined();
-    const savedIndex = sessionData.gemini_conversations as Array<{ id: string; title: string; titleSource: string }>;
-    const originalIndex = savedIndex.find(item => item.id === 'chat_session_test_1');
+    const savedIndex = sessionData['conversations_10000000-0000-4000-8000-000000000001'] as Array<{ key: { conversationId: string }; title: string; titleSource: string }>;
+    const originalIndex = savedIndex.find(item => item.key.conversationId === 'chat_session_test_1');
     expect(originalIndex?.title).toBe('Takeout Prompt 临时问题');
-    expect(originalIndex?.titleSource).toBe('takeout');
+    expect(originalIndex?.titleSource).toBe('derived');
   });
 
   test('should disable scan during export and never show interruption banner during active run', async ({ context, extensionId }) => {

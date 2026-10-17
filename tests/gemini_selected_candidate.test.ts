@@ -1,3 +1,4 @@
+import { fixtureAccount, fixtureAccountFor } from './helpers/domainFixture.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
@@ -18,7 +19,7 @@ const candidates = [
     ['rc_displayed', [['## System Definition and Mass Balances\n\nDisplayed balance.']]],
     ['rc_alternative', [['## System Boundaries and Assumptions\n\nUnselected balance.']]],
 ];
-const parse = (wire: string) => parseGeminiRpcConversation(wire, { providerId: 'gemini' });
+const parse = (wire: string) => parseGeminiRpcConversation(wire, { account: fixtureAccount('gemini'), providerId: 'gemini' });
 const answerText = (wire: string) => parse(wire).conversation.detail.messages[1].content.map(block => extractBlockText(block)).join('\n');
 
 test('selected wire answer exports one Assistant section and retains raw alternative evidence', () => {
@@ -27,7 +28,7 @@ test('selected wire answer exports one Assistant section and retains raw alterna
     assert.deepEqual(result.conversation.detail.messages.map(m => [m.role, m.id]), [['user', 'r_request'], ['assistant', 'rc_displayed']]);
     assert.match(answerText(wire), /Displayed balance/);
     assert.doesNotMatch(answerText(wire), /Unselected balance/);
-    const markdown = renderDocumentMarkdown(composeDomainDocument(result.conversation).document, {});
+    const markdown = renderDocumentMarkdown(composeDomainDocument(result.conversation, fixtureAccountFor(result.conversation)).document, {});
     assert.equal((markdown.match(/^## 🤖 Assistant/gm) ?? []).length, 1);
     assert.match(markdown, /System Definition and Mass Balances/);
     assert.doesNotMatch(markdown, /System Boundaries and Assumptions/);

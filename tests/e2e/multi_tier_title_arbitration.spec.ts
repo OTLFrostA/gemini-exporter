@@ -88,8 +88,8 @@ test.describe('E2E: Canonical Title Authority', () => {
       const data = await optionsPage.evaluate(async () => {
         return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.id === 'arbitration_chat_999');
-      return c?.titleSource === 'dom' ? c.title : undefined;
+      const c = (data['conversations_10000000-0000-4000-8000-000000000001'] || []).find((x: any) => x.key.conversationId === 'arbitration_chat_999');
+      return c?.titleSource === 'provider' ? c.title : undefined;
     }, { timeout: 10000 }).toBe('页面显式渲染的DOM标题');
 
     // 4. Simulate authoritative RPC arriving (Tier: rpc)
@@ -113,15 +113,15 @@ test.describe('E2E: Canonical Title Authority', () => {
       const storageData = await optionsPage.evaluate(async () => {
         return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
       }) as Record<string, any>;
-      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.id === 'arbitration_chat_999');
-      return chat?.titleSource === 'rpc' ? chat.title : undefined;
+      chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'arbitration_chat_999');
+      return chat?.titleSource === 'provider' ? chat.title : undefined;
     }, { timeout: 10000 }).toBe('官方服务端RPC最终权威标题');
 
     expect(chat).toBeTruthy();
-    expect(chat.hasTakeoutImport).toBe(true);
+    expect(chat).not.toHaveProperty('hasTakeoutImport');
     expect(chat).not.toHaveProperty('titles');
     expect(chat.title).toBe('官方服务端RPC最终权威标题');
-    expect(chat.titleSource).toBe('rpc');
+    expect(chat.titleSource).toBe('provider');
 
     await optionsPage.bringToFront();
     await optionsPage.evaluate(async () => {
@@ -225,11 +225,11 @@ test.describe('E2E: Canonical Title Authority', () => {
     const storageData = await optionsPage.evaluate(async () => {
       return await chrome.storage.local.get(['conversations_10000000-0000-4000-8000-000000000001']);
     }) as Record<string, any>;
-    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.id === 'sniff_test_chat_888');
+    const chat = (storageData['conversations_10000000-0000-4000-8000-000000000001'] || []).find((c: any) => c.key.conversationId === 'sniff_test_chat_888');
 
     expect(chat).toBeTruthy();
     expect(chat.title).toBe('如何构建高性能分布式缓存系统');
-    expect(chat.titleSource).toBe('sniff');
+    expect(chat.titleSource).toBe('derived');
     expect(chat).not.toHaveProperty('titles');
   });
 });

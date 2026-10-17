@@ -1,3 +1,4 @@
+import { fixtureAccountFor } from './helpers/domainFixture.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -22,7 +23,7 @@ test('every visual/parity corpus fixture satisfies the exact current DocumentAst
     assert.ok(domainFixtures.length > 0, 'document-domain must contain contract fixtures');
     for (const file of domainFixtures) {
         const input: DomainConversationWithDetail = JSON.parse(readFileSync(`tests/fixtures/document-domain/${file}`, 'utf8'));
-        entries.push({ value: composeDomainDocument(validateParserDomain(input)).document, context: file });
+        entries.push({ value: composeDomainDocument(validateParserDomain(input), fixtureAccountFor(validateParserDomain(input))).document, context: file });
     }
     assertDocumentAsts(entries);
 });
