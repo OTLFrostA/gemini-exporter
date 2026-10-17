@@ -5,6 +5,7 @@ import assert from 'node:assert';
 
 // S1: content messageRouter fail-closed + exactly-once responder.
 
+const chromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
 const listeners: Array<(msg: any, sender: any, sendResponse: any) => any> = [];
 (global as any).chrome = {
     runtime: {
@@ -16,6 +17,11 @@ const listeners: Array<(msg: any, sender: any, sendResponse: any) => any> = [];
 
 const { init } = require('../src/content/messageRouter.ts');
 const { ProviderRegistry } = require('../src/core/provider/providerRegistry.ts');
+test.after(() => {
+    listeners.length = 0;
+    if (chromeDescriptor) Object.defineProperty(globalThis, 'chrome', chromeDescriptor);
+    else Reflect.deleteProperty(globalThis, 'chrome');
+});
 
 function lastListener() {
     return listeners[listeners.length - 1];
@@ -73,13 +79,13 @@ test('S1 - getConversationDetail with no provider result and no scraper fails cl
     const orig = provider.fetchConversationDetail;
     provider.fetchConversationDetail = async () => null;
     try {
-        freshInit({ syncEngine: null, scraper: null, assets: null, storage: null, utils: null });
+        freshInit({ syncEngine: null, scraper: null, assets: null, storage: null });
         const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'c_123' });
         assert.strictEqual(responses.length, 1, 'port must not hang when no fetch path exists');
         const r = responses[0];
         assert.strictEqual(r.ok, false);
         assert.strictEqual(r.success, false);
-        assert.ok(String(r.error).length > 0, 'error is described');
+        assert.match(String(r.error), /conversation detail unavailable/, 'missing acquisition paths fail closed with a useful reason');
     } finally {
         provider.fetchConversationDetail = orig;
     }
@@ -114,7 +120,6 @@ test('S1 - getConversationDetail intercepts BardErrorInfo 1167 directly without 
             },
             assets: null,
             storage: mockStorage,
-            utils: null
         });
         const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'c_del_123' });
         assert.strictEqual(responses.length, 1, 'exactly one response');
@@ -139,12 +144,14 @@ for (const failure of ['HTTP 401', 'HTTP 403', 'HTTP 429', 'request timeout', 'p
         let marked = false;
         let removed = false;
         try {
-            freshInit({ syncEngine: null, assets: null, utils: null,
+            freshInit({ syncEngine: null, assets: null,
                 storage: { updateConversation: async () => { marked = true; }, removeConversation: async () => { removed = true; } },
                 scraper: { contentFetchChatDetail: async () => ({ id: 'auth_failure', error: failure, isDeleted: false }) }
             });
             const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'auth_failure', accountSlot: '10000000-0000-4000-8000-000000000002' });
+            assert.equal(responses.length, 1);
             assert.equal(responses[0].data.isDeleted, false);
+            assert.equal(responses[0].data.isEmpty, true, 'transient failures do not imply a deleted cloud conversation');
             assert.equal(marked, false);
             assert.equal(removed, false);
         } finally { provider.fetchConversationDetail = original; }
@@ -156,7 +163,7 @@ test('S1 - cloud availability write failure retains deletion evidence without de
     provider.fetchConversationDetail = async () => { throw new Error('HTTP 404'); };
     let removed = false;
     try {
-        freshInit({ syncEngine: null, scraper: null, assets: null, utils: null,
+        freshInit({ syncEngine: null, scraper: null, assets: null,
             storage: { updateConversation: async () => { throw new Error('quota failure'); }, removeConversation: async () => { removed = true; } } });
         const { responses } = await dispatch({ action: 'getConversationDetail', conversationId: 'write_fail' });
         assert.equal(responses.length, 1); assert.equal(responses[0].success, true);
@@ -180,7 +187,7 @@ for (const failure of ['memory', 'ui-throw', 'ui-reject']) {
             if (failure === 'ui-reject') return Promise.reject(new Error('UI unavailable'));
         });
         try {
-            freshInit({ assets: null, scraper: null, utils: null,
+            freshInit({ assets: null, scraper: null,
                 syncEngine: { markConfirmedDeleted: () => {
                     order.push('memory');
                     if (failure === 'memory') throw new Error('Memory marker unavailable');

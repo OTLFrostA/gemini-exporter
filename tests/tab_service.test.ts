@@ -4,17 +4,10 @@ import assert from 'node:assert';
 
 import * as TabService from '../src/core/utils/tabService.js';
 
-test('TabService - type and export contract', () => {
-    assert.ok(TabService, 'TabService must be exported');
-    assert.strictEqual(typeof TabService.getGeminiTab, 'function');
-    assert.strictEqual(typeof TabService.sendToGeminiTab, 'function');
-    assert.strictEqual(typeof TabService.checkGeminiStatus, 'function');
-    assert.strictEqual(typeof TabService.openGeminiPage, 'function');
-    assert.strictEqual(typeof TabService.reloadGeminiTab, 'function');
-});
+
 
 test('TabService - getGeminiTab handles missing API and empty queries', async () => {
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         (global as any).chrome = undefined;
         const noApiTab = await TabService.getGeminiTab('u0');
@@ -28,12 +21,13 @@ test('TabService - getGeminiTab handles missing API and empty queries', async ()
         const emptyTab = await TabService.getGeminiTab('u0');
         assert.strictEqual(emptyTab, null, 'Should return null when no tabs match');
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });
 
 test('TabService - getGeminiTab slot matching and active fallback', async () => {
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         (global as any).chrome = {
             tabs: {
@@ -61,12 +55,13 @@ test('TabService - getGeminiTab slot matching and active fallback', async () => 
         const tabDefault = await TabService.getGeminiTab();
         assert.strictEqual(tabDefault?.id, 30, 'Should fallback to active tab when no slot is specified');
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });
 
 test('TabService - sendToGeminiTab failover across candidates and timeouts', async () => {
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         (global as any).chrome = undefined;
         await assert.rejects(
@@ -132,12 +127,13 @@ test('TabService - sendToGeminiTab failover across candidates and timeouts', asy
             global.setTimeout = origSetTimeout;
         }
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });
 
 test('TabService - checkGeminiStatus lifecycle results', async () => {
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         (global as any).chrome = undefined;
         const noApi = await TabService.checkGeminiStatus();
@@ -173,12 +169,13 @@ test('TabService - checkGeminiStatus lifecycle results', async () => {
         assert.strictEqual(needRefresh.status, 'NEED_REFRESH');
         assert.strictEqual(needRefresh.error, 'Port closed');
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });
 
 test('TabService - openGeminiPage and reloadGeminiTab fallback delegation', async () => {
-    const origChrome = (global as any).chrome;
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     try {
         let createdUrl: any = null;
         let reloadedTabId: any = null;
@@ -207,6 +204,7 @@ test('TabService - openGeminiPage and reloadGeminiTab fallback delegation', asyn
         await TabService.reloadGeminiTab(77);
         assert.deepStrictEqual(runtimeMsg, { action: 'reloadGeminiTab', tabId: 77 });
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (global as any).chrome;
     }
 });

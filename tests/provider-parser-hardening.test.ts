@@ -1,5 +1,4 @@
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/provider-parser-hardening.test.ts
  * Tier 1 tests for the F2 canonical Markdown parser hardening:
@@ -82,7 +81,6 @@ test('borderless table parses without leading/trailing pipes', async () => {
     const { msg } = await norm('a | b\n--- | ---\n1 | 2\n');
     const t = msg.content.find((b: any) => b.type === 'table');
     assert.ok(t?.type === 'table');
-    assert.ok(t, 'table found');
     assert.strictEqual(t.headerRows.length, 1);
     assert.strictEqual(t.rows.length, 1);
     assert.deepStrictEqual(
@@ -99,7 +97,6 @@ test('escaped pipes and code-span pipes do not split columns', async () => {
     const { msg } = await norm('| a | b |\n| --- | --- |\n| `x\\|y` | z\\|w |\n');
     const t = msg.content.find((b: any) => b.type === 'table');
     assert.ok(t?.type === 'table');
-    assert.ok(t, 'table found');
     const body = t.rows[t.rows.length - 1];
     assert.deepStrictEqual(
         body.cells.map((c: any) => inlineText(c.children)),
@@ -111,7 +108,6 @@ test('link target with balanced parentheses is preserved', async () => {
     const { msg } = await norm('[x](https://a/b_(c))');
     const link = msg.content[0].children.find((c: any) => c.type === 'link');
     assert.ok(link?.type === 'link');
-    assert.ok(link, 'link found');
     assert.strictEqual(link.href, 'https://a/b_(c)');
 });
 
@@ -119,7 +115,6 @@ test('bare remote image becomes a first-class ImageInline with a remote asset', 
     const { domain, msg } = await norm('see ![alt text](https://example.com/i.png) here');
     const img = msg.content[0].children.find((c: any) => c.type === 'image');
     assert.ok(img?.type === 'image');
-    assert.ok(img, 'image inline found');
     assert.strictEqual(img.alt, 'alt text');
     const asset = domain.detail.assets.find((a: any) => a.id === img.assetId);
     assert.ok(asset, 'asset registered');
@@ -131,7 +126,6 @@ test('linked image parses as link wrapping an ImageInline', async () => {
     const { domain, msg } = await norm('[![alt](https://example.com/i.png)](https://example.com/page)');
     const link = msg.content[0].children.find((c: any) => c.type === 'link');
     assert.ok(link?.type === 'link');
-    assert.ok(link, 'link found');
     assert.strictEqual(link.href, 'https://example.com/page');
     assert.strictEqual(link.children.length, 1);
     assert.strictEqual(link.children[0].type, 'image');
@@ -146,7 +140,6 @@ test('inline image reuses the matching attachment asset', async () => {
     });
     const img = msg.content[0].children.find((c: any) => c.type === 'image');
     assert.ok(img?.type === 'image');
-    assert.ok(img, 'image inline found');
     assert.strictEqual(img.assetId, domain.detail.assets[0].id);
     assert.strictEqual(domain.detail.assets.length, 1);
 });
@@ -155,7 +148,6 @@ test('image with no source remains a semantic asset and the backend reports unav
     const { domain, msg, diagnostics } = await norm('x ![]() y');
     const img = msg.content[0].children.find((c: any) => c.type === 'image');
     assert.ok(img?.type === 'image');
-    assert.ok(img, 'image inline found');
     const asset = domain.detail.assets.find((a: any) => a.id === img.assetId);
     assert.ok(asset, 'asset registered');
     assert.ok(!asset.sourceUri);
@@ -177,7 +169,6 @@ test('nested emphasis: strong containing emphasis', async () => {
     const { msg } = await norm('**bold *bold-italic* end**');
     const strong = msg.content[0].children.find((c: any) => c.type === 'strong');
     assert.ok(strong?.type === 'strong');
-    assert.ok(strong, 'strong found');
     const kinds = strong.children.map((c: any) => c.type);
     assert.deepStrictEqual(kinds, ['text', 'emphasis', 'text']);
     assert.strictEqual(inlineText(strong.children), 'bold bold-italic end');
@@ -187,7 +178,6 @@ test('nested emphasis: emphasis containing strong', async () => {
     const { msg } = await norm('*italic **bold** end*');
     const em = msg.content[0].children.find((c: any) => c.type === 'emphasis');
     assert.ok(em?.type === 'emphasis');
-    assert.ok(em, 'emphasis found');
     const kinds = em.children.map((c: any) => c.type);
     assert.deepStrictEqual(kinds, ['text', 'strong', 'text']);
 });
@@ -200,7 +190,6 @@ test('triple-star and strikethrough keep their node shapes', async () => {
     assert.ok(hasBoth, 'both strong and emphasis found');
     const strike = msg.content[0].children.find((c: any) => c.type === 'strikethrough');
     assert.ok(strike?.type === 'strikethrough');
-    assert.ok(strike, 'strikethrough found');
 });
 
 test('unclosed emphasis markers stay literal text', async () => {

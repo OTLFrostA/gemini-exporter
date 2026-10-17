@@ -7,6 +7,8 @@ const assert = require('node:assert');
 const LiveSaveCoordinator = require('../src/content/liveSaveCoordinator.js');
 const AssetFetcher = require('../src/content/assetFetcher.js');
 
+test.afterEach(() => { LiveSaveCoordinator.init(); });
+
 test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen generated)', async () => {
     let writtenFiles: Record<string, any> = {};
     let fetchedUrls: string[] = [];
@@ -123,11 +125,11 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
 
     const userCatFile = assetFiles.find(f => f.includes('cute_cat.jpg') || f.includes('t1_'));
     assert.ok(userCatFile, 'User cat photo should be saved in assets/');
-    assert.strictEqual((writtenFiles[userCatFile!] as ArrayBuffer).byteLength, 5);
+    assert.deepStrictEqual(Array.from(writtenFiles[userCatFile!] as Uint8Array), [1, 2, 3, 4, 5], 'saved upload must contain its source bytes');
 
     const imagenFile = assetFiles.find(f => f.includes('cyberpunk_cat.png') || f.includes('t2_'));
     assert.ok(imagenFile, 'Imagen generated artwork should be saved in assets/');
-    assert.strictEqual((writtenFiles[imagenFile!] as ArrayBuffer).byteLength, 6);
+    assert.deepStrictEqual(Array.from(writtenFiles[imagenFile!] as Uint8Array), [6, 7, 8, 9, 10, 11], 'saved Imagen output must contain its own source bytes');
 
     // 4. Verify Markdown file content has relative assets/ paths
     const mdFile = 'Multimodal Cat & Cyberpunk Art_667788.md';
@@ -141,6 +143,7 @@ test('liveSaveCoordinator - multimodal image pipeline (user uploads & Imagen gen
 
 test('liveSaveCoordinator - image download error tolerance & graceful fallback', async () => {
     let writtenFiles: Record<string, any> = {};
+    let fetchAttempts = 0;
 
     const mockStorage = {
         getLiveConfig: async () => ({
@@ -184,6 +187,7 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
 
     const mockAssetFetcher = {
         fetchImageBuffer: async () => {
+            fetchAttempts++;
             // Simulate network timeout / 404
             return null;
         }
@@ -199,6 +203,7 @@ test('liveSaveCoordinator - image download error tolerance & graceful fallback',
 
     const success = await LiveSaveCoordinator.executeLiveSave('c_aabbccddeeff0011', 'turn_complete');
     assert.strictEqual(success, true, 'Save should succeed even when image download fails');
+    assert.strictEqual(fetchAttempts, 1, 'the missing image must really go through the failed downloader');
 
     // Verify Markdown visibly represents unavailable images without remote embedding
     const mdFile = 'Failing Image Test_ff0011.md';

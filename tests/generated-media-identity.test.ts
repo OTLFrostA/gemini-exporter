@@ -5,27 +5,14 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { messageAssets } = require('./helpers/domainAssets.js');
 const { TakeoutEngine } = require('../src/core/engine/takeoutEngine.js');
-const { parseFixture } = require('./helpers/documentFixture.js');
-const { composeDomainDocument } = require('../src/core/document/compose/composeDomainDocument.js');
 
 const id = '1bd028d5c5b0c0e2';
-const prompt = 'Generate an image of a cute futuristic astronaut cat drinking coffee on Mars with high detail';
-const time = Date.parse('2026-09-02T18:36:40.472Z');
 const png = 'watermarked_img_45281370108017511-1c81efe352c9ef8a.png';
 const jpg = 'watermarked_img_4528137010801751197.jpg';
-function onlineChat(): any {
-    return { id, messages: [
-        { id: 'r_1c81efe352c9ef8a', role: 'user', content: prompt, timestamp: time },
-        { id: 'm1', role: 'model', providerRequestId: '1c81efe352c9ef8a', content: '', images: [{
-            type: 'image', fileName: jpg, sourceUrl: 'https://lh3.googleusercontent.com/generated-cat',
-            localName: `assets/${jpg}`, isGenerated: true, providerRequestId: '1c81efe352c9ef8a', imageOrdinal: 0
-        }] },
-    ] };
-}
 
 test('real Takeout fixture retains generation evidence without guessing ownership of an unreferenced PNG', async () => {
+    const originalZip = Object.getOwnPropertyDescriptor(globalThis, 'JSZip');
     (global as any).JSZip = require('../lib/jszip.min.js');
     TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001');
     try {
@@ -42,7 +29,11 @@ test('real Takeout fixture retains generation evidence without guessing ownershi
             assert.equal('parsed' in record, false);
             assert.equal('messages' in record, false, 'imports remain metadata-only and cannot overwrite stored detail');
         }
-    } finally { TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001'); }
+    } finally {
+        TakeoutEngine.clearTakeoutData('10000000-0000-4000-8000-000000000001');
+        if (originalZip) Object.defineProperty(globalThis, 'JSZip', originalZip);
+        else delete (global as any).JSZip;
+    }
 });
 
 test('RPC generated-media detector preserves generated status while inline images remain unmarked', () => {

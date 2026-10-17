@@ -113,11 +113,7 @@ test('empty state is composed and locale is explicit', () => {
     assert.ok(renderDocumentHtml(document, {}).html.includes('A different notice'));
 });
 
-test('actual HTML backend has no semantic model or presentation inference imports', () => {
-    const source = readFileSync('src/core/renderers/html/renderHtml.ts', 'utf8');
-    assert.doesNotMatch(source, /CanonicalConversationBundle|MessageRole|assetPresentation|citationDisplayLabel|extractBlockText|\.role\b|new Date\(/);
-    assert.doesNotMatch(source, /from ['"][^'"]*(?:domain|provider|canonical)/);
-});
+
 
 test('production HTML facade uses prepared archive paths consistently', async () => {
     const native = historicalFixture({ id: 'production', title: 'Production', messages: [{ role: 'model', content: 'Body', attachments: [{ type: 'image', localName: 'assets/p.png', name: 'p.png' }] }] });

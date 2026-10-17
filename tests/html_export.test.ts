@@ -1,6 +1,5 @@
 import { fixtureResourceResults } from './helpers/documentFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { parseConversation } = require('../src/core/parsers/parseConversation.js');
 /**
  * tests/html_export.test.ts
  * HTML export via the production canonical path
@@ -47,7 +46,8 @@ test('html_export - formatHtmlDocument returns valid structure, metadata, and st
         ]
     };
 
-    const res = await ChatFormatter.formatHtmlDocument(historicalFixture(mockChat), { resourceResults: await fixtureResourceResults(historicalFixture(mockChat).conversation, historicalFixture(mockChat).resourceHints) });
+    const native = historicalFixture(mockChat);
+    const res = await ChatFormatter.formatHtmlDocument(native, { resourceResults: await fixtureResourceResults(native.conversation, native.resourceHints) });
     assert.strictEqual(res.ext, 'html');
     assert.strictEqual(res.mime, 'text/html');
 

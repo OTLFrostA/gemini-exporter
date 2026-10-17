@@ -16,11 +16,17 @@ const test = require('node:test');
 const assert = require('node:assert');
 
 const SERVICE_PATH = '../src/core/storage/storageService.js';
+const serviceModulePath = require.resolve(SERVICE_PATH);
+const originalServiceModule = require.cache[serviceModulePath];
+test.after(() => {
+    if (originalServiceModule) require.cache[serviceModulePath] = originalServiceModule;
+    else delete require.cache[serviceModulePath];
+});
 
 function setupMockChromeStorage() {
     const mockStorage: Record<string, any> = {};
     let setCalls = 0;
-    const origChrome = (global as any).chrome;
+    const origChromeDesc = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     const origNavDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
     (global as any).chrome = withRegistry({
         storage: {
@@ -29,18 +35,18 @@ function setupMockChromeStorage() {
                 // like two real tabs racing on shared storage.
                 get: async (keys: any) => {
                     await new Promise(r => setImmediate(r));
-                    if (keys === null) return { ...mockStorage };
+                    if (keys === null) return structuredClone(mockStorage);
                     if (typeof keys === 'string') keys = [keys];
                     const res: Record<string, any> = {};
                     for (const k of (keys || [])) {
-                        if (k in mockStorage) res[k] = mockStorage[k];
+                        if (k in mockStorage) res[k] = structuredClone(mockStorage[k]);
                     }
                     return res;
                 },
                 set: async (obj: any) => {
                     await new Promise(r => setImmediate(r));
                     setCalls++;
-                    Object.assign(mockStorage, obj);
+                    Object.assign(mockStorage, structuredClone(obj));
                 },
                 remove: async (keys: any) => {
                     await new Promise(r => setImmediate(r));
@@ -54,10 +60,10 @@ function setupMockChromeStorage() {
         mockStorage,
         getSetCalls: () => setCalls,
         restore: () => {
-            (global as any).chrome = origChrome;
-            if (origNavDesc) {
-                Object.defineProperty(globalThis, 'navigator', origNavDesc);
-            }
+            if (origChromeDesc) Object.defineProperty(globalThis, 'chrome', origChromeDesc);
+            else Reflect.deleteProperty(globalThis, 'chrome');
+            if (origNavDesc) Object.defineProperty(globalThis, 'navigator', origNavDesc);
+            else Reflect.deleteProperty(globalThis, 'navigator');
         }
     };
 }
@@ -98,8 +104,7 @@ function removeWebLocks() {
 
 // Fresh module instance = one tab's independent in-memory chains.
 function freshService() {
-    const resolved = require.resolve(SERVICE_PATH);
-    delete require.cache[resolved];
+    delete require.cache[serviceModulePath];
     return require(SERVICE_PATH);
 }
 
@@ -146,8 +151,8 @@ test('T2: concurrent saveExportRecordsBatch from two tabs must not lose records'
         await Promise.all([pA, pB]);
 
         const ids = await tabA.getExportedIds('10000000-0000-4000-8000-000000000001');
-        assert.ok(ids['chat_a'], "tab A's record must survive");
-        assert.ok(ids['chat_b'], "tab B's record must survive");
+        assert.deepStrictEqual(ids['chat_a'], { ok: true }, "tab A's exact record must survive");
+        assert.deepStrictEqual(ids['chat_b'], { ok: true }, "tab B's exact record must survive");
     } finally {
         env.restore();
     }

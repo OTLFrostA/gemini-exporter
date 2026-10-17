@@ -1,4 +1,4 @@
-import { test, beforeEach } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mediaSources, mediaChatId, mediaPrompt, mediaBytes, mediaTime } from './helpers/mediaSourceFixture.js';
 import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
@@ -9,6 +9,7 @@ import { __clearDomainMemory, saveDomainConversation, getDomainResource, getStor
 import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 
 beforeEach(() => { __clearDomainMemory(); clearTakeoutData(); });
+afterEach(() => { __clearDomainMemory(); clearTakeoutData(); });
 test('real RPC turns expose only source-authored event time/prompt and single-image position', () => {
     const { online, offline } = mediaSources();
     const onlineImage = online.conversation.detail.assets[0];

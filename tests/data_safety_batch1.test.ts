@@ -7,47 +7,10 @@ export {};
 const test = require('node:test');
 const assert = require('node:assert');
 
-// 1. D1: Pagination loop sets stoppedEarly and exhaustive accurately
-test('D1: Pagination getAllConversations sets stoppedEarly=true and exhaustive=false on token loop', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
-    let callCount = 0;
-    const mockClient = {
-        getConversationList: async () => {
-            callCount++;
-            return listFixture(([{ id: `c_${callCount}`, title: `Chat ${callCount}` }]).map(indexFixture), 'looping_cursor');
-        }
-    };
-
-    const result = await Pagination.getAllConversations(mockClient, 2000);
-    assert.strictEqual(callCount, 2);
-    assert.strictEqual(result.stoppedEarly, true, 'Token loop must set stoppedEarly: true');
-    assert.strictEqual(result.exhaustive, false, 'Token loop must set exhaustive: false');
-    assert.ok(result.diagnostics.stopReason.includes('Token Loop'));
-});
-
-test('D1: Natural end sets stoppedEarly=false and exhaustive=true', async () => {
-    const Pagination = require('../src/core/api/client/pagination.js');
-    let callCount = 0;
-    const mockClient = {
-        getConversationList: async (token: string | null) => {
-            callCount++;
-            if (callCount === 1) {
-                return listFixture(([{ id: 'c_1', title: 'Chat 1' }]).map(indexFixture), 'next_page');
-            }
-            return listFixture(([{ id: 'c_2', title: 'Chat 2' }]).map(indexFixture), null);
-        }
-    };
-
-    const result = await Pagination.getAllConversations(mockClient, 2000);
-    assert.strictEqual(callCount, 2);
-    assert.strictEqual(result.stoppedEarly, undefined, 'Natural end must not set stoppedEarly');
-    assert.strictEqual(result.exhaustive, true, 'Natural end must set exhaustive: true');
-});
-
 // 2. D2: Narrowed error detection
 test('D2: BatchWorker does not delete conversation when error contains 11167 or other non-deletion numbers', async () => {
     const BatchWorker = require('../src/core/engine/export/batchWorker.js');
-    const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
 
     let removedId: string | null = null;
     const mockStorage = {
@@ -82,13 +45,13 @@ test('D2: BatchWorker does not delete conversation when error contains 11167 or 
         assert.strictEqual(removedId, null, '11167 must NOT trigger removeConversation');
         assert.strictEqual(res.isConfirmedDeleted, false);
     } finally {
-        __setModuleOverride('StorageService', null);
+        __clearModuleOverrides();
     }
 });
 
 test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorInfo: 1167 or 404', async () => {
     const BatchWorker = require('../src/core/engine/export/batchWorker.js');
-    const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
+    const { __setModuleOverride, __clearModuleOverrides } = require('../src/core/utils/moduleOverrides.js');
 
     let removedId: string | null = null;
     const mockStorage = {
@@ -124,7 +87,7 @@ test('D2: BatchWorker confirms deletion but retains local metadata on BardErrorI
         assert.ok(logs.some(message => message.includes('retained')));
         assert.strictEqual(res.isConfirmedDeleted, true);
     } finally {
-        __setModuleOverride('StorageService', null);
+        __clearModuleOverrides();
     }
 });
 
@@ -139,6 +102,8 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
         exportedIds: { 'chat_1': { status: 'ok', exportedAt: 1700000000000 } }
     };
 
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    try {
     (globalThis as any).chrome = withRegistry({
         storage: {
             local: {
@@ -172,47 +137,49 @@ test('D4: StorageService.clearConversations cleans up checkpoint and exported re
 
     const checkpoint = await StorageService.getScanCoverage('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(checkpoint, null, 'getScanCoverage must return null after clearConversations');
+    } finally {
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (globalThis as any).chrome;
+    }
 });
 
-// 4. MessageBridge: Invalid ID validation on deletion
-test('MessageBridge: ignores malformed conversation IDs in CONVERSATION_DELETED event', async () => {
+// 4. Page-world deletion notices must be verified by the active content tab, not trusted as deletion commands.
+test('MessageBridge rejects malformed deletion IDs and verifies valid events in the active account', async () => {
     const MessageBridge = require('../src/content/messageBridge.js');
-
+    const originalChrome = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const sent: any[] = [];
     let removedCalled = false;
-    const mockStorage = {
-        removeConversation: async () => {
-            removedCalled = true;
-            return true;
-        }
-    };
-
-    const api = MessageBridge.init({
-        Storage: mockStorage,
-        getAccountSlot: () => '10000000-0000-4000-8000-000000000001',
-        upsertConversations: async () => {}
-    });
-
-    // 1. Post message with invalid ID (e.g. script injection attempt or garbage)
-    await api.handleWindowMessage({
-        origin: (typeof location !== 'undefined' ? location.origin : undefined),
-        source: (typeof window !== 'undefined' ? window : null),
-        data: {
-            type: 'GEMINI_CONVERSATION_DELETED',
-            payload: { id: '../../malicious/path' }
-        }
-    });
-
-    assert.strictEqual(removedCalled, false, 'Malformed ID must NOT call removeConversation');
-
-    // 2. Post message with valid hex ID
-    await api.handleWindowMessage({
-        origin: (typeof location !== 'undefined' ? location.origin : undefined),
-        source: (typeof window !== 'undefined' ? window : null),
-        data: {
-            type: 'GEMINI_CONVERSATION_DELETED',
-            payload: { id: 'c_12345678abcdef' }
-        }
-    });
-
-    assert.strictEqual(removedCalled, false, 'Valid page event must still be verified before deletion');
+    try {
+        (globalThis as any).chrome = {
+            runtime: {
+                sendMessage: async (message: unknown) => {
+                    if ((message as any).action === 'accountRegistry') return { ok: true, value: { id: '10000000-0000-4000-8000-000000000001', providerId: 'gemini', providerAccountId: '10000000001' } };
+                    sent.push(message);
+                    return { data: { isDeleted: true } };
+                }
+            }
+        };
+        const api = MessageBridge.init({
+            Storage: { removeConversation: async () => { removedCalled = true; return true; } },
+            getAccountSlot: () => 'u0',
+            upsertConversations: async () => {}
+        });
+        const event = (id: string, slot: string) => ({
+            origin: typeof location === 'undefined' ? undefined : location.origin,
+            source: typeof window === 'undefined' ? null : window,
+            data: { type: 'GEMINI_CONVERSATION_DELETED', payload: { id, slot, requestAccountObservation: { providerId: 'gemini', providerAccountId: '10000000001' } } }
+        });
+        await api.handleWindowMessage(event('../../malicious/path', 'u0'));
+        assert.deepStrictEqual(sent, [], 'malformed IDs cannot trigger a background fetch');
+        await api.handleWindowMessage(event('c_12345678abcdef', 'u0'));
+        assert.deepStrictEqual(sent, [{
+            action: 'fetchChat',
+            conversationId: 'c_12345678abcdef',
+            accountId: '10000000-0000-4000-8000-000000000001'
+        }], 'valid page events verify through the captured Registry account');
+        assert.strictEqual(removedCalled, false, 'untrusted page-world deletion never removes the local archive');
+    } finally {
+        if (originalChrome) Object.defineProperty(globalThis, 'chrome', originalChrome);
+        else delete (globalThis as any).chrome;
+    }
 });

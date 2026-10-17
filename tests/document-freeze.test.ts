@@ -1,7 +1,6 @@
 import { resourceValue } from './helpers/resources.js';
 import { validateParserDomain } from '../src/core/domain/runtimeValidation.js';
 import { historicalFixture } from './helpers/nativeFixture.js';
-import { parseConversation } from '../src/core/parsers/parseConversation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
@@ -115,12 +114,16 @@ test('PDF acquires every AST image; one frozen rich JSON AST serves all backends
     assert.deepEqual([...imageIds].sort(), [...rendered, ...rich].sort());
     assert.equal(collectDocumentResources(document).imageIds.size, rendered.length + rich.length);
     const acquired: string[] = [];
+    // Distinct bytes ensure resource ownership cannot pass via a swapped/shared receipt.
+    const bytesFor = (id: string) => new TextEncoder().encode(id);
     const prepared = await preparePdfResources((input).detail, imageIds, {}, { acquire: async id => {
         acquired.push(id);
-        return { ok: true as const, resourceId: id, value: { bytes: new Uint8Array([1]), mediaType: 'image/png' } };
+        return { ok: true as const, resourceId: id, value: { bytes: bytesFor(id), mediaType: 'image/png' } };
     } });
     assert.deepEqual(acquired.sort(), [...rendered, ...rich].sort());
-    for (const id of rich) assert.equal(resourceValue(prepared.resources.get(id)).bytes?.length, 1);
+    for (const id of [...rendered, ...rich]) {
+        assert.deepEqual(resourceValue(prepared.resources.get(id)).bytes, bytesFor(id), `wrong acquired bytes bound to ${id}`);
+    }
     const bindings = Object.fromEntries([...collectDocumentResources(document).referencedIds].map(id => [id, `assets/${id}.png`]));
     assert.ok(renderDocumentHtml(document, bindings).html.includes('src="assets/image-caption.png"'));
     assert.ok(renderDocumentMarkdown(document, bindings).includes('assets/image-caption.png'));

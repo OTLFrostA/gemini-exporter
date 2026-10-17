@@ -1,24 +1,6 @@
 export {};
 
-// known_issue_credentials_session.test.js
-//
-// NOTE (2026-09-16): the old "INTENTIONALLY RED" header below is stale —
-// the desired end state is now pinned and the test passes. Keeping the
-// issue description as documentation of the original problem.
-//
-// KNOWN ISSUE (audit report P1-2.6, still open after #194):
-// Gemini session tokens (at / SNlM0e — functionally CSRF credentials for the
-// Google account) are persisted in chrome.storage.local: plaintext on disk,
-// never cleared on logout, readable by any code running in the extension.
-// Desired behavior: keep credentials in chrome.storage.session (memory-
-// scoped, cleared when the browser session ends), plus explicit cleanup on
-// 401/logout.
-//
-// Fix path note: chrome.storage.session is not exposed to content scripts
-// by default — background must call
-//   chrome.storage.session.setAccessLevel('TRUSTED_AND_UNTRUSTED_CONTEXTS')
-// or the content script must proxy credential writes through the service
-// worker. This test pins the desired end state.
+// Credential security: session-only persistence, no local-storage leakage, and targeted 401 eviction.
 
 const test = require('node:test');
 const assert = require('node:assert');
@@ -144,7 +126,7 @@ test('CredentialManager credentials storage uses chrome.storage.session and does
     const CredentialManager = require('../src/core/api/client/credentialManager.js').default || require('../src/core/api/client/credentialManager.js');
     const localStore: Record<string, any> = {};
     const sessionStore: Record<string, any> = { gemini_credentials_map: { test_sid: { at: 'test_at', sid: 'test_sid' } } };
-    const origChrome = (global as any).chrome;
+    const originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
     (global as any).chrome = {
         storage: {
             local: {
@@ -185,15 +167,19 @@ test('CredentialManager credentials storage uses chrome.storage.session and does
         assert.strictEqual(sessionStore.gemini_credentials_map?.test_sid?.at, 'test_at');
         assert.strictEqual(localStore.gemini_credentials_map, undefined, 'credentials must never be written to local store on read');
     } finally {
-        (global as any).chrome = origChrome;
+        if (originalChromeDescriptor) Object.defineProperty(globalThis, 'chrome', originalChromeDescriptor);
+        else Reflect.deleteProperty(globalThis, 'chrome');
     }
 });
 
-test('GeminiAPIClient 401 response purges expired sid from session storage', async () => {
+test('GeminiAPIClient 401 evicts only the expired SID from session storage', async () => {
     const { GeminiAPIClient } = require('../src/core/api/geminiClient.js');
+    const originalChromeDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
+    const originalFetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch');
     const sessionStore: Record<string, any> = {
         gemini_credentials_map: {
-            bad_sid: { at: 'bad_token', sid: 'bad_sid', accountSlot: 'default' }
+            bad_sid: { at: 'bad_token', sid: 'bad_sid', accountSlot: 'default' },
+            healthy_sid: { at: 'healthy_token', sid: 'healthy_sid', accountSlot: 'u2' }
         }
     };
     const localStore: Record<string, any> = {};
@@ -218,23 +204,29 @@ test('GeminiAPIClient 401 response purges expired sid from session storage', asy
         }
     };
 
-    const client = new GeminiAPIClient();
-    const originalFetch = (global as any).fetch;
-    (global as any).fetch = async () => ({
-        ok: false,
-        status: 401,
-        statusText: 'Unauthorized',
-        text: async () => 'Unauthorized'
-    });
-
     try {
-        await client.getConversationList(null, 'bad_sid');
-        assert.fail('should have thrown 401');
-    } catch (err: any) {
-        assert.ok(err.message.includes('401'));
-    } finally {
-        (global as any).fetch = originalFetch;
-    }
+        const client = new GeminiAPIClient();
+        (global as any).fetch = async () => ({
+            ok: false,
+            status: 401,
+            statusText: 'Unauthorized',
+            text: async () => 'Unauthorized'
+        });
 
-    assert.strictEqual(sessionStore.gemini_credentials_map.bad_sid, undefined, '401 must evict bad_sid from session storage');
+        await assert.rejects(
+            () => client.getConversationList(null, 'bad_sid'),
+            (error: unknown) => error instanceof Error && error.message.includes('401'),
+            'expired credentials must surface an HTTP 401 to the caller'
+        );
+        assert.strictEqual(sessionStore.gemini_credentials_map.bad_sid, undefined, '401 must evict the expired SID');
+        assert.deepStrictEqual(sessionStore.gemini_credentials_map.healthy_sid,
+            { at: 'healthy_token', sid: 'healthy_sid', accountSlot: 'u2' },
+            'evicting one account must retain another account credential');
+        assert.strictEqual(localStore.gemini_credentials_map, undefined, '401 handling must not copy secrets into local storage');
+    } finally {
+        if (originalFetchDescriptor) Object.defineProperty(globalThis, 'fetch', originalFetchDescriptor);
+        else Reflect.deleteProperty(globalThis, 'fetch');
+        if (originalChromeDescriptor) Object.defineProperty(globalThis, 'chrome', originalChromeDescriptor);
+        else Reflect.deleteProperty(globalThis, 'chrome');
+    }
 });

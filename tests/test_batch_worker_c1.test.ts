@@ -3,32 +3,16 @@ import { StorageService as catalogStorage } from '../src/core/storage/storageSer
 useIndexStorage();
 import { indexFixture } from './helpers/indexFixture.js';
 const { historicalFixture } = require('./helpers/nativeFixture.js');
-const { saveDomainConversation, __clearDomainMemory } = require('../src/core/storage/domain/domainStore.js');
+const { __clearDomainMemory } = require('../src/core/storage/domain/domainStore.js');
 export {};
-interface GeneratedMediaTestChat {
-    id: string;
-    messages: {
-        role: string;
-        content: string;
-        providerRequestId: string;
-        images?: { fileName?: string; source?: string; isGenerated?: boolean }[];
-        attachments?: { fileName?: string; source?: string; isGenerated?: boolean }[];
-    }[];
-}
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
-
-const GeminiUtils = require('../src/core/utils/utils.js');
-const { __setModuleOverride } = require('../src/core/utils/moduleOverrides.js');
-__setModuleOverride('GeminiUtils', GeminiUtils);
 
 const {
     fetchChatDetail,
     resolveChat,
     resolveConversationData,
 } = require('../src/core/engine/export/batchWorker.js');
-const detailStore = require('../src/core/storage/conversationDetailStore.js');
 
 test('Track C1: direct vs runtime fetch fallback preserves exact transport cascade', async () => {
     // 1. Direct TabService success
@@ -125,7 +109,15 @@ test('Track C1: direct vs runtime fetch fallback preserves exact transport casca
     );
     assert.equal(fallbackResult.success, true);
     assert.equal(fallbackResult.results?.[0]?.conversation?.index.title, 'Remote Fallback Chat');
-    assert.ok(remotePayload, 'Fallback sender must be invoked');
+    assert.deepEqual(remotePayload, {
+        action: 'fetchBatch',
+        ids: [{ id: 'chat_remote_1' }],
+        format: 'md',
+        skipExported: false,
+        globalOffset: 0,
+        globalTotal: 1,
+        accountSlot: 'u0',
+    }, 'fallback must carry the requested ID, account, format and progress to the runtime');
 });
 
 test('Track C1: abort signal cleanup and single-settle', async () => {
@@ -201,11 +193,18 @@ test('runtime detail recovery prefers native online, then native Takeout, then d
     const make = (text: string) => historicalFixture({ id, title: text, messages: [{ role: 'model', content: text }] });
     const online = make('online'), offline = make('offline'), stored = make('stored'); let calls = 0;
     const takeout = { getTakeoutOfflineChat() { calls++; return offline; } };
-    assert.equal((await resolveConversationData(online, id, null, takeout, slot)).result, online); assert.equal(calls, 0);
-    assert.equal((await resolveConversationData({ error: 'offline' }, id, null, takeout, slot)).result, offline);
-    await catalogStorage.setNativeConversations(slot, [stored]);
+    const direct = await resolveConversationData(online, id, null, takeout, slot, undefined, 'online');
+    assert.strictEqual(direct.result, online);
+    assert.equal(direct.source, 'online');
+    assert.equal(calls, 0, 'valid online detail must never consult Takeout');
+    const fromTakeout = await resolveConversationData({ error: 'offline' }, id, null, takeout, slot);
+    assert.strictEqual(fromTakeout.result, offline);
+    assert.equal(fromTakeout.source, 'takeout');
+    assert.equal(calls, 1);
     try {
+        await catalogStorage.setNativeConversations(slot, [stored]);
         const recovered = await resolveConversationData({ error: 'offline' }, id, null, null, slot);
+        assert.equal(recovered.source, 'local_snapshot', 'durable fallback must be marked as a local snapshot');
         assert.deepEqual(recovered.result.conversation.detail.messages, stored.conversation.detail.messages);
         assert.equal(recovered.result.conversation.index.title, stored.conversation.index.title);
         const rejected = await resolveChat({ id, messages: [{ role: 'model', content: 'legacy runtime' }] }, { id: 'unmigrated' }, null, null, slot);

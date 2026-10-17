@@ -129,6 +129,8 @@ test.describe('E2E: Canonical Title Authority', () => {
         await window.__workbenchLoadStore(true);
       }
     });
+    await expect(targetItem).toContainText('官方服务端RPC最终权威标题');
+    await expect(targetItem).not.toContainText('页面显式渲染的DOM标题');
   });
 
   test('should persist the sniffed firstUser prompt as the canonical title during export', async ({ context, extensionId }) => {
