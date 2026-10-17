@@ -1,3 +1,4 @@
+import { getStoredSettings, patchStoredSettings } from '../../storage/storageService.js';
 import type { ExportFormat } from '../export/types.js';
 
 export interface GlobalSettings {
@@ -16,3 +17,14 @@ export interface GlobalSettings {
     ratingPromptShown?: true;
 }
 
+export async function getSettings(): Promise<GlobalSettings> {
+    return { defaultFormat: 'markdown', useZip: true, skipExported: true,
+        includeAssets: true, enabledDisk: false, developerMode: false,
+        ...await getStoredSettings() };
+}
+export function updateSettings(patch: Partial<GlobalSettings>): Promise<void> {
+    return patchStoredSettings(patch);
+}
+export function isLiveSaveEffective(settings: GlobalSettings, directoryAvailable: boolean): boolean {
+    return settings.enabledDisk && settings.defaultFormat === 'markdown' && directoryAvailable;
+}

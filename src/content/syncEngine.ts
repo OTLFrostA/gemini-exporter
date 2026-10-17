@@ -1,17 +1,9 @@
+import { scanAll } from '../core/application/sync/scanController.js';
 import { persistConversationBatch, markConfirmedDeleted, upsertConversations, ingestRpcList, ingestPageObservation } from './geminiIndexCapture.js';
 export { markConfirmedDeleted, upsertConversations, ingestRpcList, ingestPageObservation } from './geminiIndexCapture.js';
-import CoverageAdmission, { type ScanHead } from '../core/domain/coverageAdmission.js';
-import ScanLifecycle from '../core/application/sync/scanLifecycle.js';
-import { setConversationAvailability } from '../core/storage/conversationAvailability.js';
-import { isAccountId } from '../core/domain/accountRegistry.js';
-import { type DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { parseGeminiDomIndex } from '../core/parsers/gemini/dom/parseIndex.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
-import type { ScanRun } from '../core/application/sync/scanLifecycle.js';
-import type { ScanStatus } from '../types/ui.js';
 import type { ApplicationProvider } from "./providerCompatibility.js";
-import type { GeminiProviderConversationItem, GeminiProviderPageResult } from "../core/provider/gemini/geminiContracts.js";
-import type { GeminiPaginationDiagnostics } from "../core/api/client/pagination.js";
 import { DomScraper } from './domScraper.js';
 import { BadgeView } from './badgeView.js';
 import { contentContext } from './contentContext.js';
@@ -26,13 +18,9 @@ import {
     mergeConversation,
     deduplicateConversations
 } from '../core/utils/utils.js';
-import { STORAGE_KEYS } from '../core/utils/constants.js';
 import { resolveProvider } from '../core/provider/providerResolver.js';
 import { detectSlotFromUrl, extractConversationIdFromUrl, normId, isReservedRoute } from '../core/utils/pathUtils.js';
-import { assertSchemaWritable } from '../core/storage/schemaMigration.js';
-import { sniffUserProfileFromDom } from './accountSniffer.js';
 import { resolveCurrentAccount, isCurrentAccount, getAccountContext } from './accountContext.js';
-import { isPaginationExhaustive } from '../core/api/client/pagination.js';
 
 const getStorage = () => __resolveModule('StorageService', StorageService);
 const getScraper = () => DomScraper;
@@ -208,198 +196,8 @@ export async function syncOnce(): Promise<number> {
     }
 }
 
-export interface ProviderSyncResult {
-    count: number;
-    diagnostics: GeminiPaginationDiagnostics;
-    hitGoogleLimit: boolean;
-    status: ScanStatus;
-    error?: string;
-}
-
-function scanStatus(all: GeminiProviderPageResult, verifiedIncrementalStop = false): ScanStatus {
-    if (contentContext.isAborted() || all.completionReason === 'aborted') return 'aborted';
-    if (all.hitGoogleLimit || all.completionReason === 'hit_google_limit') return 'partial_limit';
-    if (verifiedIncrementalStop && all.completionReason === 'unchanged_boundary') return 'up_to_date';
-    if (all.exhaustive === true && all.completionReason === 'natural_exhaustion' && isPaginationExhaustive(all)) return 'complete';
-    return 'error';
-}
-
-export async function syncConversations(options?: { maxPages?: number }): Promise<ProviderSyncResult | null> {
-    if (contentContext.getDeepScanPromise()) return null;
-
-    let _resolve: (() => void) | undefined;
-    const scanPromise = new Promise<void>(r => { _resolve = r; });
-    contentContext.setDeepScanPromise(scanPromise);
-
-    const slot = getAccountSlot();
-    const Storage = getStorage();
-    let accountId: string | null = null;
-    let coverageRun: ScanRun | null = null;
-    let coverageFinished = false;
-    try {
-        document.getElementById('geminiExportBadge')?.classList.add('syncing');
-        const provider = resolveProvider() as ApplicationProvider | undefined;
-        if (!provider) return null;
-        // The provider owns the request lifecycle now; ActiveClientContract is
-        // all-optional so this stays type-safe. Cancel still terminates the
-        // scan: messageRouter sets window.__gemExporterAborted on stop, which
-        // the pagination loop checks every page.
-        contentContext.setActiveClient(provider);
-        contentContext.setAborted(false);
-
-        const account = await resolveCurrentAccount();
-        if (!account || account.slot !== slot) throw new Error('Sync requires a verified Registry account');
-        accountId = account.accountId;
-        coverageRun = await ScanLifecycle.beginScanCoverage(accountId, accountId);
-        const runId = coverageRun.runId;
-        const effectiveMaxPages = options?.maxPages || 2000;
-        let expectedPage = 1;
-        const previousRecent = coverageRun.previous;
-        const incremental = !!previousRecent?.range;
-        let recentHead: ScanHead | null = null;
-        let verifiedIncrementalStop = false;
-        // Scan All covers recent; other streams retain independent source boundaries.
-        const all: GeminiProviderPageResult = await provider.listConversations({
-            maxPages: effectiveMaxPages,
-            accountId,
-            canCommit: () => !contentContext.isAborted() && isCurrentAccount(account),
-            includePinned: false,
-            onPageBatch: async (info) => {
-                const fresh = await resolveCurrentAccount();
-                if (!fresh || fresh.accountId !== accountId || !isCurrentAccount(account)) {
-                    throw new Error('Account changed during sync; retry in the current account');
-                }
-                if (contentContext.isAborted()) throw new Error('Sync aborted');
-                if (info.page !== expectedPage++ || !await ScanLifecycle.isScanCoverageCurrent(accountId, runId)) {
-                    throw new Error('Sync was superseded or pagination is not contiguous; retry');
-                }
-                const page = info.scanHead;
-                if (page?.streamId === 'recent' && page.requestKnown && page.valid && page.ordered) {
-                    if (page.requestCursor === null) recentHead = page;
-                    if (incremental && previousRecent && recentHead && await CoverageAdmission.hasTrustedBoundary(accountId, previousRecent, recentHead)) {
-                        verifiedIncrementalStop = true;
-                        return { shouldStop: true, reason: 'Connected to verified activity coverage' };
-                    }
-                }
-            },
-            onProgress: (prog) => {
-                const zh = isZh();
-                try {
-                    const page = prog.page || 1;
-                    const estPercent = prog.hasMore ? Math.min(5 + page * 2, 95) : 98;
-                    const progressTitle = zh
-                        ? `正在同步第 ${page} 页 (已获取 ${prog.total} 条)${prog.hasMore ? '…' : ''}`
-                        : `Syncing page ${page} (${prog.total} fetched)${prog.hasMore ? '…' : ''}`;
-                    const _p = chrome.runtime.sendMessage({
-                        action: 'scanProgress',
-                        done: page,
-                        count: prog.total,
-                        percent: estPercent,
-                        title: progressTitle
-                    });
-                    if (_p && _p.catch) _p.catch(() => {});
-                } catch (e) {
-                    if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
-                }
-            },
-            targetSid: slot,
-            incremental
-        });
-
-        // Google-specific diagnostic/UI evidence stays at this Gemini consumer boundary.
-        const diagnostics: GeminiPaginationDiagnostics = all?.diagnostics;
-        const hitGoogleLimit = all.hitGoogleLimit || all.completionReason === 'hit_google_limit';
-        if (all && diagnostics) {
-            const setDiag = Storage?.setLastSyncDiagnostics || StorageService.setLastSyncDiagnostics;
-            try { await setDiag(diagnostics); }
-            catch (error) { console.warn('[Gemini Exporter] Could not save sync diagnostics:', error); }
-        }
-
-        const finalStatus = scanStatus(all, verifiedIncrementalStop);
-        const finalAccount = await resolveCurrentAccount();
-        if (finalAccount?.accountId !== accountId || !isCurrentAccount(account)) throw new Error('Account changed before sync completion');
-        if (!await ScanLifecycle.finishScanCoverage(accountId, runId, finalStatus,
-            () => !contentContext.isAborted() && getAccountSlot() === slot
-                && isCurrentAccount(account))) {
-            throw new Error('Sync was superseded or local history was cleared; retry');
-        }
-        coverageFinished = true;
-
-        if (hitGoogleLimit && typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-            try {
-                const existing = await chrome.storage.local.get([STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]);
-                if (!existing?.[STORAGE_KEYS.HAS_COMPLETED_TAKEOUT_PROMPT]) {
-                    // Persist STORAGE_KEYS.PENDING_TAKEOUT_PROMPT via StorageService
-                    const setPending = Storage?.setPendingTakeoutPrompt || StorageService.setPendingTakeoutPrompt;
-                    await setPending({
-                        accountId,
-                        count: all.items.length,
-                        hitGoogleLimit: hitGoogleLimit,
-                        timestamp: Date.now()
-                    });
-                }
-            } catch (e) {
-                if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
-            }
-        }
-        if (all && all.items && all.items.length) {
-            // Each page batch was already incrementally upserted via onPageBatch;
-            // avoid a second full O(n log n) pass here.
-            const mergedLen = all.items.length;
-            const isLimit = hitGoogleLimit;
-            const zh = isZh();
-            const status = finalStatus;
-            const complete = status === 'complete' || status === 'up_to_date';
-            const incompleteReason = status === 'partial_limit'
-                ? (zh ? '已达服务端限制' : 'server limit reached')
-                : status === 'aborted' ? (zh ? '已停止' : 'stopped') : (zh ? '出现错误' : 'an error occurred');
-            const finishText = complete
-                ? status === 'up_to_date'
-                    ? (zh ? `增量同步完成，本次检查 ${mergedLen} 条` : `Sync up to date, ${mergedLen} checked`)
-                    : (zh ? `同步完成，共 ${mergedLen} 条` : `Sync completed, ${mergedLen} in total`)
-                : (zh ? `同步未完成，已保存 ${mergedLen} 条，可重试（${incompleteReason}）` : `Sync incomplete: ${mergedLen} saved; retry (${incompleteReason})`);
-            try {
-                const completeTitle = finishText;
-                const _p = chrome.runtime.sendMessage({
-                    action: 'scanProgress',
-                    done: complete ? 1 : 0,
-                    total: 1,
-                    percent: complete ? 100 : 0,
-                    count: mergedLen,
-                    hitGoogleLimit: isLimit,
-                    status,
-                    title: completeTitle
-                });
-                if (_p && _p.catch) _p.catch(() => {});
-            } catch (e) {
-                if (contentContext.isDevMode()) console.debug('[GemExporter:syncEngine]', e);
-            }
-            return { count: mergedLen, diagnostics, hitGoogleLimit: isLimit, status,
-                ...(complete ? {} : { error: all.completionReason || status }) };
-        }
-        if (all) {
-            const status = finalStatus;
-            return { count: 0, diagnostics, hitGoogleLimit, status,
-                ...(['complete', 'up_to_date'].includes(status) ? {} : { error: all.completionReason || status }) };
-        }
-    } catch (e: unknown) {
-        if (accountId && coverageRun && !coverageFinished) {
-            try { await ScanLifecycle.finishScanCoverage(accountId, coverageRun.runId, contentContext.isAborted() ? 'aborted' : 'error'); }
-            catch (coverageError) { console.error('[Gemini Exporter] Could not record failed scan', coverageError); }
-        }
-        const errMsg = getErrorMessage(e);
-        if (contentContext.isDevMode()) console.debug('[Gemini Exporter] batch exec fail', errMsg);
-        throw e;
-    } finally {
-        // The floating badge reports stored conversations; scan outcomes stay in workbench messages.
-        await refreshInitialBadge();
-        document.getElementById('geminiExportBadge')?.classList.remove('syncing');
-        contentContext.setActiveClient(null);
-        contentContext.setDeepScanPromise(null);
-        if (_resolve) _resolve();
-    }
-    return null;
-}
+// Active scan orchestration belongs to Application; observers above remain Content concerns.
+export { scanAll } from '../core/application/sync/scanController.js';
 
 export const SyncEngine = {
     markConfirmedDeleted,
@@ -415,7 +213,7 @@ export const SyncEngine = {
     ingestRpcList,
     ingestPageObservation,
     syncOnce,
-    syncConversations,
+    scanAll,
     compareConversations
 };
 

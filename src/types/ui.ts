@@ -7,16 +7,8 @@ export type { DirectoryHandle } from '../core/engine/writers/directoryHandle.js'
 
 import type { ConversationExportState, ResolveConversationExportStateOptions } from '../core/utils/titleUtils.js';
 
-export interface ExportRecord {
-    exportedAt: number | string;
-    title?: string;
-    format?: string;
-    files?: string[];
-    status?: string;
-    hasFailedAssets?: boolean;
-    messageCount?: number;
-    chatTime?: number | string;
-}
+import type { ExportRecord } from '../core/application/export/types.js';
+export type { ExportRecord } from '../core/application/export/types.js';
 
 
 export interface ReconcileOptions { keepTakeout?: boolean; }
@@ -97,7 +89,8 @@ export interface TakeoutImportResult {
     totalMediaCount: number;
 }
 /** Background/content scan reply projected to the fields consumed by the UI. */
-export type ScanStatus = 'complete' | 'up_to_date' | 'partial_limit' | 'aborted' | 'error';
+import type { ScanStatus } from '../core/application/sync/scanController.js';
+export type { ScanStatus } from '../core/application/sync/scanController.js';
 export interface ScanResponse {
     status?: ScanStatus;
     success: boolean;
