@@ -115,3 +115,41 @@ test('AST modules have no acquisition, persistence, renderer or diagnostics depe
         assert.doesNotMatch(source, /\bfetch\s*\(|chrome\.storage|\bdataBase64\b|\bResourceBindings\b/);
     }
 });
+
+test('every Domain block and inline keeps its semantics through the minimal recursive projection', () => {
+    const raw = input();
+    raw.detail.assets = [{ id: 'image', kind: 'image', name: 'Diagram.png' }];
+    raw.detail.messages = [{ role: 'assistant', content: [
+        { type: 'heading', level: 3, children: [{ type: 'strong', children: [{ type: 'emphasis', children: [{ type: 'strikethrough', children: [{ type: 'link', href: 'https://example.test', title: 'Link title', children: [{ type: 'inlineCode', code: '<raw>' }, { type: 'inlineMath', source: 'x^2' }, { type: 'lineBreak', kind: 'hard' }, { type: 'lineBreak', kind: 'soft' }, { type: 'image', assetId: 'image', alt: 'Authored alt', title: 'Image title' }] }] }] }] }] },
+        { type: 'quote', blocks: [{ type: 'list', ordered: true, start: 4, items: [{ blocks: [{ type: 'code', code: '<script>raw</script>', language: 'html', meta: 'example.html' }, { type: 'math', source: '\\alpha' }, { type: 'thematicBreak' }, { type: 'unknown', sourceType: 'widget', text: 'Original unsupported text' }] }] }] },
+    ] }];
+    const document = composeDomainDocument(validateParserDomain(raw), account);
+    const expected = JSON.parse(JSON.stringify(raw.detail.messages[0].content)
+        .replace('"assetId":"image"', '"resourceId":"image"')
+        .replace('"type":"unknown"', '"type":"unsupported"'));
+    assert.deepEqual(document.messages[0].blocks, expected);
+});
+
+test('table projection preserves row/column spans, alignment, rich captions and cell content', () => {
+    const raw = input();
+    raw.detail.messages = [{ role: 'assistant', content: [{ type: 'table',
+        columns: [{ align: 'left' }, { align: 'right' }],
+        caption: [{ type: 'emphasis', children: [{ type: 'text', text: 'Table caption' }] }],
+        headerRows: [{ cells: [{ children: [{ type: 'text', text: 'Heading' }], colSpan: 2 }] }],
+        rows: [{ cells: [{ children: [{ type: 'text', text: 'A' }], rowSpan: 2 }, { children: [{ type: 'text', text: 'B' }] }] }, { cells: [{ children: [{ type: 'text', text: 'C' }] }] }],
+    }] }];
+    const document = composeDomainDocument(validateParserDomain(raw), account);
+    assert.deepEqual(document.messages[0].blocks, [{ type: 'table', columnAlignments: ['left', 'right'],
+        caption: [{ type: 'emphasis', children: [{ type: 'text', text: 'Table caption' }] }],
+        headerRows: [[{ column: 0, colSpan: 2, rowSpan: 1, align: 'left', children: [{ type: 'text', text: 'Heading' }] }]],
+        rows: [[{ column: 0, colSpan: 1, rowSpan: 2, align: 'left', children: [{ type: 'text', text: 'A' }] }, { column: 1, colSpan: 1, rowSpan: 1, align: 'right', children: [{ type: 'text', text: 'B' }] }], [{ column: 1, colSpan: 1, rowSpan: 1, align: 'right', children: [{ type: 'text', text: 'C' }] }]],
+    }]);
+});
+
+test('all accepted roles retain structured identity; source timestamps and account profiles stay outside reading content', () => {
+    const raw = input();
+    raw.detail.messages = ['user', 'assistant', 'system', 'developer', 'unknown'].map(role => ({ role: role as 'user' | 'assistant' | 'system' | 'developer' | 'unknown', timestamp: 123456789, content: [] }));
+    const document = composeDomainDocument(validateParserDomain(raw), { ...account, email: 'private@example.test', displayName: 'Private name' });
+    assert.deepEqual(document.messages.map(m => [m.label, m.variant]), [['you', 'bubble'], ['assistant', 'flow'], ['system', 'flow'], ['developer', 'flow'], ['unknown', 'flow']]);
+    assert.doesNotMatch(JSON.stringify(document), /private@example|Private name|123456789/);
+});
