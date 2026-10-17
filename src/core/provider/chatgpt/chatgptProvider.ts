@@ -1,5 +1,6 @@
-import { acquireSourceResource } from '../sourceResources.js';
+import { acquireSourceResource, createSourceResourceContext, type SourceResourceContext } from '../sourceResources.js';
 import { chatgptAccountObservation } from './accountObservation.js';
+import type { ConversationKey } from '../../domain/conversationKey.js';
 import type { Account } from '../../domain/accountRegistry.js';
 import type { DomainAsset } from '../../domain/conversationDetail.js';
 import type { ResourceBytes } from '../../resources/resourceResult.js';
@@ -40,6 +41,7 @@ export interface ChatGPTFetch {
 interface ChatGPTProviderDeps {
     fetchFn?: ChatGPTFetch;
     origin?: string;
+    resources?: SourceResourceContext;
 }
 
 export class ChatGPTProvider implements AIProvider {
@@ -49,6 +51,7 @@ export class ChatGPTProvider implements AIProvider {
 
     private fetchFn: ChatGPTFetch;
     private origin: string;
+    readonly resources: SourceResourceContext;
 
     constructor(deps?: ChatGPTProviderDeps) {
         const globalFetch = globalThis.fetch as unknown as ChatGPTFetch | undefined;
@@ -56,6 +59,7 @@ export class ChatGPTProvider implements AIProvider {
             deps?.fetchFn
             ?? (globalFetch ? globalFetch.bind(globalThis) : (() => Promise.reject(new Error('fetch unavailable'))));
         this.origin = deps?.origin ?? 'https://chatgpt.com';
+        this.resources = deps?.resources ?? createSourceResourceContext();
     }
 
     matchesUrl(url: string): boolean {
@@ -140,19 +144,22 @@ export class ChatGPTProvider implements AIProvider {
         signal?.throwIfAborted();
         const index = parsed.conversation.index;
         await ingestDetail(account.id, conversationId, parsed.conversation.detail, index);
+        this.resources.retainParsed({ accountId, conversationId }, parsed);
     }
-    async acquireResource(accountId: string, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
+    async acquireResource(key: ConversationKey, asset: DomainAsset, signal?: AbortSignal): Promise<ResourceBytes> {
         signal?.throwIfAborted();
-        const account = await this.context(accountId);
-        const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
-        if (!fileId) return acquireSourceResource(asset, signal);
-        const exchange = parseFileDownloadPayload(await this.authedGet<unknown>(buildFileDownloadPath(fileId), account, signal));
-        if (!exchange) throw new Error('ChatGPT resource locator unavailable');
-        const response = await this.fetchFn(exchange.downloadUrl, { signal });
-        if (!response.ok) throw new Error(`Resource request failed: ${response.status}`);
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        signal?.throwIfAborted();
-        if (!bytes.byteLength) throw new Error('Empty ChatGPT resource');
-        return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+        const account = await this.context(key.accountId);
+        return this.resources.acquire(key, asset, signal, async () => {
+            const fileId = asset.sourceUri?.startsWith('file-download:') ? asset.sourceUri.slice(14) : fileIdFromPointer(asset.sourceUri ?? '');
+            if (!fileId) return acquireSourceResource(asset, signal);
+            const exchange = parseFileDownloadPayload(await this.authedGet<unknown>(buildFileDownloadPath(fileId), account, signal));
+            if (!exchange) throw new Error('ChatGPT resource locator unavailable');
+            const response = await this.fetchFn(exchange.downloadUrl, { signal });
+            if (!response.ok) throw new Error(`Resource request failed: ${response.status}`);
+            const bytes = new Uint8Array(await response.arrayBuffer());
+            signal?.throwIfAborted();
+            if (!bytes.byteLength) throw new Error('Empty ChatGPT resource');
+            return { bytes, ...(asset.mediaType ? { mediaType: asset.mediaType } : {}), ...(asset.name ? { name: asset.name } : {}) };
+        });
     }
 }

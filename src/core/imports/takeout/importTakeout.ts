@@ -1,3 +1,4 @@
+import type { SourceResourceContext } from '../../provider/sourceResources.js';
 import { getAccount } from '../../api/accountRegistry.js';
 import { attemptResource, missingResource, resourceDiagnostics, type ResourceResult, type ResourceDelivery } from '../../resources/resourceResult.js';
 import { ingestDetail } from '../../domain/ingestion.js';
@@ -11,7 +12,7 @@ export interface TakeoutParseResult { imported: number; status: 'ok' | 'partial'
 export { stripHtmlTags };
 
 /** UI/acquisition adapter: native parsing precedes the one-way storage projection. */
-export async function importTakeout(file: File, slot: string, onProgress?: (pct: number) => void): Promise<TakeoutParseResult> {
+export async function importTakeout(file: File, slot: string, onProgress?: (pct: number) => void, resources?: SourceResourceContext): Promise<TakeoutParseResult> {
     if (!slot) throw new TypeError('Takeout requires an account UUID');
     const account = await getAccount(slot);
     if (!account || account.providerId !== 'gemini') throw new TypeError('Takeout requires an existing Gemini account');
@@ -73,6 +74,14 @@ export async function importTakeout(file: File, slot: string, onProgress?: (pct:
         }
         const index = native.conversation.index;
         await ingestDetail(slot, id, native.conversation.detail, index);
+        resources?.retainParsed({ accountId: slot, conversationId: id }, result);
+        for (const [assetId, bound] of Object.entries(result.archiveResources)) {
+            resources?.retain({ accountId: slot, conversationId: id }, assetId, async () => {
+                const bytes = await readTakeoutBytes(bound.entry);
+                if (!bytes?.byteLength) throw new Error('Empty Takeout resource');
+                return { bytes };
+            });
+        }
         // Retain archive handles for this import only; bytes never enter Detail.
         for (const resource of acquiredPaths) {
             const path = resource.path;

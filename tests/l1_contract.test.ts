@@ -1,3 +1,4 @@
+import { createSourceResourceContext } from '../src/core/provider/sourceResources.js';
 import { upsertConversations, persistConversationBatch } from '../src/content/geminiIndexCapture.js';
 import test, { beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -211,11 +212,11 @@ test('L1 source resource operation returns bytes and respects pre-abort', async 
     try {
         const p = provider([]);
         const asset = { id: 'image', kind: 'image' as const, sourceUri: 'https://example.test/image', mediaType: 'image/png' };
-        const result = await p.acquireResource(ACCOUNT_UUID, asset);
+        const result = await p.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset);
         assert.deepEqual(result, { bytes: Uint8Array.of(1, 2, 3), mediaType: 'image/png' });
         const controller = new AbortController(); controller.abort();
-        await assert.rejects(p.acquireResource(ACCOUNT_UUID, asset, controller.signal), { name: 'AbortError' });
-        await assert.rejects(p.acquireResource(ACCOUNT_UUID, { ...asset, sourceUri: 'blob:temporary' }), /locator/);
+        await assert.rejects(p.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset, controller.signal), { name: 'AbortError' });
+        await assert.rejects(p.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, { ...asset, sourceUri: 'blob:temporary' }), /locator/);
     } finally { globalThis.fetch = original; }
 });
 
@@ -229,4 +230,83 @@ test('L1 DOM capture commits source metadata without fabricating activity clocks
 test('L1 capture preserves valid source rows when another row is malformed', async () => {
     const result = await persistConversationBatch([{ id: 'valid_source_123' }, { broken: true }], 'dom', false, ACCOUNT_UUID);
     assert.equal(result.accepted, 1); assert.equal(result.rejected, 1);
+});
+
+
+test('L1 current inline bytes survive missing locator without network or Runtime route', async () => {
+    const account = await getAccount(ACCOUNT_UUID); assert.ok(account);
+    const parsed = parseGeminiRpcConversation(detailWire(), { providerId: 'gemini', account });
+    const asset = { id: 'inline', kind: 'image' as const, mediaType: 'image/png' };
+    parsed.conversation.detail.assets.push(asset);
+    parsed.acquisitionHints = { inline: { dataBase64: 'AQID' } };
+    const p = new GeminiProvider({ ...client([]), getConversationDetail: async () => parsed }, async () => 'u0');
+    await p.fetchConversationDetail(ACCOUNT_UUID, parsed.conversationId);
+    const offline = new GeminiProvider(client([]), async () => { throw new Error('No online route'); }, p.resources);
+    const key = { accountId: ACCOUNT_UUID, conversationId: parsed.conversationId };
+    assert.deepEqual((await offline.acquireResource(key, asset)).bytes, Uint8Array.of(1, 2, 3));
+    for (const wrong of [{ ...key, conversationId: 'another_chat' }, { ...key, accountId: OTHER_ACCOUNT_UUID }]) {
+        await assert.rejects(offline.acquireResource(wrong, asset));
+    }
+    p.resources.release();
+    await assert.rejects(offline.acquireResource(key, asset), /released/);
+});
+
+test('L1 task resource contexts isolate identical keys and propagate cancellation during read', async () => {
+    const resources = createSourceResourceContext(), otherTask = createSourceResourceContext();
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
+    const asset = { id: 'same', kind: 'image' as const };
+    const controller = new AbortController();
+    resources.retain(key, asset.id, async () => { controller.abort(); return { bytes: Uint8Array.of(1) }; });
+    await assert.rejects(resources.acquire(key, asset, controller.signal), { name: 'AbortError' });
+    await assert.rejects(otherTask.acquire(key, asset), /locator/);
+    resources.release(); otherTask.release();
+});
+
+test('L1 Takeout hands bound ZIP entries to current resource context', async () => {
+    const html = '<div class="outer-cell"><a href="https://gemini.google.com/app/source_chat_123">Conversation</a><div class="content-cell mdl-cell mdl-cell--6-col mdl-typography--body-1">Prompted Question<br>2026-09-02T12:00:00Z<br><p>Answer<img src="picture.png"></p></div></div>';
+    const archive = { file() {}, files: {
+        'Takeout/Gemini/MyActivity.html': { _data: { uncompressedSize: html.length }, async: async () => html },
+        'Takeout/Gemini/picture.png': { _data: { uncompressedSize: 3 }, async: async () => Uint8Array.of(4, 5, 6) },
+    } };
+    const resources = createSourceResourceContext();
+    try {
+        await importTakeout(archive as unknown as File, ACCOUNT_UUID, undefined, resources);
+        const stored = await getStoredDomain({ providerId: 'gemini', accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' });
+        assert.ok(stored);
+        const asset = stored.conversation.detail.assets[0]; assert.ok(asset);
+        const offline = new GeminiProvider(client([]), async () => { throw new Error('No online route'); }, resources);
+        const result = await offline.acquireResource({ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }, asset);
+        assert.deepEqual(result.bytes, Uint8Array.of(4, 5, 6));
+    } finally { resources.release(); }
+});
+
+
+test('L1 unavailable current bytes fall back to remote locator with signal', async () => {
+    const resources = createSourceResourceContext(), original = globalThis.fetch;
+    const key = { accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' };
+    const asset = { id: 'image', kind: 'image' as const, sourceUri: 'https://example.test/image' };
+    const controller = new AbortController();
+    resources.retain(key, asset.id, async () => { throw new Error('Unavailable current entry'); });
+    globalThis.fetch = async (url, options) => {
+        assert.equal(url, asset.sourceUri); assert.equal(options?.signal, controller.signal);
+        return new Response(Uint8Array.of(7));
+    };
+    try {
+        const p = new GeminiProvider(client([]), async () => 'u0', resources);
+        assert.deepEqual((await p.acquireResource(key, asset, controller.signal)).bytes, Uint8Array.of(7));
+    } finally { resources.release(); globalThis.fetch = original; }
+});
+
+test('L1 Sniffer hands only correlated conversation resources to the task context', async () => {
+    const resources = createSourceResourceContext();
+    const retained: unknown[] = [];
+    const retainParsed = resources.retainParsed.bind(resources);
+    resources.retainParsed = (key, parsed) => { retained.push(key); retainParsed(key, parsed); };
+    init({ resources });
+    try {
+        await handleWindowMessage(sourceEvent(detailWire(), { detailRequest: { conversationId: 'wrong_chat', requestCursor: null } }));
+        assert.equal(retained.length, 0);
+        await handleWindowMessage(sourceEvent(detailWire(), { detailRequest: { conversationId: 'source_chat_123', requestCursor: null } }));
+        assert.deepEqual(retained, [{ accountId: ACCOUNT_UUID, conversationId: 'source_chat_123' }]);
+    } finally { resources.release(); }
 });

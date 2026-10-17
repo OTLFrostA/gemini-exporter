@@ -24,6 +24,6 @@ export interface AIProvider {
     checkReadiness(accountId: string): Promise<ProviderReadiness>;
     listConversations(options: ProviderListOptions): Promise<ListEnd>;
     fetchConversationDetail(accountId: string, conversationId: string, signal?: AbortSignal): Promise<void>;
-    acquireResource(accountId: string, asset: import('../domain/conversationDetail.js').DomainAsset, signal?: AbortSignal): Promise<import('../resources/resourceResult.js').ResourceBytes>;
+    acquireResource(key: import('../domain/conversationKey.js').ConversationKey, asset: import('../domain/conversationDetail.js').DomainAsset, signal?: AbortSignal): Promise<import('../resources/resourceResult.js').ResourceBytes>;
     matchesUrl(url: string): boolean;
 }

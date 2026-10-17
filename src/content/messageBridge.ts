@@ -1,3 +1,4 @@
+import type { SourceResourceContext } from '../core/provider/sourceResources.js';
 import { getAccount } from '../core/api/accountRegistry.js';
 import { geminiListObservation } from '../core/provider/gemini/listObservation.js';
 import { resolveRequestAccount, resolveCurrentAccount } from './accountContext.js';
@@ -15,6 +16,7 @@ import { registerCleanup } from './cleanupRegistry.js';
 
 export type MessageBridgeConversationInput = GeminiIndexObservationInput;
 export interface MessageBridgeDeps {
+    resources?: SourceResourceContext;
     onStreamStart?: (cid?: string | null, slot?: string) => void;
     onStreamComplete?: (cid?: string | null, slot?: string) => void;
     onConversationDeleted?: (cid: string, accountId: string) => void;
@@ -98,6 +100,7 @@ export async function handleWindowMessage(event: MessageEvent): Promise<void> {
                 const merged = mergeConversationPages(pages, truncated ? 'capture_truncated' : undefined, complete);
                 const index = merged.conversation.index;
                 await ingestDetail(account.id, cid, merged.conversation.detail, index);
+                deps.resources?.retainParsed({ accountId: account.id, conversationId: cid }, merged);
             }
             return;
         }
