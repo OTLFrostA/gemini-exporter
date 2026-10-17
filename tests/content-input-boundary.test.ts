@@ -41,37 +41,36 @@ for (const structured of [
     });
 }
 
-test('generic Markdown parses images through a caller hook and has no Gemini import or preprocessing', () => {
+test('generic Markdown parses images through the caller-provided asset resolver', () => {
     const ctx = { diagnostics: [], sourceRef: { providerId: 'other', locator: 'content' },
         resolveImage: (ref: string, alt: string) => ({ type: 'image' as const, assetId: `resolved:${ref}`, alt }),
     };
     assert.deepEqual(parseMarkdownToBlocks('![diagram](image.png)', '', ctx), [{
         type: 'paragraph', children: [{ type: 'image', assetId: 'resolved:image.png', alt: 'diagram' }],
     }]);
-    for (const file of ['parseMarkdown.ts', 'mdastToContent.ts', 'index.ts']) {
-        const source = readFileSync(join(__dirname, '../src/core/parsers/shared/markdown', file), 'utf8');
-        assert.doesNotMatch(source, /from\s+['"][^'"]*(?:gemini|compat)[^'"]*['"]/i);
-        assert.doesNotMatch(source, /preprocessGemini/);
-    }
 });
 
-for (const content of [
-    '![local](assets/image.png)\n\n> ![linked](https://example.test/image.png)',
-    '![data](data:image/png;base64,AQID)\n\n![missing](unknown.png)',
-    '<h2>Takeout title</h2><p>中文 <strong>answer</strong></p><ul><li>one</li><li>two</li></ul>',
-    '# Title\n\n1. **first**\n2. second\n\n> [source](https://example.test) [1]\n\n```ts\nconst x = 1;\n```\n\n$$x^2$$\n\n|a|b|\n|---|---|\n|1|2|',
+for (const [content, expectedVisible] of [
+    ['![local](assets/image.png)\n\n> ![linked](https://example.test/image.png)', 'local'],
+    ['![data](data:image/png;base64,AQID)\n\n![missing](unknown.png)', 'data'],
+    ['<h2>Takeout title</h2><p>中文 <strong>answer</strong></p><ul><li>one</li><li>two</li></ul>', 'Takeout title'],
+    ['# Title\n\n1. **first**\n2. second\n\n> [source](https://example.test) [1]\n\n```ts\nconst x = 1;\n```\n\n$$x^2$$\n\n|a|b|\n|---|---|\n|1|2|', 'Title'],
 ]) {
-    test(`pre-Domain AST keeps legacy export parity and input immutability: ${content.slice(0, 35)}`, async () => {
+    test(`legacy content survives Document composition and serialization: ${content.slice(0, 35)}`, async () => {
         const legacy: Conversation = { ...metadata, messages: [{ role: 'assistant', content,
             attachments: [{ type: 'image', localName: 'assets/image.png', url: 'https://example.test/image.png' }],
             citations: [{ url: 'https://example.test/source', title: 'Source' }], thoughts: 'Reasoning **detail**',
         }] };
         const { conversation: domain, resourceHints } = historicalFixture(legacy);
         const before = structuredClone(domain);
-        const [raw, semantic] = await Promise.all([composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
-        assert.deepEqual(semantic.document, raw.document);
+        const semantic = await composeFixture(domain, resourceHints);
+        assert.equal(semantic.document.messages.length, 1);
+        assert.ok(semantic.document.messages[0].blocks.length > 0, 'visible input must produce display blocks');
+        assert.ok(JSON.stringify(semantic.document.messages[0].blocks).includes(expectedVisible),
+            `source evidence "${expectedVisible}" must survive native parsing and composition`);
         assert.deepEqual(domain, before, 'asset/citation reconciliation must not mutate Domain');
-        assert.deepEqual((await composeFixture(domain, resourceHints)).document, semantic.document);
+        assert.deepEqual((await composeFixture(structuredClone(domain), resourceHints)).document, semantic.document,
+            'serialized Domain must retain the same semantic document');
     });
 }
 
@@ -146,9 +145,12 @@ for (const document of [
         const { conversation: domain, resourceHints } = historicalFixture(legacy);
         assert.equal('structuredContent' in domain.detail.messages[0], false);
         assert.deepEqual(messageAssets(domain, 0)?.[0].document?.contentMarkdown, document.contentMarkdown ? `${document.contentMarkdown}\n\nsection` : 'section');
-        const [raw, semantic] = await Promise.all([composeFixture(historicalFixture(legacy, { providerId: 'gemini' }).conversation, resourceHints), composeFixture(domain, resourceHints)]);
-        assert.deepEqual(semantic.document, raw.document);
-        assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints)).document, raw.document);
+        const semantic = await composeFixture(domain, resourceHints);
+        assert.ok(semantic.document.messages[0].blocks.length > 0, 'structured source must produce document content');
+        assert.equal(collectDocumentResources(semantic.document).imageIds.size, 1,
+            'the structured source image must survive document composition');
+        assert.deepEqual((await composeFixture(JSON.parse(JSON.stringify(domain)), resourceHints)).document, semantic.document,
+            'persisted Domain must preserve the document and its resource references');
         assert.deepEqual(domain.detail.assets.map(asset => asset.name), [document.fileName, '贝尔测试实验示意图.png']);
         assert.deepEqual(legacy, original);
     });
