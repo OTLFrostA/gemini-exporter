@@ -1,3 +1,4 @@
+import { getConversations } from '../core/storage/conversationCatalogStore.js';
 import { ingestIndexes } from '../core/domain/ingestion.js';
 import { isAccountId } from '../core/domain/accountRegistry.js';
 import { restoreConversationIndex, type DomainConversationIndex } from '../core/domain/conversationIndex.js';
@@ -32,33 +33,31 @@ export interface RpcListIngestResult {
 
 const emptyIngest = (rejected = 0): RpcListIngestResult => ({ count: 0, accepted: 0, rejected, persisted: 0 });
 let __storageWriteQueue = Promise.resolve<RpcListIngestResult>(emptyIngest());
-let __lastKnownCount = 0;
 
 
-export function upsertConversations(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null): Promise<number> {
-    return persistConversationBatch(incomingItems, source, forceWrite, targetSlot).then(result => result.count);
+export function upsertConversations(incomingItems: readonly unknown[], source: string, targetSlot: string | null = null): Promise<number> {
+    return persistConversationBatch(incomingItems, source, targetSlot).then(result => result.count);
 }
 
 /** Both RPC acquisition paths commit through the same merge and storage transaction. */
 export async function ingestRpcList(items: (GeminiProviderConversationItem | DomainConversationIndex)[], slot: string, requestedAt = Date.now(), canCommit?: () => boolean): Promise<RpcListIngestResult> {
     await assertSchemaWritable();
-    return persistConversationBatch(items, 'network-list', true, slot, requestedAt, [], canCommit);
+    return persistConversationBatch(items, 'network-list', slot, requestedAt, canCommit);
 }
 
 /** Both passive and active pages pass through this trigger-independent boundary. */
 export async function ingestPageObservation(page: PageObservation<GeminiProviderConversationItem>, slot: string,
     runId?: string): Promise<RpcListIngestResult> {
-    const Storage = getStorage();
     if (!isAccountId(page.accountId) || page.accountId !== slot || page.providerId !== 'gemini') {
         throw new Error('Page observation requires its captured Registry UUID');
     }
     const canCommit = () => (runId !== undefined || page.requestedAt > contentContext.getCancelledAt())
         && (runId === undefined || !contentContext.isAborted());
     if (!canCommit()) throw new Error('Page observation belongs to a stale account or cancelled request');
-    return persistConversationBatch(page.items, 'network-list', true, slot, page.requestedAt, [], canCommit, page, runId);
+    return persistConversationBatch(page.items, 'network-list', slot, page.requestedAt, canCommit, page);
 }
 
-export async function persistConversationBatch(incomingItems: readonly unknown[], source: string, forceWrite = false, targetSlot: string | null = null, requestedAt = Date.now(), localTouches: readonly string[] = [], canCommit?: () => boolean, page?: PageObservation<unknown>, runId?: string): Promise<RpcListIngestResult> {
+export async function persistConversationBatch(incomingItems: readonly unknown[], source: string, targetSlot: string | null = null, requestedAt = Date.now(), canCommit?: () => boolean, page?: PageObservation<unknown>): Promise<RpcListIngestResult> {
     if (!incomingItems || (!incomingItems.length && !page)) return Promise.resolve(emptyIngest());
 
     // Fail-Closed Integrity Gate:
@@ -71,7 +70,6 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
     const targetAccountId = targetSlot || captured?.accountId;
     if (!isAccountId(targetAccountId)) throw new Error('List ingestion requires an account UUID');
     const validIncoming: DomainConversationIndex[] = [];
-    const touched = new Set(localTouches);
     for (const item of incomingItems) {
         try {
             const index: DomainConversationIndex = item && typeof item === 'object' && 'key' in item
@@ -80,7 +78,6 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
             if (index.key.accountId !== targetAccountId || index.key.conversationId !== normId(index.key.conversationId)
                 || index.key.conversationId === 'unknown' || isReservedRoute(index.key.conversationId)) throw new TypeError('Invalid canonical Gemini identity');
             validIncoming.push(index);
-            if (item && typeof item === 'object' && 'sidebarIndex' in item && item.sidebarIndex === 0) touched.add(index.key.conversationId);
         }
         catch (error) { if (!(error instanceof TypeError)) throw error; }
     }
@@ -108,28 +105,19 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
                 if (deletion) recovered.set(incoming.key.conversationId, deletion);
                 return true;
             });
-            const tx = await ingestIndexes(slot, eligible, {
-                storage: Storage, canCommit: commit, forceWrite, touched,
-                ...(page && eligible.length === incomingItems.length ? { page } : {}),
-            });
-            if (kind === 'rpc-list' && tx.written) for (const index of validIncoming) {
+            if (!commit()) throw new Error('Account changed before index ingestion');
+            await ingestIndexes(slot, eligible.map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })),
+                page && eligible.length === incomingItems.length ? page : undefined);
+            // Read the accepted total for the UI, without reconstructing L2's write decision.
+            const list = await getConversations(slot);
+            if (kind === 'rpc-list') for (const index of eligible) {
                 if (!confirmedDeleted.get(slot)?.has(index.key.conversationId) || recovered.has(index.key.conversationId)) await Storage.setConversationAvailability?.(slot, index.key.conversationId, 'available');
             }
-            const accepted = tx.accepted;
-
-            if (tx.written) for (const [id, deletion] of recovered) {
-                if (confirmedDeleted.get(slot)?.get(id) === deletion) confirmedDeleted.get(slot)?.delete(id);
-            }
-            const mergedLength = tx.list.length;
+            for (const [id, deletion] of recovered) if (confirmedDeleted.get(slot)?.get(id) === deletion) confirmedDeleted.get(slot)?.delete(id);
+            const accepted = eligible.length;
+            const mergedLength = list.length;
             const result: RpcListIngestResult = { count: mergedLength, accepted,
                 rejected: incomingItems.length - accepted, persisted: accepted };
-            if (!tx.written) {
-                if (__lastKnownCount !== mergedLength) {
-                    if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
-                    __lastKnownCount = mergedLength;
-                }
-                return result;
-            }
 
             await Storage.setLastSync(slot, Date.now(), mergedLength);
 
@@ -146,7 +134,6 @@ export async function persistConversationBatch(incomingItems: readonly unknown[]
             }
 
             if (getAccountContext()?.accountId === slot) updateBadge(mergedLength, incomingItems.length);
-            __lastKnownCount = mergedLength;
             return result;
         } catch (e: unknown) {
             console.error('[Gemini Exporter] upsertConversations failed', e);

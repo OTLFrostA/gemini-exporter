@@ -4,7 +4,6 @@ import CoverageAdmission, { type ScanHead } from '../core/domain/coverageAdmissi
 import ScanLifecycle from '../core/application/sync/scanLifecycle.js';
 import { setConversationAvailability } from '../core/storage/conversationAvailability.js';
 import { isAccountId } from '../core/domain/accountRegistry.js';
-import { ingestConversation } from '../core/domain/ingestion.js';
 import { type DomainConversationIndex } from '../core/domain/conversationIndex.js';
 import { parseGeminiDomIndex } from '../core/parsers/gemini/dom/parseIndex.js';
 import { type StoredValue } from '../core/storage/storageCompatibility.js';
@@ -163,8 +162,8 @@ export async function touchActiveConversation(
     const item = parseGeminiDomIndex(typeof document === 'undefined' ? null : document, nid);
 
     const source = options?.source || 'stream-complete';
-    // Touch changes local tie order only; no local clock or UI hint enters Domain.
-    const receipt = await persistConversationBatch([item], source, options?.forceWrite ?? true, targetSlot, now, [nid], () => isCurrentAccount(account));
+    // Submit source facts only; no local clock or UI hint enters Domain.
+    const receipt = await persistConversationBatch([item], source, targetSlot, now, () => isCurrentAccount(account));
     const res = receipt.count;
 
     if (source === 'stream-complete' || source === 'live-turn-complete') {

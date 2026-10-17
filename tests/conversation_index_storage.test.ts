@@ -1,3 +1,4 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { sourceIndex } from './helpers/domainFixture.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
@@ -63,13 +64,13 @@ test('native detail persists separately and index updates cannot truncate or rep
         const detail = historicalFixture({ id: 'chat', title: 'Research', titleSource: 'rpc', messages: [
             { role: 'user', content: 'Question' }, { role: 'model', content: 'Answer' }
         ] });
-        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [detail]);
+        await admitFixtures('10000000-0000-4000-8000-000000000001', [detail]);
         const before = await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat');
         const index = (await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0];
         assert.equal(Reflect.get(index ?? {}, 'messageCount'), undefined);
         assert.equal('messages' in index, false);
         await DomainAdmission.updateConversation('10000000-0000-4000-8000-000000000001', 'chat', {  title: 'Renamed', titleSource: "provider" });
-        assert.deepEqual(await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'), before);
+        assert.deepEqual((await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'))!.conversation.detail, before!.conversation.detail);
         assert.equal((await storage.conversationRepository({ providerId: 'gemini', accountId: '10000000-0000-4000-8000-000000000001' }).getConversation('chat'))?.index.title, 'Renamed');
         await storage.clearConversations('10000000-0000-4000-8000-000000000001');
         assert.equal(await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'), null);
@@ -96,7 +97,7 @@ test('partial and concurrent native imports retain unrelated indexes and existin
         const first = historicalFixture({ id: 'chat', title: 'Weaker detail', titleSource: 'sniff', updatedAt: 999999,
             messages: [{ role: 'user', content: 'Question', timestamp: 70 }] });
         const second = historicalFixture({ id: 'added', title: 'Added conversation', messages: [{ role: 'user', content: 'New body', timestamp: 80 }] });
-        await Promise.all([DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [first]), DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [second])]);
+        await Promise.all([admitFixtures('10000000-0000-4000-8000-000000000001', [first]), admitFixtures('10000000-0000-4000-8000-000000000001', [second])]);
         const rows = await storage.getConversations('10000000-0000-4000-8000-000000000001');
         assert.deepEqual(rows.map(value => value.key.conversationId).sort(), ['added', 'chat', 'other']);
         assert.deepEqual(rows.find(value => value.key.conversationId === 'other'), other);
@@ -104,7 +105,7 @@ test('partial and concurrent native imports retain unrelated indexes and existin
         assert.equal((await storage.getConversations('10000000-0000-4000-8000-000000000002'))[0].title, other.title);
         assert.equal((await getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'chat'))?.conversation.detail.messages.length, 1);
         const writes = env.writes();
-        await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', []);
+        await admitFixtures('10000000-0000-4000-8000-000000000001', []);
         assert.equal(env.writes(), writes, 'empty partial import cannot clear the list');
     } finally { env.restore(); }
 });
@@ -155,19 +156,19 @@ test('fresh list evidence restores deleted indexes, while stale requests, cached
         markConfirmedDeleted('10000000-0000-4000-8000-000000000001', id);
         const listed = { ...sourceIndex(deleted), title: 'Restored RPC title' };
         assert.equal((await ingestRpcList([listed], '10000000-0000-4000-8000-000000000001', 0)).accepted, 0, 'request begun before deletion is stale');
-        await upsertConversations([{ id, title: 'Stale page title', cloudAvailability: 'available' }], 'network-detail', true, '10000000-0000-4000-8000-000000000001');
+        await upsertConversations([{ id, title: 'Stale page title', cloudAvailability: 'available' }], 'network-detail', '10000000-0000-4000-8000-000000000001');
         assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000001'), [deleted]);
         env.fail('conversations_10000000-0000-4000-8000-000000000001');
         await assert.rejects(ingestRpcList([listed], '10000000-0000-4000-8000-000000000001', Date.now() + 1000), /write failed/);
         env.fail();
-        await upsertConversations([{ id, title: 'Stale page title' }], 'page-sync', true, '10000000-0000-4000-8000-000000000001');
+        await upsertConversations([{ id, title: 'Stale page title' }], 'page-sync', '10000000-0000-4000-8000-000000000001');
         assert.deepEqual(await storage.getConversations('10000000-0000-4000-8000-000000000001'), [deleted], 'failed recovery cannot clear the deletion fence');
         assert.equal((await ingestRpcList([listed], '10000000-0000-4000-8000-000000000001', Date.now() + 1000)).accepted, 1);
         const restored = (await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0];
         assert.equal(Reflect.get(restored ?? {}, 'cloudAvailability'), undefined);
         assert.equal(Reflect.get(restored ?? {}, 'hasTakeoutImport'), undefined);
         assert.equal(restored.title, 'Restored RPC title');
-        await upsertConversations([{ id, title: 'Next page title' }], 'page-sync', true, '10000000-0000-4000-8000-000000000001');
+        await upsertConversations([{ id, title: 'Next page title' }], 'page-sync', '10000000-0000-4000-8000-000000000001');
         assert.equal(Reflect.get((await storage.getConversations('10000000-0000-4000-8000-000000000001'))[0] ?? {}, 'messageCount'), undefined, 'successful recovery clears the old in-memory fence');
         await storage.setConversations('10000000-0000-4000-8000-000000000002', [{ ...deleted, key: { ...deleted.key, accountId: '10000000-0000-4000-8000-000000000002' } }]);
         assert.equal((await ingestRpcList([listed], '10000000-0000-4000-8000-000000000002')).accepted, 1, 'persisted deletion without a local fence also recovers');

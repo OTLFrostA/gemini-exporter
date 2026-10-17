@@ -1,3 +1,4 @@
+import { catalogMock } from './helpers/catalogMock.js';
 import { accountRuntime, ACCOUNT_UUID, ACCOUNT_OBSERVATION } from './helpers/accountRuntime.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,10 +12,10 @@ import { indexFixture } from './helpers/indexFixture.js';
 const text = JSON.stringify([['wrb.fr', 'MaZiqc', JSON.stringify([null, null,
     [['c_abcdef123456', 'Server title', null, null, null, [1700000000, 0]]]])]]);
 const batch = () => parseList(text).conversations;
-async function fixture(run: (state: { availability: Record<string, string>; records: Conversation[]; fail: boolean; writes: number; checkpoints: number }) => Promise<void>) {
-    const state = { availability: {} as Record<string, string>, records: [indexFixture({ id: 'abcdef123456', title: 'Old title', cloudAvailability: 'unlisted' })], fail: false, writes: 0, checkpoints: 0 };
+async function fixture(run: (state: { availability: Record<string, string>; records: Conversation[]; fail: boolean; writes: number; reads: number; checkpoints: number }) => Promise<void>) {
+    const state = { availability: {} as Record<string, string>, records: [indexFixture({ id: 'abcdef123456', title: 'Old title', cloudAvailability: 'unlisted' })], fail: false, writes: 0, reads: 0, checkpoints: 0 };
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} } } });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: { runtime: { sendMessage: async () => {} }, storage: catalogMock(() => { state.reads++; return state.records; }, list => { if (state.fail) throw new Error('disk failed'); state.records = list; state.writes++; }) } });
     __setModuleOverride('StorageService', {
         async transactConversations(slot: string, apply: (items: Conversation[]) => { list: Conversation[]; changed: number } | null) {
             assert.equal(slot, ACCOUNT_UUID);
@@ -74,4 +75,18 @@ test('scanner sees storage failures; bridge catches them at its event boundary a
     assert.equal(state.checkpoints, 0);
     state.fail = false;
     assert.equal((await ingestRpcList(batch(), ACCOUNT_UUID)).persisted, 1);
+}));
+
+
+test('Index capture reads once for admission and once for the UI total, including unchanged batches', async () => fixture(async state => {
+    const incoming = [{ ...batch()[0], id: 'c_another123456' }];
+    const first = await ingestRpcList(incoming, ACCOUNT_UUID);
+    assert.equal(first.count, 2, 'UI total includes existing conversations outside this batch');
+    assert.equal(first.persisted, 1);
+    assert.equal(state.reads, 2);
+    assert.equal(state.writes, 1);
+    const repeated = await ingestRpcList(incoming, ACCOUNT_UUID);
+    assert.deepEqual(repeated, first);
+    assert.equal(state.reads, 4);
+    assert.equal(state.writes, 1, 'L2 still skips unchanged canonical Index writes');
 }));

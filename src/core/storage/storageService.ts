@@ -1,9 +1,10 @@
+import { clearResourceContext } from './domain/resourceContext.js';
 import { getConversationAvailability, setConversationAvailability } from './conversationAvailability.js';
 import { getStorageKeys, getConversations, setConversations, transactConversations, writeConversationIndexes, withConversationLock, withCrossTabLock, requireAccountId } from './conversationCatalogStore.js';
 export type { StorageKeys, ConversationTransaction } from './conversationCatalogStore.js';
 import { getAccount } from '../api/accountRegistry.js';
 import { assertSchemaWritable } from './schemaState.js';
-import { removeStoredDomain, storageIdentity, getStoredDomain } from './domain/domainStore.js';
+import { deleteDetail, storageIdentity, getDetail } from './domain/domainStore.js';
 import { createConversationRepository, type ConversationScope, type ConversationRepository } from './conversationRepository.js';
 import {
     readStoredValue, type StoredObject, readStoredObject, readStoredExportMap,
@@ -66,7 +67,10 @@ async function pendingDeletions(slot: string | null | undefined): Promise<string
 async function finishConversationDeletions(slot: string | null | undefined, ids: string[], pending: string[]): Promise<void> {
     const account = await getAccount(requireAccountId(slot));
     if (!account) throw new Error('Account does not exist');
-    for (const id of ids) await removeStoredDomain(storageIdentity(account.providerId, account.id, id));
+    for (const id of ids) {
+        await deleteDetail(storageIdentity(account.providerId, account.id, id));
+        await clearResourceContext(storageIdentity(account.providerId, account.id, id));
+    }
     await removeExportRecords(slot, ids);
     const completed = new Set(ids);
     // This cleanup already holds the conversation lock.
@@ -314,7 +318,7 @@ async function hasTakeoutData(slot?: string | null): Promise<boolean> {
 function conversationRepository(scope: ConversationScope): ConversationRepository {
     const accountId = requireAccountId(scope.accountId);
     return createConversationRepository({ ...scope, accountId }, {
-        readIndexes: () => getConversations(accountId), readBody: getStoredDomain, readConsistently: withConversationLock,
+        readIndexes: () => getConversations(accountId), readBody: getDetail, readConsistently: withConversationLock,
     });
 }
 

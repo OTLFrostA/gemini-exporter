@@ -98,16 +98,10 @@ export function withConversationMetadata(detail: TrustedDomainBody, index: Domai
     return { index, detail };
 }
 
-function serializeDomain(value: unknown): string | undefined {
-    // Reject cycles/non-JSON values before recursive schema validation.
-    return JSON.stringify(value, (_key, v: unknown) => {
-        if (typeof v === 'number' && !Number.isFinite(v)) throw new TypeError('Non-finite Domain value');
-        if (typeof v === 'function' || typeof v === 'symbol' || typeof v === 'bigint') throw new TypeError('Non-JSON Domain value');
-        return v;
-    });
-}
 function assertSchema(value: unknown): asserts value is DomainConversationDetail {
-    if (!domain(value)) {
+    let valid = false;
+    try { valid = domain(value); } catch { throw new TypeError('Invalid recursive Domain contract'); }
+    if (!valid) {
         const field = object(value) ? Object.keys(value).find(k => !Object.hasOwn(domainFields, k))
             ?? Object.entries(domainFields).find(([k, check]) => !check(value[k]))?.[0] : undefined;
         throw new TypeError(`Invalid persisted Domain contract${field ? ': ' + field : ''}`);
@@ -130,23 +124,43 @@ function assertConversation(value: unknown): asserts value is DomainConversation
 /** Parser finalization validates the graph without cloning or changing its content. */
 export function validateParserDomain(input: { index: DomainConversationIndex; detail: Omit<DomainConversationDetail, 'key'> & { key?: DomainConversationDetail['key'] } }): TrustedDomain {
     const value = input.detail.key === undefined ? { ...input, detail: { ...input.detail, key: input.index.key } } : input;
-    serializeDomain(value);
     assertConversation(value);
+    trustedBodies.add(value.detail);
     return value as TrustedDomain;
 }
 
-/** Restore a detached current aggregate, without interpreting historical schemas. */
+/** In-memory evidence only; IPC and persistence never carry this marker. */
+const trustedBodies = new WeakSet<object>();
+
+/** Validate external facts once, or reuse an already validated parser body. */
+export function acceptDetailFacts(key: DomainConversationDetail['key'], facts: Omit<DomainConversationDetail, 'key'>): TrustedDomainBody {
+    if (trustedBodies.has(facts) && 'key' in facts) {
+        if (!sameConversationKey(key, readConversationKey(facts.key))) throw new TypeError('Detail identity mismatch');
+        return facts as TrustedDomainBody;
+    }
+    if ('key' in facts && !sameConversationKey(key, readConversationKey(facts.key))) throw new TypeError('Detail identity mismatch');
+    return restoreDomainDetail({ ...facts, key });
+}
+
+/** Persistence/IPC values are already detached by the transport; no JSON clone. */
+export function restoreDomainDetail(value: unknown): TrustedDomainBody {
+    assertSchema(value);
+    assertDomainClosure(value);
+    trustedBodies.add(value);
+    return value as TrustedDomainBody;
+}
+
 export function restoreDomainSnapshot(value: unknown): TrustedDomain {
-    const json = serializeDomain(value);
-    const clone: unknown = json === undefined ? undefined : JSON.parse(json);
-    assertConversationShape(value);
-    assertConversation(clone);
-    return clone as TrustedDomain;
+    assertConversation(value);
+    trustedBodies.add(value.detail);
+    return value as TrustedDomain;
 }
 
 /** Preserve body trust while recording a checked source version, without reparsing content. */
 export function withSourceVersion(conversation: TrustedDomain, savedAt: number | undefined): TrustedDomain {
     if (savedAt !== undefined && !Number.isFinite(savedAt)) throw new TypeError('Invalid source version');
     const { savedAt: _old, ...body } = conversation.detail;
-    return { index: conversation.index, detail: { ...body, ...(savedAt !== undefined ? { savedAt } : {}) } };
+    const detail: TrustedDomainBody = { ...body, ...(savedAt !== undefined ? { savedAt } : {}) };
+    trustedBodies.add(detail);
+    return { index: conversation.index, detail };
 }

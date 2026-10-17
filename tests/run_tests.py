@@ -475,7 +475,7 @@ def test_content_badge_flicker_prevention():
     with open(os.path.join(BASE_DIR, "src/content/geminiIndexCapture.ts"), encoding="utf-8") as f:
         capture_js = f.read()
     assert "ingestIndexes" in capture_js, "L1 capture must delegate admission to the shared Domain boundary"
-    assert "options.forceWrite || changed || reordered" in ingestion, "Index admission must skip unchanged writes"
+    assert "JSON.stringify(list) !== JSON.stringify(existing)" in ingestion, "Index admission must skip unchanged writes"
     assert "textContent" in combined_js and "targetText" in combined_js, "badgeView/content.js updateBadge should guard textContent updates"
     assert "existing.isConnected" in combined_js or "isConnected" in combined_js, "badgeView/content.js ensureBadge should check isConnected"
     print("  ✓ Content badge flicker prevention verified")

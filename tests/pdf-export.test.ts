@@ -1,3 +1,4 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { fixtureAccountFor, fixtureKey } from './helpers/domainFixture.js';
@@ -653,7 +654,7 @@ test('PDF directory and ZIP share integrity and acquisition facts', async () => 
                 } });
             }
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (['takeout', 'snapshot', 'deleted', 'cache-response'].includes(scenario)) await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed]);
+            if (['takeout', 'snapshot', 'deleted', 'cache-response'].includes(scenario)) await admitFixtures('10000000-0000-4000-8000-000000000001', [parsed]);
             if (scenario === 'deleted') await catalogStorage.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'deleted');
             const records: Array<{ status: string }> = [];
             try {

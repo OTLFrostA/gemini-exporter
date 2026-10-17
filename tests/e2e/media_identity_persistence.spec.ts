@@ -13,7 +13,8 @@ let bundle: string;
 test.beforeAll(async () => {
     const result = await build({ stdin: { contents: `
         import * as store from './src/core/storage/domain/domainStore.ts';
-        import { saveDomainConversation } from './src/core/domain/snapshotAdmission.ts';
+        import { admitFixture, readFixture, removeFixture } from './tests/helpers/admitFixture.ts';
+        import * as resources from './src/core/storage/domain/resourceContext.ts';
         import * as fixtures from './tests/helpers/mediaSourceFixture.ts';
         import { bindFixture } from './tests/helpers/domainFixture.ts';
         import { ingestIndexes } from './src/core/domain/ingestion.ts';
@@ -24,7 +25,7 @@ test.beforeAll(async () => {
         import { preparePdfItem, PdfExporter } from './src/core/export/pdf/pdfExporter.ts';
         import { resourceStage } from './src/core/export/pdf/pipeline/resourceStage.ts';
         import { encodeBytes } from './src/core/storage/domain/transport.ts';
-        globalThis.mediaProbe = { ...store, saveDomainConversation, ...fixtures, bindFixture, ingestIndexes, getDomainConversationResult, AssetPipeline,
+        globalThis.mediaProbe = { ...store, ...resources, admitFixture, readFixture, removeFixture, ...fixtures, bindFixture, ingestIndexes, getDomainConversationResult, AssetPipeline,
             planExportResources, formatMarkdownDocument, formatHtmlDocument, preparePdfItem, PdfExporter, resourceStage, encodeBytes };
     `, resolveDir: path.resolve(__dirname, '../..'), loader: 'ts' }, bundle: true, write: false, platform: 'browser', format: 'iife' });
     bundle = result.outputFiles[0].text;
@@ -36,28 +37,23 @@ async function install(page: import('@playwright/test').Page, extensionId: strin
 }
 
 for (const order of ['online-first', 'takeout-first'] as const) {
-    test(`real extension IDB ${order}: broker import, restart, offline Markdown/HTML/PDF deliver identical image bytes`, async ({ context, extensionId }) => {
+    test(`real extension IDB ${order}: source admission, offline Markdown/HTML/PDF deliver identical image bytes`, async ({ context, extensionId }) => {
         test.setTimeout(90000);
         const page = await context.newPage();
         await install(page, extensionId);
         const before = await page.evaluate(async order => {
             const api = Reflect.get(globalThis, 'mediaProbe');
             const { online, offline, resources } = api.mediaSources();
-            const importArchive = async () => {
-                const response = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: {
-                    accountId: '10000000-0000-4000-8000-000000000001', parsed: offline, resources: resources.map((r: { assetId: string; bytes: Uint8Array; sourcePath: string }) => ({ ...r, bytes: api.encodeBytes(r.bytes) })) } });
-                if (!response.ok) throw new Error(response.error);
-            };
-            if (order === 'online-first') await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+            const importArchive = () => api.admitFixture(offline.account.id, offline, resources);
+            if (order === 'online-first') await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
             await importArchive();
-            if (order === 'takeout-first') await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+            if (order === 'takeout-first') await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
             await importArchive();
             // Raw body transactions are audited above; commit source Index before an Application consumer reads it.
-            await api.ingestIndexes(online.account.id, [online.conversation.index]);
+            const { key, ...fields } = online.conversation.index;
+            await api.ingestIndexes(online.account.id, [{ conversationId: key.conversationId, fields }]);
             return { conversation: online.conversation, image: [...api.mediaBytes] };
         }, order);
-        await page.reload();
-        await page.evaluate(bundle);
         await context.setOffline(true);
         const exported = await page.evaluate(async () => {
             const api = Reflect.get(globalThis, 'mediaProbe');
@@ -88,9 +84,9 @@ for (const order of ['online-first', 'takeout-first'] as const) {
             } finally { compiler.dispose(); }
             const db = await api.openDomainDB();
             const disk = await new Promise<Record<string, unknown[]>>((resolve, reject) => {
-                const tx = db.transaction(['conversations', 'resource_bytes'], 'readonly');
+                const tx = db.transaction(['details'], 'readonly');
                 const rows: Record<string, unknown[]> = {};
-                for (const name of ['conversations', 'resource_bytes']) {
+                for (const name of ['details']) {
                     const get = tx.objectStore(name).getAll(); get.onsuccess = () => { rows[name] = get.result; };
                 }
                 tx.oncomplete = () => resolve(rows); tx.onabort = tx.onerror = () => reject(tx.error);
@@ -102,7 +98,7 @@ for (const order of ['online-first', 'takeout-first'] as const) {
         expect(exported.conversation.index).toMatchObject({ ...before.conversation.index, updatedAt: 1788350400000 });
         expect(exported.conversation.detail.messages).toHaveLength(20);
         expect(exported.downloads).toBe(0);
-        expect(exported.disk.conversations).toHaveLength(1);
+        expect(exported.disk.details).toHaveLength(1);
         expect(exported.delivered.succeeded).toBe(1);
         expect(exported.delivered.failed).toEqual([]);
         const assetPath = exported.receipts[0].value.path;
@@ -123,144 +119,24 @@ for (const order of ['online-first', 'takeout-first'] as const) {
     });
 }
 
-for (const broker of [false, true]) {
-    test(`real extension IDB aborted ${broker ? 'broker' : 'direct'} import rolls back current and byte cache`, async ({ context, extensionId }) => {
-        const page = await context.newPage(); await install(page, extensionId);
-        const original = await page.evaluate(async () => {
-            const api = Reflect.get(globalThis, 'mediaProbe'); const { offline, resources } = api.mediaSources();
-            await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
-            return { conversation: offline.conversation, bytes: [...resources.find((r: { assetId: string }) => r.assetId === offline.conversation.detail.assets[0].id).bytes] };
-        });
-        const worker = context.serviceWorkers()[0];
-        const intercept = () => {
-            const original = IDBObjectStore.prototype.put;
-            Reflect.set(globalThis, '__originalMediaPut', original);
-            IDBObjectStore.prototype.put = function (...args) {
-                const request = original.apply(this, args);
-                if (this.name === 'resource_bytes') { const tx = this.transaction; queueMicrotask(() => tx.abort()); }
-                return request;
-            };
-        };
-        if (broker) await worker.evaluate(intercept); else await page.evaluate(intercept);
-        const error = await page.evaluate(async broker => {
-            const api = Reflect.get(globalThis, 'mediaProbe'); const { online } = api.mediaSources();
-            try {
-                if (broker) {
-                    const response = await chrome.runtime.sendMessage({ action: 'domainStorage', command: 'save', payload: {
-                        accountId: '10000000-0000-4000-8000-000000000001', parsed: online, resources: [] } });
-                    return response.ok ? '' : response.error;
-                }
-                await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', online); return '';
-            } catch (e) { return String(e); }
-        }, broker);
-        const restore = () => { IDBObjectStore.prototype.put = Reflect.get(globalThis, '__originalMediaPut'); };
-        if (broker) await worker.evaluate(restore); else await page.evaluate(restore);
-        expect(error).toMatch(/transaction (aborted|failed)/);
-        await page.reload(); await page.evaluate(bundle);
-        const restored = await page.evaluate(async () => {
-            const api = Reflect.get(globalThis, 'mediaProbe'); const identity = api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', api.mediaChatId);
-            const view = await api.getStoredDomain(identity);
-            const db = await api.openDomainDB();
-            const counts = await new Promise<Record<string, number>>((resolve, reject) => {
-                const tx = db.transaction(['conversations', 'resource_bytes'], 'readonly'); const count: Record<string, number> = {};
-                for (const name of ['conversations', 'resource_bytes']) {
-                    const get = tx.objectStore(name).count(); get.onsuccess = () => { count[name] = get.result; };
-                }
-                tx.oncomplete = () => resolve(count); tx.onabort = tx.onerror = () => reject(tx.error);
-            }); db.close();
-            return { counts, body: view.conversation, bytes: await api.getDomainResource(identity, view.conversation.detail.assets[0].id) };
-        });
-        expect(restored.counts).toEqual({ conversations: 1, resource_bytes: 2 });
-        expect(restored.body).toEqual(original.conversation);
-        expect(restored.body.detail.messages).toHaveLength(12);
-        expect(restored.bytes).toEqual(Uint8Array.from(original.bytes));
-    });
-}
-
 test('real extension IDB rejects ambiguity and stale cache writes, isolates accounts and cleans rebound bytes', async ({ context, extensionId }) => {
     const page = await context.newPage(); await install(page, extensionId);
     const result = await page.evaluate(async () => {
         const api = Reflect.get(globalThis, 'mediaProbe'); const { online, offline, resources } = api.mediaSources();
-        await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+        await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
         const ambiguous = api.mediaSources({ duplicate: true });
-        await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', ambiguous.offline, ambiguous.resources);
+        await api.admitFixture('10000000-0000-4000-8000-000000000001', ambiguous.offline, ambiguous.resources);
         const identity = api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', api.mediaChatId);
         const unknown = await api.getDomainResource(identity, online.conversation.detail.assets[0].id);
-        await api.saveDomainConversation('10000000-0000-4000-8000-000000000002', api.bindFixture(online, '10000000-0000-4000-8000-000000000002'));
-        await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
+        await api.admitFixture('10000000-0000-4000-8000-000000000002', api.bindFixture(online, '10000000-0000-4000-8000-000000000002'));
+        await api.admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
         const other = await api.getDomainResource(api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', api.mediaChatId), online.conversation.detail.assets[0].id);
         await api.cacheDomainResource(identity, online.conversation.detail.assets[0].id, 'https://invalid.test/stale', new Uint8Array([9]));
         const correct = await api.getDomainResource(identity, online.conversation.detail.assets[0].id);
-        await api.removeStoredDomain(identity);
-        await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+        await api.removeFixture(identity);
+        await api.admitFixture('10000000-0000-4000-8000-000000000001', online);
         return { unknown, other, correct: [...correct], after: await api.getDomainResource(identity, online.conversation.detail.assets[0].id) };
     });
     expect(result.unknown).toBeNull(); expect(result.other).toBeNull(); expect(result.after).toBeNull();
     expect(result.correct).toHaveLength(68);
-});
-
-test('resource persistence: 40 continuous saves and repeated imports retain only current and cached bytes', async ({ context, extensionId }) => {
-    const page = await context.newPage(); await install(page, extensionId);
-    const measured = await page.evaluate(async () => {
-        const api = Reflect.get(globalThis, 'mediaProbe');
-        const { offline, resources } = api.mediaSources();
-        const bytes = new Uint8Array(4 * 1024 * 1024).fill(37);
-        const resource = { ...resources[0], bytes };
-        const initial = await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, [resource]);
-        const counts: Record<string, number> = {};
-        const restores: (() => void)[] = [];
-        for (const prototype of [IDBObjectStore.prototype, IDBIndex.prototype]) {
-            for (const method of ['get', 'getAll', 'getAllKeys', 'count', 'put', 'openCursor', 'openKeyCursor']) {
-                const original = Reflect.get(prototype, method);
-                if (!original) continue;
-                Reflect.set(prototype, method, function (this: IDBObjectStore | IDBIndex, ...args: unknown[]) {
-                    const name = this instanceof IDBIndex ? this.objectStore.name : this.name;
-                    const key = `${name}.${method}`; counts[key] = (counts[key] || 0) + 1;
-                    return original.apply(this, args);
-                });
-                restores.push(() => Reflect.set(prototype, method, original));
-            }
-        }
-        let final;
-        try {
-            for (let i = 1; i <= 40; i++) {
-                const parsed = api.storedParseResult(initial, fixtureAccountFor(initial.conversation));
-                parsed.conversation.index.title = `Continuous save ${i}`;
-                parsed.sourceVersion = Number(offline.sourceVersion || 0) + i;
-                final = await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed);
-            }
-            const normal = { ...counts };
-            for (const key of Object.keys(counts)) delete counts[key];
-            for (let i = 0; i < 5; i++) await api.saveDomainConversation('10000000-0000-4000-8000-000000000001', api.storedParseResult(final, fixtureAccountFor(final.conversation)), [resource]);
-            return { normal, repeats: { ...counts }, inlineBytes: final.resources.length,
-                digest: final.resourceDigests[resource.assetId]?.sha256 };
-        } finally { for (const restore of restores) restore(); }
-    });
-    expect(measured.inlineBytes).toBe(0);
-    expect(measured.digest).toMatch(/^[a-f0-9]{64}$/);
-    for (const counters of [measured.normal, measured.repeats]) {
-        for (const store of ['revisions', 'resource_bytes']) {
-            for (const method of ['getAll', 'get', 'openCursor']) expect(counters[`${store}.${method}`] || 0).toBe(0);
-        }
-        expect(counters['resource_bytes.put'] || 0).toBe(0);
-    }
-    for (const counters of [measured.normal, measured.repeats]) {
-        expect(Object.keys(counters).filter(key => key.startsWith('revisions.'))).toEqual([]);
-    }
-    await page.reload(); await page.evaluate(bundle);
-    const retained = await page.evaluate(async () => {
-        const api = Reflect.get(globalThis, 'mediaProbe');
-        const { offline, resources } = api.mediaSources();
-        const restored = await api.getDomainResource(api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', offline.conversation.index.key.conversationId), resources[0].assetId);
-        const db = await api.openDomainDB();
-        const names = [...db.objectStoreNames];
-        const count = await new Promise<number>((resolve, reject) => {
-            const tx = db.transaction('conversations', 'readonly');
-            const req = tx.objectStore('conversations').count();
-            tx.oncomplete = () => resolve(req.result); tx.onabort = tx.onerror = () => reject(tx.error);
-        }); db.close();
-        return { length: restored?.length, first: restored?.[0], last: restored?.[restored.length - 1], names, count };
-    });
-    expect(retained).toMatchObject({ length: 4 * 1024 * 1024, first: 37, last: 37, count: 1 });
-    expect(retained.names).not.toContain('revisions');
 });

@@ -28,22 +28,22 @@ test('content-script native detail is committed in extension IndexedDB and remai
     expect(response.data.conversation.detail.quality.status).toBe('partial');
     await source.close();
     const stored = await options.evaluate(async () => {
-        const request = indexedDB.open('gemini_exporter_domain');
+        const request = indexedDB.open('gemini_exporter_v2');
         const db = await new Promise<IDBDatabase>((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
         try {
             return await new Promise<unknown>((resolve, reject) => {
-                const tx = db.transaction('conversations', 'readonly');
-                const get = tx.objectStore('conversations').get(JSON.stringify(['gemini', '10000000-0000-4000-8000-000000000001', 'cross_origin_native']));
+                const tx = db.transaction('details', 'readonly');
+                const get = tx.objectStore('details').get(['10000000-0000-4000-8000-000000000001', 'cross_origin_native']);
                 let value: unknown;
                 get.onsuccess = () => { value = get.result; };
                 tx.oncomplete = () => resolve(value);
                 tx.onerror = () => reject(tx.error);
             });
         } finally { db.close(); }
-    }) as { conversation: { detail: { messages: Array<{ model?: string; content: unknown[] }> } }; storageVersion: number; identity: { accountId: string } };
-    expect(stored.storageVersion).toBe(3);
-    expect(stored.identity.accountId).toBe('10000000-0000-4000-8000-000000000001');
-    expect(stored.conversation.detail.messages).toHaveLength(2);
-    expect(stored.conversation.detail.messages[1].model).toBe('Cross origin model');
-    expect(JSON.stringify(stored.conversation)).toContain('Persist this answer');
+    }) as { key: { accountId: string }; messages: Array<{ model?: string; content: unknown[] }> };
+    expect(stored.key.accountId).toBe('10000000-0000-4000-8000-000000000001');
+    expect(stored.messages).toHaveLength(2);
+    expect(stored.messages[1].model).toBe('Cross origin model');
+    expect(JSON.stringify(stored)).toContain('Persist this answer');
+    expect(stored).not.toHaveProperty('index');
 });

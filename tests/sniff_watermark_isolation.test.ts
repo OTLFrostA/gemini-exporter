@@ -1,3 +1,4 @@
+import { catalogMock } from './helpers/catalogMock.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { fixtureAccount } from './helpers/domainFixture.js';
 /** Passive captures only save records; they cannot establish or advance scan coverage. */
@@ -21,7 +22,7 @@ test('interleaved repeated RPC captures preserve authoritative timestamps withou
         async recordPageCoverage() { throw new Error('Sniff must not advance coverage'); }
     });
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'chrome');
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: async () => {} } }) });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: async () => {} }, storage: catalogMock(() => records, list => { records = list; }) }) });
     const item = parseGeminiIndexObservation({ id: 'abcdef123', title: 'A', titleSource: 'rpc',
         updatedAt: 1700000000000 }, 'rpc-list', fixtureAccount().id);
     try {

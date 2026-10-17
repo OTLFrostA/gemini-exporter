@@ -1,5 +1,8 @@
+import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
+import { cacheAcquiredResources } from '../../storage/domain/resourceContext.js';
+import { storageIdentity } from '../../storage/domain/domainStore.js';
 import { parseGeminiIndexObservation } from '../../parsers/gemini/parseIndexObservation.js';
-import { ingestIndexes, ingestConversation } from '../../domain/ingestion.js';
+import { ingestIndexes, ingestDetail } from '../../domain/ingestion.js';
 import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
 import type {
     GeminiProviderClient, GeminiProviderContract, GeminiProviderReadiness,
@@ -96,7 +99,7 @@ export class GeminiProvider implements GeminiProviderContract {
                 const observation = info.observation ? { ...info.observation, accountId } : undefined;
                 // Unknown-source default data may be retained, but cannot establish trusted coverage.
                 const page = account.providerAccountId !== 'default' ? observation : undefined;
-                await ingestIndexes(accountId, indexes, { canCommit: options?.canCommit, ...(page ? { page } : {}) });
+                await ingestIndexes(accountId, indexes.map(({ key, ...fields }) => ({ conversationId: key.conversationId, fields })), page);
                 const scanHead = page ? (({ providerId: _providerId, accountId: _accountId, items: _items, ...head }) => head)(page) : undefined;
                 return options?.onPageBatch?.({ page: info.page, hasMore: info.hasMore, count: batch.length, ...(scanHead ? { scanHead } : {}) });
             },
@@ -126,8 +129,12 @@ export class GeminiProvider implements GeminiProviderContract {
         const account = await getAccount(accountId);
         if (!account || account.providerId !== this.id) throw new TypeError('Provider account mismatch');
         const detail = await client.getConversationDetail(conversationId, targetSid, account);
-        const accepted = await ingestConversation(accountId, detail);
-        return { ...detail, ...accepted };
+        const id = detail.conversation.index.key.conversationId;
+        await ingestDetail(accountId, id, detail.conversation.detail, detail.conversation.index);
+        await cacheAcquiredResources(storageIdentity(this.id, accountId, id), detail.conversation.detail.assets, detail.acquisitionHints);
+        const accepted = await getDomainConversationResult(accountId, id, this.id);
+        if (!accepted) throw new Error('Accepted Detail missing');
+        return { ...detail, ...accepted, diagnostics: detail.diagnostics };
     }
 }
 

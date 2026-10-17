@@ -1,3 +1,4 @@
+import { catalogMock } from './helpers/catalogMock.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { indexFixture } from './helpers/indexFixture.js';
 /**
@@ -27,7 +28,7 @@ function mockStorageContext() {
         getScanCheckpoint: async () => null,
         setScanCheckpoint: async () => {}
     };
-    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: () => {} } }) });
+    Object.defineProperty(globalThis, 'chrome', { configurable: true, value: withRegistry({ runtime: { sendMessage: () => {} }, storage: catalogMock(() => savedList, list => { savedList = list; }) }) });
     __setModuleOverride('StorageService', mockStorage);
     return {
         seed: (items: any[]) => { savedList = items.map(indexFixture); },
@@ -45,7 +46,7 @@ test('local observation time never enters an existing or new index', async () =>
         const ctx = mockStorageContext();
         try {
             ctx.seed(previous);
-            await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research', updatedAt: 900, lastSeen: '2099-01-01' }], 'page-sync', true, '10000000-0000-4000-8000-000000000001');
+            await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research', updatedAt: 900, lastSeen: '2099-01-01' }], 'page-sync', '10000000-0000-4000-8000-000000000001');
             const index = ctx.find('chat1');
             assert.equal(index.updatedAt, previous.length ? 1000 : 900);
             assert.equal('lastSeen' in index, false);
@@ -57,7 +58,7 @@ test('an observation without authored time stays undated', async () => {
     const ctx = mockStorageContext();
     try {
         ctx.seed([]);
-        await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research' }], 'page-sync', true, '10000000-0000-4000-8000-000000000001');
+        await SyncEngine.upsertConversations([{ id: 'chat1', title: 'Research' }], 'page-sync', '10000000-0000-4000-8000-000000000001');
         assert.equal(ctx.find('chat1').updatedAt, undefined);
         assert.equal(ctx.find('chat1').createdAt, undefined);
     } finally { ctx.restore(); }

@@ -18,12 +18,13 @@ test.beforeAll(async () => {
         import { ExportOrchestrator } from './src/core/engine/export/exportOrchestrator.ts';
         import { AssetPipeline } from './src/core/engine/assetPipeline.ts';
         import * as domain from './src/core/storage/domain/domainStore.ts';
-        import { saveDomainConversation } from './src/core/domain/snapshotAdmission.ts';
+        import { admitFixture } from './tests/helpers/admitFixture.ts';
+        import * as resources from './src/core/storage/domain/resourceContext.ts';
         import { getDomainConversationResult } from './src/core/storage/domain/nativePersistence.ts';
         import { indexFixture } from './tests/helpers/indexFixture.ts';
         import { historicalFixture } from './tests/helpers/nativeFixture.ts';
         import { __setModuleOverride, __clearModuleOverrides } from './src/core/utils/moduleOverrides.ts';
-        globalThis.deletionProbe = { ...domain, getDomainConversationResult, async run(scenario) {
+        globalThis.deletionProbe = { ...domain, ...resources, getDomainConversationResult, async run(scenario) {
             const id = 'deletion-isolation';
             const source = historicalFixture({ id, title: 'Retained archive', messages: [{ role: 'model', content: 'Saved local answer', images: [
                 { url: 'https://lh3.googleusercontent.com/deletion-domain.png', fileName: 'domain.png' },
@@ -31,7 +32,7 @@ test.beforeAll(async () => {
                 { url: 'https://lh3.googleusercontent.com/deletion-missing.png', fileName: 'missing.png' }
             ] }] });
             const [cached, takeout] = source.conversation.detail.assets;
-            await saveDomainConversation('10000000-0000-4000-8000-000000000001', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
+            await admitFixture('10000000-0000-4000-8000-000000000001', source, [{ assetId: cached.id, bytes: new Uint8Array([1, 2, 3]) }]);
             const list = scenario.noList ? [] : [indexFixture({ id, title: source.conversation.index.title, timestamp: 1, cloudAvailability: 'unlisted' })];
             await StorageService.setConversations('10000000-0000-4000-8000-000000000001', list);
             await StorageService.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'unlisted');
@@ -201,7 +202,8 @@ for (const scenario of scenarios) {
             return { body: (await api.getDomainConversationResult('10000000-0000-4000-8000-000000000001', 'deletion-isolation')).conversation,
                 bytes: [...await api.getDomainResource(api.storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', 'deletion-isolation'), assetId)] };
         }, observed.assetId);
-        expect(retained.body).toEqual(observed.conversation);
+        expect(retained.body.detail).toEqual(observed.conversation.detail);
+        expect(retained.body.index).toMatchObject(observed.conversation.index);
         expect(retained.bytes).toEqual([1, 2, 3]);
     });
 }

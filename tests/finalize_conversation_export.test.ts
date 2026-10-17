@@ -1,3 +1,4 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { bindFixture } from './helpers/domainFixture.js';
@@ -252,9 +253,9 @@ test('completeConversationExport cannot publish title candidates to the catalog'
 test('ingestion arbitrates title authority before completion', async () => {
     const native = (title: string, titleSource: string) => historicalFixture({ id: 'tier-test', title, titleSource,
         messages: [{ role: 'user', content: 'Question' }] });
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native('Imported', 'takeout'), []);
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native('Online', 'rpc'));
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native('Old import', 'takeout'), []);
+    await admitFixture('10000000-0000-4000-8000-000000000001', native('Imported', 'takeout'), []);
+    await admitFixture('10000000-0000-4000-8000-000000000001', native('Online', 'rpc'));
+    await admitFixture('10000000-0000-4000-8000-000000000001', native('Old import', 'takeout'), []);
     const [index] = await StorageService.getConversations('10000000-0000-4000-8000-000000000001');
     assert.strictEqual(index.title, 'Online');
     assert.strictEqual(index.titleSource, 'provider');
@@ -351,6 +352,7 @@ test('actual Batch and background Live Save produce the same completion record f
 
             const liveDir = createMemoryDirectory();
             setMemoryDirHandle(liveDir.handle);
+            await admitFixture('10000000-0000-4000-8000-000000000001', bindFixture(source, '10000000-0000-4000-8000-000000000001'));
             const live = await handleLiveSaveViaHandle({
                 chat: bindFixture(source, '10000000-0000-4000-8000-000000000001'), safeTitle: title, nid: id, assets: []
             }, '10000000-0000-4000-8000-000000000001');
@@ -462,7 +464,7 @@ test('BatchWorker keeps dirty legacy title slots outside canonical index', async
         titles: {}
     });
 
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
+    await admitFixture('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
     await resolveChat(historicalFixture(chat), { id: 'c_adv_j' }, listConversation, null, '10000000-0000-4000-8000-000000000001');
 
     assert.equal('titles' in listConversation, false);

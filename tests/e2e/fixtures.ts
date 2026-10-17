@@ -67,7 +67,7 @@ export async function seedRegistryAccounts(context: BrowserContext): Promise<voi
     if (!reply?.ok) throw new Error(`Registry fixture initialization failed: ${reply?.error}`);
   } finally { await readiness.close(); }
   await worker.evaluate(async () => {
-    const open = indexedDB.open('gemini_exporter_domain');
+    const open = indexedDB.open('gemini_exporter_v2');
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       open.onsuccess = () => resolve(open.result); open.onerror = () => reject(open.error);
     });

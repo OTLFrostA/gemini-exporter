@@ -1,11 +1,13 @@
-import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import { admitFixture } from './helpers/admitFixture.js';
 import { fixtureKey, fixtureAccount } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 useIndexStorage();
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { validateParserDomain, restoreDomainSnapshot } from '../src/core/domain/runtimeValidation.js';
-import { getStoredDomain, storageIdentity, getDomainResource, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { storageIdentity, __clearDomainMemory } from '../src/core/storage/domain/domainStore.js';
+import { getDomainResource } from '../src/core/storage/domain/resourceContext.js';
+import { readFixture } from './helpers/admitFixture.js';
 import type { DomainConversationWithDetail } from '../src/core/domain/conversation.js';
 
 test('large provider-neutral graphs preserve complete/partial/unknown coverage and real resource bytes', async () => {
@@ -17,10 +19,10 @@ test('large provider-neutral graphs preserve complete/partial/unknown coverage a
         assert.equal(restoreDomainSnapshot(trusted).detail.messages.length, 1000);
         __clearDomainMemory();
         const bytes = new Uint8Array([0, 1, 2, 253, 254, 255]);
-        await saveDomainConversation(fixtureAccount('future-provider').id, { account: fixtureAccount('future-provider'), conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
+        await admitFixture(fixtureAccount('future-provider').id, { account: fixtureAccount('future-provider'), conversation: trusted, resourceHints: {}, acquisitionHints: {}, diagnostics: [] }, [{ assetId: 'bytes', bytes }]);
         bytes[0] = 99;
-        const read = await getStoredDomain(storageIdentity('future-provider', fixtureAccount('future-provider').id, builder.index.key.conversationId));
-        assert.ok(read); const recoveredBytes = await getDomainResource(read.identity, 'bytes');
+        const read = await readFixture(storageIdentity('future-provider', fixtureAccount('future-provider').id, builder.index.key.conversationId));
+        assert.ok(read); const recoveredBytes = await getDomainResource(storageIdentity(read.account.providerId, read.account.id, read.conversation.index.key.conversationId), 'bytes');
         assert.ok(recoveredBytes); assert.deepEqual([...recoveredBytes], [0, 1, 2, 253, 254, 255]);
         assert.equal(read.conversation.detail.quality.status, status);
         assert.equal(read.conversation.detail.messages[999].content[0].type, 'unknown');

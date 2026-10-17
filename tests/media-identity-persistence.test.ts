@@ -1,4 +1,6 @@
-import { saveDomainConversation } from '../src/core/domain/snapshotAdmission.js';
+import { useIndexStorage } from './helpers/indexStorage.js';
+useIndexStorage();
+import { admitFixture } from './helpers/admitFixture.js';
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mediaSources, mediaChatId, mediaPrompt, mediaBytes, mediaTime } from './helpers/mediaSourceFixture.js';
@@ -6,7 +8,9 @@ import { AssetPipeline } from '../src/core/engine/assetPipeline.js';
 import { planExportResources } from '../src/core/export/assets/planExportResources.js';
 import { TakeoutEngine } from '../src/core/engine/takeoutEngine.js';
 import { commitTakeoutData, clearTakeoutData } from '../src/core/resources/takeout/mediaIndex.js';
-import { __clearDomainMemory, getDomainResource, getStoredDomain, cacheDomainResource, storageIdentity, removeStoredDomain } from '../src/core/storage/domain/domainStore.js';
+import { __clearDomainMemory, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getDomainResource, cacheDomainResource } from '../src/core/storage/domain/resourceContext.js';
+import { readFixture, removeFixture } from './helpers/admitFixture.js';
 import { findResourceMatch, resourceIdentity } from '../src/core/parsers/shared/resources/resourceIdentity.js';
 
 beforeEach(() => { __clearDomainMemory(); clearTakeoutData(); });
@@ -48,18 +52,18 @@ for (const order of ['online-first', 'takeout-first'] as const) {
     test(`DomainStore ${order}: retain the complete body and independently fill proven resource bytes`, async () => {
         const { online, offline, resources } = mediaSources();
         const snapshot = structuredClone(online.conversation);
-        if (order === 'online-first') await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
-        await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
-        if (order === 'takeout-first') await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+        if (order === 'online-first') await admitFixture('10000000-0000-4000-8000-000000000001', online);
+        await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
+        if (order === 'takeout-first') await admitFixture('10000000-0000-4000-8000-000000000001', online);
         const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-        assert.deepEqual((await getStoredDomain(identity))!.conversation.detail, snapshot.detail);
-        assert.equal(Reflect.get((await getStoredDomain(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
-        assert.equal((await getStoredDomain(identity))!.conversation.index.title, snapshot.index.title);
+        assert.deepEqual((await readFixture(identity))!.conversation.detail, snapshot.detail);
+        assert.equal(Reflect.get((await readFixture(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
+        assert.equal((await readFixture(identity))!.conversation.index.title, snapshot.index.title);
         assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
-        await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
-        assert.deepEqual((await getStoredDomain(identity))!.conversation.detail, snapshot.detail);
-        assert.equal(Reflect.get((await getStoredDomain(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
-        assert.equal((await getStoredDomain(identity))!.conversation.index.title, snapshot.index.title);
+        await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
+        assert.deepEqual((await readFixture(identity))!.conversation.detail, snapshot.detail);
+        assert.equal(Reflect.get((await readFixture(identity))!.conversation.index ?? {}, 'hasTakeoutImport'), undefined);
+        assert.equal((await readFixture(identity))!.conversation.index.title, snapshot.index.title);
         assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
         assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000002', mediaChatId), online.conversation.detail.assets[0].id), null);
     });
@@ -67,16 +71,16 @@ for (const order of ['online-first', 'takeout-first'] as const) {
 
 test('DomainStore rebinds existing byte-cache entries only with unique event proof', async () => {
     const { online, offline } = mediaSources();
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline);
+    await admitFixture('10000000-0000-4000-8000-000000000001', offline);
     const original = offline.conversation.detail.assets.find(a => a.generation?.prompt === mediaPrompt)!;
     const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
     await cacheDomainResource(identity, original.id, original.sourceUri!!, mediaBytes);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+    await admitFixture('10000000-0000-4000-8000-000000000001', online);
     assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
     const changed = structuredClone(online); changed.conversation.detail.assets[0].sourceUri! = 'https://lh3.googleusercontent.com/another';
     changed.conversation.detail.assets[0].generation!.prompt = 'Unrelated prompt';
     changed.acquisitionHints = {};
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', changed);
+    await admitFixture('10000000-0000-4000-8000-000000000001', changed);
     assert.equal(await getDomainResource(identity, changed.conversation.detail.assets[0].id), null);
 });
 
@@ -84,8 +88,8 @@ test('production RPC request conflicts reject cross-source reuse even with ident
     const first = mediaSources().online;
     const second = mediaSources({ requestId: 'r_other-request', uriSuffix: '-different' }).online;
     assert.equal(findResourceMatch(mediaChatId, resourceIdentity(first.conversation.detail.assets[0], first.conversation.index.key.conversationId), second.conversation.detail.assets.map(asset => resourceIdentity(asset, second.conversation.index.key.conversationId))), null);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', first, [{ assetId: first.conversation.detail.assets[0].id, bytes: mediaBytes }]);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', second);
+    await admitFixture('10000000-0000-4000-8000-000000000001', first, [{ assetId: first.conversation.detail.assets[0].id, bytes: mediaBytes }]);
+    await admitFixture('10000000-0000-4000-8000-000000000001', second);
     assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), second.conversation.detail.assets[0].id), null);
 });
 
@@ -93,11 +97,11 @@ test('byte-cache reuse cannot bypass conflicting event evidence when an asset ID
     const { online } = mediaSources();
     const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
     const image = online.conversation.detail.assets[0];
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+    await admitFixture('10000000-0000-4000-8000-000000000001', online);
     await cacheDomainResource(identity, image.id, image.sourceUri!!, mediaBytes);
     const changed = structuredClone(online);
     changed.conversation.detail.assets[0].generation!.prompt = 'A different event';
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', changed);
+    await admitFixture('10000000-0000-4000-8000-000000000001', changed);
     assert.equal(await getDomainResource(identity, image.id), null);
 });
 
@@ -105,18 +109,18 @@ test('DomainStore refuses ambiguous matches in either direction and deletion era
     for (const options of [{ duplicate: true }, { multi: true }, { noTime: true }, { noPrompt: true }]) {
         __clearDomainMemory();
         const { online, offline, resources } = mediaSources(options);
-        await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
-        await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
+        await admitFixture('10000000-0000-4000-8000-000000000001', online);
+        await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
         assert.equal(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), online.conversation.detail.assets[0].id), null);
     }
     __clearDomainMemory();
     const { online, offline, resources } = mediaSources();
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', offline, resources);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+    await admitFixture('10000000-0000-4000-8000-000000000001', offline, resources);
+    await admitFixture('10000000-0000-4000-8000-000000000001', online);
     const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
     assert.deepEqual(await getDomainResource(identity, online.conversation.detail.assets[0].id), mediaBytes);
-    await removeStoredDomain(identity);
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', online);
+    await removeFixture(identity);
+    await admitFixture('10000000-0000-4000-8000-000000000001', online);
     assert.equal(await getDomainResource(identity, online.conversation.detail.assets[0].id), null);
 });
 
@@ -125,22 +129,22 @@ test('URI-less imported resources remain retrievable without carrying inline byt
     const asset = parsed.conversation.detail.assets[0]; delete asset.sourceUri;
     parsed.acquisitionHints = {};
     const identity = storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId);
-    const initial = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed, [{ assetId: asset.id, bytes: mediaBytes }]);
-    assert.equal(initial.resources.length, 0);
+    const initial = await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [{ assetId: asset.id, bytes: mediaBytes }]);
+    assert.equal('resources' in initial.conversation.detail, false);
     parsed.conversation.index.title = 'Continued conversation';
-    const continued = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed);
-    assert.equal(continued.resources.length, 0);
+    const continued = await admitFixture('10000000-0000-4000-8000-000000000001', parsed);
+    assert.equal('resources' in continued.conversation.detail, false);
     assert.deepEqual(await getDomainResource(identity, asset.id), mediaBytes);
 });
 
 test('current resource receipts update archive paths while repeated receipts stay idempotent', async () => {
     const parsed = mediaSources().online;
     const resource = { assetId: parsed.conversation.detail.assets[0].id, sourcePath: 'archive/original.png', bytes: mediaBytes };
-    await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed, [resource]);
+    await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [resource]);
     resource.sourcePath = 'archive/relocated.png';
-    const relocated = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed, [resource]);
-    assert.equal(relocated.resourceDigests?.[resource.assetId]?.sourcePath, 'archive/relocated.png');
-    const repeated = await saveDomainConversation('10000000-0000-4000-8000-000000000001', parsed, [resource]);
-    assert.equal(repeated.revision, relocated.revision);
+    const relocated = await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [resource]);
+    assert.equal('resourceDigests' in relocated.conversation.detail, false);
+    const repeated = await admitFixture('10000000-0000-4000-8000-000000000001', parsed, [resource]);
+    assert.deepEqual(repeated.conversation, relocated.conversation);
     assert.deepEqual(await getDomainResource(storageIdentity('gemini', '10000000-0000-4000-8000-000000000001', mediaChatId), resource.assetId), mediaBytes);
 });

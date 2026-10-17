@@ -1,4 +1,7 @@
-import { ingestIndexes, ingestConversation } from '../../domain/ingestion.js';
+import { getDomainConversationResult } from '../../storage/domain/nativePersistence.js';
+import { cacheAcquiredResources } from '../../storage/domain/resourceContext.js';
+import { storageIdentity } from '../../storage/domain/domainStore.js';
+import { ingestIndexes, ingestDetail } from '../../domain/ingestion.js';
 import type { ProviderConversationItem } from '../aiProvider.js';
 import { getAccount, getOrCreateAccount } from '../../api/accountRegistry.js';
 /**
@@ -133,10 +136,10 @@ export class ChatGPTProvider implements AIProvider {
             ));
             const batch = result.conversations;
             if (options?.canCommit?.() === false) throw new Error('ChatGPT list cancelled');
-            await ingestIndexes(accountId, batch.map(item => ({ key: { accountId, conversationId: item.id },
+            await ingestIndexes(accountId, batch.map(item => ({ conversationId: item.id, fields: {
                 ...(item.title && item.titleSource ? { title: item.title, titleSource: item.titleSource as 'provider' } : {}),
                 ...(item.createdAt !== undefined ? { createdAt: item.createdAt } : {}),
-                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) })), { canCommit: options?.canCommit });
+                ...(item.updatedAt !== undefined ? { updatedAt: item.updatedAt } : {}) } })));
             const decision = await options?.onPageBatch?.({ page: page + 1, hasMore: result.nextCursor !== null, count: batch.length });
             if (decision?.shouldStop) break;
             all.push(...batch);
@@ -194,7 +197,13 @@ export class ChatGPTProvider implements AIProvider {
                 assetsByNode.set(node.id, await this.resolveNodeAssets(node));
             }),
         );
-        return ingestConversation(account.id, parseChatGPTConversation({ account, conversation, assetsByNode }));
+        const parsed = parseChatGPTConversation({ account, conversation, assetsByNode });
+        const id = parsed.conversation.index.key.conversationId;
+        await ingestDetail(account.id, id, parsed.conversation.detail, parsed.conversation.index);
+        await cacheAcquiredResources(storageIdentity(this.id, account.id, id), parsed.conversation.detail.assets, parsed.acquisitionHints);
+        const accepted = await getDomainConversationResult(account.id, id, this.id);
+        if (!accepted) throw new Error('Accepted Detail missing');
+        return { ...parsed, ...accepted, diagnostics: parsed.diagnostics };
     }
 
     /** Linear history without branding (used to scope per-node downloads). */

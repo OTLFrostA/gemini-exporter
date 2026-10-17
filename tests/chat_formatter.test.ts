@@ -105,7 +105,7 @@ test('engine - BatchWorker.resolveChat skips bad brand titles and preserves user
     };
 
     await require('../src/core/storage/storageService.js').setConversations('10000000-0000-4000-8000-000000000001', [indexFixture(listConv)]);
-    await require('../src/core/domain/ingestion.js').ingestConversation('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
+    await require('./helpers/admitFixture.js').admitFixture('10000000-0000-4000-8000-000000000001', historicalFixture(chat));
     const resolved = await BatchWorker.resolveChat(
         historicalFixture(chat),
         { id: 'test_123', title: '如何设计微服务架构' },

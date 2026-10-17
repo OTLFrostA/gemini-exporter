@@ -1,4 +1,4 @@
-import { ingestConversation } from '../src/core/domain/ingestion.js';
+import { admitFixture } from './helpers/admitFixture.js';
 import { acquiredReply } from './helpers/acquisitionFixture.js';
 import { fixtureAccount, fixtureKey } from './helpers/domainFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
@@ -167,6 +167,7 @@ test('background live save renders only after attachments settle and keeps a par
     setMemoryDirHandle(directory(''));
     try {
         const source = native('throw');
+        await admitFixture(source.account.id, source);
         const result = await handleLiveSaveViaHandle({ chat: source, safeTitle: source.conversation.index.title, nid: source.conversation.index.key.conversationId,
             assets: ['good', 'bad'].map(assetId => ({ assetId, fileName: `${assetId}.png`, subDir: 'assets', base64: png.toString('base64') })) }, '10000000-0000-4000-8000-000000000001');
         assert.equal(result.ok, false); assert.equal(result.failedAssets.length, 1);
@@ -241,7 +242,7 @@ for (const [kind, broken] of [
     const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: item.assetId === 'good' ? Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') : broken, mediaType: 'image/png' } }) };
     const files: Uint8Array[] = [], records: Array<{ status: string; hasFailedAssets: boolean }> = [];
     try {
-        await ingestConversation(source.account.id, source);
+        await admitFixture(source.account.id, source);
         const result = await new PdfExporter(compiler).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [source], assetPipeline: pipeline, useZip: false,
             writer: { type: 'directory', writeFile: (_name: string, bytes: Uint8Array) => { files.push(bytes); return 'recovered.pdf'; } },
         }) }, { onItemExported: (_id, record) => records.push(record) });
@@ -305,7 +306,7 @@ test('real WASM PDF: unrelated Typst compile failure stays fatal and does not di
     let writes = 0;
     const pipeline = { acquireAssetBytes: async (item: ResourceRequest) => ({ ok: true as const, resourceId: item.assetId, value: { bytes: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'), mediaType: 'image/png' } }) };
     try {
-        const result = await new PdfExporter(compiler).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [await ingestConversation(fixtureAccount().id, native('throw'))], assetPipeline: pipeline, useZip: false,
+        const result = await new PdfExporter(compiler).run({ accountId: '10000000-0000-4000-8000-000000000001', ...({ selected: [await admitFixture(fixtureAccount().id, native('throw'))], assetPipeline: pipeline, useZip: false,
             writer: { type: 'directory', writeFile: () => { writes++; return 'should-not-exist.pdf'; } },
         }) });
         assert.equal(result.succeeded, 0); assert.equal(result.failed.length, 1); assert.equal(writes, 0);

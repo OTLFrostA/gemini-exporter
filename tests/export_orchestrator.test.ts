@@ -1,3 +1,4 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import { withRegistry } from './helpers/registryMock.js';
 import { sourceIndex } from './helpers/domainFixture.js';
@@ -802,12 +803,11 @@ test('BatchWorker - accepts typed native results; storage rejects a mutated grap
     const native = historicalFixture(record);
     assert.equal(isWorkerChat(record), false);
     assert.equal((await BatchWorker.resolveChat(record, { id: 'boundary' }, null, null, '10000000-0000-4000-8000-000000000001')).isError, true);
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', native);
+    await admitFixture('10000000-0000-4000-8000-000000000001', native);
     assert.equal((await BatchWorker.resolveChat(native, { id: 'boundary' }, null, null, '10000000-0000-4000-8000-000000000001')).isError, false);
     const invalid = structuredClone(native);
     invalid.conversation.detail.messages[0].attachmentIds = ['missing'];
-    const { saveDomainConversation } = require('../src/core/domain/snapshotAdmission.js');
-    await assert.rejects(saveDomainConversation('10000000-0000-4000-8000-000000000001', invalid), /asset|missing|reference/i);
+    await assert.rejects(admitFixture('10000000-0000-4000-8000-000000000001', invalid), /asset|missing|reference/i);
 });
 
 test('ExportOrchestrator - uses native envelope bodies and reports missing bodies', async () => {
@@ -949,7 +949,7 @@ test('all ordinary formats use completion for both records and meta, including f
             }
             const { savedRecords } = setupMockStorage();
             const fallback = ['takeout', 'snapshot', 'deleted'].includes(scenario);
-            if (fallback) await DomainAdmission.ingestDetails('10000000-0000-4000-8000-000000000001', [parsed]);
+            if (fallback) await admitFixtures('10000000-0000-4000-8000-000000000001', [parsed]);
             if (scenario === 'deleted') await catalogStorage.setConversationAvailability('10000000-0000-4000-8000-000000000001', id, 'deleted');
             try {
                 const result = await new ExportOrchestrator().run({ accountId: '10000000-0000-4000-8000-000000000001', ...({

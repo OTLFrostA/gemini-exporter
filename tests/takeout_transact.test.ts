@@ -1,3 +1,4 @@
+import { admitFixture, admitFixtures } from './helpers/admitFixture.js';
 import * as DomainAdmission from '../src/core/domain/ingestion.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,12 +14,12 @@ const parsed = (id: string, titleSource = 'takeout') => historicalFixture({ id, 
     messages: [{ role: 'user', content: 'Question' }] });
 
 test('Takeout commits once through ingestion; UI refresh retains concurrent writes and authoritative metadata', async () => {
-    await DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', parsed('online', 'rpc'));
+    await admitFixture('10000000-0000-4000-8000-000000000001', parsed('online', 'rpc'));
     let visible: unknown;
     __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => '10000000-0000-4000-8000-000000000001', setConversations: (list: unknown) => { visible = list; } });
     __setModuleOverride('StorageService', { ...storage, transactConversations: () => assert.fail('UI must not merge or publish imported metadata') });
     __setModuleOverride('TakeoutEngine', { parseTakeoutZip: async () => {
-        await Promise.all(['online', 'imported', 'concurrent'].map(id => DomainAdmission.ingestConversation('10000000-0000-4000-8000-000000000001', parsed(id), [])));
+        await Promise.all(['online', 'imported', 'concurrent'].map(id => admitFixture('10000000-0000-4000-8000-000000000001', parsed(id), [])));
         return { conversations: (await storage.getConversations('10000000-0000-4000-8000-000000000001')).filter(row => row.key.conversationId !== 'concurrent'), totalMediaCount: 0 };
     } });
     let added = -1;
@@ -36,7 +37,7 @@ test('Takeout refresh stays bound to the importing account when selection change
     __setModuleOverride('ConversationsStore', { getCurrentAccountId: () => visibleSlot, setConversations: () => assert.fail('must not refresh another account') });
     __setModuleOverride('TakeoutEngine', { parseTakeoutZip: async (_file: unknown, _progress: unknown, slot: string) => {
         assert.equal(slot, '10000000-0000-4000-8000-000000000001');
-        await DomainAdmission.ingestConversation(slot, parsed('imported'), []);
+        await admitFixture(slot, parsed('imported'), []);
         visibleSlot = '10000000-0000-4000-8000-000000000002';
         return { conversations: await storage.getConversations(slot), totalMediaCount: 0 };
     } });

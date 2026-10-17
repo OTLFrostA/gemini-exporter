@@ -54,10 +54,10 @@ test('B3 Safety 2: RPC empty/failure falls back to DOM scraper', async () => {
         }
     }
     const mockScraper = {
-        parseDoc: () => {
+        parseDoc: (_doc: unknown, id: string) => {
             scraperCalled = true;
             return historicalFixture({
-                id: 'c_fallback_test',
+                id,
                 title: 'DOM Fallback Title',
                 messages: [{ role: 'user', content: 'from DOM fallback' }]
             });

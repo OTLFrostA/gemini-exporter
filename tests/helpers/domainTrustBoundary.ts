@@ -10,24 +10,24 @@ const parserOwners = new Set(['core/parsers/gemini/rpc/parseConversation.ts', 'c
 // Source builders finalize new graphs; only the repository restores disk/write snapshots.
 const entries = new Map<string, Set<string>>([
     ['assertSchema', new Set([validator])], ['assertDomainClosure', new Set([validator])],
-    ['validateParserDomain', new Set([...parserOwners, 'core/domain/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['core/storage/domain/validate.ts', 'core/domain/snapshotAdmission.ts'])],
-    ['readStorageDomain', new Set(['core/storage/domain/domainStore.ts'])],
+    ['validateParserDomain', new Set([...parserOwners, 'core/domain/ingestion.ts'])], ['restoreDomainSnapshot', new Set(['core/utils/nativeDetailTransport.ts'])],
+    ['restoreDomainDetail', new Set(['core/storage/domain/domainStore.ts', 'background/domainStorageHandler.ts'])],
     ['requestNativeDetail', new Set(['background/batchFetcher.ts', 'core/engine/export/batchWorker.ts', 'ui/popup/popup.ts'])],
     ['requestNativeBatch', new Set(['core/engine/export/batchWorker.ts'])],
-    ['callDomainBroker', new Set(['core/storage/domain/domainStore.ts', 'core/storage/schemaMigration.ts'])],
+    ['callDomainBroker', new Set(['core/storage/domain/domainStore.ts', 'core/storage/domain/resourceContext.ts', 'core/storage/schemaMigration.ts'])],
 ]);
 const trustedTypes = new Set(['TrustedDomain', 'ConversationParseResult', 'ResourceConversationParseResult',
-    'GeminiRpcParseResult', 'GeminiDomParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainStorageRecord',
-    'DomainStorageWireRecord', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
+    'GeminiRpcParseResult', 'GeminiDomParseResult', 'GeminiTakeoutParseResult', 'TrustedDomainBody', 'NativeConversationInput', 'WorkerChatResolveInput', 'ChatExportInput', 'PopupExportInput']);
 // The brand is confined to the validator. Only current-version authenticated transport adapters
 // reattach the publisher's existing trust after Chrome serialization; neither is a raw/page reader.
 const castOwners = new Map<string, Set<string>>([
     ['TrustedDomain', new Set([validator])],
+    ['DomainConversationDetail', new Set([validator])],
     ['ResourceConversationParseResult', new Set(['core/utils/nativeDetailTransport.ts'])],
-    ['DomainStorageWireRecord', new Set(['core/storage/domain/transport.ts'])],
+    ['TrustedDomainBody', new Set([validator])],
 ]);
 const castFunctions = new Map([['TrustedDomain', new Set(['validateParserDomain', 'restoreDomainSnapshot'])],
-    ['ResourceConversationParseResult', new Set(['nativeResult'])], ['DomainStorageWireRecord', new Set(['callDomainBroker'])]]);
+    ['DomainConversationDetail', new Set(['acceptDetailFacts', 'restoreDomainDetail'])], ['ResourceConversationParseResult', new Set(['nativeResult'])], ['TrustedDomainBody', new Set(['acceptDetailFacts', 'restoreDomainDetail'])]]);
 function walk(node: Node, visit: (node: Node) => void): void { visit(node); node.forEachChild(child => { walk(child, visit); }); }
 
 /** Inspect real compiler nodes, retaining aliases and excluding comment/string contents. */

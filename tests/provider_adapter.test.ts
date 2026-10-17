@@ -7,6 +7,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GeminiProvider } from '../src/core/provider/gemini/geminiProvider.js';
 import credentials from '../src/core/api/client/credentialManager.js';
+import { parseGeminiRpcConversation } from '../src/core/parsers/gemini/rpc/parseConversation.js';
+import { getConversations } from '../src/core/storage/conversationCatalogStore.js';
+import { getDetail, storageIdentity } from '../src/core/storage/domain/domainStore.js';
+import { getDomainResource } from '../src/core/storage/domain/resourceContext.js';
 import { getAllConversations, getConversationDetail } from '../src/core/api/client/pagination.js';
 import type { PaginatedDetailResult, PaginationResult } from '../src/core/api/client/pagination.js';
 import type { GeminiProviderClient } from '../src/core/provider/gemini/geminiContracts.js';
@@ -88,4 +92,29 @@ test('adapter: readiness honestly narrows Error and non-Error credential failure
             assert.deepEqual(readiness, { ready: false, error: expected });
         }
     } finally { credentials.resolveCred = original; }
+});
+
+
+test('adapter: prefixed Gemini request IDs use the parser key for admission, resources and readback', async () => {
+    const account = fixtureAccount();
+    const turn = [['c_prefixed_detail', 'r_request'], [1700000000, 0], [['Question']],
+        [[['rc_answer', [['Answer ![image](data:image/png;base64,AQID)']]]]]];
+    const raw = JSON.stringify([['wrb.fr', 'hNvQHb', JSON.stringify([[turn], null, 'Canonical detail'])]]);
+    const parsed = parseGeminiRpcConversation(raw, { account, providerId: 'gemini', targetConvId: 'c_prefixed_detail' });
+    assert.equal(parsed.conversation.index.key.conversationId, 'prefixed_detail');
+    assert.equal(parsed.conversation.detail.assets.length, 1);
+    let requestedId = '';
+    const provider = new GeminiProvider({
+        async getAllConversations() { throw new Error('unexpected list request'); },
+        async getConversationDetail(id) { requestedId = id; return parsed; },
+    });
+    const accepted = await provider.fetchConversationDetail('c_prefixed_detail', { accountId: account.id });
+    assert.equal(requestedId, 'c_prefixed_detail', 'source acquisition receives the caller ID');
+    assert.equal(accepted.conversation.detail.key.conversationId, 'prefixed_detail');
+    assert.deepEqual(await getDetail(accepted.conversation.detail.key), parsed.conversation.detail);
+    assert.deepEqual((await getConversations(account.id)).map(index => index.key.conversationId), ['prefixed_detail']);
+    assert.equal(await getDetail({ accountId: account.id, conversationId: 'c_prefixed_detail' }), null);
+    const asset = accepted.conversation.detail.assets[0];
+    assert.deepEqual(await getDomainResource(storageIdentity('gemini', account.id, 'prefixed_detail'), asset.id), new Uint8Array([1, 2, 3]));
+    assert.equal(await getDomainResource(storageIdentity('gemini', account.id, 'c_prefixed_detail'), asset.id), null);
 });

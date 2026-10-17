@@ -1,3 +1,4 @@
+import { admitFixture } from './helpers/admitFixture.js';
 import { useIndexStorage } from './helpers/indexStorage.js';
 import { indexFixture } from './helpers/indexFixture.js';
 useIndexStorage();
@@ -32,7 +33,7 @@ async function withLiveSaveFolder<T>(fn: (written: Record<string, Uint8Array | s
     const written: Record<string, Uint8Array | string> = {};
     const original = idbStore.getStoredDirHandle;
     idbStore.getStoredDirHandle = async () => mockDirHandle(written);
-    try { return await fn(written); }
+    try { await admitFixture(chat.account.id, chat); return await fn(written); }
     finally { idbStore.getStoredDirHandle = original; }
 }
 

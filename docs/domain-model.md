@@ -29,8 +29,9 @@ UUID-backed default account; it never becomes or merges into an identified accou
 use user > provider > derived, latest admission at equal priority; missing fields
 preserve facts. Creation time takes the earliest source time, activity the latest.
 
-`ingestConversation` is the existing normalized detail admission adapter. It uses
-`selectConversationDetail` through `snapshotAdmission` and merges Index separately.
+`ingestDetail(accountId, conversationId, detail, indexFields?)` admits Detail facts.
+It commits the independently merged Index first, then applies
+`selectConversationDetail` and persists the selected body.
 A new complete snapshot can replace a longer body and its entire asset graph.
 Partial/unknown cannot replace an existing complete body; two incomplete snapshots
 replace by admission order. Comparable older source versions never roll back.
@@ -56,10 +57,11 @@ submits each page before returning control evidence to Sync. Application owns
 ScanRun and stops/cancels; ordinary Scan All requests Recent only. Other L1 and
 Application restructuring is outside this L2 change.
 
-Storage owns locks, physical keys, atomic Account creation and snapshot commits.
-It never chooses titles, bodies or coverage. Its physical envelope can contain
-bytes/bindings and tokens independently of the Domain schema. Cross-medium ACID
-is not promised; required commit failures propagate.
+Storage owns locks, physical keys, atomic Account creation and Detail commits.
+It never chooses titles, bodies or coverage. Index has one independent authority;
+Detail records contain no Index or revision. Acquisition hints/bytes live only in
+execution context outside Domain. Index success followed by Detail failure is
+allowed and the failure propagates; cross-medium ACID is not promised.
 
 AST Composer and JSON receive the admitted Account + matching Index/Detail.
 Domain does not own formatting, export records or delivery. Full L1/Export/PDF v2

@@ -26,11 +26,11 @@ Gemini Exporter 严格遵循 Chrome Extension Manifest V3 规范，将系统解�
 
 本轮 v2 的 L2 以 [Domain 模型](domain-model.md) 与 [Domain 接纳与存储](domain-storage.md) 为当前实现说明；下方全景图中的其他模块尚未全部进行 v2 重构。
 
-L1 Parser 解释来源，Client / Sniffer / Import 提交规范化事实。`core/domain/` 唯一拥有 Account 匹配与 UUID 分配、Index 标题和时间合并、Detail 整体快照选择、内部引用闭合及 StreamCoverage 判断。L2 接纳操作调用 Storage 读写端口；数据库锁、事务和资源 bytes 由 Storage 管理。Application 只控制 ScanRun、取消、停止与进度，不转交主动列表的待接纳内容。
+L1 Parser 解释来源，Client / Sniffer / Import 提交规范化事实。`core/domain/` 唯一拥有 Account 匹配与 UUID 分配、Index 标题和时间合并、Detail 整体快照选择、内部引用闭合及 StreamCoverage 判断。L2 接纳操作调用 Storage 读写端口；数据库锁与事务由 Storage 管理；临时资源 bytes 应由 Acquisition/Export 管理，当前过渡上下文的迁移缺口见 [Domain 接纳与存储](domain-storage.md#pending-cross-module-task-acquisition--export-resource-lifecycle)。Application 只控制 ScanRun、取消、停止与进度，不转交主动列表的待接纳内容。
 
 长期会话事实只有 Account、Index、Detail（内嵌 Assets）；独立列表流 Coverage 只含 `range`。UUID 归属贯穿 L1 接纳、Storage 读取和下游只读装配。标题与活动时间只由 Index 维护，Detail 的 `savedAt` 只表示来源版本。Index-only 不制造正文；partial/unknown 不覆盖旧 complete，完整新快照可以整体变短并替换资源引用图。
 
-`domain/ingestion.ts` 与 `domain/snapshotAdmission.ts` 实施唯一接纳规则；`storage/conversationCatalogStore.ts`、`storage/domain/domainStore.ts`、`storage/accountRegistryStore.ts` 和 `storage/scanCoverageStore.ts` 只提交规则选定的事实。Chrome Storage 与 IndexedDB 之间不承诺跨介质 ACID，必要提交失败必须抛出。
+`domain/ingestion.ts` 通过 `ingestIndexes` / `ingestDetail` 实施唯一接纳规则；`storage/conversationCatalogStore.ts`、`storage/domain/domainStore.ts`、`storage/accountRegistryStore.ts` 和 `storage/scanCoverageStore.ts` 只提交规则选定的事实。Chrome Storage 与 IndexedDB 之间不承诺跨介质 ACID，必要提交失败必须抛出。
 
 `document/compose/` 只组合已接纳的同 Key Index + Detail 与 Account，供 HTML、Markdown、Typst/PDF 使用。JSON 直接序列化同一 Domain + Account，不经过阅读 AST。格式、资源获取和交付生命周期后续单独重构。
 
@@ -227,7 +227,7 @@ graph TD
 | `src/core/engine/writers/fsWriter.ts` | Core: Engine Writers | `FsWriter` (基于 FileSystem API) | 基于现代 FileSystem Access API 直写用户本地磁盘物理文件夹。 | `writerInterface.ts` | 本地磁盘文件与目录树 | `ENG_Writers` |
 | `src/core/engine/assetPipeline.ts` | Core: Engine | `AssetPipeline`（`processAsset`） | 导出时并发下载媒体附件并将其归档至 `assets/` 目录。 | `batchWorker.ts` | 物理媒体文件落盘 | `ENG_Worker` |
 | `src/core/storage/storageService.ts` | Core: Storage | `StorageService` (静态单例) | Account UUID 隔离的物理存储，实现两级存储：local 存储轻量会话元数据索引，自动委托 IndexedDB 承载重轮次详情。 | UI Store, Controllers, SyncEngine | `chrome.storage.local`, `domainStore` | `ST_Service` |
-| `src/core/storage/domain/domainStore.ts` | Core: Storage | `commitDomainConversation`, `getStoredDomain`, `removeStoredDomain` | 执行 L2 提供的快照选择回调，原子保存当前正文与独立资源字节；不拥有正文选择规则。 | `domain/snapshotAdmission.ts` | IndexedDB (`gemini_exporter_domain`) | `ST_Detail` |
+| `src/core/storage/domain/domainStore.ts` | Core: Storage | `getDetail`, `putDetail`, `deleteDetail` | 只持久化 L2 选定的 Detail；不重复保存 Index、revision 或资源 Bytes。 | `domain/ingestion.ts` | IndexedDB (`gemini_exporter_v2`) | `ST_Detail` |
 | `src/core/storage/liveStorageManager.ts` | Core: Storage | `LiveStorageManager`, `getLiveConfig`, `setLiveConfig` | 实时保存配置管理（enabledDisk/format/includeAssets）并代理 `idbHandleStore` 目录句柄。真正实体快照落盘由 `liveSaveHandler`/`liveSaveWriter` 承载。 | `liveSaveCoordinator` | `idbHandleStore.ts`, `chrome.storage.local` | `ST_Live` |
 | `src/core/storage/idbHandleStore.ts` | Core: Storage | `getStoredDirHandle`, `saveStoredDirHandle`, `getMemoryDirHandle`, `setMemoryDirHandle` | `FileSystemDirectoryHandle` 在 IndexedDB 与内存缓存中的唯一真理源 (SSoT)。 | `dirHandleController`, `liveStorageManager`, `liveSaveHandler` | IndexedDB (`gemini_exporter_idb`) | `ST_IDB` |
 | `src/core/storage/schemaMigration.ts` | Core: Storage | `ensureStorageReady` | 当前物理 Schema 的启动检查；不包含旧记录迁移。 | `storageService.ts`, `lifecycle.ts` | `chrome.storage.local` | `ST_Service` |
